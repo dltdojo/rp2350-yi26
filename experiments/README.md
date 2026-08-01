@@ -18,7 +18,8 @@ names:
   0/1. Use it to re-verify a setup you already understand.
 
 Plus a **`README.md`**: what the experiment proves, the manual commands behind
-the scripts, the ideas to take away, and a troubleshooting table.
+the scripts, an **Expected output** section captured from real hardware, the
+ideas to take away, and a troubleshooting table.
 
 ## Index
 

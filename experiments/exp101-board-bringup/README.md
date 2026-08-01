@@ -40,6 +40,39 @@ udisksctl mount -b /dev/sdX1        # 3. mount it (usually auto-mounted on deskt
 cat /media/$USER/RP2350/INFO_UF2.TXT# 4. the bootloader describes itself
 ```
 
+## Expected output
+
+Captured from a real Pico 2 on Ubuntu — yours should look the same (device
+numbers and mount paths will differ):
+
+```console
+$ ./check.sh
+PASS  lsusb installed
+PASS  lsblk installed
+PASS  udisksctl installed
+PASS  Pico 2 in BOOTSEL mode (USB 2e8a:000f)
+PASS  RP2350 boot drive mounted at /media/USER/RP2350
+PASS  INFO_UF2.TXT identifies an RP2350
+
+$ lsusb -d 2e8a:000f
+Bus 001 Device 008: ID 2e8a:000f Raspberry Pi RP2350 Boot
+
+$ lsblk -o NAME,SIZE,LABEL,MOUNTPOINT | grep -B1 RP2350
+sda           128M
+└─sda1        128M RP2350 /media/USER/RP2350
+
+$ cat /media/USER/RP2350/INFO_UF2.TXT
+UF2 Bootloader v1.0
+Model: Raspberry Pi RP2350
+Board-ID: RP2350
+```
+
+Two details worth noticing: the "128M drive" is fake — it is the ROM
+bootloader impersonating a drive, not real storage (the chip has 4 MB of
+flash). And besides `INFO_UF2.TXT` there is an `INDEX.HTM` that redirects to
+the Raspberry Pi site. On a desktop Ubuntu the drive usually auto-mounts, so
+the `udisksctl` step is often unnecessary.
+
 ## The three ideas to take away
 
 1. **BOOTSEL mode is burned into ROM.** Hold the button while plugging in and
