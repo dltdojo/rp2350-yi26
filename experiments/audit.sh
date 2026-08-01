@@ -139,6 +139,21 @@ audit_experiment() {
         concern
     fi
 
+    # -- 3b. Interrupt-disabling BOOTSEL reads --------------------------------
+    if grep -q "^bootsel" "$dir/Cargo.toml" 2>/dev/null; then
+        item "BOOTSEL button reads (interrupts disabled, flash stalled)"
+        value "${YELLOW}present${RESET} — this firmware reads BOOTSEL at runtime"
+        source_ "crates/bootsel dependency in $(basename "$dir")/Cargo.toml"
+        risk "Each read disables interrupts and floats the flash chip-select"
+        echo "              line for ~20 us (measured on a Pico 2). That is a hole in"
+        echo "              interrupt latency, it must never overlap a flash write, and"
+        echo "              on a multi-core build core 1 must not be running from flash."
+        echo "              Fine for a button; wrong inside a tight or timing-critical"
+        echo "              loop."
+        advice "drop the bootsel dependency, or slow the polling interval"
+        concern
+    fi
+
     # -- 4. Panic behaviour ---------------------------------------------------
     item "Behaviour on panic"
     if grep -q "panic_halt" "$dir"/src/*.rs 2>/dev/null; then

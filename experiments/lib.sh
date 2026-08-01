@@ -84,6 +84,12 @@ rp2350_mountpoint() {
 usb_touch_1200() {
     local port="$1"
     [[ -e "$port" ]] || return 1
+    # Set a different rate first. If the port already happens to be at 1200,
+    # asking for 1200 changes nothing, so the host sends no SET_LINE_CODING
+    # and the firmware never hears the request — measured on hardware, not
+    # theoretical. Bouncing via 115200 makes the touch unconditional.
+    stty -F "$port" 115200 > /dev/null 2>&1 || return 1
+    sleep 1
     stty -F "$port" 1200 > /dev/null 2>&1 || return 1
     local i
     for ((i = 0; i < 10; i++)); do

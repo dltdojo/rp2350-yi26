@@ -1,0 +1,56 @@
+[package]
+name = "exp106-bootsel-button"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A board with no user button gets one: read BOOTSEL at runtime to drive the LED"
+
+# Same hardware-verified, stable-Rust dependency set as exp103, plus the USB
+# stack. Cargo.lock is committed — a learner's build should be reproducible.
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+# `rp235xa` selects the 30-GPIO RP2350A package, which is what the official
+# Pico 2 uses. A board built on the 48-GPIO RP2350B (e.g. Pimoroni Pico Plus 2)
+# needs `rp235xb` here instead.
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
+# The USB device stack: descriptors, the control pipe, and the CDC-ACM class.
+embassy-usb = "0.6.0"
+# Lets us hand the USB stack buffers that live for the whole program, safely.
+static_cell = "2.1.1"
+# `write!`-style formatting into a fixed-size buffer — no heap on this chip.
+heapless = "0.8.0"
+# Brings the async `write_all` method into scope for the CDC-ACM sender.
+embedded-io-async = "0.7.0"
+
+# The shared 1200-baud watcher. One copy for the whole repository, so the
+# behaviour cannot drift between experiments. Its own default is switched off
+# here on purpose: the [features] section below decides instead, which makes
+# the choice a build flag rather than an edit to this file.
+usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+
+# Reads the BOOTSEL button at runtime. Small crate, big box of magic — its
+# module docs explain exactly what it does to the QSPI chip-select line.
+bootsel = { path = "../../crates/bootsel" }
+
+[features]
+# Auto-reboot is ON by default. To build a firmware that ignores the
+# 1200-baud touch — so nothing but the BOOTSEL button can reach the
+# bootloader — flip it off at build time, no file edits:
+#
+#   cargo build --release --no-default-features
+#
+default = ["auto-reboot"]
+auto-reboot = ["usb-reboot/auto-reboot"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]

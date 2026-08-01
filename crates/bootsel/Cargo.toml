@@ -1,0 +1,14 @@
+[package]
+name = "bootsel"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Read the RP2350's BOOTSEL button at runtime, so a board with no user button has one"
+
+# Deliberately tiny. This crate pokes registers directly and needs no HAL —
+# which also means it does not have to care whether the binary selected
+# rp235xa or rp235xb.
+[dependencies]
+cortex-m = "0.7.7"
+
+[workspace]
