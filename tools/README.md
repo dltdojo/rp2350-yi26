@@ -1,0 +1,129 @@
+# tools/
+
+Host-side programs. Everything here runs on your computer, not on the board.
+
+## `yi26`
+
+One binary that knows how to find an RP2350 board, read its log, put it into
+BOOTSEL mode, and flash it.
+
+```sh
+cargo run --release --manifest-path tools/yi26/Cargo.toml -- doctor
+# or, once:
+cargo install --path tools/yi26
+yi26 doctor
+```
+
+The experiments call it for you — `experiments/lib.sh` builds it on first use
+if you have not — so there is nothing to install before starting.
+
+### Why it exists
+
+The experiment scripts used to do this work with `lsusb`, `lsblk`,
+`udisksctl`, `stty` and `/dev/serial/by-id`. Those five were the only parts of
+this repository that could not work outside Linux, and they were also the
+parts most likely to behave differently on a machine that is not the one this
+was written on.
+
+They now live in one place, written once. **This is a replacement, not an
+alternative** — there is no shell fallback racing a Rust implementation,
+because two implementations means one of them is wrong and nobody notices.
+
+### It explains itself
+
+Replacing the commands should not mean hiding them. Every subcommand takes
+`--explain`, which prints the equivalent by hand before doing the work:
+
+```console
+$ yi26 bootsel --explain
+# by hand:
+$ stty -F /dev/ttyACM0 115200
+$ sleep 1
+$ stty -F /dev/ttyACM0 1200
+# Two stty calls, not one: if the port already happens to be at 1200, asking
+# for 1200 changes nothing, so no SET_LINE_CODING goes out and the firmware
+# never hears the request. Bouncing via 115200 makes it unconditional.
+...
+```
+
+Where there is no reasonable hand-typed equivalent — `doctor` is the case —
+`--explain` says so and says **why**. "Use the tool" is not an explanation.
+
+### It is built for agents first
+
+The first user of this tool is an AI assistant helping somebody debug: yours,
+or ours. An assistant handed human prose has to guess at it with regular
+expressions. So `--json` is a first-class output on every subcommand, and
+`doctor --json` returns one document with a `problems` array, each entry
+carrying an `id`, a `severity`, and a `fix`:
+
+```console
+$ yi26 doctor --json
+{"tool":"yi26","version":"0.1.0","host":{"os":"linux","arch":"x86_64","verified":true},
+ "toolchain":{"cargo":"...","rustup":"...","elf2flash":"..."},
+ "board":{"state":"running","port":{"path":"/dev/ttyACM0","vid":"0x1209","pid":"0x0001",
+ "product":"exp107 debug logging","serial_number":"107","manufacturer":"rp2350-yi26"}},
+ "boot_drive":null,"problems":[]}
+```
+
+`yi26 log --json` goes further and takes the firmware's own log apart —
+timestamp, dropped-line count, text — one JSON object per line, with a summary
+at the end saying how many lines went missing over what span. That is
+something no combination of `cat` and `grep` was ever going to hand you.
+
+**If you are an AI assistant reading this:** start with `yi26 doctor --json`.
+It is one call and it tells you the platform, whether the toolchain is
+installed, whether a board is attached and in which mode, where its serial
+port and boot drive are, and what is wrong. Then `yi26 log --json --seconds N`
+for what the firmware is actually doing.
+
+### Commands
+
+| Command | Answers |
+| --- | --- |
+| `doctor` | everything observable, plus a `problems` array. Start here. |
+| `state` | one word: `bootsel`, `running`, or `absent` |
+| `port` | the serial port of a board running one of these firmwares |
+| `log` | what the firmware is printing (`--seconds N`, default 10) |
+| `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
+| `drive` | the RP2350 boot drive, mounting it if the system has not |
+| `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
+
+Exit codes: `0` success, `1` not found or failed, `2` usage error. `doctor`
+exits `1` only when it found an `error`-severity problem.
+
+### Verified on Linux only
+
+This is written with portable crates — `nusb` for USB enumeration and
+`serialport` for serial ports, both pure Rust with no system libraries — and
+the platform-specific paths for macOS and Windows are implemented. **Nobody
+has run it on either.** It has been tested on Ubuntu, against a real Pico 2,
+and nowhere else.
+
+That is stated plainly rather than advertised as "cross-platform" because this
+repository does not ship claims it has not checked. If you run it elsewhere, a
+report either way is welcome — `yi26 doctor --json` output is the useful thing
+to include, and it will tell you itself that the host is unverified.
+
+### Dependencies, and one that is deliberately absent
+
+Two crates, both pure Rust:
+
+- **`nusb`** — USB enumeration. A board in BOOTSEL mode has no serial port, so
+  it can only be found this way. No libusb.
+- **`serialport`**, with `default-features = false` — enumeration with USB
+  metadata, opening, and line coding. The default features link `libudev`,
+  which would mean a learner without `libudev-dev` gets a build failure the
+  first time they run a script. That was checked before choosing: without
+  libudev the crate still reports vendor and product IDs on Linux.
+
+There is no `serde` and no `clap`. The JSON shapes here are fixed and few, and
+the argument grammar is a handful of flags; the cost of two more dependencies
+to compile is paid by every learner on first run, and buys little.
+
+### The exception: exp101
+
+`exp101-board-bringup` keeps raw `lsusb`, `lsblk` and `udisksctl` in its
+script, on purpose. It runs *before* exp102 installs Rust, so it cannot depend
+on a tool that has to be compiled — and showing those commands directly is
+what that experiment is for. Every later experiment delegates to `yi26`.

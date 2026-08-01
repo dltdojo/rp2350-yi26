@@ -46,18 +46,30 @@ the official Pico 2 has been verified here.
 
 ## Platform
 
-The scripts are written and tested on **Ubuntu Linux**, and they say so up
-front: on any other platform they stop immediately with an explanation
-instead of failing confusingly halfway through.
+Verified on **Ubuntu Linux** only, against a real Pico 2. The scripts say so
+up front and stop on other platforms rather than failing confusingly halfway
+through.
 
-On a different platform, the supported path is a **port, not a workaround** —
-and this repository is deliberately good input for one: the scripts are
-short, every command is shown and explained, and each experiment ships a
-`check.sh` that verifies the result. Hand an experiment's `run.sh`,
-`check.sh`, and `README.md` to an AI assistant and ask it to translate the
-steps to macOS, Fedora, Arch, or WSL2. Demonstrating that
-small-open-documented code makes AI-assisted porting fast is part of this
-repository's point.
+The parts that used to make that a hard boundary have moved. Finding the
+board, reading its log, triggering the 1200-baud reboot, locating the boot
+drive and flashing it now live in [`tools/yi26`](../tools/README.md), a small
+Rust program written with portable crates. Its macOS and Windows paths are
+implemented; **nobody has run them**, which is why the guard is still there.
+If you try it elsewhere, `yi26 doctor --json` will tell you the host is
+unverified, and a report either way is welcome.
+
+What remains genuinely Linux-bound is smaller than it was: mounting a
+removable drive without root (`udisksctl` — macOS and Windows do it
+automatically), and exp101, which deliberately uses raw `lsusb`, `lsblk` and
+`udisksctl` because it runs before Rust is installed and because showing those
+commands is what that experiment is for.
+
+On a different platform the supported path is still a **port, not a
+workaround**, and this repository is deliberately good input for one: the
+scripts are short, every command is shown, and `yi26 --explain` prints the
+hand-typed equivalent of everything the tool does. Hand an experiment's
+`run.sh`, `check.sh` and `README.md` to an AI assistant and ask it to
+translate the steps.
 
 Running another Linux that is close enough (apt equivalents, udisks2)?
 Acknowledge the difference and proceed: `RP2350_ANY_PLATFORM=1 ./run.sh`.
@@ -84,6 +96,17 @@ Repository-wide, alongside `lib.sh`:
 - **[`audit.sh`](./audit.sh)** — disclosure report. Prints the
   security-relevant choices baked into each firmware, with the evidence for
   each and the risk it carries, so you can decide whether they suit you.
+- **[`../tools/yi26`](../tools/README.md)** — the host-side helper the scripts
+  call to talk to the board. `lib.sh` builds it on first use; there is nothing
+  to install. Run `yi26 doctor` when something is wrong, or
+  `yi26 doctor --json` if the thing debugging is not a person.
+
+Anything platform-specific belongs in the tool, not in a script. That is the
+rule the third one exists to enforce: the shell scripts are the teaching
+narrative, and the tool is the single implementation of the parts that would
+otherwise need one version per operating system. Every subcommand takes
+`--explain` and prints what it stands in for, so replacing the commands does
+not mean hiding them.
 
 ## Security disclosure
 

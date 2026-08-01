@@ -52,7 +52,7 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
     && pass "UF2 family ID is e48bff59 (rp2350-arm-s)" \
     || fail "UF2 family ID is e48bff59 (rp2350-arm-s)" "got: $FAMILY"
 
-if lsusb -d 1209:0001 > /dev/null 2>&1; then
+if [[ "$(yi26 state)" == "running" ]]; then
     pass "board enumerated as 1209:0001"
     PORT="$(exp_serial_port)"
     [[ -n "$PORT" ]] \

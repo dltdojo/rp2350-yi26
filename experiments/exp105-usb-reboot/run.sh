@@ -44,14 +44,7 @@ say "Getting the board into BOOTSEL mode. If the firmware already on it can"
 say "reboot itself, this happens without you; otherwise you get asked."
 ensure_bootsel || die "Board never reached BOOTSEL mode."
 
-MP="$(rp2350_mountpoint)"
-if [[ -z "$MP" ]]; then
-    PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
-    [[ -n "$PART" ]] || die "Board on USB but no RP2350 drive."
-    run_cmd udisksctl mount -b "/dev/${PART}"
-    MP="$(rp2350_mountpoint)"
-    [[ -n "$MP" ]] || die "Mount did not stick."
-fi
+MP="$(rp2350_mount)" || die "Board on USB but no RP2350 drive appeared."
 run_cmd cp "$UF2" "$MP/"
 sync 2>/dev/null || true
 for _ in {1..10}; do in_bootsel || break; sleep 1; done
@@ -71,27 +64,23 @@ say "request to transmit slowly — this firmware reads it as 'put yourself"
 say "into the bootloader'. Nothing is sent; the baud rate IS the message."
 say ""
 say "Keep your hands off the board."
-run_cmd stty -F "$PORT" 1200
+# --explain prints the two stty commands this stands in for, and why it takes
+# two of them. The point of the experiment is the 1200, not the tool.
+run_cmd yi26 bootsel --explain
 
 say "Watching for the bootloader (up to 10 s)..."
 for _ in {1..10}; do in_bootsel && break; sleep 1; done
 in_bootsel || die "Board did not enter BOOTSEL. Is the auto-reboot feature disabled in Cargo.toml?"
 ok "It rebooted itself. The serial port is gone and the RP2350 drive is back —"
 say "  and nobody pressed anything."
-run_cmd lsusb -d 2e8a:000f
+run_cmd yi26 state --explain
 
 # ---------------------------------------------------------------------------
 step 4 "Put it back"
 
 say "The board is sitting in the bootloader, so re-flashing is now just a"
 say "copy — no button, no replugging:"
-MP="$(rp2350_mountpoint)"
-if [[ -z "$MP" ]]; then
-    PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
-    [[ -n "$PART" ]] && udisksctl mount -b "/dev/${PART}" > /dev/null 2>&1 || true
-    MP="$(rp2350_mountpoint)"
-fi
-[[ -n "$MP" ]] || die "Boot drive did not mount."
+MP="$(rp2350_mount)" || die "Boot drive did not mount."
 run_cmd cp "$UF2" "$MP/"
 sync 2>/dev/null || true
 for _ in {1..15}; do PORT="$(exp_serial_port || true)"; [[ -n "$PORT" ]] && break; sleep 1; done

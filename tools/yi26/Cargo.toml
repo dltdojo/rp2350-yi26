@@ -1,0 +1,23 @@
+[package]
+name = "yi26"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Host-side helper for the rp2350-yi26 experiments: find the board, read its log, put it in BOOTSEL, flash it — with machine-readable output"
+
+[dependencies]
+# USB enumeration. Pure Rust, no libusb, no system libraries — a board in
+# BOOTSEL mode has no serial port, so it can only be found this way.
+nusb = "0.2.5"
+
+# Serial ports: enumeration with USB metadata, opening, and line coding.
+#
+# `default-features = false` is load-bearing. The default build links libudev,
+# which means a learner without `libudev-dev` installed gets a build failure
+# on first use — for a tool whose whole job is to make first use work. Without
+# it the crate still reports vendor/product IDs on Linux, which was measured
+# before choosing this, not assumed.
+serialport = { version = "4.9.0", default-features = false }
+
+[profile.release]
+opt-level = "s"

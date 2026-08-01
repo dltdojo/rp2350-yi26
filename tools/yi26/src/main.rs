@@ -1,0 +1,763 @@
+//! `yi26` — the host side of the rp2350-yi26 experiments.
+//!
+//! Everything here used to be a shell function in `experiments/lib.sh`, built
+//! out of `lsusb`, `lsblk`, `udisksctl`, `stty` and `/dev/serial/by-id`. Those
+//! five are the only genuinely Linux-bound parts of this repository, and this
+//! tool replaces them — one implementation instead of one per platform.
+//!
+//! Two things follow from that decision, and both are deliberate:
+//!
+//! **`--explain` prints what the equivalent would be by hand.** Replacing the
+//! shell commands should not mean hiding them: this repository's scripts show
+//! every command they run so that people learn the commands and not the script
+//! names. Where there is no reasonable hand-typed equivalent, `--explain` says
+//! so and says *why*, because "use the tool" is not an explanation.
+//!
+//! **`--json` is a first-class output, not a garnish.** The first user of this
+//! tool is an AI agent helping somebody debug — theirs or ours. An agent given
+//! human prose has to guess with regular expressions; an agent given a
+//! document with a `problems` array can act. Every command supports it.
+//!
+//! Verified on Ubuntu Linux only. The portable crates underneath claim macOS
+//! and Windows support and the code is written for it, but nobody has run it
+//! there — see `tools/README.md`, which says so in the same words.
+
+mod board;
+mod drive;
+mod logread;
+mod out;
+
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use out::{Explanation, Opts};
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// UF2 family ID for rp2350-arm-s, at byte offset 28 of every block.
+const RP2350_FAMILY: u32 = 0xE48B_FF59;
+
+const USAGE: &str = "\
+yi26 — host-side helper for the rp2350-yi26 experiments
+
+usage: yi26 <command> [options]
+
+commands:
+  doctor            report everything observable about host and board
+  state             print one word: bootsel, running, or absent
+  port              print the serial port of a board running these firmwares
+  log               read the firmware's log
+  bootsel           put the board into BOOTSEL mode (1200-baud touch)
+  drive             print the RP2350 boot drive, mounting it if needed
+  flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
+
+options:
+  --json            machine-readable output on stdout (for scripts and agents)
+  --explain         print the equivalent hand-typed commands on stderr, then act
+  --seconds N       how long `log` reads for (default 10)
+  --version, -V
+  --help, -h
+
+exit codes:
+  0  success, or `doctor` found nothing wrong
+  1  the thing asked for was not found, or the operation failed
+  2  usage error
+";
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    std::process::exit(run(&args));
+}
+
+fn run(args: &[String]) -> i32 {
+    let mut opts = Opts::default();
+    let mut seconds: u64 = 10;
+    let mut positional: Vec<String> = Vec::new();
+    let mut i = 0;
+
+    while i < args.len() {
+        match args[i].as_str() {
+            "--json" => opts.json = true,
+            "--explain" => opts.explain = true,
+            "--seconds" => {
+                i += 1;
+                match args.get(i).and_then(|v| v.parse().ok()) {
+                    Some(v) => seconds = v,
+                    None => return usage_error("--seconds needs a number"),
+                }
+            }
+            "--help" | "-h" => {
+                print!("{USAGE}");
+                return 0;
+            }
+            "--version" | "-V" => {
+                println!("yi26 {VERSION}");
+                return 0;
+            }
+            other if other.starts_with('-') => {
+                return usage_error(&format!("unknown option: {other}"))
+            }
+            other => positional.push(other.to_string()),
+        }
+        i += 1;
+    }
+
+    let Some(command) = positional.first().cloned() else {
+        print!("{USAGE}");
+        return 2;
+    };
+
+    match command.as_str() {
+        "doctor" => cmd_doctor(&opts),
+        "state" => cmd_state(&opts),
+        "port" => cmd_port(&opts),
+        "log" => cmd_log(&opts, seconds),
+        "bootsel" => cmd_bootsel(&opts),
+        "drive" => cmd_drive(&opts),
+        "flash" => match positional.get(1) {
+            Some(f) => cmd_flash(&opts, Path::new(f)),
+            None => usage_error("flash needs a .uf2 file"),
+        },
+        other => usage_error(&format!("unknown command: {other}")),
+    }
+}
+
+fn usage_error(msg: &str) -> i32 {
+    eprintln!("yi26: {msg}\n");
+    eprint!("{USAGE}");
+    2
+}
+
+/// Reports a failure in whichever format was asked for.
+fn fail(opts: &Opts, id: &str, msg: &str, fix: &str) -> i32 {
+    if opts.json {
+        println!(
+            "{}",
+            out::obj(&[
+                out::kv_bool("ok", false),
+                out::kv_str("error", id),
+                out::kv_str("message", msg),
+                out::kv_str("fix", fix),
+            ])
+        );
+    } else {
+        eprintln!("yi26: {msg}");
+        if !fix.is_empty() {
+            eprintln!("      try: {fix}");
+        }
+    }
+    1
+}
+
+// ---------------------------------------------------------------------------
+// state
+
+/// One word, no side effects, always exit 0.
+///
+/// `doctor` answers everything; this answers the one question a shell script
+/// asks over and over — and it exists so that scripts do not have to pick
+/// substrings out of JSON, which is exactly the fragile string-matching this
+/// tool is meant to end.
+fn cmd_state(opts: &Opts) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &["lsusb -d 2e8a:000f   # in BOOTSEL?", "lsusb -d 1209:0001   # running?"],
+            notes: &[
+                "Two lsusb calls and an if/elif, on Linux only. The single word printed",
+                "here means a script can branch on board state without parsing anything.",
+            ],
+        },
+    );
+
+    let state = if board::in_bootsel() {
+        "bootsel"
+    } else if board::find_port().is_some() {
+        "running"
+    } else {
+        "absent"
+    };
+
+    if opts.json {
+        println!("{}", out::obj(&[out::kv_str("state", state)]));
+    } else {
+        println!("{state}");
+    }
+    0
+}
+
+// ---------------------------------------------------------------------------
+// port
+
+fn cmd_port(opts: &Opts) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &["ls -l /dev/serial/by-id/", "lsusb -d 1209:0001"],
+            notes: &[
+                "/dev/serial/by-id only exists on Linux, and lsusb only lists USB —",
+                "neither can tell you which tty belongs to which device on other platforms.",
+                "This asks the operating system's own serial enumeration, which reports",
+                "the USB vendor and product behind each port on every platform.",
+            ],
+        },
+    );
+
+    match board::find_port() {
+        Some(p) => {
+            if opts.json {
+                println!("{}", port_json(&p));
+            } else {
+                println!("{}", p.path);
+            }
+            0
+        }
+        None => fail(
+            opts,
+            "no-port",
+            "no board running one of these firmwares is attached",
+            "plug the board in with a data cable, or flash a firmware first (exp103)",
+        ),
+    }
+}
+
+fn port_json(p: &board::Port) -> String {
+    out::obj(&[
+        out::kv_str("path", &p.path),
+        out::kv_str("vid", &format!("0x{:04x}", p.vid)),
+        out::kv_str("pid", &format!("0x{:04x}", p.pid)),
+        out::kv_opt("product", p.product.as_deref()),
+        out::kv_opt("serial_number", p.serial.as_deref()),
+        out::kv_opt("manufacturer", p.manufacturer.as_deref()),
+    ])
+}
+
+// ---------------------------------------------------------------------------
+// log
+
+fn cmd_log(opts: &Opts, seconds: u64) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &["stty -F /dev/ttyACM0 -icrnl", "timeout 10 cat /dev/ttyACM0"],
+            notes: &[
+                "The -icrnl is not optional: the firmware ends lines with CR+LF, and the",
+                "terminal line discipline turns that CR into a second newline, so a plain",
+                "cat shows a blank line after every entry. Opening the device directly, as",
+                "this does, never involves a line discipline at all.",
+                "What has no shell equivalent is --json: parsing timestamps and loss",
+                "markers back out of the text, and reporting how many lines went missing",
+                "over what span. That is the part an agent actually needs.",
+            ],
+        },
+    );
+
+    let Some(p) = board::find_port() else {
+        return fail(
+            opts,
+            "no-port",
+            "no board running one of these firmwares is attached",
+            "yi26 doctor",
+        );
+    };
+
+    match logread::read(&p.path, seconds, opts) {
+        Ok(_) => 0,
+        Err(e) => fail(opts, "read-failed", &e, "check nothing else holds the port: fuser -v <port>"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// bootsel
+
+fn cmd_bootsel(opts: &Opts) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[
+                "stty -F /dev/ttyACM0 115200",
+                "sleep 1",
+                "stty -F /dev/ttyACM0 1200",
+            ],
+            notes: &[
+                "Two stty calls, not one: if the port already happens to be at 1200, asking",
+                "for 1200 changes nothing, so no SET_LINE_CODING goes out and the firmware",
+                "never hears the request. Bouncing via 115200 makes it unconditional.",
+                "This tool changes the rate on an already-open port instead, which is",
+                "unconditional by construction, and holds the port open for a second",
+                "afterwards — the firmware resets 250 ms in, and closing underneath that",
+                "leaves a board that is enumerated and dead (exp105 measured it).",
+                "Only firmware built with crates/usb-reboot responds. exp103 and exp104",
+                "do not, and for those the button is the answer.",
+            ],
+        },
+    );
+
+    if board::in_bootsel() {
+        return bootsel_ok(opts, "already", 0);
+    }
+
+    let Some(p) = board::find_port() else {
+        return fail(
+            opts,
+            "no-port",
+            "no board found — cannot ask it to reboot",
+            "hold BOOTSEL while plugging the board in",
+        );
+    };
+
+    if let Err(e) = board::touch_1200(&p.path) {
+        return fail(opts, "touch-failed", &e, "hold BOOTSEL while plugging the board in");
+    }
+
+    if board::wait_for_bootsel(Duration::from_secs(10)) {
+        bootsel_ok(opts, "1200-baud touch", 0)
+    } else {
+        fail(
+            opts,
+            "no-reboot",
+            "the board did not reach BOOTSEL mode",
+            "this firmware may predate crates/usb-reboot, or was built with \
+             --no-default-features; hold BOOTSEL while plugging in",
+        )
+    }
+}
+
+fn bootsel_ok(opts: &Opts, method: &str, code: i32) -> i32 {
+    if opts.json {
+        println!(
+            "{}",
+            out::obj(&[
+                out::kv_bool("ok", true),
+                out::kv_str("state", "bootsel"),
+                out::kv_str("method", method),
+            ])
+        );
+    } else {
+        println!("board is in BOOTSEL mode ({method})");
+    }
+    code
+}
+
+// ---------------------------------------------------------------------------
+// drive
+
+fn cmd_drive(opts: &Opts) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[
+                "lsblk -rno NAME,LABEL | awk '$2 == \"RP2350\" {print $1}'",
+                "udisksctl mount -b /dev/sdb1",
+                "lsblk -rno LABEL,MOUNTPOINT",
+            ],
+            notes: &[
+                "lsblk is Linux-only, and matching on the volume label trusts a name.",
+                "This looks instead for a mounted filesystem containing INFO_UF2.TXT —",
+                "the file the ROM itself writes — so the drive is identified by what it",
+                "is rather than what it is called, with the same test everywhere.",
+                "Mounting still shells out to udisksctl on Linux: unprivileged mounting",
+                "is the operating system's job, not this tool's. macOS and Windows mount",
+                "removable media on their own and need no equivalent step.",
+            ],
+        },
+    );
+
+    match drive::find_or_mount() {
+        Ok(d) => {
+            if opts.json {
+                println!(
+                    "{}",
+                    out::obj(&[
+                        out::kv_bool("ok", true),
+                        out::kv_str("path", &d.path.to_string_lossy()),
+                        out::kv_opt("info_uf2", d.info.as_deref()),
+                    ])
+                );
+            } else {
+                println!("{}", d.path.display());
+            }
+            0
+        }
+        Err(e) => fail(opts, "no-drive", &e, "yi26 bootsel"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// flash
+
+fn cmd_flash(opts: &Opts, uf2: &Path) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[
+                "od -An -tx4 -j28 -N4 firmware.uf2      # family ID must be e48bff59",
+                "stty -F /dev/ttyACM0 115200; sleep 1; stty -F /dev/ttyACM0 1200",
+                "udisksctl mount -b /dev/sdb1",
+                "cp firmware.uf2 /media/you/RP2350/",
+            ],
+            notes: &[
+                "The copy is the flash: the ROM watches the drive, writes what lands there",
+                "to flash, and reboots — which is why the drive vanishes mid-copy and your",
+                "file manager may complain. That is success, not failure (exp101).",
+                "This checks the family ID before copying, because a UF2 built for another",
+                "chip is silently ignored by the ROM, which looks exactly like a board that",
+                "did not come back.",
+            ],
+        },
+    );
+
+    let bytes = match std::fs::read(uf2) {
+        Ok(b) => b,
+        Err(e) => return fail(opts, "no-file", &format!("cannot read {}: {e}", uf2.display()), "cargo build --release && elf2flash convert -b rp2350 <elf> <uf2>"),
+    };
+    if let Err(e) = check_uf2_family(&bytes) {
+        return fail(opts, "wrong-family", &e, "elf2flash convert -b rp2350 <elf> <uf2>");
+    }
+
+    if !board::in_bootsel() {
+        if let Some(p) = board::find_port() {
+            if let Err(e) = board::touch_1200(&p.path) {
+                return fail(opts, "touch-failed", &e, "hold BOOTSEL while plugging the board in");
+            }
+        }
+        if !board::wait_for_bootsel(Duration::from_secs(10)) {
+            return fail(
+                opts,
+                "no-bootsel",
+                "the board is not in BOOTSEL mode and did not get there on its own",
+                "hold BOOTSEL while plugging the board in",
+            );
+        }
+    }
+
+    let d = match drive::find_or_mount() {
+        Ok(d) => d,
+        Err(e) => return fail(opts, "no-drive", &e, "check that the board is in BOOTSEL mode"),
+    };
+
+    let dest = d.path.join(uf2.file_name().unwrap_or_else(|| std::ffi::OsStr::new("firmware.uf2")));
+    if let Err(e) = std::fs::write(&dest, &bytes) {
+        // The drive disappearing mid-write is the ROM doing its job. Only
+        // report it if the board then fails to come back.
+        let benign = matches!(
+            e.kind(),
+            std::io::ErrorKind::NotFound | std::io::ErrorKind::BrokenPipe
+        ) || e.raw_os_error() == Some(5);
+        if !benign {
+            return fail(opts, "copy-failed", &format!("cannot write {}: {e}", dest.display()), "");
+        }
+    }
+
+    let port = board::wait_for_port(Duration::from_secs(20));
+    match port {
+        Some(p) => {
+            if opts.json {
+                println!(
+                    "{}",
+                    out::obj(&[
+                        out::kv_bool("ok", true),
+                        out::kv_str("flashed", &uf2.display().to_string()),
+                        out::kv_num("bytes", bytes.len() as u64),
+                        out::kv_raw("port", &port_json(&p)),
+                    ])
+                );
+            } else {
+                println!("flashed {} ({} bytes), running at {}", uf2.display(), bytes.len(), p.path);
+            }
+            0
+        }
+        None => fail(
+            opts,
+            "no-return",
+            "the board did not come back as a serial port after flashing",
+            "some firmwares have no USB at all (exp103) — check the LED instead",
+        ),
+    }
+}
+
+fn check_uf2_family(bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() < 32 {
+        return Err("not a UF2 file (too short)".to_string());
+    }
+    let family = u32::from_le_bytes([bytes[28], bytes[29], bytes[30], bytes[31]]);
+    if family == RP2350_FAMILY {
+        Ok(())
+    } else {
+        Err(format!(
+            "UF2 family ID is {family:08x}, expected {RP2350_FAMILY:08x} (rp2350-arm-s) — \
+             this file is for a different chip"
+        ))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// doctor
+
+struct Problem {
+    id: &'static str,
+    severity: &'static str,
+    message: String,
+    fix: &'static str,
+}
+
+fn cmd_doctor(opts: &Opts) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[],
+            notes: &[
+                "There is no single command for this, and composing one out of lsusb,",
+                "lsblk, stty, command -v and ls would produce a page of human-readable",
+                "prose that a program can only consume by guessing at it with regular",
+                "expressions.",
+                "That is the whole reason this subcommand exists: one document, one",
+                "schema, a problems array with an id and a fix for each entry. Run it",
+                "with --json and hand the output to whatever is helping you debug.",
+            ],
+        },
+    );
+
+    let mut problems: Vec<Problem> = Vec::new();
+
+    // -- host ---------------------------------------------------------------
+    let os = std::env::consts::OS;
+    let verified = os == "linux";
+    if !verified {
+        problems.push(Problem {
+            id: "host-unverified",
+            severity: "warn",
+            message: format!(
+                "this tool has been verified on Linux only; you are on {os}, where nobody has run it yet"
+            ),
+            fix: "expect rough edges, and please report what happens",
+        });
+    }
+
+    // -- toolchain ----------------------------------------------------------
+    let cargo = which("cargo");
+    let rustup = which("rustup");
+    let elf2flash = which("elf2flash");
+    if cargo.is_none() {
+        problems.push(Problem {
+            id: "no-cargo",
+            severity: "error",
+            message: "cargo is not on PATH".to_string(),
+            fix: "experiments/exp102-rust-toolchain/run.sh",
+        });
+    }
+    if elf2flash.is_none() {
+        problems.push(Problem {
+            id: "no-elf2flash",
+            severity: "error",
+            message: "elf2flash is not on PATH — nothing can be converted to UF2".to_string(),
+            fix: "cargo install elf2flash",
+        });
+    }
+
+    // -- board --------------------------------------------------------------
+    let bootsel = board::in_bootsel();
+    let port = board::find_port();
+    let state = if bootsel {
+        "bootsel"
+    } else if port.is_some() {
+        "running"
+    } else {
+        "absent"
+    };
+
+    if state == "absent" {
+        problems.push(Problem {
+            id: "no-board",
+            severity: "warn",
+            message: "no RP2350 board found on USB".to_string(),
+            fix: "plug it in with a data cable, not a charge-only one — exp101 explains how to tell",
+        });
+    }
+
+    // -- boot drive ---------------------------------------------------------
+    let boot_drive = drive::find();
+    if bootsel && boot_drive.is_none() {
+        problems.push(Problem {
+            id: "drive-unmounted",
+            severity: "warn",
+            message: "the board is in BOOTSEL mode but its drive is not mounted".to_string(),
+            fix: "yi26 drive",
+        });
+    }
+
+    let worst_is_error = problems.iter().any(|p| p.severity == "error");
+
+    if opts.json {
+        let problems_json: Vec<String> = problems
+            .iter()
+            .map(|p| {
+                out::obj(&[
+                    out::kv_str("id", p.id),
+                    out::kv_str("severity", p.severity),
+                    out::kv_str("message", &p.message),
+                    out::kv_str("fix", p.fix),
+                ])
+            })
+            .collect();
+
+        println!(
+            "{}",
+            out::obj(&[
+                out::kv_str("tool", "yi26"),
+                out::kv_str("version", VERSION),
+                out::kv_raw(
+                    "host",
+                    &out::obj(&[
+                        out::kv_str("os", os),
+                        out::kv_str("arch", std::env::consts::ARCH),
+                        out::kv_bool("verified", verified),
+                    ])
+                ),
+                out::kv_raw(
+                    "toolchain",
+                    &out::obj(&[
+                        out::kv_opt("cargo", cargo.as_deref().map(|p| p.to_str().unwrap_or(""))),
+                        out::kv_opt("rustup", rustup.as_deref().map(|p| p.to_str().unwrap_or(""))),
+                        out::kv_opt(
+                            "elf2flash",
+                            elf2flash.as_deref().map(|p| p.to_str().unwrap_or(""))
+                        ),
+                    ])
+                ),
+                out::kv_raw(
+                    "board",
+                    &out::obj(&[
+                        out::kv_str("state", state),
+                        out::kv_raw(
+                            "port",
+                            &port.as_ref().map(port_json).unwrap_or_else(|| "null".into())
+                        ),
+                    ])
+                ),
+                out::kv_raw(
+                    "boot_drive",
+                    &boot_drive
+                        .as_ref()
+                        .map(|d| out::obj(&[
+                            out::kv_str("path", &d.path.to_string_lossy()),
+                            out::kv_opt("info_uf2", d.info.as_deref()),
+                        ]))
+                        .unwrap_or_else(|| "null".into())
+                ),
+                out::kv_raw("problems", &out::arr(&problems_json)),
+            ])
+        );
+    } else {
+        println!("yi26 doctor {VERSION}");
+        println!();
+        println!("  host");
+        println!(
+            "    os          {os} ({})",
+            if verified { "verified" } else { "NOT verified — see tools/README.md" }
+        );
+        println!("  toolchain");
+        println!("    cargo       {}", show(&cargo));
+        println!("    rustup      {}", show(&rustup));
+        println!("    elf2flash   {}", show(&elf2flash));
+        println!("  board");
+        println!(
+            "    state       {}",
+            match state {
+                "bootsel" => "in BOOTSEL mode — waiting for a .uf2",
+                "running" => "running one of these firmwares",
+                _ => "not found",
+            }
+        );
+        if let Some(p) = &port {
+            println!(
+                "    usb         {:04x}:{:04x}  {}",
+                p.vid,
+                p.pid,
+                p.product.as_deref().unwrap_or("(no product string)")
+            );
+            println!("    port        {}", p.path);
+        }
+        println!("  boot drive");
+        match &boot_drive {
+            Some(d) => {
+                println!("    path        {}", d.path.display());
+                println!("    info        {}", d.info.as_deref().unwrap_or("(none)"));
+            }
+            None => println!("    path        not mounted"),
+        }
+        println!();
+        if problems.is_empty() {
+            println!("  nothing wrong that this tool can see.");
+        } else {
+            for p in &problems {
+                println!("  [{}] {}", p.severity, p.message);
+                if !p.fix.is_empty() {
+                    println!("         try: {}", p.fix);
+                }
+            }
+        }
+    }
+
+    if worst_is_error {
+        1
+    } else {
+        0
+    }
+}
+
+fn show(p: &Option<PathBuf>) -> String {
+    p.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "MISSING".to_string())
+}
+
+/// Finds an executable on PATH. `which` itself is not guaranteed to exist, and
+/// shelling out to it to find out whether we can shell out is silly.
+fn which(cmd: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        let candidate = dir.join(cmd);
+        if is_executable(&candidate) {
+            return Some(candidate);
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let exe = dir.join(format!("{cmd}.exe"));
+            if is_executable(&exe) {
+                return Some(exe);
+            }
+        }
+    }
+    None
+}
+
+fn is_executable(p: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        p.metadata().map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+    }
+    #[cfg(not(unix))]
+    {
+        p.is_file()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn family_id_gate() {
+        let mut good = vec![0u8; 32];
+        good[28..32].copy_from_slice(&RP2350_FAMILY.to_le_bytes());
+        assert!(check_uf2_family(&good).is_ok());
+
+        // An RP2040 UF2 — the ROM would ignore it in silence, which looks
+        // exactly like a board that failed to boot.
+        let mut rp2040 = vec![0u8; 32];
+        rp2040[28..32].copy_from_slice(&0xe48b_ff56u32.to_le_bytes());
+        assert!(check_uf2_family(&rp2040).is_err());
+
+        assert!(check_uf2_family(&[0u8; 4]).is_err());
+    }
+}

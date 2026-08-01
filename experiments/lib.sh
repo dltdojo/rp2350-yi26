@@ -62,97 +62,76 @@ pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
 
 # ---------- RP2350 board helpers -------------------------------------------
+#
+# Everything below delegates to `tools/yi26`, the repository's host-side
+# helper. It used to be shell built out of lsusb, lsblk, udisksctl, stty and
+# /dev/serial/by-id — five things that exist only on Linux, and the only part
+# of this repository that was ever platform-bound.
+#
+# There is one implementation, not one per platform and not a shell version
+# racing a Rust version. Anyone who wants to know what the tool does by hand
+# can ask it: every subcommand takes `--explain` and prints the equivalent
+# commands, including a reason where no equivalent exists.
+#
+# The exception is exp101, which deliberately keeps raw shell. It runs before
+# exp102 installs Rust, so it cannot depend on a tool that has to be compiled —
+# and showing `lsusb` and `udisksctl` directly is that experiment's whole
+# curriculum.
 
-# True when a Pico 2 is enumerated in BOOTSEL mode.
-in_bootsel() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
-
-# Prints the /dev/ttyACM* node of a board running one of this repository's
-# firmwares (USB 1209:0001), if present. Resolved through /dev/serial/by-id so
-# it picks the right port even when other USB serial devices are plugged in.
-exp_serial_port() {
-    local link
-    for link in /dev/serial/by-id/*; do
-        [[ -e "$link" ]] || continue
-        case "$link" in
-            *rp2350-yi26*|*exp104*) readlink -f "$link"; return 0 ;;
-        esac
-    done
-    return 1
+# Runs the helper, building it once if this checkout has not built it yet.
+YI26_BIN=""
+yi26() {
+    if [[ -z "$YI26_BIN" ]]; then
+        # `type -P`, not `command -v`: this function is itself called yi26, and
+        # `command -v` finds functions first — so it would report success,
+        # point this function at itself, and recurse silently until bash gave
+        # up and returned nothing. `type -P` searches PATH for an executable
+        # and nothing else.
+        local installed
+        installed="$(type -P yi26 2>/dev/null || true)"
+        if [[ -n "$installed" ]]; then
+            YI26_BIN="$installed"
+        else
+            local root built
+            root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+            built="$root/tools/yi26/target/release/yi26"
+            if [[ ! -x "$built" ]]; then
+                command -v cargo > /dev/null 2>&1 || {
+                    echo "  ${RED}yi26 helper needs cargo — run exp102 first.${RESET}" >&2
+                    return 127
+                }
+                echo "  ${DIM}building the host helper once: cargo build --release --manifest-path tools/yi26/Cargo.toml${RESET}" >&2
+                cargo build --release --quiet --manifest-path "$root/tools/yi26/Cargo.toml" >&2 || return 1
+            fi
+            YI26_BIN="$built"
+        fi
+    fi
+    "$YI26_BIN" "$@"
 }
+
+# True when a board is sitting in the ROM bootloader.
+in_bootsel() { [[ "$(yi26 state 2>/dev/null)" == "bootsel" ]]; }
+
+# Prints the serial port of a board running one of this repository's firmwares.
+exp_serial_port() { yi26 port 2>/dev/null; }
 
 # Reads a firmware's serial output for N seconds and prints what arrived.
 #
-#   exp_read_log /dev/ttyACM0 15
+#   exp_read_log 15
 #
-# The `-icrnl` is not cosmetic fussiness. These firmwares end lines with CR+LF,
-# which is the convention for serial terminals — and the kernel's default line
-# discipline *also* translates CR to LF on the way in, so a plain `cat` shows a
-# blank line after every entry. The firmware is doing the normal thing; this
-# turns off the host-side duplication. It changes no baud rate, so it triggers
-# no control transfer to the board.
-exp_read_log() {
-    local port="$1" secs="$2"
-    stty -F "$port" -icrnl > /dev/null 2>&1 || true
-    timeout "$secs" cat "$port" 2>/dev/null || true
-}
+# Takes no port argument: the helper finds the board itself, and opens the
+# device directly rather than going through a terminal line discipline that
+# would turn the firmware's CR+LF into a blank line after every entry.
+exp_read_log() { yi26 log --seconds "$1" 2>/dev/null; }
 
-# Prints the mount point of the RP2350 boot drive, if mounted (empty if not).
-rp2350_mountpoint() {
-    lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \
-        | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g'
-}
+# Prints the mount point of the RP2350 boot drive if one is already mounted.
+rp2350_mountpoint() { yi26 drive 2>/dev/null; }
 
-# Mounts the RP2350 boot drive and prints its mount point (diagnostics go to
-# stderr so the caller can capture the path).
-#
-# It waits rather than asking once. The drive does not exist the instant the
-# board enumerates in BOOTSEL mode: the kernel still has to see the USB
-# mass-storage device, read its partition table, and let udev settle. Asking
-# immediately is a race that passes on a warm cache and fails on a cold one —
-# it failed here on the first run of exp107, which is why this is a shared
-# function instead of a copy in each experiment.
-rp2350_mount() {
-    local mp part i
-    for ((i = 0; i < 15; i++)); do
-        mp="$(rp2350_mountpoint)"
-        [[ -n "$mp" ]] && { echo "$mp"; return 0; }
-
-        part="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
-        if [[ -n "$part" ]]; then
-            echo "  ${DIM}\$ udisksctl mount -b /dev/${part}${RESET}" >&2
-            udisksctl mount -b "/dev/${part}" > /dev/null 2>&1
-            mp="$(rp2350_mountpoint)"
-            [[ -n "$mp" ]] && { echo "$mp"; return 0; }
-        fi
-        sleep 1
-    done
-    return 1
-}
-
-# Sends the 1200-baud touch to a serial port, asking a firmware built with
-# crates/usb-reboot to put itself into the ROM bootloader. Returns 0 if the
-# board reached BOOTSEL mode within ~10 s.
-#
-# Nothing is transmitted — the baud rate itself is the signal. Fails
-# harmlessly on firmware that does not implement it (exp103, exp104), which
-# is why callers should fall back to asking for the button.
-usb_touch_1200() {
-    local port="$1"
-    [[ -e "$port" ]] || return 1
-    # Set a different rate first. If the port already happens to be at 1200,
-    # asking for 1200 changes nothing, so the host sends no SET_LINE_CODING
-    # and the firmware never hears the request — measured on hardware, not
-    # theoretical. Bouncing via 115200 makes the touch unconditional.
-    stty -F "$port" 115200 > /dev/null 2>&1 || return 1
-    sleep 1
-    stty -F "$port" 1200 > /dev/null 2>&1 || return 1
-    local i
-    for ((i = 0; i < 10; i++)); do
-        in_bootsel && return 0
-        sleep 1
-    done
-    return 1
-}
+# Mounts the RP2350 boot drive and prints its mount point, waiting for it to
+# appear. The drive does not exist the instant the board enumerates: the kernel
+# has to see the mass storage device, read its partition table, and let udev
+# settle.
+rp2350_mount() { yi26 drive; }
 
 # Gets the board into BOOTSEL mode, automatically if the running firmware
 # supports the 1200-baud touch, otherwise by asking the user. Callers get the
@@ -163,18 +142,15 @@ ensure_bootsel() {
         return 0
     fi
 
-    local port
-    port="$(exp_serial_port || true)"
-    if [[ -n "$port" ]]; then
-        say "A board with our serial port is attached. Trying the 1200-baud"
-        say "touch instead of asking you to press anything:"
-        echo "  ${DIM}\$ stty -F $port 1200${RESET}"
-        if usb_touch_1200 "$port"; then
-            ok "It rebooted itself. No button involved."
-            return 0
-        fi
-        say "No reboot — this firmware predates the 1200-baud watcher."
+    say "Asking the board to reboot itself, instead of asking you to press"
+    say "anything. Add --explain to see what that does by hand:"
+    echo "  ${DIM}\$ yi26 bootsel${RESET}"
+    if yi26 bootsel > /dev/null 2>&1; then
+        ok "It rebooted itself. No button involved."
+        return 0
     fi
+    say "No reboot — this firmware predates the 1200-baud watcher, or was"
+    say "built with --no-default-features."
 
     say "Manual it is: unplug → hold ${BOLD}BOOTSEL${RESET} → plug in → release."
     pause "Do that now."

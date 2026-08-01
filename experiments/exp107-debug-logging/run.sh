@@ -46,7 +46,7 @@ step 2 "Flash it"
 
 ensure_bootsel || die "Board never reached BOOTSEL mode."
 
-MP="$(rp2350_mount)" || die "Board is in BOOTSEL but its drive never appeared. Check: lsblk"
+MP="$(rp2350_mount)" || die "Board is in BOOTSEL but its drive never appeared. Check: yi26 doctor"
 ok "Boot drive at $MP"
 run_cmd cp "$UF2" "$MP/"
 sync 2>/dev/null || true
@@ -77,8 +77,8 @@ say "nobody was listening, then live output."
 say ""
 say "${BOLD}Press BOOTSEL a few times${RESET} during the next 15 seconds — the button"
 say "watcher has been running the whole time and will report each press."
-echo "  ${DIM}\$ stty -F $PORT -icrnl && cat $PORT${RESET}"
-OUT="$(exp_read_log "$PORT" 15)"
+echo "  ${DIM}\$ yi26 log --seconds 15${RESET}"
+OUT="$(exp_read_log 15)"
 [[ -n "$OUT" ]] || die "Nothing came out of $PORT. Is another program holding it? Try: fuser -v $PORT"
 echo "$OUT" | sed 's/^/    /'
 

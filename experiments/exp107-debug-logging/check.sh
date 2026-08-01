@@ -58,7 +58,7 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
     && pass "UF2 family ID is e48bff59 (rp2350-arm-s)" \
     || fail "UF2 family ID is e48bff59 (rp2350-arm-s)" "got: $FAMILY"
 
-if ! lsusb -d 1209:0001 > /dev/null 2>&1; then
+if [[ "$(yi26 state)" != "running" ]]; then
     echo "SKIP  board running exp107 — flash it with ./run.sh (not an error)"
     exit "$FAILED"
 fi
@@ -72,7 +72,7 @@ fi
 pass "serial port present: $PORT"
 
 # Read long enough to catch at least two heartbeats and one probe report.
-OUT="$(exp_read_log "$PORT" 12)"
+OUT="$(exp_read_log 12)"
 
 echo "$OUT" | grep -q 'heartbeat #' \
     && pass "heartbeat task is logging" \

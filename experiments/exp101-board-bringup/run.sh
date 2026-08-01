@@ -30,10 +30,21 @@ for tool in lsusb lsblk udisksctl; do
 done
 ok "lsusb, lsblk, udisksctl all present (stock Ubuntu)"
 
+# exp101 uses raw shell rather than the repository's `yi26` helper, on purpose
+# and by necessity. This experiment runs before exp102 installs Rust, so it
+# cannot depend on a tool that has to be compiled first — and showing `lsusb`,
+# `lsblk` and `udisksctl` directly is what this experiment is *for*. Every
+# later experiment delegates these to the helper; see ../lib.sh.
+bootsel_now() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
+mountpoint_now() {
+    lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \
+        | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g'
+}
+
 # ---------------------------------------------------------------------------
 step 2 "Put the board into BOOTSEL mode"
 
-if in_bootsel; then
+if bootsel_now; then
     ok "Board is already in BOOTSEL mode — skipping the button dance."
 else
     say "The Pico 2 has exactly one button, ${BOLD}BOOTSEL${RESET}, next to the USB port."
@@ -46,8 +57,8 @@ else
     say "  4. Release."
     pause "Do that now."
     say "Watching for the board (up to 10 s)..."
-    for _ in {1..10}; do in_bootsel && break; sleep 1; done
-    if ! in_bootsel; then
+    for _ in {1..10}; do bootsel_now && break; sleep 1; done
+    if ! bootsel_now; then
         bad "No board appeared on USB."
         say "The #1 cause is a charge-only USB cable — it powers the board but"
         say "carries no data. Try a different cable, then a different USB port,"
@@ -67,13 +78,13 @@ say "In BOOTSEL mode the board pretends to be a USB flash drive. Check the"
 say "block devices:"
 run_cmd lsblk -o NAME,SIZE,LABEL,MOUNTPOINT
 
-MP="$(rp2350_mountpoint)"
+MP="$(mountpoint_now)"
 if [[ -z "$MP" ]]; then
     PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
     [[ -n "$PART" ]] || die "Board is on USB but no drive labelled RP2350 showed up. Unplug and redo Step 2."
     say "The drive exists but is not mounted yet. Mounting (no sudo needed):"
     run_cmd udisksctl mount -b "/dev/${PART}"
-    MP="$(rp2350_mountpoint)"
+    MP="$(mountpoint_now)"
     [[ -n "$MP" ]] || die "Mount did not stick. Open the RP2350 drive once in your file manager, then re-run."
 fi
 ok "Boot drive mounted at: $MP"

@@ -65,14 +65,7 @@ else
     ok "Board enumerated."
 fi
 
-MP="$(rp2350_mountpoint)"
-if [[ -z "$MP" ]]; then
-    PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
-    [[ -n "$PART" ]] || die "Board on USB but no RP2350 drive. Unplug and redo this step."
-    run_cmd udisksctl mount -b "/dev/${PART}"
-    MP="$(rp2350_mountpoint)"
-    [[ -n "$MP" ]] || die "Mount did not stick. Open the drive in your file manager, then re-run."
-fi
+MP="$(rp2350_mount)" || die "Board on USB but no RP2350 drive appeared. Unplug and redo this step."
 ok "Boot drive at: $MP"
 
 # ---------------------------------------------------------------------------
@@ -109,7 +102,7 @@ echo
 echo "${GREEN}${BOLD}exp103 complete.${RESET}"
 say ""
 say "Things worth noticing now:"
-say "  1. lsusb shows no board — this firmware has no USB code, and exp101"
+say "  1. yi26 state says absent — this firmware has no USB code, and exp101"
 say "     explained why that is normal. BOOTSEL brings the drive back anytime."
 say "  2. To flash ANY change you must do the button dance again. Feel that"
 say "     friction — a later experiment teaches firmware to reboot itself"

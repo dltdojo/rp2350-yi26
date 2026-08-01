@@ -47,7 +47,7 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
 
 # 4. If the board is already running this firmware, it should be on USB with
 #    a serial port. Not a failure when it isn't — you may not have flashed yet.
-if lsusb -d 1209:0001 > /dev/null 2>&1; then
+if [[ "$(yi26 state)" == "running" ]]; then
     pass "board enumerated as 1209:0001 (exp104 USB serial)"
     PORT="$(exp_serial_port)"
     [[ -n "$PORT" ]] \

@@ -51,14 +51,7 @@ else
     in_bootsel || die "No board on USB (2e8a:000f). Charge-only cable? BOOTSEL released too early?"
 fi
 
-MP="$(rp2350_mountpoint)"
-if [[ -z "$MP" ]]; then
-    PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
-    [[ -n "$PART" ]] || die "Board on USB but no RP2350 drive. Unplug and redo this step."
-    run_cmd udisksctl mount -b "/dev/${PART}"
-    MP="$(rp2350_mountpoint)"
-    [[ -n "$MP" ]] || die "Mount did not stick. Open the drive in your file manager, then re-run."
-fi
+MP="$(rp2350_mount)" || die "Board on USB but no RP2350 drive appeared. Unplug and redo this step."
 run_cmd cp "$UF2" "$MP/"
 sync 2>/dev/null || true
 say "Waiting for the board to reboot (up to 10 s)..."
@@ -71,17 +64,20 @@ step 3 "The difference: the board comes back"
 
 say "After exp103's blink, lsusb showed nothing at all. Watch what happens"
 say "now that the firmware contains a USB stack (up to 10 s)..."
-for _ in {1..10}; do lsusb -d 1209:0001 > /dev/null 2>&1 && break; sleep 1; done
-lsusb -d 1209:0001 > /dev/null 2>&1 || die "Board did not enumerate. Try replugging, then re-run from step 2."
-run_cmd lsusb -d 1209:0001
+for _ in {1..10}; do [[ "$(yi26 state)" == "running" ]] && break; sleep 1; done
+[[ "$(yi26 state)" == "running" ]] || die "Board did not enumerate. Try replugging, then re-run from step 2."
+# --explain prints the lsusb command this is standing in for, so the plain
+# host-side command is still something you see and can type yourself.
+run_cmd yi26 port --explain
 ok "1209:0001 — a pid.codes ID for open-source hardware, set in src/main.rs."
 
 PORT=""
 for _ in {1..10}; do PORT="$(exp_serial_port || true)"; [[ -n "$PORT" ]] && break; sleep 1; done
 [[ -n "$PORT" ]] || die "Enumerated, but no /dev/ttyACM* appeared. Check: dmesg | tail"
 ok "The kernel gave it a serial port: $PORT"
-say "Note it was resolved via /dev/serial/by-id — a stable name, unlike"
-say "ttyACM0, which shifts when other devices are plugged in."
+say "The port was found by asking the operating system which USB device is"
+say "behind each serial port, and matching on our vendor/product ID — not by"
+say "guessing at ttyACM0, which shifts when other devices are plugged in."
 
 # ---------------------------------------------------------------------------
 step 4 "Listen"

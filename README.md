@@ -27,7 +27,10 @@ walkthrough, `check.sh` the quick non-interactive verdict. The
 
 The scripts target Ubuntu and say so up front on any other platform — along
 with the recommended path: hand the experiment's scripts and README to an AI
-assistant and port them to your OS. See
+assistant and port them to your OS. The platform-specific work has been pulled
+into one small Rust program, [`tools/yi26`](./tools/README.md), which the
+scripts build on first use; `yi26 doctor --json` is the fastest way to hand a
+complete picture of your setup to whatever is helping you debug. See
 [Platform](./experiments/README.md#platform).
 
 ## Hardware
@@ -184,6 +187,11 @@ and copy it onto the boot drive the ROM exposes while BOOTSEL is held.
 elf2flash convert -b rp2350 target/thumbv8m.main-none-eabihf/release/NAME out.uf2
 cp out.uf2 /media/$USER/RP2350/
 ```
+
+[`tools/yi26`](./tools/README.md) does the whole cycle in one command —
+`yi26 flash out.uf2` reboots the board into its bootloader, mounts the drive,
+copies, and waits for it to come back — and `--explain` prints the commands
+above so the tool is a convenience rather than a curtain.
 
 [`picotool`](https://github.com/raspberrypi/picotool) does the same job and
 more (`picotool load -x firmware.uf2`), and a Raspberry Pi Debug Probe over SWD
