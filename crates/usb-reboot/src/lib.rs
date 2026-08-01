@@ -45,6 +45,32 @@ pub type UsbDriver = Driver<'static, USB>;
 /// a signal.
 pub const MAGIC_BAUD: u32 = 1200;
 
+/// A plain-text marker stamped into the firmware image recording how this
+/// crate was compiled.
+///
+/// Without it, nothing outside the build could tell an auto-reboot firmware
+/// from one built with the feature off: the two differ only by code that is
+/// no longer there. Reading `Cargo.toml` does not help either — it describes
+/// the *default* build, not the flags whoever produced the `.uf2` actually
+/// used.
+///
+/// So the binary carries the answer itself, in a form `strings` can read:
+///
+/// ```sh
+/// strings firmware.uf2 | grep yi26-cfg
+/// ```
+///
+/// `#[used]` and an explicit section keep the linker from discarding it —
+/// nothing in the program ever reads this string, which normally makes it
+/// dead weight to be optimised away. `experiments/audit.sh` reports it.
+#[used]
+#[unsafe(link_section = ".rodata.yi26_build_marker")]
+pub static BUILD_MARKER: [u8; 24] = *if cfg!(feature = "auto-reboot") {
+    b"yi26-cfg:auto-reboot=on "
+} else {
+    b"yi26-cfg:auto-reboot=off"
+};
+
 /// Watches the host's serial-port settings and reboots into the USB
 /// bootloader when it sees [`MAGIC_BAUD`]. Never returns.
 ///

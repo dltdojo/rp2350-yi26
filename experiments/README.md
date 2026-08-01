@@ -76,6 +76,42 @@ names:
 - **`check.sh`** — the quick verdict. Non-interactive, no prompts, exit code
   0/1. Use it to re-verify a setup you already understand.
 
+Repository-wide, alongside `lib.sh`:
+
+- **[`audit.sh`](./audit.sh)** — disclosure report. Prints the
+  security-relevant choices baked into each firmware, with the evidence for
+  each and the risk it carries, so you can decide whether they suit you.
+
+## Security disclosure
+
+These experiments are tuned for learning, which means convenience settings are
+on by default — most visibly the 1200-baud auto-reboot, which lets any host
+program put your board into its bootloader. That is the right default for
+development and the wrong default for a lot of other places.
+
+Rather than make you hunt for such choices, `./audit.sh` lists them:
+
+```sh
+cd experiments
+./audit.sh                    # every experiment
+./audit.sh exp105-usb-reboot  # just one
+```
+
+Two things make the report trustworthy enough to act on:
+
+- **Every line states its evidence** — which file, which resolved cargo
+  feature, which string inside the `.uf2`. Nothing asks to be taken on faith.
+- **The artifact is ground truth, not the source.** `Cargo.toml` describes
+  what a *default* build would produce; firmwares therefore stamp a plain-text
+  marker into the image recording how they were actually compiled
+  (`strings firmware.uf2 | grep yi26-cfg`). When the two disagree, the report
+  says so loudly — that gap is how someone audits one thing and flashes
+  another.
+
+It is **disclosure, not verification**: it reports declared and observable
+build choices. It cannot tell you what is running on a board right now, and it
+is not a security review of the code. The output says as much, every time.
+
 Plus a **`README.md`**: what the experiment proves, the manual commands behind
 the scripts, an **Expected output** section captured from real hardware, the
 ideas to take away, and a troubleshooting table.
