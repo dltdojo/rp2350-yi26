@@ -1,0 +1,7 @@
+# Pins the toolchain for this crate: stable Rust, plus the cross-compilation
+# target. rustup reads this file and installs anything missing automatically —
+# this is how a repository decides its toolchain instead of depending on
+# whatever the machine happens to have.
+[toolchain]
+channel = "stable"
+targets = ["thumbv8m.main-none-eabihf"]

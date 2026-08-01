@@ -17,13 +17,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib.sh"
 require_supported_platform
 
-in_bootsel() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
-
-boot_mountpoint() {
-    lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \
-        | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g'
-}
-
 echo "${BOLD}exp101 — is my Pico 2 alive?${RESET}"
 say "This walkthrough proves your board, cable, and this computer all work."
 say "It takes about two minutes and changes nothing on the board."
@@ -74,13 +67,13 @@ say "In BOOTSEL mode the board pretends to be a USB flash drive. Check the"
 say "block devices:"
 run_cmd lsblk -o NAME,SIZE,LABEL,MOUNTPOINT
 
-MP="$(boot_mountpoint)"
+MP="$(rp2350_mountpoint)"
 if [[ -z "$MP" ]]; then
     PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
     [[ -n "$PART" ]] || die "Board is on USB but no drive labelled RP2350 showed up. Unplug and redo Step 2."
     say "The drive exists but is not mounted yet. Mounting (no sudo needed):"
     run_cmd udisksctl mount -b "/dev/${PART}"
-    MP="$(boot_mountpoint)"
+    MP="$(rp2350_mountpoint)"
     [[ -n "$MP" ]] || die "Mount did not stick. Open the RP2350 drive once in your file manager, then re-run."
 fi
 ok "Boot drive mounted at: $MP"
@@ -102,8 +95,8 @@ say "     so this board can never be bricked. Unplug → hold BOOTSEL → plug i
 say "     is the recovery loop under every experiment in this repo."
 say "  2. 'lsusb -d 2e8a:000f' is how you ask 'is a Pico 2 in BOOTSEL mode?'"
 say "  3. That RP2350 drive is the flashing interface: copying a .uf2 file"
-say "     onto it writes flash and reboots the board. exp102 does exactly"
-say "     that — with a firmware you build yourself."
+say "     onto it writes flash and reboots the board. exp103 does exactly"
+say "     that — with a firmware you build yourself (exp102 sets up the tools)."
 say ""
 say "You can unplug the board now, or leave it — nothing was changed."
 say "Quick re-verify anytime: ./check.sh"

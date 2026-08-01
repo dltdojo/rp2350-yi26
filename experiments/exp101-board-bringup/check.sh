@@ -28,7 +28,7 @@ else
 fi
 
 # 3. Boot drive visible and mounted
-MP="$(lsblk -rno LABEL,MOUNTPOINT 2>/dev/null | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g')"
+MP="$(rp2350_mountpoint)"
 if [[ -n "$MP" ]]; then
     pass "RP2350 boot drive mounted at $MP"
     # 4. It really is an RP2350

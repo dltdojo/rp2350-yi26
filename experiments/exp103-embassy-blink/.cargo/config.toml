@@ -1,0 +1,11 @@
+# Cargo configuration for this crate only.
+
+[build]
+# Always build for the RP2350's Cortex-M33 — the target you installed in
+# exp102 — so a plain `cargo build` does the right thing.
+target = "thumbv8m.main-none-eabihf"
+
+[target.thumbv8m.main-none-eabihf]
+# Hand the linker the top-level linker script (`link.x`, from cortex-m-rt).
+# It pulls in the RP2350 memory layout provided by the rp2350-linker crate.
+rustflags = ["-C", "link-arg=-Tlink.x"]

@@ -51,6 +51,13 @@ ideas to take away, and a troubleshooting table.
 | --- | --- |
 | [exp101-board-bringup](./exp101-board-bringup/) | The board, cable, and host can see each other (no Rust yet) |
 | [exp102-rust-toolchain](./exp102-rust-toolchain/) | This machine can cross-compile RP2350 firmware (no board needed) |
+| [exp103-embassy-blink](./exp103-embassy-blink/) | Source code becomes a blinking LED — the toolchain end to end |
 
-Planned next: exp103 — write, build, and flash a minimal Embassy blink; the
-LED is the toolchain proven end to end.
+Planned (order not final):
+
+- **boot anatomy** — open the `rp2350-linker` box exp103 deliberately kept
+  closed: hand-write the memory map and the image-definition block the ROM
+  scans for.
+- **defmt/RTT logging** — the firmware's first way to talk back.
+- **USB serial (CDC-ACM)** — the board appears in `lsusb` at last; includes
+  the 1200-baud touch that retires the BOOTSEL button.

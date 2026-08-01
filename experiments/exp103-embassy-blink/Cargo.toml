@@ -1,0 +1,30 @@
+[package]
+name = "exp103-embassy-blink"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The smallest real RP2350 firmware: blink the Pico 2's onboard LED at 1 Hz with Rust + Embassy"
+
+# Versions are pinned to a set verified on real hardware with stable Rust.
+# Cargo.lock is committed too — a learner's build should be reproducible,
+# not a moving target.
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+# Hides the two pieces that make an ELF bootable on the RP2350: the memory
+# layout (where flash and RAM are) and the boot ROM's image-definition block.
+# A future experiment opens this box — see this experiment's README.
+rp2350-linker = "0.2.3"
+
+# Embassy: the async executor, the timer, and the RP2350 HAL.
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
+
+[profile.release]
+opt-level = "s"   # optimize for size — flash is the scarce resource
+lto = true
+codegen-units = 1
+
+[workspace]

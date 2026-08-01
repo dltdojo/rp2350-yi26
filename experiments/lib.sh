@@ -49,6 +49,17 @@ FAILED=0
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
 
+# ---------- RP2350 board helpers -------------------------------------------
+
+# True when a Pico 2 is enumerated in BOOTSEL mode.
+in_bootsel() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
+
+# Prints the mount point of the RP2350 boot drive, if mounted (empty if not).
+rp2350_mountpoint() {
+    lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \
+        | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g'
+}
+
 # ---------- platform guard --------------------------------------------------
 
 # Everything in this repository is written and tested on Ubuntu Linux. Rather
