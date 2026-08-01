@@ -80,6 +80,34 @@ Plus a **`README.md`**: what the experiment proves, the manual commands behind
 the scripts, an **Expected output** section captured from real hardware, the
 ideas to take away, and a troubleshooting table.
 
+## How this repository is developed
+
+One rule governs what reaches GitHub:
+
+> **Nothing is pushed until it has been verified on real hardware.**
+
+Work in progress is committed locally as often as is useful, but a push means
+someone plugged a board in and watched it work. The `Expected output` section
+of each experiment is that verification, pasted in — never hand-written,
+never predicted from what the code "should" do.
+
+This exists because the gap between "it compiles" and "it works" is where
+learners get stranded. An experiment that only ever built cleanly is not
+evidence that a reader following it will succeed; it is a hypothesis. Hardware
+runs also surface things no amount of reading finds — exp104's discovery that
+the firmware stalls mid-write when nothing is draining the serial port came
+out of a real capture, not the source.
+
+Practical consequences:
+
+- Build-only checks (`cargo build`, UF2 conversion) can be verified anywhere,
+  and `check.sh` is written so it passes with or without a board attached.
+- The board-dependent half waits for hardware. If an experiment is committed
+  but not yet verified, its commit message says so plainly.
+- A firmware without USB cannot be rebooted from the host, so flashing the
+  next experiment needs a human on the BOOTSEL button. That is a real cost of
+  the early track, and the reason the 1200-baud experiment is worth reaching.
+
 ## Index
 
 | Experiment | Proves |

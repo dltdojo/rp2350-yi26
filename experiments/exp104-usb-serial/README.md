@@ -39,6 +39,43 @@ ls -l /dev/serial/by-id/                  # stable name for its serial port
 cat /dev/serial/by-id/usb-rp2350-yi26_*   # listen
 ```
 
+## Expected output
+
+Captured from a real Pico 2 on Ubuntu:
+
+```console
+$ ./check.sh
+PASS  toolchain present (cargo, elf2flash)
+PASS  firmware compiles (144148 byte ELF)
+PASS  converts to UF2 (36864 bytes)
+PASS  UF2 family ID is e48bff59 (rp2350-arm-s)
+PASS  board enumerated as 1209:0001 (exp104 USB serial)
+PASS  serial port present: /dev/ttyACM0
+
+$ lsusb -d 1209:0001
+Bus 001 Device 010: ID 1209:0001 Generic pid.codes Test PID
+
+$ ls /dev/serial/by-id/
+usb-rp2350-yi26_exp104_USB_serial_104-if00
+
+$ cat /dev/ttyACM0
+exp104: hello #229 — uptime 309904 ms
+exp104: hello #230 — uptime 310904 ms
+exp104: hello #231 — uptime 332296 ms
+exp104: hello #232 — uptime 333296 ms
+```
+
+The UF2 is 36 KB against exp103's 9.5 KB — that difference is the USB stack.
+
+**Look closely at those uptimes.** Lines #230 and #231 are one count apart but
+21 seconds apart. The counter never skips, so no message was lost; the
+firmware simply *stopped* between them. `write_all` waits when the host is not
+draining the endpoint, so with no reader attached the loop parks mid-write
+until someone opens the port again. Printing is not free, and it is not
+fire-and-forget: a chatty firmware can be held up by a slow or absent reader.
+Worth remembering before you put a `println!`-equivalent in a timing-critical
+loop.
+
 ## The three ideas to take away
 
 1. **One cable, two jobs.** The same USB connection flashes the firmware and
@@ -67,6 +104,7 @@ projects have an honest option.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Nothing arrives from `cat` | Not in the `dialout` group | `sudo usermod -aG dialout $USER`, then log out/in |
+| Nothing arrives, and `cat`/`stty` hangs | Another process still holds the port | `fuser -v /dev/ttyACM0` names it; kill it and retry |
 | No `/dev/ttyACM*` after flashing | Enumeration failed | `dmesg \| tail` right after plugging in |
 | `lsusb` shows nothing at all | Flash did not take | Redo BOOTSEL and re-run `./run.sh` |
 | Output stops when you close the terminal | Normal | The firmware waits for a connection before printing |
