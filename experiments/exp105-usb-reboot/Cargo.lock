@@ -1516,6 +1516,7 @@ name = "usb-reboot"
 version = "0.1.0"
 dependencies = [
  "embassy-rp",
+ "embassy-time",
  "embassy-usb",
 ]
 

@@ -35,6 +35,7 @@
 
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
+use embassy_time::Timer;
 use embassy_usb::class::cdc_acm::{ControlChanged, Receiver};
 
 /// The USB driver type these experiments use. Spelling it out here keeps the
@@ -92,6 +93,22 @@ pub async fn watch(control: ControlChanged<'static>, receiver: Receiver<'static,
         if receiver.line_coding().data_rate() == MAGIC_BAUD {
             #[cfg(feature = "auto-reboot")]
             {
+                // Let the host finish the control transfer that just woke us.
+                //
+                // This delay is not politeness, it is the difference between
+                // working and not. `control_changed()` fires while the host's
+                // SET_LINE_CODING request is still in flight — its status
+                // stage has not completed. Resetting the chip at that instant
+                // tears USB down mid-transfer: the host's `stty` blocks
+                // forever waiting for a status stage that will never come, and
+                // the reboot does not complete either, leaving a board that is
+                // enumerated but dead. Measured, not theorised — see this
+                // experiment's README.
+                //
+                // 250 ms is far more than a control transfer needs and still
+                // imperceptible to a person.
+                Timer::after_millis(250).await;
+
                 // Into the ROM bootloader. The first argument can flash a
                 // GPIO as a USB-activity light; the second can hide the mass
                 // storage or PICOBOOT interfaces. 0, 0 = the plain BOOTSEL

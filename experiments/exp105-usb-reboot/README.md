@@ -77,6 +77,38 @@ $ lsusb -d 2e8a:000f
 The touch does nothing on firmware that is not listening for it. The board
 does not have a magic 1200-baud behaviour; your code does.
 
+And the reboot itself, hands off the board:
+
+```console
+$ stty -F /dev/ttyACM0 1200
+$ lsusb -d 2e8a:000f
+Bus 001 Device 023: ID 2e8a:000f Raspberry Pi RP2350 Boot
+```
+
+Two seconds after the touch, the serial port is gone and the boot drive is
+back. Copying a new `.uf2` onto it brings the firmware back up two seconds
+later — a complete edit-flash cycle with nothing pressed.
+
+## The bug this experiment shipped with, briefly
+
+The first version of this firmware **did not work**, and the way it failed is
+worth keeping.
+
+It called `reset_to_usb_boot()` the instant `control_changed()` fired. That
+turns out to be too soon: the waker fires while the host's `SET_LINE_CODING`
+request is still in flight, before its status stage completes. Resetting the
+chip at that moment tore USB down mid-transfer, and the result was worse than
+not rebooting — the host's `stty` blocked forever waiting for a status stage
+that would never arrive, and the board ended up *enumerated but dead*: still
+listed by `lsusb`, serial port unreadable, and never actually in the
+bootloader.
+
+The fix is the `Timer::after_millis(250)` in
+[`crates/usb-reboot/src/lib.rs`](../../crates/usb-reboot/src/lib.rs): finish
+the conversation, then reboot. Worth internalising as a general shape —
+**tearing down a transport while it is mid-transaction hangs the other end**,
+and USB, being request/response, punishes it particularly clearly.
+
 ## The three ideas to take away
 
 1. **The button was never the only door — it was the only door for firmware
