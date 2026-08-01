@@ -91,14 +91,109 @@ whether a finger is present.
 
 ## Things this does not do
 
-- **No debouncing.** While you hold the button the level is steady, and the
-  few milliseconds of contact bounce at each edge are far too short to see on
-  an LED. A press-to-*toggle* design would need debouncing; that is a fine
-  next exercise.
+- **No debouncing.** See the next section for why this design does not need
+  it and a toggle design would.
 - **No async API.** `is_pressed()` is a plain blocking call, deliberately.
   BOOTSEL has no interrupt, so any `wait_for_press().await` would be a polling
   loop wearing a disguise — and the polling rate is exactly the trade-off you
   should be making consciously.
+
+## If you want press-to-toggle instead
+
+This experiment deliberately stops at *hold to light*. Press-once-on,
+press-again-off is the obvious next step, and it is a genuinely harder
+problem than it looks. This section is the handover: what is already known,
+what will bite, and roughly how to proceed. It is a guide, not tested code —
+nothing below has been run on hardware, and the parts that are reasoning
+rather than measurement are marked.
+
+### Why toggle is harder than follow
+
+*Follow* reads a **level**: while the contact is closed, the pin is low, and
+the LED tracks it. Contact bounce — the few milliseconds of chatter as metal
+settles — produces a flicker far too brief to see, and by the time you are
+holding the button steady, the reading is steady too. Bounce is invisible
+here because the design only cares about the current level.
+
+*Toggle* acts on an **edge**, and every bounce is an edge. One physical press
+that chatters five times becomes five toggles, and whether the LED ends up on
+or off is a coin flip. This is the classic beginner-trap in embedded work,
+and it is not a rare glitch: it happens on most presses, on most switches.
+
+### What you already have, verified
+
+- `bootsel::is_pressed()` returns a stable level and costs **~20.7 µs**
+  (measured on a Pico 2 by this firmware, printed at runtime).
+- A **20 ms polling interval** works comfortably and keeps the interrupt-off
+  duty cycle near 0.1%.
+- Logging must stay gated behind `sender.dtr()`, or an unread serial port
+  parks the loop and the button stops responding — measured in exp104.
+
+### The RP2350-specific trap
+
+The textbook debounce is "sample every 1 ms, require N consecutive agreeing
+samples". **Do not reach for that here.** On a normal GPIO a sample is one
+load instruction; on this button it is ~20.7 µs with interrupts disabled. At
+1 ms polling you would spend about **2% of all time with interrupts off**, and
+20× the interrupt-latency holes, purely to debounce a button. This is the
+cost that makes BOOTSEL different from a real GPIO, and it is exactly where a
+naive port of standard advice goes wrong.
+
+The useful consequence: **the 20 ms poll is already a crude debounce.**
+Typical tactile-switch bounce settles within a few milliseconds, so sampling
+at 20 ms usually steps over it entirely. (Reasoning from general switch
+behaviour — *not* measured on this button.) That makes edge detection at 20 ms
+mostly correct already, with occasional failures when a sample lands inside
+the bounce window.
+
+### A shape that fits this constraint
+
+Detect the edge from the existing 20 ms samples and add a **lockout** rather
+than oversampling — it costs no extra reads:
+
+```rust
+let mut led_on = false;
+let mut was_pressed = false;
+let mut ignore_until = Instant::now();
+
+loop {
+    let pressed = bootsel::is_pressed();
+
+    // Rising edge, and not inside the lockout window after the last one.
+    if pressed && !was_pressed && Instant::now() >= ignore_until {
+        led_on = !led_on;
+        if led_on { led.set_high() } else { led.set_low() }
+        ignore_until = Instant::now() + Duration::from_millis(50);
+    }
+    was_pressed = pressed;
+
+    Timer::after_millis(20).await;
+}
+```
+
+Note the LED is now **firmware state** (`led_on`), not a mirror of the input.
+That is the real structural change: the output no longer follows the world, it
+remembers a decision. If anything else ever drives that LED, the variable
+becomes shared state and needs to live somewhere both owners can reach — which
+is where Embassy's channels and signals start to matter.
+
+### How to know whether it actually works
+
+Do not eyeball it. Count. Log both the physical edges seen and the toggles
+performed, then press the button 20 times deliberately:
+
+- 20 presses → 20 toggles, LED ends **off**: correct.
+- 20 presses → more than 20 toggles: bounce is getting through; lengthen the
+  lockout.
+- 20 presses → fewer: the lockout is swallowing real presses, or the poll is
+  too slow for a quick tap.
+
+And follow this repository's habit: rather than trusting the 50 ms lockout
+above, **measure your own switch**. Log a timestamp on every observed
+transition, press the button a few times, and look at how closely the
+transitions cluster. That number is the one worth designing against — the same
+reason this experiment measures the read cost instead of calling it
+"expensive".
 
 ## Troubleshooting
 

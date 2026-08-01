@@ -44,7 +44,10 @@
 //! - **Core 1 must not be executing from flash** during the read. These
 //!   experiments are single-core, so this does not arise here.
 //! - **It still bounces.** This is a mechanical switch; the hack does not
-//!   change that.
+//!   change that. Level-following designs do not care; edge-triggered ones
+//!   (press to toggle) very much do, and the usual "oversample at 1 ms" cure
+//!   is the wrong medicine here because each sample is expensive. exp106's
+//!   README works through the trade-off.
 //!
 //! The upside: it is the only zero-hardware button an RP2350 board has, and
 //! pressing it at runtime does *not* reboot anything — the ROM only checks it
