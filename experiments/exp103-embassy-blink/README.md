@@ -111,7 +111,12 @@ the button?" promised to fix.
 
 ## Next
 
-The blink proves the pipeline but is mute — you cannot ask it anything. The
-planned next steps: proper logging (defmt/RTT), then USB serial, where the
-board finally talks back — and where the 1200-baud trick retires the BOOTSEL
-button.
+The blink proves the pipeline but is mute — you cannot ask it anything.
+**exp104** gives it a voice over USB serial, with no hardware beyond the cable
+already in your hand, and **exp105** uses that same port for the 1200-baud
+trick that finally retires the BOOTSEL button.
+
+Logging through a debug probe (`defmt` over RTT) is the other way to make
+firmware talk, and it is the better one once you are debugging USB itself. It
+stays an optional side track here because it costs a part you may not own —
+see [Toolchain](../../README.md#toolchain).

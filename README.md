@@ -7,9 +7,10 @@ A scratchpad for exploring the RP2350's USB controller — device classes,
 enumeration behaviour, and the surrounding bring-up work. Rust + Embassy is the
 only stack used here: no C/C++ Pico SDK, no TinyUSB, and no blocking HAL.
 
-> **Status:** early. The first experiment is in — see
-> [experiments/](./experiments/). Later sections of this README still describe
-> the intended shape of the project rather than committed code.
+> **Status:** seven experiments in — board bring-up through non-blocking
+> logging — and nothing is published here until it has run on a real Pico 2.
+> See [experiments/](./experiments/). The [Scope](#scope) list below is still
+> what this repository means to poke at, not a summary of what it has covered.
 
 ## Getting started
 
