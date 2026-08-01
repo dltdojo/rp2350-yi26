@@ -82,6 +82,50 @@ ideas to take away, and a troubleshooting table.
 
 ## How this repository is developed
 
+### Every new experiment starts with an interrogation
+
+No new experiment and no new idea goes straight to a plan or to code. It first
+has to survive a round of questioning against what this repository is for —
+teaching a beginner — and against YAGNI and KISS. The point is to surface the
+contradictions while changing course is still free.
+
+The sequence:
+
+1. **Establish the facts first.** Never offer an option built on an
+   assumption: compile it, run it, read the crate source. Asking "stable or
+   nightly?" is only useful once stable has been proven to build the thing;
+   proposing a BOOTSEL-button experiment is only honest once the compiler has
+   confirmed whether the HAL exposes it.
+2. **Name the contradictions, not the request.** Not a restatement of what was
+   asked, but the specific places where the obvious implementation goes wrong.
+3. **Separate the decisions.** Whatever can be decided from the code, the
+   repo's conventions, or plain judgement gets decided and stated. Only
+   choices where different answers mean *materially different work* become
+   questions.
+4. **Ask two to four focused questions**, each with concrete options and a
+   recommendation.
+5. **Only then** plan and build.
+
+Questions that keep recurring, worth asking of anything new:
+
+- **Scope** — what is the single thing this proves? Is it one experiment or
+  two wearing a trench coat?
+- **Prerequisites** — does this add a hardware or tool requirement? The early
+  track holds to a board and a USB cable (see [Boards](#boards)).
+- **Magic** — what stays hidden behind a labelled one-liner, and what gets
+  opened? (exp103's `rp2350-linker` is the reference case.)
+- **Duplication** — where does this live so it cannot drift out of sync? (see
+  [`lib.sh`](./lib.sh), and the rule that code comments beat README excerpts.)
+- **Exercise** — does the reader do something, or only read?
+
+The gate has teeth. It has already cut the flashing half and ~100 lines of
+script out of exp101, split toolchain setup from the first firmware into
+exp102 and exp103, deleted a vendored binary and the five files that existed
+only to support it, replaced nightly Rust with stable, and demoted picotool
+from required to optional.
+
+### Nothing is pushed unverified
+
 One rule governs what reaches GitHub:
 
 > **Nothing is pushed until it has been verified on real hardware.**
