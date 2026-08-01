@@ -20,6 +20,9 @@ rp2350-linker = "0.2.3"
 # Embassy: the async executor, the timer, and the RP2350 HAL.
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+# `rp235xa` selects the 30-GPIO RP2350A package, which is what the official
+# Pico 2 uses. A board built on the 48-GPIO RP2350B (e.g. Pimoroni Pico Plus 2)
+# needs `rp235xb` here instead.
 embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
 
 [profile.release]

@@ -13,8 +13,8 @@ only stack used here: no C/C++ Pico SDK, no TinyUSB, and no blocking HAL.
 
 ## Getting started
 
-Clone, plug in your Pico 2, and run the first experiment — no Rust toolchain
-needed yet:
+Clone, plug in your RP2350 board, and run the first experiment — no Rust
+toolchain needed yet:
 
 ```sh
 cd experiments/exp101-board-bringup
@@ -41,11 +41,14 @@ microcontroller on the Raspberry Pi Pico 2:
 - 3 PIO blocks / 12 state machines
 - Security features: Arm TrustZone-M, signed boot, OTP
 
-The experiments target the **Pico 2 (non-W)** specifically. The Pico 2 W
-differs in ways that matter here — its onboard LED is wired to the CYW43
-wireless chip rather than GPIO25 — so it is out of scope for now. USB host
-experiments generally need external VBUS supply and a USB A breakout rather
-than the board's own micro-B/USB-C port.
+The experiments run on **any RP2350 board** — the official Raspberry Pi Pico 2
+or a third-party design. Almost everything they touch is chip-level: BOOTSEL,
+the UF2 boot drive, and the USB controller are all in the RP2350's own ROM and
+silicon. Only the LED's GPIO and the package feature (`rp235xa` vs `rp235xb`)
+are board-specific, and both are one-line changes — see
+[Boards](./experiments/README.md#boards). Verification here is on an official
+Pico 2 (non-W). USB host experiments generally need external VBUS supply and a
+USB A breakout rather than the board's own micro-B/USB-C port.
 
 ## Why Rust
 
@@ -158,30 +161,32 @@ rustup target add thumbv8m.main-none-eabihf
 rustup target add riscv32imac-unknown-none-elf
 ```
 
-Embassy tracks Rust and the embedded ecosystem closely; pull current versions
-rather than copying pinned ones out of a README. A `.cargo/config.toml` sets
-the default target and wires `cargo run` to a `probe-rs` invocation, so
-flashing is a normal `cargo run`.
+Everything builds on **stable** Rust — no nightly. Each experiment pins its
+dependency versions and commits its `Cargo.lock`, so a learner's build is
+reproducible rather than a moving target; [exp102](./experiments/exp102-rust-toolchain/)
+installs the toolchain and proves it works.
 
-Logging goes over RTT with [`defmt`](https://defmt.ferrous-systems.com) rather
-than USB serial — the point of these experiments is to break USB, which makes
-USB a poor channel to debug over.
+The firmware's own output goes over **USB serial** ([exp104](./experiments/exp104-usb-serial/)),
+not RTT — that keeps the early track to one USB cable and nothing else to buy.
+`defmt` over RTT is better once you are debugging USB itself, but it needs a
+debug probe, so it is an optional side track rather than the default.
 
 ## Flashing
 
-Drag-and-drop a UF2 onto the mass-storage device exposed while holding BOOTSEL
-at power-on, or use [`picotool`](https://github.com/raspberrypi/picotool), which
-understands the RP2350's UF2 family IDs:
+The default path needs no tools beyond the compiler: convert the ELF to UF2
+and copy it onto the boot drive the ROM exposes while BOOTSEL is held.
+[exp101](./experiments/exp101-board-bringup/) meets that drive;
+[exp103](./experiments/exp103-embassy-blink/) uses it.
 
 ```sh
-picotool load -x firmware.uf2
+elf2flash convert -b rp2350 target/thumbv8m.main-none-eabihf/release/NAME out.uf2
+cp out.uf2 /media/$USER/RP2350/
 ```
 
-Preferred, with a Raspberry Pi Debug Probe over SWD:
-
-```sh
-probe-rs run --chip RP235x firmware.elf
-```
+[`picotool`](https://github.com/raspberrypi/picotool) does the same job and
+more (`picotool load -x firmware.uf2`), and a Raspberry Pi Debug Probe over SWD
+(`probe-rs run --chip RP235x firmware.elf`) skips the bootloader entirely — both
+are useful, neither is required.
 
 ## References
 

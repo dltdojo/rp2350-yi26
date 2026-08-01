@@ -1,6 +1,7 @@
 # exp101-board-bringup — is my Pico 2 alive?
 
-You just bought a Raspberry Pi Pico 2 and plugged it into an Ubuntu machine.
+You just bought an RP2350 board — a Raspberry Pi Pico 2 or a third-party
+equivalent — and plugged it into an Ubuntu machine.
 This experiment proves one thing: **the board, the cable, and the host can see
 each other.** Nothing is flashed; nothing on the board changes.
 
@@ -135,11 +136,12 @@ you are talking to: ROM, not firmware.
 | Still nothing | BOOTSEL released too early | Keep it held until the cable is fully in |
 | Still nothing | Bad port / hub | Plug directly into the machine |
 | Drive won't mount | udisks/polkit quirk | Open the drive once in the file manager, re-run |
-| `INFO_UF2.TXT` says RPI-RP2 | That's a Pico 1 (RP2040) | This repo needs a Pico 2 |
+| `INFO_UF2.TXT` says RPI-RP2 | That's an RP2040 board (Pico 1) | This repo needs an RP2350 |
 
-**Pico 2 W owners:** this experiment works on the W too (same chip, same
-bootloader), but the rest of the repository targets the non-W board — starting
-with exp103, whose LED is on GPIO25 only on the non-W Pico 2.
+**Any RP2350 board works here**, official or not — everything this experiment
+touches lives in the chip's ROM. That includes the Pico 2 W. Board differences
+only start at exp103, where the LED pin matters; see
+[Boards](../README.md#boards).
 
 ## Next
 

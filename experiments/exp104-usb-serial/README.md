@@ -7,7 +7,9 @@ reappears in `lsusb` and prints to your terminal.
 Still no extra hardware. The same USB cable that flashes the firmware now
 carries the conversation — one of the nicer facts about the RP2350.
 
-Needs: a Pico 2 (**non-W**) and the exp102 toolchain.
+Needs: any RP2350 board and the exp102 toolchain. The serial port is a chip
+feature, so this one is board-independent — the LED blink is incidental.
+See [Boards](../README.md#boards).
 
 ## The code IS the walkthrough
 

@@ -4,8 +4,9 @@ exp101 proved the hardware chain, exp102 the compiler. This experiment
 connects them: **source code you can read becomes a light that blinks.**
 Source → ELF → UF2 → boot drive → running firmware, every arrow visible.
 
-Needs: a Pico 2 (**non-W** — its LED is on GPIO 25; the W routes its LED
-through the wireless chip and will stay dark), and the toolchain from exp102.
+Needs: an RP2350 board with a plain LED on a GPIO, and the toolchain from
+exp102. The default `PIN_25` is the official Pico 2's LED — one marked line in
+`src/main.rs` ports it to another board. See [Boards](../README.md#boards).
 
 ## The code IS the walkthrough
 
@@ -73,7 +74,7 @@ function, exactly as exp101 said it would.
 
 2. **Ownership works on hardware.** `embassy_rp::init` hands you the
    peripherals as values that are *moved*, not shared — after
-   `Output::new(p.PIN_25, ...)`, no other code can touch that pin. A whole
+   `Output::new(led_pin, ...)`, no other code can touch that pin. A whole
    class of "two drivers fighting over one peripheral" bugs becomes a compile
    error.
 
@@ -105,7 +106,7 @@ the button?" promised to fix.
 | --- | --- | --- |
 | Build fails | Toolchain incomplete | `../exp102-rust-toolchain/check.sh` names the missing piece |
 | Copy succeeds but drive stays | UF2 rejected (wrong family?) | `./check.sh` — step 4 verifies the family ID |
-| Drive vanished, LED dark | Pico 2 **W** | Non-W board needed for the LED experiments |
+| Drive vanished, LED dark | Wrong LED pin for your board | Change the marked line in `src/main.rs` — see [Boards](../README.md#boards) |
 | Board gone from lsusb after flash | Nothing — that's correct | exp101, takeaway 3 |
 
 ## Next

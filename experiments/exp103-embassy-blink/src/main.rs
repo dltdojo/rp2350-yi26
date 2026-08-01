@@ -48,10 +48,16 @@ async fn main(_spawner: Spawner) {
     // chip at its stock 150 MHz from the crystal.
     let p = embassy_rp::init(Default::default());
 
-    // GPIO 25 is wired to the onboard LED on the Pico 2 (non-W; the W routes
-    // its LED through the wireless chip instead — this is why exp103 needs
-    // the non-W board). Drive it as an output, starting low = LED off.
-    let mut led = Output::new(p.PIN_25, Level::Low);
+    // ── The one board-specific line in this file ──────────────────────────
+    // GPIO 25 is wired to the onboard LED on the official Pico 2 (non-W).
+    // On another RP2350 board, change PIN_25 to whichever GPIO drives its
+    // LED — that is the whole port. Two boards need more than a pin change:
+    // the Pico 2 W routes its LED through the wireless chip, and boards with
+    // an RGB/NeoPixel LED need a PIO driver instead of a plain output.
+    let led_pin = p.PIN_25;
+
+    // Drive it as an output, starting low = LED off.
+    let mut led = Output::new(led_pin, Level::Low);
 
     loop {
         led.set_high(); // LED on

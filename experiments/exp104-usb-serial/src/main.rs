@@ -52,6 +52,10 @@ async fn usb_task(mut device: UsbDevice<'static, Driver<'static, USB>>) -> ! {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
+
+    // Board-specific, as in exp103: the official Pico 2's LED is on GPIO 25.
+    // Change it for your board — or ignore it entirely, since the serial port
+    // this experiment is actually about does not depend on the LED.
     let mut led = Output::new(p.PIN_25, Level::Low);
 
     // 1. The USB driver, fed by the interrupt bound above.

@@ -4,7 +4,42 @@ Step-by-step, numbered experiments for learning RP2350 development on the
 Raspberry Pi Pico 2 with Rust and Embassy. Each proves exactly one thing and
 builds on the ones before it — do them in order, at least the first time.
 
-Assumed setup: a Pico 2 (**non-W**), a USB data cable, and an Ubuntu machine.
+Assumed setup: **any RP2350 board**, a USB data cable, and an Ubuntu machine.
+Written and verified on an official Raspberry Pi Pico 2 (non-W) — see
+[Boards](#boards) for what changes elsewhere.
+
+## Boards
+
+You do not need the official board. BOOTSEL mode, the `RP2350` boot drive, the
+USB ID `2e8a:000f`, and the USB controller all live in the RP2350's own ROM
+and silicon, so they behave identically on any RP2350 design — including the
+RP2350B and RP2354 variants.
+
+Only two things are board-specific, and both are one-line changes:
+
+| What | Default here | Change it when |
+| --- | --- | --- |
+| The LED's GPIO | `PIN_25` (official Pico 2) | Your board wires its LED elsewhere. One clearly-marked line in `src/main.rs`. |
+| The package feature | `rp235xa` (30-GPIO RP2350A) | Your board uses the 48-GPIO **RP2350B** — then `rp235xb` in `Cargo.toml`. |
+
+Per experiment:
+
+| Experiment | Portability |
+| --- | --- |
+| exp101 | Any RP2350 board. Pure ROM behaviour — nothing board-specific at all. |
+| exp102 | Any machine. No board involved. |
+| exp103 | Any RP2350 board with a plain LED on a GPIO (change the pin). |
+| exp104 | Any RP2350 board. The serial port does not depend on the LED. |
+
+Two cases need more than a pin change: the **Pico 2 W** routes its LED through
+the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
+driver rather than a plain output. Both are out of scope for now.
+
+Boards also differ in how you enter BOOTSEL — a button, a jumper, or shorting
+a pad. Whatever the mechanism, the ROM behaviour it triggers is the same.
+
+If you run these on a third-party board, a report either way is welcome: only
+the official Pico 2 has been verified here.
 
 ## Platform
 
