@@ -170,6 +170,8 @@ The firmware's own output goes over **USB serial** ([exp104](./experiments/exp10
 not RTT — that keeps the early track to one USB cable and nothing else to buy.
 `defmt` over RTT is better once you are debugging USB itself, but it needs a
 debug probe, so it is an optional side track rather than the default.
+[exp107](./experiments/exp107-debug-logging/) turns that serial port into a
+log any task can write to without stalling the work it is reporting on.
 
 ## Flashing
 

@@ -40,14 +40,8 @@ say "If the board is running exp105 or later, this needs no button at all —"
 say "the firmware reboots itself. That is exp105 paying for itself."
 ensure_bootsel || die "Board never reached BOOTSEL mode."
 
-MP="$(rp2350_mountpoint)"
-if [[ -z "$MP" ]]; then
-    PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
-    [[ -n "$PART" ]] || die "Board on USB but no RP2350 drive."
-    run_cmd udisksctl mount -b "/dev/${PART}"
-    MP="$(rp2350_mountpoint)"
-    [[ -n "$MP" ]] || die "Mount did not stick."
-fi
+MP="$(rp2350_mount)" || die "Board is in BOOTSEL but its drive never appeared. Check: lsblk"
+ok "Boot drive at $MP"
 run_cmd cp "$UF2" "$MP/"
 sync 2>/dev/null || true
 

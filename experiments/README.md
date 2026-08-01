@@ -32,6 +32,7 @@ Per experiment:
 | exp104 | Any RP2350 board. The serial port does not depend on the LED. |
 | exp105 | Any RP2350 board. Chip-level ROM and USB behaviour only. |
 | exp106 | Any RP2350 board with a plain LED (change the pin) and a BOOTSEL button. |
+| exp107 | Any RP2350 board with a plain LED (change the pin) and a BOOTSEL button. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -200,14 +201,13 @@ Practical consequences:
 | [exp104-usb-serial](./exp104-usb-serial/) | The board talks back over USB CDC-ACM — no extra hardware |
 | [exp105-usb-reboot](./exp105-usb-reboot/) | The firmware puts itself into the bootloader — the button retires |
 | [exp106-bootsel-button](./exp106-bootsel-button/) | BOOTSEL becomes a user button — input drives output, no parts |
+| [exp107-debug-logging](./exp107-debug-logging/) | Three tasks share one serial log — printing that cannot stall the work |
 
 Planned (order not final). The early track holds to one rule: **a Pico 2 and
 a USB cable, nothing else to buy.**
 
 - **USB serial, two-way** — read what the host types, so the keyboard becomes
-  the first input device.
-- **async tasks and channels** — several `#[task]`s, `select`, and passing
-  data between them.
+  the first input device, and wait on two things at once with `select`.
 - **boot anatomy** — open both boxes: hand-write the memory map and the
   image-definition block the ROM scans for, and read BOOTSEL the hard way.
 - **defmt/RTT logging** *(needs a debug probe — optional side track)*.

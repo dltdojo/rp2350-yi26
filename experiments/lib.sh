@@ -30,10 +30,22 @@ run_cmd() {
     "$@" 2>&1 | sed 's/^/    /'
 }
 
-pause()   { read -r -p "  --> $1 Press Enter when done. " _ < /dev/tty; }
+# Both of these read from /dev/tty rather than stdin so they still work when a
+# script's output is being piped somewhere. If there is no terminal at all —
+# run from cron, from another script, from a CI job — they say so and give up
+# rather than dying on an unbound variable.
+pause() {
+    if ! read -r -p "  --> $1 Press Enter when done. " _ 2>/dev/null < /dev/tty; then
+        bad "This step needs a terminal (it is asking you to do something)."
+        exit 3
+    fi
+}
 confirm() {
-    local answer
-    read -r -p "  --> $1 [y/n] " answer < /dev/tty
+    local answer=""
+    if ! read -r -p "  --> $1 [y/n] " answer 2>/dev/null < /dev/tty; then
+        say "(no terminal to ask — treating as 'no')"
+        return 1
+    fi
     [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
 }
 
@@ -68,10 +80,53 @@ exp_serial_port() {
     return 1
 }
 
+# Reads a firmware's serial output for N seconds and prints what arrived.
+#
+#   exp_read_log /dev/ttyACM0 15
+#
+# The `-icrnl` is not cosmetic fussiness. These firmwares end lines with CR+LF,
+# which is the convention for serial terminals — and the kernel's default line
+# discipline *also* translates CR to LF on the way in, so a plain `cat` shows a
+# blank line after every entry. The firmware is doing the normal thing; this
+# turns off the host-side duplication. It changes no baud rate, so it triggers
+# no control transfer to the board.
+exp_read_log() {
+    local port="$1" secs="$2"
+    stty -F "$port" -icrnl > /dev/null 2>&1 || true
+    timeout "$secs" cat "$port" 2>/dev/null || true
+}
+
 # Prints the mount point of the RP2350 boot drive, if mounted (empty if not).
 rp2350_mountpoint() {
     lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \
         | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g'
+}
+
+# Mounts the RP2350 boot drive and prints its mount point (diagnostics go to
+# stderr so the caller can capture the path).
+#
+# It waits rather than asking once. The drive does not exist the instant the
+# board enumerates in BOOTSEL mode: the kernel still has to see the USB
+# mass-storage device, read its partition table, and let udev settle. Asking
+# immediately is a race that passes on a warm cache and fails on a cold one —
+# it failed here on the first run of exp107, which is why this is a shared
+# function instead of a copy in each experiment.
+rp2350_mount() {
+    local mp part i
+    for ((i = 0; i < 15; i++)); do
+        mp="$(rp2350_mountpoint)"
+        [[ -n "$mp" ]] && { echo "$mp"; return 0; }
+
+        part="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
+        if [[ -n "$part" ]]; then
+            echo "  ${DIM}\$ udisksctl mount -b /dev/${part}${RESET}" >&2
+            udisksctl mount -b "/dev/${part}" > /dev/null 2>&1
+            mp="$(rp2350_mountpoint)"
+            [[ -n "$mp" ]] && { echo "$mp"; return 0; }
+        fi
+        sleep 1
+    done
+    return 1
 }
 
 # Sends the 1200-baud touch to a serial port, asking a firmware built with

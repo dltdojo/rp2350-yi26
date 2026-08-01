@@ -154,6 +154,24 @@ audit_experiment() {
         concern
     fi
 
+    # -- 3c. Shared logging facility ------------------------------------------
+    if grep -q "^usb-log" "$dir/Cargo.toml" 2>/dev/null; then
+        item "Shared logging (crates/usb-log)"
+        local calls
+        calls="$(grep -c "log!(" "$dir"/src/*.rs 2>/dev/null | paste -sd+ | bc 2>/dev/null)"
+        value "${YELLOW}present${RESET} — any task in this firmware can write to the serial port"
+        source_ "usb-log dependency in $(basename "$dir")/Cargo.toml, ${calls:-?} log! call site(s)"
+        risk "Logging is one unqualified macro call away from anywhere in the"
+        echo "              program, which is exactly what makes it easy to leak. Whatever"
+        echo "              reaches log! is readable by any local process that can open the"
+        echo "              port — no authentication, no redaction."
+        echo "              The log is also ${BOLD}lossy by design${RESET}: it drops lines when its"
+        echo "              queue fills and reports the count. Useful for debugging, not"
+        echo "              admissible as an audit trail or a security record."
+        advice "grep for 'log!(' and check what each one prints; drop the dependency for production"
+        concern
+    fi
+
     # -- 4. Panic behaviour ---------------------------------------------------
     item "Behaviour on panic"
     if grep -q "panic_halt" "$dir"/src/*.rs 2>/dev/null; then
