@@ -1,0 +1,12 @@
+[package]
+name = "exp102-smoke"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Zero-dependency no_std library whose only job is proving the host can cross-compile for the RP2350's Cortex-M33"
+
+[dependencies]
+# None — on purpose. Proving the toolchain needs no crates, and zero
+# dependencies means this builds instantly and entirely offline.
+
+[workspace]

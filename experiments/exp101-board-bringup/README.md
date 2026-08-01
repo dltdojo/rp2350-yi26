@@ -94,7 +94,7 @@ the `udisksctl` step is often unnecessary.
    removed" complaint from your file manager. That is not a failure — it is
    the success signal. The board took the firmware, rebooted, and is now
    running it; the bootloader (and its fake drive) are simply gone until you
-   next hold BOOTSEL. This experiment stops right before that; **exp102**
+   next hold BOOTSEL. This experiment stops right before that; **exp103**
    builds a firmware with Rust + Embassy, copies it on, and you will see the
    vanishing act live.
 
@@ -115,7 +115,7 @@ into the bootloader":
   involved at all.
 
 All three need something on the board playing along. Your brand-new Pico 2
-has no firmware yet — and exp102's minimal blink has no USB code — so there
+has no firmware yet — and exp103's minimal blink has no USB code — so there
 is nothing to cooperate, and the button is the only door in. That is also
 why the button can never stop working: it is handled by ROM, below any
 firmware.
@@ -136,10 +136,11 @@ you are talking to: ROM, not firmware.
 
 **Pico 2 W owners:** this experiment works on the W too (same chip, same
 bootloader), but the rest of the repository targets the non-W board — starting
-with exp102, whose LED is on GPIO25 only on the non-W Pico 2.
+with exp103, whose LED is on GPIO25 only on the non-W Pico 2.
 
 ## Next
 
-**exp102** — install the Rust toolchain, build a minimal Embassy blink from
-source, and flash it through the drive you just met. The LED turning on is the
-whole toolchain, proven end to end.
+**exp102** — install the Rust cross-compilation toolchain and prove it works,
+no board needed. Then **exp103** builds a minimal Embassy blink and flashes it
+through the drive you just met — the LED turning on is the whole toolchain,
+proven end to end.

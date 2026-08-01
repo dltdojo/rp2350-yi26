@@ -26,6 +26,7 @@ ideas to take away, and a troubleshooting table.
 | Experiment | Proves |
 | --- | --- |
 | [exp101-board-bringup](./exp101-board-bringup/) | The board, cable, and host can see each other (no Rust yet) |
+| [exp102-rust-toolchain](./exp102-rust-toolchain/) | This machine can cross-compile RP2350 firmware (no board needed) |
 
-Planned next: exp102 — build and flash a minimal Embassy blink, proving the
-Rust toolchain end to end.
+Planned next: exp103 — write, build, and flash a minimal Embassy blink; the
+LED is the toolchain proven end to end.
