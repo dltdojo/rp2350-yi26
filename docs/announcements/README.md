@@ -26,3 +26,4 @@ is expected — write a new one.
 | Date | Post | Covers |
 | --- | --- | --- |
 | 2026-08-01 | [六個實驗的段落](./2026-08-01-six-experiments-milestone.md) | exp101 – exp106, no release yet (正體中文) |
+| 2026-08-02 | [把不可攜的部分收成一支工具](./2026-08-02-host-tool-transition.md) | exp101 – exp107 and tools/yi26 (正體中文) |
