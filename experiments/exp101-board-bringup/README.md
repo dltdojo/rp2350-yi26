@@ -88,8 +88,15 @@ the `udisksctl` step is often unnecessary.
 
 3. **The boot drive is the flashing interface.** Copying a `.uf2` firmware
    file onto that drive writes it to flash and reboots the board — flashing
-   is literally a file copy. This experiment stops right before that;
-   **exp102** builds a firmware with Rust + Embassy and copies it on.
+   is literally a file copy. And here is the part that surprises everyone the
+   first time: **the moment the copy finishes, the drive vanishes.** No safe
+   eject, no file appearing on the drive, possibly even a "device was
+   removed" complaint from your file manager. That is not a failure — it is
+   the success signal. The board took the firmware, rebooted, and is now
+   running it; the bootloader (and its fake drive) are simply gone until you
+   next hold BOOTSEL. This experiment stops right before that; **exp102**
+   builds a firmware with Rust + Embassy, copies it on, and you will see the
+   vanishing act live.
 
 ## "But other boards don't need the button?"
 
