@@ -7,10 +7,23 @@ A scratchpad for exploring the RP2350's USB controller — device classes,
 enumeration behaviour, and the surrounding bring-up work. Rust + Embassy is the
 only stack used here: no C/C++ Pico SDK, no TinyUSB, and no blocking HAL.
 
-> **Status:** early. The repository is currently scaffolding only (license,
-> `.gitignore`, and this README). Experiment code is not committed yet, so the
-> layout and commands below describe the intended shape of the project rather
-> than something you can build today.
+> **Status:** early. The first experiment is in — see
+> [experiments/](./experiments/). Later sections of this README still describe
+> the intended shape of the project rather than committed code.
+
+## Getting started
+
+Clone, plug in your Pico 2, and run the first experiment — no Rust toolchain
+needed yet:
+
+```sh
+cd experiments/exp101-board-bringup
+./run.sh
+```
+
+Every experiment is driven the same way: one `run.sh` in its directory that
+checks your setup, walks you through any button presses, and verifies the
+result. The [experiments index](./experiments/README.md) lists them in order.
 
 ## Hardware
 
@@ -23,9 +36,11 @@ microcontroller on the Raspberry Pi Pico 2:
 - 3 PIO blocks / 12 state machines
 - Security features: Arm TrustZone-M, signed boot, OTP
 
-Boards that should work: Pico 2, Pico 2 W, and other RP2350A/RP2350B
-(QFN-60 / QFN-80) designs. USB host experiments generally need external VBUS
-supply and a USB A breakout rather than the board's own micro-B/USB-C port.
+The experiments target the **Pico 2 (non-W)** specifically. The Pico 2 W
+differs in ways that matter here — its onboard LED is wired to the CYW43
+wireless chip rather than GPIO25 — so it is out of scope for now. USB host
+experiments generally need external VBUS supply and a USB A breakout rather
+than the board's own micro-B/USB-C port.
 
 ## Why Rust
 
