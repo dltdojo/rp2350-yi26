@@ -188,6 +188,14 @@ more (`picotool load -x firmware.uf2`), and a Raspberry Pi Debug Probe over SWD
 (`probe-rs run --chip RP235x firmware.elf`) skips the bootloader entirely — both
 are useful, neither is required.
 
+## Announcements
+
+Posts written about this project for social media are kept under
+[`docs/announcements/`](./docs/announcements/), one dated file per post, so
+what was said publicly stays on the record next to the work it describes.
+They are a log rather than documentation — the experiments' own READMEs are
+what is kept current.
+
 ## References
 
 - [Embassy documentation](https://embassy.dev/book/) — the Embassy book
