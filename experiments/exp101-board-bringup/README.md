@@ -91,6 +91,32 @@ the `udisksctl` step is often unnecessary.
    is literally a file copy. This experiment stops right before that;
    **exp102** builds a firmware with Rust + Embassy and copies it on.
 
+## "But other boards don't need the button?"
+
+You may have seen boards (Arduino, ESP32, even Picos in other people's
+videos) reflash again and again without anyone touching a button. That is not
+a different kind of board — it is the **currently-running firmware
+cooperating**. A firmware can offer the host a way to say "reboot yourself
+into the bootloader":
+
+- `picotool reboot` can ask a running firmware to jump back to BOOTSEL mode
+  over USB — if that firmware kept a USB interface alive for it.
+- The *1200-baud touch*: a convention (from Arduino) where opening the
+  firmware's USB serial port at 1200 baud means "reboot to bootloader". The
+  flashing tool does it, the firmware notices and jumps.
+- A debug probe writes flash directly over the SWD pins, no bootloader
+  involved at all.
+
+All three need something on the board playing along. Your brand-new Pico 2
+has no firmware yet — and exp102's minimal blink has no USB code — so there
+is nothing to cooperate, and the button is the only door in. That is also
+why the button can never stop working: it is handled by ROM, below any
+firmware.
+
+A later experiment adds the 1200-baud touch to our own firmware, and the
+button-pressing stops. Until then, every press is a reminder of which layer
+you are talking to: ROM, not firmware.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
