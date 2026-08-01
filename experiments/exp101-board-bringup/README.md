@@ -1,94 +1,79 @@
 # exp101-board-bringup — is my Pico 2 alive?
 
 You just bought a Raspberry Pi Pico 2 and plugged it into an Ubuntu machine.
-Before writing a single line of Rust, this experiment answers one question:
-**does the whole physical chain work — board, cable, USB port, host?**
+This experiment proves one thing: **the board, the cable, and the host can see
+each other.** Nothing is flashed; nothing on the board changes.
 
-No Rust toolchain, no compilation, no sudo. Everything needed is either stock
-Ubuntu or already in this directory.
+No Rust, no toolchain, no sudo. If this passes, every failure in a later
+experiment is a software problem — the physical chain is already ruled out.
 
-## Why start without Rust?
+## Two ways to do it
 
-Deliberately. When something fails later in a Rust + Embassy experiment, you
-want to be certain the failure is in the software stack, not in a broken cable
-or a confused host. This experiment establishes that baseline: after it
-passes, every later failure is a software problem by elimination. Comparing
-"flash someone else's UF2" (this experiment) against "build the same UF2 from
-source" (exp102) is also the first of many comparisons this repository uses as
-a teaching device.
-
-## Requirements
-
-- Raspberry Pi Pico 2 — the **non-W** board. (The Pico 2 W's LED is wired to
-  the wireless chip, not GPIO25, so this experiment's firmware will not blink
-  it. W support may come later.)
-- A USB **data** cable. Charge-only cables are the single most common cause of
-  "my board is dead".
-- Ubuntu 22.04 or 24.04 (any desktop Linux with `lsusb`, `lsblk`, and
-  `udisksctl` will work).
-
-## Run it
+**Guided (recommended the first time):**
 
 ```sh
-cd experiments/exp101-board-bringup
 ./run.sh
 ```
 
-The script is interactive: it tells you when to hold the **BOOTSEL** button
-(the only button on the board, next to the USB connector), when to plug in,
-and what it found at each step. It is safe to re-run any number of times.
+An interactive walkthrough. It tells you exactly when to hold the **BOOTSEL**
+button and shows each command as it runs it, with the output explained — you
+learn the commands without having to type them error-free on the first try.
 
-## What the script does
+**Quick verdict (once you know the drill):**
 
-| Step | What happens | What it proves |
-| --- | --- | --- |
-| 1 | Checks `lsusb`, `lsblk`, `udisksctl` exist | Host has the basics |
-| 2 | Guides you into BOOTSEL mode; waits for USB `2e8a:000f` | Board + cable + port work |
-| 3 | Mounts the `RP2350` drive; prints `INFO_UF2.TXT` | The ROM bootloader is talking to you |
-| 4 | Runs `picotool info` if installed (optional, skipped otherwise) | Host can query the chip |
-| 5 | Copies `assets/blink.uf2` to the drive; waits for reboot | Flashing works |
-| 6 | Asks you to confirm the LED blinks at 1 Hz | The firmware actually runs |
+```sh
+./check.sh
+```
+
+Non-interactive, one screen, exit code 0/1. Use it to re-verify a setup in
+seconds.
+
+## What's actually happening (the manual version)
+
+Everything the scripts do is four commands. Hold BOOTSEL while plugging the
+board in, then:
+
+```sh
+lsusb -d 2e8a:000f                  # 1. is the board enumerated? (2e8a = Raspberry Pi)
+lsblk -o NAME,SIZE,LABEL,MOUNTPOINT # 2. find the drive labelled RP2350
+udisksctl mount -b /dev/sdX1        # 3. mount it (usually auto-mounted on desktop)
+cat /media/$USER/RP2350/INFO_UF2.TXT# 4. the bootloader describes itself
+```
 
 ## The three ideas to take away
 
-1. **BOOTSEL mode is burned into ROM.** Hold BOOTSEL while plugging in and the
-   RP2350 always comes up as a USB drive named `RP2350`, no matter what
-   firmware is on it — even firmware that crashes instantly. You cannot brick
-   this board. This recovery loop (unplug → hold BOOTSEL → plug in) is the
-   safety net under every experiment in this repository.
+1. **BOOTSEL mode is burned into ROM.** Hold the button while plugging in and
+   the RP2350 always comes up as a USB drive — no matter what firmware is in
+   flash, even firmware that crashes instantly. You cannot brick this board.
+   Unplug → hold BOOTSEL → plug in is the recovery loop under everything else
+   in this repository.
 
-2. **Flashing is a file copy.** A `.uf2` file is firmware packaged so that
-   copying it onto the boot drive writes it to flash. The board reboots into
-   it automatically. No flashing tool is strictly required.
+2. **"Enumeration" is the host learning what just got plugged in.** `lsusb`
+   shows the result: vendor ID `2e8a` (Raspberry Pi), product ID `000f`
+   (RP2350 Boot). Watching devices appear and disappear in `lsusb` is a skill
+   you will use in every USB experiment here.
 
-3. **A running board can be invisible.** After flashing, `lsusb` shows
-   nothing: the blink firmware contains no USB code, so the board simply is
-   not a USB device anymore — while being perfectly alive and blinking. "Not
-   in lsusb" does not mean "dead". Later experiments add USB back, one class
-   at a time.
+3. **The boot drive is the flashing interface.** Copying a `.uf2` firmware
+   file onto that drive writes it to flash and reboots the board — flashing
+   is literally a file copy. This experiment stops right before that;
+   **exp102** builds a firmware with Rust + Embassy and copies it on.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Nothing in `lsusb` in Step 2 | Charge-only cable | Use a known data cable |
+| Nothing in `lsusb` | Charge-only USB cable | Use a known **data** cable — this is the #1 dead-board report |
 | Still nothing | BOOTSEL released too early | Keep it held until the cable is fully in |
-| Still nothing | Bad port / hub | Try a direct port on the machine |
-| Drive won't mount in Step 3 | udisks/polkit quirk | Open the drive once in the file manager, re-run |
-| `INFO_UF2.TXT` says RPI-RP2, not RP2350 | That's a Pico 1 (RP2040) | This repo needs a Pico 2 |
-| LED doesn't blink in Step 6 | Pico 2 **W** board | See Requirements above |
+| Still nothing | Bad port / hub | Plug directly into the machine |
+| Drive won't mount | udisks/polkit quirk | Open the drive once in the file manager, re-run |
+| `INFO_UF2.TXT` says RPI-RP2 | That's a Pico 1 (RP2040) | This repo needs a Pico 2 |
 
-## About `assets/blink.uf2`
-
-The prebuilt firmware is built from `assets/blink-src/` — a minimal Rust +
-Embassy program in this repository, licensed Apache-2.0 like everything else
-here. You do not need to build it for this experiment; exp102 is where you
-build it yourself and compare. See [assets/README.md](./assets/README.md) for
-provenance and rebuild instructions.
+**Pico 2 W owners:** this experiment works on the W too (same chip, same
+bootloader), but the rest of the repository targets the non-W board — starting
+with exp102, whose LED is on GPIO25 only on the non-W Pico 2.
 
 ## Next
 
-**exp102** installs the Rust toolchain and builds this exact same blink from
-source. Same LED, same 1 Hz — the only thing that changes is where the UF2
-comes from. The diff between "copied a file" and "compiled, linked, and
-converted an ELF" is the entire toolchain, made visible.
+**exp102** — install the Rust toolchain, build a minimal Embassy blink from
+source, and flash it through the drive you just met. The LED turning on is the
+whole toolchain, proven end to end.

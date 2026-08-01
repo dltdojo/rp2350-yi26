@@ -21,9 +21,9 @@ cd experiments/exp101-board-bringup
 ./run.sh
 ```
 
-Every experiment is driven the same way: one `run.sh` in its directory that
-checks your setup, walks you through any button presses, and verifies the
-result. The [experiments index](./experiments/README.md) lists them in order.
+Every experiment is driven the same way: `run.sh` is the interactive
+walkthrough, `check.sh` the quick non-interactive verdict. The
+[experiments index](./experiments/README.md) lists them in order.
 
 ## Hardware
 

@@ -1,32 +1,30 @@
 # Experiments
 
 Step-by-step, numbered experiments for learning RP2350 development on the
-Raspberry Pi Pico 2 with Rust and Embassy. Each experiment builds on the ones
-before it — do them in order, at least the first time.
+Raspberry Pi Pico 2 with Rust and Embassy. Each proves exactly one thing and
+builds on the ones before it — do them in order, at least the first time.
 
-Not every experiment is Rust: the early ones deliberately use plain host tools
-first, so that each new layer (toolchain, USB class, async structure) is
-introduced against a working baseline and the *comparison* itself teaches.
+Assumed setup: a Pico 2 (**non-W**), a USB data cable, and an Ubuntu machine.
 
 ## Conventions
 
-Every experiment directory looks the same:
+Every experiment directory contains the same two scripts, always with these
+names:
 
-- **`run.sh`** — the one command you run. Always this name, in every
-  experiment. It checks prerequisites, guides you through any manual steps
-  (button presses, replugging), and verifies the result.
-- **`README.md`** — what the experiment does, why it exists, what to take
-  away, and a troubleshooting table.
-- **`assets/`** — anything prebuilt the experiment needs, always with
-  provenance and rebuild instructions.
+- **`run.sh`** — the interactive walkthrough. It guides you through every
+  manual step (button presses, replugging), runs each command visibly, and
+  explains the output. Use it the first time through.
+- **`check.sh`** — the quick verdict. Non-interactive, no prompts, exit code
+  0/1. Use it to re-verify a setup you already understand.
 
-All experiments assume a Pico 2 (**non-W**) and an Ubuntu host, per exp101.
+Plus a **`README.md`**: what the experiment proves, the manual commands behind
+the scripts, the ideas to take away, and a troubleshooting table.
 
 ## Index
 
-| Experiment | Question it answers |
+| Experiment | Proves |
 | --- | --- |
-| [exp101-board-bringup](./exp101-board-bringup/) | Is my board, cable, and host actually working? (no Rust yet) |
+| [exp101-board-bringup](./exp101-board-bringup/) | The board, cable, and host can see each other (no Rust yet) |
 
-More to come — the planned track continues with building the same blink from
-source with Rust + Embassy, then defmt/RTT logging, then USB serial.
+Planned next: exp102 — build and flash a minimal Embassy blink, proving the
+Rust toolchain end to end.

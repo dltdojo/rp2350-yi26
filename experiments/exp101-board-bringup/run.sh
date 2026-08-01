@@ -1,246 +1,128 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp101-board-bringup — interactive bring-up check for a Raspberry Pi Pico 2
-# on an Ubuntu host.
+# exp101 interactive walkthrough — puts your Pico 2 into BOOTSEL mode and
+# shows you what the host sees at each step, with the actual commands printed
+# so you can learn them as they run. Nothing is flashed; nothing on the board
+# changes. Safe to re-run any number of times.
 #
-# What it does, in order:
-#   1. Checks the host has the tools this script needs (all stock Ubuntu).
-#   2. Guides you into BOOTSEL mode and confirms the board enumerates.
-#   3. Finds the RP2350 bootloader drive and shows INFO_UF2.TXT.
-#   4. (Optional) Shows `picotool info` if picotool happens to be installed.
-#   5. Flashes the prebuilt assets/blink.uf2 and confirms the board rebooted.
-#   6. Asks you to confirm the LED is blinking, then prints a summary.
-#
-# No sudo, no Rust toolchain, no compilation. Run it from this directory:
 #   ./run.sh
+#
+# In a hurry, or checking a setup you already understand? ./check.sh gives
+# a one-screen pass/fail verdict with no interaction.
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UF2="${SCRIPT_DIR}/assets/blink.uf2"
+BOLD=$'\e[1m'; GREEN=$'\e[32m'; RED=$'\e[31m'; DIM=$'\e[2m'; RESET=$'\e[0m'
 
-BOOTSEL_VIDPID="2e8a:000f"   # Raspberry Pi RP2350 Boot
-DRIVE_LABEL="RP2350"
+say()  { echo "  $1"; }
+ok()   { echo "  ${GREEN}✔${RESET} $1"; }
+bad()  { echo "  ${RED}✘${RESET} $1"; }
+step() { echo; echo "${BOLD}== Step $1: $2${RESET}"; }
 
-# ---------- output helpers -------------------------------------------------
-
-BOLD=$'\e[1m'; GREEN=$'\e[32m'; RED=$'\e[31m'; YELLOW=$'\e[33m'; RESET=$'\e[0m'
-
-RESULTS=()
-
-pass() { echo "  ${GREEN}PASS${RESET}  $1"; RESULTS+=("PASS  $1"); }
-fail() { echo "  ${RED}FAIL${RESET}  $1"; RESULTS+=("FAIL  $1"); }
-skip() { echo "  ${YELLOW}SKIP${RESET}  $1"; RESULTS+=("SKIP  $1"); }
-info() { echo "        $1"; }
-
-step() {
-    echo
-    echo "${BOLD}== Step $1: $2${RESET}"
+# Show the command being run, then run it — so the user learns the command,
+# not just the script name.
+run_cmd() {
+    echo "  ${DIM}\$ $*${RESET}"
+    "$@" 2>&1 | sed 's/^/    /'
 }
+
+pause() { read -r -p "  --> $1 Press Enter when done. " _ < /dev/tty; }
 
 die() {
     echo
-    echo "${RED}${BOLD}Stopping here.${RESET} $1"
-    echo "Fix the issue above and re-run ./run.sh — it is safe to run any number of times."
+    bad "$1"
+    say "Fix that and run ./run.sh again — re-running is always safe."
     exit 1
 }
 
-prompt_enter() {
-    # Reads from the terminal even if stdin is redirected.
-    read -r -p "        --> $1 Press Enter when done. " _ < /dev/tty
-}
+in_bootsel() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
 
-prompt_yn() {
-    local answer
-    read -r -p "        --> $1 [y/n] " answer < /dev/tty
-    [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
-}
-
-# ---------- device helpers -------------------------------------------------
-
-in_bootsel() { lsusb -d "${BOOTSEL_VIDPID}" > /dev/null 2>&1; }
-
-# Prints the block device (e.g. sda1) carrying the RP2350 boot drive, if any.
-boot_partition() {
-    lsblk -rno NAME,LABEL 2>/dev/null | awk -v l="${DRIVE_LABEL}" '$2 == l {print $1; exit}'
-}
-
-# Prints the mount point of the RP2350 boot drive, if mounted.
 boot_mountpoint() {
     lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \
-        | awk -v l="${DRIVE_LABEL}" '$1 == l && $2 != "" {print $2; exit}' \
-        | sed 's/\\x20/ /g'
+        | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g'
 }
 
-wait_for() {
-    # wait_for <seconds> <function> — polls once a second.
-    local seconds="$1" fn="$2" i
-    for ((i = 0; i < seconds; i++)); do
-        if "$fn"; then return 0; fi
-        sleep 1
-    done
-    "$fn"
-}
+echo "${BOLD}exp101 — is my Pico 2 alive?${RESET}"
+say "This walkthrough proves your board, cable, and this computer all work."
+say "It takes about two minutes and changes nothing on the board."
 
-bootsel_gone() { ! in_bootsel; }
+# ---------------------------------------------------------------------------
+step 1 "Host tools"
 
-# ---------- Step 1: host tools ---------------------------------------------
-
-step 1 "Check host tools"
-
-HOST_OK=1
 for tool in lsusb lsblk udisksctl; do
-    if command -v "$tool" > /dev/null 2>&1; then
-        pass "$tool found"
-    else
-        fail "$tool not found"
-        HOST_OK=0
-    fi
+    command -v "$tool" > /dev/null \
+        || die "'$tool' is missing. Install with: sudo apt install usbutils util-linux udisks2"
 done
-if [[ $HOST_OK -eq 0 ]]; then
-    info "On Ubuntu: sudo apt install usbutils util-linux udisks2"
-    die "Missing host tools."
-fi
+ok "lsusb, lsblk, udisksctl all present (stock Ubuntu)"
 
-if [[ ! -f "$UF2" ]]; then
-    fail "assets/blink.uf2 not found"
-    die "The prebuilt firmware is missing — did the clone complete? See assets/README.md to rebuild it."
-fi
-pass "assets/blink.uf2 present ($(stat -c%s "$UF2") bytes)"
-
-# ---------- Step 2: get the board into BOOTSEL mode ------------------------
-
-step 2 "Put the Pico 2 into BOOTSEL mode"
+# ---------------------------------------------------------------------------
+step 2 "Put the board into BOOTSEL mode"
 
 if in_bootsel; then
-    pass "Board is already in BOOTSEL mode (USB ${BOOTSEL_VIDPID})"
+    ok "Board is already in BOOTSEL mode — skipping the button dance."
 else
-    info "The Pico 2 has one button, labelled ${BOLD}BOOTSEL${RESET}, next to the USB connector."
-    info "1. Unplug the board (if plugged in)."
-    info "2. Hold the BOOTSEL button down."
-    info "3. While holding it, plug the USB cable into this computer."
-    info "4. Release the button."
-    prompt_enter "Do that now."
-    echo "        Waiting up to 10 s for the board to enumerate..."
-    if wait_for 10 in_bootsel; then
-        pass "Board enumerated as USB ${BOOTSEL_VIDPID} (Raspberry Pi RP2350 Boot)"
-    else
-        fail "No USB device ${BOOTSEL_VIDPID} appeared"
-        info "Most common cause: a charge-only USB cable. Try a different cable —"
-        info "it must be a data cable. Also try another USB port, and make sure"
-        info "you keep BOOTSEL held until AFTER the cable is plugged in."
+    say "The Pico 2 has exactly one button, ${BOLD}BOOTSEL${RESET}, next to the USB port."
+    say "Holding it during power-up tells the chip's built-in ROM bootloader to"
+    say "present itself as a USB drive instead of running whatever is in flash."
+    say ""
+    say "  1. Unplug the board if it is plugged in."
+    say "  2. Hold BOOTSEL down."
+    say "  3. Plug the cable in ${BOLD}while holding${RESET} the button."
+    say "  4. Release."
+    pause "Do that now."
+    say "Watching for the board (up to 10 s)..."
+    for _ in {1..10}; do in_bootsel && break; sleep 1; done
+    if ! in_bootsel; then
+        bad "No board appeared on USB."
+        say "The #1 cause is a charge-only USB cable — it powers the board but"
+        say "carries no data. Try a different cable, then a different USB port,"
+        say "and keep BOOTSEL held until the cable is fully plugged in."
         die "Board not detected."
     fi
 fi
-info "lsusb says: $(lsusb -d ${BOOTSEL_VIDPID})"
 
-# ---------- Step 3: find the boot drive and read INFO_UF2.TXT --------------
+say "Here is how the host sees it — this is USB enumeration:"
+run_cmd lsusb -d 2e8a:000f
+ok "Vendor 2e8a is Raspberry Pi; product 000f is 'RP2350 Boot'."
 
-step 3 "Find the RP2350 boot drive"
+# ---------------------------------------------------------------------------
+step 3 "The boot drive"
 
-PART="$(boot_partition || true)"
-if [[ -z "$PART" ]]; then
-    fail "No block device labelled ${DRIVE_LABEL} found"
-    die "The board enumerated but no boot drive appeared. Unplug, redo Step 2, and re-run."
-fi
-pass "Boot drive found: /dev/${PART}"
+say "In BOOTSEL mode the board pretends to be a USB flash drive. Check the"
+say "block devices:"
+run_cmd lsblk -o NAME,SIZE,LABEL,MOUNTPOINT
 
-MP="$(boot_mountpoint || true)"
+MP="$(boot_mountpoint)"
 if [[ -z "$MP" ]]; then
-    info "Drive is not mounted yet — asking udisks to mount it (no sudo needed)..."
-    udisksctl mount -b "/dev/${PART}" > /dev/null
-    MP="$(boot_mountpoint || true)"
+    PART="$(lsblk -rno NAME,LABEL 2>/dev/null | awk '$2 == "RP2350" {print $1; exit}')"
+    [[ -n "$PART" ]] || die "Board is on USB but no drive labelled RP2350 showed up. Unplug and redo Step 2."
+    say "The drive exists but is not mounted yet. Mounting (no sudo needed):"
+    run_cmd udisksctl mount -b "/dev/${PART}"
+    MP="$(boot_mountpoint)"
+    [[ -n "$MP" ]] || die "Mount did not stick. Open the RP2350 drive once in your file manager, then re-run."
 fi
-if [[ -z "$MP" ]]; then
-    fail "Could not mount /dev/${PART}"
-    die "Try opening the drive once in your file manager, then re-run."
-fi
-pass "Mounted at: ${MP}"
+ok "Boot drive mounted at: $MP"
 
-if [[ -f "${MP}/INFO_UF2.TXT" ]]; then
-    pass "INFO_UF2.TXT is readable:"
-    sed 's/^/          | /' "${MP}/INFO_UF2.TXT"
-    if grep -q "RP2350" "${MP}/INFO_UF2.TXT"; then
-        pass "Bootloader identifies the chip as RP2350"
-    else
-        fail "INFO_UF2.TXT does not mention RP2350 — is this a Pico 1 (RP2040)?"
-        die "This repository targets the Pico 2 (RP2350) only."
-    fi
-else
-    fail "INFO_UF2.TXT not found on the drive"
-    die "Unexpected drive contents."
-fi
+say ""
+say "The drive contains a self-description file. Read it:"
+run_cmd cat "$MP/INFO_UF2.TXT"
+grep -qs "RP2350" "$MP/INFO_UF2.TXT" \
+    || die "This board does not identify as RP2350 — a Pico 1 (RP2040)? This repo needs a Pico 2."
+ok "The ROM bootloader confirms: this is an RP2350."
 
-# ---------- Step 4: picotool (optional) ------------------------------------
-
-step 4 "Query the chip with picotool (optional)"
-
-if command -v picotool > /dev/null 2>&1; then
-    if picotool info 2>/dev/null; then
-        pass "picotool can talk to the board"
-    else
-        skip "picotool is installed but could not access the board (udev rules?) — not required for this experiment"
-    fi
-else
-    skip "picotool not installed — not required for this experiment; a later experiment sets it up"
-fi
-
-# ---------- Step 5: flash the prebuilt blink firmware ----------------------
-
-step 5 "Flash the prebuilt blink firmware"
-
-info "About to copy assets/blink.uf2 to ${MP}."
-info "This overwrites whatever firmware is currently on the board — for a"
-info "brand-new Pico 2 there is nothing on it yet, so nothing is lost, and"
-info "the ROM bootloader itself can never be overwritten."
-if ! prompt_yn "Flash it now?"; then
-    skip "Flashing declined by user"
-    die "Nothing flashed. Re-run when ready."
-fi
-
-cp "$UF2" "${MP}/"
-sync
-pass "blink.uf2 copied"
-
-echo "        Waiting up to 10 s for the board to reboot into the new firmware..."
-if wait_for 10 bootsel_gone; then
-    pass "Board rebooted — the boot drive is gone, firmware is running"
-else
-    fail "Board still shows the boot drive after 10 s"
-    die "The UF2 may not have been accepted. Redo Step 2 and re-run."
-fi
-
-# ---------- Step 6: confirm the LED ----------------------------------------
-
-step 6 "Confirm the LED"
-
-info "Look at the board. The green LED next to the USB connector should be"
-info "blinking about once per second."
-if prompt_yn "Is the LED blinking?"; then
-    pass "LED confirmed blinking"
-else
-    fail "LED not blinking"
-    info "If you have a Pico 2 W: this is expected — its LED is wired to the"
-    info "wireless chip, not GPIO25, and this repository currently targets the"
-    info "non-W Pico 2 only. On a non-W board, redo Step 2 and re-run."
-    die "LED check failed."
-fi
-
-info "One more thing worth noticing:"
-info "  lsusb no longer shows the board at all — the blink firmware has no"
-info "  USB function, so the board is invisible to the host while it runs."
-info "  This is normal. To get the boot drive back at any time: unplug, hold"
-info "  BOOTSEL, plug in. That recovery loop always works; the board cannot"
-info "  be bricked."
-
-# ---------- Summary ---------------------------------------------------------
-
+# ---------------------------------------------------------------------------
 echo
-echo "${BOLD}== Summary ==${RESET}"
-for r in "${RESULTS[@]}"; do
-    echo "  $r"
-done
-echo
-echo "${GREEN}${BOLD}exp101 complete.${RESET} Your board, cable, and host all work."
-echo "Next: exp102 — build this exact same blink from source with Rust + Embassy."
+echo "${GREEN}${BOLD}exp101 complete — your board, cable, and host all work.${RESET}"
+say ""
+say "What you just proved:"
+say "  1. BOOTSEL mode lives in ROM. It works no matter what is in flash,"
+say "     so this board can never be bricked. Unplug → hold BOOTSEL → plug in"
+say "     is the recovery loop under every experiment in this repo."
+say "  2. 'lsusb -d 2e8a:000f' is how you ask 'is a Pico 2 in BOOTSEL mode?'"
+say "  3. That RP2350 drive is the flashing interface: copying a .uf2 file"
+say "     onto it writes flash and reboots the board. exp102 does exactly"
+say "     that — with a firmware you build yourself."
+say ""
+say "You can unplug the board now, or leave it — nothing was changed."
+say "Quick re-verify anytime: ./check.sh"
