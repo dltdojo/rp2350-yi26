@@ -57,7 +57,7 @@ Captured from a real Pico 2 on Ubuntu:
 ```console
 $ ./check.sh
 PASS  toolchain present (cargo, elf2flash)
-PASS  firmware compiles (144456 byte ELF)
+PASS  firmware compiles (144752 byte ELF)
 PASS  also builds with auto-reboot disabled (--no-default-features)
 PASS  converts to UF2 (37888 bytes)
 PASS  UF2 family ID is e48bff59 (rp2350-arm-s)

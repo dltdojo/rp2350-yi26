@@ -20,16 +20,18 @@
 //! disappearing?").
 //!
 //! So the decision is yours, not this crate's. The `auto-reboot` feature is
-//! **on by default** because the convenience is the point, and turning it off
-//! is one line in your `Cargo.toml`:
+//! **on by default** because the convenience is the point. Experiments
+//! re-export it as their own feature, so turning it off is a build flag
+//! rather than an edit:
 //!
-//! ```toml
-//! usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+//! ```sh
+//! cargo build --release --no-default-features
 //! ```
 //!
 //! With it off, [`watch`] still consumes the events but never reboots — so
 //! your code does not change shape, only its behaviour, and you can flip
-//! between the two to feel the difference.
+//! between the two to feel the difference. Either way the firmware records
+//! which it was: see [`BUILD_MARKER`], which `experiments/audit.sh` reads.
 
 #![no_std]
 
