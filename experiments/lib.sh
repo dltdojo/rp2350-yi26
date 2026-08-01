@@ -54,10 +54,10 @@ fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
 # True when a Pico 2 is enumerated in BOOTSEL mode.
 in_bootsel() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
 
-# Prints the /dev/ttyACM* node of a board running the exp104 firmware
-# (USB 1209:0001), if present. Resolved through /dev/serial/by-id so it picks
-# the right port even when other USB serial devices are plugged in.
-exp104_serial_port() {
+# Prints the /dev/ttyACM* node of a board running one of this repository's
+# firmwares (USB 1209:0001), if present. Resolved through /dev/serial/by-id so
+# it picks the right port even when other USB serial devices are plugged in.
+exp_serial_port() {
     local link
     for link in /dev/serial/by-id/*; do
         [[ -e "$link" ]] || continue
@@ -72,6 +72,57 @@ exp104_serial_port() {
 rp2350_mountpoint() {
     lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \
         | awk '$1 == "RP2350" && $2 != "" {print $2; exit}' | sed 's/\\x20/ /g'
+}
+
+# Sends the 1200-baud touch to a serial port, asking a firmware built with
+# crates/usb-reboot to put itself into the ROM bootloader. Returns 0 if the
+# board reached BOOTSEL mode within ~10 s.
+#
+# Nothing is transmitted — the baud rate itself is the signal. Fails
+# harmlessly on firmware that does not implement it (exp103, exp104), which
+# is why callers should fall back to asking for the button.
+usb_touch_1200() {
+    local port="$1"
+    [[ -e "$port" ]] || return 1
+    stty -F "$port" 1200 > /dev/null 2>&1 || return 1
+    local i
+    for ((i = 0; i < 10; i++)); do
+        in_bootsel && return 0
+        sleep 1
+    done
+    return 1
+}
+
+# Gets the board into BOOTSEL mode, automatically if the running firmware
+# supports the 1200-baud touch, otherwise by asking the user. Callers get the
+# same end state either way.
+ensure_bootsel() {
+    if in_bootsel; then
+        ok "Board is already in BOOTSEL mode."
+        return 0
+    fi
+
+    local port
+    port="$(exp_serial_port || true)"
+    if [[ -n "$port" ]]; then
+        say "A board with our serial port is attached. Trying the 1200-baud"
+        say "touch instead of asking you to press anything:"
+        echo "  ${DIM}\$ stty -F $port 1200${RESET}"
+        if usb_touch_1200 "$port"; then
+            ok "It rebooted itself. No button involved."
+            return 0
+        fi
+        say "No reboot — this firmware predates the 1200-baud watcher."
+    fi
+
+    say "Manual it is: unplug → hold ${BOLD}BOOTSEL${RESET} → plug in → release."
+    pause "Do that now."
+    local i
+    for ((i = 0; i < 10; i++)); do
+        in_bootsel && { ok "Board enumerated."; return 0; }
+        sleep 1
+    done
+    return 1
 }
 
 # ---------- platform guard --------------------------------------------------

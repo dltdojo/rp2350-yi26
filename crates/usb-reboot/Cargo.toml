@@ -1,0 +1,20 @@
+[package]
+name = "usb-reboot"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Reboot an RP2350 into its USB bootloader when the host opens the serial port at 1200 baud"
+
+[features]
+# On by default: the convenience is the whole point. Turn it off with
+#   usb-reboot = { path = "...", default-features = false }
+# and the watcher still runs but refuses to reboot — see src/lib.rs for why
+# you might want that.
+default = ["auto-reboot"]
+auto-reboot = []
+
+[dependencies]
+embassy-rp = { version = "0.10.0", default-features = false }
+embassy-usb = "0.6.0"
+
+[workspace]

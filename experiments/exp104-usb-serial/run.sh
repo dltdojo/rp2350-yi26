@@ -77,7 +77,7 @@ run_cmd lsusb -d 1209:0001
 ok "1209:0001 — a pid.codes ID for open-source hardware, set in src/main.rs."
 
 PORT=""
-for _ in {1..10}; do PORT="$(exp104_serial_port || true)"; [[ -n "$PORT" ]] && break; sleep 1; done
+for _ in {1..10}; do PORT="$(exp_serial_port || true)"; [[ -n "$PORT" ]] && break; sleep 1; done
 [[ -n "$PORT" ]] || die "Enumerated, but no /dev/ttyACM* appeared. Check: dmesg | tail"
 ok "The kernel gave it a serial port: $PORT"
 say "Note it was resolved via /dev/serial/by-id — a stable name, unlike"

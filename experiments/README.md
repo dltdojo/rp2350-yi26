@@ -160,12 +160,13 @@ Practical consequences:
 | [exp102-rust-toolchain](./exp102-rust-toolchain/) | This machine can cross-compile RP2350 firmware (no board needed) |
 | [exp103-embassy-blink](./exp103-embassy-blink/) | Source code becomes a blinking LED — the toolchain end to end |
 | [exp104-usb-serial](./exp104-usb-serial/) | The board talks back over USB CDC-ACM — no extra hardware |
+| [exp105-usb-reboot](./exp105-usb-reboot/) | The firmware puts itself into the bootloader — the button retires |
 
 Planned (order not final). The early track holds to one rule: **a Pico 2 and
 a USB cable, nothing else to buy.**
 
-- **USB serial, two-way** — read what the host types, and use the 1200-baud
-  touch to retire the BOOTSEL button.
+- **USB serial, two-way** — read what the host types, so the keyboard becomes
+  the first input device.
 - **async tasks and channels** — several `#[task]`s, `select`, and passing
   data between them.
 - **BOOTSEL as a button** — the classic button-controls-LED experience with
