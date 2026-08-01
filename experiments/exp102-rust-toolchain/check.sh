@@ -12,11 +12,10 @@
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-TARGET=thumbv8m.main-none-eabihf
+source ../lib.sh
+require_supported_platform
 
-FAILED=0
-pass() { echo "PASS  $1"; }
-fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
+TARGET=thumbv8m.main-none-eabihf
 
 # 1. rustup + rustc
 if command -v rustup > /dev/null; then

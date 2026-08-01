@@ -13,28 +13,9 @@
 
 set -euo pipefail
 
-BOLD=$'\e[1m'; GREEN=$'\e[32m'; RED=$'\e[31m'; DIM=$'\e[2m'; RESET=$'\e[0m'
-
-say()  { echo "  $1"; }
-ok()   { echo "  ${GREEN}✔${RESET} $1"; }
-bad()  { echo "  ${RED}✘${RESET} $1"; }
-step() { echo; echo "${BOLD}== Step $1: $2${RESET}"; }
-
-# Show the command being run, then run it — so the user learns the command,
-# not just the script name.
-run_cmd() {
-    echo "  ${DIM}\$ $*${RESET}"
-    "$@" 2>&1 | sed 's/^/    /'
-}
-
-pause() { read -r -p "  --> $1 Press Enter when done. " _ < /dev/tty; }
-
-die() {
-    echo
-    bad "$1"
-    say "Fix that and run ./run.sh again — re-running is always safe."
-    exit 1
-}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib.sh"
+require_supported_platform
 
 in_bootsel() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
 

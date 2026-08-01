@@ -25,6 +25,11 @@ Every experiment is driven the same way: `run.sh` is the interactive
 walkthrough, `check.sh` the quick non-interactive verdict. The
 [experiments index](./experiments/README.md) lists them in order.
 
+The scripts target Ubuntu and say so up front on any other platform — along
+with the recommended path: hand the experiment's scripts and README to an AI
+assistant and port them to your OS. See
+[Platform](./experiments/README.md#platform).
+
 ## Hardware
 
 Target is the [RP2350](https://www.raspberrypi.com/products/rp2350/), the

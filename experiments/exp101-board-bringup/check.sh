@@ -10,9 +10,9 @@
 
 set -u
 
-FAILED=0
-pass() { echo "PASS  $1"; }
-fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../lib.sh"
+require_supported_platform
 
 # 1. Host tools (all stock Ubuntu; else: sudo apt install usbutils util-linux udisks2)
 for tool in lsusb lsblk udisksctl; do

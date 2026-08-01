@@ -7,6 +7,9 @@ each other.** Nothing is flashed; nothing on the board changes.
 No Rust, no toolchain, no sudo. If this passes, every failure in a later
 experiment is a software problem — the physical chain is already ruled out.
 
+Not on Ubuntu? The scripts stop up front with a porting note — see
+[Platform](../README.md#platform).
+
 ## Two ways to do it
 
 **Guided (recommended the first time):**

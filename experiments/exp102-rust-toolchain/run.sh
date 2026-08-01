@@ -14,32 +14,10 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+source ../lib.sh
+require_supported_platform
+
 TARGET=thumbv8m.main-none-eabihf
-
-BOLD=$'\e[1m'; GREEN=$'\e[32m'; RED=$'\e[31m'; DIM=$'\e[2m'; RESET=$'\e[0m'
-
-say()  { echo "  $1"; }
-ok()   { echo "  ${GREEN}✔${RESET} $1"; }
-bad()  { echo "  ${RED}✘${RESET} $1"; }
-step() { echo; echo "${BOLD}== Step $1: $2${RESET}"; }
-
-run_cmd() {
-    echo "  ${DIM}\$ $*${RESET}"
-    "$@" 2>&1 | sed 's/^/    /'
-}
-
-pause()     { read -r -p "  --> $1 Press Enter when done. " _ < /dev/tty; }
-confirm()   {
-    local answer
-    read -r -p "  --> $1 [y/n] " answer < /dev/tty
-    [[ "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
-}
-
-die() {
-    echo; bad "$1"
-    say "Fix that and run ./run.sh again — completed steps will be skipped."
-    exit 1
-}
 
 echo "${BOLD}exp102 — can this machine build RP2350 firmware?${RESET}"
 say "Four pieces get installed: Rust itself, the Cortex-M33 target, a C"
