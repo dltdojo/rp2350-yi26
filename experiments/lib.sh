@@ -54,6 +54,20 @@ fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
 # True when a Pico 2 is enumerated in BOOTSEL mode.
 in_bootsel() { lsusb -d 2e8a:000f > /dev/null 2>&1; }
 
+# Prints the /dev/ttyACM* node of a board running the exp104 firmware
+# (USB 1209:0001), if present. Resolved through /dev/serial/by-id so it picks
+# the right port even when other USB serial devices are plugged in.
+exp104_serial_port() {
+    local link
+    for link in /dev/serial/by-id/*; do
+        [[ -e "$link" ]] || continue
+        case "$link" in
+            *rp2350-yi26*|*exp104*) readlink -f "$link"; return 0 ;;
+        esac
+    done
+    return 1
+}
+
 # Prints the mount point of the RP2350 boot drive, if mounted (empty if not).
 rp2350_mountpoint() {
     lsblk -rno LABEL,MOUNTPOINT 2>/dev/null \

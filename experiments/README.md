@@ -52,12 +52,20 @@ ideas to take away, and a troubleshooting table.
 | [exp101-board-bringup](./exp101-board-bringup/) | The board, cable, and host can see each other (no Rust yet) |
 | [exp102-rust-toolchain](./exp102-rust-toolchain/) | This machine can cross-compile RP2350 firmware (no board needed) |
 | [exp103-embassy-blink](./exp103-embassy-blink/) | Source code becomes a blinking LED — the toolchain end to end |
+| [exp104-usb-serial](./exp104-usb-serial/) | The board talks back over USB CDC-ACM — no extra hardware |
 
-Planned (order not final):
+Planned (order not final). The early track holds to one rule: **a Pico 2 and
+a USB cable, nothing else to buy.**
 
-- **boot anatomy** — open the `rp2350-linker` box exp103 deliberately kept
-  closed: hand-write the memory map and the image-definition block the ROM
-  scans for.
-- **defmt/RTT logging** — the firmware's first way to talk back.
-- **USB serial (CDC-ACM)** — the board appears in `lsusb` at last; includes
-  the 1200-baud touch that retires the BOOTSEL button.
+- **USB serial, two-way** — read what the host types, and use the 1200-baud
+  touch to retire the BOOTSEL button.
+- **async tasks and channels** — several `#[task]`s, `select`, and passing
+  data between them.
+- **BOOTSEL as a button** — the classic button-controls-LED experience with
+  zero extra parts. The Pico 2 has no user button, and `embassy-rp` does not
+  expose BOOTSEL on the RP2350, so the register work is quarantined behind a
+  one-line API in this repo — labelled magic, the same way exp103 handles
+  `rp2350-linker`.
+- **boot anatomy** — open both boxes: hand-write the memory map and the
+  image-definition block the ROM scans for, and read BOOTSEL the hard way.
+- **defmt/RTT logging** *(needs a debug probe — optional side track)*.

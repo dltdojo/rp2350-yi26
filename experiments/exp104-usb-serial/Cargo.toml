@@ -1,0 +1,33 @@
+[package]
+name = "exp104-usb-serial"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The board talks back: a USB CDC-ACM serial port on the RP2350 with Rust + Embassy"
+
+# Same hardware-verified, stable-Rust dependency set as exp103, plus the USB
+# stack. Cargo.lock is committed — a learner's build should be reproducible.
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
+# The USB device stack: descriptors, the control pipe, and the CDC-ACM class.
+embassy-usb = "0.6.0"
+# Lets us hand the USB stack buffers that live for the whole program, safely.
+static_cell = "2.1.1"
+# `write!`-style formatting into a fixed-size buffer — no heap on this chip.
+heapless = "0.8.0"
+# Brings the async `write_all` method into scope for the CDC-ACM sender.
+embedded-io-async = "0.7.0"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]
