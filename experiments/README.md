@@ -33,6 +33,7 @@ Per experiment:
 | exp105 | Any RP2350 board. Chip-level ROM and USB behaviour only. |
 | exp106 | Any RP2350 board with a plain LED (change the pin) and a BOOTSEL button. |
 | exp107 | Any RP2350 board with a plain LED (change the pin) and a BOOTSEL button. |
+| exp108 | Any RP2350 board with a plain LED (change the pin). The sensor and TRNG are chip-level, so nothing else changes — but there is no TRNG on an RP2040, so this one is RP2350-only in a way the others are not. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -233,6 +234,7 @@ Practical consequences:
 | [exp105-usb-reboot](./exp105-usb-reboot/) | The firmware puts itself into the bootloader — the button retires |
 | [exp106-bootsel-button](./exp106-bootsel-button/) | BOOTSEL becomes a user button — input drives output, no parts |
 | [exp107-debug-logging](./exp107-debug-logging/) | Three tasks share one serial log — printing that cannot stall the work |
+| [exp108-onchip-sources](./exp108-onchip-sources/) | The chip's own sensor and entropy source — and measuring whether to believe them |
 
 ## Planned
 
@@ -264,24 +266,24 @@ Two facts set the whole shape of this track:
 
 | Planned | Proves |
 | --- | --- |
-| **exp108-webusb-log** | A browser reads the log exp107 is already printing — and so does a phone. No firmware changes: the deliverable is one HTML file |
-| **exp109-webusb-two-way** | The page types, the firmware reacts. Waiting on two things at once with `select`, with a browser as the first input device |
-| **exp110-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
-| **exp111-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo. The groundwork for what MSC is underneath |
-| **exp112-msc-scsi** | Answering SCSI over Bulk-Only Transport, until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
-| **exp113-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
-| **exp114-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp108 page. Plug the board into anything and its debug UI is already there |
+| **exp109-webusb-log** | A browser reads the log exp107 is already printing — and so does a phone. No firmware changes: the deliverable is one HTML file |
+| **exp110-webusb-two-way** | The page types, the firmware reacts. Waiting on two things at once with `select`, with a browser as the first input device |
+| **exp111-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
+| **exp112-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo. The groundwork for what MSC is underneath |
+| **exp113-msc-scsi** | Answering SCSI over Bulk-Only Transport, until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
+| **exp114-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
+| **exp115-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp109 page. Plug the board into anything and its debug UI is already there |
 
-exp114 closes a loop that opens in exp101. The `RP2350` drive that appears when
+exp115 closes a loop that opens in exp101. The `RP2350` drive that appears when
 you hold BOOTSEL is not a real disk — the bootrom synthesizes a FAT volume on
 the fly, `INDEX.HTM` and all, and DAPLink's `MBED.HTM` does the same. The trick
 that made the first experiment work is the one the last experiment builds.
 
 Two costs stated in advance, since neither will look smaller later.
 `embassy-usb` has no MSC class, so Bulk-Only Transport and the SCSI subset are
-hand-rolled — that is why exp111 – exp113 exist as separate steps rather than
+hand-rolled — that is why exp112 – exp114 exist as separate steps rather than
 one experiment that lands four hundred lines at once. And WebUSB is
-Chromium-only: Firefox and Safari do not implement it, which makes exp108 the
+Chromium-only: Firefox and Safari do not implement it, which makes exp109 the
 first experiment here to name a specific vendor's software. It buys the phone,
 and nothing else buys the phone.
 

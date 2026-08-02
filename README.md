@@ -1,14 +1,16 @@
 # rp2350-yi26
 
-USB experiments on the Raspberry Pi Pico 2 / RP2350, written in **Rust** with
-the **[Embassy](https://embassy.dev)** async embedded framework.
+Raspberry Pi Pico 2 / RP2350 experiments, written in **Rust** with the
+**[Embassy](https://embassy.dev)** async embedded framework.
 
-A scratchpad for exploring the RP2350's USB controller — device classes,
-enumeration behaviour, and the surrounding bring-up work. Rust + Embassy is the
-only stack used here: no C/C++ Pico SDK, no TinyUSB, and no blocking HAL.
+Mostly a scratchpad for the RP2350's USB controller — device classes,
+enumeration behaviour, and the surrounding bring-up work — and increasingly
+for the on-chip peripherals worth putting *through* that USB link. Rust +
+Embassy is the only stack used here: no C/C++ Pico SDK, no TinyUSB, and no
+blocking HAL.
 
-> **Status:** seven experiments in — board bring-up through non-blocking
-> logging — and nothing is published here until it has run on a real Pico 2.
+> **Status:** eight experiments in — board bring-up through the chip's own
+> sensors — and nothing is published here until it has run on a real Pico 2.
 > See [experiments/](./experiments/). The [Scope](#scope) list below is still
 > what this repository means to poke at, not a summary of what it has covered.
 
@@ -161,6 +163,13 @@ Things this repo is meant to poke at:
 - USB host mode on the RP2350's controller, as far as the ecosystem allows
 - BOOTSEL / UF2 behaviour and `picotool` interaction
 - Running the same experiment on the Hazard3 core once support matures
+
+USB is the spine, but it is not the whole body. A link is only interesting for
+what travels down it, so on-chip peripherals are in scope too when they give
+that link something worth carrying — the temperature sensor and the hardware
+TRNG in [exp108](./experiments/exp108-onchip-sources/), and whatever else ends
+up feeding the later transport experiments. The test is whether it makes the
+USB work mean more, not whether it is a peripheral.
 
 ## Toolchain
 
