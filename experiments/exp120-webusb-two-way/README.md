@@ -82,9 +82,16 @@ not an address this device has at all. The mistake survived because prose is
 not checked; exp118's `check.sh` now compares every endpoint address it quotes
 against the capture it quotes from.
 
-exp121 adds a second function to this device, and every interface and endpoint
-number after it moves. Code that reads the descriptors keeps working; code
-that remembers what it saw last time quietly writes to the wrong endpoint.
+[exp121](../exp121-composite-hid/) adds a second function to this device, and
+it settled how much that matters. Built the default way, with the new function
+declared last, **nothing moves** — the CDC pair keeps interfaces 0 and 1 and
+the same endpoints. Built with `--features hid-first`, every interface number
+moves and two of the three endpoint addresses with them.
+
+So the numbers are stable only because somebody chose an order, and the same
+firmware proves it both ways. This page did not need touching for either,
+because it asks the descriptors. A page that remembered `endpoint 2 IN` would
+be reading an interrupt endpoint that belongs to a keyboard.
 
 ## The code IS the walkthrough
 
