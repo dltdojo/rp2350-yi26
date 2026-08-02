@@ -115,6 +115,28 @@ in_bootsel() { [[ "$(yi26 state 2>/dev/null)" == "bootsel" ]]; }
 # Prints the serial port of a board running one of this repository's firmwares.
 exp_serial_port() { yi26 port 2>/dev/null; }
 
+# True when the board is running THIS experiment's firmware.
+#
+#   exp_running 108   # is exp108 flashed?
+#
+# `yi26 state` answers a different and weaker question — "is *something*
+# running" — and every check.sh here used to ask that one. The result was a
+# check that ran its board-dependent half against whatever firmware happened
+# to be flashed, then failed because the log did not say what it expected. A
+# check that reports FAIL when the honest answer is "you have a different
+# experiment on the board" is worse than no check: it sends someone debugging
+# a firmware that is working perfectly, somewhere else.
+#
+# Every firmware here sets `config.serial_number` to its own experiment
+# number, which is what makes them distinguishable. Reading it out of
+# `yi26 port --json` rather than matching on the product string keeps this
+# stable if the human-readable names ever get reworded.
+exp_running() {
+    local want="$1" got
+    got="$(yi26 port --json 2>/dev/null | sed -n 's/.*"serial_number":"\([^"]*\)".*/\1/p')"
+    [[ "$got" == "$want" ]]
+}
+
 # Reads a firmware's serial output for N seconds and prints what arrived.
 #
 #   exp_read_log 15

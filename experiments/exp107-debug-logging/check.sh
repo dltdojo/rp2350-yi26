@@ -58,8 +58,8 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
     && pass "UF2 family ID is e48bff59 (rp2350-arm-s)" \
     || fail "UF2 family ID is e48bff59 (rp2350-arm-s)" "got: $FAMILY"
 
-if [[ "$(yi26 state)" != "running" ]]; then
-    echo "SKIP  board running exp107 — flash it with ./run.sh (not an error)"
+if ! exp_running 107; then
+    echo "SKIP  board is not running exp107 — flash it with ./run.sh (not an error)"
     exit "$FAILED"
 fi
 pass "board enumerated as 1209:0001"

@@ -67,8 +67,8 @@ strings "$SW_UF2" | grep -q 'yi26-cfg:auto-reboot=on' \
     && pass "software variant keeps the 1200-baud watcher (still reflashable)" \
     || fail "software variant keeps the 1200-baud watcher" "--features auto-reboot was dropped"
 
-if [[ "$(yi26 state)" != "running" ]]; then
-    echo "SKIP  board running exp112 — flash it with ./run.sh (not an error)"
+if ! exp_running 112; then
+    echo "SKIP  board is not running exp112 — flash it with ./run.sh (not an error)"
     exit "$FAILED"
 fi
 pass "board enumerated as 1209:0001"
