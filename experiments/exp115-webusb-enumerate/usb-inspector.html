@@ -1,0 +1,215 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp115 — what is inside this device?</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp115-webusb-enumerate — one file, no dependencies, no build step.
+
+  Open it directly from the filesystem. On a desktop that means double-clicking
+  it; on Android it means the Files app and "Open with Chrome", which hands the
+  browser a content:// URI. Both are secure contexts, which WebUSB requires.
+
+  Deliberately NOT served over http://localhost. A local server is fine on a
+  desktop and impossible on a phone, and the phone is where this whole track
+  is going.
+
+  Everything below is meant to be read. It is about two hundred lines and
+  roughly half of them are the descriptor tree renderer.
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 46rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.5rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  pre { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .9rem;
+        border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  .hint { font-size: 13px; color: var(--dim); }
+  code { font-size: .92em; }
+</style>
+
+<h1>What is inside this device?</h1>
+<p class="sub">exp115 &middot; a browser reads the board's USB descriptors. No firmware changes.<br>
+  <small>page build <b id="ver">b3</b> &mdash; if this is not the build you were told to expect,
+  the browser served a cached copy: reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="any" class="ghost">Any device…</button>
+  <button id="copy" class="ghost" disabled>Copy report</button>
+</p>
+
+<div id="status">Not connected. Nothing has been asked of the board yet.</div>
+<pre id="out" hidden></pre>
+
+<p class="hint">
+  Chromium browsers only — Firefox and Safari do not implement WebUSB. On Linux
+  the device node is root-only by default; <code>yi26 udev --install</code>
+  fixes that, and without it <em>Connect</em> fails with <em>Access denied</em>.
+</p>
+
+<script>
+// The board every experiment in this repository builds. pid.codes' shared test
+// identity — fine for learning, wrong for a product, and the reason the "Any
+// device…" button exists: somebody else's project may be using it too.
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+
+// USB class codes, only the ones these experiments produce. Numbers are what
+// the device actually says; names are this file's opinion about them, which is
+// worth keeping straight — a class code is data, a class name is a lookup.
+const CLASSES = {
+  0x00: 'defined per interface', 0x02: 'Communications', 0x03: 'HID',
+  0x08: 'Mass Storage', 0x0a: 'CDC Data', 0x0e: 'Video',
+  0xef: 'Miscellaneous (IAD composite)', 0xff: 'vendor specific',
+};
+const SUBCLASS_CDC = { 0x02: 'Abstract Control Model' };
+
+const hex = (n, w = 2) => '0x' + n.toString(16).padStart(w, '0');
+const cls = (n) => `${hex(n)}${CLASSES[n] ? '  ' + CLASSES[n] : ''}`;
+
+const $ = (id) => document.getElementById(id);
+let report = '';
+
+function say(text, kind) {
+  const s = $('status');
+  s.textContent = text;
+  s.className = kind || '';
+}
+
+/** Renders a USBDevice as the descriptor tree it is. */
+function describe(d) {
+  const L = [];
+  L.push(`device   ${hex(d.vendorId, 4)}:${hex(d.productId, 4)}`);
+  L.push(`         manufacturer  ${d.manufacturerName ?? '(none)'}`);
+  L.push(`         product       ${d.productName ?? '(none)'}`);
+  L.push(`         serial        ${d.serialNumber ?? '(none)'}`);
+  L.push(`         USB           ${d.usbVersionMajor}.${d.usbVersionMinor}`);
+  L.push(`         class         ${cls(d.deviceClass)}`);
+  L.push(`         subclass      ${hex(d.deviceSubclass)}`);
+  L.push(`         protocol      ${hex(d.deviceProtocol)}`);
+  L.push('');
+
+  // A device class of 0xef with subclass 2 and protocol 1 is the Interface
+  // Association Descriptor triple: "several functions live here, and the
+  // interfaces are grouped". Worth naming because every firmware in this
+  // repository sets it, including the ones with only one function.
+  if (d.deviceClass === 0xef && d.deviceSubclass === 0x02 && d.deviceProtocol === 0x01) {
+    L.push('         ^ EF/02/01 is the IAD triple: a composite device whose');
+    L.push('           interfaces are grouped into functions.');
+    L.push('');
+  }
+
+  for (const c of d.configurations) {
+    L.push(`config ${c.configurationValue}   ${c.configurationName ?? ''}`.trimEnd());
+    for (const i of c.interfaces) {
+      for (const a of i.alternates) {
+        // `a.interfaceClass`, not `i.interfaceClass`.
+        //
+        // A USBInterface carries only its number and its alternates; the
+        // class, subclass and protocol live on each USBAlternateInterface,
+        // because a single interface can present entirely different functions
+        // depending on which alternate setting is selected.
+        //
+        // Getting this wrong reads as working code: `undefined === 0x02` is
+        // simply false, so the annotation silently never appeared and every
+        // other line was correct. It was caught by someone comparing the
+        // page's output against lsusb, which is what step 4 of run.sh is for.
+        const sub = a.interfaceClass === 0x02 && SUBCLASS_CDC[a.interfaceSubclass]
+          ? `  ${SUBCLASS_CDC[a.interfaceSubclass]}` : '';
+        L.push(`  interface ${i.interfaceNumber}  alt ${a.alternateSetting}`);
+        L.push(`    class     ${cls(a.interfaceClass)}`);
+        L.push(`    subclass  ${hex(a.interfaceSubclass)}${sub}`);
+        L.push(`    protocol  ${hex(a.interfaceProtocol)}`);
+        if (a.endpoints.length === 0) L.push('    (no endpoints beyond the control pipe)');
+        for (const e of a.endpoints) {
+          // The address is what the firmware and the host both talk about:
+          // endpoint number in the low bits, direction in the top one.
+          const addr = e.direction === 'in' ? 0x80 | e.endpointNumber : e.endpointNumber;
+          L.push(`    endpoint ${hex(addr)}  ${e.direction.toUpperCase().padEnd(3)} ${e.type.padEnd(9)} ${e.packetSize} bytes`);
+        }
+      }
+    }
+  }
+  return L.join('\n');
+}
+
+async function show(device, how) {
+  // Opening is the part that needs permission, and therefore the part that
+  // proves the udev rule works. The descriptor tree above is available without
+  // it — Chrome read those during enumeration — so a page that only printed
+  // the tree would appear to work on a machine where nothing else would.
+  await device.open();
+  try {
+    report = describe(device);
+    $('out').textContent = report;
+    $('out').hidden = false;
+    $('copy').disabled = false;
+    // How it connected is part of the result, not a preamble to it. The
+    // success message used to overwrite the line that carried that fact,
+    // which made "reconnected by itself" and "you clicked again" produce
+    // identical screens — and the difference decides whether every page in
+    // this track needs a human before it can do anything.
+    const via = how === 'remembered'
+      ? 'reconnected automatically, no picker — the permission persisted'
+      : 'after the picker';
+    say(`Opened ${device.productName ?? 'the device'} (${via}). Read-write access confirmed.`, 'ok');
+  } finally {
+    // Closed immediately. This experiment only looks; exp116 is the one that
+    // claims an interface and keeps it — which on Linux detaches the kernel's
+    // cdc_acm driver and makes /dev/ttyACM0 disappear while connected.
+    await device.close();
+  }
+}
+
+async function pick(filters) {
+  try {
+    const device = await navigator.usb.requestDevice({ filters });
+    await show(device, 'picker');
+  } catch (e) {
+    if (e.name === 'NotFoundError') {
+      say('No device chosen. The picker lists only devices matching the filter — try "Any device…".');
+    } else {
+      say(`${e.name}: ${e.message}`, 'bad');
+    }
+  }
+}
+
+$('connect').onclick = () => pick(FILTERS);
+$('any').onclick = () => pick([]);
+$('copy').onclick = async () => {
+  await navigator.clipboard.writeText(report);
+  say('Report copied.', 'ok');
+};
+
+// Already-permitted devices come back without a click and without the picker.
+// Whether that survives a reload depends on how the browser scopes the origin
+// this page was opened from — which is exactly the thing worth finding out by
+// running it rather than reasoning about it.
+(async () => {
+  if (!('usb' in navigator)) {
+    say('This browser has no WebUSB. Chromium browsers only — Chrome, Edge, Brave.', 'bad');
+    $('connect').disabled = $('any').disabled = true;
+    return;
+  }
+  const known = await navigator.usb.getDevices();
+  if (known.length) {
+    say(`Reconnecting without a picker — this page is already permitted to use ${known.length} device(s).`);
+    try { await show(known[0], 'remembered'); } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+  } else {
+    // Said out loud rather than left as silence. "Nothing happened" and "the
+    // browser remembers nothing" look identical, and the difference decides
+    // whether every later page in this track needs a human to click first.
+    say('No remembered permission for this page. Press Connect.');
+  }
+})();
+</script>
