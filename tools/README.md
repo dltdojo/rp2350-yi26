@@ -101,7 +101,7 @@ does — so it is opt-in, it prints what it will run first, and `--explain`
 gives you the commands to type instead if you would rather not hand a program
 your password.
 
-It exists because the browser experiments (exp108 onward) need something the
+It exists because the browser experiments (exp115 onward) need something the
 earlier ones do not. A serial port and a mounted drive are already yours to
 open; the raw USB device node is `root`-only, and WebUSB claims the interface
 directly. Without the rule, Chrome's first Connect fails with **Access

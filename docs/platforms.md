@@ -92,6 +92,7 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp105 | Same | Drag, read the log, and send the 1200-baud signal (see below) |
 | exp106 | Same | Drag, read the log, press BOOTSEL as a button |
 | exp107 | Same | Drag, then *deliberately ignore* the port for twenty seconds before reading it — that is the experiment |
+| exp108 – exp114 | Same | Drag, then read the log. Every one of these produces numbers and nothing else — a temperature, an entropy score, a health verdict — so the serial port is not optional for any of them |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host
@@ -148,7 +149,7 @@ does implement **WebUSB**, which can claim a CDC-ACM interface directly, so a
 page can stream the same log. That is a different API and a different page, and
 this repository does not have one yet: it is the destination of the planned
 [browser track](../experiments/README.md#the-browser-track), starting at
-exp108. Until then, treat the phone-only path as unfinished rather
+exp115. Until then, treat the phone-only path as unfinished rather
 than as something this page is recommending.
 
 ### The 1200-baud signal from a browser
