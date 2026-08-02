@@ -47,6 +47,7 @@ Per experiment:
 | exp119 | Any RP2350 board. No browser. The host half is `yi26 flood`, which needs a port that can be written to and have RTS toggled at the same time. |
 | exp120 | A board running **exp118** — it is the only firmware here that reads the OUT endpoint, and sending to any other looks identical to this page failing. Chromium browser, and on Linux `yi26 detach` first. |
 | exp121 | Any RP2350 board. No browser. Checking the keypress needs read access to `/dev/input` — the `input` group — and the check says so rather than failing if you lack it. |
+| exp122 | Any RP2350 board. No browser. Needs the udev rule for raw USB access — a vendor interface has no device node, so `yi26 echo` claims it directly. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -261,6 +262,7 @@ Practical consequences:
 | [exp119-cancelled-reads](./exp119-cancelled-reads/) | Twenty thousand reads cancelled on purpose, and the control variable that makes a zero mean something |
 | [exp120-webusb-two-way](./exp120-webusb-two-way/) | The page types and the firmware answers — a hundred bytes sent once, arriving twice |
 | [exp121-composite-hid](./exp121-composite-hid/) | A keyboard beside the log on one cable, and what build order does to every number in the descriptors |
+| [exp122-vendor-bulk](./exp122-vendor-bulk/) | An interface no operating system claims — and two owners on one device at once |
 
 ## Planned
 
@@ -270,8 +272,7 @@ free but not neutral — a Chromium browser. Where that comes from is below.
 
 ### The browser track
 
-Six of these are built — exp115 through exp117, exp120, and the two firmware
-experiments they lean on, exp118 and exp119. What is left is in the table
+Eight of these are built — exp115 through exp122. What is left is in the table
 below, and it is the half that turns the board into a disk.
 
 They build toward a specific destination: **debugging firmware with a phone**.
@@ -296,7 +297,6 @@ Two facts set the whole shape of this track:
 
 | Planned | Proves |
 | --- | --- |
-| **exp122-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo |
 | **exp123-bot-framing** | The host's storage commands, printed. Declare a mass-storage interface, decode the command blocks that arrive, answer nothing — and read what a disk is actually asked |
 | **exp124-msc-scsi** | Answering those commands until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
 | **exp125-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
@@ -323,7 +323,7 @@ that made the first experiment work is the one the last experiment builds.
 
 Two costs stated in advance, since neither will look smaller later.
 `embassy-usb` has no MSC class, so Bulk-Only Transport and the SCSI subset are
-hand-rolled — that is why exp122 – exp125 exist as four steps rather than one
+hand-rolled — that is why exp123 – exp126 exist as four steps rather than one
 experiment that lands four hundred lines at once. And WebUSB is Chromium-only:
 Firefox and Safari do not implement it, which makes exp115 the first
 experiment here to name a specific vendor's software. It buys the phone, and

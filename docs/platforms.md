@@ -98,6 +98,7 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp119 | Same | Drag, then send twenty thousand numbered packets while toggling RTS. `yi26 flood` does both at once through one handle, and nothing that cannot do that will reproduce it |
 | exp120 | Nothing to build | A browser, and a board already running exp118. This is the page that lets a phone *type* at the board |
 | exp121 | Same | Drag, then read the log and send one byte. Checking that the keypress landed needs an input-event reader — a desktop's `xset` will not show it |
+| exp122 | Same | Drag, then talk to an interface with no device node. Needs a program that can claim a USB interface — `yi26 echo`, or any libusb binding. A serial terminal cannot reach it |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host

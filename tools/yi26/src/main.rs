@@ -50,6 +50,7 @@ commands:
   log               read the firmware's log
   send <text>       send bytes to the firmware, then read its reply
   flood             numbered packets at full speed (--packets N, --storm)
+  echo <text>       send to a vendor-specific interface and read the reply
   markers <f.uf2>   the yi26-cfg: build markers inside a firmware image
   bootsel           put the board into BOOTSEL mode (1200-baud touch)
   drive             print the RP2350 boot drive, mounting it if needed
@@ -148,6 +149,10 @@ fn run(args: &[String]) -> i32 {
             None => usage_error("send needs something to send"),
         },
         "flood" => cmd_flood(&opts, packets, storm, if seconds_given { seconds } else { 4 }),
+        "echo" => match positional.get(1) {
+            Some(text) => cmd_echo(&opts, text, if seconds_given { seconds } else { 3 }),
+            None => usage_error("echo needs something to send"),
+        },
         "markers" => match positional.get(1) {
             Some(f) => cmd_markers(&opts, Path::new(f)),
             None => usage_error("markers needs a .uf2 file"),
@@ -419,6 +424,65 @@ fn unescape(s: &str) -> Result<Vec<u8>, String> {
         }
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// echo
+
+fn cmd_echo(opts: &Opts, text: &str, seconds: u64) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[],
+            notes: &[
+                "No shell equivalent, and for once that is not about convenience. A",
+                "vendor-specific interface has no class driver, so it has no /dev entry",
+                "for a shell to redirect into — there is nothing for `printf >` to write",
+                "to. Talking to it means claiming the interface and submitting bulk",
+                "transfers, which is a libusb-level operation.",
+                "That absence is exactly what exp122 is about. Nothing claimed the",
+                "interface, so this command can take it without displacing anything: the",
+                "CDC pair stays with the kernel and /dev/ttyACM0 stays where it is while",
+                "this runs. Compare `yi26 detach`, which exp116 needs and which costs you",
+                "the serial port for as long as a browser holds it.",
+                "The reply comes back uppercased because exp122's firmware uppercases it.",
+                "A plain echo could not tell a firmware that handled your bytes from a",
+                "host stack that looped them back below.",
+            ],
+        },
+    );
+
+    let payload = match unescape(text) {
+        Ok(p) => p,
+        Err(e) => return fail(opts, "bad-escape", &e, "yi26 --help"),
+    };
+
+    match board::vendor_echo(&payload, Duration::from_secs(seconds)) {
+        Ok(reply) => {
+            if opts.json {
+                println!(
+                    "{}",
+                    out::obj(&[
+                        out::kv_bool("ok", true),
+                        out::kv_str("sent", &String::from_utf8_lossy(&payload)),
+                        out::kv_str("received", &String::from_utf8_lossy(&reply)),
+                        out::kv_num("sent_bytes", payload.len() as u64),
+                        out::kv_num("received_bytes", reply.len() as u64),
+                    ])
+                );
+            } else {
+                println!("sent     {} bytes: {}", payload.len(), String::from_utf8_lossy(&payload));
+                println!("received {} bytes: {}", reply.len(), String::from_utf8_lossy(&reply));
+            }
+            0
+        }
+        Err(e) => fail(
+            opts,
+            "echo-failed",
+            &e,
+            "flash exp122, and check `yi26 udev` for raw USB permission",
+        ),
+    }
 }
 
 // ---------------------------------------------------------------------------

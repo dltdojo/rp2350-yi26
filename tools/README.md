@@ -87,6 +87,7 @@ for what the firmware is actually doing.
 | `log` | what the firmware is printing (`--seconds N`, default 10) |
 | `send <text>` | bytes to the firmware, then its reply (`--seconds N`, default 3) |
 | `flood` | numbered packets at full speed (`--packets N`, `--storm`) |
+| `echo <text>` | send to a vendor-specific interface and read the reply |
 | `markers <f.uf2>` | the `yi26-cfg:` build markers inside a firmware image |
 | `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
@@ -125,6 +126,24 @@ that trap next to the three commands it replaces.
 The rate is always 115200 and cannot be given. 1200 is the reboot signal from
 exp105, and a send command that took a baud rate would let a typo reset the
 board.
+
+### `echo`, for an interface with no device node
+
+```sh
+yi26 echo "hello vendor"      # sent 12 bytes: hello vendor
+                              # received 12 bytes: HELLO VENDOR
+```
+
+exp122's firmware declares a vendor-specific interface — class `0xFF`, which
+is USB for *no promise about behaviour*. No operating system driver claims it,
+so there is no `/dev` entry, so there is nothing for a shell to redirect into.
+Talking to it means claiming the interface and submitting bulk transfers.
+
+That absence is the point rather than a limitation. Because nothing holds the
+interface, this command takes it without displacing anything: the CDC pair
+stays with the kernel and `/dev/ttyACM0` stays where it is for the whole
+exchange. Compare `detach`, which exp116 needs and which costs the serial port
+for as long as a browser holds the interfaces.
 
 ### `markers`, because `strings` on a .uf2 lies
 

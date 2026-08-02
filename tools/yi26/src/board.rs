@@ -26,6 +26,10 @@ pub const BOOTSEL_PID: u16 = 0x000f;
 pub const EXP_VID: u16 = 0x1209;
 pub const EXP_PID: u16 = 0x0001;
 
+/// Vendor-specific interface class. USB for "no promise about behaviour", and
+/// therefore the one class no operating system driver claims — see exp122.
+pub const VENDOR_CLASS: u8 = 0xFF;
+
 /// The manufacturer string these firmwares set. Used only to pick between
 /// several devices sharing the test PID, never as the primary test.
 pub const MANUFACTURER: &str = "rp2350-yi26";
@@ -395,6 +399,84 @@ pub fn usbfs_holders() -> Vec<String> {
         }
         found
     }
+}
+
+/// Writes to a vendor-specific interface's bulk OUT endpoint and reads what
+/// comes back on its IN endpoint.
+///
+/// The interface and both endpoints are found by walking the descriptors —
+/// class `0xFF`, then the bulk pair on its first alternate setting — because
+/// exp121 moved every number on this device once already and will again.
+///
+/// No `detach_kernel_driver` anywhere in here, and that is the experiment. A
+/// vendor-specific interface has no class driver to displace, so claiming it
+/// costs nothing and takes nothing away: the CDC pair stays with the kernel
+/// and `/dev/ttyACM0` stays where it is while this runs.
+pub fn vendor_echo(payload: &[u8], timeout: Duration) -> Result<Vec<u8>, String> {
+    let info = nusb::list_devices()
+        .wait()
+        .map_err(|e| format!("cannot enumerate USB: {e}"))?
+        .find(|d| d.vendor_id() == EXP_VID && d.product_id() == EXP_PID)
+        .ok_or("no board found on USB")?;
+
+    let mut iface_num = None;
+    let (mut ep_out, mut ep_in) = (None, None);
+    for i in info.interfaces() {
+        if i.class() != VENDOR_CLASS {
+            continue;
+        }
+        iface_num = Some(i.interface_number());
+        break;
+    }
+    let iface_num = iface_num.ok_or(
+        "this firmware has no vendor-specific interface — flash exp122, or check `yi26 port`",
+    )?;
+
+    let dev = info.open().wait().map_err(|e| {
+        format!("cannot open the device: {e} — try `yi26 udev --install`")
+    })?;
+    let iface = dev
+        .claim_interface(iface_num)
+        .wait()
+        .map_err(|e| format!("cannot claim vendor interface {iface_num}: {e}"))?;
+
+    for ep in iface.descriptors().next().ok_or("no alternate setting")?.endpoints() {
+        if ep.transfer_type() != nusb::descriptors::TransferType::Bulk {
+            continue;
+        }
+        if ep.direction() == nusb::transfer::Direction::Out && ep_out.is_none() {
+            ep_out = Some(ep.address());
+        }
+        if ep.direction() == nusb::transfer::Direction::In && ep_in.is_none() {
+            ep_in = Some(ep.address());
+        }
+    }
+    let ep_out = ep_out.ok_or("the vendor interface has no bulk OUT endpoint")?;
+    let ep_in = ep_in.ok_or("the vendor interface has no bulk IN endpoint")?;
+
+    let mut writer = iface
+        .endpoint::<nusb::transfer::Bulk, nusb::transfer::Out>(ep_out)
+        .map_err(|e| format!("cannot open bulk OUT {ep_out:#04x}: {e}"))?;
+    let mut reader = iface
+        .endpoint::<nusb::transfer::Bulk, nusb::transfer::In>(ep_in)
+        .map_err(|e| format!("cannot open bulk IN {ep_in:#04x}: {e}"))?;
+
+    // The IN endpoint is armed *before* the write goes out. The firmware
+    // answers within microseconds of receiving, and a reply that arrives
+    // before anyone is waiting for it is a reply the device has to hold — or,
+    // on a less forgiving stack, drop. Ordering the two this way costs nothing
+    // and removes the race entirely.
+    let want = reader.max_packet_size();
+    reader.submit(nusb::transfer::Buffer::new(want));
+
+    let sent = writer.transfer_blocking(nusb::transfer::Buffer::from(payload), timeout);
+    sent.status.map_err(|e| format!("write failed: {e}"))?;
+
+    let got = reader.wait_next_complete(timeout).ok_or(
+        "no reply within the timeout — the firmware took the bytes and sent nothing back",
+    )?;
+    got.status.map_err(|e| format!("read failed: {e}"))?;
+    Ok(got.buffer[..got.actual_len].to_vec())
 }
 
 fn open_exp_device() -> Result<nusb::Device, String> {
