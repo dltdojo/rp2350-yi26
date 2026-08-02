@@ -153,6 +153,53 @@ this repository does not have one yet: it is the destination of the planned
 exp115. Until then, treat the phone-only path as unfinished rather
 than as something this page is recommending.
 
+### Getting the log back to the machine that built it
+
+This is the half of the cloud route that is easy to miss. The `.uf2` goes
+**out** from the build machine, and it goes by hand: you download it and drag
+it onto the board. Evidence has to come **back** the same way, and until it
+does, whoever is helping you from that rented Linux box — a person or an
+assistant — is a compiler and not a developer. They can produce firmware. They
+cannot see it run.
+
+There is no magic here and there does not need to be. **A human is already in
+the loop**: somebody had to drag the file onto the drive. The return path can
+ride the same person. What matters is not automation, it is that one copy and
+one paste carry everything worth knowing.
+
+So exp116's page has a **Copy as JSON** button, and what it produces is
+byte-for-byte what `yi26 log --json` produces on a machine that has the tool:
+
+```text
+{"type":"line","t_ms":21037,"lost":26,"text":"scheduler: 210 wakeups"}
+{"type":"summary","lines":8,"lost_total":26,"gaps":1,"first_t_ms":37,"last_t_ms":3000}
+```
+
+An assistant reading that cannot tell which instrument produced it, which is
+the point. And it keeps `lost` — the field that says how many lines the
+firmware dropped before they ever reached you. In prose that is a marker you
+have to notice; a capture that quietly lost a third of its lines reads almost
+the same as one that lost none.
+
+Two implementations of one format drift unless something compares them, so
+neither is the authority: `tools/yi26/tests/log-format/` holds one fixture and
+one committed expectation, a Rust test runs the tool over it, and exp116's
+`check.sh` runs the page's parser over the same fixture with `node`.
+
+What this does **not** do is upload anything anywhere, and that is deliberate.
+A page opened from `file://` cannot post to an arbitrary host anyway, this
+repository does not run a server (a server is exactly what a phone cannot
+provide, which is why the browser track opens files instead), and sending the
+contents of somebody's device to a third party is a decision to be asked
+about, not a convenience to be shipped. There is also nothing here that could
+honestly verify such a service: one board, one host.
+
+Longer term the file may not need a browser at all. The planned mass-storage
+track ends with the board presenting its own volume, and a log written there
+as an ordinary file would travel the way the `.uf2` already travels — a file
+manager, on any machine, including a phone. The seam is a file in both
+directions.
+
 ### The 1200-baud signal from a browser
 
 exp105 teaches the firmware to reboot into its bootloader when the host sets

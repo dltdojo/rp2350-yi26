@@ -62,6 +62,7 @@
   <button id="stop" class="ghost" disabled>Disconnect</button>
   <button id="clear" class="ghost">Clear</button>
   <button id="copy" class="ghost">Copy</button>
+  <button id="copyjson" class="ghost">Copy as JSON</button>
 </p>
 
 <div id="status">Not connected.</div>
@@ -102,6 +103,133 @@ const BAUD = 115200;
 
 const $ = (id) => document.getElementById(id);
 let device = null, streaming = false, lines = 0, bytes = 0, started = 0;
+
+// Everything received, exactly as it arrived. Kept beside the rendered text
+// because the rendering is for a person and this is for a program: see the
+// extracted block below.
+let captured = '';
+
+// BEGIN yi26-log-json
+// ---------------------------------------------------------------------------
+// The same log format `yi26 log --json` emits, produced here instead.
+//
+// This exists because of where this page runs. Somebody debugging on a phone,
+// or building in a rented Linux box and flashing at home, has no `yi26` — the
+// browser is their only instrument. If they then hand the log to an assistant,
+// the assistant should not be able to tell which instrument produced it, and
+// should not lose `lost`, which is the field that says whether the capture can
+// be trusted at all.
+//
+// Two implementations of one format drift unless something compares them.
+// `tools/yi26/tests/log-format/` holds a fixture and one committed
+// expectation; a Rust test runs the tool's parser over it, and this
+// experiment's `check.sh` extracts everything between these two markers and
+// runs it over the same fixture with node. Neither side is allowed to be the
+// authority.
+//
+// Do not reach for JSON.stringify here. It writes \b and \f for the backspace
+// and form-feed bytes; the tool writes \u0008 and \u000c. Both are valid JSON
+// and they are not the same bytes, which is why the fixture contains those
+// characters on purpose.
+// ---------------------------------------------------------------------------
+
+function yi26Escape(s) {
+  let out = '"';
+  for (const c of s) {
+    const n = c.codePointAt(0);
+    if (c === '"') out += '\\"';
+    else if (c === '\\') out += '\\\\';
+    else if (c === '\n') out += '\\n';
+    else if (c === '\r') out += '\\r';
+    else if (c === '\t') out += '\\t';
+    else if (n < 0x20) out += '\\u' + n.toString(16).padStart(4, '0');
+    else out += c;
+  }
+  return out + '"';
+}
+
+/**
+ * Takes one raw line apart, the way `crates/usb-log` puts it together:
+ *
+ *   [   21037 ms] (+26 lines lost) scheduler: 210 wakeups
+ *
+ * Anything that does not match is left alone rather than guessed at — not
+ * every board on 1209:0001 is one of ours, and a capture can start mid-line.
+ */
+function yi26ParseLine(raw) {
+  let rest = raw.replace(/[\r\n]+$/, '');
+  let t_ms = null;
+  let lost = 0;
+
+  const close = rest.indexOf(']');
+  if (close !== -1 && rest.startsWith('[')) {
+    const inside = rest.slice(1, close).trim();
+    if (inside.endsWith('ms')) {
+      const num = inside.slice(0, -2).trim();
+      // Rust's u64 parse accepts a leading '+' and nothing else. Number() would
+      // also accept '0x10', ' 12 ', '1e3' and ''.
+      if (/^\+?[0-9]+$/.test(num)) {
+        t_ms = Number(num);
+        rest = rest.slice(close + 1).replace(/^\s+/, '');
+      }
+    }
+  }
+
+  if (rest.startsWith('(+')) {
+    const after = rest.slice(2);
+    const end = after.indexOf(')');
+    if (end !== -1) {
+      const marker = after.slice(0, end);
+      if (marker.endsWith(' lines lost')) {
+        const n = marker.slice(0, -' lines lost'.length);
+        if (/^\+?[0-9]+$/.test(n)) {
+          lost = Number(n);
+          rest = after.slice(end + 1).replace(/^\s+/, '');
+        }
+      }
+    }
+  }
+
+  return { t_ms, lost, text: rest };
+}
+
+/** Captured log text in, `yi26 log --json` output out. */
+function yi26Ndjson(raw) {
+  let out = '';
+  let lines = 0, lost_total = 0, gaps = 0, first_t_ms = null, last_t_ms = null;
+
+  const pieces = raw.split('\n');
+  // A trailing '' after the last '\n' is not a line; a non-empty last piece is
+  // a fragment with no terminator, and it counts.
+  if (pieces.length && pieces[pieces.length - 1] === '') pieces.pop();
+
+  for (const piece of pieces) {
+    const line = yi26ParseLine(piece);
+    // No text and no timestamp is not a line — it is what a stray terminator
+    // looks like after parsing — and it must not inflate the count.
+    if (line.text === '' && line.t_ms === null) continue;
+
+    lines += 1;
+    lost_total += line.lost;
+    if (line.lost > 0) gaps += 1;
+    if (line.t_ms !== null) {
+      if (first_t_ms === null) first_t_ms = line.t_ms;
+      last_t_ms = line.t_ms;
+    }
+
+    out += '{"type":"line","t_ms":' + (line.t_ms === null ? 'null' : line.t_ms)
+        + ',"lost":' + line.lost
+        + ',"text":' + yi26Escape(line.text) + '}\n';
+  }
+
+  out += '{"type":"summary","lines":' + lines
+      + ',"lost_total":' + lost_total
+      + ',"gaps":' + gaps
+      + ',"first_t_ms":' + (first_t_ms === null ? 'null' : first_t_ms)
+      + ',"last_t_ms":' + (last_t_ms === null ? 'null' : last_t_ms) + '}\n';
+  return out;
+}
+// END yi26-log-json
 
 function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
 function meta() {
@@ -227,6 +355,7 @@ async function start(dev) {
       const text = dec.decode(r.data, { stream: true });
       bytes += r.data.byteLength;
       lines += (text.match(/\n/g) || []).length;
+      captured += text;
       append(text);
       meta();
     }
@@ -263,8 +392,29 @@ $('connect').onclick = async () => {
   } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
 };
 $('stop').onclick = stop;
-$('clear').onclick = () => { $('log').textContent = ''; lines = 0; bytes = 0; started = performance.now(); meta(); };
+$('clear').onclick = () => {
+  $('log').textContent = ''; captured = '';
+  lines = 0; bytes = 0; started = performance.now(); meta();
+};
 $('copy').onclick = async () => { await navigator.clipboard.writeText($('log').textContent); say('Log copied.', 'ok'); };
+
+// The button that exists for a reader who is not a person.
+//
+// `Copy` gives you what is on the screen. This gives you what
+// `yi26 log --json` would have given you, which is what to paste into an
+// assistant that is doing the work in a rented Linux box and has never seen
+// this board. The difference that matters is `lost`: the plain text says the
+// firmware dropped lines only if you notice the marker, and the JSON says it
+// in a field, with a total in the summary.
+$('copyjson').onclick = async () => {
+  const json = yi26Ndjson(captured);
+  await navigator.clipboard.writeText(json);
+  const summary = json.trimEnd().split('\n').pop();
+  const lost = JSON.parse(summary).lost_total;
+  say(lost > 0
+    ? `Copied as JSON — and it says ${lost} lines were dropped before they reached you.`
+    : 'Copied as JSON, in the same shape yi26 log --json produces.', 'ok');
+};
 
 (async () => {
   if (!('usb' in navigator)) {

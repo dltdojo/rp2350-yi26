@@ -223,30 +223,29 @@ fn drain(
     }
 
     if opts.json {
-        println!(
-            "{}",
-            out::obj(&[
-                out::kv_str("type", "summary"),
-                out::kv_num("lines", summary.lines),
-                out::kv_num("lost_total", summary.lost_total),
-                out::kv_num("gaps", summary.gaps),
-                out::kv_raw(
-                    "first_t_ms",
-                    &summary.first_t_ms.map(|v| v.to_string()).unwrap_or_else(|| "null".into())
-                ),
-                out::kv_raw(
-                    "last_t_ms",
-                    &summary.last_t_ms.map(|v| v.to_string()).unwrap_or_else(|| "null".into())
-                ),
-            ])
-        );
+        println!("{}", summary_json(&summary));
     }
     Ok(summary)
 }
 
 fn emit(line: &Line, summary: &mut Summary, opts: &Opts) {
-    if line.text.is_empty() && line.t_ms.is_none() {
+    if !count(line, summary) {
         return;
+    }
+    if opts.json {
+        println!("{}", line_json(line));
+    } else {
+        println!("{}", line.raw.trim_end_matches(['\r', '\n']));
+    }
+}
+
+/// Folds a line into the summary, and says whether it counted at all.
+///
+/// A line with no text and no timestamp is not a line — it is what a stray
+/// terminator looks like after parsing — and it must not inflate the count.
+fn count(line: &Line, summary: &mut Summary) -> bool {
+    if line.text.is_empty() && line.t_ms.is_none() {
+        return false;
     }
     summary.lines += 1;
     summary.lost_total += line.lost;
@@ -257,23 +256,68 @@ fn emit(line: &Line, summary: &mut Summary, opts: &Opts) {
         summary.first_t_ms.get_or_insert(t);
         summary.last_t_ms = Some(t);
     }
+    true
+}
 
-    if opts.json {
-        println!(
-            "{}",
-            out::obj(&[
-                out::kv_str("type", "line"),
-                out::kv_raw(
-                    "t_ms",
-                    &line.t_ms.map(|v| v.to_string()).unwrap_or_else(|| "null".into())
-                ),
-                out::kv_num("lost", line.lost),
-                out::kv_str("text", &line.text),
-            ])
-        );
-    } else {
-        println!("{}", line.raw.trim_end_matches(['\r', '\n']));
+/// One `{"type":"line",...}` record.
+///
+/// Field order is part of the format, not an implementation detail: the
+/// browser page in exp116 emits the same records so that an agent cannot tell
+/// which instrument produced them, and `tests/log-format/` pins both against
+/// one committed expectation.
+pub fn line_json(line: &Line) -> String {
+    out::obj(&[
+        out::kv_str("type", "line"),
+        out::kv_raw("t_ms", &line.t_ms.map(|v| v.to_string()).unwrap_or_else(|| "null".into())),
+        out::kv_num("lost", line.lost),
+        out::kv_str("text", &line.text),
+    ])
+}
+
+/// The closing `{"type":"summary",...}` record.
+pub fn summary_json(s: &Summary) -> String {
+    out::obj(&[
+        out::kv_str("type", "summary"),
+        out::kv_num("lines", s.lines),
+        out::kv_num("lost_total", s.lost_total),
+        out::kv_num("gaps", s.gaps),
+        out::kv_raw("first_t_ms", &s.first_t_ms.map(|v| v.to_string()).unwrap_or_else(|| "null".into())),
+        out::kv_raw("last_t_ms", &s.last_t_ms.map(|v| v.to_string()).unwrap_or_else(|| "null".into())),
+    ])
+}
+
+/// Captured log text in, `--json` output out.
+///
+/// The streaming path in [`drain`] and this one are the same rules applied to
+/// the same records; this is the version that can be handed a fixture and
+/// compared against a committed file, which is how the browser page is kept
+/// honest. Lines are split on `\n`, and a final fragment with no terminator
+/// still counts — a capture can stop mid-line.
+pub fn ndjson(raw: &str) -> String {
+    let mut summary = Summary::default();
+    let mut out = String::new();
+
+    let mut rest = raw;
+    while let Some(nl) = rest.find('\n') {
+        let (chunk, tail) = rest.split_at(nl + 1);
+        let line = parse(chunk);
+        if count(&line, &mut summary) {
+            out.push_str(&line_json(&line));
+            out.push('\n');
+        }
+        rest = tail;
     }
+    if !rest.is_empty() {
+        let line = parse(rest);
+        if count(&line, &mut summary) {
+            out.push_str(&line_json(&line));
+            out.push('\n');
+        }
+    }
+
+    out.push_str(&summary_json(&summary));
+    out.push('\n');
+    out
 }
 
 #[cfg(test)]
@@ -294,6 +338,23 @@ mod tests {
         assert_eq!(l.t_ms, Some(21037));
         assert_eq!(l.lost, 26);
         assert_eq!(l.text, "scheduler: 210 wakeups");
+    }
+
+    /// The format is shared with a second implementation, so it is pinned to a
+    /// file rather than to this file's opinion of itself.
+    ///
+    /// `experiments/exp116-webusb-cdc-log` parses the same log in JavaScript,
+    /// in a browser, on a machine that may have no toolchain at all — that is
+    /// the whole point of that experiment. An agent reading the result must
+    /// not be able to tell which instrument produced it, and two
+    /// implementations of one format drift unless something compares them.
+    /// That experiment's `check.sh` runs its extracted parser over the same
+    /// fixture and diffs it against the same expectation.
+    #[test]
+    fn ndjson_matches_the_committed_expectation() {
+        let raw = include_str!("../tests/log-format/lines.txt");
+        let want = include_str!("../tests/log-format/expected.ndjson");
+        assert_eq!(ndjson(raw), want);
     }
 
     #[test]

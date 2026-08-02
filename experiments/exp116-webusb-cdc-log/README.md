@@ -140,6 +140,53 @@ ls: cannot access '/dev/ttyACM0': No such file or directory
 
 Same device, two views, one at a time.
 
+## Copy as JSON — the button for a reader who is not a person
+
+**Copy** gives you what is on the screen. **Copy as JSON** gives you what
+`yi26 log --json` would have given you, in the same shape, field for field:
+
+```text
+{"type":"line","t_ms":21037,"lost":26,"text":"scheduler: 210 wakeups"}
+{"type":"summary","lines":8,"lost_total":26,"gaps":1,"first_t_ms":37,"last_t_ms":3000}
+```
+
+It exists because of where this page runs. Somebody building in a rented Linux
+box and flashing at home, or debugging with nothing but a phone, has no
+`yi26` — this page is their only instrument. When they hand the log to an
+assistant that has never seen the board, that assistant should not be able to
+tell which instrument produced it.
+
+The field that makes the difference is `lost`. `crates/usb-log` drops lines
+when its queue is full and says so in the text, but as a marker a reader has
+to notice; here it is a number, with a total in the summary. A capture that
+silently lost a third of its lines and a capture that lost none look very
+similar in prose and not at all similar in JSON.
+
+### Two implementations of one format, and what stops them drifting
+
+Nothing about writing the same parser twice is safe, so neither copy is
+allowed to be the authority. `tools/yi26/tests/log-format/` holds one fixture
+and one committed expectation; a Rust test runs the tool over it, and this
+experiment's `check.sh` slices the parser out of this page between two markers
+and runs it over the same fixture with `node`. Both must match the same file.
+
+The fixture contains a backspace and a form feed on purpose. JavaScript's
+`JSON.stringify` writes `\b` and `\f` for those; the tool writes `\u0008` and
+`\u000c`. Both are valid JSON, both parse back to the same string, and they
+are not the same bytes — which is exactly the kind of difference that survives
+review and fails a diff. Reaching for `JSON.stringify` here is caught within a
+second:
+
+```text
+FAIL  the page's parser agrees with yi26 — 5c5
+< ..."text":"backspace \u0008 formfeed \u000c nul-ish \u0001 done"}
+> ..."text":"backspace \b formfeed \f nul-ish \u0001 done"}
+```
+
+`check.sh` also runs `node --check` over the whole script, because a single
+typo anywhere in it leaves a page that loads, renders, and does nothing, with
+the reason visible only in a console nobody opened.
+
 ## The permission
 
 Granted once per **browser session**, and inherited by every page from the

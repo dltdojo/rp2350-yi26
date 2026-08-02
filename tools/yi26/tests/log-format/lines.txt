@@ -1,0 +1,9 @@
+[      37 ms] exp118 up. The OUT endpoint has a reader.
+[   21037 ms] (+26 lines lost) scheduler: 210 wakeups
+ hello, no timestamp here
+
+[    1049 ms] quote " backslash \ tab 	here
+[    1050 ms] backspace  formfeed  nul-ish  done
+[not a timestamp] left alone
+[  2000 ms]
+[  3000 ms] a final fragment with no terminator

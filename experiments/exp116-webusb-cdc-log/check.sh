@@ -60,6 +60,57 @@ grep -q "IF YOU ARE AN AI AGENT" "$PAGE" \
     && pass "the page carries the agent banner (see ../../AGENTS.md)" \
     || fail "the page carries the agent banner" "an agent reading this file should be told to use 'yi26 log --json' instead"
 
+# ---------------------------------------------------------------------------
+# The page emits the same NDJSON `yi26 log --json` does, so that an assistant
+# helping from a rented Linux box cannot tell which instrument produced a log
+# somebody pasted at it. Two implementations of one format drift unless
+# something compares them, and neither of them gets to be the authority: both
+# are run over one fixture and diffed against one committed expectation.
+FIXTURE=../../tools/yi26/tests/log-format/lines.txt
+EXPECTED=../../tools/yi26/tests/log-format/expected.ndjson
+
+grep -q "BEGIN yi26-log-json" "$PAGE" && grep -q "END yi26-log-json" "$PAGE" \
+    && pass "the page carries the extractable log-format block" \
+    || fail "the page carries the extractable log-format block" "the markers check.sh slices between are gone"
+
+if ! command -v node > /dev/null; then
+    echo "SKIP  node is not installed, so the page's script cannot be checked here"
+    echo "      (the Rust side is still pinned: cargo test -p yi26)"
+elif [[ ! -f "$FIXTURE" || ! -f "$EXPECTED" ]]; then
+    fail "the log-format fixture is present" "expected $FIXTURE and $EXPECTED"
+else
+    EXTRACT="$(mktemp -d)"
+    trap 'rm -rf "$EXTRACT"' EXIT
+
+    # Before anything clever: does the whole script even parse? A single typo
+    # anywhere in it leaves a page that loads, renders, and does nothing at
+    # all, with the reason visible only in a console nobody opened. `node
+    # --check` cannot run this — it is full of DOM and WebUSB calls — but it
+    # can refuse to accept a syntax error.
+    sed -n '/^<script>/,/^<\/script>/p' "$PAGE" | sed '1d;$d' > "$EXTRACT/page.js"
+    if node --check "$EXTRACT/page.js" 2>"$EXTRACT/syntax"; then
+        pass "the page's script parses"
+    else
+        fail "the page's script parses" "$(head -3 "$EXTRACT/syntax" | tr '\n' ' ')"
+    fi
+
+    sed -n '/BEGIN yi26-log-json/,/END yi26-log-json/p' "$PAGE" > "$EXTRACT/parser.js"
+    {
+        cat "$EXTRACT/parser.js"
+        echo 'process.stdout.write(yi26Ndjson(require("fs").readFileSync(0, "utf8")));'
+    } > "$EXTRACT/run.js"
+
+    if node "$EXTRACT/run.js" < "$FIXTURE" > "$EXTRACT/got.ndjson" 2>"$EXTRACT/err"; then
+        if diff -q "$EXPECTED" "$EXTRACT/got.ndjson" > /dev/null; then
+            pass "the page's parser agrees with yi26 byte for byte"
+        else
+            fail "the page's parser agrees with yi26" "$(diff "$EXPECTED" "$EXTRACT/got.ndjson" | head -4 | tr '\n' ' ')"
+        fi
+    else
+        fail "the page's parser runs" "$(head -2 "$EXTRACT/err" | tr '\n' ' ')"
+    fi
+fi
+
 if command -v google-chrome > /dev/null || command -v chromium > /dev/null \
    || command -v chromium-browser > /dev/null || command -v microsoft-edge > /dev/null; then
     pass "a Chromium browser is installed"
@@ -77,7 +128,7 @@ fi
 # so it is reported rather than asserted. All three are legitimate.
 if [[ -e /dev/ttyACM0 ]]; then
     echo "SKIP  the kernel still owns the interfaces — run 'yi26 detach' before connecting"
-elif [[ "$(yi26 state)" == "absent" ]] && yi26 udev > /dev/null 2>&1; then
+elif [[ "$(yi26 state)" == "detached" ]] && yi26 udev > /dev/null 2>&1; then
     pass "the interfaces are detached — a browser can claim them"
 else
     echo "SKIP  no board attached (not an error)"
