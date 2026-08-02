@@ -5,7 +5,7 @@
 //! finally closes.
 //!
 //! Nothing about the device changes to make that possible. CDC-ACM has always
-//! had an OUT endpoint — exp115's descriptor tree lists it, `endpoint 0x02
+//! had an OUT endpoint — exp115's descriptor tree lists it, `endpoint 0x01
 //! OUT bulk 64 bytes`, and every firmware in this repository has had one since
 //! exp104. The endpoint was there; nobody was reading it.
 //!

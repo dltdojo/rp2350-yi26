@@ -293,6 +293,11 @@ pub fn summary_json(s: &Summary) -> String {
 /// compared against a committed file, which is how the browser page is kept
 /// honest. Lines are split on `\n`, and a final fragment with no terminator
 /// still counts — a capture can stop mid-line.
+// Called only from tests in this crate — the streaming path is what the
+// binary uses. It is not dead weight for that: it is the definition of the
+// format that `experiments/exp116-webusb-cdc-log` reimplements in JavaScript,
+// and the only thing that can be pointed at a fixture and diffed.
+#[allow(dead_code)]
 pub fn ndjson(raw: &str) -> String {
     let mut summary = Summary::default();
     let mut out = String::new();

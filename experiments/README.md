@@ -45,6 +45,7 @@ Per experiment:
 | exp117 | Any RP2350 board running exp105 or later — it needs the 1200-baud watcher to have something to talk to. Chromium browser, and on Linux `yi26 detach` first. |
 | exp118 | Any RP2350 board. No browser: the host half is `yi26 send`, which talks to the same CDC port everything else here uses. |
 | exp119 | Any RP2350 board. No browser. The host half is `yi26 flood`, which needs a port that can be written to and have RTS toggled at the same time. |
+| exp120 | A board running **exp118** — it is the only firmware here that reads the OUT endpoint, and sending to any other looks identical to this page failing. Chromium browser, and on Linux `yi26 detach` first. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -257,6 +258,7 @@ Practical consequences:
 | [exp117-webusb-reboot](./exp117-webusb-reboot/) | A web page puts the board into its bootloader — the request whose success looks exactly like failure |
 | [exp118-one-receiver-two-jobs](./exp118-one-receiver-two-jobs/) | The firmware starts listening, and ownership — not taste — decides the shape of the program |
 | [exp119-cancelled-reads](./exp119-cancelled-reads/) | Twenty thousand reads cancelled on purpose, and the control variable that makes a zero mean something |
+| [exp120-webusb-two-way](./exp120-webusb-two-way/) | The page types and the firmware answers — a hundred bytes sent once, arriving twice |
 
 ## Planned
 
@@ -288,7 +290,6 @@ Two facts set the whole shape of this track:
 
 | Planned | Proves |
 | --- | --- |
-| **exp120-webusb-two-way** | The browser half of exp118 — `transferOut` from a page, which is what makes a phone an input device and not just a screen |
 | **exp121-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
 | **exp122-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo |
 | **exp123-bot-framing** | The host's storage commands, printed. Declare a mass-storage interface, decode the command blocks that arrive, answer nothing — and read what a disk is actually asked |

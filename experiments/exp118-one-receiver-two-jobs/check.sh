@@ -52,6 +52,36 @@ else
     fail "auto-reboot is compiled in" "built with --no-default-features? this board will need BOOTSEL by hand"
 fi
 
+# Every endpoint address this experiment quotes has to appear in the capture
+# it quotes them from.
+#
+# The README, the source and run.sh all cite exp115's descriptor tree, and all
+# three said `endpoint 0x02 OUT` — a number that does not exist on this device
+# at all. exp115's README, which is a real capture, says 0x01. Citing a
+# document and getting its contents wrong is a poor look anywhere; in a
+# repository whose argument is that the artifact is the evidence it is worse,
+# and nothing caught it because prose is not checked. This checks it.
+TREE=../exp115-webusb-enumerate/README.md
+if [[ -f "$TREE" ]]; then
+    # `while read`, not `for addr in $(...)`. The strings contain a space, and
+    # word splitting turned "endpoint 0x02" into "endpoint" and "0x02" — both
+    # of which appear in exp115's README for unrelated reasons, so the first
+    # version of this check passed against the very error it was written for.
+    # A guard that cannot fail is worse than no guard: it is reassurance.
+    BAD=""
+    while IFS= read -r addr; do
+        [[ -z "$addr" ]] && continue
+        grep -qF "$addr" "$TREE" || BAD="$BAD [$addr]"
+    done < <(grep -rhoE 'endpoint 0x[0-9a-f]{2}' README.md src/main.rs run.sh | sort -u)
+    if [[ -z "$BAD" ]]; then
+        pass "every endpoint address cited here appears in exp115's captured tree"
+    else
+        fail "every endpoint address cited here appears in exp115's captured tree" "not in it:$BAD"
+    fi
+else
+    echo "SKIP  exp115's README is missing, so citations cannot be checked against it"
+fi
+
 if ! exp_running 118; then
     echo "SKIP  board is not running exp118 — flash it with ./run.sh (not an error)"
     exit "$FAILED"

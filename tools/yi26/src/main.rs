@@ -735,6 +735,31 @@ fn cmd_kernel_driver(opts: &Opts, attach: bool) -> i32 {
         board::detach_kernel_driver()
     };
 
+    // Attaching is claimed done only when the thing it exists to produce is
+    // there. The mechanism cannot tell success from one particular failure:
+    // `attach_kernel_driver` treats Busy as "already attached", which is right
+    // when cdc_acm has taken both interfaces as a pair and wrong when a
+    // browser tab is holding them — the same error code, the opposite state.
+    //
+    // Measured, not imagined: with a tab still open this printed "attached
+    // kernel driver to interface(s) 0, 1" and "/dev/ttyACM0 is back" while
+    // there was no /dev/ttyACM0 at all. So ask the outcome instead of trusting
+    // the return, the way `flash` waits for a port it can actually open.
+    if attach && result.is_ok() && board::wait_for_port(Duration::from_secs(2)).is_none() {
+        let holders = board::usbfs_holders();
+        let who = if holders.is_empty() {
+            "something still holds the interfaces".to_string()
+        } else {
+            format!("{} still has the device open", holders.join(", "))
+        };
+        return fail(
+            opts,
+            "attach-incomplete",
+            &format!("the kernel driver did not come back: {who}"),
+            "close that program (a browser tab counts), then: yi26 attach",
+        );
+    }
+
     match result {
         Ok(ifaces) => {
             let list: Vec<String> = ifaces.iter().map(|n| n.to_string()).collect();

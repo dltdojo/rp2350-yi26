@@ -21,7 +21,7 @@ say ""
 say "Everything so far has talked ${BOLD}at${RESET} the host. This listens."
 say ""
 say "Nothing about the device changes to allow it. exp115's descriptor tree"
-say "already listed ${DIM}endpoint 0x02 OUT bulk 64 bytes${RESET}, and every firmware here"
+say "already listed ${DIM}endpoint 0x01 OUT bulk 64 bytes${RESET}, and every firmware here"
 say "has had one since exp104. The endpoint was always there. Nobody read it."
 
 # ---------------------------------------------------------------------------

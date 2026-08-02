@@ -5,7 +5,7 @@ sends bytes, the firmware prints exactly what arrived, and the round trip
 finally closes.
 
 Nothing about the device changes to allow it. exp115's descriptor tree already
-listed `endpoint 0x02 OUT bulk 64 bytes`, and every firmware here has had one
+listed `endpoint 0x01 OUT bulk 64 bytes`, and every firmware here has had one
 since exp104. **The endpoint was always there. Nobody read it.**
 
 Needs: any RP2350 board, and the exp102 toolchain. No browser.
