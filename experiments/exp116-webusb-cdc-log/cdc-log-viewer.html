@@ -159,14 +159,27 @@ async function start(dev) {
   //
   // So the driver has to be moved out of the way before this page runs, and
   // the error below says how rather than leaving a NetworkError to interpret.
+  //
+  // It names two causes, not one, and that correction was earned. This message
+  // used to blame cdc_acm alone — and then appeared on a machine where cdc_acm
+  // had already been detached and a second tab of this very page was holding
+  // the interfaces. "Run yi26 detach" is useless advice to someone who has
+  // already run it, and worse than useless: it sends them to fix something
+  // that is not broken.
+  //
+  // An interface has exactly one owner, and nothing here can see who it is —
+  // WebUSB reports the same NetworkError either way. `yi26 doctor` can see it,
+  // because it reads /proc, so the message points there rather than guessing.
   try {
     await device.claimInterface(control);
     await device.claimInterface(data);
   } catch (e) {
     throw new Error(
-      `cannot claim the interfaces — the kernel's cdc_acm driver still owns them. ` +
-      `Run "yi26 detach" in a terminal, then press Connect again. ` +
-      `("yi26 attach" puts it back, and so does replugging or reflashing.) ` +
+      `cannot claim the interfaces — something else owns them, and an interface ` +
+      `has exactly one owner. Two things it could be: the kernel's cdc_acm ` +
+      `driver (fix: run "yi26 detach"), or another program that claimed them ` +
+      `first — most often another tab of this page (fix: close it). ` +
+      `"yi26 doctor" says which, and names the process. ` +
       `[${e.name}: ${e.message}]`);
   }
 

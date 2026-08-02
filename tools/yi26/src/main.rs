@@ -45,7 +45,7 @@ usage: yi26 <command> [options]
 
 commands:
   doctor            report everything observable about host and board
-  state             print one word: bootsel, running, or absent
+  state             print one word: bootsel, running, detached, or absent
   port              print the serial port of a board running these firmwares
   log               read the firmware's log
   send <text>       send bytes to the firmware, then read its reply
@@ -182,25 +182,47 @@ fn fail(opts: &Opts, id: &str, msg: &str, fix: &str) -> i32 {
 /// asks over and over — and it exists so that scripts do not have to pick
 /// substrings out of JSON, which is exactly the fragile string-matching this
 /// tool is meant to end.
+/// The board's state in one word.
+///
+/// There are four, not three. `absent` used to cover two situations that need
+/// opposite responses: nothing plugged in, and a board that is plugged in and
+/// enumerated whose CDC interfaces have been taken from the kernel — which is
+/// what `yi26 detach` does, and what exp116 requires. The second has no serial
+/// port, so every check built on `find_port` called it missing and advised
+/// changing the cable.
+fn board_state(bootsel: bool, has_port: bool) -> &'static str {
+    if bootsel {
+        "bootsel"
+    } else if has_port {
+        "running"
+    } else if board::exp_device_present() {
+        "detached"
+    } else {
+        "absent"
+    }
+}
+
 fn cmd_state(opts: &Opts) -> i32 {
     out::explain(
         opts,
         &Explanation {
-            shell: &["lsusb -d 2e8a:000f   # in BOOTSEL?", "lsusb -d 1209:0001   # running?"],
+            shell: &[
+                "lsusb -d 2e8a:000f   # in BOOTSEL?",
+                "lsusb -d 1209:0001   # on the bus at all?",
+                "ls /dev/ttyACM*      # and does the kernel still drive it?",
+            ],
             notes: &[
-                "Two lsusb calls and an if/elif, on Linux only. The single word printed",
+                "Three checks and an if/elif, on Linux only. The single word printed",
                 "here means a script can branch on board state without parsing anything.",
+                "The third check is why there are four words rather than three: a board",
+                "whose interfaces have been detached is enumerated and has no serial",
+                "port, and calling that 'absent' is how you end up looking for a bad",
+                "cable while the board sits there working.",
             ],
         },
     );
 
-    let state = if board::in_bootsel() {
-        "bootsel"
-    } else if board::find_port().is_some() {
-        "running"
-    } else {
-        "absent"
-    };
+    let state = board_state(board::in_bootsel(), board::find_port().is_some());
 
     if opts.json {
         println!("{}", out::obj(&[out::kv_str("state", state)]));
@@ -887,13 +909,8 @@ fn cmd_doctor(opts: &Opts) -> i32 {
     // -- board --------------------------------------------------------------
     let bootsel = board::in_bootsel();
     let port = board::find_port();
-    let state = if bootsel {
-        "bootsel"
-    } else if port.is_some() {
-        "running"
-    } else {
-        "absent"
-    };
+    let state = board_state(bootsel, port.is_some());
+    let holders = if state == "detached" { board::usbfs_holders() } else { Vec::new() };
 
     if state == "absent" {
         problems.push(Problem {
@@ -901,6 +918,31 @@ fn cmd_doctor(opts: &Opts) -> i32 {
             severity: "warn",
             message: "no RP2350 board found on USB".to_string(),
             fix: "plug it in with a data cable, not a charge-only one — exp101 explains how to tell",
+        });
+    }
+
+    // Present, enumerated, and no serial port. This used to be reported as
+    // "no board found" with advice about cables, which is the wrong repair for
+    // a board that is working — and worse, it is advice that cannot succeed,
+    // so following it teaches nothing.
+    if state == "detached" {
+        problems.push(Problem {
+            id: "interfaces-detached",
+            severity: "warn",
+            message: if holders.is_empty() {
+                "the board is enumerated but its CDC interfaces are not attached to the kernel, so there is no serial port"
+                    .to_string()
+            } else {
+                format!(
+                    "the board is enumerated but its CDC interfaces are not attached to the kernel; {} has the device open",
+                    holders.join(", ")
+                )
+            },
+            fix: if holders.is_empty() {
+                "yi26 attach"
+            } else {
+                "close that program (a browser tab counts), then: yi26 attach"
+            },
         });
     }
 
@@ -1013,9 +1055,13 @@ fn cmd_doctor(opts: &Opts) -> i32 {
             match state {
                 "bootsel" => "in BOOTSEL mode — waiting for a .uf2",
                 "running" => "running one of these firmwares",
+                "detached" => "enumerated, but its interfaces are not the kernel's",
                 _ => "not found",
             }
         );
+        if !holders.is_empty() {
+            println!("    held by     {}", holders.join(", "));
+        }
         if let Some(p) = &port {
             println!(
                 "    usb         {:04x}:{:04x}  {}",

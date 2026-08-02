@@ -131,15 +131,44 @@ pub fn wait_for_bootsel(timeout: Duration) -> bool {
 /// Waits for a board running one of these firmwares to enumerate.
 pub fn wait_for_port(timeout: Duration) -> Option<Port> {
     let deadline = Instant::now() + timeout;
+    let mut seen: Option<Port> = None;
+
     loop {
         if let Some(p) = find_port() {
-            return Some(p);
+            if openable(&p.path) {
+                return Some(p);
+            }
+            // The node exists and will not open yet. On Linux that is udev
+            // still working: the device file appears first and the `uaccess`
+            // tag that makes it yours arrives a moment later. Keep the port so
+            // that timing out still reports something true.
+            seen = Some(p);
         }
         if Instant::now() >= deadline {
-            return None;
+            return seen;
         }
         std::thread::sleep(Duration::from_millis(300));
     }
+}
+
+/// Can this port actually be opened, by us, right now?
+///
+/// Answered by opening it, because nothing weaker is the same question.
+/// Permission on a serial device comes from udev's `uaccess` tag, which is an
+/// ACL rather than the mode bits — so a file whose metadata reads `0660
+/// root:root` may be perfectly openable, and inspecting the metadata would say
+/// the opposite.
+///
+/// The cost is one open/close, which asserts and drops DTR. That is visible to
+/// a firmware watching the control line, and it is the price of not reporting
+/// success before success is true: `flash` used to announce "running at
+/// /dev/ttyACM0" the instant the node appeared, and the next command in the
+/// same script failed with `Permission denied`.
+fn openable(path: &str) -> bool {
+    serialport::new(path, SAFE_BAUD)
+        .timeout(Duration::from_millis(50))
+        .open()
+        .is_ok()
 }
 
 fn wait_until(timeout: Duration, mut f: impl FnMut() -> bool) -> bool {
@@ -292,6 +321,80 @@ pub fn touch_1200_raw() -> Result<(), String> {
     let _ = send(MAGIC_BAUD);
     std::thread::sleep(Duration::from_millis(1000));
     Ok(())
+}
+
+/// Whether the board is on the USB bus at all, regardless of serial ports.
+///
+/// `find_port` answers a narrower question than it looks like it does. It asks
+/// "is there a serial port", and a board whose CDC interfaces have been taken
+/// from the kernel — which is exactly what `yi26 detach` does, and what exp116
+/// requires — has none. Reporting that as "no board found" sent at least one
+/// person looking for a bad cable while the board sat there enumerated.
+pub fn exp_device_present() -> bool {
+    nusb::list_devices()
+        .wait()
+        .map(|mut l| l.any(|d| d.vendor_id() == EXP_VID && d.product_id() == EXP_PID))
+        .unwrap_or(false)
+}
+
+/// Who, if anyone, has the raw USB device open.
+///
+/// Linux only, and empty everywhere else — the question only arises where
+/// `detach` does. Reads `/proc/*/fd`, which resolves for processes owned by
+/// the same user; a browser holding the interfaces is one of those, and it is
+/// the case worth naming.
+pub fn usbfs_holders() -> Vec<String> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        Vec::new()
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let Ok(devices) = nusb::list_devices().wait() else {
+            return Vec::new();
+        };
+        let Some(info) = devices.into_iter().find(|d| d.vendor_id() == EXP_VID && d.product_id() == EXP_PID)
+        else {
+            return Vec::new();
+        };
+        let node = format!(
+            "/dev/bus/usb/{:03}/{:03}",
+            info.busnum(),
+            info.device_address()
+        );
+
+        let mut found = Vec::new();
+        let Ok(entries) = std::fs::read_dir("/proc") else {
+            return found;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(pid) = name.to_str().filter(|s| s.bytes().all(|b| b.is_ascii_digit())) else {
+                continue;
+            };
+            let Ok(fds) = std::fs::read_dir(format!("/proc/{pid}/fd")) else {
+                continue; // another user's process, or it exited mid-scan
+            };
+            for fd in fds.flatten() {
+                let points_at_the_board = std::fs::read_link(fd.path())
+                    .map(|t| t == std::path::Path::new(&node))
+                    .unwrap_or(false);
+                if !points_at_the_board {
+                    continue;
+                }
+                let comm = std::fs::read_to_string(format!("/proc/{pid}/comm"))
+                    .map(|s| s.trim().to_string())
+                    .unwrap_or_else(|_| "?".into());
+                let entry = format!("{comm} (pid {pid})");
+                if !found.contains(&entry) {
+                    found.push(entry);
+                }
+                break;
+            }
+        }
+        found
+    }
 }
 
 fn open_exp_device() -> Result<nusb::Device, String> {

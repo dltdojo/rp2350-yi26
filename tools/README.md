@@ -82,7 +82,7 @@ for what the firmware is actually doing.
 | Command | Answers |
 | --- | --- |
 | `doctor` | everything observable, plus a `problems` array. Start here. |
-| `state` | one word: `bootsel`, `running`, or `absent` |
+| `state` | one word: `bootsel`, `running`, `detached`, or `absent` |
 | `port` | the serial port of a board running one of these firmwares |
 | `log` | what the firmware is printing (`--seconds N`, default 10) |
 | `send <text>` | bytes to the firmware, then its reply (`--seconds N`, default 3) |
@@ -93,6 +93,14 @@ for what the firmware is actually doing.
 
 Exit codes: `0` success, `1` not found or failed, `2` usage error. `doctor`
 exits `1` only when it found an `error`-severity problem.
+
+`detached` is the fourth state and exists because the other three hid a real
+one. A board whose CDC interfaces have been taken from the kernel — which is
+what `detach` does, and what exp116 needs — is enumerated, working, and has no
+serial port. Everything built on "is there a serial port" called that `absent`,
+and `doctor` answered a working board with *plug it in with a data cable*.
+Where it can, `doctor` also names the process holding the device, because on
+Linux the usual answer is a browser tab somebody forgot.
 
 ### `send` is one command because two would lose the answer
 

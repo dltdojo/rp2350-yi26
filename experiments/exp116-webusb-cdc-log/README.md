@@ -34,6 +34,31 @@ yi26 attach     # give them back
 
 Replugging the board or flashing anything also gives them back.
 
+### The same error has a second cause
+
+`yi26 detach` is the fix about half the time. The other half, the driver is
+already gone and **another program has claimed the interfaces** — nearly
+always a second tab of this page, or one you thought you had closed. An
+interface has one owner, and it does not care whether that owner is a kernel
+driver or a browser.
+
+WebUSB reports both as the same `NetworkError`, so the page cannot tell you
+which. `yi26 doctor` can, because it looks at the device from outside:
+
+```text
+  board
+    state       enumerated, but its interfaces are not the kernel's
+    held by     chrome (pid 12345)
+
+  [warn] the board is enumerated but its CDC interfaces are not attached to
+         the kernel; chrome (pid 12345) has the device open
+         try: close that program (a browser tab counts), then: yi26 attach
+```
+
+That distinction was added after this page's error message spent a while
+insisting on `yi26 detach` to somebody who had already run it — which is the
+same failure the message exists to prevent, pointed at the wrong repair.
+
 ## What it costs while detached
 
 There is no serial port. `yi26 log`, `screen`, `picocom` and every terminal
