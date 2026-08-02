@@ -1,0 +1,19 @@
+[package]
+name = "fat12"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A FAT12 volume laid out by hand into a slice of bytes"
+
+# No dependencies, for the same reason `entropy-health` has none: this is
+# arithmetic over an array. Keeping it free of the chip means `cargo test`
+# runs on the machine you are reading this on — and the part most likely to be
+# wrong here is the 12-bit packing, where two entries share three bytes and a
+# mistake produces a volume that mounts and is wrong rather than one that
+# fails.
+[dependencies]
+
+[lib]
+name = "fat12"
+
+[workspace]

@@ -50,6 +50,7 @@ Per experiment:
 | exp122 | Any RP2350 board. No browser. Needs the udev rule for raw USB access — a vendor interface has no device node, so `yi26 echo` claims it directly. |
 | exp123 | Any RP2350 board. No browser. The evidence is partly in sysfs, so a host whose storage driver is not `usb-storage` will show different names for the same thing. |
 | exp124 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk, which is nothing on an RP2350 and would matter on a smaller part. |
+| exp125 | Any RP2350 board. No browser. The layout crate runs `cargo test` on any machine, board or not. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -267,6 +268,7 @@ Practical consequences:
 | [exp122-vendor-bulk](./exp122-vendor-bulk/) | An interface no operating system claims — and two owners on one device at once |
 | [exp123-bot-framing](./exp123-bot-framing/) | Declare a disk and refuse every command, to read how a host decides whether one is there |
 | [exp124-msc-scsi](./exp124-msc-scsi/) | Answer until the host agrees a disk is there — 64 KiB of RAM, and an unformatted volume |
+| [exp125-fat12-by-hand](./exp125-fat12-by-hand/) | A boot sector, a FAT and a root directory written by hand, until the volume mounts with a file on it |
 
 ## Planned
 
@@ -276,7 +278,7 @@ free but not neutral — a Chromium browser. Where that comes from is below.
 
 ### The browser track
 
-Ten of these are built — exp115 through exp124. What is left is in the table
+Eleven of these are built — exp115 through exp125. What is left is in the table
 below, and it is the half that turns the board into a disk.
 
 They build toward a specific destination: **debugging firmware with a phone**.
@@ -301,7 +303,6 @@ Two facts set the whole shape of this track:
 
 | Planned | Proves |
 | --- | --- |
-| **exp125-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
 | **exp126-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp116 page. Plug the board into anything and its debug UI is already there |
 
 The numbers run without a gap, but they were not filled in order, and the
