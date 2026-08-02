@@ -125,11 +125,20 @@ pub fn check() -> Access {
 /// Kept in one place because it is also what `--explain` prints: the user
 /// should be able to read exactly what will run as root before it does, and
 /// type it themselves instead if they would rather.
+///
+/// `udevadm settle` is the last step and it is load-bearing. `trigger`
+/// returns as soon as the events are *queued*, not once they have been
+/// processed — so without it, the verification that runs immediately
+/// afterwards races the ACL it is checking for and reports a failure against
+/// a rule that is about to work. That happened on the first real run of this
+/// command; the fix is not to retry harder but to wait for the thing that
+/// already knows when it has finished.
 pub fn install_script() -> String {
     format!(
         "cat > {RULE_PATH} && chmod 0644 {RULE_PATH} && \
          udevadm control --reload && \
-         udevadm trigger --subsystem-match=usb --attr-match=idVendor={EXP_VID:04x}"
+         udevadm trigger --subsystem-match=usb --attr-match=idVendor={EXP_VID:04x} && \
+         udevadm settle --timeout=10"
     )
 }
 
@@ -195,10 +204,15 @@ mod tests {
     /// what `install` actually runs, the explanation becomes a lie — so both
     /// come from this one function, and this test pins what it must contain.
     #[test]
-    fn install_script_covers_all_three_privileged_steps() {
+    fn install_script_covers_every_privileged_step() {
         let s = install_script();
         assert!(s.contains(RULE_PATH), "{s}");
         assert!(s.contains("udevadm control --reload"), "{s}");
         assert!(s.contains("udevadm trigger"), "{s}");
+        // Without settle, the verification that follows races the ACL it is
+        // checking for. This is not decoration; it is the whole reason the
+        // first real run of --install reported a failure against a rule that
+        // was working.
+        assert!(s.contains("udevadm settle"), "{s}");
     }
 }

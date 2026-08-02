@@ -117,6 +117,13 @@ Chrome's first Connect will fail with "Access denied". To fix it:
     yi26 udev --install
 ```
 
+One note on the install itself. The three privileged steps end with
+`udevadm settle`, and that last one is not tidiness: `udevadm trigger` returns
+as soon as the events are *queued*, so without settling, the verification that
+runs immediately afterwards races the ACL it is looking for. The first real
+run of this command reported a failure against a rule that was working
+perfectly — the tool was simply faster than the system it was checking.
+
 Two things worth knowing about how it checks. It **opens the device**, the
 same operation the browser performs, rather than testing whether the rule file
 exists — a rule that is present but not working is worse than none, because it

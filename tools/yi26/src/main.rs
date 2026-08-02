@@ -516,6 +516,7 @@ fn cmd_udev(opts: &Opts, install: bool) -> i32 {
                 "sudo tee /etc/udev/rules.d/70-rp2350-yi26.rules   # rule text below",
                 "sudo udevadm control --reload",
                 "sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=1209",
+                "sudo udevadm settle",
             ],
             notes: &[
                 "The check here is not the `ls` above. It opens the device the way a",
@@ -552,7 +553,23 @@ fn cmd_udev(opts: &Opts, install: bool) -> i32 {
         eprintln!();
     }
 
-    let a = udev::check();
+    // After an install, give the device a moment before believing a failure.
+    //
+    // `udevadm settle` in the script above is the real fix for the race that
+    // used to happen here, and this is the belt to its braces: applying an
+    // ACL is asynchronous in ways a shell command cannot fully promise, and
+    // telling someone their fix did not work when it did is the worst
+    // possible output from a tool whose whole job is answering that question.
+    let mut a = udev::check();
+    if install && !a.open_ok && a.present {
+        for _ in 0..10 {
+            std::thread::sleep(Duration::from_millis(300));
+            a = udev::check();
+            if a.open_ok {
+                break;
+            }
+        }
+    }
 
     if opts.json {
         println!(
