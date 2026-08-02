@@ -74,6 +74,14 @@ translate the steps.
 Running another Linux that is close enough (apt equivalents, udisks2)?
 Acknowledge the difference and proceed: `RP2350_ANY_PLATFORM=1 ./run.sh`.
 
+No Linux machine at all? Building and flashing are separable — the seam is the
+`.uf2` file, and the two halves can sit on two different computers. A rented
+Linux box builds; the machine you already own drags the file onto the board's
+boot drive, which needs no toolchain and no drivers.
+[`docs/platforms.md`](../docs/platforms.md) works that through experiment by
+experiment, including what it costs you (exp101) and what still needs software
+on your own machine (reading the serial port).
+
 ## Conventions
 
 Shared helpers — output formatting, the `run_cmd` show-then-run pattern,

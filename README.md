@@ -34,6 +34,13 @@ scripts build on first use; `yi26 doctor --json` is the fastest way to hand a
 complete picture of your setup to whatever is helping you debug. See
 [Platform](./experiments/README.md#platform).
 
+Not on Linux, and not buying a machine for this? Compiling and flashing are
+separable: a rented Linux box builds the `.uf2`, and the computer you already
+own drags it onto the board's boot drive — no toolchain, no drivers, no
+administrator rights. [`docs/platforms.md`](./docs/platforms.md) lays out that
+split experiment by experiment, and says which parts have been verified here
+and which have not.
+
 ## Hardware
 
 Target is the [RP2350](https://www.raspberrypi.com/products/rp2350/), the
