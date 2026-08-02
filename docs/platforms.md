@@ -100,6 +100,7 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp121 | Same | Drag, then read the log and send one byte. Checking that the keypress landed needs an input-event reader — a desktop's `xset` will not show it |
 | exp122 | Same | Drag, then talk to an interface with no device node. Needs a program that can claim a USB interface — `yi26 echo`, or any libusb binding. A serial terminal cannot reach it |
 | exp123 | Same | Drag, then read the log. The host interrogates the board on its own the moment it enumerates, so the local half is just watching |
+| exp124 | Same | Drag, then look at your own disk listing — the board appears in it. `lsblk` on Linux, Disk Management on Windows, Disk Utility on macOS |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host
