@@ -88,7 +88,7 @@ audit_experiment() {
         local src_state="unknown" art_state="unknown" marker=""
         [[ "$feats" == *auto-reboot* ]] && src_state="on" || src_state="off"
         if [[ -n "$uf2_path" ]]; then
-            marker="$(strings "$uf2_path" 2>/dev/null | grep -m1 '^yi26-cfg:auto-reboot=')"
+            marker="$(yi26 markers "$uf2_path" 2>/dev/null | grep -m1 '^yi26-cfg:auto-reboot=')"
             case "$marker" in
                 *=on*)  art_state="on"  ;;
                 *=off*) art_state="off" ;;
@@ -204,7 +204,7 @@ audit_experiment() {
         local rng_src="unknown" rng_art="unknown" rng_marker=""
         [[ "$feats" == *hardware-rng* ]] && rng_src="hardware" || rng_src="software"
         if [[ -n "$uf2_path" ]]; then
-            rng_marker="$(strings "$uf2_path" 2>/dev/null | grep -m1 '^yi26-cfg:rng=')"
+            rng_marker="$(yi26 markers "$uf2_path" 2>/dev/null | grep -m1 '^yi26-cfg:rng=')"
             case "$rng_marker" in
                 *=hardware*) rng_art="hardware" ;;
                 *=software*) rng_art="software" ;;

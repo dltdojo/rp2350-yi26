@@ -57,15 +57,24 @@ pub const MAGIC_BAUD: u32 = 1200;
 /// the *default* build, not the flags whoever produced the `.uf2` actually
 /// used.
 ///
-/// So the binary carries the answer itself, in a form `strings` can read:
+/// So the binary carries the answer itself:
 ///
 /// ```sh
-/// strings firmware.uf2 | grep yi26-cfg
+/// yi26 markers firmware.uf2
 /// ```
 ///
-/// `#[used]` and an explicit section keep the linker from discarding it —
-/// nothing in the program ever reads this string, which normally makes it
-/// dead weight to be optimised away. `experiments/audit.sh` reports it.
+/// **Not `strings firmware.uf2`.** That is what this comment used to
+/// recommend, and it is wrong in a way that reads as right. A `.uf2` is a
+/// container, not a flat image: 512-byte blocks, each with a header and 256
+/// bytes of payload, so the firmware is chopped up in the file. A marker that
+/// straddles a payload boundary exists nowhere in the file as one run of
+/// bytes, and `strings` reports nothing while the firmware plainly declares
+/// it. exp112's hardware build does exactly that. `yi26 markers` decodes the
+/// container first; `experiments/audit.sh` uses it.
+///
+/// `#[used]` and an explicit section keep the linker from discarding this —
+/// nothing in the program ever reads the string, which normally makes it dead
+/// weight to be optimised away.
 #[used]
 #[unsafe(link_section = ".rodata.yi26_build_marker")]
 pub static BUILD_MARKER: [u8; 24] = *if cfg!(feature = "auto-reboot") {

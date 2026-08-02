@@ -167,6 +167,8 @@ is safe"; it is **look at where the await is**.
 
 ## Next
 
-**exp117** is the one that still needs a person: a browser sending the
-1200-baud request, which closes the loop that lets a phone reflash a board with
-no toolchain and no second computer.
+**exp120** is exp118 seen from the other end: a browser writing to that same
+OUT endpoint, which is what makes a phone an input device and not just a
+screen. The hundred-bytes-arriving-as-two result shows up there too, through
+completely different host software — which is what makes it a property of USB
+rather than of `yi26`.

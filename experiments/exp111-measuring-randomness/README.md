@@ -133,7 +133,12 @@ TRNG that is working.
 
 ## Next
 
-That is the on-chip peripherals track. Both of these sources produce data with
-nowhere to go but a serial port, which is where the **browser track** picks up
-at exp112 — first a web page reading this log with no firmware changes at all,
-and eventually a board that carries its own debug interface.
+Two cheap tests disagreed, and that was enough to tell these two sources
+apart. It is not enough to trust either of them.
+
+**exp112** is the failure that survives every test on this page: a build that
+quietly stopped using the hardware RNG and produces numbers that pass
+everything, because software-generated numbers do. Then **exp113** shows a
+seed whose space is enormous and whose entropy is about six bits, and
+**exp114** replaces "score it" with the thing a real source does — refuse to
+emit when its own health tests fail.

@@ -78,12 +78,21 @@ fi
 # Which firmware is on the board decides whether this page can do anything at
 # all, and the failure is silent: any other firmware receives the bytes, never
 # collects them, and prints nothing — which looks exactly like a broken page.
+#
+# All of these are SKIP and none is FAIL, including "some other experiment is
+# flashed". That is a board doing something else, not a fault — the same rule
+# lib.sh states about `exp_running`, and the reason exp101 stopped reporting
+# red lines at people whose hardware was working. What the message has to do
+# instead is be loud, because the failure it warns about is silent.
 case "$(yi26 state 2>/dev/null)" in
     running)
         if exp_running 118; then
             echo "SKIP  exp118 is flashed but the kernel still owns the interfaces — run 'yi26 detach'"
         else
-            fail "the board is running exp118" "another firmware will take your bytes and say nothing, which looks like this page failing"
+            echo "SKIP  the board is running a different experiment, so this page has nothing to talk to"
+            echo "      Flash exp118 first. Sending to any other firmware here is silent: the"
+            echo "      bytes arrive, nothing collects them, and no error appears anywhere —"
+            echo "      which looks exactly like this page being broken."
         fi
         ;;
     detached)

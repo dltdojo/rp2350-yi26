@@ -248,9 +248,11 @@ function append(text) {
  *
  * Searched rather than hard-coded. exp115 printed interfaces 0 and 1 with the
  * log on 0x82 for the firmwares in this repository — but a composite device
- * that gains a function shifts those numbers, and exp118 is going to do
- * exactly that. Code that reads the descriptors keeps working; code that
- * remembers 0, 1 and 2 quietly reads the wrong endpoint.
+ * that gains a function can shift those numbers, and exp121 does: built with
+ * `--features hid-first` it moves the CDC pair to interfaces 1 and 2 and the
+ * log endpoint to 0x83. This page needed no change for either build. Code
+ * that remembered 0, 1 and 0x82 would be reading a keyboard's interrupt
+ * endpoint.
  */
 function findCdc(dev) {
   const cfg = dev.configurations[0];

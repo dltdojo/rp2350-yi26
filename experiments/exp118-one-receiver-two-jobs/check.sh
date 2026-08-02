@@ -46,7 +46,7 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
 # out of usb_reboot::watch and into its own select loop, which is exactly the
 # kind of change that can silently drop it — and dropping it means the next
 # person to flash this board needs a BOOTSEL button and a hand.
-if strings "$UF2" | grep -q 'yi26-cfg:auto-reboot=on'; then
+if yi26 markers "$UF2" | grep -q 'yi26-cfg:auto-reboot=on'; then
     pass "auto-reboot is compiled in (the board can still be reflashed)"
 else
     fail "auto-reboot is compiled in" "built with --no-default-features? this board will need BOOTSEL by hand"

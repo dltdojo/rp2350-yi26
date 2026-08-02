@@ -154,6 +154,13 @@ fn count_transitions(bytes: &[u8], prev: &mut Option<bool>) -> u32 {
 /// with exp111's tests so you can watch the tests fail to help.
 #[embassy_executor::task]
 async fn rng_task(mut trng: Trng<'static, TRNG>) -> ! {
+    // Constructed in both builds, and that is the experiment rather than an
+    // oversight. A fallback that is only compiled in when it is used is a
+    // fallback somebody would notice; this one is present either way, and only
+    // a `cfg` decides which generator the bytes come from. The `allow` says so
+    // out loud instead of leaving a compiler warning to be ignored — a warning
+    // nobody acts on is how a real one gets missed.
+    #[cfg_attr(feature = "hardware-rng", allow(unused_mut, unused_variables))]
     let mut software = SoftwareRng::new();
     let mut ones: u32 = 0;
     let mut changes: u32 = 0;

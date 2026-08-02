@@ -93,7 +93,11 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp106 | Same | Drag, read the log, press BOOTSEL as a button |
 | exp107 | Same | Drag, then *deliberately ignore* the port for twenty seconds before reading it — that is the experiment |
 | exp108 – exp114 | Same | Drag, then read the log. Every one of these produces numbers and nothing else — a temperature, an entropy score, a health verdict — so the serial port is not optional for any of them |
+| exp115 – exp117 | Same, but there is nothing to build: these are single HTML files | **The best fit on this route.** A Chromium browser is the whole local requirement — read the descriptors, read the log, and put the board into BOOTSEL from the page. On Linux they need `yi26 detach` first; on Android they do not |
 | exp118 | Same | Drag, then **write to the port as well as read it**. This is the first experiment where the port is not enough on its own: something has to send bytes, and whatever you use has to be able to send a raw byte like `0x00` |
+| exp119 | Same | Drag, then send twenty thousand numbered packets while toggling RTS. `yi26 flood` does both at once through one handle, and nothing that cannot do that will reproduce it |
+| exp120 | Nothing to build | A browser, and a board already running exp118. This is the page that lets a phone *type* at the board |
+| exp121 | Same | Drag, then read the log and send one byte. Checking that the keypress landed needs an input-event reader — a desktop's `xset` will not show it |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host

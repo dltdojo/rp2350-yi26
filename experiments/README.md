@@ -270,7 +270,11 @@ free but not neutral — a Chromium browser. Where that comes from is below.
 
 ### The browser track
 
-These build toward a specific destination: **debugging firmware with a phone**.
+Six of these are built — exp115 through exp117, exp120, and the two firmware
+experiments they lean on, exp118 and exp119. What is left is in the table
+below, and it is the half that turns the board into a disk.
+
+They build toward a specific destination: **debugging firmware with a phone**.
 Plug the board into an Android phone, open a page, and read the device's own
 log — no app to install, no second computer, no debug probe. That matters
 because a phone is the most hostile host to debug against: its only USB port is
@@ -298,15 +302,19 @@ Two facts set the whole shape of this track:
 | **exp125-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
 | **exp126-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp116 page. Plug the board into anything and its debug UI is already there |
 
-The numbering has a gap in it and that is not an accident. Verifying a browser
-experiment needs a person: a WebUSB permission comes from a native dialog
-behind a required user gesture, it does not survive restarting the browser, and
-no tool in this repository can click it. Firmware and host-side work need
-nobody. So when the board is reachable and its owner is not, the work that can
-proceed is the work that proceeds — and exp118 and exp119 were built before
-exp117 for no better and no worse reason than that. exp117 was finished later
-the same day, in the two minutes its owner was at the bench, because that
-click was the only part of it that could not be done without them.
+The numbers run without a gap, but they were not filled in order, and the
+reason is worth keeping. Verifying a browser experiment needs a person: a
+WebUSB permission comes from a native dialog behind a required user gesture,
+it does not survive restarting the browser, and no tool in this repository can
+click it. Firmware and host-side work need nobody.
+
+So exp118 and exp119 were built while exp117 sat empty — not because they were
+more important, but because the board was reachable and its owner was not.
+exp117 was finished later the same day, in the couple of minutes its owner was
+at the bench, because that click was the only part of it that could not be
+done without them. The same shape decided exp120 and exp121: the descriptor
+change waited for someone who could reach the BOOTSEL button, since a
+malformed descriptor leaves no software route back.
 
 exp126 closes a loop that opens in exp101. The `RP2350` drive that appears when
 you hold BOOTSEL is not a real disk — the bootrom synthesizes a FAT volume on

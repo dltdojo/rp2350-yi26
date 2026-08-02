@@ -87,6 +87,7 @@ for what the firmware is actually doing.
 | `log` | what the firmware is printing (`--seconds N`, default 10) |
 | `send <text>` | bytes to the firmware, then its reply (`--seconds N`, default 3) |
 | `flood` | numbered packets at full speed (`--packets N`, `--storm`) |
+| `markers <f.uf2>` | the `yi26-cfg:` build markers inside a firmware image |
 | `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
 | `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
@@ -124,6 +125,30 @@ that trap next to the three commands it replaces.
 The rate is always 115200 and cannot be given. 1200 is the reboot signal from
 exp105, and a send command that took a baud rate would let a typo reset the
 board.
+
+### `markers`, because `strings` on a .uf2 lies
+
+```sh
+yi26 markers firmware.uf2      # yi26-cfg:auto-reboot=on
+```
+
+Every firmware here stamps its security-relevant build choices into the image
+as plain text, and `experiments/audit.sh` reports them. The obvious way to read
+one back is `strings firmware.uf2 | grep yi26-cfg`, and that is wrong in a way
+that reads as right.
+
+A `.uf2` is a **container**, not a flat image: 512-byte blocks, each with a
+32-byte header and 256 bytes of firmware. The image is chopped up in the file,
+so a marker that happens to straddle a payload boundary exists nowhere in the
+file as a single run of bytes. `strings` reports nothing while the firmware
+plainly declares itself.
+
+That is not hypothetical — exp112's hardware build does it, and the audit
+spent a while reporting *cannot determine* about whether any host program can
+reboot that board. A disclosure tool that can silently fail to find a
+disclosure is worse than no tool, so this decodes the container first. The
+test for it builds a UF2 with a marker deliberately cut in half and asserts
+that a naive contiguous search fails on the same bytes.
 
 ### `flood` has no shell equivalent, and that is what it is for
 

@@ -50,6 +50,7 @@ commands:
   log               read the firmware's log
   send <text>       send bytes to the firmware, then read its reply
   flood             numbered packets at full speed (--packets N, --storm)
+  markers <f.uf2>   the yi26-cfg: build markers inside a firmware image
   bootsel           put the board into BOOTSEL mode (1200-baud touch)
   drive             print the RP2350 boot drive, mounting it if needed
   flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
@@ -147,6 +148,10 @@ fn run(args: &[String]) -> i32 {
             None => usage_error("send needs something to send"),
         },
         "flood" => cmd_flood(&opts, packets, storm, if seconds_given { seconds } else { 4 }),
+        "markers" => match positional.get(1) {
+            Some(f) => cmd_markers(&opts, Path::new(f)),
+            None => usage_error("markers needs a .uf2 file"),
+        },
         "bootsel" => cmd_bootsel(&opts),
         "drive" => cmd_drive(&opts),
         "flash" => match positional.get(1) {
@@ -414,6 +419,108 @@ fn unescape(s: &str) -> Result<Vec<u8>, String> {
         }
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// markers
+
+fn cmd_markers(opts: &Opts, path: &Path) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &["strings firmware.uf2 | grep yi26-cfg    # WRONG"],
+            notes: &[
+                "That command is what this subcommand exists to replace, and it is wrong",
+                "in a way that reads as right. A .uf2 is not a flat image: it is 512-byte",
+                "blocks, each carrying a header and 256 bytes of payload, so the firmware",
+                "is chopped up in the file. A string that straddles a payload boundary",
+                "does not exist anywhere in the file as one run of bytes, and `strings`",
+                "reports nothing while the firmware plainly contains it.",
+                "Measured: exp106's image declares 'yi26-cfg:auto-reboot=on' and `strings`",
+                "cannot see it. The marker is a disclosure about whether any host program",
+                "can reboot your board, so a false 'cannot determine' is the worst",
+                "possible failure mode for it.",
+                "This decodes the container first and then searches. There is no shell",
+                "one-liner for that, which is why it is here.",
+            ],
+        },
+    );
+
+    let raw = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) => {
+            return fail(opts, "unreadable", &format!("cannot read {}: {e}", path.display()), "check the path")
+        }
+    };
+
+    let markers = uf2_markers(&raw);
+
+    if opts.json {
+        let items: Vec<String> = markers.iter().map(|m| out::esc(m)).collect();
+        println!(
+            "{}",
+            out::obj(&[
+                out::kv_str("file", &path.display().to_string()),
+                out::kv_raw("markers", &out::arr(&items)),
+            ])
+        );
+    } else {
+        for m in &markers {
+            println!("{m}");
+        }
+    }
+
+    // Not an error: an experiment that does not link `usb-reboot` has nothing
+    // to declare, and saying "failed" about that would be the same false
+    // alarm this command was written to remove.
+    0
+}
+
+/// Every `yi26-cfg:` string in a UF2 image, read out of the decoded payload.
+///
+/// UF2 is a container: 512-byte blocks, each with a 32-byte header followed by
+/// `payload_size` bytes of firmware. Concatenating those payloads is what
+/// reconstitutes the image, and it is the only view in which a marker that
+/// happens to straddle a block boundary is contiguous.
+fn uf2_markers(raw: &[u8]) -> Vec<String> {
+    const BLOCK: usize = 512;
+    const MAGIC0: u32 = 0x0A32_4655;
+    const MAGIC1: u32 = 0x9E5D_5157;
+    const PREFIX: &[u8] = b"yi26-cfg:";
+
+    let u32_at = |b: &[u8], i: usize| u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+
+    let mut payload = Vec::with_capacity(raw.len() / 2);
+    for block in raw.chunks_exact(BLOCK) {
+        if u32_at(block, 0) != MAGIC0 || u32_at(block, 4) != MAGIC1 {
+            continue;
+        }
+        let size = u32_at(block, 16) as usize;
+        if let Some(data) = block.get(32..32 + size.min(BLOCK - 32)) {
+            payload.extend_from_slice(data);
+        }
+    }
+
+    let mut found = Vec::new();
+    let mut i = 0;
+    while i + PREFIX.len() <= payload.len() {
+        if &payload[i..i + PREFIX.len()] != PREFIX {
+            i += 1;
+            continue;
+        }
+        // Runs to the first byte that is not printable ASCII. The markers are
+        // fixed-width and space-padded, so trailing spaces are trimmed off.
+        let end = payload[i..]
+            .iter()
+            .position(|&b| !(0x20..0x7f).contains(&b))
+            .map(|n| i + n)
+            .unwrap_or(payload.len());
+        if let Ok(s) = core::str::from_utf8(&payload[i..end]) {
+            found.push(s.trim_end().to_string());
+        }
+        i = end.max(i + 1);
+    }
+    found
 }
 
 // ---------------------------------------------------------------------------
@@ -1230,6 +1337,55 @@ mod tests {
         assert!(check_uf2_family(&rp2040).is_err());
 
         assert!(check_uf2_family(&[0u8; 4]).is_err());
+    }
+
+    /// Builds a two-block UF2 whose marker is split across the boundary.
+    fn uf2_with_marker_split(marker: &[u8], first_half: usize) -> Vec<u8> {
+        let mut out = Vec::new();
+        let payload_size = 256usize;
+        for (block_no, chunk) in [&marker[..first_half], &marker[first_half..]].iter().enumerate() {
+            let mut block = vec![0u8; 512];
+            block[0..4].copy_from_slice(&0x0A32_4655u32.to_le_bytes());
+            block[4..8].copy_from_slice(&0x9E5D_5157u32.to_le_bytes());
+            block[16..20].copy_from_slice(&(payload_size as u32).to_le_bytes());
+            block[20..24].copy_from_slice(&(block_no as u32).to_le_bytes());
+            block[24..28].copy_from_slice(&2u32.to_le_bytes());
+            block[28..32].copy_from_slice(&RP2350_FAMILY.to_le_bytes());
+            // The first block ends with its half of the marker; the second
+            // begins with the rest. That is what a straddle looks like.
+            let start = if block_no == 0 { 32 + payload_size - chunk.len() } else { 32 };
+            block[start..start + chunk.len()].copy_from_slice(chunk);
+            out.extend_from_slice(&block);
+        }
+        out
+    }
+
+    #[test]
+    fn markers_are_found_even_when_a_uf2_block_cuts_one_in_half() {
+        // The bug this command exists for. A .uf2 is 512-byte blocks each
+        // carrying 256 bytes of firmware, so a marker that spans a payload
+        // boundary is not contiguous anywhere in the file — `strings` reports
+        // nothing about a firmware that plainly declares itself, and the
+        // repository's disclosure tool said "cannot determine" about a setting
+        // that lets any host program reboot your board.
+        let marker = b"yi26-cfg:auto-reboot=on ";
+        let raw = uf2_with_marker_split(marker, 10);
+
+        // Precondition: the naive search really does fail on these bytes.
+        // Without this the test could pass against an implementation that
+        // never had to decode anything.
+        assert!(
+            raw.windows(marker.len()).all(|w| w != marker),
+            "the fixture is supposed to be split; a contiguous copy proves nothing"
+        );
+
+        assert_eq!(uf2_markers(&raw), vec!["yi26-cfg:auto-reboot=on".to_string()]);
+    }
+
+    #[test]
+    fn markers_ignores_anything_that_is_not_a_uf2_block() {
+        assert!(uf2_markers(b"yi26-cfg:auto-reboot=on ").is_empty());
+        assert!(uf2_markers(&[]).is_empty());
     }
 
     #[test]

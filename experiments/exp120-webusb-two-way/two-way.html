@@ -110,8 +110,12 @@ function append(text) {
  *
  * exp116 needed only the IN one. The OUT endpoint sits on the same alternate
  * setting and is found the same way — by asking the descriptors rather than
- * remembering that it was 0x02 last time. exp121 adds a function to this
- * device and moves every number in here.
+ * remembering that it was 0x01 last time.
+ *
+ * exp121 settles how much that matters. Its default build adds a keyboard
+ * after the CDC pair and nothing moves; built with `--features hid-first` the
+ * interfaces become 1 and 2 and the log endpoint becomes 0x83. This function
+ * is correct for both, and was not touched for either.
  */
 function findCdc(dev) {
   const cfg = dev.configurations[0];

@@ -52,8 +52,8 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$HW_UF2" | tr -d ' ')"
 # The markers are the point of the experiment. If they ever stopped tracking
 # the build, audit.sh would report a confident wrong answer — which is worse
 # than reporting nothing.
-M_HW="$(strings "$HW_UF2" | grep -m1 '^yi26-cfg:rng=')"
-M_SW="$(strings "$SW_UF2" | grep -m1 '^yi26-cfg:rng=')"
+M_HW="$(yi26 markers "$HW_UF2" | grep -m1 '^yi26-cfg:rng=')"
+M_SW="$(yi26 markers "$SW_UF2" | grep -m1 '^yi26-cfg:rng=')"
 [[ "$M_HW" == "yi26-cfg:rng=hardware" ]] \
     && pass "hardware build stamps 'rng=hardware'" \
     || fail "hardware build stamps 'rng=hardware'" "got: '${M_HW:-nothing}'"
@@ -63,7 +63,7 @@ M_SW="$(strings "$SW_UF2" | grep -m1 '^yi26-cfg:rng=')"
 
 # Both variants must also keep the reboot watcher, or the reader ends up
 # holding BOOTSEL to escape an experiment about build flags.
-strings "$SW_UF2" | grep -q 'yi26-cfg:auto-reboot=on' \
+yi26 markers "$SW_UF2" | grep -q 'yi26-cfg:auto-reboot=on' \
     && pass "software variant keeps the 1200-baud watcher (still reflashable)" \
     || fail "software variant keeps the 1200-baud watcher" "--features auto-reboot was dropped"
 

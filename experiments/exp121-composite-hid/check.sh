@@ -51,7 +51,7 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
     && pass "UF2 family ID is e48bff59 (rp2350-arm-s)" \
     || fail "UF2 family ID is e48bff59 (rp2350-arm-s)" "got: $FAMILY"
 
-if strings "$UF2" | grep -q 'yi26-cfg:auto-reboot=on'; then
+if yi26 markers "$UF2" | grep -q 'yi26-cfg:auto-reboot=on'; then
     pass "auto-reboot is compiled in (the board can still be reflashed)"
 else
     fail "auto-reboot is compiled in" "a descriptor experiment without a way back needs a hand on BOOTSEL"
