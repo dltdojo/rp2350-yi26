@@ -150,24 +150,33 @@ the descriptor strings during enumeration, so a page that merely printed the
 tree would appear to work on a machine where nothing else would. Opening is
 the part that exercises the permission.
 
-## The permission is asked once
+## The permission is asked once per browser session
 
 Grant it, and `navigator.usb.getDevices()` returns the device afterwards with
-no picker and no click — **including after a hard reload**, which was
-confirmed rather than assumed:
+no picker and no click:
 
 ```
 Opened exp114 health tests (reconnected automatically, no picker
 — the permission persisted). Read-write access confirmed.
 ```
 
-Worth checking rather than reasoning about, because reasoning got it wrong
-here: Chrome's `Preferences` file shows an empty `usb_chooser_data`, which
-looks exactly like a permission that was not stored. It is stored somewhere
-else. The behaviour is the answer; the file was the wrong artifact to read.
+Measured, because guessing at the scope would have been wrong in both
+directions. What was confirmed on Chrome 137:
 
-That one grant is what makes the rest of this track practical — every later
-page reconnects on load.
+- it survives a **hard reload** of the same page;
+- it is inherited by a **different file** at a different path — the grant
+  belongs to the `file://` origin, not to one document. A page in `/tmp`
+  that never called `requestDevice()` got the device from `getDevices()`;
+- it does **not** survive the browser restarting.
+
+That last one matches Chrome's `Preferences`, where `usb_chooser_data` stays
+empty: the grant is held for the session and never written to disk.
+
+Two consequences. Every later page in this track reconnects with no click, so
+the grant is per session rather than per experiment. And **any local HTML file
+on the machine can reach the board** once you have granted it — which is worth
+knowing before granting, and is the honest cost of a `file://` origin having
+no finer identity than "a file".
 
 ## A bug this experiment caught
 

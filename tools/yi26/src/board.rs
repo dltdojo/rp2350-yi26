@@ -154,3 +154,173 @@ fn wait_until(timeout: Duration, mut f: impl FnMut() -> bool) -> bool {
         std::thread::sleep(Duration::from_millis(300));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Raw-USB paths, for when the kernel's serial driver is not in the way — or
+// not there at all.
+
+/// The CDC class request that carries the line coding, and the seven-byte
+/// payload it expects. Straight out of the USB CDC specification.
+const SET_LINE_CODING: u8 = 0x20;
+
+/// Detaches the kernel driver from this board's interfaces.
+///
+/// Exists because of a measured Chrome behaviour: on Linux, WebUSB's
+/// `claimInterface` does **not** detach `cdc_acm`, so a page that wants the
+/// CDC interfaces gets `NetworkError: Unable to claim interface` and no
+/// explanation. The operating system is perfectly willing — `detach` here and
+/// `claim` in the browser both succeed once the driver is out of the way.
+///
+/// The cost is stated plainly by [`touch_1200_raw`]: with the driver gone
+/// there is no `/dev/ttyACM0`, so anything that finds the board through a
+/// serial port stops finding it. That is why the reboot touch has a second
+/// implementation rather than a warning in a README.
+pub fn detach_kernel_driver() -> Result<Vec<u8>, String> {
+    let dev = open_exp_device()?;
+    let mut done = Vec::new();
+    // Interface numbers are not assumed. A composite firmware that grows a
+    // function moves them, and detaching the wrong one silently does nothing.
+    for n in cdc_interface_numbers()? {
+        match dev.detach_kernel_driver(n) {
+            Ok(()) => done.push(n),
+            // Already detached is the desired state, not a failure.
+            //
+            // `cdc_acm` binds the CDC pair together, so detaching the control
+            // interface takes the data interface with it and the second call
+            // finds nothing to detach. The kernel reports ENODATA, which nusb
+            // does not map to a specific kind, so the message is what
+            // distinguishes "nothing to do" from a real failure. Matching on
+            // text is not lovely; being wrong in the other direction would
+            // mean reporting success for a detach that did not happen.
+            Err(e)
+                if e.kind() == nusb::ErrorKind::NotFound
+                    || e.to_string().contains("no kernel driver attached") =>
+            {
+                done.push(n)
+            }
+            Err(e) => return Err(format!("cannot detach interface {n}: {e}")),
+        }
+    }
+    Ok(done)
+}
+
+/// Gives the interfaces back to the kernel, restoring `/dev/ttyACM0`.
+pub fn attach_kernel_driver() -> Result<Vec<u8>, String> {
+    let dev = open_exp_device()?;
+    let mut done = Vec::new();
+    for n in cdc_interface_numbers()? {
+        match dev.attach_kernel_driver(n) {
+            Ok(()) => done.push(n),
+            // Already attached is the desired state, not a failure — the same
+            // rule detach applies to NotFound, and it matters here because
+            // cdc_acm binds the CDC pair together: attaching the control
+            // interface brings the data interface with it, so the second call
+            // always reports Busy on a two-interface device.
+            Err(e) if e.kind() == nusb::ErrorKind::Busy => done.push(n),
+            Err(e) => return Err(format!("cannot attach interface {n}: {e}")),
+        }
+    }
+    Ok(done)
+}
+
+/// The 1200-baud reboot, over a control transfer instead of a serial port.
+///
+/// [`touch_1200`] needs `/dev/ttyACM0`, which exists only while the kernel's
+/// `cdc_acm` driver holds the interface. Detach that driver so a browser can
+/// use the device — which exp116 requires — and the board becomes impossible
+/// to reflash without the BOOTSEL button.
+///
+/// This sends the same `SET_LINE_CODING` the serial driver would have sent,
+/// straight down the control pipe. The firmware cannot tell the difference:
+/// `crates/usb-reboot` reads the line coding, not the driver that set it.
+pub fn touch_1200_raw() -> Result<(), String> {
+    let dev = open_exp_device()?;
+    let iface = *cdc_interface_numbers()?
+        .first()
+        .ok_or("no CDC control interface on this device")?;
+
+    let coding = |rate: u32| {
+        let mut b = [0u8; 7];
+        b[..4].copy_from_slice(&rate.to_le_bytes());
+        b[4] = 0; // 1 stop bit
+        b[5] = 0; // no parity
+        b[6] = 8; // 8 data bits
+        b
+    };
+
+    // Bounce through a safe rate first, for the reason `--explain` gives about
+    // the shell version: a device already sitting at 1200 would otherwise be
+    // told nothing, and hear nothing.
+    let send = |rate: u32| -> Result<(), String> {
+        dev.control_out(
+            nusb::transfer::ControlOut {
+                control_type: nusb::transfer::ControlType::Class,
+                recipient: nusb::transfer::Recipient::Interface,
+                request: SET_LINE_CODING,
+                value: 0,
+                index: iface as u16,
+                data: &coding(rate),
+            },
+            Duration::from_millis(500),
+        )
+        .wait()
+        .map(|_| ())
+        .map_err(|e| {
+            // EBUSY here means something else owns the interface — in
+            // practice a browser tab that claimed it. Saying "hold BOOTSEL"
+            // would send someone to the button when closing a tab is enough,
+            // and this repository has spent enough of the user's patience on
+            // BOOTSEL presses that were not necessary.
+            // `TransferError` has no Busy variant and no `kind()`; EBUSY
+            // arrives as `unknown (errno 16)`. Matching the text is not
+            // lovely, and it is better than sending someone to the BOOTSEL
+            // button when closing a browser tab is the actual fix.
+            if e.to_string().contains("errno 16") {
+                "the interface is held by something else — close any browser tab \
+                 connected to the board, then try again"
+                    .to_string()
+            } else {
+                format!("SET_LINE_CODING at {rate} failed: {e}")
+            }
+        })
+    };
+
+    send(SAFE_BAUD)?;
+    std::thread::sleep(Duration::from_millis(200));
+    // The board resets shortly after acknowledging this one, so a transfer
+    // error here is success wearing a disguise.
+    let _ = send(MAGIC_BAUD);
+    std::thread::sleep(Duration::from_millis(1000));
+    Ok(())
+}
+
+fn open_exp_device() -> Result<nusb::Device, String> {
+    nusb::list_devices()
+        .wait()
+        .map_err(|e| format!("cannot enumerate USB: {e}"))?
+        .find(|d| d.vendor_id() == EXP_VID && d.product_id() == EXP_PID)
+        .ok_or_else(|| format!("no {EXP_VID:04x}:{EXP_PID:04x} device on USB"))?
+        .open()
+        .wait()
+        .map_err(|e| format!("cannot open the device: {e} — try `yi26 udev --install`"))
+}
+
+/// The CDC Communications interface first, then CDC Data.
+fn cdc_interface_numbers() -> Result<Vec<u8>, String> {
+    let info = nusb::list_devices()
+        .wait()
+        .map_err(|e| format!("cannot enumerate USB: {e}"))?
+        .find(|d| d.vendor_id() == EXP_VID && d.product_id() == EXP_PID)
+        .ok_or("board not found")?;
+    let mut control = Vec::new();
+    let mut data = Vec::new();
+    for i in info.interfaces() {
+        match i.class() {
+            0x02 => control.push(i.interface_number()),
+            0x0a => data.push(i.interface_number()),
+            _ => {}
+        }
+    }
+    control.extend(data);
+    Ok(control)
+}

@@ -1,0 +1,255 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp116 — the log, in a browser</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp116-webusb-cdc-log — one file, no dependencies, no build step, no server.
+
+  exp115 opened the device and described it. This one claims its interfaces,
+  performs the two control transfers a CDC host has to perform by hand, and
+  reads the log endpoint. Still no firmware changes: the board is printing
+  exactly what it always printed.
+
+  Open it directly from the filesystem — double-click on a desktop, Files app
+  -> "Open with Chrome" on Android.
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 52rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  #log { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .8rem;
+         border-radius: 6px; height: 24rem; overflow-y: auto; font-family: ui-monospace, monospace;
+         font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .6rem; }
+  .warn { border-left: 3px solid var(--warn); padding: .6rem .9rem; margin: 1rem 0; font-size: 13.5px; }
+  code { font-size: .92em; }
+</style>
+
+<h1>The log, in a browser</h1>
+<p class="sub">exp116 &middot; claim the CDC interfaces and read the endpoint. No firmware changes.<br>
+  <small>page build <b id="ver">b2</b> &mdash; if this is not the build you expect,
+  reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
+
+<p>
+  <button id="connect">Connect and stream</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="clear" class="ghost">Clear</button>
+  <button id="copy" class="ghost">Copy</button>
+</p>
+
+<div id="status">Not connected.</div>
+<div id="log"></div>
+<div class="meta" id="meta"></div>
+
+<div class="warn">
+  <b>On Linux, run <code>yi26 detach</code> first.</b> The kernel's
+  <code>cdc_acm</code> driver owns these interfaces — that is what
+  <code>/dev/ttyACM0</code> is — and an interface has exactly one owner.
+  Chrome's WebUSB does not take it away for you, so claiming fails until
+  something else does. <code>yi26 attach</code> gives it back; so does
+  replugging, or flashing anything.
+  <br><br>
+  While detached there is no serial port, so <code>yi26 log</code> and every
+  terminal program stop seeing the board. Flashing still works —
+  <code>yi26 bootsel</code> sends the same 1200-baud request over a control
+  transfer when there is no port to set a baud rate on.
+</div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+
+// CDC class requests, from the USB CDC specification. Numbers, not names, are
+// what goes on the wire.
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+
+// 115200, 1 stop bit, no parity, 8 data bits.
+//
+// The rate is nominal for CDC-ACM — the firmware does not act on it — with one
+// exception that matters enormously here. `crates/usb-reboot` watches for
+// exactly 1200 and reboots into the bootloader when it sees it. Sending 1200
+// from this page would put the board into BOOTSEL mid-stream. That is exp105's
+// trick, reachable from a web page, and it is the reason this constant is
+// written down rather than left as a magic argument.
+const BAUD = 115200;
+
+const $ = (id) => document.getElementById(id);
+let device = null, streaming = false, lines = 0, bytes = 0, started = 0;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+function meta() {
+  const secs = started ? ((performance.now() - started) / 1000).toFixed(1) : '0.0';
+  $('meta').textContent = `${lines} lines, ${bytes} bytes, ${secs} s`;
+}
+function append(text) {
+  const el = $('log');
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  el.textContent += text;
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+
+/**
+ * Finds the CDC interface pair and the bulk IN endpoint that carries the log.
+ *
+ * Searched rather than hard-coded. exp115 printed interfaces 0 and 1 with the
+ * log on 0x82 for the firmwares in this repository — but a composite device
+ * that gains a function shifts those numbers, and exp118 is going to do
+ * exactly that. Code that reads the descriptors keeps working; code that
+ * remembers 0, 1 and 2 quietly reads the wrong endpoint.
+ */
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function start(dev) {
+  device = dev;
+  await device.open();
+  if (device.configuration === null) await device.selectConfiguration(1);
+
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null) {
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  }
+
+  // Claiming is what makes this different from exp115, and on Linux it is
+  // where this page most often stops.
+  //
+  // The kernel's cdc_acm driver owns these interfaces — that is what gives you
+  // /dev/ttyACM0 — and an interface can only have one owner. Chrome's WebUSB
+  // does **not** detach it. Measured, not assumed: claiming returns EBUSY,
+  // while detaching first and then claiming succeeds every time.
+  //
+  // So the driver has to be moved out of the way before this page runs, and
+  // the error below says how rather than leaving a NetworkError to interpret.
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(
+      `cannot claim the interfaces — the kernel's cdc_acm driver still owns them. ` +
+      `Run "yi26 detach" in a terminal, then press Connect again. ` +
+      `("yi26 attach" puts it back, and so does replugging or reflashing.) ` +
+      `[${e.name}: ${e.message}]`);
+  }
+
+  // Two control transfers, by hand. A terminal program does these for you and
+  // that is the only reason they look exotic.
+  //
+  // SET_LINE_CODING carries seven bytes: rate as a little-endian u32, then
+  // stop bits, parity and data bits.
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true);
+  coding.setUint8(4, 0);   // 1 stop bit
+  coding.setUint8(5, 0);   // no parity
+  coding.setUint8(6, 8);   // 8 data bits
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control },
+    coding.buffer);
+
+  // SET_CONTROL_LINE_STATE asserts DTR (bit 0) and RTS (bit 1).
+  //
+  // This one is not optional and not politeness. `crates/usb-log` waits for
+  // DTR before it writes a single byte, because writing into an endpoint
+  // nobody is collecting from can wedge the board hard enough that even the
+  // 1200-baud reflash stops working. Without this line the page connects
+  // successfully and then sits there receiving nothing, forever.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  started = performance.now();
+  $('connect').disabled = true;
+  $('stop').disabled = false;
+  say(`Streaming from ${device.productName} — interfaces ${control} and ${data}, endpoint ${endpointIn} IN.`, 'ok');
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try {
+      r = await device.transferIn(endpointIn, 64);
+    } catch (e) {
+      if (streaming) say(`Transfer failed: ${e.message}`, 'bad');
+      break;
+    }
+    if (r.status === 'stall') { await device.clearHalt('in', endpointIn); continue; }
+    if (r.data && r.data.byteLength) {
+      const text = dec.decode(r.data, { stream: true });
+      bytes += r.data.byteLength;
+      lines += (text.match(/\n/g) || []).length;
+      append(text);
+      meta();
+    }
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('stop').disabled = true;
+  try {
+    if (device && device.opened) {
+      // Dropping DTR tells the firmware nobody is listening any more, which
+      // is the same signal a terminal sends when you close it. The log stops
+      // writing and starts dropping lines, exactly as exp107 describes.
+      const { control } = findCdc(device);
+      if (control !== null) {
+        await device.controlTransferOut(
+          { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x00, index: control });
+        await device.releaseInterface(control);
+      }
+      const { data } = findCdc(device);
+      if (data !== null) await device.releaseInterface(data);
+      await device.close();
+    }
+  } catch (e) { /* the device may already be gone; nothing useful to say */ }
+  $('connect').disabled = false;
+  say('Disconnected. The kernel takes the port back — /dev/ttyACM0 returns.');
+}
+
+$('connect').onclick = async () => {
+  try {
+    const dev = await navigator.usb.requestDevice({ filters: FILTERS });
+    await start(dev);
+  } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+};
+$('stop').onclick = stop;
+$('clear').onclick = () => { $('log').textContent = ''; lines = 0; bytes = 0; started = performance.now(); meta(); };
+$('copy').onclick = async () => { await navigator.clipboard.writeText($('log').textContent); say('Log copied.', 'ok'); };
+
+(async () => {
+  if (!('usb' in navigator)) {
+    say('This browser has no WebUSB. Chromium browsers only.', 'bad');
+    $('connect').disabled = true;
+    return;
+  }
+  const known = await navigator.usb.getDevices();
+  if (known.length) {
+    say('Already permitted — connecting without a picker…');
+    try { await start(known[0]); } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+  } else {
+    say('No remembered permission. Press Connect and choose the board.');
+  }
+})();
+</script>

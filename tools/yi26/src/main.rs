@@ -52,6 +52,8 @@ commands:
   drive             print the RP2350 boot drive, mounting it if needed
   flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
   udev              can a browser open the board? (--install fixes it, Linux)
+  detach            take the CDC interfaces from the kernel, so a browser can claim them
+  attach            give them back — /dev/ttyACM0 returns
 
 options:
   --json            machine-readable output on stdout (for scripts and agents)
@@ -124,6 +126,8 @@ fn run(args: &[String]) -> i32 {
             None => usage_error("flash needs a .uf2 file"),
         },
         "udev" => cmd_udev(&opts, install),
+        "detach" => cmd_kernel_driver(&opts, false),
+        "attach" => cmd_kernel_driver(&opts, true),
         other => usage_error(&format!("unknown command: {other}")),
     }
 }
@@ -303,17 +307,34 @@ fn cmd_bootsel(opts: &Opts) -> i32 {
         return bootsel_ok(opts, "already", 0);
     }
 
-    let Some(p) = board::find_port() else {
-        return fail(
-            opts,
-            "no-port",
-            "no board found — cannot ask it to reboot",
-            "hold BOOTSEL while plugging the board in",
-        );
+    // Two routes to the same request, because there are two ways the board can
+    // be present.
+    //
+    // Normally the kernel's cdc_acm driver owns the interface and hands out
+    // /dev/ttyACM0, so the touch goes through the serial port. But exp116
+    // needs that driver detached — Chrome's WebUSB will not do it, so `yi26
+    // detach` does — and with it gone there is no serial port and nothing to
+    // set a baud rate on. Without the second route, detaching would turn a
+    // hands-free reflash into a BOOTSEL press, which is exactly the trap this
+    // repository keeps warning about.
+    //
+    // The firmware cannot tell them apart: crates/usb-reboot reads the line
+    // coding, not the driver that set it.
+    let touched = match board::find_port() {
+        Some(p) => board::touch_1200(&p.path),
+        None => board::touch_1200_raw(),
     };
-
-    if let Err(e) = board::touch_1200(&p.path) {
-        return fail(opts, "touch-failed", &e, "hold BOOTSEL while plugging the board in");
+    if let Err(e) = touched {
+        // The fix has to match the failure. Telling someone to hold BOOTSEL
+        // when the real problem is a browser tab sends them to a physical
+        // button for a software conflict — and if their board is in another
+        // room, that advice costs them the afternoon.
+        let fix = if e.contains("held by something else") {
+            "close the browser tab connected to the board, then try again"
+        } else {
+            "hold BOOTSEL while plugging the board in"
+        };
+        return fail(opts, "touch-failed", &e, fix);
     }
 
     if board::wait_for_bootsel(Duration::from_secs(10)) {
@@ -494,6 +515,80 @@ fn check_uf2_family(bytes: &[u8]) -> Result<(), String> {
             "UF2 family ID is {family:08x}, expected {RP2350_FAMILY:08x} (rp2350-arm-s) — \
              this file is for a different chip"
         ))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// detach / attach
+
+/// Moves the CDC interfaces between the kernel and userspace.
+///
+/// Needed because of a measured Chrome behaviour, not a theoretical one: on
+/// Linux, WebUSB's `claimInterface` does not detach `cdc_acm`, so a page that
+/// wants the CDC interfaces gets `NetworkError: Unable to claim interface` and
+/// no hint about why. The kernel is willing — detaching here and claiming in
+/// the browser both succeed.
+///
+/// The trade is real and is printed rather than buried: with the driver gone
+/// there is no `/dev/ttyACM0`, so `yi26 log` and every terminal program stop
+/// seeing the board. Flashing still works, because `bootsel` has a second
+/// implementation that does not need a serial port.
+fn cmd_kernel_driver(opts: &Opts, attach: bool) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[
+                "# by hand, as root, per interface:",
+                "echo -n 1-7:1.0 > /sys/bus/usb/drivers/cdc_acm/unbind",
+                "echo -n 1-7:1.1 > /sys/bus/usb/drivers/cdc_acm/unbind",
+            ],
+            notes: &[
+                "The sysfs route needs root and the exact bus path, which changes every",
+                "time the board is plugged into a different port. This does it through",
+                "usbfs with the access the udev rule already granted — no password, and",
+                "the interface numbers are read from the descriptors rather than assumed.",
+            ],
+        },
+    );
+
+    let result = if attach {
+        board::attach_kernel_driver()
+    } else {
+        board::detach_kernel_driver()
+    };
+
+    match result {
+        Ok(ifaces) => {
+            let list: Vec<String> = ifaces.iter().map(|n| n.to_string()).collect();
+            if opts.json {
+                println!(
+                    "{}",
+                    out::obj(&[
+                        out::kv_bool("ok", true),
+                        out::kv_str("action", if attach { "attach" } else { "detach" }),
+                        out::kv_str("interfaces", &list.join(",")),
+                    ])
+                );
+            } else if attach {
+                println!("attached kernel driver to interface(s) {}", list.join(", "));
+                println!("      /dev/ttyACM0 is back; `yi26 log` works again");
+            } else {
+                println!("detached kernel driver from interface(s) {}", list.join(", "));
+                println!("      a browser can claim them now — and /dev/ttyACM0 is gone");
+                println!("      until `yi26 attach`, a replug, or a reflash");
+            }
+            0
+        }
+        Err(e) => fail(
+            opts,
+            if attach { "attach-failed" } else { "detach-failed" },
+            &e,
+            if attach {
+                "close any browser tab holding the device first"
+            } else {
+                "check the board is attached, and `yi26 udev` for permissions"
+            },
+        ),
     }
 }
 
