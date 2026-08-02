@@ -39,6 +39,7 @@ Per experiment:
 | exp111 | Any RP2350 board. Uses both, so RP2350 only. |
 | exp112 | Any RP2350 board. Uses the TRNG, so RP2350 only. |
 | exp113 | Any RP2350 board. Reads OTP for a chip identity; prints what it found, so an unprogrammed part still works. |
+| exp114 | Any RP2350 board. Uses both the ADC and the TRNG, so RP2350 only. The health tests themselves run anywhere — `cargo test` in `crates/entropy-health`. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -245,6 +246,7 @@ Practical consequences:
 | [exp111-measuring-randomness](./exp111-measuring-randomness/) | Two sources that both look random — and what two cheap tests can and cannot tell you |
 | [exp112-silent-fallback](./exp112-silent-fallback/) | A build that quietly stopped using the hardware RNG — and every test that fails to notice |
 | [exp113-enumerable-seed](./exp113-enumerable-seed/) | A seed the board can crack in 46 ms — why a space is not an entropy |
+| [exp114-health-tests](./exp114-health-tests/) | The two continuous tests SP 800-90B specifies — and a source that refuses to emit when they fail |
 
 ## Planned
 

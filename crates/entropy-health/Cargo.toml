@@ -1,0 +1,19 @@
+[package]
+name = "entropy-health"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The two continuous health tests from NIST SP 800-90B section 4.4"
+
+# No dependencies at all, and that is the point. These tests are arithmetic on
+# a stream of bits: no hardware, no async runtime, no chip. Keeping them free
+# of both means `cargo test` runs them on the machine you are reading this on,
+# which matters more here than anywhere else in this repository — the cutoffs
+# are the part most likely to be wrong, and a wrong threshold still produces
+# confident output.
+[dependencies]
+
+[lib]
+name = "entropy_health"
+
+[workspace]
