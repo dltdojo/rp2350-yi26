@@ -1,9 +1,9 @@
 [package]
-name = "exp108-onchip-sources"
+name = "exp108-adc-temperature"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Two hardware sources of numbers your code did not compute — and a measurement that tells them apart"
+description = "The chip takes its own temperature: one ADC channel, and the datasheet arithmetic that turns a voltage into degrees"
 
 [dependencies]
 cortex-m = "0.7.7"
@@ -14,17 +14,15 @@ rp2350-linker = "0.2.3"
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
 embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
 # `rp235xa` selects the 30-GPIO RP2350A package used by the official Pico 2.
-# A board built on the 48-GPIO RP2350B needs `rp235xb` here instead.
-#
-# It also gates the TRNG: `embassy-rp` compiles `trng` only under `_rp235x`,
-# which both package features imply. There is no TRNG on the RP2040, so this
-# is the first experiment here that could not be back-ported to one.
+# A board built on the 48-GPIO RP2350B needs `rp235xb` here instead. The
+# temperature sensor is on ADC channel 4 in both, and in the RP2040 too — this
+# experiment is the least chip-specific of the peripheral ones.
 embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
 embassy-usb = "0.6.0"
 static_cell = "2.1.1"
 
-# Unchanged from exp107. The log is the only way to see any of this — none of
-# it can be blinked.
+# Unchanged from exp107. A temperature has no physical form you can blink, so
+# the log is the only way to see any of this.
 usb-log = { path = "../../crates/usb-log" }
 usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 

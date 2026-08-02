@@ -33,7 +33,10 @@ Per experiment:
 | exp105 | Any RP2350 board. Chip-level ROM and USB behaviour only. |
 | exp106 | Any RP2350 board with a plain LED (change the pin) and a BOOTSEL button. |
 | exp107 | Any RP2350 board with a plain LED (change the pin) and a BOOTSEL button. |
-| exp108 | Any RP2350 board with a plain LED (change the pin). The sensor and TRNG are chip-level, so nothing else changes — but there is no TRNG on an RP2040, so this one is RP2350-only in a way the others are not. |
+| exp108 | Any RP2350 board with a plain LED (change the pin). The temperature sensor is ADC channel 4 on every RP2350 — and on the RP2040 too. |
+| exp109 | Any RP2350 board. **RP2350 only in a way the others are not**: the RP2040 has no TRNG at all. |
+| exp110 | Any RP2350 board. Uses the TRNG, so RP2350 only. |
+| exp111 | Any RP2350 board. Uses both, so RP2350 only. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -234,7 +237,10 @@ Practical consequences:
 | [exp105-usb-reboot](./exp105-usb-reboot/) | The firmware puts itself into the bootloader — the button retires |
 | [exp106-bootsel-button](./exp106-bootsel-button/) | BOOTSEL becomes a user button — input drives output, no parts |
 | [exp107-debug-logging](./exp107-debug-logging/) | Three tasks share one serial log — printing that cannot stall the work |
-| [exp108-onchip-sources](./exp108-onchip-sources/) | The chip's own sensor and entropy source — and measuring whether to believe them |
+| [exp108-adc-temperature](./exp108-adc-temperature/) | The chip takes its own temperature — one ADC channel and the datasheet's arithmetic |
+| [exp109-hardware-trng](./exp109-hardware-trng/) | Real entropy, and what it costs to ask — a driver default that is wrong by a factor of thousands |
+| [exp110-await-not-block](./exp110-await-not-block/) | The same slow hardware, awaited and blocked on, with the difference measured |
+| [exp111-measuring-randomness](./exp111-measuring-randomness/) | Two sources that both look random — and what two cheap tests can and cannot tell you |
 
 ## Planned
 
@@ -266,26 +272,28 @@ Two facts set the whole shape of this track:
 
 | Planned | Proves |
 | --- | --- |
-| **exp109-webusb-log** | A browser reads the log exp107 is already printing — and so does a phone. No firmware changes: the deliverable is one HTML file |
-| **exp110-webusb-two-way** | The page types, the firmware reacts. Waiting on two things at once with `select`, with a browser as the first input device |
-| **exp111-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
-| **exp112-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo. The groundwork for what MSC is underneath |
-| **exp113-msc-scsi** | Answering SCSI over Bulk-Only Transport, until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
-| **exp114-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
-| **exp115-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp109 page. Plug the board into anything and its debug UI is already there |
+| **exp112-webusb-enumerate** | A browser opens the board and lists what is inside it — interfaces, endpoints, classes. No firmware changes, and the place where the Linux permission problem gets solved once |
+| **exp113-webusb-cdc-log** | That page claims the CDC interface and streams the log exp107 is already printing. Still no firmware changes — and it works on a phone |
+| **exp114-webusb-two-way** | The page types, the firmware reacts. Waiting on two things at once with `select`, with a browser as the first input device |
+| **exp115-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
+| **exp116-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo |
+| **exp117-bot-framing** | The host's storage commands, printed. Declare a mass-storage interface, decode the command blocks that arrive, answer nothing — and read what a disk is actually asked |
+| **exp118-msc-scsi** | Answering those commands until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
+| **exp119-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
+| **exp120-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp113 page. Plug the board into anything and its debug UI is already there |
 
-exp115 closes a loop that opens in exp101. The `RP2350` drive that appears when
+exp120 closes a loop that opens in exp101. The `RP2350` drive that appears when
 you hold BOOTSEL is not a real disk — the bootrom synthesizes a FAT volume on
 the fly, `INDEX.HTM` and all, and DAPLink's `MBED.HTM` does the same. The trick
 that made the first experiment work is the one the last experiment builds.
 
 Two costs stated in advance, since neither will look smaller later.
 `embassy-usb` has no MSC class, so Bulk-Only Transport and the SCSI subset are
-hand-rolled — that is why exp112 – exp114 exist as separate steps rather than
-one experiment that lands four hundred lines at once. And WebUSB is
-Chromium-only: Firefox and Safari do not implement it, which makes exp109 the
-first experiment here to name a specific vendor's software. It buys the phone,
-and nothing else buys the phone.
+hand-rolled — that is why exp116 – exp119 exist as four steps rather than one
+experiment that lands four hundred lines at once. And WebUSB is Chromium-only:
+Firefox and Safari do not implement it, which makes exp112 the first
+experiment here to name a specific vendor's software. It buys the phone, and
+nothing else buys the phone.
 
 ### Independent of that track
 

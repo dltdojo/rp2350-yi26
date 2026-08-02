@@ -9,9 +9,9 @@ for the on-chip peripherals worth putting *through* that USB link. Rust +
 Embassy is the only stack used here: no C/C++ Pico SDK, no TinyUSB, and no
 blocking HAL.
 
-> **Status:** eight experiments in — board bring-up through the chip's own
-> sensors — and nothing is published here until it has run on a real Pico 2.
-> See [experiments/](./experiments/). The [Scope](#scope) list below is still
+> **Status:** eleven experiments in — board bring-up through the chip's own
+> sensors and entropy source — and nothing is published here until it has run
+> on a real Pico 2. See [experiments/](./experiments/). The [Scope](#scope) list below is still
 > what this repository means to poke at, not a summary of what it has covered.
 
 ## Getting started
@@ -166,9 +166,10 @@ Things this repo is meant to poke at:
 
 USB is the spine, but it is not the whole body. A link is only interesting for
 what travels down it, so on-chip peripherals are in scope too when they give
-that link something worth carrying — the temperature sensor and the hardware
-TRNG in [exp108](./experiments/exp108-onchip-sources/), and whatever else ends
-up feeding the later transport experiments. The test is whether it makes the
+that link something worth carrying — the temperature sensor in
+[exp108](./experiments/exp108-adc-temperature/), the hardware TRNG in
+[exp109](./experiments/exp109-hardware-trng/), and whatever else ends up
+feeding the later transport experiments. The test is whether it makes the
 USB work mean more, not whether it is a peripheral.
 
 ## Toolchain
