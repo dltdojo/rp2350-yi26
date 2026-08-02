@@ -1,0 +1,56 @@
+# For AI agents working in this repository
+
+Short on purpose. Everything here is a rule that only applies to an automated
+agent; everything else lives in the documents this file points at, so there is
+one copy of each rule and nothing to drift.
+
+## Read the log with `yi26`, never with a browser
+
+```sh
+yi26 log --json --seconds 10     # what the firmware is printing
+yi26 doctor --json               # host, toolchain, board state, problems[]
+```
+
+**The browser is never how you read the log. It is only ever the thing being
+tested.**
+
+- Finding out what the firmware printed → `yi26 log --json`. Always.
+- Checking that a page claims its interfaces, streams, and renders → open the
+  browser, because in that case the page *is* the subject.
+
+This repository contains a whole track of experiments (exp115 onward) about
+reading the log in a browser, and that is exactly why the rule needs writing
+down. Those pages exist so that **a person** can see the log on a machine with
+no toolchain — a phone with the board plugged into its only port, most
+importantly. They are the product. `yi26` is the workshop tool.
+
+An agent that screenshots a browser window to find out what a firmware printed
+has taken the thing under test and used it as a measuring instrument. It is
+slower, it needs a human present to grant a permission and keep a window open,
+and it produces a picture where a JSON document was available. Development here
+is agent-driven and non-interactive by default; every step that needs a person
+in the room is a step that stops overnight.
+
+## Ask before touching the user's screen or browser
+
+Verifying a browser experiment means opening a page and looking at it. Ask
+first, capture the browser window only — never the whole desktop — and say
+what you are about to do. A screenshot of someone's screen is not a build
+artifact.
+
+## The rules that are not agent-specific
+
+These apply to everyone and are documented where they belong. An agent should
+read them before proposing work, not instead of them:
+
+- **[Every new experiment starts with an interrogation](./experiments/README.md#how-this-repository-is-developed)**
+  — no experiment and no idea goes straight to a plan or to code.
+- **[Nothing is pushed unverified](./experiments/README.md#nothing-is-pushed-unverified)**
+  — a push means someone plugged a board in and watched it work. `Expected
+  output` sections are pasted captures, never predictions.
+- **[The tool explains itself](./tools/README.md)** — `--explain` on every
+  subcommand prints the hand-typed equivalent. Use it when you need to know
+  what a command actually does.
+- **[Platform reality](./experiments/README.md#platform)** — verified on
+  Ubuntu against one Pico 2, and nowhere else. Do not write claims this
+  repository cannot check.

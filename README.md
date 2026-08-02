@@ -15,6 +15,11 @@ blocking HAL.
 > on a real Pico 2. See [experiments/](./experiments/). The [Scope](#scope) list below is still
 > what this repository means to poke at, not a summary of what it has covered.
 
+Working on this with an AI agent? [`AGENTS.md`](./AGENTS.md) is two pages of
+rules that apply only to automated work — the first being that the log is read
+with `yi26 log --json` and never by opening a browser, which is a mistake this
+repository's own browser experiments make easy to walk into.
+
 ## Getting started
 
 Clone, plug in your RP2350 board, and run the first experiment — no Rust

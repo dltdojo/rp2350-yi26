@@ -49,6 +49,17 @@ grep -q "endpoints.find" "$PAGE" \
     && pass "endpoints are discovered from the descriptors, not hard-coded" \
     || fail "endpoints are discovered from the descriptors" "a remembered endpoint number breaks at exp118"
 
+# The agent banner is load-bearing, so it is checked rather than trusted.
+#
+# This page is the deliverable for a person on a phone; it is not how an
+# automated agent should read the log, and an agent that uses it that way
+# turns the thing under test into a measuring instrument. AGENTS.md says so
+# at the root, and the banner says so where the mistake happens. A comment
+# nobody verifies is a comment that gets deleted in a tidy-up.
+grep -q "IF YOU ARE AN AI AGENT" "$PAGE" \
+    && pass "the page carries the agent banner (see ../../AGENTS.md)" \
+    || fail "the page carries the agent banner" "an agent reading this file should be told to use 'yi26 log --json' instead"
+
 if command -v google-chrome > /dev/null || command -v chromium > /dev/null \
    || command -v chromium-browser > /dev/null || command -v microsoft-edge > /dev/null; then
     pass "a Chromium browser is installed"
