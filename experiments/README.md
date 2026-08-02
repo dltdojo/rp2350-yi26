@@ -51,6 +51,7 @@ Per experiment:
 | exp123 | Any RP2350 board. No browser. The evidence is partly in sysfs, so a host whose storage driver is not `usb-storage` will show different names for the same thing. |
 | exp124 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk, which is nothing on an RP2350 and would matter on a smaller part. |
 | exp125 | Any RP2350 board. No browser. The layout crate runs `cargo test` on any machine, board or not. |
+| exp126 | Any RP2350 board, and a Chromium browser for the last step — which is opening a file off the board's own volume. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -269,71 +270,74 @@ Practical consequences:
 | [exp123-bot-framing](./exp123-bot-framing/) | Declare a disk and refuse every command, to read how a host decides whether one is there |
 | [exp124-msc-scsi](./exp124-msc-scsi/) | Answer until the host agrees a disk is there — 64 KiB of RAM, and an unformatted volume |
 | [exp125-fat12-by-hand](./exp125-fat12-by-hand/) | A boot sector, a FAT and a root directory written by hand, until the volume mounts with a file on it |
+| [exp126-self-hosted-viewer](./exp126-self-hosted-viewer/) | The board carries its own debug page — and the bootloader drive from exp101 turns out to have been doing this all along |
 
-## Planned
+## The browser track, finished
 
-The early track holds to one rule: **a Pico 2 and a USB cable, nothing else to
-buy.** The next run of experiments keeps it, and adds one requirement that is
-free but not neutral — a Chromium browser. Where that comes from is below.
+Eleven experiments, exp115 through exp126, built toward one destination:
+**debugging firmware with a phone.** Plug the board into an Android phone,
+open a page, and read the device's own log — no app to install, no second
+computer, no debug probe.
 
-### The browser track
+That mattered because a phone is the most hostile host to debug against. Its
+only USB port is occupied by the device under test, so `adb` is unavailable
+exactly when you need it, and there is no Wireshark on a stock phone. When you
+cannot observe from the host, the device has to observe itself, and you have
+to be able to read that on the phone.
 
-Eleven of these are built — exp115 through exp125. What is left is in the table
-below, and it is the half that turns the board into a disk.
-
-They build toward a specific destination: **debugging firmware with a phone**.
-Plug the board into an Android phone, open a page, and read the device's own
-log — no app to install, no second computer, no debug probe. That matters
-because a phone is the most hostile host to debug against: its only USB port is
-occupied by the device under test, so `adb` is unavailable exactly when you
-need it, and there is no Wireshark on a stock phone. When you cannot observe
-from the host, the device has to observe itself, and you have to be able to
-read that on the phone.
-
-Two facts set the whole shape of this track:
+Two facts set the shape of the whole thing:
 
 - **Chrome on Android has WebUSB, but not Web Serial.** The desktop-only Web
   Serial API is the obvious way to read a serial port from a page, and it is
-  useless here. WebUSB is what a phone has.
+  useless here.
 - **WebUSB can claim a CDC-ACM interface directly.** It sends
   `SET_LINE_CODING` and `SET_CONTROL_LINE_STATE` itself and reads the bulk IN
-  endpoint. A page does *not* need the firmware to grow a vendor-specific
-  interface, BOS capabilities or Microsoft OS descriptors. So the first
-  experiment on this track changes no firmware at all.
+  endpoint — so the first three experiments changed no firmware at all.
 
-| Planned | Proves |
-| --- | --- |
-| **exp126-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp116 page. Plug the board into anything and its debug UI is already there |
+Where it arrived: a phone with one USB port can **flash** the board
+([exp117](./exp117-webusb-reboot/)), **talk to** it
+([exp120](./exp120-webusb-two-way/)) and **read its log**
+([exp116](./exp116-webusb-cdc-log/)) — with the page for all three coming off
+the board itself ([exp126](./exp126-self-hosted-viewer/)).
 
-The numbers run without a gap, but they were not filled in order, and the
-reason is worth keeping. Verifying a browser experiment needs a person: a
-WebUSB permission comes from a native dialog behind a required user gesture,
-it does not survive restarting the browser, and no tool in this repository can
-click it. Firmware and host-side work need nobody.
+[exp126](./exp126-self-hosted-viewer/) closes a loop that opens in exp101. The
+`RP2350` drive that appears when you hold BOOTSEL is not a real disk — the
+bootrom synthesises a FAT volume on the fly, `INDEX.HTM` and all, and
+DAPLink's `MBED.HTM` does the same. The trick that made the first experiment
+work is the one the last experiment built.
+
+Two costs, stated when the track was planned and still true. `embassy-usb` has
+no MSC class, so Bulk-Only Transport and the SCSI subset are hand-rolled —
+which is why exp123 to exp126 are four steps rather than one experiment that
+lands four hundred lines at once. And WebUSB is Chromium-only: Firefox and
+Safari do not implement it, which makes exp115 the first experiment here to
+name a specific vendor's software. It buys the phone, and nothing else buys
+the phone.
+
+### The numbers ran in order; the work did not
+
+Verifying a browser experiment needs a person: a WebUSB permission comes from
+a native dialog behind a required user gesture, it does not survive restarting
+the browser, and no tool in this repository can click it. Firmware and
+host-side work need nobody.
 
 So exp118 and exp119 were built while exp117 sat empty — not because they were
 more important, but because the board was reachable and its owner was not.
 exp117 was finished later the same day, in the couple of minutes its owner was
 at the bench, because that click was the only part of it that could not be
-done without them. The same shape decided exp120 and exp121: the descriptor
-change waited for someone who could reach the BOOTSEL button, since a
-malformed descriptor leaves no software route back.
+done without them. The same shape decided exp121 onward: a descriptor change
+waits for someone who can reach the BOOTSEL button, since a malformed
+descriptor leaves no software route back.
 
-exp126 closes a loop that opens in exp101. The `RP2350` drive that appears when
-you hold BOOTSEL is not a real disk — the bootrom synthesizes a FAT volume on
-the fly, `INDEX.HTM` and all, and DAPLink's `MBED.HTM` does the same. The trick
-that made the first experiment work is the one the last experiment builds.
+## Planned
 
-Two costs stated in advance, since neither will look smaller later.
-`embassy-usb` has no MSC class, so Bulk-Only Transport and the SCSI subset are
-hand-rolled — that is why exp124 – exp126 exist as separate steps rather than one
-experiment that lands four hundred lines at once. And WebUSB is Chromium-only:
-Firefox and Safari do not implement it, which makes exp115 the first
-experiment here to name a specific vendor's software. It buys the phone, and
-nothing else buys the phone.
-
-### Independent of that track
+Nothing is on the browser road any more. What is left stands on its own, and
+neither item has been interrogated yet — this repository's rule is that no
+experiment goes to a plan or to code until it has been.
 
 - **boot anatomy** — open both boxes: hand-write the memory map and the
   image-definition block the ROM scans for, and read BOOTSEL the hard way.
-- **defmt/RTT logging** *(needs a debug probe — optional side track)*.
+  The most dangerous idea in this list: a malformed image definition is a
+  board the ROM will not start, and there is no software route back from that.
+- **defmt/RTT logging** *(needs a debug probe — optional side track, and the
+  first thing here that would break the one-cable rule)*.

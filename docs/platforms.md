@@ -102,6 +102,7 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp123 | Same | Drag, then read the log. The host interrogates the board on its own the moment it enumerates, so the local half is just watching |
 | exp124 | Same | Drag, then look at your own disk listing — the board appears in it. `lsblk` on Linux, Disk Management on Windows, Disk Utility on macOS |
 | exp125 | Same | Drag, then open the drive that appears. A file manager is the whole local requirement — **this one needs no serial port at all**, which makes it the second-best fit on this route after exp103 |
+| exp126 | Same | Drag, then open `INDEX.HTM` off the drive that appears. **The end of this route**: after this flash, the local machine needs nothing at all that it did not already have |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host

@@ -108,14 +108,54 @@ fn dir_entry(buf: &mut [u8], name_8_3: &[u8; 11], attr: u8, cluster: u16, size: 
     put_u32(buf, 28, size);
 }
 
-/// Lays a whole FAT12 volume into `disk`, with one file in the root.
+/// One file to put in the root directory.
+///
+/// The name is the raw 8.3 field: eight bytes then three, space padded, no
+/// dot. `b"INDEX   HTM"` is what a host shows as `INDEX.HTM` — the dot is
+/// punctuation the listing adds, not a byte on the disk.
+pub struct File<'a> {
+    pub name: &'a [u8; 11],
+    pub contents: &'a [u8],
+}
+
+/// What went wrong, when a layout cannot hold what it was asked to.
+#[derive(Debug, PartialEq)]
+pub enum FormatError {
+    /// More files than the fixed-size root directory has slots. FAT12's root
+    /// is not a file and cannot grow; the count is in the boot sector.
+    TooManyFiles,
+    /// The files need more clusters than the data area contains.
+    OutOfSpace { needed: u32, available: u32 },
+}
+
+/// Lays a whole FAT12 volume into `disk`, with `files` in the root.
 ///
 /// Returns the number of clusters the volume ended up with, because that
 /// number is the one that decides the FAT type and is worth printing rather
 /// than assuming.
-pub fn format(disk: &mut [u8], filename: &[u8; 11], label: &[u8; 11], contents: &[u8]) -> u32 {
+///
+/// Files are allocated consecutively from cluster 2 and chained through the
+/// FAT. A file longer than one cluster is the reason the table exists: the
+/// directory entry holds only the *first* cluster, and each FAT slot says
+/// which cluster follows, ending with [`FAT12_END_OF_CHAIN`].
+pub fn format(disk: &mut [u8], label: &[u8; 11], files: &[File]) -> Result<u32, FormatError> {
     let total_sectors = (disk.len() / SECTOR) as u16;
-    let clusters = (total_sectors as usize - DATA_START) / SECTORS_PER_CLUSTER as usize;
+    let clusters = ((total_sectors as usize - DATA_START) / SECTORS_PER_CLUSTER as usize) as u32;
+    let bytes_per_cluster = SECTORS_PER_CLUSTER as usize * SECTOR;
+
+    // The volume label takes a root slot of its own, which is easy to forget
+    // because it does not look like a file.
+    if files.len() + 1 > ROOT_ENTRIES as usize {
+        return Err(FormatError::TooManyFiles);
+    }
+
+    let needed: u32 = files
+        .iter()
+        .map(|f| f.contents.len().div_ceil(bytes_per_cluster) as u32)
+        .sum();
+    if needed > clusters {
+        return Err(FormatError::OutOfSpace { needed, available: clusters });
+    }
 
     disk.fill(0);
 
@@ -151,37 +191,57 @@ pub fn format(disk: &mut [u8], filename: &[u8; 11], label: &[u8; 11], contents: 
     boot[510] = 0x55;
     boot[511] = 0xAA;
 
-    // ---- sector 1: the FAT --------------------------------------------------
+    let fat_start = RESERVED_SECTORS as usize * SECTOR;
+    let root_start = fat_start + FAT_COUNT as usize * SECTORS_PER_FAT as usize * SECTOR;
+    let data_start = DATA_START * SECTOR;
+
+    // ---- the FAT's first two slots ------------------------------------------
     //
     // Entry 0 carries the media descriptor again with its top bits set; entry
     // 1 is an end-of-chain marker that means nothing. Neither describes a
     // cluster: clusters are numbered from 2, and those two slots are the price.
-    let fat_start = RESERVED_SECTORS as usize * SECTOR;
-    let fat = &mut disk[fat_start..fat_start + SECTOR];
-    set_fat12(fat, 0, 0x0F00 | MEDIA_DESCRIPTOR as u16);
-    set_fat12(fat, 1, FAT12_END_OF_CHAIN);
-    set_fat12(fat, FIRST_CLUSTER as usize, FAT12_END_OF_CHAIN);
+    {
+        let fat = &mut disk[fat_start..fat_start + SECTOR];
+        set_fat12(fat, 0, 0x0F00 | MEDIA_DESCRIPTOR as u16);
+        set_fat12(fat, 1, FAT12_END_OF_CHAIN);
+    }
 
     // ---- sector 2: the root directory --------------------------------------
     //
     // The volume label is a directory entry with a bit set, not a property of
     // the volume — which is why the label in the boot sector above is ignored
     // by most software and this one is not.
-    let root_start = fat_start + FAT_COUNT as usize * SECTORS_PER_FAT as usize * SECTOR;
     dir_entry(&mut disk[root_start..], label, 0x08, 0, 0);
-    dir_entry(
-        &mut disk[root_start + 32..],
-        filename,
-        0x20, // archive
-        FIRST_CLUSTER,
-        contents.len() as u32,
-    );
 
-    // ---- sector 3 onwards: the file ----------------------------------------
-    let data_start = DATA_START * SECTOR;
-    disk[data_start..data_start + contents.len()].copy_from_slice(contents);
+    // ---- the files, and the chains that hold them together ------------------
+    let mut next_cluster = FIRST_CLUSTER;
+    for (i, file) in files.iter().enumerate() {
+        let count = file.contents.len().div_ceil(bytes_per_cluster).max(1) as u16;
+        let first = next_cluster;
 
-    clusters as u32
+        for n in 0..count {
+            let cluster = first + n;
+            let value = if n + 1 == count { FAT12_END_OF_CHAIN } else { cluster + 1 };
+            let fat = &mut disk[fat_start..fat_start + SECTOR];
+            set_fat12(fat, cluster as usize, value);
+
+            let at = data_start + (cluster - FIRST_CLUSTER) as usize * bytes_per_cluster;
+            let from = n as usize * bytes_per_cluster;
+            let take = bytes_per_cluster.min(file.contents.len().saturating_sub(from));
+            disk[at..at + take].copy_from_slice(&file.contents[from..from + take]);
+        }
+
+        dir_entry(
+            &mut disk[root_start + 32 * (i + 1)..],
+            file.name,
+            0x20, // archive
+            first,
+            file.contents.len() as u32,
+        );
+        next_cluster += count;
+    }
+
+    Ok(clusters)
 }
 
 #[cfg(test)]
@@ -226,10 +286,80 @@ mod tests {
         // decides it lives in `format`, so it is checked here rather than
         // trusted.
         let mut disk = [0u8; 128 * SECTOR];
-        let clusters = format(&mut disk, b"README  TXT", b"YI26 EXP125", b"hello");
+        let clusters =
+            format(&mut disk, b"YI26 EXP125", &[File { name: b"README  TXT", contents: b"hello" }])
+                .unwrap();
         assert_eq!(clusters, 125);
         assert!(clusters < 4085, "this layout would not be FAT12");
         assert_eq!(&disk[510..512], &[0x55, 0xAA]);
         assert_eq!(&disk[SECTOR..SECTOR + 3], &[0xF8, 0xFF, 0xFF]);
+    }
+
+    /// The reason the table exists.
+    ///
+    /// A directory entry holds only the *first* cluster. Everything after it
+    /// is found by following the chain, and a file that fits in one cluster
+    /// never exercises that — which is why exp125 could be wrong about it and
+    /// still mount.
+    #[test]
+    fn a_file_longer_than_one_cluster_is_chained_through_the_fat() {
+        let mut disk = [0u8; 128 * SECTOR];
+        let contents = [0x41u8; SECTOR * 3 + 1]; // three clusters and one byte
+        format(&mut disk, b"YI26 EXP126", &[File { name: b"BIG     BIN", contents: &contents }])
+            .unwrap();
+
+        let fat = &disk[SECTOR..SECTOR * 2];
+        assert_eq!(read_fat12(fat, 2), 3, "cluster 2 should point at 3");
+        assert_eq!(read_fat12(fat, 3), 4);
+        assert_eq!(read_fat12(fat, 4), 5);
+        assert_eq!(read_fat12(fat, 5), 0xFFF, "the fourth cluster ends the chain");
+
+        // And the bytes really are spread across those clusters.
+        let data = DATA_START * SECTOR;
+        assert_eq!(disk[data], 0x41);
+        assert_eq!(disk[data + SECTOR * 3], 0x41, "the last cluster holds the last byte");
+        assert_eq!(disk[data + SECTOR * 3 + 1], 0x00, "and nothing beyond it");
+    }
+
+    #[test]
+    fn two_files_get_separate_chains() {
+        let mut disk = [0u8; 128 * SECTOR];
+        let a = [0x11u8; SECTOR * 2];
+        format(
+            &mut disk,
+            b"YI26 EXP126",
+            &[
+                File { name: b"A       BIN", contents: &a },
+                File { name: b"B       BIN", contents: b"second" },
+            ],
+        )
+        .unwrap();
+
+        let fat = &disk[SECTOR..SECTOR * 2];
+        assert_eq!(read_fat12(fat, 2), 3);
+        assert_eq!(read_fat12(fat, 3), 0xFFF, "the first file ends here");
+        assert_eq!(read_fat12(fat, 4), 0xFFF, "and the second starts on its own cluster");
+    }
+
+    /// Refusing is the only honest answer, and the alternative is a volume
+    /// whose directory points past the end of its own data area.
+    #[test]
+    fn a_file_too_big_for_the_volume_is_refused() {
+        let mut disk = [0u8; 128 * SECTOR];
+        let huge = [0u8; 200 * SECTOR];
+        let err = format(&mut disk, b"YI26 EXP126", &[File { name: b"HUGE    BIN", contents: &huge }])
+            .unwrap_err();
+        assert_eq!(err, FormatError::OutOfSpace { needed: 200, available: 125 });
+    }
+
+    #[test]
+    fn more_files_than_root_slots_is_refused() {
+        let mut disk = [0u8; 128 * SECTOR];
+        let files: [File; 16] = core::array::from_fn(|_| File { name: b"X       BIN", contents: b"x" });
+        assert_eq!(
+            format(&mut disk, b"YI26 EXP126", &files).unwrap_err(),
+            FormatError::TooManyFiles,
+            "the root directory is a fixed 16 entries and the label takes one"
+        );
     }
 }

@@ -1,34 +1,39 @@
-//! exp125 — a filesystem written by hand.
+//! exp126 — the board carries its own debug interface.
 //!
-//! exp124 offered 64 KiB of zeros and the host mounted nothing, because a
-//! sector of zeros is not an empty filesystem — it is the absence of one.
-//! This writes the bytes that make it a filesystem, once, at boot.
+//! Plug this board into anything with a browser and a file manager, and the
+//! page that reads its log is already on it. No download, no repository, no
+//! second computer — `INDEX.HTM` on a volume the firmware synthesises out of
+//! its own SRAM.
 //!
-//! There is no filesystem driver here. Nothing parses paths, allocates
-//! clusters or handles a `write()`. A boot sector, one FAT and a root
-//! directory are laid into an array, and the host does all the interpreting —
-//! which is the claim worth taking away: **a filesystem is an arrangement of
-//! bytes that other software has agreed to read.**
+//! # This closes a loop that opened in exp101
 //!
-//! The layout lives in [`fat12`], a crate with no dependencies and host-run
-//! tests, because the part most likely to be wrong is the 12-bit packing where
-//! two entries share three bytes. A mistake there produces a volume that
-//! mounts and is wrong, which is worse than one that fails.
+//! The `RP2350` drive that appears when you hold BOOTSEL is not a real disk.
+//! The bootrom synthesises a FAT volume on the fly, complete with
+//! `INFO_UF2.TXT` and an `INDEX.HTM` that points at Raspberry Pi's
+//! documentation. ARM's DAPLink firmware does the same thing with `MBED.HTM`.
 //!
-//! # The number that decides the format
+//! exp101 met that drive and used it without asking what it was. This is what
+//! it was. The trick that made the first experiment work is the one the last
+//! experiment builds.
 //!
-//! A host does not read the string `"FAT12   "` in the boot sector to decide
-//! what this is. That string is documentation for people. It counts the
-//! clusters — total sectors, minus the reserved, FAT and root-directory
-//! sectors, divided by sectors per cluster — and under 4085 means FAT12.
+//! # The page is exp116's, byte for byte
 //!
-//! This layout comes to 125, which the firmware prints at boot rather than
-//! asserting in a comment.
+//! Not a copy — `include_bytes!` pointing at
+//! `../exp116-webusb-cdc-log/cdc-log-viewer.html`, so the two cannot drift
+//! apart and `check.sh` asserts they are identical. Whatever exp116's page
+//! does, this one does, because it *is* that file.
 //!
-//! # The SCSI half is exp124, unchanged
+//! # What this needed that exp125 did not
 //!
-//! Same ten opcodes, same RAM-backed blocks, same two byte orders. The only
-//! difference is what is in the blocks when the host first looks.
+//! A chain. exp125's file was 324 bytes and fitted in one cluster, so its
+//! directory entry pointed at the only cluster the file had and the file
+//! allocation table was never asked a question. This page is nineteen
+//! kilobytes — thirty-eight clusters — and the directory entry holds only the
+//! *first* of them.
+//!
+//! That is what the table is for, and why the crate that lays it out now has
+//! tests for chains, for two files not colliding, and for refusing a file that
+//! does not fit. A volume whose chain is wrong still mounts.
 
 #![no_std]
 #![no_main]
@@ -87,12 +92,20 @@ const BLOCK: usize = 512;
 const DISK_BLOCKS: u32 = 128;
 const DISK_BYTES: usize = DISK_BLOCKS as usize * BLOCK;
 
-/// The one file on the volume.
+/// exp116's page, embedded from the file itself.
+///
+/// `include_bytes!` rather than a copy: two copies of a nineteen-kilobyte
+/// page would drift, and the one on the board is the one nobody would think
+/// to check. `check.sh` asserts the two files are byte-identical, which is
+/// only meaningful because this is the same file.
+const INDEX_HTM: &[u8] = include_bytes!("../../exp116-webusb-cdc-log/cdc-log-viewer.html");
+
+/// The other file on the volume.
 ///
 /// CR+LF, because a file that only a Linux host will ever read is not the
 /// point — this volume is meant to be opened by whatever is in front of you,
 /// and Notepad on an older Windows still cares.
-const README: &[u8] = b"exp125 - a FAT12 volume written by hand.\r\n\r\nThere is no filesystem driver on this board. A boot sector, one FAT with\r\n12-bit entries, and a 16-entry root directory were laid into 64 KiB of RAM\r\nat boot, and your operating system agreed to call the result a disk.\r\n\r\nEverything you can see here is arithmetic over an array.\r\n";
+const README: &[u8] = b"exp126 - this board carries its own debug interface.\r\n\r\nOpen INDEX.HTM in a Chromium browser. It claims this board's serial\r\ninterfaces and streams the firmware log, with no software installed and\r\nnothing downloaded - the page came off the board you are reading it from.\r\n\r\nOn Linux, run 'yi26 detach' first: the kernel's cdc_acm driver owns those\r\ninterfaces and an interface has exactly one owner. On Android there is no\r\ncdc_acm and nothing to move aside.\r\n\r\nThis volume is 64 KiB of the chip's own SRAM, laid out as FAT12 by hand\r\nat boot. The RP2350 bootloader drive you have already used does the same.\r\n";
 
 /// SCSI sense, kept so that `REQUEST SENSE` can answer the question the host
 /// actually asks after a failure: *why*.
@@ -188,7 +201,7 @@ fn set_sense(key: u32, asc: u32) {
 /// build reporting a product name it was not sending. A log that disagrees
 /// with the artifact is the failure this repository keeps meeting.
 const INQUIRY_VENDOR: &[u8; 8] = b"yi26    ";
-const INQUIRY_PRODUCT: &[u8; 16] = b"exp125 fat12    ";
+const INQUIRY_PRODUCT: &[u8; 16] = b"exp126 viewer   ";
 
 fn inquiry(out: &mut [u8]) -> usize {
     out[..36].fill(0);
@@ -400,7 +413,7 @@ async fn idle_task() -> ! {
         Timer::after(IDLE_REPORT).await;
         let n = COMMANDS.load(Ordering::Relaxed);
         if n == 0 {
-            log!("idle: a FAT12 volume is offered; nothing has read it yet");
+            log!("idle: INDEX.HTM is on the volume; open it in a Chromium browser");
         } else {
             log!(
                 "idle: {} commands, {} blocks read, {} written",
@@ -421,8 +434,8 @@ async fn main(spawner: Spawner) {
 
     let mut config = UsbConfig::new(0x1209, 0x0001);
     config.manufacturer = Some("rp2350-yi26");
-    config.product = Some("exp125 fat12 by hand");
-    config.serial_number = Some("125");
+    config.product = Some("exp126 self hosted viewer");
+    config.serial_number = Some("126");
     config.device_class = 0xef;
     config.device_sub_class = 0x02;
     config.device_protocol = 0x01;
@@ -465,19 +478,26 @@ async fn main(spawner: Spawner) {
     // there. Here the bytes of a filesystem are written into it before the
     // host is ever allowed to look.
     let disk = DISK.init([0u8; DISK_BYTES]);
+    // INDEX.HTM first, so it starts at cluster 2 — the lowest-numbered, and
+    // the one a reader tracing the chain by hand will look at first.
     let clusters = fat12::format(
         disk,
-        b"YI26 EXP125",
-        &[fat12::File { name: b"README  TXT", contents: README }],
+        b"YI26 EXP126",
+        &[
+            fat12::File { name: b"INDEX   HTM", contents: INDEX_HTM },
+            fat12::File { name: b"README  TXT", contents: README },
+        ],
     )
-    .expect("this layout was checked by the crate's own tests");
+    .expect("checked by the crate's own tests, and by check.sh against the real page size");
     spawner.spawn(storage_task(read_ep, write_ep, disk).unwrap());
     spawner.spawn(idle_task().unwrap());
 
-    log!("exp125 up. {} KiB formatted as FAT12 by hand.", DISK_BYTES / 1024);
+    log!("exp126 up. {} KiB of SRAM, carrying its own debug page.", DISK_BYTES / 1024);
     log!(
-        "{} clusters, which is under 4085 — that number is what makes it FAT12",
-        clusters
+        "{} clusters; INDEX.HTM is {} bytes, chained across {} of them",
+        clusters,
+        INDEX_HTM.len(),
+        INDEX_HTM.len().div_ceil(BLOCK)
     );
 
     loop {
