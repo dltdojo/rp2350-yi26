@@ -234,11 +234,59 @@ Practical consequences:
 | [exp106-bootsel-button](./exp106-bootsel-button/) | BOOTSEL becomes a user button — input drives output, no parts |
 | [exp107-debug-logging](./exp107-debug-logging/) | Three tasks share one serial log — printing that cannot stall the work |
 
-Planned (order not final). The early track holds to one rule: **a Pico 2 and
-a USB cable, nothing else to buy.**
+## Planned
 
-- **USB serial, two-way** — read what the host types, so the keyboard becomes
-  the first input device, and wait on two things at once with `select`.
+The early track holds to one rule: **a Pico 2 and a USB cable, nothing else to
+buy.** The next run of experiments keeps it, and adds one requirement that is
+free but not neutral — a Chromium browser. Where that comes from is below.
+
+### The browser track
+
+These build toward a specific destination: **debugging firmware with a phone**.
+Plug the board into an Android phone, open a page, and read the device's own
+log — no app to install, no second computer, no debug probe. That matters
+because a phone is the most hostile host to debug against: its only USB port is
+occupied by the device under test, so `adb` is unavailable exactly when you
+need it, and there is no Wireshark on a stock phone. When you cannot observe
+from the host, the device has to observe itself, and you have to be able to
+read that on the phone.
+
+Two facts set the whole shape of this track:
+
+- **Chrome on Android has WebUSB, but not Web Serial.** The desktop-only Web
+  Serial API is the obvious way to read a serial port from a page, and it is
+  useless here. WebUSB is what a phone has.
+- **WebUSB can claim a CDC-ACM interface directly.** It sends
+  `SET_LINE_CODING` and `SET_CONTROL_LINE_STATE` itself and reads the bulk IN
+  endpoint. A page does *not* need the firmware to grow a vendor-specific
+  interface, BOS capabilities or Microsoft OS descriptors. So the first
+  experiment on this track changes no firmware at all.
+
+| Planned | Proves |
+| --- | --- |
+| **exp108-webusb-log** | A browser reads the log exp107 is already printing — and so does a phone. No firmware changes: the deliverable is one HTML file |
+| **exp109-webusb-two-way** | The page types, the firmware reacts. Waiting on two things at once with `select`, with a browser as the first input device |
+| **exp110-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
+| **exp111-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo. The groundwork for what MSC is underneath |
+| **exp112-msc-scsi** | Answering SCSI over Bulk-Only Transport, until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
+| **exp113-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
+| **exp114-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp108 page. Plug the board into anything and its debug UI is already there |
+
+exp114 closes a loop that opens in exp101. The `RP2350` drive that appears when
+you hold BOOTSEL is not a real disk — the bootrom synthesizes a FAT volume on
+the fly, `INDEX.HTM` and all, and DAPLink's `MBED.HTM` does the same. The trick
+that made the first experiment work is the one the last experiment builds.
+
+Two costs stated in advance, since neither will look smaller later.
+`embassy-usb` has no MSC class, so Bulk-Only Transport and the SCSI subset are
+hand-rolled — that is why exp111 – exp113 exist as separate steps rather than
+one experiment that lands four hundred lines at once. And WebUSB is
+Chromium-only: Firefox and Safari do not implement it, which makes exp108 the
+first experiment here to name a specific vendor's software. It buys the phone,
+and nothing else buys the phone.
+
+### Independent of that track
+
 - **boot anatomy** — open both boxes: hand-write the memory map and the
   image-definition block the ROM scans for, and read BOOTSEL the hard way.
 - **defmt/RTT logging** *(needs a debug probe — optional side track)*.

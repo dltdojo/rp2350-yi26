@@ -135,6 +135,22 @@ If you would rather use what your platform already has:
 | Linux | `screen` or `picocom`, or `yi26 log` from this repository |
 | Any | The Arduino IDE's Serial Monitor, if you already have it installed |
 
+### If the machine you already own is a phone
+
+Worth saying plainly, because for the reader this page is written for it may be
+the only machine there is. An Android phone cannot build firmware, but it can
+be the local half: OTG cable, the board's boot drive mounts, the Files app
+copies the `.uf2` onto it.
+
+Reading the log is where it gets specific. **Web Serial does not exist on
+Android** — every option in the table above is desktop-only. Chrome on Android
+does implement **WebUSB**, which can claim a CDC-ACM interface directly, so a
+page can stream the same log. That is a different API and a different page, and
+this repository does not have one yet: it is the destination of the planned
+[browser track](../experiments/README.md#the-browser-track), starting at
+exp108. Until then, treat the phone-only path as unfinished rather
+than as something this page is recommending.
+
 ### The 1200-baud signal from a browser
 
 exp105 teaches the firmware to reboot into its bootloader when the host sets
