@@ -54,7 +54,7 @@
 
 <h1>The log, in a browser</h1>
 <p class="sub">exp116 &middot; claim the CDC interfaces and read the endpoint. No firmware changes.<br>
-  <small>page build <b id="ver">b2</b> &mdash; if this is not the build you expect,
+  <small>page build <b id="ver">b3</b> &mdash; if this is not the build you expect,
   reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
 
 <p>
@@ -409,11 +409,28 @@ $('copy').onclick = async () => { await navigator.clipboard.writeText($('log').t
 $('copyjson').onclick = async () => {
   const json = yi26Ndjson(captured);
   await navigator.clipboard.writeText(json);
-  const summary = json.trimEnd().split('\n').pop();
-  const lost = JSON.parse(summary).lost_total;
-  say(lost > 0
-    ? `Copied as JSON — and it says ${lost} lines were dropped before they reached you.`
-    : 'Copied as JSON, in the same shape yi26 log --json produces.', 'ok');
+
+  const summary = JSON.parse(json.trimEnd().split('\n').pop());
+
+  // An empty capture is copied, not refused — "I got nothing" is a real
+  // thing to hand somebody, and the summary says it precisely. What is
+  // refused is calling it a success.
+  //
+  // The first time this button was pressed for real it produced exactly one
+  // line, `"lines":0`, under a status that read "Copied as JSON, in the same
+  // shape yi26 log --json produces." True, and useless: the board had never
+  // been streamed from, and nothing on screen said so. Same failure this
+  // repository keeps meeting — a message that is correct about itself and
+  // silent about the situation.
+  if (summary.lines === 0) {
+    say('Copied — but the capture is empty. Nothing has been streamed yet: '
+      + 'press "Connect and stream" first, and check the message it leaves here.', 'bad');
+    return;
+  }
+
+  say(summary.lost_total > 0
+    ? `Copied ${summary.lines} lines as JSON — and it records ${summary.lost_total} more that the firmware dropped before they reached you.`
+    : `Copied ${summary.lines} lines as JSON, in the same shape yi26 log --json produces.`, 'ok');
 };
 
 (async () => {

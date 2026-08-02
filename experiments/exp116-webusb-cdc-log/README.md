@@ -162,6 +162,51 @@ to notice; here it is a number, with a total in the summary. A capture that
 silently lost a third of its lines and a capture that lost none look very
 similar in prose and not at all similar in JSON.
 
+### A real capture, and what it turned out to prove
+
+Copied from this page in Chrome, from a board that had been left running for
+about half an hour with nobody listening. Trimmed in the middle; nothing else
+changed:
+
+```text
+{"type":"line","t_ms":37,"lost":0,"text":"exp119 up. Counting packets, and counting cancelled reads."}
+{"type":"line","t_ms":1037,"lost":0,"text":"idle: nothing received — try  yi26 flood --storm"}
+{"type":"line","t_ms":10037,"lost":0,"text":"idle: nothing received — try  yi26 flood --storm"}
+...
+{"type":"line","t_ms":150038,"lost":0,"text":"idle: nothing received — try  yi26 flood --storm"}
+{"type":"line","t_ms":1690045,"lost":153,"text":"idle: nothing received — try  yi26 flood --storm"}
+{"type":"summary","lines":18,"lost_total":153,"gaps":1,"first_t_ms":37,"last_t_ms":1690045}
+```
+
+Two numbers in there check each other, and neither was arranged.
+
+**The gap.** exp119 reports every ten seconds while idle. Between `150038` and
+`1690045` there were `(1690038 - 160038) / 10000 + 1 = 154` reports due. One
+arrived; `lost` says 153. The drop counter and the timestamps come from
+completely different places in the firmware and they agree — and the observed
+`1690045` misses the predicted `1690038` by seven milliseconds, which is the
+drift of a millisecond timer over twenty-five minutes.
+
+**The seventeen lines before the gap.** Not a round number, and not an
+accident either. `crates/usb-log`'s queue holds sixteen, and its loop takes a
+line off the queue *before* it waits for a listener:
+
+```rust
+let line = QUEUE.receive().await;   // taken first
+sender.wait_connection().await;
+while !sender.dtr() { ... }         // and only then parked
+```
+
+So a parked logger holds one line in its hand and sixteen in the queue.
+Sixteen plus one is seventeen, and everything after that was dropped until the
+browser asserted DTR — at which point all seventeen arrived at once, carrying
+timestamps from twenty-five minutes earlier, followed by the current line with
+the accumulated count.
+
+Without `lost`, that capture reads as a board that went quiet for half an hour.
+With it, it reads as a board that kept working and a listener that was not
+there — which is a different bug report entirely.
+
 ### Two implementations of one format, and what stops them drifting
 
 Nothing about writing the same parser twice is safe, so neither copy is
