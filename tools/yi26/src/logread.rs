@@ -7,7 +7,7 @@
 //! also report what an agent actually wants to know: did any lines go missing,
 //! over what span, and where.
 
-use std::io::Read;
+use std::io::{Read, Write};
 use std::time::{Duration, Instant};
 
 use crate::board::SAFE_BAUD;
@@ -80,11 +80,45 @@ pub struct Summary {
 /// Streams rather than buffering: a log you have to wait for is a log you
 /// cannot use to watch something happen.
 pub fn read(path: &str, secs: u64, opts: &Opts) -> Result<Summary, String> {
-    let mut port = serialport::new(path, SAFE_BAUD)
+    let mut port = open(path)?;
+    drain(&mut port, secs, opts)
+}
+
+/// Writes `payload` to the board, then reads for `secs` seconds and prints
+/// whatever came back.
+///
+/// Sending and reading are one command, and one open port, on purpose.
+/// Opening a CDC-ACM port asserts DTR and closing it drops DTR — and
+/// `crates/usb-log` refuses to write a line while DTR is low, for the
+/// hardware reason that crate's docs give. So `yi26 send hello` followed by a
+/// separate `yi26 log` would close the port in between, and the firmware's
+/// reply to what was just sent would land in the gap where nobody is
+/// listening. Doing both through one handle means the port never closes
+/// between the question and the answer.
+pub fn send(path: &str, payload: &[u8], secs: u64, opts: &Opts) -> Result<Summary, String> {
+    let mut port = open(path)?;
+
+    port.write_all(payload).map_err(|e| format!("write failed on {path}: {e}"))?;
+    port.flush().map_err(|e| format!("flush failed on {path}: {e}"))?;
+
+    drain(&mut port, secs, opts)
+}
+
+fn open(path: &str) -> Result<Box<dyn serialport::SerialPort>, String> {
+    // SAFE_BAUD, never the caller's choice. 1200 is the reboot signal from
+    // exp105, and a tool that let you send text at an arbitrary rate would let
+    // you reset the board by typing the wrong number.
+    serialport::new(path, SAFE_BAUD)
         .timeout(Duration::from_millis(200))
         .open()
-        .map_err(|e| format!("cannot open {path}: {e}"))?;
+        .map_err(|e| format!("cannot open {path}: {e}"))
+}
 
+fn drain(
+    port: &mut Box<dyn serialport::SerialPort>,
+    secs: u64,
+    opts: &Opts,
+) -> Result<Summary, String> {
     let deadline = Instant::now() + Duration::from_secs(secs);
     let mut pending = Vec::new();
     let mut buf = [0u8; 512];
@@ -104,7 +138,7 @@ pub fn read(path: &str, secs: u64, opts: &Opts) -> Result<Summary, String> {
             // A timeout means "nothing arrived yet", which is the normal state
             // of a log. Anything else is the port going away under us.
             Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
-            Err(e) => return Err(format!("read failed on {path}: {e}")),
+            Err(e) => return Err(format!("read failed: {e}")),
         }
     }
 

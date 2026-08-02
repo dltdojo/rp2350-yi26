@@ -85,6 +85,7 @@ for what the firmware is actually doing.
 | `state` | one word: `bootsel`, `running`, or `absent` |
 | `port` | the serial port of a board running one of these firmwares |
 | `log` | what the firmware is printing (`--seconds N`, default 10) |
+| `send <text>` | bytes to the firmware, then its reply (`--seconds N`, default 3) |
 | `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
 | `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
@@ -92,6 +93,28 @@ for what the firmware is actually doing.
 
 Exit codes: `0` success, `1` not found or failed, `2` usage error. `doctor`
 exits `1` only when it found an `error`-severity problem.
+
+### `send` is one command because two would lose the answer
+
+```sh
+yi26 send hello                  # write, then listen on the same open port
+yi26 send 'A\x00\xff\ttab\r\nZ'  # \n \r \t \0 \\ and \xNN reach the wire
+```
+
+The bytes go out exactly as given, with no trailing newline added: a firmware
+reading a bulk endpoint gets a packet, not a line, and a newline nobody typed
+shows up in its hex dump as a byte the sender never sent.
+
+Sending and listening are deliberately not separable. Opening a CDC-ACM port
+asserts DTR and closing it drops DTR, and `crates/usb-log` will not write a
+line while DTR is low — so `printf > /dev/ttyACM0` followed by a separate
+`cat` closes the port in between, and the firmware's reply to what was just
+sent lands in the gap where nobody is listening. `yi26 send --explain` prints
+that trap next to the three commands it replaces.
+
+The rate is always 115200 and cannot be given. 1200 is the reboot signal from
+exp105, and a send command that took a baud rate would let a typo reset the
+board.
 
 ### `udev`, the one command that changes your machine
 

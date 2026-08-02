@@ -92,37 +92,56 @@ pub async fn watch(control: ControlChanged<'static>, receiver: Receiver<'static,
         // polling, so this costs nothing while idle.
         control.control_changed().await;
 
-        if receiver.line_coding().data_rate() == MAGIC_BAUD {
-            #[cfg(feature = "auto-reboot")]
-            {
-                // Let the host finish the control transfer that just woke us.
-                //
-                // This delay is not politeness, it is the difference between
-                // working and not. `control_changed()` fires while the host's
-                // SET_LINE_CODING request is still in flight — its status
-                // stage has not completed. Resetting the chip at that instant
-                // tears USB down mid-transfer: the host's `stty` blocks
-                // forever waiting for a status stage that will never come, and
-                // the reboot does not complete either, leaving a board that is
-                // enumerated but dead. Measured, not theorised — see this
-                // experiment's README.
-                //
-                // 250 ms is far more than a control transfer needs and still
-                // imperceptible to a person.
-                Timer::after_millis(250).await;
-
-                // Into the ROM bootloader. The first argument can flash a
-                // GPIO as a USB-activity light; the second can hide the mass
-                // storage or PICOBOOT interfaces. 0, 0 = the plain BOOTSEL
-                // behaviour exp101 met.
-                //
-                // This call does not return: the chip resets, the serial port
-                // disappears, and the RP2350 boot drive appears in its place.
-                embassy_rp::rom_data::reset_to_usb_boot(0, 0);
-            }
-
-            // With the feature off we deliberately do nothing. The host still
-            // got its 1200-baud setting; the board simply ignores the hint.
-        }
+        reboot_if_requested(receiver.line_coding().data_rate()).await;
     }
+}
+
+/// Reboots into the USB bootloader if `data_rate` is [`MAGIC_BAUD`]. Returns
+/// immediately for any other rate, and never returns when it does reboot.
+///
+/// [`watch`] is this function plus a loop, and is what an experiment that only
+/// prints should use. This half is public for the case [`watch`] cannot serve:
+/// a firmware that also wants to **read** the OUT endpoint.
+///
+/// The obstacle is ownership, not style. `line_coding()` can be read from the
+/// `Sender`, the `Receiver` or the class itself, but not from
+/// `ControlChanged` — and `read_packet` needs `&mut Receiver`. So the task
+/// that reads what the host sends is necessarily the same task that can see
+/// the host's baud rate, and it has to wait on both at once. Handing it this
+/// function means the delicate part below exists once in this repository
+/// rather than once per experiment that wants to listen. exp118 is the first
+/// caller.
+pub async fn reboot_if_requested(data_rate: u32) {
+    if data_rate != MAGIC_BAUD {
+        return;
+    }
+
+    #[cfg(feature = "auto-reboot")]
+    {
+        // Let the host finish the control transfer that just woke us.
+        //
+        // This delay is not politeness, it is the difference between working
+        // and not. `control_changed()` fires while the host's SET_LINE_CODING
+        // request is still in flight — its status stage has not completed.
+        // Resetting the chip at that instant tears USB down mid-transfer: the
+        // host's `stty` blocks forever waiting for a status stage that will
+        // never come, and the reboot does not complete either, leaving a board
+        // that is enumerated but dead. Measured, not theorised — see exp105's
+        // README.
+        //
+        // 250 ms is far more than a control transfer needs and still
+        // imperceptible to a person.
+        Timer::after_millis(250).await;
+
+        // Into the ROM bootloader. The first argument can flash a GPIO as a
+        // USB-activity light; the second can hide the mass storage or PICOBOOT
+        // interfaces. 0, 0 = the plain BOOTSEL behaviour exp101 met.
+        //
+        // This call does not return: the chip resets, the serial port
+        // disappears, and the RP2350 boot drive appears in its place.
+        embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+    }
+
+    // With the feature off we deliberately do nothing. The host still got its
+    // 1200-baud setting; the board simply ignores the hint.
 }

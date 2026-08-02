@@ -93,6 +93,7 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp106 | Same | Drag, read the log, press BOOTSEL as a button |
 | exp107 | Same | Drag, then *deliberately ignore* the port for twenty seconds before reading it — that is the experiment |
 | exp108 – exp114 | Same | Drag, then read the log. Every one of these produces numbers and nothing else — a temperature, an entropy score, a health verdict — so the serial port is not optional for any of them |
+| exp118 | Same | Drag, then **write to the port as well as read it**. This is the first experiment where the port is not enough on its own: something has to send bytes, and whatever you use has to be able to send a raw byte like `0x00` |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host

@@ -48,6 +48,7 @@ commands:
   state             print one word: bootsel, running, or absent
   port              print the serial port of a board running these firmwares
   log               read the firmware's log
+  send <text>       send bytes to the firmware, then read its reply
   bootsel           put the board into BOOTSEL mode (1200-baud touch)
   drive             print the RP2350 boot drive, mounting it if needed
   flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
@@ -59,9 +60,12 @@ options:
   --json            machine-readable output on stdout (for scripts and agents)
   --explain         print the equivalent hand-typed commands on stderr, then act
   --install         `udev` only: write the rule as root instead of reporting
-  --seconds N       how long `log` reads for (default 10)
+  --seconds N       how long to read for: `log` (default 10), `send` (default 3)
   --version, -V
   --help, -h
+
+`send` transmits the bytes literally and adds no trailing newline. Escapes are
+understood so non-printable bytes can be sent: \\n \\r \\t \\0 \\\\ and \\xNN.
 
 exit codes:
   0  success, or `doctor` found nothing wrong
@@ -77,6 +81,7 @@ fn main() {
 fn run(args: &[String]) -> i32 {
     let mut opts = Opts::default();
     let mut seconds: u64 = 10;
+    let mut seconds_given = false;
     let mut install = false;
     let mut positional: Vec<String> = Vec::new();
     let mut i = 0;
@@ -89,7 +94,10 @@ fn run(args: &[String]) -> i32 {
             "--seconds" => {
                 i += 1;
                 match args.get(i).and_then(|v| v.parse().ok()) {
-                    Some(v) => seconds = v,
+                    Some(v) => {
+                        seconds = v;
+                        seconds_given = true;
+                    }
                     None => return usage_error("--seconds needs a number"),
                 }
             }
@@ -119,6 +127,12 @@ fn run(args: &[String]) -> i32 {
         "state" => cmd_state(&opts),
         "port" => cmd_port(&opts),
         "log" => cmd_log(&opts, seconds),
+        // A shorter default than `log`: this one is a question, and a firmware
+        // that answers takes milliseconds to do it. `--seconds` still wins.
+        "send" => match positional.get(1) {
+            Some(text) => cmd_send(&opts, text, if seconds_given { seconds } else { 3 }),
+            None => usage_error("send needs something to send"),
+        },
         "bootsel" => cmd_bootsel(&opts),
         "drive" => cmd_drive(&opts),
         "flash" => match positional.get(1) {
@@ -275,6 +289,95 @@ fn cmd_log(opts: &Opts, seconds: u64) -> i32 {
         Ok(_) => 0,
         Err(e) => fail(opts, "read-failed", &e, "check nothing else holds the port: fuser -v <port>"),
     }
+}
+
+// ---------------------------------------------------------------------------
+// send
+
+fn cmd_send(opts: &Opts, text: &str, seconds: u64) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[
+                "stty -F /dev/ttyACM0 115200 -icrnl",
+                "printf 'hello' > /dev/ttyACM0",
+                "timeout 3 cat /dev/ttyACM0",
+            ],
+            notes: &[
+                "Three commands, and the middle one is a trap. Each redirection opens and",
+                "closes the port, and closing it drops DTR — which is the signal",
+                "crates/usb-log waits for before it writes anything. So the firmware's",
+                "reply to what you just sent can land in the gap between the printf and",
+                "the cat, and you see nothing. This sends and listens through one open",
+                "handle, so there is no gap.",
+                "The rate is always 115200 and cannot be changed here. 1200 is exp105's",
+                "reboot signal, and a send command that took a baud rate would let a typo",
+                "reset the board.",
+            ],
+        },
+    );
+
+    let payload = match unescape(text) {
+        Ok(p) => p,
+        Err(e) => return fail(opts, "bad-escape", &e, "yi26 send --help"),
+    };
+
+    let Some(p) = board::find_port() else {
+        return fail(
+            opts,
+            "no-port",
+            "no board running one of these firmwares is attached",
+            "yi26 doctor",
+        );
+    };
+
+    match logread::send(&p.path, &payload, seconds, opts) {
+        Ok(_) => 0,
+        Err(e) => fail(opts, "send-failed", &e, "check nothing else holds the port: fuser -v <port>"),
+    }
+}
+
+/// Turns the escapes a shell would eat into the bytes they name.
+///
+/// The bytes sent are exactly the bytes given — no trailing newline is added.
+/// A firmware reading a bulk endpoint receives a packet, not a line, and a
+/// newline nobody asked for shows up in the receiver's hex dump as a byte the
+/// sender never typed.
+fn unescape(s: &str) -> Result<Vec<u8>, String> {
+    let mut out = Vec::with_capacity(s.len());
+    let mut chars = s.chars();
+
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            let mut buf = [0u8; 4];
+            out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+            continue;
+        }
+        match chars.next() {
+            Some('n') => out.push(b'\n'),
+            Some('r') => out.push(b'\r'),
+            Some('t') => out.push(b'\t'),
+            Some('0') => out.push(0),
+            Some('\\') => out.push(b'\\'),
+            Some('x') => {
+                let hi = chars.next();
+                let lo = chars.next();
+                match (hi, lo) {
+                    (Some(hi), Some(lo)) => {
+                        let pair: String = [hi, lo].iter().collect();
+                        match u8::from_str_radix(&pair, 16) {
+                            Ok(b) => out.push(b),
+                            Err(_) => return Err(format!("\\x{pair} is not two hex digits")),
+                        }
+                    }
+                    _ => return Err("\\x needs two hex digits after it".into()),
+                }
+            }
+            Some(other) => return Err(format!("unknown escape: \\{other}")),
+            None => return Err("trailing backslash with nothing after it".into()),
+        }
+    }
+    Ok(out)
 }
 
 // ---------------------------------------------------------------------------
@@ -1003,5 +1106,40 @@ mod tests {
         assert!(check_uf2_family(&rp2040).is_err());
 
         assert!(check_uf2_family(&[0u8; 4]).is_err());
+    }
+
+    #[test]
+    fn send_transmits_exactly_what_it_was_given() {
+        // No trailing newline, invented or stripped. The firmware receiving
+        // this prints a hex dump, and a byte nobody typed showing up in it
+        // makes the dump a liar.
+        assert_eq!(unescape("hello").unwrap(), b"hello");
+        assert_eq!(unescape("").unwrap(), b"");
+    }
+
+    #[test]
+    fn escapes_reach_the_bytes_a_shell_would_have_eaten() {
+        assert_eq!(unescape("a\\nb").unwrap(), b"a\nb");
+        assert_eq!(unescape("\\r\\t\\0").unwrap(), vec![b'\r', b'\t', 0]);
+        assert_eq!(unescape("\\\\").unwrap(), b"\\");
+        assert_eq!(unescape("\\x00\\xff\\x41").unwrap(), vec![0x00, 0xff, 0x41]);
+    }
+
+    #[test]
+    fn a_bad_escape_is_refused_rather_than_guessed() {
+        // Silently sending a literal backslash-q would put a byte on the wire
+        // that the caller did not ask for, and they would find out by reading
+        // a hex dump. Refusing is the only honest option.
+        assert!(unescape("\\q").is_err());
+        assert!(unescape("\\").is_err());
+        assert!(unescape("\\xZZ").is_err());
+        assert!(unescape("\\x4").is_err());
+    }
+
+    #[test]
+    fn multibyte_text_survives_unescaped() {
+        // The payload is bytes, not characters, and UTF-8 must not be
+        // mangled on the way through.
+        assert_eq!(unescape("é").unwrap(), "é".as_bytes());
     }
 }

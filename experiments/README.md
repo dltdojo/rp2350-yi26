@@ -42,6 +42,7 @@ Per experiment:
 | exp114 | Any RP2350 board. Uses both the ADC and the TRNG, so RP2350 only. The health tests themselves run anywhere — `cargo test` in `crates/entropy-health`. |
 | exp115 | Any RP2350 board running any firmware from this repository — it reads descriptors, and they all enumerate the same way. Needs a Chromium browser, and on Linux one udev rule. |
 | exp116 | Same as exp115, plus `yi26 detach` on Linux — the kernel's `cdc_acm` driver has to let go before a browser can claim the interfaces. |
+| exp118 | Any RP2350 board. No browser: the host half is `yi26 send`, which talks to the same CDC port everything else here uses. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -251,6 +252,7 @@ Practical consequences:
 | [exp114-health-tests](./exp114-health-tests/) | The two continuous tests SP 800-90B specifies — and a source that refuses to emit when they fail |
 | [exp115-webusb-enumerate](./exp115-webusb-enumerate/) | A browser opens the board and prints its descriptors — no firmware, no driver, no server |
 | [exp116-webusb-cdc-log](./exp116-webusb-cdc-log/) | The same log, read in a browser — claim the interfaces, drive the control pipe by hand |
+| [exp118-one-receiver-two-jobs](./exp118-one-receiver-two-jobs/) | The firmware starts listening, and ownership — not taste — decides the shape of the program |
 
 ## Planned
 
@@ -282,22 +284,33 @@ Two facts set the whole shape of this track:
 
 | Planned | Proves |
 | --- | --- |
-| **exp117-webusb-two-way** | The page types, the firmware reacts. Waiting on two things at once with `select`, with a browser as the first input device |
-| **exp118-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
-| **exp119-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo |
-| **exp120-bot-framing** | The host's storage commands, printed. Declare a mass-storage interface, decode the command blocks that arrive, answer nothing — and read what a disk is actually asked |
-| **exp121-msc-scsi** | Answering those commands until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
-| **exp122-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
-| **exp123-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp116 page. Plug the board into anything and its debug UI is already there |
+| **exp117-webusb-reboot** | The last zero-change experiment, and the one that closes the phone loop: the page sends the 1200-baud request itself, the board reboots, the boot drive mounts. Also the only USB request whose success looks exactly like a failure — the device disappears |
+| ~~exp118~~ | [Built](./exp118-one-receiver-two-jobs/), out of order, because its firmware half needs no browser and therefore no human |
+| **exp119-cancelled-reads** | Does `select` dropping a `read_packet` cost a packet? exp118 numbers every one so a gap can be seen; this causes cancellations on purpose and counts |
+| **exp120-webusb-two-way** | The browser half of exp118 — `transferOut` from a page, which is what makes a phone an input device and not just a screen |
+| **exp121-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
+| **exp122-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo |
+| **exp123-bot-framing** | The host's storage commands, printed. Declare a mass-storage interface, decode the command blocks that arrive, answer nothing — and read what a disk is actually asked |
+| **exp124-msc-scsi** | Answering those commands until the host agrees a disk is there. No filesystem yet — an unformatted volume is the goal |
+| **exp125-fat12-by-hand** | Boot sector, FAT, root directory, clusters, synthesized per sector. The volume mounts, with one `README.TXT` on it |
+| **exp126-self-hosted-viewer** | `INDEX.HTM` on that volume *is* the exp116 page. Plug the board into anything and its debug UI is already there |
 
-exp123 closes a loop that opens in exp101. The `RP2350` drive that appears when
+The numbering has a gap in it and that is not an accident. Verifying a browser
+experiment needs a person: a WebUSB permission comes from a native dialog
+behind a required user gesture, it does not survive restarting the browser, and
+no tool in this repository can click it. Firmware and host-side work need
+nobody. So when the board is reachable and its owner is not, the work that can
+proceed is the work that proceeds — and exp118 was built before exp117 for no
+better and no worse reason than that.
+
+exp126 closes a loop that opens in exp101. The `RP2350` drive that appears when
 you hold BOOTSEL is not a real disk — the bootrom synthesizes a FAT volume on
 the fly, `INDEX.HTM` and all, and DAPLink's `MBED.HTM` does the same. The trick
 that made the first experiment work is the one the last experiment builds.
 
 Two costs stated in advance, since neither will look smaller later.
 `embassy-usb` has no MSC class, so Bulk-Only Transport and the SCSI subset are
-hand-rolled — that is why exp119 – exp122 exist as four steps rather than one
+hand-rolled — that is why exp122 – exp125 exist as four steps rather than one
 experiment that lands four hundred lines at once. And WebUSB is Chromium-only:
 Firefox and Safari do not implement it, which makes exp115 the first
 experiment here to name a specific vendor's software. It buys the phone, and
