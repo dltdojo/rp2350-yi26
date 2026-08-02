@@ -26,6 +26,7 @@ mod board;
 mod drive;
 mod logread;
 mod out;
+mod udev;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -50,10 +51,12 @@ commands:
   bootsel           put the board into BOOTSEL mode (1200-baud touch)
   drive             print the RP2350 boot drive, mounting it if needed
   flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
+  udev              can a browser open the board? (--install fixes it, Linux)
 
 options:
   --json            machine-readable output on stdout (for scripts and agents)
   --explain         print the equivalent hand-typed commands on stderr, then act
+  --install         `udev` only: write the rule as root instead of reporting
   --seconds N       how long `log` reads for (default 10)
   --version, -V
   --help, -h
@@ -72,6 +75,7 @@ fn main() {
 fn run(args: &[String]) -> i32 {
     let mut opts = Opts::default();
     let mut seconds: u64 = 10;
+    let mut install = false;
     let mut positional: Vec<String> = Vec::new();
     let mut i = 0;
 
@@ -79,6 +83,7 @@ fn run(args: &[String]) -> i32 {
         match args[i].as_str() {
             "--json" => opts.json = true,
             "--explain" => opts.explain = true,
+            "--install" => install = true,
             "--seconds" => {
                 i += 1;
                 match args.get(i).and_then(|v| v.parse().ok()) {
@@ -118,6 +123,7 @@ fn run(args: &[String]) -> i32 {
             Some(f) => cmd_flash(&opts, Path::new(f)),
             None => usage_error("flash needs a .uf2 file"),
         },
+        "udev" => cmd_udev(&opts, install),
         other => usage_error(&format!("unknown command: {other}")),
     }
 }
@@ -492,6 +498,114 @@ fn check_uf2_family(bytes: &[u8]) -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
+// udev
+
+/// Reports whether a browser could open the board, and optionally fixes it.
+///
+/// The report is the default and the fix is opt-in, because this is the only
+/// subcommand that touches anything outside the repository. Nothing here runs
+/// as root unless `--install` was typed.
+fn cmd_udev(opts: &Opts, install: bool) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[
+                "# check: is the board's node openable read-write?",
+                "ls -l /dev/bus/usb/*/*    # then match bus/device from lsusb",
+                "# fix:",
+                "sudo tee /etc/udev/rules.d/70-rp2350-yi26.rules   # rule text below",
+                "sudo udevadm control --reload",
+                "sudo udevadm trigger --subsystem-match=usb --attr-match=idVendor=1209",
+            ],
+            notes: &[
+                "The check here is not the `ls` above. It opens the device the way a",
+                "browser does, because a rule that exists but does not work is worse",
+                "than no rule — it sends you looking in the wrong place.",
+                "TAG+=\"uaccess\" is the narrow fix: access goes to whoever is logged in",
+                "at this seat, not to a group and not to every account on the machine.",
+            ],
+        },
+    );
+
+    if install {
+        if opts.json {
+            // Installing prints a sudo prompt and root's output; interleaving
+            // that with a JSON document would produce neither.
+            return fail(
+                opts,
+                "json-with-install",
+                "--install is interactive (sudo) and cannot produce clean JSON",
+                "run `yi26 udev --install` on its own, then `yi26 udev --json` to verify",
+            );
+        }
+        eprintln!("yi26: installing {}", udev::RULE_PATH);
+        eprintln!("      this needs root, so sudo will ask for your password once.");
+        eprintln!();
+        if let Err(e) = udev::install() {
+            return fail(
+                opts,
+                "install-failed",
+                &e,
+                "run the commands from `yi26 udev --explain` by hand",
+            );
+        }
+        eprintln!();
+    }
+
+    let a = udev::check();
+
+    if opts.json {
+        println!(
+            "{}",
+            out::obj(&[
+                out::kv_bool("ok", a.open_ok),
+                out::kv_bool("present", a.present),
+                out::kv_opt("node", a.node.as_deref()),
+                out::kv_bool("rule_installed", a.rule_installed),
+                out::kv_str("rule_path", udev::RULE_PATH),
+                out::kv_opt("error", a.error.as_deref()),
+            ])
+        );
+        return if a.open_ok { 0 } else { 1 };
+    }
+
+    if !a.present {
+        eprintln!("yi26: no board on USB, so there is nothing to test access against");
+        eprintln!("      plug it in and run this again");
+        return 1;
+    }
+
+    let node = a.node.as_deref().unwrap_or("(unknown)");
+    if a.open_ok {
+        println!("ok    {node} opens read-write — a browser can claim this board");
+        if !a.rule_installed {
+            println!("note  {} is not present; something else is", udev::RULE_PATH);
+            println!("      granting the access. Nothing to do.");
+        }
+        return 0;
+    }
+
+    println!("FAIL  {node} will not open read-write");
+    if let Some(e) = &a.error {
+        println!("      {e}");
+    }
+    println!();
+    if a.rule_installed {
+        println!("The rule at {} is already there, so either it has", udev::RULE_PATH);
+        println!("not been applied to this already-plugged board, or something else is");
+        println!("wrong. Unplug the board and plug it back in, then run this again.");
+    } else {
+        println!("Chrome's first Connect will fail with \"Access denied\". To fix it:");
+        println!();
+        println!("    yi26 udev --install");
+        println!();
+        println!("That writes one udev rule and asks for your password once. Run");
+        println!("`yi26 udev --explain` first if you would rather type it yourself.");
+    }
+    1
+}
+
+// ---------------------------------------------------------------------------
 // doctor
 
 struct Problem {
@@ -572,6 +686,24 @@ fn cmd_doctor(opts: &Opts) -> i32 {
             severity: "warn",
             message: "no RP2350 board found on USB".to_string(),
             fix: "plug it in with a data cable, not a charge-only one — exp101 explains how to tell",
+        });
+    }
+
+    // -- raw USB access ------------------------------------------------------
+    //
+    // A warning, not an error: everything up to exp107 works fine without it.
+    // It only bites when a browser tries to claim the interface, and the
+    // failure there ("Access denied") names nothing that would lead you here.
+    let raw_usb = udev::check();
+    if raw_usb.present && !raw_usb.open_ok {
+        problems.push(Problem {
+            id: "no-raw-usb-access",
+            severity: "warn",
+            message: format!(
+                "{} will not open read-write, so WebUSB in a browser cannot claim this board",
+                raw_usb.node.as_deref().unwrap_or("the board's USB node")
+            ),
+            fix: "yi26 udev --install",
         });
     }
 

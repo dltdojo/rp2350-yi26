@@ -88,9 +88,47 @@ for what the firmware is actually doing.
 | `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
 | `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
+| `udev` | can a browser open this board? `--install` fixes it (Linux) |
 
 Exit codes: `0` success, `1` not found or failed, `2` usage error. `doctor`
 exits `1` only when it found an `error`-severity problem.
+
+### `udev`, the one command that changes your machine
+
+Everything else here reads. `yi26 udev --install` writes a file to
+`/etc/udev/rules.d/` as root, and it is the only thing in this repository that
+does — so it is opt-in, it prints what it will run first, and `--explain`
+gives you the commands to type instead if you would rather not hand a program
+your password.
+
+It exists because the browser experiments (exp108 onward) need something the
+earlier ones do not. A serial port and a mounted drive are already yours to
+open; the raw USB device node is `root`-only, and WebUSB claims the interface
+directly. Without the rule, Chrome's first Connect fails with **Access
+denied** — a message that names nothing you could search for.
+
+```console
+$ yi26 udev
+FAIL  /dev/bus/usb/001/007 will not open read-write
+      permission denied (errno 13)
+
+Chrome's first Connect will fail with "Access denied". To fix it:
+
+    yi26 udev --install
+```
+
+Two things worth knowing about how it checks. It **opens the device**, the
+same operation the browser performs, rather than testing whether the rule file
+exists — a rule that is present but not working is worse than none, because it
+sends you looking somewhere else. And the rule it writes uses
+`TAG+="uaccess"`, which grants access to whoever is physically logged in at
+this seat: narrower than the `MODE="0666"` in a lot of hobby instructions,
+which opens the board to every account on the machine, and narrower than
+adding yourself to a group, which persists whether or not you are there.
+Deleting the file undoes all of it.
+
+`doctor` reports the same thing as a `warn`, never an `error`, because
+everything up to exp107 works without it.
 
 ### Verified on Linux only
 
