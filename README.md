@@ -9,7 +9,7 @@ for the on-chip peripherals worth putting *through* that USB link. Rust +
 Embassy is the only stack used here: no C/C++ Pico SDK, no TinyUSB, and no
 blocking HAL.
 
-> **Status:** fifteen experiments in — board bring-up through the chip's own
+> **Status:** sixteen experiments in — board bring-up through the chip's own
 > sensors, its entropy source, and the ways a random number quietly stops
 > being one — and nothing is published here until it has run
 > on a real Pico 2. See [experiments/](./experiments/). The [Scope](#scope) list below is still
