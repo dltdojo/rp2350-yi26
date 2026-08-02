@@ -43,6 +43,7 @@ Per experiment:
 | exp115 | Any RP2350 board running any firmware from this repository — it reads descriptors, and they all enumerate the same way. Needs a Chromium browser, and on Linux one udev rule. |
 | exp116 | Same as exp115, plus `yi26 detach` on Linux — the kernel's `cdc_acm` driver has to let go before a browser can claim the interfaces. |
 | exp118 | Any RP2350 board. No browser: the host half is `yi26 send`, which talks to the same CDC port everything else here uses. |
+| exp119 | Any RP2350 board. No browser. The host half is `yi26 flood`, which needs a port that can be written to and have RTS toggled at the same time. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -253,6 +254,7 @@ Practical consequences:
 | [exp115-webusb-enumerate](./exp115-webusb-enumerate/) | A browser opens the board and prints its descriptors — no firmware, no driver, no server |
 | [exp116-webusb-cdc-log](./exp116-webusb-cdc-log/) | The same log, read in a browser — claim the interfaces, drive the control pipe by hand |
 | [exp118-one-receiver-two-jobs](./exp118-one-receiver-two-jobs/) | The firmware starts listening, and ownership — not taste — decides the shape of the program |
+| [exp119-cancelled-reads](./exp119-cancelled-reads/) | Twenty thousand reads cancelled on purpose, and the control variable that makes a zero mean something |
 
 ## Planned
 
@@ -286,7 +288,7 @@ Two facts set the whole shape of this track:
 | --- | --- |
 | **exp117-webusb-reboot** | The last zero-change experiment, and the one that closes the phone loop: the page sends the 1200-baud request itself, the board reboots, the boot drive mounts. Also the only USB request whose success looks exactly like a failure — the device disappears |
 | ~~exp118~~ | [Built](./exp118-one-receiver-two-jobs/), out of order, because its firmware half needs no browser and therefore no human |
-| **exp119-cancelled-reads** | Does `select` dropping a `read_packet` cost a packet? exp118 numbers every one so a gap can be seen; this causes cancellations on purpose and counts |
+| ~~exp119~~ | [Built](./exp119-cancelled-reads/), also out of order, and for the same reason |
 | **exp120-webusb-two-way** | The browser half of exp118 — `transferOut` from a page, which is what makes a phone an input device and not just a screen |
 | **exp121-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
 | **exp122-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo |

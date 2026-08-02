@@ -215,8 +215,11 @@ wrong, and the log said `in #1: 0 bytes` in a way that looked like a feature.
 
 ## Next
 
-**exp119** asks the question this one left open: when `select` drops a
-`read_packet` that was already in flight, does a packet die with it? Every
-entry above carries a sequence number so that a gap can be seen. Answering it
-means causing cancellations on purpose and counting what comes out — measuring
-a hazard rather than asserting it is safe.
+**[exp119](../exp119-cancelled-reads/)** answers the question this one left
+open: when `select` drops a `read_packet` that was already in flight, does a
+packet die with it? It cancels twenty thousand reads on purpose and counts.
+
+The answer is no, and the reason turns out to be a *different* one from the
+reason a cancelled `control_changed()` is safe — hardware state in one case,
+a software latch in the other. Which is why it had to be measured rather than
+inferred from this experiment.

@@ -104,6 +104,81 @@ pub fn send(path: &str, payload: &[u8], secs: u64, opts: &Opts) -> Result<Summar
     drain(&mut port, secs, opts)
 }
 
+/// Sends `count` numbered 64-byte packets as fast as the port will take them,
+/// then reads for `secs` seconds.
+///
+/// Each packet begins with its sequence number as a little-endian `u32`; the
+/// firmware in exp119 checks that it got every one. Sequence 0 goes first and
+/// means "clear your counters", so two runs in a row do not look like one
+/// enormous gap.
+///
+/// With `storm`, a second thread toggles RTS for the whole of the send. That
+/// is the point of the command: RTS changes make the device's
+/// `control_changed()` fire, which in a `select` loop cancels whatever
+/// `read_packet` was in flight. Without it the firmware may never cancel a
+/// read at all, and a report of "nothing lost" would mean nothing.
+///
+/// RTS and not DTR, deliberately. Both fire the same control event, but
+/// `crates/usb-log` refuses to write while DTR is low — so a DTR storm would
+/// silence the log this is trying to read, and the measurement would destroy
+/// its own instrument.
+pub fn flood(
+    path: &str,
+    count: u32,
+    storm: bool,
+    secs: u64,
+    opts: &Opts,
+) -> Result<Summary, String> {
+    let mut port = open(path)?;
+
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let storming = if storm {
+        let mut rts = port
+            .try_clone()
+            .map_err(|e| format!("cannot clone the port for the RTS storm: {e}"))?;
+        let stop = stop.clone();
+        Some(std::thread::spawn(move || {
+            let mut level = true;
+            let mut toggles: u64 = 0;
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                if rts.write_request_to_send(level).is_err() {
+                    break;
+                }
+                level = !level;
+                toggles += 1;
+            }
+            toggles
+        }))
+    } else {
+        None
+    };
+
+    let mut packet = [0u8; 64];
+    // Filler that is visible in a hex dump, so a packet that does turn up
+    // somewhere unexpected is recognisable as ours.
+    packet[4..].fill(b'.');
+
+    let mut sent: u64 = 0;
+    for seq in 0..=count {
+        packet[..4].copy_from_slice(&seq.to_le_bytes());
+        port.write_all(&packet).map_err(|e| format!("write failed at packet {seq}: {e}"))?;
+        sent += 1;
+    }
+    port.flush().map_err(|e| format!("flush failed: {e}"))?;
+
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let toggles = storming.and_then(|h| h.join().ok()).unwrap_or(0);
+
+    if !opts.json {
+        eprintln!(
+            "sent {sent} packets ({} bytes), {toggles} RTS toggles during the send",
+            sent * 64
+        );
+    }
+
+    drain(&mut port, secs, opts)
+}
+
 fn open(path: &str) -> Result<Box<dyn serialport::SerialPort>, String> {
     // SAFE_BAUD, never the caller's choice. 1200 is the reboot signal from
     // exp105, and a tool that let you send text at an arbitrary rate would let

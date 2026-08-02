@@ -49,6 +49,7 @@ commands:
   port              print the serial port of a board running these firmwares
   log               read the firmware's log
   send <text>       send bytes to the firmware, then read its reply
+  flood             numbered packets at full speed (--packets N, --storm)
   bootsel           put the board into BOOTSEL mode (1200-baud touch)
   drive             print the RP2350 boot drive, mounting it if needed
   flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
@@ -60,7 +61,9 @@ options:
   --json            machine-readable output on stdout (for scripts and agents)
   --explain         print the equivalent hand-typed commands on stderr, then act
   --install         `udev` only: write the rule as root instead of reporting
-  --seconds N       how long to read for: `log` (default 10), `send` (default 3)
+  --seconds N       how long to read for: `log` 10, `send` 3, `flood` 4
+  --packets N       `flood` only: how many to send (default 2000)
+  --storm           `flood` only: toggle RTS throughout, to cancel reads
   --version, -V
   --help, -h
 
@@ -83,6 +86,8 @@ fn run(args: &[String]) -> i32 {
     let mut seconds: u64 = 10;
     let mut seconds_given = false;
     let mut install = false;
+    let mut packets: u32 = 2000;
+    let mut storm = false;
     let mut positional: Vec<String> = Vec::new();
     let mut i = 0;
 
@@ -99,6 +104,14 @@ fn run(args: &[String]) -> i32 {
                         seconds_given = true;
                     }
                     None => return usage_error("--seconds needs a number"),
+                }
+            }
+            "--storm" => storm = true,
+            "--packets" => {
+                i += 1;
+                match args.get(i).and_then(|v| v.parse().ok()) {
+                    Some(v) => packets = v,
+                    None => return usage_error("--packets needs a number"),
                 }
             }
             "--help" | "-h" => {
@@ -133,6 +146,7 @@ fn run(args: &[String]) -> i32 {
             Some(text) => cmd_send(&opts, text, if seconds_given { seconds } else { 3 }),
             None => usage_error("send needs something to send"),
         },
+        "flood" => cmd_flood(&opts, packets, storm, if seconds_given { seconds } else { 4 }),
         "bootsel" => cmd_bootsel(&opts),
         "drive" => cmd_drive(&opts),
         "flash" => match positional.get(1) {
@@ -400,6 +414,45 @@ fn unescape(s: &str) -> Result<Vec<u8>, String> {
         }
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// flood
+
+fn cmd_flood(opts: &Opts, packets: u32, storm: bool, seconds: u64) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[],
+            notes: &[
+                "No shell equivalent, and the reason is the point of the command. It has",
+                "to write 64-byte packets at full speed while, at the same time and from",
+                "another thread, toggling RTS on the same open port. A shell can do the",
+                "first with dd and the second with stty, but not both at once through one",
+                "handle — and if they are not at once, nothing gets cancelled.",
+                "Each packet carries its sequence number in the first four bytes,",
+                "little-endian. Sequence 0 goes first and tells exp119 to clear its",
+                "counters, so two runs do not look like one enormous gap.",
+                "RTS rather than DTR: both fire the device's control_changed(), but",
+                "crates/usb-log will not write while DTR is low, so a DTR storm would",
+                "silence the log this command exists to read.",
+            ],
+        },
+    );
+
+    let Some(p) = board::find_port() else {
+        return fail(
+            opts,
+            "no-port",
+            "no board running one of these firmwares is attached",
+            "yi26 doctor",
+        );
+    };
+
+    match logread::flood(&p.path, packets, storm, seconds, opts) {
+        Ok(_) => 0,
+        Err(e) => fail(opts, "flood-failed", &e, "check nothing else holds the port: fuser -v <port>"),
+    }
 }
 
 // ---------------------------------------------------------------------------

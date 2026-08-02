@@ -86,6 +86,7 @@ for what the firmware is actually doing.
 | `port` | the serial port of a board running one of these firmwares |
 | `log` | what the firmware is printing (`--seconds N`, default 10) |
 | `send <text>` | bytes to the firmware, then its reply (`--seconds N`, default 3) |
+| `flood` | numbered packets at full speed (`--packets N`, `--storm`) |
 | `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
 | `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
@@ -123,6 +124,28 @@ that trap next to the three commands it replaces.
 The rate is always 115200 and cannot be given. 1200 is the reboot signal from
 exp105, and a send command that took a baud rate would let a typo reset the
 board.
+
+### `flood` has no shell equivalent, and that is what it is for
+
+```sh
+yi26 flood --packets 20000            # numbered packets at full speed
+yi26 flood --packets 20000 --storm    # ...while toggling RTS throughout
+```
+
+Each packet carries its sequence number in the first four bytes,
+little-endian, so a firmware can tell whether it got every one. Sequence 0 goes
+first and means "clear your counters", so two runs do not look like one
+enormous gap.
+
+`--storm` is the part a shell cannot do. It writes at full speed *while*, from
+another thread and through the same open handle, toggling RTS. `dd` can do the
+first and `stty` the second, but not simultaneously — and if they are not
+simultaneous, nothing gets cancelled and the experiment measures nothing.
+exp119 is the caller.
+
+RTS rather than DTR for the same reason `send` is one command: `crates/usb-log`
+will not write while DTR is low, so a DTR storm would silence the log the
+measurement is read from.
 
 ### `udev`, the one command that changes your machine
 
