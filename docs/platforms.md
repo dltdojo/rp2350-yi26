@@ -203,20 +203,32 @@ directions.
 ### The 1200-baud signal from a browser
 
 exp105 teaches the firmware to reboot into its bootloader when the host sets
-the port to 1200 baud. That is what retires the BOOTSEL button, and it works
-from a browser — but it takes two steps, not one:
+the port to 1200 baud. That is what retires the BOOTSEL button, and how many
+steps it takes depends on which API you reach through.
+
+**Through a serial API — Web Serial, `stty`, a terminal program — it takes
+two:**
 
 1. Open the port at **115200** and close it.
 2. Open it at **1200** and close it.
 
-Both, in that order. Setting a port to the baud rate it is already at sends no
-`SET_LINE_CODING` control transfer, so the firmware never hears the request.
-Bouncing through 115200 first makes it unconditional. `yi26 bootsel --explain`
-prints the same reasoning for the shell equivalent.
+Both, in that order. A driver asked for the rate the port is already at sends
+no `SET_LINE_CODING` at all, so the firmware never hears the request. Bouncing
+through another rate first is what makes it unconditional.
+`yi26 bootsel --explain` prints the same reasoning for the shell equivalent.
 
-Once that works, the loop is: edit in the cloud, `./check.sh`, download,
-trigger the reboot from the browser, drag the new `.uf2` onto the drive. The
-button stays untouched.
+**Through WebUSB it takes one**, and [exp117](../experiments/exp117-webusb-reboot/)
+is that page. There is no driver deciding on your behalf: the page composes
+the seven bytes of `SET_LINE_CODING` and hands them to the device, so the
+request always goes out. The workaround exists to defeat an optimisation, and
+when you are the driver there is no optimisation to defeat.
+
+That matters here because Android has WebUSB and not Web Serial, so on the
+machine this page is really for, the one-step path is the only path.
+
+The loop closes there: edit in the cloud, `./check.sh`, download the `.uf2`,
+open exp117's page and press the button, drag the file onto the drive that
+appears. No toolchain on the local machine and no hand on the button.
 
 ## What this page will not tell you
 

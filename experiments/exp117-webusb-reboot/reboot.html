@@ -1,0 +1,225 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp117 — reboot the board from a web page</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp117-webusb-reboot — one file, no dependencies, no build step, no server.
+
+  The last experiment on this track that changes no firmware. exp105 taught
+  the board to reboot into its bootloader when the host sets the port to 1200
+  baud; every firmware here has done it since. This page sends that request
+  itself, and with it a phone can put a board into BOOTSEL and then copy a
+  .uf2 onto the drive that appears — no toolchain, no second computer, no
+  hand on the button.
+
+  Open it directly from the filesystem — double-click on a desktop, Files app
+  -> "Open with Chrome" on Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you reboot the board.
+
+      yi26 bootsel
+
+  is. This file exists so a *person* can do it on a machine with no toolchain.
+  Reaching for it from an agent means asking a human to click a native dialog
+  that no tool here can click for them. Open it when the page itself is what
+  you are verifying. See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 46rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  #status.warn { border-color: var(--warn); color: var(--fg); }
+  pre { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .8rem;
+        border-radius: 6px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+  .warn { border-left: 3px solid var(--warn); padding: .6rem .9rem; margin: 1rem 0; font-size: 13.5px; }
+  code { font-size: .92em; }
+</style>
+
+<h1>Reboot the board from a web page</h1>
+<p class="sub">exp117 &middot; one control transfer, and the device you were talking to stops existing. No firmware changes.<br>
+  <small>page build <b id="ver">b1</b> &mdash; if this is not the build you expect,
+  reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
+
+<p>
+  <button id="reboot">Reboot into BOOTSEL</button>
+</p>
+
+<div id="status">Not connected.</div>
+<pre id="steps" hidden></pre>
+
+<div class="warn">
+  <b>Success here looks exactly like failure.</b> The board resets, so the
+  device this page is holding disappears mid-request. Expect an error from the
+  transfer itself — that is what a device rebooting on command looks like from
+  the host's side. The page listens for the disconnect and reports that as the
+  result, because the disconnect is the only part that is unambiguous.
+  <br><br>
+  <b>On Linux, run <code>yi26 detach</code> first</b>, as in exp116 — the
+  kernel's <code>cdc_acm</code> driver owns the interface and an interface has
+  one owner. On Android there is no <code>cdc_acm</code>, so there is nothing
+  to move out of the way. That asymmetry is the whole reason this track exists.
+</div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+
+const SET_LINE_CODING = 0x20;
+
+// Not a rate. A signal — see crates/usb-reboot. The firmware compares the
+// number and jumps into the ROM bootloader when it matches.
+const MAGIC_BAUD = 1200;
+
+const $ = (id) => document.getElementById(id);
+let device = null;
+let expectingDisconnect = false;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+function step(t) {
+  const el = $('steps');
+  el.hidden = false;
+  el.textContent += t + '\n';
+}
+
+/** The CDC Communications interface — the one SET_LINE_CODING is addressed to. */
+function findControlInterface(dev) {
+  for (const iface of dev.configurations[0].interfaces) {
+    if (iface.alternates[0].interfaceClass === 0x02) return iface.interfaceNumber;
+  }
+  return null;
+}
+
+// The disconnect event is the result.
+//
+// Everything else this page can observe is ambiguous: the transfer may resolve
+// or may reject, depending on how far the request got before the chip reset,
+// and neither outcome tells you whether the firmware acted. The device going
+// away does.
+navigator.usb.addEventListener('disconnect', (e) => {
+  if (!expectingDisconnect || e.device !== device) return;
+  expectingDisconnect = false;
+  step('disconnect event  <- the board reset; this is the confirmation');
+  say('Rebooted. The board is in BOOTSEL mode and a drive named RP2350 should '
+    + 'appear — copy a .uf2 onto it. This page can no longer see the device, '
+    + 'which is correct: it is a different device now.', 'ok');
+  $('reboot').disabled = false;
+  device = null;
+});
+
+async function reboot() {
+  $('reboot').disabled = true;
+  $('steps').textContent = '';
+  $('steps').hidden = true;
+
+  try {
+    // Already-permitted devices come back without a picker; the grant belongs
+    // to the file:// origin and survives reloads, but not a browser restart.
+    const known = await navigator.usb.getDevices();
+    device = known.find((d) => d.vendorId === 0x1209 && d.productId === 0x0001)
+      || await navigator.usb.requestDevice({ filters: FILTERS });
+
+    step('device            ' + (device.productName ?? '(no product string)'));
+    await device.open();
+    step('open()            ok');
+
+    const control = findControlInterface(device);
+    if (control === null) throw new Error('no CDC Communications interface on this device');
+
+    // Claiming is required before an interface-directed control transfer, and
+    // on Linux it is where this page stops unless cdc_acm has been detached.
+    try {
+      await device.claimInterface(control);
+    } catch (e) {
+      throw new Error(
+        `cannot claim interface ${control} — something else owns it, and an `
+        + `interface has exactly one owner. Two candidates: the kernel's `
+        + `cdc_acm driver (fix: run "yi26 detach"), or another program that `
+        + `claimed it first, most often another browser tab (fix: close it). `
+        + `"yi26 doctor" says which. [${e.name}: ${e.message}]`);
+    }
+    step('claimInterface(' + control + ') ok');
+
+    // SET_LINE_CODING carries seven bytes: the rate as a little-endian u32,
+    // then stop bits, parity and data bits.
+    const coding = new DataView(new ArrayBuffer(7));
+    coding.setUint32(0, MAGIC_BAUD, true);
+    coding.setUint8(4, 0);   // 1 stop bit
+    coding.setUint8(5, 0);   // no parity
+    coding.setUint8(6, 8);   // 8 data bits
+
+    step('SET_LINE_CODING   ' + MAGIC_BAUD + ' baud, one request, sent now');
+    expectingDisconnect = true;
+
+    // One request, not two.
+    //
+    // Doing this through a serial API needs a dance: open at 115200, close,
+    // open at 1200. A driver that is asked for the rate the port is already
+    // at sends nothing, so the firmware never hears it, and bouncing through
+    // another rate first is what makes the request unconditional.
+    //
+    // None of that applies here, because there is no driver deciding on your
+    // behalf. This is the control transfer, written out and handed to the
+    // device. When you are the driver, the workaround disappears.
+    try {
+      await device.controlTransferOut({
+        requestType: 'class',
+        recipient: 'interface',
+        request: SET_LINE_CODING,
+        value: 0,
+        index: control,
+      }, coding.buffer);
+      step('transfer returned ok  <- means nothing on its own; wait for the disconnect');
+    } catch (e) {
+      // Expected at least as often as not: the chip can reset before the
+      // status stage completes. It is not evidence either way.
+      step('transfer rejected  (' + e.name + ')  <- also normal; the chip reset mid-request');
+    }
+
+    say('Request sent. Waiting for the board to disappear, which is what '
+      + 'success looks like…');
+
+    // If nothing disconnects, the firmware did not act — and that has causes
+    // worth naming rather than leaving as silence.
+    setTimeout(() => {
+      if (!expectingDisconnect) return;
+      expectingDisconnect = false;
+      $('reboot').disabled = false;
+      say('No disconnect after 3 seconds, so the board did not reboot. Either '
+        + 'this firmware predates exp105, or it was built with '
+        + '--no-default-features, which compiles the 1200-baud watcher out. '
+        + 'experiments/audit.sh reads that setting straight out of the .uf2.', 'warn');
+    }, 3000);
+  } catch (e) {
+    expectingDisconnect = false;
+    $('reboot').disabled = false;
+    say(`${e.name}: ${e.message}`, 'bad');
+  }
+}
+
+$('reboot').onclick = reboot;
+
+(async () => {
+  if (!('usb' in navigator)) {
+    say('This browser has no WebUSB. Chromium browsers only — Chrome, Edge, Brave.', 'bad');
+    $('reboot').disabled = true;
+    return;
+  }
+  const known = await navigator.usb.getDevices();
+  say(known.length
+    ? 'Already permitted — pressing the button will not ask again.'
+    : 'Press the button and choose the board. The picker appears once per browser session.');
+})();
+</script>

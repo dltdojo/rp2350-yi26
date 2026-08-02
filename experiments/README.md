@@ -42,6 +42,7 @@ Per experiment:
 | exp114 | Any RP2350 board. Uses both the ADC and the TRNG, so RP2350 only. The health tests themselves run anywhere — `cargo test` in `crates/entropy-health`. |
 | exp115 | Any RP2350 board running any firmware from this repository — it reads descriptors, and they all enumerate the same way. Needs a Chromium browser, and on Linux one udev rule. |
 | exp116 | Same as exp115, plus `yi26 detach` on Linux — the kernel's `cdc_acm` driver has to let go before a browser can claim the interfaces. |
+| exp117 | Any RP2350 board running exp105 or later — it needs the 1200-baud watcher to have something to talk to. Chromium browser, and on Linux `yi26 detach` first. |
 | exp118 | Any RP2350 board. No browser: the host half is `yi26 send`, which talks to the same CDC port everything else here uses. |
 | exp119 | Any RP2350 board. No browser. The host half is `yi26 flood`, which needs a port that can be written to and have RTS toggled at the same time. |
 
@@ -253,6 +254,7 @@ Practical consequences:
 | [exp114-health-tests](./exp114-health-tests/) | The two continuous tests SP 800-90B specifies — and a source that refuses to emit when they fail |
 | [exp115-webusb-enumerate](./exp115-webusb-enumerate/) | A browser opens the board and prints its descriptors — no firmware, no driver, no server |
 | [exp116-webusb-cdc-log](./exp116-webusb-cdc-log/) | The same log, read in a browser — claim the interfaces, drive the control pipe by hand |
+| [exp117-webusb-reboot](./exp117-webusb-reboot/) | A web page puts the board into its bootloader — the request whose success looks exactly like failure |
 | [exp118-one-receiver-two-jobs](./exp118-one-receiver-two-jobs/) | The firmware starts listening, and ownership — not taste — decides the shape of the program |
 | [exp119-cancelled-reads](./exp119-cancelled-reads/) | Twenty thousand reads cancelled on purpose, and the control variable that makes a zero mean something |
 
@@ -286,9 +288,6 @@ Two facts set the whole shape of this track:
 
 | Planned | Proves |
 | --- | --- |
-| **exp117-webusb-reboot** | The last zero-change experiment, and the one that closes the phone loop: the page sends the 1200-baud request itself, the board reboots, the boot drive mounts. Also the only USB request whose success looks exactly like a failure — the device disappears |
-| ~~exp118~~ | [Built](./exp118-one-receiver-two-jobs/), out of order, because its firmware half needs no browser and therefore no human |
-| ~~exp119~~ | [Built](./exp119-cancelled-reads/), also out of order, and for the same reason |
 | **exp120-webusb-two-way** | The browser half of exp118 — `transferOut` from a page, which is what makes a phone an input device and not just a screen |
 | **exp121-composite-hid** | A device under test *and* its own log, on one port. A HID keyboard beside the CDC log, and per-interface claiming that lets the phone drive one while the page reads the other |
 | **exp122-vendor-bulk** | USB with no class driver at all — a raw vendor interface, two bulk endpoints, and an echo |
@@ -302,8 +301,10 @@ experiment needs a person: a WebUSB permission comes from a native dialog
 behind a required user gesture, it does not survive restarting the browser, and
 no tool in this repository can click it. Firmware and host-side work need
 nobody. So when the board is reachable and its owner is not, the work that can
-proceed is the work that proceeds — and exp118 was built before exp117 for no
-better and no worse reason than that.
+proceed is the work that proceeds — and exp118 and exp119 were built before
+exp117 for no better and no worse reason than that. exp117 was finished later
+the same day, in the two minutes its owner was at the bench, because that
+click was the only part of it that could not be done without them.
 
 exp126 closes a loop that opens in exp101. The `RP2350` drive that appears when
 you hold BOOTSEL is not a real disk — the bootrom synthesizes a FAT volume on
