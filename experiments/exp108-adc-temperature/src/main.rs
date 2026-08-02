@@ -88,7 +88,16 @@ fn raw_to_celsius(raw: u16) -> f32 {
 #[embassy_executor::task]
 async fn temperature_task(mut adc: Adc<'static, Async>, mut channel: Channel<'static>) -> ! {
     loop {
-        let raw = adc.read(&mut channel).await.unwrap_or(0);
+        // Not `unwrap_or(0)`. A conversion that failed and a conversion that
+        // read zero are different facts, and collapsing them into one number
+        // means the log reports a measurement that never happened. Here it
+        // would be loud — zero counts converts to about 437 °C — but relying
+        // on a wrong answer being obvious is not a design.
+        let Ok(raw) = adc.read(&mut channel).await else {
+            log!("temp: ADC read failed — no measurement this second");
+            Timer::after(Duration::from_secs(1)).await;
+            continue;
+        };
         let c = raw_to_celsius(raw);
 
         // `log!` has no float formatter — `usb-log` writes into a fixed line

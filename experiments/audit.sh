@@ -63,8 +63,24 @@ audit_experiment() {
     # whenever someone built with different flags — which is exactly the case
     # an audit exists to catch, so the artifact wins and the mismatch is
     # reported.
-    local uf2_path
-    uf2_path="$(ls "$dir"/target/*.uf2 2>/dev/null | head -1)"
+    #
+    # Which artifact, when there is more than one. Some experiments build
+    # several variants on purpose — exp109 ships a deliberately slow
+    # configuration, exp110 an awaiting and a blocking build, exp112 a working
+    # and a broken one. Picking one alphabetically and saying nothing would
+    # let this tool audit a file nobody flashed, which is the exact failure
+    # the paragraph above exists to prevent. So: newest wins, and every
+    # candidate is named.
+    local uf2_path uf2_count
+    uf2_path="$(ls -t "$dir"/target/*.uf2 2>/dev/null | head -1)"
+    uf2_count="$(ls "$dir"/target/*.uf2 2>/dev/null | wc -l)"
+    if (( uf2_count > 1 )); then
+        echo "  ${YELLOW}${BOLD}${uf2_count} artifacts in this directory.${RESET} This report describes the"
+        echo "  most recently built one: ${BOLD}$(basename "$uf2_path")${RESET}"
+        echo "  ${DIM}Others present: $(ls -t "$dir"/target/*.uf2 | tail -n +2 | xargs -n1 basename | paste -sd' ')${RESET}"
+        echo "  ${DIM}Audit the one you are about to flash, not the one that sorts first.${RESET}"
+        echo
+    fi
 
     if grep -q "usb-reboot" "$dir/Cargo.toml" 2>/dev/null; then
         item "Host-triggered reboot into the bootloader (1200-baud touch)"
@@ -170,6 +186,58 @@ audit_experiment() {
         echo "              admissible as an audit trail or a security record."
         advice "grep for 'log!(' and check what each one prints; drop the dependency for production"
         concern
+    fi
+
+    # -- 3d. Which random number generator is actually compiled in ------------
+    #
+    # The most consequential thing a firmware can get wrong quietly. A build
+    # that lost its hardware-RNG feature produces output that still looks
+    # random, still passes statistical tests, and still runs — so no test of
+    # the *output* catches it. What catches it is asking the artifact.
+    #
+    # Same two-source rule as the reboot check above: Cargo.toml says what a
+    # default build would select, the marker says what this .uf2 selected, and
+    # when they disagree the artifact wins.
+    if grep -q "^hardware-rng" "$dir/Cargo.toml" 2>/dev/null; then
+        item "Random number generator in the built firmware"
+
+        local rng_src="unknown" rng_art="unknown" rng_marker=""
+        [[ "$feats" == *hardware-rng* ]] && rng_src="hardware" || rng_src="software"
+        if [[ -n "$uf2_path" ]]; then
+            rng_marker="$(strings "$uf2_path" 2>/dev/null | grep -m1 '^yi26-cfg:rng=')"
+            case "$rng_marker" in
+                *=hardware*) rng_art="hardware" ;;
+                *=software*) rng_art="software" ;;
+            esac
+        fi
+
+        if [[ "$rng_art" == "hardware" ]]; then
+            value "${GREEN}hardware TRNG${RESET} — the intended source is compiled in"
+            source_ "marker '${rng_marker}' found inside $(basename "$uf2_path")"
+            risk "None from this mechanism. Note that a working TRNG is a"
+            echo "              necessary condition and not a sufficient one — see"
+            echo "              exp111 on what statistical tests cannot tell you."
+            advice "nothing to change"
+        elif [[ "$rng_art" == "software" ]]; then
+            value "${RED}software fallback${RESET} — a deterministic generator, not entropy"
+            source_ "marker '${rng_marker}' found inside $(basename "$uf2_path")"
+            risk "Every value this firmware calls random is reproducible by"
+            echo "              anyone holding the same build. The output passes the"
+            echo "              statistical tests in exp111 and looks correct in a log."
+            echo "              If anything derived from it were ever used as a key,"
+            echo "              a secret, or a nonce, it would not be one."
+            advice "cargo build --release (the default enables hardware-rng), then reflash"
+            concern
+        else
+            unknown "no RNG marker in the artifact — not built, or built before markers existed"
+            source_ "searched for 'yi26-cfg:rng=' in ${uf2_path:-(no .uf2)}"
+        fi
+
+        if [[ "$rng_art" != "unknown" && "$rng_src" != "$rng_art" ]]; then
+            echo "    ${YELLOW}▲ MISMATCH${RESET}: a default build of this checkout would use"
+            echo "              '${rng_src}', but the .uf2 on disk uses '${rng_art}'."
+            echo "              Reading the source would have told you the wrong answer."
+        fi
     fi
 
     # -- 4. Panic behaviour ---------------------------------------------------

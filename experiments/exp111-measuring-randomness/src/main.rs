@@ -139,11 +139,31 @@ async fn compare_task(
         // This is the thing people reach for when they want free entropy and
         // have no TRNG. It is worth finding out what it is actually worth.
         let mut adc_bits = [0u8; BYTES_PER_ROUND];
+        let mut harvest_failed = false;
         for i in 0..BITS_PER_ROUND {
-            let sample = adc.read(&mut channel).await.unwrap_or(0);
-            if sample & 1 == 1 {
-                adc_bits[(i / 8) as usize] |= 1 << (i % 8);
+            // Not `unwrap_or(0)`.
+            //
+            // Substituting a constant when a source fails is how an entropy
+            // path goes wrong silently: the zeroes flow into the statistics
+            // and look like data. This is a miniature of the failure class
+            // the README describes, so it does not get to live here — a
+            // failed read abandons the round and says so.
+            match adc.read(&mut channel).await {
+                Ok(sample) => {
+                    if sample & 1 == 1 {
+                        adc_bits[(i / 8) as usize] |= 1 << (i % 8);
+                    }
+                }
+                Err(_) => {
+                    harvest_failed = true;
+                    break;
+                }
             }
+        }
+        if harvest_failed {
+            log!("adc: read failed — round abandoned, no bits counted");
+            Timer::after(Duration::from_secs(1)).await;
+            continue;
         }
 
         let mut trng_bytes = [0u8; BYTES_PER_ROUND];
