@@ -55,11 +55,20 @@
 //!
 //! # Provenance
 //!
-//! Derived from the `pico-sk` project's `crates/platform/src/bootsel.rs`
-//! (Apache-2.0), where it has run in production as a FIDO2 user-presence
-//! button alongside a live USB stack. `embassy-rp` does have a `bootsel`
-//! module, but as of 0.10 it is gated behind the `rp2040` feature and does
-//! not build for the RP2350 — hence this implementation.
+//! Derived from earlier Apache-2.0 work by the same author, where it ran in
+//! production as a button on a shipping device — pressed by a user, at
+//! runtime, alongside a live USB stack. That is the condition that matters
+//! here: the read disables interrupts and floats the flash chip-select line
+//! for about 20 µs, and this code has been doing that next to a running USB
+//! device without upsetting it.
+//!
+//! The earlier project is not public and is not named, because it has nothing
+//! else to do with this repository and a reader chasing the reference would
+//! find nothing. Nothing here depends on it: everything below is in this file.
+//!
+//! `embassy-rp` does have a `bootsel` module, but as of 0.10 it is gated
+//! behind the `rp2040` feature and does not build for the RP2350 — hence this
+//! implementation.
 
 #![no_std]
 
