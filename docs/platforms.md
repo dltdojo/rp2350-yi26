@@ -218,6 +218,15 @@ The same route is how exp126's viewer gets opened off the board's own volume,
 so this is not a detail about one page. It is how the browser track is reached
 on a phone at all.
 
+It also leaves a gap that is worth naming, because it cannot be seen. A page
+served off the board and a copy saved on the phone weeks ago produce the
+**same kind of address**, from the same file manager. Nothing on screen
+distinguishes them, so "I opened it from the drive" is a belief rather than an
+observation. [exp130](../experiments/exp130-the-board-draws/) closes it by
+having the firmware announce a build string that the page compares against its
+own — verified on the phone on 2026-08-03, with the page reporting a match. If
+you build anything that matters on a page served from a device, build that in.
+
 Three numbers on the phone's screen agreed with the build machine without
 being told to:
 

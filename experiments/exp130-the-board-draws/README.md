@@ -159,6 +159,41 @@ NOTE  the page itself is a human's job — the WebUSB picker is a native
       can be checked without one.
 ```
 
+### On a phone, 2026-08-03
+
+Captured on a Google Pixel 9a with an OTG cable. The board was put into BOOTSEL
+from [exp117](../exp117-webusb-reboot/)'s page — no button — the `.uf2` dragged
+onto the drive that appeared, and then `INDEX.HTM` opened **from the board's
+own volume** via the Files app.
+
+Two draws, two ranges:
+
+| Shown large | Beneath it | The board's own line, printed by the page |
+| --- | --- | --- |
+| **2451** | `draw #1 · from 2100–2567` | `[   70287 ms] draw #1: 2451  in 2100-2567 (468 values)` |
+| **247** | `draw #2 · from 20–256` | `[   88990 ms] draw #2: 247  in 20-256 (237 values)` |
+
+The second range is a different width and the arithmetic follows it: 256 − 20 +
+1 is 237, and the sequence number advanced rather than restarting. Both numbers
+land inside the range that was asked for, and in both cases the parsed number
+above and the device's own sentence below are on screen together.
+
+And the box that matters most for a page nobody downloaded:
+
+> Provenance: the firmware carries page build **a1** and this page is build
+> **a1**. They match, so this is the page on the board's own volume.
+
+That is the check earning its place. A page served off the board and a copy
+saved on the phone last month are both `content://` URIs from a file manager
+and cannot be told apart by looking — so the page stops relying on looking.
+
+**Not captured in this run:** whether Android left the read-only volume alone.
+exp126's writable volume acquired a `LOST.DIR` within a minute of mounting, and
+this one declares write protect, which Linux honours here — `RO` is 1 and a
+write fails. Android honouring it too is expected rather than shown, and the
+cheapest way to close that is to look at the volume's file list the next time
+the board is on the phone.
+
 ## What is not verified here
 
 **The `WRITE(10)` refusal has never fired.** Every host tried so far read the
