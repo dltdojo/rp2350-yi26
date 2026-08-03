@@ -1,0 +1,19 @@
+[package]
+name = "draw"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "An unbiased draw from an inclusive integer range, by rejection"
+
+# No dependencies, and no random number generator either — the caller passes
+# one in. That is what lets `cargo test` run the whole thing on the machine
+# you are reading this on, with a source that returns exactly the values a
+# test wants to see. A draw that can only be exercised against real entropy
+# can only be exercised against values nobody chose, which is the wrong way
+# round for the one case that matters: the value in the rejection zone.
+[dependencies]
+
+[lib]
+name = "draw"
+
+[workspace]

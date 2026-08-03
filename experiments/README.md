@@ -54,6 +54,7 @@ Per experiment:
 | exp126 | Any RP2350 board, and a Chromium browser for the last step — which is opening a file off the board's own volume. |
 | exp127 | Any RP2350 board with a plain LED (change the pin). No browser. The pad readback is `SIO GPIO_IN`, which every RP2350 and RP2040 has. |
 | exp128 | Any RP2350 board. No browser. Whether a 64-byte message ever completes depends on the **host's** USB stack, so that one result may differ elsewhere — and the check says which answer it got. |
+| exp129 | Any RP2350 board. No browser. **RP2350 only** — it uses the TRNG, which the RP2040 does not have. The `draw` crate runs `cargo test` on any machine, board or not. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -261,7 +262,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -363,6 +364,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp126 | `cdc+msc` | `log+files` | `cdc_acm+usb-storage+webusb` | `own` |
 | exp127 | `cdc` | `log+commands` | `cdc_acm` | `own` |
 | exp128 | `cdc` | `log+commands` | `cdc_acm` | `own` |
+| exp129 | `cdc` | `log+commands` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -437,6 +439,7 @@ forgetting to write it down is caught rather than trusted.
 | [exp126-self-hosted-viewer](./exp126-self-hosted-viewer/) | 2 · a moment | The board carries its own debug page — and the bootloader drive from exp101 turns out to have been doing this all along |
 | [exp127-host-owns-the-led](./exp127-host-owns-the-led/) | 3 · a person | One byte changes the board — and the LED stops being proof that the firmware is alive |
 | [exp128-reassemble-by-hand](./exp128-reassemble-by-hand/) | 1 · board | A message is what you put back together — and the class API keeps the boundary the wire was carrying |
+| [exp129-numbered-draws](./exp129-numbered-draws/) | 1 · board | A prize draw on the board — unbiased by construction, refused when the source fails, and numbered so a discarded draw shows |
 
 ## The browser track, finished
 
