@@ -39,7 +39,7 @@ run_cmd yi26 send '\x01'
 say ""
 say "Look at the board. The blink is gone and the LED is simply ${BOLD}on${RESET} —"
 say "the firmware handed it over and stopped using it."
-pause
+pause "Look at the board."
 
 # ---------------------------------------------------------------------------
 step 3 "The thing you just gave up"

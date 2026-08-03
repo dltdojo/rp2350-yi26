@@ -97,7 +97,7 @@ say ""
 say "That is measured, not feared. Against exp118 on this machine, a 64-byte"
 say "write produced ${BOLD}one${RESET} 64-byte packet and no zero-length packet after it."
 say "The host had no reason to send one: it wrote what it was asked to write."
-pause
+pause "Confirm the log stayed silent."
 say ""
 say "Watch what that costs. Send five more bytes:"
 say ""

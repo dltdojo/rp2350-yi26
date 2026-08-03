@@ -34,15 +34,20 @@ run_cmd() {
 # script's output is being piped somewhere. If there is no terminal at all —
 # run from cron, from another script, from a CI job — they say so and give up
 # rather than dying on an unbound variable.
+# `${1-}` rather than `$1`: every script here runs under `set -u`, and an
+# unbound variable would kill the script at the exact moment a person is
+# standing in front of it waiting to be asked something. exp127's and exp128's
+# run.sh both did precisely that, and neither was caught, because check.sh
+# never calls these and check.sh is what runs unattended.
 pause() {
-    if ! read -r -p "  --> $1 Press Enter when done. " _ 2>/dev/null < /dev/tty; then
+    if ! read -r -p "  --> ${1:+$1 }Press Enter when done. " _ 2>/dev/null < /dev/tty; then
         bad "This step needs a terminal (it is asking you to do something)."
         exit 3
     fi
 }
 confirm() {
     local answer=""
-    if ! read -r -p "  --> $1 [y/n] " answer 2>/dev/null < /dev/tty; then
+    if ! read -r -p "  --> ${1:+$1 }[y/n] " answer 2>/dev/null < /dev/tty; then
         say "(no terminal to ask — treating as 'no')"
         return 1
     fi
