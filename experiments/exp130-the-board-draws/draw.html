@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draw — exp130</title>
+<style>
+  :root { color-scheme: dark light; --acc: #6ea8fe; --bad: #ff7b72; --ok: #7ee787; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem;
+         max-width: 40rem; margin-inline: auto; }
+  h1 { font-size: 1.1rem; margin: 0 0 .2rem; }
+  .sub { opacity: .7; font-size: .85rem; margin: 0 0 1rem; }
+  fieldset { border: 1px solid #8884; border-radius: 8px; margin: 0 0 1rem; }
+  legend { padding: 0 .4rem; font-size: .8rem; opacity: .8; }
+  input { font: inherit; width: 6rem; padding: .3rem .4rem; }
+  button { font: inherit; padding: .55rem 1.1rem; border: 1px solid var(--acc);
+           border-radius: 6px; background: var(--acc); color: #000; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #number { font: 700 clamp(3rem, 22vw, 7rem)/1 ui-monospace, monospace;
+            text-align: center; margin: 1rem 0 .2rem; letter-spacing: .04em; }
+  #seq { text-align: center; font: 1.1rem ui-monospace, monospace; opacity: .8;
+         margin-bottom: 1rem; }
+  #status { margin: .6rem 0; font-size: .9rem; }
+  #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
+  pre { background: #8881; padding: .6rem; border-radius: 6px; overflow-x: auto;
+        font-size: .8rem; margin: .4rem 0 0; white-space: pre-wrap; }
+  .warn { border-left: 3px solid var(--bad); padding-left: .7rem; }
+  .note { border-left: 3px solid #8886; padding-left: .7rem; font-size: .88rem; }
+</style>
+
+<h1>Prize draw</h1>
+<p class="sub">exp130 · the number is drawn on the board, not in this page.
+  Page build <b id="pagebuild">a1</b>.</p>
+
+<p id="status">Plug the board in and press Connect. The picker appears once per
+  browser session.</p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+</p>
+
+<fieldset>
+  <legend>Range, inclusive</legend>
+  <p>
+    <input id="lo" type="number" value="2100" min="0" step="1" disabled>
+    –
+    <input id="hi" type="number" value="2567" min="0" step="1" disabled>
+    <button id="go" disabled>Draw</button>
+  </p>
+</fieldset>
+
+<div id="number">—</div>
+<div id="seq">no draw yet</div>
+
+<div class="note">
+  <b>What this page did and did not do.</b> It sent the range and read a line
+  back. It did not choose the number, and it cannot prove the board did — what
+  it can do is show you exactly what the board said, below, so the number above
+  and the device's own words can be compared by anyone standing here.
+</div>
+
+<pre id="raw">(the board's own line will appear here)</pre>
+
+<p class="sub" style="margin-top:1rem">Every draw is numbered by the firmware.
+  If five draws happen and the fifth is announced, this says #5.</p>
+
+<div id="provenance"></div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+
+// Never 1200 — that is exp117's request and would reboot the board mid-draw.
+const BAUD = 115200;
+
+// Bumped whenever this file changes. The firmware prints the same string at
+// boot; if they disagree, this page is not the one on the board's volume.
+const PAGE_BUILD = 'a1';
+
+const $ = (id) => document.getElementById(id);
+let device = null, streaming = false, buffer = '';
+let control = null, data = null, epIn = null, epOut = null;
+let seenFirmwareBuild = null;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+
+/** Identical to exp120's: ask the descriptors, do not remember the numbers. */
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let c = null, d = null, iIn = null, iOut = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && c === null) c = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && d === null) {
+      d = iface.interfaceNumber;
+      for (const e of alt.endpoints) {
+        if (e.type !== 'bulk') continue;
+        if (e.direction === 'in'  && iIn  === null) iIn  = e.endpointNumber;
+        if (e.direction === 'out' && iOut === null) iOut = e.endpointNumber;
+      }
+    }
+  }
+  return { c, d, iIn, iOut };
+}
+
+/**
+ * Closes a gap that is easy to miss: a page opened from the board's volume and
+ * a stale copy sideloaded weeks ago look identical in the address bar. The
+ * firmware announces its build at boot; this page knows its own. If they
+ * differ, say so loudly rather than drawing numbers from an unknown pairing.
+ */
+function checkProvenance(line) {
+  const m = line.match(/page build ([a-z0-9]+)/);
+  if (!m) return;
+  seenFirmwareBuild = m[1];
+  const box = $('provenance');
+  if (m[1] === PAGE_BUILD) {
+    box.innerHTML = `<p class="note">Provenance: the firmware carries page build
+      <b>${m[1]}</b> and this page is build <b>${PAGE_BUILD}</b>. They match, so
+      this is the page on the board's own volume.</p>`;
+  } else {
+    box.innerHTML = `<p class="warn">Provenance: the firmware carries page build
+      <b>${m[1]}</b> and this page is build <b>${PAGE_BUILD}</b>. <b>They do not
+      match.</b> You are looking at a copy from somewhere else — most likely one
+      saved on this phone earlier. Open INDEX.HTM from the board's drive.</p>`;
+  }
+}
+
+function handleLine(line) {
+  checkProvenance(line);
+
+  const drew = line.match(/draw #(\d+): (\d+)\s+in (\d+)-(\d+)/);
+  if (drew) {
+    $('number').textContent = drew[2];
+    $('seq').textContent = `draw #${drew[1]} · from ${drew[3]}–${drew[4]}`;
+    $('raw').textContent = line;
+    say('Drawn.', 'ok');
+    $('go').disabled = false;
+    return;
+  }
+  if (/refused|not a range|is empty/.test(line)) {
+    $('number').textContent = '—';
+    $('seq').textContent = 'refused';
+    $('raw').textContent = line;
+    say('The board refused. Its reason is below.', 'bad');
+    $('go').disabled = false;
+  }
+}
+
+async function readLoop() {
+  while (streaming) {
+    let r;
+    try {
+      r = await device.transferIn(epIn, 64);
+    } catch (e) {
+      if (streaming) say(`Transfer failed: ${e.message}`, 'bad');
+      return;
+    }
+    if (r.status === 'stall') { await device.clearHalt('in', epIn); continue; }
+    if (!r.data || !r.data.byteLength) continue;
+    buffer += new TextDecoder().decode(r.data);
+    let nl;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      handleLine(buffer.slice(0, nl).replace(/\r$/, ''));
+      buffer = buffer.slice(nl + 1);
+    }
+  }
+}
+
+async function start(dev) {
+  device = dev;
+  await device.open();
+  if (device.configuration === null) await device.selectConfiguration(1);
+
+  const f = findCdc(device);
+  control = f.c; data = f.d; epIn = f.iIn; epOut = f.iOut;
+  if (control === null || data === null || epIn === null || epOut === null) {
+    throw new Error('this device does not look like the CDC devices in this repository');
+  }
+
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(
+      'cannot claim the interfaces — an interface has exactly one owner. '
+      + 'On Linux run "yi26 detach"; on a phone, close any other tab holding it. '
+      + `[${e.name}: ${e.message}]`);
+  }
+
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true);
+  coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control },
+    coding.buffer);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  $('connect').disabled = true;
+  $('stop').disabled = false;
+  $('lo').disabled = $('hi').disabled = $('go').disabled = false;
+  say(`Connected. Interfaces ${control} and ${data}; endpoint ${epIn} IN, ${epOut} OUT.`, 'ok');
+  readLoop();
+}
+
+async function stop() {
+  streaming = false;
+  $('stop').disabled = true;
+  $('lo').disabled = $('hi').disabled = $('go').disabled = true;
+  try { await device.close(); } catch (e) { /* already gone */ }
+  device = null;
+  $('connect').disabled = false;
+  say('Disconnected.');
+}
+
+$('connect').onclick = async () => {
+  if (!navigator.usb) {
+    say('This browser has no WebUSB. Chromium browsers only — Chrome, Edge, Brave.', 'bad');
+    return;
+  }
+  try {
+    const known = await navigator.usb.getDevices();
+    const dev = known.find((d) => d.vendorId === 0x1209 && d.productId === 0x0001)
+      || await navigator.usb.requestDevice({ filters: FILTERS });
+    await start(dev);
+  } catch (e) {
+    say(`${e.name}: ${e.message}`, 'bad');
+  }
+};
+
+$('stop').onclick = stop;
+
+$('go').onclick = async () => {
+  const lo = parseInt($('lo').value, 10), hi = parseInt($('hi').value, 10);
+  if (!Number.isInteger(lo) || !Number.isInteger(hi)) { say('Enter two whole numbers.', 'bad'); return; }
+  $('go').disabled = true;
+  say('Drawing…');
+  try {
+    // The firmware parses digits and one dash, and refuses anything else —
+    // so this sends exactly that and lets the board do the arguing.
+    await device.transferOut(epOut, new TextEncoder().encode(`${lo}-${hi}`));
+  } catch (e) {
+    say(`Send failed: ${e.name}: ${e.message}`, 'bad');
+    $('go').disabled = false;
+  }
+};
+
+navigator.usb?.addEventListener('disconnect', (e) => {
+  if (device && e.device === device) { streaming = false; say('The board went away.', 'bad'); }
+});
+</script>
