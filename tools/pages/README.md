@@ -64,6 +64,11 @@ this, it did not: exp120's page could send text only, so the byte that turns on
 exp127's LED could not be typed into a browser at all, and typing `1` sent
 `0x31`, which that firmware correctly refuses.
 
+Verified against a Pico 2 running exp127 on 2026-08-03: `\x01` from the page
+turned the LED on, `\x00` turned it off, and `1` was refused as `0x31` — the
+same answer `yi26 send 1` gets. The capture is in
+[exp127's README](../../experiments/exp127-host-owns-the-led/#the-same-thing-from-a-browser).
+
 ## What belongs here, and what does not
 
 One question decides it:

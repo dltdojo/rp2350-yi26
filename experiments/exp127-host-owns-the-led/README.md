@@ -283,6 +283,44 @@ hand on a button.
 - **`heartbeat stopped` appears exactly once**, at the moment it becomes true.
   Everything afterwards is the idle line's job.
 
+## The same thing, from a browser
+
+`yi26 send '\x01'` needs a toolchain. A phone has neither, and this is the
+first experiment whose command cannot be *typed*: the byte that turns the LED
+on is not a character anybody's keyboard produces.
+
+[`tools/pages/console.html`](../../tools/pages/) closes that. It takes the same
+six escapes `yi26 send` does, and shows what is about to go on the wire before
+it goes — `\x01` previews as one byte, `01`, and `1` previews as one byte,
+`31`. Captured from a Pico 2 running this firmware, with the page open in
+Chrome on the desktop and the log read through the page's own CDC stream:
+
+```text
+[  321382 ms] cmd #3: 0x01 led on (OUT high, pad high)
+[  325039 ms] idle: led on, host-owned after 3 commands (2 refused)
+[  327191 ms] cmd #4: 0x00 led off (OUT low, pad low)
+[  330039 ms] idle: led off, host-owned after 4 commands (2 refused)
+[  338874 ms] 0x31 is not a command (refused 3)
+[  338874 ms]   0x00 = off, 0x01 = on. Nothing else.
+```
+
+The LED came on and went off, watched by a person, which is the only place that
+can be checked. The third line is the one worth typing yourself: the page sent
+the character `1`, the firmware received `0x31`, and it refused — the same
+answer `yi26 send 1` gets, from the same firmware, because the two sides agree
+on what an escape means.
+
+Until this page existed no browser in this repository could do it.
+[exp120](../exp120-webusb-two-way/) could write to the OUT endpoint but only
+ever text, so `0x01` was untypeable and `1` became `0x31`. That page is still
+there with the gap intact.
+
+One thing in the capture is not about this experiment: `(+50 lines lost)`
+appeared while nothing was reading. `crates/usb-log` queues sixteen lines when
+DTR is low, and this firmware prints two every five seconds — so the queue
+overflows in under a minute between opening the page and pressing Connect.
+Connect first, then send.
+
 ## Make it yours
 
 1. Change the readback to `is_set_high()` for both values and watch every check
@@ -296,6 +334,9 @@ hand on a button.
 4. Comment out the 64-cycle settle and see whether you can ever catch
    `OUT high, pad low`. It is a genuine race; whether it is observable from the
    Cortex-M33 at 150 MHz is a measurement, not an opinion.
+5. Do the whole thing from a phone. This firmware, `console.html` off the
+   filesystem, and no toolchain anywhere near it — the LED is the one result in
+   this repository that needs no screen to read.
 
 ## Troubleshooting
 
