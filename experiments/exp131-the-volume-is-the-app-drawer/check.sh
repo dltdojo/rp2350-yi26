@@ -3,8 +3,8 @@
 #
 # exp131 quick check — non-interactive verdict.
 # Builds, then if the board is running this experiment, confirms the volume is
-# read-only, carries all three pages byte-identically to the experiments that
-# own them, and that the board still draws while the volume is mounted.
+# read-only, carries both pages byte-identically to the experiments that own
+# them, and that the board still draws while the volume is mounted.
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 
@@ -90,11 +90,11 @@ fi
 # is about composition. Every file on the volume is embedded from the
 # experiment that owns it, so no page can exist here in two versions.
 COPIES=""
-for f in draw.html reboot.html cdc-log-viewer.html; do
+for f in draw.html reboot.html; do
     [[ -f "$f" ]] && COPIES="$COPIES $f"
 done
 if [[ -z "$COPIES" ]]; then
-    pass "no page is copied into this directory — all three are embedded"
+    pass "no page is copied into this directory — both are embedded"
 else
     fail "no page is copied into this directory" "found:$COPIES — embed it instead"
 fi
@@ -108,12 +108,15 @@ grep -q 'FLASH   HTM' src/main.rs \
     && pass "the volume carries FLASH.HTM — the way back is on the device" \
     || fail "the volume carries FLASH.HTM" "a phone flashing the next build would need a page from somewhere else"
 
-# And the second view exp130's argument depends on. On a phone the firmware's
-# log was unreadable until this file was on the volume, which made "check the
-# number against the log" advice nobody could follow.
+# And the file that must NOT be here. A log viewer lived on this volume for a
+# few hours and was removed: two pages both want the same CDC pair, an
+# interface has exactly one owner, and the second one to open always failed.
+# Its only effect was an error that reads like a fault. exp130's page carries
+# the log now, so putting it back would restore the confusion and nothing else.
 grep -q 'LOG     HTM' src/main.rs \
-    && pass "the volume carries LOG.HTM — the second view is reachable too" \
-    || fail "the volume carries LOG.HTM" "exp130's audit story needs a log a phone can read"
+    && fail "the volume does not carry a second page that claims the same interface" \
+       "LOG.HTM is back — see the README for why it was removed" \
+    || pass "the volume carries no second claimant of the CDC interface"
 
 # The volume is declared read-only, so the source has to actually set the bit
 # and actually refuse the write. Deleting either half leaves a firmware that
@@ -164,22 +167,21 @@ fi
 if [[ -n "$MP" ]]; then
     pass "the volume mounts at $MP"
 
-    # Every page on the volume against the file it was embedded from. Three
-    # comparisons rather than one, because "the volume has three files" and
-    # "the volume has the right three files" are different claims and only the
-    # second one is worth anything.
+    # Every page on the volume against the file it was embedded from. One
+    # comparison per file, because "the volume has two files" and "the volume
+    # has the right two files" are different claims and only the second is
+    # worth anything.
     BAD=""
     while IFS=: read -r name src; do
         cmp -s "$MP/$name" "$src" || BAD="$BAD $name"
     done <<EOF
 INDEX.HTM:../exp130-the-board-draws/draw.html
 FLASH.HTM:../exp117-webusb-reboot/reboot.html
-LOG.HTM:../exp116-webusb-cdc-log/cdc-log-viewer.html
 EOF
     if [[ -z "$BAD" ]]; then
-        pass "all three pages on the board are byte-identical to their sources"
+        pass "both pages on the board are byte-identical to their sources"
     else
-        fail "all three pages are byte-identical to their sources" "differs:$BAD — reflash"
+        fail "both pages are byte-identical to their sources" "differs:$BAD — reflash"
     fi
 
     [[ -f "$MP/README.TXT" ]] \

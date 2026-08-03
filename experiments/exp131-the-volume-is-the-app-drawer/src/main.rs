@@ -114,17 +114,18 @@ const INDEX_HTM: &[u8] = include_bytes!("../../exp130-the-board-draws/draw.html"
 /// longer self-contained. exp117's page, byte for byte.
 const FLASH_HTM: &[u8] = include_bytes!("../../exp117-webusb-reboot/reboot.html");
 
-/// The second view. exp130's argument is that the number on screen is a claim
-/// about what the device said, checkable against the device's own log — which
-/// on a phone was unreadable until this file was on the volume.
-const LOG_HTM: &[u8] = include_bytes!("../../exp116-webusb-cdc-log/cdc-log-viewer.html");
+// A log viewer used to live here as LOG.HTM, and it was removed rather than
+// kept. Two pages on one volume both want the same CDC pair, an interface has
+// exactly one owner, and so opening the second always failed — a file whose
+// only effect was an error that looks like a fault. exp130's page carries the
+// log and the JSON export now, so nothing was lost but the confusion.
 
 /// The other file on the volume.
 ///
 /// CR+LF, because a file that only a Linux host will ever read is not the
 /// point — this volume is meant to be opened by whatever is in front of you,
 /// and Notepad on an older Windows still cares.
-const README: &[u8] = b"exp131 - everything this board needs is on this drive.\r\n\r\nINDEX.HTM   the prize draw. Enter the range on the tickets, press Draw.\r\n            The number is chosen on the board, not in the page.\r\n\r\nLOG.HTM     the board own log, read live. The draw page prints the line\r\n            it parsed; this one shows every line, so the number you were\r\n            told and what the device said can be checked apart.\r\n\r\nFLASH.HTM   put the board into its bootloader, from here. A drive named\r\n            RP2350 replaces this one; copy a .uf2 onto it. Nothing to\r\n            download and no button to hold.\r\n\r\nAll three are Chromium-only. On Linux run 'yi26 detach' first; on a phone\r\nopen them from the Files app, never by typing a file:// address.\r\n\r\nThis volume is read-only, so nothing here can be changed by the host.\r\n";
+const README: &[u8] = b"exp131 - everything this board needs is on this drive.\r\n\r\nINDEX.HTM   the prize draw. Enter the range on the tickets, press Draw.\r\n            The number is chosen on the board, not in the page. Below it,\r\n            every line the board sends - and Copy as JSON, to hand the\r\n            whole capture to somebody who has never seen this board.\r\n\r\nFLASH.HTM   put the board into its bootloader, from here. A drive named\r\n            RP2350 replaces this one; copy a .uf2 onto it. Nothing to\r\n            download and no button to hold.\r\n\r\nOpen one at a time. An interface has exactly one owner, so a second page\r\ncannot claim what the first one holds.\r\n\r\nBoth are Chromium-only. On Linux run 'yi26 detach' first; on a phone open\r\nthem from the Files app, never by typing a file:// address.\r\n";
 
 /// SCSI sense, kept so that `REQUEST SENSE` can answer the question the host
 /// actually asks after a failure: *why*.
@@ -151,7 +152,7 @@ const MESSAGE: usize = 128;
 /// The page knows its own build and compares. This closes a gap that is
 /// otherwise invisible: a page opened off the board's volume and a stale copy
 /// saved on the phone weeks ago look identical in the address bar.
-const PAGE_BUILD: &str = "a2";
+const PAGE_BUILD: &str = "a3";
 
 static DRAWS: AtomicU32 = AtomicU32::new(0);
 static REFUSED: AtomicU32 = AtomicU32::new(0);
@@ -638,7 +639,7 @@ async fn main(spawner: Spawner) {
 
     let mut config = UsbConfig::new(0x1209, 0x0001);
     config.manufacturer = Some("rp2350-yi26");
-    config.product = Some("exp131 draw, log and flash");
+    config.product = Some("exp131 draw and flash");
     config.serial_number = Some("131");
     config.device_class = 0xef;
     config.device_sub_class = 0x02;
@@ -693,7 +694,6 @@ async fn main(spawner: Spawner) {
         &[
             fat12::File { name: b"INDEX   HTM", contents: INDEX_HTM },
             fat12::File { name: b"FLASH   HTM", contents: FLASH_HTM },
-            fat12::File { name: b"LOG     HTM", contents: LOG_HTM },
             fat12::File { name: b"README  TXT", contents: README },
         ],
     )
@@ -701,7 +701,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(storage_task(read_ep, write_ep, disk).unwrap());
     spawner.spawn(idle_task().unwrap());
 
-    log!("exp131 up. {} KiB read-only volume, three pages on it.", DISK_BYTES / 1024);
+    log!("exp131 up. {} KiB read-only volume, two pages on it.", DISK_BYTES / 1024);
     // Printed so the page can compare it with its own. See PAGE_BUILD.
     log!("page build {}", PAGE_BUILD);
     log!(

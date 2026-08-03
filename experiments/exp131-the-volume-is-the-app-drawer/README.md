@@ -13,12 +13,11 @@ repository, or in somebody's downloads folder. The demonstration in
 `docs/platforms.md` walked straight into it: the page had to be sent to the
 phone before the phone could flash anything.
 
-This experiment carries it. Three pages on one read-only volume:
+This experiment carries it. Two pages on one read-only volume:
 
 | File | What it is for | Embedded from |
 | --- | --- | --- |
 | `INDEX.HTM` | what this board **does** — the prize draw | [exp130](../exp130-the-board-draws/)'s `draw.html` |
-| `LOG.HTM` | how to **read** it — the firmware's own log, live | [exp116](../exp116-webusb-cdc-log/)'s viewer |
 | `FLASH.HTM` | how to **replace** it — into BOOTSEL, from here | [exp117](../exp117-webusb-reboot/)'s page |
 
 Needs: any RP2350 board, the exp102 toolchain, and a Chromium browser. On
@@ -48,16 +47,13 @@ So it is not a habit. `check.sh` asserts it, and the rule is written into the
 new experiment is put through: *a firmware that serves a volume and can be
 rebooted by software carries the page that reboots it.*
 
-## Why the log page is here, and the thing it turns out not to do
+## The page that was here and is not
 
-On a phone, until this file was on the volume, the firmware's log was
-unreadable — there is no `yi26` there, and nothing to download it with if you
-are standing somewhere with only a phone. `LOG.HTM` fixes that, and that alone
-earns its 38 clusters.
+A log viewer sat on this volume for a few hours as `LOG.HTM`, and removing it
+is this experiment's real finding.
 
-**What it does not do is give you a second view of a draw while the draw is
-happening**, and the first run on a phone is what established that. Opening
-`LOG.HTM` with the draw page still connected in another tab produces:
+It never worked as intended. Opening it while the draw page was connected —
+the only time anybody would want it — produced:
 
 ```text
 Error: cannot claim the interfaces — something else owns them, and an
@@ -65,37 +61,21 @@ interface has exactly one owner. [NetworkError: Failed to execute
 'claimInterface' on 'USBDevice': Unable to claim interface.]
 ```
 
-That is not a fault. It is exp116's own error message being right: **an
-interface has exactly one owner**, and both pages want the same CDC pair.
-Close one and the other works.
+That is not a fault. It is exp116's own error message being right, and
+[exp132](../exp132-one-owner-or-two/) went on to measure the alternative: a
+second interface really does give two owners, and a phone cannot use it because
+Android offers no way to arrange two pages.
 
-Nor does opening it afterwards recover the draw. `crates/usb-log` writes only
-while DTR is asserted and queues sixteen lines otherwise; the lines describing
-a draw were delivered to the page that was connected at the time, and are gone.
-`LOG.HTM` opened later shows what happened *after* the disconnect.
+So the log moved into `INDEX.HTM`, where the port already has an owner, and
+brought `Copy as JSON` with it. And then keeping `LOG.HTM` had nothing left to
+offer — **a file whose only remaining effect was an error that reads like a
+fault.** Two pages on one volume will always jam one of them; shipping the
+second one just teaches the wrong lesson to whoever taps it.
 
-So this experiment claimed a second, simultaneous view and did not have one.
-Both ways out were then taken, and they went in different directions.
+`check.sh` now fails if it comes back. A guard against a file is unusual, and
+it is here because the reason it was removed is not visible from the file list.
 
-- **[exp132](../exp132-one-owner-or-two/)** built the architectural answer — a
-  vendor interface carrying the commands while CDC carries the log — and
-  measured two programs receiving the same draw at the same instant. It works,
-  and it is **useless on a phone**: Android lets you choose which app opens a
-  file and gives you no second window to put a page in, so "two pages, one
-  each" is not something a person can do there.
-- **exp130's page now shows every line it receives.** It always received them
-  and filtered for `draw #`; showing the rest costs one function. One claimant,
-  both views, no descriptor change — and it is what `INDEX.HTM` on this volume
-  does today.
-
-So the second view exists, and it is not in this file. **`LOG.HTM` keeps its
-place for a different reason**: it is exp116's full viewer, with the
-`Copy as JSON` export that `docs/platforms.md` builds the whole evidence-return
-route on, and it reads the log of **any** firmware in this repository rather
-than only this one. That is worth 38 clusters. Being the second witness to a
-draw is no longer the argument for it.
-
-## The one that names itself
+## The one that names itself## The one that names itself
 
 `reboot.html` says what it does to somebody who already knows. In a file
 listing on a phone, beside `INDEX.HTM` and `LOG.HTM`, it does not — reboot
@@ -110,12 +90,11 @@ button, a drive named `RP2350` replaces this one, copy a `.uf2` onto it.
 
 ```text
 125 clusters total, 512 bytes each
- 22  INDEX.HTM  10871 bytes
+ 33  INDEX.HTM  16469 bytes
  20  FLASH.HTM   9905
- 38  LOG.HTM    19309
-  2  README.TXT    817
+  2  README.TXT    793
  ---
- 82  used, 43 free
+ 55  used, 70 free
 ```
 
 Comfortable here, and not free: the log viewer is half the total. A board with
@@ -144,12 +123,10 @@ are not the constraint. Clusters are.
 Captured from a Pico 2. `yi26 log` straight after flashing:
 
 ```text
-[      41 ms] exp131 up. 64 KiB read-only volume, three pages on it.
-[      41 ms] page build a1
-[      42 ms] 125 clusters; INDEX.HTM is 9578 bytes, chained across 19 of them
-[     106 ms] warmed up: 2048 bits through the health tests
-[    1451 ms] INQUIRY  -> 36 bytes: yi26 / exp131 drawer
-[    1453 ms] TEST UNIT READY  -> ok
+[      40 ms] exp131 up. 64 KiB read-only volume, two pages on it.
+[      40 ms] page build a3
+[      40 ms] 125 clusters; INDEX.HTM is 16469 bytes, chained across 33 of them
+[     102 ms] warmed up: 2048 bits through the health tests
 ```
 
 The volume, mounted:
@@ -160,17 +137,15 @@ $ lsblk -no RO /dev/sda
 
 $ ls -la "/media/cyline/YI26 DRAW"
 -rw-r--r--  1 cyline cyline  9905  8月  2 20:00 FLASH.HTM
--rw-r--r--  1 cyline cyline  9578  8月  2 20:00 INDEX.HTM
--rw-r--r--  1 cyline cyline 19309  8月  2 20:00 LOG.HTM
--rw-r--r--  1 cyline cyline   817  8月  2 20:00 README.TXT
+-rw-r--r--  1 cyline cyline 16469  8月  2 20:00 INDEX.HTM
+-rw-r--r--  1 cyline cyline   793  8月  2 20:00 README.TXT
 ```
 
 Each one compared against the file it was embedded from:
 
 ```text
-INDEX.HTM == exp130-the-board-draws/draw.html          ✓
-FLASH.HTM == exp117-webusb-reboot/reboot.html          ✓
-LOG.HTM   == exp116-webusb-cdc-log/cdc-log-viewer.html ✓
+INDEX.HTM == exp130-the-board-draws/draw.html ✓
+FLASH.HTM == exp117-webusb-reboot/reboot.html ✓
 ```
 
 And the draw still works with the volume mounted the whole time:
@@ -185,25 +160,25 @@ And the draw still works with the volume mounted the whole time:
 PASS  toolchain present (cargo, elf2flash)
 PASS  the draw crate's tests pass
 PASS  the fat12 crate's tests pass
-PASS  compiles (216736 byte ELF)
-PASS  converts to UF2 (140288 bytes)
+PASS  compiles (151200 byte ELF)
+PASS  converts to UF2 (115200 bytes)
 PASS  UF2 family ID is e48bff59 (rp2350-arm-s)
 PASS  auto-reboot is compiled in (a phone can reflash this without a button)
-PASS  firmware and exp130's page agree on the build string (a1)
-PASS  no page is copied into this directory — all three are embedded
+PASS  firmware and exp130's page agree on the build string (a3)
+PASS  no page is copied into this directory — both are embedded
 PASS  the volume carries FLASH.HTM — the way back is on the device
-PASS  the volume carries LOG.HTM — the second view is reachable too
+PASS  the volume carries no second claimant of the CDC interface
 PASS  MODE SENSE sets the write-protect bit
 PASS  WRITE(10) is refused with DATA PROTECT / WRITE PROTECTED
 PASS  board is running exp131
 PASS  the host created a block device (/dev/sda)
 PASS  the host marked the device read-only, because MODE SENSE said so
 PASS  the volume mounts at /media/cyline/YI26 DRAW
-PASS  all three pages on the board are byte-identical to their sources
+PASS  both pages on the board are byte-identical to their sources
 PASS  README.TXT is there beside it
 PASS  a write to the volume fails (the host refuses before the device is asked)
-PASS  the board still draws while the volume is mounted (draw #2: 2508  in 2100-2567)
-PASS  the drawn number 2508 is inside 2100-2567
+PASS  the board still draws while the volume is mounted (draw #2: 2345  in 2100-2567)
+PASS  the drawn number 2345 is inside 2100-2567
 ```
 
 ### On a phone, 2026-08-03

@@ -96,6 +96,51 @@ grep -q 'SENSE_DATA_PROTECT, ASC_WRITE_PROTECTED' src/main.rs \
     && pass "WRITE(10) is refused with DATA PROTECT / WRITE PROTECTED" \
     || fail "WRITE(10) is refused" "declaring read-only and accepting writes is a lie the host cannot catch"
 
+# ---------------------------------------------------------------------------
+# The JSON export, moved here from exp116's page.
+#
+# Two implementations of one format drift unless something compares them, and
+# neither gets to be the authority: this page's parser and `yi26 log --json`
+# are both run over one fixture and diffed against one committed expectation.
+# exp116's check.sh does the identical thing to the identical block, which is
+# what stops the two pages from disagreeing about what a log looks like.
+FIXTURE=../../tools/yi26/tests/log-format/lines.txt
+EXPECTED=../../tools/yi26/tests/log-format/expected.ndjson
+
+grep -q "BEGIN yi26-log-json" draw.html && grep -q "END yi26-log-json" draw.html \
+    && pass "the page carries the extractable log-format block" \
+    || fail "the page carries the extractable log-format block" "the markers check.sh slices between are gone"
+
+if ! command -v node > /dev/null; then
+    echo "SKIP  node is not installed, so the page's script cannot be checked here"
+elif [[ ! -f "$FIXTURE" || ! -f "$EXPECTED" ]]; then
+    fail "the log-format fixture is present" "expected $FIXTURE and $EXPECTED"
+else
+    EXTRACT="$(mktemp -d)"
+    trap 'rm -rf "$EXTRACT"' EXIT
+
+    sed -n '/^<script>/,/^<\/script>/p' draw.html | sed '1d;$d' > "$EXTRACT/page.js"
+    if node --check "$EXTRACT/page.js" 2>"$EXTRACT/syntax"; then
+        pass "the page's script parses"
+    else
+        fail "the page's script parses" "$(head -3 "$EXTRACT/syntax" | tr '\n' ' ')"
+    fi
+
+    sed -n '/BEGIN yi26-log-json/,/END yi26-log-json/p' draw.html > "$EXTRACT/parser.js"
+    {
+        cat "$EXTRACT/parser.js"
+        echo 'process.stdout.write(yi26Ndjson(require("fs").readFileSync(0, "utf8")));'
+    } > "$EXTRACT/run.js"
+
+    if node "$EXTRACT/run.js" < "$FIXTURE" > "$EXTRACT/got.ndjson" 2>"$EXTRACT/err"; then
+        diff -q "$EXPECTED" "$EXTRACT/got.ndjson" > /dev/null \
+            && pass "the page's parser agrees with yi26 byte for byte" \
+            || fail "the page's parser agrees with yi26" "$(diff "$EXPECTED" "$EXTRACT/got.ndjson" | head -4 | tr '\n' ' ')"
+    else
+        fail "the page's parser runs" "$(head -2 "$EXTRACT/err" | tr '\n' ' ')"
+    fi
+fi
+
 if ! exp_running 130; then
     echo "SKIP  board is not running exp130 — flash it with ./run.sh (not an error)"
     exit "$FAILED"

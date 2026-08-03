@@ -30,6 +30,13 @@ number it parsed out of it, and below that **every other line the board sends**.
 Two views of one event, on one screen, comparable by anyone standing there.
 That is the whole mechanism.
 
+The page also carries `Copy` and `Copy as JSON`, the second of which produces
+byte-for-byte what `yi26 log --json` produces. That is how evidence leaves a
+phone: paste it at whoever is helping from a machine that has never seen this
+board. The parser is exp116's, extracted between markers, and `check.sh` runs
+it over the same committed fixture the Rust side is diffed against — two
+implementations of one format, neither of them the authority.
+
 The log pane arrived late and by way of two other experiments.
 [exp131](../exp131-the-volume-is-the-app-drawer/) put a separate log page on
 the volume beside this one and could not open it — an interface has exactly
