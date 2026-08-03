@@ -157,7 +157,7 @@ const MESSAGE: usize = 128;
 /// The page knows its own build and compares. This closes a gap that is
 /// otherwise invisible: a page opened off the board's volume and a stale copy
 /// saved on the phone weeks ago look identical in the address bar.
-const PAGE_BUILD: &str = "b1";
+const PAGE_BUILD: &str = "b2";
 
 /// The vendor interface's class triple. 0xFF promises nothing, so no driver
 /// claims it and a page can — established with libusb in exp122 and with a

@@ -25,7 +25,7 @@ to live. This experiment's `index.html` has **none of that**:
 
 ```text
 exp130/draw.html   16469 bytes   draw + log + JSON export
-exp133/index.html   7672 bytes   draw
+exp133/index.html   8486 bytes   draw (with a serial filter, see below)
 ```
 
 Less than half, and the missing half is not gone — it is `LOG.HTM`, exp116's
@@ -62,12 +62,52 @@ So the command channel answers the question directly:
 ```text
 $ yi26 echo '?'
 sent     1 bytes: ?
-received 14 bytes: page build b1
+received 14 bytes: page build b2
 ```
 
 One byte in, the build string out. The appliance page asks on connect and says
 whether it matches, exactly as before, without needing a channel it does not
 hold.
+
+## Two entries in the picker, and why they are both ours
+
+The first time the log page was opened on a phone that had used exp131, the
+device chooser offered **two** boards: `exp133 a page per job` and
+`exp131 draw and flash`. There is one board.
+
+The descriptors rule out the obvious explanation — `lsusb` shows one
+configuration, four interfaces and three interface associations, and nothing
+that a host could read as two devices:
+
+```text
+bNumConfigurations      1
+  bNumInterfaces          4
+    bFunctionClass          2 Communications      → interfaces 0, 1
+    bFunctionClass          8 Mass Storage        → interface 2
+    bFunctionClass        255 Vendor Specific     → interface 3
+```
+
+The cause is a convention of this repository. Every firmware here sets
+`config.serial_number` to its own experiment number — that is how
+[`lib.sh`](../lib.sh)'s `exp_running` tells which one is flashed, and it is
+worth keeping. But **Chrome identifies a device by vendor, product *and*
+serial**, so to a browser each experiment is a *different device*. Grant
+permission to exp131, flash exp133, and the permission store now holds two
+identities for one board.
+
+Nothing is broken by it. What it costs is a chooser with a stale entry that a
+person can pick, and picking it fails with a message about a device rather than
+about a firmware that is no longer there.
+
+So the two pages answer it differently, and the split is the same one this
+experiment is about:
+
+| | Filter | Why |
+| --- | --- | --- |
+| `INDEX.HTM` | vendor, product **and `serialNumber: '133'`** | it is tied to this firmware anyway, so it can afford to be specific — and the picker then offers exactly one board |
+| `LOG.HTM` | vendor and product | it is meant to work against **every** firmware here, so narrowing it would break the thing it is for |
+
+An appliance may be picky. A general tool may not.
 
 ## Open the log first
 
@@ -103,9 +143,9 @@ Captured from a Pico 2. `yi26 log` straight after flashing:
 
 ```text
 [      41 ms] exp133 up. 64 KiB read-only volume, three pages on it.
-[      41 ms] page build b1
-[      41 ms] 125 clusters; INDEX.HTM is 7672 bytes, chained across 15 of them
-[     105 ms] warmed up: 2048 bits through the health tests
+[      41 ms] page build b2
+[      41 ms] 125 clusters; INDEX.HTM is 8486 bytes, chained across 17 of them
+[     110 ms] warmed up: 2048 bits through the health tests
 ```
 
 The two vendor commands:
@@ -117,7 +157,7 @@ received 14 bytes: page build b1
 
 $ yi26 echo '2100-2567'
 sent     9 bytes: 2100-2567
-received 41 bytes: draw #2: 2115  in 2100-2567 (468 values)
+received 41 bytes: draw #2: 2257  in 2100-2567 (468 values)
 ```
 
 The volume, read-only, with all three tools on it:
@@ -128,9 +168,9 @@ $ lsblk -no RO /dev/sda
 
 $ ls -la "/media/cyline/YI26 TOOLS"
 -rw-r--r--  1 cyline cyline  9905  8月  2 20:00 FLASH.HTM
--rw-r--r--  1 cyline cyline  7672  8月  2 20:00 INDEX.HTM
+-rw-r--r--  1 cyline cyline  8486  8月  2 20:00 INDEX.HTM
 -rw-r--r--  1 cyline cyline 19309  8月  2 20:00 LOG.HTM
--rw-r--r--  1 cyline cyline   793  8月  2 20:00 README.TXT
+-rw-r--r--  1 cyline cyline   830  8月  2 20:00 README.TXT
 ```
 
 `./check.sh` against that board:
@@ -139,11 +179,11 @@ $ ls -la "/media/cyline/YI26 TOOLS"
 PASS  toolchain present (cargo, elf2flash)
 PASS  the draw crate's tests pass
 PASS  the fat12 crate's tests pass
-PASS  compiles (222252 byte ELF)
-PASS  converts to UF2 (139264 bytes)
+PASS  compiles (217320 byte ELF)
+PASS  converts to UF2 (140800 bytes)
 PASS  UF2 family ID is e48bff59 (rp2350-arm-s)
 PASS  auto-reboot is compiled in (a phone can reflash this without a button)
-PASS  firmware and page agree on the build string (b1)
+PASS  firmware and page agree on the build string (b2)
 PASS  the two tools are embedded, not copied — only the appliance page is local
 PASS  the appliance page carries no log code at all
 PASS  the volume carries FLASH.HTM — the way back is on the device
@@ -157,9 +197,9 @@ PASS  the volume mounts at /media/cyline/YI26 TOOLS
 PASS  all three pages on the board are byte-identical to their sources
 PASS  README.TXT is there beside it
 PASS  a write to the volume fails (the host refuses before the device is asked)
-PASS  the vendor interface drew while the volume was mounted (draw #3: 2565  in 2100-2567)
-PASS  the drawn number 2565 is inside 2100-2567
-PASS  the vendor channel answers ? with the build string (page build b1)
+PASS  the vendor interface drew while the volume was mounted (draw #1: 2346  in 2100-2567)
+PASS  the drawn number 2346 is inside 2100-2567
+PASS  the vendor channel answers ? with the build string (page build b2)
 PASS  a range sent to the log channel is redirected, not ignored
 ```
 
@@ -198,6 +238,7 @@ arrangement with a third file on the volume. It has not been run.
 | `INDEX.HTM` finds no vendor interface | An older firmware is flashed | Its `?` answer, or absence of one, says which |
 | `LOG.HTM` cannot claim | `cdc_acm` on Linux, or another tab | `yi26 detach`; on a phone, close the other tab |
 | A draw is missing from the log | The log tab connected after it happened | Connect the log first — see above |
+| The picker offers a board that is not there | An older experiment's grant is remembered; serial numbers differ per experiment | Pick the one naming this experiment. `INDEX.HTM` filters it out; `LOG.HTM` cannot and should not |
 | A range sent to the serial port does nothing | Commands are on the vendor interface here | The log says so, with the command to use |
 
 ## Next

@@ -28,7 +28,7 @@
 <h1>Prize draw</h1>
 <p class="sub">exp133 · this page claims the <b>vendor</b> interface and does
   one job. The log is a different page, and both can be open at once.
-  Page build <b>b1</b>.</p>
+  Page build <b>b2</b>.</p>
 
 <p id="status">Press Connect and choose the board.</p>
 
@@ -60,7 +60,21 @@
 <div id="provenance"></div>
 
 <script>
-const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+// Narrowed to this experiment's serial number, and the reason is worth
+// knowing before it wastes somebody's evening.
+//
+// Every firmware here sets `config.serial_number` to its own experiment number
+// — that is how `lib.sh` tells which one is flashed. Chrome identifies a device
+// by vendor, product **and serial**, so to it each experiment is a different
+// device: grant permission to exp131, flash exp133, and the picker now offers
+// two entries for one physical board. Picking the old one produces a failure
+// that names nothing useful.
+//
+// An appliance page is tied to its firmware anyway, so it can afford to be
+// this specific. A general tool cannot — LOG.HTM on this same volume filters
+// on vendor and product alone, because it is meant to work against every
+// firmware in this repository.
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001, serialNumber: '133' }];
 const $ = (id) => document.getElementById(id);
 let device = null, iface = null, epIn = null, epOut = null;
 
@@ -69,7 +83,7 @@ let device = null, iface = null, epIn = null, epOut = null;
 // the vendor interface never sees that log, so splitting the channels would
 // have taken this protection away had the command channel not been asked to
 // give it back.
-const PAGE_BUILD = 'b1';
+const PAGE_BUILD = 'b2';
 
 function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
 
@@ -103,7 +117,7 @@ $('connect').onclick = async () => {
   }
   try {
     const known = await navigator.usb.getDevices();
-    const dev = known.find((d) => d.vendorId === 0x1209 && d.productId === 0x0001)
+    const dev = known.find((d) => d.serialNumber === '133')
       || await navigator.usb.requestDevice({ filters: FILTERS });
     device = dev;
     await device.open();
