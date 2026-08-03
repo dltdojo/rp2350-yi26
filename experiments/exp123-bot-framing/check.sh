@@ -14,6 +14,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=1   # the evidence is in sysfs and the log
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp123-bot-framing
 UF2=target/exp123-bot-framing.uf2

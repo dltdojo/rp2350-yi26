@@ -61,6 +61,72 @@ FAILED=0
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
 
+# ---------- how much of a person an experiment costs -----------------------
+#
+# Every check.sh declares one number before calling `presence_check`:
+#
+#   0  no board at all — a machine and nothing else
+#   1  a board attached, and nothing but software after that
+#   2  a person for one action, then software does the rest — a hand on
+#      BOOTSEL, or a tap on a browser's permission dialog
+#   3  a person IS the instrument — nothing in this repository can see the
+#      result, so somebody has to look
+#
+# The number describes **verifying the experiment's claim in full**, which is
+# usually more than `check.sh` alone reaches. exp127 is the clearest case: all
+# seventeen of its checks pass unattended, and none of them can see whether
+# the LED emitted light. Each declaration says in a comment what check.sh gets
+# to on its own.
+#
+# What the number deliberately does NOT include is the cost of **flashing
+# into** the experiment. That is not a property of the experiment: putting
+# exp104 on the board needs a hand on BOOTSEL when the board is running
+# exp103, and needs nothing at all when it is running exp105 or later. Only
+# something that can see the board right now can answer that, which is
+# `yi26 port --json` — see "Which of these can I do right now" in README.md.
+#
+# The declaration lives beside the code so it cannot drift from it, and this
+# helper makes sure the index in README.md agrees. It is silent when they do:
+# a guard that prints a line on success would put a new PASS into twenty-seven
+# experiments' captured `Expected output`, which is a lot of churn to announce
+# that nothing is wrong.
+presence_check() {
+    local dir index row declared
+    # Which experiment is this? Two answers are needed because the scripts do
+    # not agree on where they stand: twenty-six of them cd into their own
+    # directory first, and exp101's resolves SCRIPT_DIR and stays put. Trusting
+    # $PWD alone reported an experiment called "experiments"; trusting the
+    # caller's path alone broke the other twenty-six, because by then the cd
+    # had already happened and the relative path no longer resolved. So: the
+    # working directory when it is an experiment, and the caller's path when it
+    # is not.
+    # The pattern is expNNN- and not exp*, because "experiments" starts with
+    # exp too and matched itself.
+    dir="$(basename "$PWD")"
+    [[ "$dir" == exp[0-9][0-9][0-9]-* ]] || dir="$(basename "$(dirname "${BASH_SOURCE[1]}")")"
+    index="$(dirname "${BASH_SOURCE[0]}")/README.md"
+    declared="${PRESENCE-}"
+
+    if [[ -z "$declared" ]]; then
+        fail "this check.sh declares PRESENCE" "see lib.sh for the four levels"
+        return
+    fi
+    [[ -f "$index" ]] || return 0
+
+    row="$(grep -m1 -F "[$dir](./$dir/)" "$index")"
+    if [[ -z "$row" ]]; then
+        fail "$dir has a row in the experiments index" "README.md does not list it"
+        return
+    fi
+
+    # The cell is written `N · word`; only the number is compared, so the
+    # wording can be reworded without breaking twenty-seven scripts.
+    if [[ "$row" != *"| $declared · "* ]]; then
+        fail "the index agrees this experiment needs presence level $declared" \
+             "README.md's row says something else — one of the two is stale"
+    fi
+}
+
 # ---------- RP2350 board helpers -------------------------------------------
 #
 # Everything below delegates to `tools/yi26`, the repository's host-side

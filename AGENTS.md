@@ -38,6 +38,28 @@ first, capture the browser window only — never the whole desktop — and say
 what you are about to do. A screenshot of someone's screen is not a build
 artifact.
 
+## Find out what needs a person before planning a night's work
+
+Development here is non-interactive by default, so the useful question is not
+"what should I do next" but "what can I finish without waking anybody". The
+index answers it: every experiment carries a **Needs** level, 0 to 3, and
+`presence_check` in `lib.sh` fails if that number ever drifts from the one
+declared in the experiment's own `check.sh`.
+
+```sh
+yi26 port --json     # which experiment is on the board right now
+yi26 state           # bootsel | running | detached | absent
+```
+
+Those two are the other half, and the reason the level does not include them.
+**Flashing cost is not a property of the experiment**: a board running exp105
+or later reboots itself on the 1200-baud touch and needs nobody; a board
+running exp101–exp104 needs a hand on BOOTSEL first, whatever comes next.
+
+Read
+**[Which of these can I do right now](./experiments/README.md#which-of-these-can-i-do-right-now)**
+before proposing a plan that ends up parked until morning.
+
 ## The rules that are not agent-specific
 
 These apply to everyone and are documented where they belong. An agent should

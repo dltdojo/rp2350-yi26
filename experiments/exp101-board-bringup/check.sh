@@ -14,6 +14,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib.sh"
 require_supported_platform
 
+PRESENCE=2   # a hand on BOOTSEL while the cable goes in; lsusb and lsblk do the rest
+presence_check
+
 # 1. Host tools (all stock Ubuntu; else: sudo apt install usbutils util-linux udisks2)
 for tool in lsusb lsblk udisksctl; do
     command -v "$tool" > /dev/null && pass "$tool installed" \

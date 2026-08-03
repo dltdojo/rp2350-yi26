@@ -14,6 +14,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=1   # the marker is in the artifact and the fallback is in the log
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp112-silent-fallback
 HW_UF2=target/exp112-hardware.uf2

@@ -16,6 +16,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=2   # one permission tap, then the page reboots the board
+presence_check
+
 PAGE=reboot.html
 
 [[ -f "$PAGE" ]] \

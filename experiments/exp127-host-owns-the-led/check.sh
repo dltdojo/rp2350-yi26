@@ -13,6 +13,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=3   # an eye on the LED — check.sh gets the pad, not the light
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp127-host-owns-the-led
 UF2=target/exp127-host-owns-the-led.uf2

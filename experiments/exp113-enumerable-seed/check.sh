@@ -14,6 +14,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=1   # the board prints how long it took to crack the seed
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp113-enumerable-seed
 UF2=target/exp113-enumerable-seed.uf2

@@ -13,6 +13,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=2   # check.sh mounts and diffs unattended; the claim needs one browser tap
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp126-self-hosted-viewer
 UF2=target/exp126-self-hosted-viewer.uf2

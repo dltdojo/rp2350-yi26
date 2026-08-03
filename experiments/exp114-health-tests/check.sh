@@ -14,6 +14,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=1   # the log reports refusals; the health tests run under cargo test
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp114-health-tests
 UF2=target/exp114-health-tests.uf2

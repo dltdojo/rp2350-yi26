@@ -15,6 +15,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=2   # somebody taps the WebUSB permission dialog; the page does the rest
+presence_check
+
 PAGE=usb-inspector.html
 
 [[ -f "$PAGE" ]] \

@@ -13,6 +13,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=1   # the timings arrive in the log
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp109-hardware-trng
 UF2=target/exp109-hardware-trng.uf2

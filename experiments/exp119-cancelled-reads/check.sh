@@ -13,6 +13,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=1   # yi26 flood is the whole host half
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp119-cancelled-reads
 UF2=target/exp119-cancelled-reads.uf2

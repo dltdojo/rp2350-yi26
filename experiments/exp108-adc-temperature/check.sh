@@ -14,6 +14,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=1   # the temperature arrives in the log
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp108-adc-temperature
 UF2=target/exp108-adc-temperature.uf2

@@ -242,37 +242,98 @@ Practical consequences:
   next experiment needs a human on the BOOTSEL button. That is a real cost of
   the early track, and the reason the 1200-baud experiment is worth reaching.
 
+## Which of these can I do right now
+
+The **Needs** column in the index below answers one question: how much of a
+*person* does this experiment cost? It exists because the answer changes what
+you can do at two in the morning with the board plugged in and nobody else
+awake — and because most of these experiments cost nothing.
+
+| | Means | Experiments |
+| --- | --- | --- |
+| **0 · none** | No board at all. A machine and nothing else | exp102 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
+
+Three things the number means precisely, because a wrong "nobody needed" sends
+somebody to a bench for no reason:
+
+- **It describes verifying the claim in full**, which is usually more than
+  `check.sh` reaches on its own. exp127 is the clearest case: all seventeen of
+  its checks pass unattended, and not one of them can see whether the LED
+  emitted light. Each `check.sh` says in a comment how far it gets alone.
+- **Level 2 does not say where that person has to be.** A hand on BOOTSEL means
+  somebody at the bench. A tap on a browser's WebUSB permission dialog means
+  somebody at a browser — which, for exp115 onward, can be a phone anywhere
+  with the board plugged into it. Same level, very different logistics.
+- **Level 3 is not "harder", it is "unobservable"**. exp103's blinking LED is
+  the simplest firmware here and it is a 3, because no software in this
+  repository can watch a light.
+
+### What the number deliberately leaves out
+
+**The cost of flashing *into* an experiment is not in it**, because that is not
+a property of the experiment. Putting exp104 on the board needs a hand on
+BOOTSEL when the board is currently running exp103 — which has no USB at all —
+and needs nothing when it is running exp105 or later, because from exp105 on
+the firmware reboots itself on the 1200-baud touch.
+
+Same experiment, two different answers, and only something that can see the
+board right now can pick between them:
+
+```sh
+yi26 port --json     # "serial_number":"127" — this board is running exp127
+yi26 state           # bootsel | running | detached | absent
+```
+
+A board running exp105 or later is reachable from software, so the only
+presence cost left is the number in the table. A board running exp101–exp104,
+or nothing at all, needs a hand once before any of that applies.
+
+### Where it is declared
+
+In `check.sh`, one line, beside the code it describes:
+
+```sh
+PRESENCE=3   # an eye on the LED — check.sh gets the pad, not the light
+```
+
+`presence_check` in [`lib.sh`](./lib.sh) fails if that number and the index
+below ever disagree, so the table cannot quietly rot into a lie. It says
+nothing when they agree.
+
 ## Index
 
-| Experiment | Proves |
-| --- | --- |
-| [exp101-board-bringup](./exp101-board-bringup/) | The board, cable, and host can see each other (no Rust yet) |
-| [exp102-rust-toolchain](./exp102-rust-toolchain/) | This machine can cross-compile RP2350 firmware (no board needed) |
-| [exp103-embassy-blink](./exp103-embassy-blink/) | Source code becomes a blinking LED — the toolchain end to end |
-| [exp104-usb-serial](./exp104-usb-serial/) | The board talks back over USB CDC-ACM — no extra hardware |
-| [exp105-usb-reboot](./exp105-usb-reboot/) | The firmware puts itself into the bootloader — the button retires |
-| [exp106-bootsel-button](./exp106-bootsel-button/) | BOOTSEL becomes a user button — input drives output, no parts |
-| [exp107-debug-logging](./exp107-debug-logging/) | Three tasks share one serial log — printing that cannot stall the work |
-| [exp108-adc-temperature](./exp108-adc-temperature/) | The chip takes its own temperature — one ADC channel and the datasheet's arithmetic |
-| [exp109-hardware-trng](./exp109-hardware-trng/) | Real entropy, and what it costs to ask — a driver default that is wrong by a factor of thousands |
-| [exp110-await-not-block](./exp110-await-not-block/) | The same slow hardware, awaited and blocked on, with the difference measured |
-| [exp111-measuring-randomness](./exp111-measuring-randomness/) | Two sources that both look random — and what two cheap tests can and cannot tell you |
-| [exp112-silent-fallback](./exp112-silent-fallback/) | A build that quietly stopped using the hardware RNG — and every test that fails to notice |
-| [exp113-enumerable-seed](./exp113-enumerable-seed/) | A seed the board can crack in 46 ms — why a space is not an entropy |
-| [exp114-health-tests](./exp114-health-tests/) | The two continuous tests SP 800-90B specifies — and a source that refuses to emit when they fail |
-| [exp115-webusb-enumerate](./exp115-webusb-enumerate/) | A browser opens the board and prints its descriptors — no firmware, no driver, no server |
-| [exp116-webusb-cdc-log](./exp116-webusb-cdc-log/) | The same log, read in a browser — claim the interfaces, drive the control pipe by hand |
-| [exp117-webusb-reboot](./exp117-webusb-reboot/) | A web page puts the board into its bootloader — the request whose success looks exactly like failure |
-| [exp118-one-receiver-two-jobs](./exp118-one-receiver-two-jobs/) | The firmware starts listening, and ownership — not taste — decides the shape of the program |
-| [exp119-cancelled-reads](./exp119-cancelled-reads/) | Twenty thousand reads cancelled on purpose, and the control variable that makes a zero mean something |
-| [exp120-webusb-two-way](./exp120-webusb-two-way/) | The page types and the firmware answers — a hundred bytes sent once, arriving twice |
-| [exp121-composite-hid](./exp121-composite-hid/) | A keyboard beside the log on one cable, and what build order does to every number in the descriptors |
-| [exp122-vendor-bulk](./exp122-vendor-bulk/) | An interface no operating system claims — and two owners on one device at once |
-| [exp123-bot-framing](./exp123-bot-framing/) | Declare a disk and refuse every command, to read how a host decides whether one is there |
-| [exp124-msc-scsi](./exp124-msc-scsi/) | Answer until the host agrees a disk is there — 64 KiB of RAM, and an unformatted volume |
-| [exp125-fat12-by-hand](./exp125-fat12-by-hand/) | A boot sector, a FAT and a root directory written by hand, until the volume mounts with a file on it |
-| [exp126-self-hosted-viewer](./exp126-self-hosted-viewer/) | The board carries its own debug page — and the bootloader drive from exp101 turns out to have been doing this all along |
-| [exp127-host-owns-the-led](./exp127-host-owns-the-led/) | One byte changes the board — and the LED stops being proof that the firmware is alive |
+| Experiment | Needs | Proves |
+| --- | --- | --- |
+| [exp101-board-bringup](./exp101-board-bringup/) | 2 · a moment | The board, cable, and host can see each other (no Rust yet) |
+| [exp102-rust-toolchain](./exp102-rust-toolchain/) | 0 · none | This machine can cross-compile RP2350 firmware (no board needed) |
+| [exp103-embassy-blink](./exp103-embassy-blink/) | 3 · a person | Source code becomes a blinking LED — the toolchain end to end |
+| [exp104-usb-serial](./exp104-usb-serial/) | 1 · board | The board talks back over USB CDC-ACM — no extra hardware |
+| [exp105-usb-reboot](./exp105-usb-reboot/) | 1 · board | The firmware puts itself into the bootloader — the button retires |
+| [exp106-bootsel-button](./exp106-bootsel-button/) | 3 · a person | BOOTSEL becomes a user button — input drives output, no parts |
+| [exp107-debug-logging](./exp107-debug-logging/) | 1 · board | Three tasks share one serial log — printing that cannot stall the work |
+| [exp108-adc-temperature](./exp108-adc-temperature/) | 1 · board | The chip takes its own temperature — one ADC channel and the datasheet's arithmetic |
+| [exp109-hardware-trng](./exp109-hardware-trng/) | 1 · board | Real entropy, and what it costs to ask — a driver default that is wrong by a factor of thousands |
+| [exp110-await-not-block](./exp110-await-not-block/) | 1 · board | The same slow hardware, awaited and blocked on, with the difference measured |
+| [exp111-measuring-randomness](./exp111-measuring-randomness/) | 1 · board | Two sources that both look random — and what two cheap tests can and cannot tell you |
+| [exp112-silent-fallback](./exp112-silent-fallback/) | 1 · board | A build that quietly stopped using the hardware RNG — and every test that fails to notice |
+| [exp113-enumerable-seed](./exp113-enumerable-seed/) | 1 · board | A seed the board can crack in 46 ms — why a space is not an entropy |
+| [exp114-health-tests](./exp114-health-tests/) | 1 · board | The two continuous tests SP 800-90B specifies — and a source that refuses to emit when they fail |
+| [exp115-webusb-enumerate](./exp115-webusb-enumerate/) | 2 · a moment | A browser opens the board and prints its descriptors — no firmware, no driver, no server |
+| [exp116-webusb-cdc-log](./exp116-webusb-cdc-log/) | 2 · a moment | The same log, read in a browser — claim the interfaces, drive the control pipe by hand |
+| [exp117-webusb-reboot](./exp117-webusb-reboot/) | 2 · a moment | A web page puts the board into its bootloader — the request whose success looks exactly like failure |
+| [exp118-one-receiver-two-jobs](./exp118-one-receiver-two-jobs/) | 1 · board | The firmware starts listening, and ownership — not taste — decides the shape of the program |
+| [exp119-cancelled-reads](./exp119-cancelled-reads/) | 1 · board | Twenty thousand reads cancelled on purpose, and the control variable that makes a zero mean something |
+| [exp120-webusb-two-way](./exp120-webusb-two-way/) | 2 · a moment | The page types and the firmware answers — a hundred bytes sent once, arriving twice |
+| [exp121-composite-hid](./exp121-composite-hid/) | 1 · board | A keyboard beside the log on one cable, and what build order does to every number in the descriptors |
+| [exp122-vendor-bulk](./exp122-vendor-bulk/) | 1 · board | An interface no operating system claims — and two owners on one device at once |
+| [exp123-bot-framing](./exp123-bot-framing/) | 1 · board | Declare a disk and refuse every command, to read how a host decides whether one is there |
+| [exp124-msc-scsi](./exp124-msc-scsi/) | 1 · board | Answer until the host agrees a disk is there — 64 KiB of RAM, and an unformatted volume |
+| [exp125-fat12-by-hand](./exp125-fat12-by-hand/) | 1 · board | A boot sector, a FAT and a root directory written by hand, until the volume mounts with a file on it |
+| [exp126-self-hosted-viewer](./exp126-self-hosted-viewer/) | 2 · a moment | The board carries its own debug page — and the bootloader drive from exp101 turns out to have been doing this all along |
+| [exp127-host-owns-the-led](./exp127-host-owns-the-led/) | 3 · a person | One byte changes the board — and the LED stops being proof that the firmware is alive |
 
 ## The browser track, finished
 

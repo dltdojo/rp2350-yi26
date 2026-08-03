@@ -15,6 +15,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=2   # one permission tap, then the page types and reads the reply
+presence_check
+
 PAGE=two-way.html
 
 [[ -f "$PAGE" ]] \

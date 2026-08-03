@@ -13,6 +13,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=3   # an eye on the LED — this firmware has no USB, so nothing else can see it
+presence_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp103-embassy-blink
 UF2=target/exp103-embassy-blink.uf2

@@ -15,6 +15,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
+PRESENCE=2   # one permission tap, then the page streams the log by itself
+presence_check
+
 PAGE=cdc-log-viewer.html
 
 [[ -f "$PAGE" ]] \
