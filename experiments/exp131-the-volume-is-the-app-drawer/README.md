@@ -48,17 +48,46 @@ So it is not a habit. `check.sh` asserts it, and the rule is written into the
 new experiment is put through: *a firmware that serves a volume and can be
 rebooted by software carries the page that reboots it.*
 
-## Why the log page is here too, and it is not decoration
+## Why the log page is here, and the thing it turns out not to do
 
-[exp130](../exp130-the-board-draws/)'s whole security argument is that the
-number on screen is a **claim about** what the device said, checkable against
-the device's own log. On a desktop you check it with `yi26 log`. On a phone,
-until this file was on the volume, **you could not check it at all** — the
-advice existed and nobody could follow it.
+On a phone, until this file was on the volume, the firmware's log was
+unreadable — there is no `yi26` there, and nothing to download it with if you
+are standing somewhere with only a phone. `LOG.HTM` fixes that, and that alone
+earns its 38 clusters.
 
-An audit story that only works where you were not standing is not an audit
-story. `LOG.HTM` is what makes exp130's argument true in the place exp130 is
-actually for.
+**What it does not do is give you a second view of a draw while the draw is
+happening**, and the first run on a phone is what established that. Opening
+`LOG.HTM` with the draw page still connected in another tab produces:
+
+```text
+Error: cannot claim the interfaces — something else owns them, and an
+interface has exactly one owner. [NetworkError: Failed to execute
+'claimInterface' on 'USBDevice': Unable to claim interface.]
+```
+
+That is not a fault. It is exp116's own error message being right: **an
+interface has exactly one owner**, and both pages want the same CDC pair.
+Close one and the other works.
+
+Nor does opening it afterwards recover the draw. `crates/usb-log` writes only
+while DTR is asserted and queues sixteen lines otherwise; the lines describing
+a draw were delivered to the page that was connected at the time, and are gone.
+`LOG.HTM` opened later shows what happened *after* the disconnect.
+
+So this experiment claimed a second, simultaneous view and does not have one.
+Two things would give it one, and both are larger than a file list:
+
+- **Put the log in the draw page.** It already receives every line on that
+  endpoint and simply filters for `draw #`. Showing the rest costs nothing and
+  removes the contention entirely, because there is then only one claimant.
+- **Put the draw on a second interface.** [exp122](../exp122-vendor-bulk/)
+  established that a vendor interface and CDC can have different owners at the
+  same time. Commands on one, log on the other, two pages, no contention.
+
+The first is a change to exp130's page; the second is a different device. The
+honest position for now is that this volume carries three tools and **you use
+them one at a time**, which is what a phone with one USB port was always going
+to mean.
 
 ## The one that names itself
 
@@ -171,6 +200,35 @@ PASS  the board still draws while the volume is mounted (draw #2: 2508  in 2100-
 PASS  the drawn number 2508 is inside 2100-2567
 ```
 
+### On a phone, 2026-08-03
+
+Google Pixel 9a, OTG cable. The volume, listed by the phone's own file manager:
+
+| | Phone shows | Firmware embedded |
+| --- | --- | --- |
+| `FLASH.HTM` | 9.90 KB | 9905 bytes |
+| `INDEX.HTM` | 9.58 KB | 9578 |
+| `LOG.HTM` | 19.31 KB | 19309 |
+| `README.TXT` | 817 B | 817 |
+
+The phone titles the volume **"Exp131 draw, log and flash"** — the USB product
+string, not the FAT label. That is what a phone user reads, so it is where the
+file list gets described.
+
+`INDEX.HTM` opened from that drive and drew:
+
+```text
+2289        draw #8 · from 2100–2567
+[   65549 ms] draw #8: 2289  in 2100-2567 (468 values)
+```
+
+with the provenance box reporting a match, so the page was the one on the
+volume rather than a copy.
+
+And `LOG.HTM`, opened while that page was still connected in another tab,
+refused — which is the finding above, and the reason this section is not
+simply three ticks.
+
 ## What the log is telling you
 
 - **`three pages on it`.** The only line that changed from exp130's boot, and
@@ -186,9 +244,13 @@ PASS  the drawn number 2508 is inside 2100-2567
 2. Flash this from a phone using its **own** `FLASH.HTM`, then flash it again
    the same way. The second time proves the loop closed: nothing was downloaded
    between the two.
-3. Add exp120's two-way page as `SEND.HTM`. It fits — 46 clusters are free —
-   and it makes the volume a four-item menu.
-4. Work out what to drop for a board with 32 KiB to spare. The answer is not
+3. Open `INDEX.HTM` and `LOG.HTM` at once. The second one refuses, and its
+   error message tells you why before you have to work it out. That is the
+   contention above, and it is worth feeling once.
+4. Make exp130's draw page show every line it receives instead of filtering for
+   `draw #`. The contention disappears, because there is then one claimant
+   instead of two — and the second view arrives without a second interface.
+5. Work out what to drop for a board with 32 KiB to spare. The answer is not
    `FLASH.HTM`, and the reason is in this file.
 
 ## Troubleshooting
@@ -198,6 +260,7 @@ PASS  the drawn number 2508 is inside 2100-2567
 | `FLASH.HTM` opens but says no WebUSB | Not Chromium, or a `file://` address on Android | Open from the Files app and choose Chrome |
 | After pressing the button the page cannot reload | Expected — that drive no longer exists, `RP2350` replaced it | Copy the `.uf2` onto `RP2350`, as the page says |
 | The pages will not open on Linux | The kernel owns the serial interfaces | `yi26 detach`, then reload |
+| A second page says it cannot claim the interfaces | Another tab is still connected — one interface, one owner | Disconnect or close the other tab. Expected, not a fault |
 | Only some pages are on the volume | The build ran out of clusters | The log prints the count at boot; drop a page or grow the disk |
 
 ## Next
