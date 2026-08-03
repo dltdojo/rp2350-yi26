@@ -240,6 +240,36 @@ audit_experiment() {
         fi
     fi
 
+    # -- 3e. Does the host get to change this board? --------------------------
+    #
+    # Every firmware here since exp104 has an OUT endpoint in its descriptors,
+    # and for a long time none of them read it. A descriptor nobody reads from
+    # is not an input, so this looks for the calls that do the listening rather
+    # than for the endpoint — `adc.read()` and friends are not it, which is why
+    # the pattern names the two USB reads specifically.
+    #
+    # exp127 is why this item exists. Until it, host input reached a log line
+    # and stopped. That firmware turns one byte into a GPIO level, which makes
+    # the port a control surface and not only a console — a different thing to
+    # disclose, and one the CDC-ACM item above does not cover.
+    local in_sites
+    in_sites="$(grep -cE 'read_packet\(|read_ep\.read\(' "$dir"/src/*.rs 2>/dev/null | paste -sd+ | bc 2>/dev/null)"
+    if [[ "${in_sites:-0}" -gt 0 ]]; then
+        item "Host input (the firmware acts on bytes the host sends)"
+        value "${YELLOW}accepted${RESET} — this firmware reads what the host writes"
+        source_ "${in_sites} read_packet/read_ep.read call site(s) in $(basename "$dir")/src/"
+        risk "Nothing authenticates the sender. Any local process that can"
+        echo "              open the serial port — or claim the interface, for a vendor"
+        echo "              or mass-storage endpoint — sends bytes this firmware acts"
+        echo "              on, and USB offers no identity to check them against."
+        echo "              ${BOLD}What that costs depends on the firmware.${RESET} In exp118 it is a"
+        echo "              log line; in exp127 it is a GPIO level, set by one byte; from"
+        echo "              exp124 on it is the contents of a volume the host mounts."
+        echo "              Read the reader before assuming yours is the harmless kind."
+        advice "drop the reader for production, or put a check the sender must pass in front of it"
+        concern
+    fi
+
     # -- 4. Panic behaviour ---------------------------------------------------
     item "Behaviour on panic"
     if grep -q "panic_halt" "$dir"/src/*.rs 2>/dev/null; then

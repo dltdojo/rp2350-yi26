@@ -156,11 +156,24 @@ copies the `.uf2` onto it.
 Reading the log is where it gets specific. **Web Serial does not exist on
 Android** — every option in the table above is desktop-only. Chrome on Android
 does implement **WebUSB**, which can claim a CDC-ACM interface directly, so a
-page can stream the same log. That is a different API and a different page, and
-this repository does not have one yet: it is the destination of the planned
-[browser track](../experiments/README.md#the-browser-track), starting at
-exp115. Until then, treat the phone-only path as unfinished rather
-than as something this page is recommending.
+page can stream the same log.
+
+That page exists now. The
+[browser track](../experiments/README.md#the-browser-track-finished) was built
+for exactly this reader, and it finished: a phone with one USB port can
+**flash** the board ([exp117](../experiments/exp117-webusb-reboot/)), **read
+its log** ([exp116](../experiments/exp116-webusb-cdc-log/)) and **talk to** it
+([exp120](../experiments/exp120-webusb-two-way/)) — with the page for all three
+coming off the board's own volume
+([exp126](../experiments/exp126-self-hosted-viewer/)), so there is nothing to
+download and no server to run.
+
+Two costs, and they are the reason this is a paragraph and not a
+recommendation. **WebUSB is Chromium-only** — Firefox and Safari do not
+implement it, on any platform. And **the permission is a native dialog behind a
+user gesture**: somebody has to tap it, and it does not survive restarting the
+browser. Neither is a problem for a person holding the phone. Both make the
+phone path unusable for anything automated.
 
 ### Getting the log back to the machine that built it
 
@@ -203,11 +216,23 @@ contents of somebody's device to a third party is a decision to be asked
 about, not a convenience to be shipped. There is also nothing here that could
 honestly verify such a service: one board, one host.
 
-Longer term the file may not need a browser at all. The planned mass-storage
-track ends with the board presenting its own volume, and a log written there
-as an ordinary file would travel the way the `.uf2` already travels — a file
-manager, on any machine, including a phone. The seam is a file in both
-directions.
+Longer term the file may not need a browser at all, and half of that has now
+been built. The board does present its own volume —
+[exp124](../experiments/exp124-msc-scsi/) answers SCSI until the host agrees a
+disk is there, [exp125](../experiments/exp125-fat12-by-hand/) lays down a FAT12
+by hand, and [exp126](../experiments/exp126-self-hosted-viewer/) puts a file on
+it that a phone can open. A log written there would travel the way the `.uf2`
+already travels: a file manager, on any machine.
+
+**The log is not one of those files, and saying why is more useful than
+promising it again.** The volume is 64 KiB of SRAM whose contents the firmware
+lays down once at boot. Appending to a file after the host has mounted the
+volume means fighting the thing that makes mounting fast: the host caches
+sectors, so bytes the device writes afterwards are simply not read. Real
+devices answer that with a media-change signal — SCSI `UNIT ATTENTION` — which
+this repository has never sent and therefore cannot claim works. Until somebody
+does that experiment, the seam is a file in one direction: `.uf2` in, and the
+log still comes back through a browser.
 
 ### The 1200-baud signal from a browser
 
