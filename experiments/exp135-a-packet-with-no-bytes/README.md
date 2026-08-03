@@ -17,6 +17,9 @@ because it already says out loud what it received.
 | 128 bytes | none | `128 held` |
 | 128 bytes | `--end` | `discarded; a message this long needs framing` |
 
+Verified from **both** hosts — `yi26 send --end` and a browser page — because
+they are different USB stacks and the answer did not have to be the same.
+
 Needs: a board running exp128, the udev rule for raw USB access, and
 `yi26 detach`. No firmware to build.
 
@@ -181,15 +184,33 @@ unterminated message poisons the next**, and no terminator on the later message
 can undo it. That is the cost of a boundary that lives in the transport instead
 of in the protocol, stated as a measurement.
 
-## What is not verified here
+### The browser row, 2026-08-03
 
-**The browser row.** Whether Chrome puts the same packet on the wire for
-`transferOut(ep, new Uint8Array(0))` has not been measured. The page can now
-ask — `tools/pages/console.html` has the checkbox and a *Send 64 bytes* button —
-and doing it needs a person, a permission dialog and an eye on the log.
+`tools/pages/console.html` build `c2`, desktop Chrome, against the same exp128
+board. *Send 64 bytes* with the box unticked, then again with it ticked:
 
-It is not a formality. WebUSB is a different host stack from `nusb`, and the
-row above is precisely the kind that differs between stacks.
+```text
+[ 1131205 ms]   +64 full packet, 64 held — the message may not be over
+[ 1135039 ms] idle: 64 bytes held, waiting for a packet under 64
+[ 1141907 ms]   +64 full packet, 128 held — the message may not be over
+[ 1141908 ms] msg #20: 128 bytes, ended by a zero-length packet
+[ 1141908 ms]   BBBBBBBBBBBBBBBBBBBBBBB...
+```
+
+and the page's own account of what it did:
+
+> Sent 64 bytes, 42 42 42 … 42 (ok) **+ a zero-length packet to end it**.
+
+**Chrome puts it on the wire.** `transferOut(ep, new Uint8Array(0))` reaches
+the device exactly as `nusb`'s zero-length transfer does, so two independent
+host stacks agree and the earlier census is the outlier. That was the point of
+measuring it rather than assuming: WebUSB is not libusb, and this is the kind
+of row that differs between stacks — it just did not.
+
+Note the completion is `128 bytes`, not 64. The unterminated message from the
+first press was still buffered, so the terminator ended *both*. The silent
+merge is not a thing the terminator undoes; it is a thing the terminator would
+have prevented.
 
 ## Make it yours
 
@@ -199,8 +220,9 @@ row above is precisely the kind that differs between stacks.
 2. Send with `--end` twice in a row against a 63-byte payload. The rule refuses
    to add a terminator either time — work out from the code why adding one
    anyway would be worse than useless.
-3. Do the same census from `console.html` and fill in the missing row. If Chrome
-   and `nusb` disagree, that is a finding worth a paragraph here.
+3. Tick the box, send 64 bytes, and untick it — twice each, in that order. The
+   second unterminated message completes the *third* one at 128 bytes, and
+   working out why from the log is the whole of what a missing boundary costs.
 4. Change exp128's cap and repeat the 128-byte `--end` case. The message stops
    being discarded, which feels like a fix and is not: raise it enough and the
    buffer is just a slower way to lose.

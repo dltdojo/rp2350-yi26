@@ -42,6 +42,7 @@ is not going to change:
 | Only a page can | Why the CLI cannot |
 | --- | --- |
 | run with **no toolchain installed** | `yi26` has to be compiled first |
+| ~~end a message with a zero-length packet~~ | it could not, until `yi26 send --end` gave up its serial port to do the same thing — see [exp135](../../experiments/exp135-a-packet-with-no-bytes/) |
 | run on a **phone** | there is no terminal, and the board is in the only port |
 | **ship on the board itself** | exp126 onwards serve these files off a volume the firmware presents; a phone that has the board has the tools |
 
