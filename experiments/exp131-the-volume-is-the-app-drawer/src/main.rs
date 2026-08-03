@@ -1,9 +1,10 @@
-//! exp126 — the board carries its own debug interface.
+//! exp131 — everything the phone needs is on the drive.
 //!
-//! Plug this board into anything with a browser and a file manager, and the
-//! page that reads its log is already on it. No download, no repository, no
-//! second computer — `INDEX.HTM` on a volume the firmware synthesises out of
-//! its own SRAM.
+//! exp130's draw, plus the page that replaces this firmware. Two pages on the
+//! volume the firmware synthesises out of its own SRAM: `INDEX.HTM` is what
+//! this board *does*, and `FLASH.HTM` is how to put something else on it. A
+//! phone that has the board has both, permanently, and never needs a download
+//! again.
 //!
 //! # This closes a loop that opened in exp101
 //!
@@ -95,15 +96,14 @@ const BLOCK: usize = 512;
 const DISK_BLOCKS: u32 = 128;
 const DISK_BYTES: usize = DISK_BLOCKS as usize * BLOCK;
 
-/// exp116's page, embedded from the file itself.
+/// exp130's page, embedded from the experiment that owns it rather than
+/// copied.
 ///
-/// `include_bytes!` rather than a copy: two copies of a nineteen-kilobyte
-/// page would drift, and the one on the board is the one nobody would think
-/// to check. `check.sh` asserts the two files are byte-identical, which is
-/// only meaningful because this is the same file.
-/// The three pages, embedded from the experiments that own them rather than
-/// copied. Nothing on this volume was written for this experiment: what is new
-/// here is that all three are on it at once.
+/// Nothing on this volume was written for this experiment: what is new here is
+/// that both pages are on it at once. `include_bytes!` rather than a copy —
+/// two copies of a sixteen-kilobyte page would drift, and the one on the board
+/// is the one nobody would think to check. `check.sh` asserts they are
+/// byte-identical, which is only meaningful because it is the same file.
 const INDEX_HTM: &[u8] = include_bytes!("../../exp130-the-board-draws/draw.html");
 
 /// How to replace the firmware, from the volume the firmware serves.

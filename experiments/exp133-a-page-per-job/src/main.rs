@@ -1,9 +1,11 @@
-//! exp126 — the board carries its own debug interface.
+//! exp133 — a page per job, three tools on one volume.
 //!
-//! Plug this board into anything with a browser and a file manager, and the
-//! page that reads its log is already on it. No download, no repository, no
-//! second computer — `INDEX.HTM` on a volume the firmware synthesises out of
-//! its own SRAM.
+//! exp131 carried the draw and the way back; this carries a log viewer beside
+//! them, and all of it works at the same time. The appliance page claims the
+//! vendor interface, `LOG.HTM` claims the CDC pair, and neither knows anything
+//! about the other — which is what exp132 bought and what exp131 could not do
+//! with one channel. Three pages on a volume the firmware synthesises out of
+//! its own SRAM, the way exp126 serves its log viewer.
 //!
 //! # This closes a loop that opened in exp101
 //!
@@ -96,17 +98,15 @@ const BLOCK: usize = 512;
 const DISK_BLOCKS: u32 = 128;
 const DISK_BYTES: usize = DISK_BLOCKS as usize * BLOCK;
 
-/// exp116's page, embedded from the file itself.
-///
-/// `include_bytes!` rather than a copy: two copies of a nineteen-kilobyte
-/// page would drift, and the one on the board is the one nobody would think
-/// to check. `check.sh` asserts the two files are byte-identical, which is
-/// only meaningful because this is the same file.
 /// The appliance page, and the point of this experiment: it contains no log
 /// code at all. It claims the vendor interface, sends a range, reads a reply.
 /// exp130's page had to carry a log pane and a JSON exporter because on one
 /// channel the log could not live anywhere else; this one does not, and the
 /// difference is what a second interface buys.
+///
+/// `include_bytes!` rather than a copy, as with the two tools below: the page
+/// on the board is the one nobody would think to check, and `check.sh` asserts
+/// it is byte-identical to the file beside this one.
 const INDEX_HTM: &[u8] = include_bytes!("../index.html");
 
 /// How to replace the firmware, from the volume the firmware serves.

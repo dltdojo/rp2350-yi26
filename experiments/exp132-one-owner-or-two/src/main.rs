@@ -1,10 +1,17 @@
-//! exp129 — numbered draws.
+//! exp132 — one owner or two.
 //!
-//! A prize draw, on the board. The host sends a range — `2100-2567`, the
-//! employee numbers on the raffle tickets — and the firmware returns one
-//! number from it. This is the first experiment here with a use rather than a
-//! demonstration, and the first where somebody in the room has a reason to
-//! doubt the answer.
+//! exp129's prize draw, built twice from one source. The host sends a range —
+//! `2100-2567`, the employee numbers on the raffle tickets — and the firmware
+//! returns one number from it. What moves here is *where the host sends it*:
+//! the default build reads commands on the CDC OUT endpoint, and
+//! `--features two-channels` adds a vendor interface and reads them there,
+//! leaving CDC carrying nothing but the log.
+//!
+//! That is the whole experiment. An interface has exactly one owner, so on one
+//! channel the program watching the log and the program driving the draw have
+//! to be the same program; on two they need not be, and two tabs on a phone
+//! both keep what they claimed. The draw itself is unchanged from exp129, and
+//! the sections below are its account of it.
 //!
 //! # The subject is not randomness
 //!

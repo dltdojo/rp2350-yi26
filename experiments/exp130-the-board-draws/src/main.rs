@@ -1,9 +1,10 @@
-//! exp126 — the board carries its own debug interface.
+//! exp130 — the board serves the page that shows its own draw.
 //!
-//! Plug this board into anything with a browser and a file manager, and the
-//! page that reads its log is already on it. No download, no repository, no
-//! second computer — `INDEX.HTM` on a volume the firmware synthesises out of
-//! its own SRAM.
+//! exp129's draw, with the browser that asks for it coming off the board.
+//! Plug this into anything with a browser and a file manager, and the page
+//! that runs a draw and shows the result is already there. No download, no
+//! repository, no second computer — `INDEX.HTM` on a volume the firmware
+//! synthesises out of its own SRAM, the way exp126 serves its log viewer.
 //!
 //! # This closes a loop that opened in exp101
 //!
@@ -95,12 +96,12 @@ const BLOCK: usize = 512;
 const DISK_BLOCKS: u32 = 128;
 const DISK_BYTES: usize = DISK_BLOCKS as usize * BLOCK;
 
-/// exp116's page, embedded from the file itself.
+/// This experiment's own page, embedded from the file beside it.
 ///
-/// `include_bytes!` rather than a copy: two copies of a nineteen-kilobyte
-/// page would drift, and the one on the board is the one nobody would think
-/// to check. `check.sh` asserts the two files are byte-identical, which is
-/// only meaningful because this is the same file.
+/// `include_bytes!` rather than a copy: two copies of a sixteen-kilobyte page
+/// would drift, and the one on the board is the one nobody would think to
+/// check. `check.sh` asserts the two files are byte-identical, which is only
+/// meaningful because this is the same file.
 const INDEX_HTM: &[u8] = include_bytes!("../draw.html");
 
 /// The other file on the volume.

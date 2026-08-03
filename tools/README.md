@@ -99,7 +99,7 @@ for what the firmware is actually doing.
 | `state` | one word: `bootsel`, `running`, `detached`, or `absent` |
 | `port` | the serial port of a board running one of these firmwares |
 | `log` | what the firmware is printing (`--seconds N`, default 10) |
-| `send <text>` | bytes to the firmware, then its reply (`--seconds N`, default 3) |
+| `send <text>` | bytes to the firmware, then its reply (`--seconds N`, default 3; `--raw`, `--end`) |
 | `flood` | numbered packets at full speed (`--packets N`, `--storm`) |
 | `echo <text>` | send to a vendor-specific interface and read the reply |
 | `markers <f.uf2>` | the `yi26-cfg:` build markers inside a firmware image |
@@ -107,6 +107,8 @@ for what the firmware is actually doing.
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
 | `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
 | `udev` | can a browser open this board? `--install` fixes it (Linux) |
+| `detach` | take the CDC interfaces from the kernel, so a browser can claim them |
+| `attach` | give them back — `/dev/ttyACM0` returns |
 
 Exit codes: `0` success, `1` not found or failed, `2` usage error. `doctor`
 exits `1` only when it found an `error`-severity problem.
@@ -140,6 +142,38 @@ that trap next to the three commands it replaces.
 The rate is always 115200 and cannot be given. 1200 is the reboot signal from
 exp105, and a send command that took a baud rate would let a typo reset the
 board.
+
+### `send --raw` and `--end`, for the packet a tty cannot describe
+
+```sh
+yi26 detach                      # the kernel has to let go first
+yi26 send --raw hello            # claim the CDC data interface, submit the transfer
+yi26 send --end "$(printf 'X%.0s' $(seq 1 64))"   # ...and end it with a zero-length packet
+```
+
+Writing to `/dev/ttyACM0` hands bytes to `cdc_acm`, which decides how to
+packetise them, and nothing in that path can say *and that is the end of the
+message*. A zero-length packet is not a byte you can echo: it is a **transfer
+with no bytes in it**, and only the program holding the interface can submit
+one. So `--end` implies `--raw`, and `--raw` needs `yi26 detach` first — an
+interface has exactly one owner.
+
+The terminator is added only when the payload's length is a **non-zero multiple**
+of the endpoint's packet size; any other length already ends in a short packet,
+and a terminator after that arrives as an empty message somebody has to
+interpret. The tool says which of the three cases it took, every time:
+
+```text
+terminator: a zero-length packet was submitted
+terminator: none — this message has no short packet to end it (try --end)
+terminator: none needed — the last packet is already short
+```
+
+This is the one place a browser page got there first — WebUSB never had a tty
+in the way, so `console.html` could always do it and the command line had to
+give up its serial port to catch up.
+[exp135](../experiments/exp135-a-packet-with-no-bytes/) is the measurement, and
+`console.html` reads the same rule off the descriptor.
 
 ### `echo`, for an interface with no device node
 

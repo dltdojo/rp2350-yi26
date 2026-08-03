@@ -18,17 +18,18 @@ This experiment carries it. Two pages on one read-only volume:
 | File | What it is for | Embedded from |
 | --- | --- | --- |
 | `INDEX.HTM` | what this board **does** — the prize draw | [exp130](../exp130-the-board-draws/)'s `draw.html` |
-| `FLASH.HTM` | how to **replace** it — into BOOTSEL, from here | [exp117](../exp117-webusb-reboot/)'s page |
+| `FLASH.HTM` | how to **replace** it — into BOOTSEL, from here | [`tools/pages/flash.html`](../../tools/pages/), the maintained tool [exp117](../exp117-webusb-reboot/) built |
 
 Needs: any RP2350 board, the exp102 toolchain, and a Chromium browser. On
 Linux, `yi26 detach` first.
 
 ## Nothing here was written for this experiment
 
-Not one page. All three are `include_bytes!` from the experiment that owns
-them, and `check.sh` fails if a copy ever appears in this directory. What is
-new is the **composition**, and that is the claim being made: a phone that has
-this board has everything, permanently, and never needs a download again.
+Neither page was. Both are `include_bytes!` from the file that owns them —
+exp130's `draw.html` and the repository's `flash.html` — and `check.sh` fails
+if a copy ever appears in this directory. What is new is the **composition**,
+and that is the claim being made: a phone that has this board has everything,
+permanently, and never needs a download again.
 
 For a phone user the volume is not documentation. It is the **application
 menu** — the only place they will think to look.
@@ -107,17 +108,18 @@ button, a drive named `RP2350` replaces this one, copy a `.uf2` onto it.
  55  used, 70 free
 ```
 
-Comfortable here, and not free: the log viewer is half the total. A board with
-less SRAM would have to choose which pages it can carry, and choosing is a
-design decision rather than an oversight — the rule above says which one is not
-available to drop.
+Comfortable here, and not free: the draw page alone is a quarter of the volume,
+and the log viewer that briefly sat beside it was a further thirty-eight
+clusters. A board with less SRAM would have to choose which pages it can carry,
+and choosing is a design decision rather than an oversight — the rule above
+says which one is not available to drop.
 
 The FAT12 root directory has sixteen slots and the label takes one, so files
 are not the constraint. Clusters are.
 
 ## The code IS the walkthrough
 
-- [`src/main.rs`](./src/main.rs) — exp130's firmware with three `include_bytes!`
+- [`src/main.rs`](./src/main.rs) — exp130's firmware with two `include_bytes!`
   and a four-entry volume. The diff against exp130 is almost entirely the file
   list.
 
@@ -155,7 +157,7 @@ Each one compared against the file it was embedded from:
 
 ```text
 INDEX.HTM == exp130-the-board-draws/draw.html ✓
-FLASH.HTM == exp117-webusb-reboot/reboot.html ✓
+FLASH.HTM == tools/pages/flash.html ✓
 ```
 
 And the draw still works with the volume mounted the whole time:
@@ -193,7 +195,11 @@ PASS  the drawn number 2345 is inside 2100-2567
 
 ### On a phone, 2026-08-03
 
-Google Pixel 9a, OTG cable. The volume, listed by the phone's own file manager:
+Google Pixel 9a, OTG cable. **This is the three-page build**, captured before
+`LOG.HTM` was removed — the file sizes and the product string below are that
+build's, and the last paragraph is the reason there is no longer a third page.
+
+The volume, listed by the phone's own file manager:
 
 | | Phone shows | Firmware embedded |
 | --- | --- | --- |
@@ -222,11 +228,13 @@ simply three ticks.
 
 ## What the log is telling you
 
-- **`three pages on it`.** The only line that changed from exp130's boot, and
-  the only thing that changed at all.
-- **The UF2 is 140288 bytes**, against exp130's 81408. Nineteen kilobytes of
-  log viewer, plus ten of flash page, live in the firmware image now — pages on
-  a volume are not free just because the volume is synthetic.
+- **`two pages on it`.** The only line that changed from exp130's boot, and the
+  only thing that changed at all.
+- **Ten kilobytes of flash page live in the firmware image now**, on top of the
+  draw page that was already there — pages on a volume are not free just
+  because the volume is synthetic. The capture above puts this build's UF2 at
+  115200 bytes; the build that also carried the log viewer came to 140288, and
+  dropping that page is most of the difference.
 
 ## Make it yours
 

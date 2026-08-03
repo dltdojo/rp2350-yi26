@@ -126,7 +126,14 @@ the same per-interface claiming applies.
 
 ## Expected output
 
-Captured from a Pico 2. `yi26 log` straight after flashing:
+Captured from a Pico 2, against **page build a2** — the page has since gained
+its log pane and its JSON export and is build `a3`, 16469 bytes across 33
+clusters, so the three size-bearing lines below read differently on a board
+flashed today. Everything else is unchanged, and the capture stays as it was
+taken rather than being edited to match: it is re-run against `a3` when a board
+is next on the bench.
+
+`yi26 log` straight after flashing:
 
 ```text
 [      39 ms] exp130 up. 64 KiB read-only volume, carrying its own draw page.
@@ -180,8 +187,8 @@ NOTE  the page itself is a human's job — the WebUSB picker is a native
 ### On a phone, 2026-08-03
 
 Captured on a Google Pixel 9a with an OTG cable, against **page build a1** —
-before the log pane was added. The sizes below are that page's; today's is
-10871 bytes. Nothing else in the capture changed. The board was put into BOOTSEL
+before the log pane was added. The sizes below are that page's; today's `a3`
+page is 16469 bytes. Nothing else in the capture changed. The board was put into BOOTSEL
 from [exp117](../exp117-webusb-reboot/)'s page — no button — the `.uf2` dragged
 onto the drive that appeared, and then `INDEX.HTM` opened **from the board's
 own volume** via the Files app.

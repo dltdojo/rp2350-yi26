@@ -56,8 +56,8 @@ Per experiment:
 | exp128 | Any RP2350 board. No browser. Whether a 64-byte message ever completes depends on the **host's** USB stack, so that one result may differ elsewhere — and the check says which answer it got. |
 | exp129 | Any RP2350 board. No browser. **RP2350 only** — it uses the TRNG, which the RP2040 does not have. The `draw` crate runs `cargo test` on any machine, board or not. |
 | exp130 | Any RP2350 board, and a Chromium browser for the last step. **RP2350 only** — it uses the TRNG. The volume is declared read-only, and a host that honours that never writes to it. |
-| exp131 | Same as exp130. The volume carries three pages and still uses 79 of its 125 clusters, so a board with less SRAM would need to choose between them. |
-| exp132 | Any RP2350 board. No browser. **RP2350 only** — it uses the TRNG. The two-channel build needs the udev rule for raw USB access, as exp122 does. |
+| exp131 | Same as exp130. The volume carries two pages and uses 55 of its 125 clusters; the third page it briefly carried took 38 more, so a board with less SRAM would need to choose between them. |
+| exp132 | Any RP2350 board. **RP2350 only** — it uses the TRNG. The two-channel build needs the udev rule for raw USB access, as exp122 does. `check.sh` needs no browser; the two-tab finding needs one, and a phone. |
 | exp133 | Any RP2350 board, a Chromium browser, and the udev rule for raw USB access. **RP2350 only** — it uses the TRNG. Four interfaces, which is the same count as the composites this repository already enumerates cleanly. |
 | exp134 | Any RP2350 board with a plain LED (change the pin). No browser. Every policy is decided in `crates/log-policy`, which runs `cargo test` on any machine, board or not. |
 | exp135 | A board running **exp128**, which is the instrument. No firmware of its own. The census needs raw USB access — the udev rule — because a tty cannot express the packet being measured. |
@@ -164,8 +164,8 @@ cargo install --path tools/yi26     # once, and then just: yi26 detach
 tools/yi26/target/release/yi26 detach   # or the built binary, by its full path
 ```
 
-This is written down because the instruction appears in twenty-four files and
-the answer used to appear in one.
+This is written down because the instruction appears in thirty files and the
+answer used to appear in one.
 
 **The scripts do not use your installed copy**, and that is deliberate.
 `cargo install` takes a snapshot; pull a change that adds a flag and every
@@ -539,7 +539,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 
 ## The browser track, finished
 
-Eleven experiments, exp115 through exp126, built toward one destination:
+Twelve experiments, exp115 through exp126, built toward one destination:
 **debugging firmware with a phone.** Plug the board into an Android phone,
 open a page, and read the device's own log — no app to install, no second
 computer, no debug probe.
@@ -562,8 +562,10 @@ Two facts set the shape of the whole thing:
 Where it arrived: a phone with one USB port can **flash** the board
 ([exp117](./exp117-webusb-reboot/)), **talk to** it
 ([exp120](./exp120-webusb-two-way/)) and **read its log**
-([exp116](./exp116-webusb-cdc-log/)) — with the page for all three coming off
-the board itself ([exp126](./exp126-self-hosted-viewer/)).
+([exp116](./exp116-webusb-cdc-log/)) — with the log page coming off the board
+itself ([exp126](./exp126-self-hosted-viewer/)) and the reboot page joining it
+there ([exp131](./exp131-the-volume-is-the-app-drawer/)), which is what makes
+the next flash need no download either.
 
 [exp126](./exp126-self-hosted-viewer/) closes a loop that opens in exp101. The
 `RP2350` drive that appears when you hold BOOTSEL is not a real disk — the
@@ -601,9 +603,11 @@ descriptor leaves no software route back.
 [exp127](./exp127-host-owns-the-led/) let the host change the board with one
 byte, and was explicit that one byte needs no framing only because it fits
 inside a packet. What follows is the bill for that dodge.
-[exp128](./exp128-reassemble-by-hand/) paid the first instalment; the rest has
-not been interrogated yet — this repository's rule is that no experiment goes
-to a plan or to code until it has been — so it is a direction, not a schedule.
+[exp128](./exp128-reassemble-by-hand/) and
+[exp135](./exp135-a-packet-with-no-bytes/) paid the first two instalments; the
+rest has not been interrogated yet — this repository's rule is that no
+experiment goes to a plan or to code until it has been — so it is a direction,
+not a schedule.
 
 **Done.** [exp128](./exp128-reassemble-by-hand/) reassembles messages from
 packets, and corrected a claim this section made before anything was built:
@@ -613,12 +617,17 @@ firmware holding a raw endpoint can call it, so on CDC the boundary has to be
 put back by hand. That is a better lesson than the comparison planned here,
 and it was only findable by reading the crate.
 
-- **the message that never arrives** — a message whose length is an exact
-  multiple of 64 has no short packet to end it. exp128 measured what actually
-  happens on this host: no zero-length packet arrives, the message never
-  completes, and the *next* one is silently merged into it. The fix has a name
-  and is described in `embassy-usb`'s own CDC docs for the other direction.
-  What remains is to make one arrive and see what it takes.
+**Done.** *the message that never arrives* — a message whose length is an exact
+multiple of 64 has no short packet to end it, and exp128 measured what happens:
+the message never completes and the *next* one is silently merged into it.
+[exp135](./exp135-a-packet-with-no-bytes/) made one arrive, and the cost of
+doing so is the finding. A zero-length packet is not a byte you can echo, so
+nothing behind a tty can send one: `yi26 send --end` had to claim the CDC data
+interface directly, exactly as a browser does, which is the first thing here a
+page could do before the command line could. Both host stacks put it on the
+wire, and one unterminated message still poisons the next — a terminator
+prevents the merge and cannot undo it.
+
 - **building a boundary out of nothing** — length-prefix against COBS, judged
   on the one question that separates them: join a stream halfway through and
   see which can resynchronise. A crate with `cargo test`, so most of it is

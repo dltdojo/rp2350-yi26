@@ -103,6 +103,15 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp124 | Same | Drag, then look at your own disk listing — the board appears in it. `lsblk` on Linux, Disk Management on Windows, Disk Utility on macOS |
 | exp125 | Same | Drag, then open the drive that appears. A file manager is the whole local requirement — **this one needs no serial port at all**, which makes it the second-best fit on this route after exp103 |
 | exp126 | Same | Drag, then open `INDEX.HTM` off the drive that appears. **The end of this route**: after this flash, the local machine needs nothing at all that it did not already have |
+| exp127 | Same | Drag, then send one byte and *watch the LED* — the only experiment here whose result no software can see. `console.html` sends `\x01` from a browser; a serial terminal that cannot type a raw byte will not do |
+| exp128 | Same | Drag, then send messages of chosen lengths and read the log. Needs something that can send an exact number of raw bytes — a terminal that appends a newline changes the measurement |
+| exp129 | Same | Drag, then send a byte per draw and read the log. Numbers only, so the serial port is not optional |
+| exp130 | Same | Drag, then open `INDEX.HTM` off the drive. **No serial port needed** — the page carries its own log pane |
+| exp131 | Same | Drag, then open the drive. `FLASH.HTM` is on it, so this is the first build that leaves the local machine able to reach the *next* one with nothing downloaded |
+| exp132 | Same | Drag, then read the vendor channel. Needs a program that can claim a USB interface — `yi26`, or the experiment's own page in a browser. A serial terminal reaches only half of it |
+| exp133 | Same | Drag, then open two pages off the drive at once. A Chromium browser is the whole local requirement; on Linux, the udev rule and `yi26 detach` first |
+| exp134 | Same, **three times** — this experiment is three builds of one firmware | Drag each in turn, ignore the port for a minute, then read what survived. Download all three `.uf2` files before you start |
+| exp135 | Nothing to build | A board already running exp128, and a program holding the CDC interface. **On this route the browser is not the fallback, it is the shorter path**: `console.html` can end a message with a zero-length packet, and no terminal on any platform can |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host
@@ -134,8 +143,14 @@ The option that needs no installation is the browser. Chrome and Edge ship the
 which lets a page open a serial port after you pick it from a permission
 prompt. It behaves the same on Windows, macOS, Linux and ChromeOS, and it can
 also send the 1200-baud signal, which no other zero-install option can.
-Firefox and Safari do not implement it. **This repository has not verified any
-browser path** — it is reported here as an option, not as a tested one.
+Firefox and Safari do not implement it. **This repository has never used Web
+Serial for anything** — it is reported here as an option, not as a tested one,
+and it does not exist on Android, which is the host the next section is about.
+
+The browser path that *has* been verified here is the other one, **WebUSB**:
+[`tools/pages/`](../tools/pages/) holds four pages — a descriptor inspector, a
+log viewer, a console that types back, and one that puts the board into its
+bootloader — which need no installation either and work on a phone.
 
 If you would rather use what your platform already has:
 
@@ -163,10 +178,13 @@ That page exists now. The
 for exactly this reader, and it finished: a phone with one USB port can
 **flash** the board ([exp117](../experiments/exp117-webusb-reboot/)), **read
 its log** ([exp116](../experiments/exp116-webusb-cdc-log/)) and **talk to** it
-([exp120](../experiments/exp120-webusb-two-way/)) — with the page for all three
-coming off the board's own volume
-([exp126](../experiments/exp126-self-hosted-viewer/)), so there is nothing to
-download and no server to run.
+([exp120](../experiments/exp120-webusb-two-way/)) — with the first two of those
+pages coming off the board's own volume
+([exp126](../experiments/exp126-self-hosted-viewer/) put the log page there,
+[exp131](../experiments/exp131-the-volume-is-the-app-drawer/) the reboot page),
+so there is nothing to download and no server to run. The console is the one
+job still opened from a file you keep: it lives in
+[`tools/pages/`](../tools/pages/), and no firmware here ships it on a volume.
 
 Two costs, and they are the reason this is a paragraph and not a
 recommendation. **WebUSB is Chromium-only** — Firefox and Safari do not
@@ -206,6 +224,19 @@ sent the 1200-baud request over WebUSB and the board rebooted itself. The
 all**: reboot it from a page, drag the `.uf2` onto the drive that appears, and
 read the result. That is the same hands-free loop the Ubuntu machine has had
 since exp105, arriving on the platform that has none of the tools.
+
+That run still had one dependency this page walked into without noticing: the
+reboot page had to be *sent to the phone first*, because it lived in this
+repository and not on the board.
+[exp131](../experiments/exp131-the-volume-is-the-app-drawer/) closed it by
+putting `FLASH.HTM` on the board's own read-only volume beside the page that
+shows what the board does, and made it a rule rather than a good idea — a
+firmware that can be rebooted by software and serves a volume ships the way
+back on that volume, or it strands whoever flashed it.
+[exp133](../experiments/exp133-a-page-per-job/) carries three, and two of them
+were driven from a phone at the same time on 2026-08-03. For a phone the volume
+is not documentation, it is the application menu: after such a flash there is
+nothing left to download, permanently.
 
 One detail decides whether any of this works, and the obvious approach is the
 wrong one. **Open the page from the Files app or a share sheet and choose

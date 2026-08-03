@@ -8,7 +8,7 @@ and is opened by double-clicking it.
 | --- | --- | --- |
 | [`inspect.html`](./inspect.html) | what is inside this device — configurations, interfaces, endpoints | none; it only reads descriptors |
 | [`log.html`](./log.html) | what the firmware is printing, live | the **CDC** pair |
-| [`console.html`](./console.html) | the same log, plus whatever you type going back to the board | the **CDC** pair |
+| [`console.html`](./console.html) | the same log, plus whatever you type going back to the board — including a zero-length packet to end a message | the **CDC** pair |
 | [`flash.html`](./flash.html) | put this board into its bootloader so it can be reflashed | the CDC control pipe, briefly |
 
 `log.html` and `console.html` both claim CDC, so they cannot be open at the
@@ -69,6 +69,16 @@ Verified against a Pico 2 running exp127 on 2026-08-03: `\x01` from the page
 turned the LED on, `\x00` turned it off, and `1` was refused as `0x31` — the
 same answer `yi26 send 1` gets. The capture is in
 [exp127's README](../../experiments/exp127-host-owns-the-led/#the-same-thing-from-a-browser).
+
+The **terminator** is the second thing that has to stay in step. The tick box
+appends a zero-length packet, and both halves add it under the same rule —
+only when the payload is a non-zero multiple of the endpoint's packet size,
+which the page reads off the descriptor rather than assuming 64. That parity is
+asserted in
+[exp135's `check.sh`](../../experiments/exp135-a-packet-with-no-bytes/check.sh)
+rather than here, and the measurement showing Chrome and `nusb` agree on the
+wire is in
+[exp135's README](../../experiments/exp135-a-packet-with-no-bytes/#the-browser-row-2026-08-03).
 
 ## What belongs here, and what does not
 
