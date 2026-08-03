@@ -196,15 +196,31 @@ The sequence:
    nightly?" is only useful once stable has been proven to build the thing;
    proposing a BOOTSEL-button experiment is only honest once the compiler has
    confirmed whether the HAL exposes it.
-2. **Name the contradictions, not the request.** Not a restatement of what was
+2. **Ask what has already been answered.** Before deriving anything, check the
+   prior art you actually have access to — this repository's own earlier
+   experiments, and any private or unpublished work of your own on the same
+   ground. A question settled once by hardware does not need settling again,
+   and an approach already tried and rejected does not need proposing again.
+
+   This step exists because it was skipped. exp117's behaviour on Android was
+   presented here as an open question and verified from scratch; the answer
+   was already sitting in an earlier project on the same machine, along with
+   several others. Nothing was wrong with the result — independent
+   verification is never wasted — but the *framing* was: a finding described
+   as unexpected had in fact been found before, and a day of somebody's
+   attention went to re-deriving it.
+
+   Where prior work is private, its findings may be cited here as facts. Its
+   code, its paths and its identity must not appear in this repository.
+3. **Name the contradictions, not the request.** Not a restatement of what was
    asked, but the specific places where the obvious implementation goes wrong.
-3. **Separate the decisions.** Whatever can be decided from the code, the
+4. **Separate the decisions.** Whatever can be decided from the code, the
    repo's conventions, or plain judgement gets decided and stated. Only
    choices where different answers mean *materially different work* become
    questions.
-4. **Ask two to four focused questions**, each with concrete options and a
+5. **Ask two to four focused questions**, each with concrete options and a
    recommendation.
-5. **Only then** plan and build.
+6. **Only then** plan and build.
 
 Questions that keep recurring, worth asking of anything new:
 

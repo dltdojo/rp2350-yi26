@@ -66,7 +66,13 @@ These apply to everyone and are documented where they belong. An agent should
 read them before proposing work, not instead of them:
 
 - **[Every new experiment starts with an interrogation](./experiments/README.md#how-this-repository-is-developed)**
-  — no experiment and no idea goes straight to a plan or to code.
+  — no experiment and no idea goes straight to a plan or to code. Step 2 of
+  that sequence is aimed squarely at an agent: **go and read the prior work you
+  have access to before deriving anything.** If your notes record earlier
+  private projects on this ground, open them. A finding presented as new when
+  it was answered a year ago is not a small error — it spends somebody's
+  attention on a question that was already closed. Their findings may be cited
+  here as facts; their code, paths and identity must not appear.
 - **[Nothing is pushed unverified](./experiments/README.md#nothing-is-pushed-unverified)**
   — a push means someone plugged a board in and watched it work. `Expected
   output` sections are pasted captures, never predictions.

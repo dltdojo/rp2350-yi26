@@ -207,12 +207,16 @@ all**: reboot it from a page, drag the `.uf2` onto the drive that appears, and
 read the result. That is the same hands-free loop the Ubuntu machine has had
 since exp105, arriving on the platform that has none of the tools.
 
-One detail worth recording because it was not obvious. The page was opened from
-the phone's file manager, so its address was a **`content://` URI** rather than
-`file://`. WebUSB requires a secure context and there was no reason to assume
-Chrome grants one to that scheme. It does — and if it had not, none of the
-browser track would work on a phone, since exp126's page off the board's own
-volume is opened the same way.
+One detail decides whether any of this works, and the obvious approach is the
+wrong one. **Open the page from the Files app or a share sheet and choose
+Chrome.** That yields a `content://` URI, which is a secure context, and WebUSB
+runs. **Typing a `file:///sdcard/...` URL does not work** — scoped storage
+blocks Chrome from reading it, and the symptom is a page that will not load or
+a button that reports no WebUSB, neither of which names the cause.
+
+The same route is how exp126's viewer gets opened off the board's own volume,
+so this is not a detail about one page. It is how the browser track is reached
+on a phone at all.
 
 Three numbers on the phone's screen agreed with the build machine without
 being told to:

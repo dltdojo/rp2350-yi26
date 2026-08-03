@@ -189,12 +189,18 @@ which is the point: a phone can now run the whole cycle — reboot the board,
 drag a `.uf2` onto the drive that appears, and watch the new firmware come up —
 without touching the board at all.
 
-One thing that was not obvious beforehand and is worth writing down. The page
-was opened from the phone's file manager, so its address was a
-**`content://` URI**, not `file://`. WebUSB requires a secure context and there
-was no reason to assume Chrome grants one to that scheme; it does. Had it not,
-this page could not have run on a phone at all, and neither could exp126's —
-which is opened the same way.
+**How you open the page on Android matters, and the obvious way is the wrong
+one.** Open it from the **Files app**, or a share sheet, and choose Chrome.
+That route yields a **`content://` URI**, which is a secure context, and WebUSB
+works — that is what the capture above is.
+
+Do **not** type a `file:///sdcard/...` URL. Scoped storage blocks Chrome from
+reading it, and what a reader sees is a page that will not load or a Connect
+button that reports no WebUSB — neither of which points at the actual cause.
+
+This is worth knowing before it costs an evening, and it decides more than this
+page: exp126's viewer, served off the board's own volume, is opened by exactly
+the same route.
 
 ## What is not verified here
 
