@@ -58,6 +58,7 @@ Per experiment:
 | exp130 | Any RP2350 board, and a Chromium browser for the last step. **RP2350 only** — it uses the TRNG. The volume is declared read-only, and a host that honours that never writes to it. |
 | exp131 | Same as exp130. The volume carries three pages and still uses 79 of its 125 clusters, so a board with less SRAM would need to choose between them. |
 | exp132 | Any RP2350 board. No browser. **RP2350 only** — it uses the TRNG. The two-channel build needs the udev rule for raw USB access, as exp122 does. |
+| exp133 | Any RP2350 board, a Chromium browser, and the udev rule for raw USB access. **RP2350 only** — it uses the TRNG. Four interfaces, which is the same count as the composites this repository already enumerates cleanly. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -289,7 +290,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp132 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -394,6 +395,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp130 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage+webusb` | `own` |
 | exp131 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage+webusb` | `own` |
 | exp132 | `cdc+vendor` | `log+commands` | `cdc_acm+libusb` | `own` |
+| exp133 | `cdc+msc+vendor` | `log+commands+files` | `cdc_acm+usb-storage+libusb+webusb` | `own` |
 
 ### Reading the columns
 
@@ -472,6 +474,7 @@ forgetting to write it down is caught rather than trusted.
 | [exp130-the-board-draws](./exp130-the-board-draws/) | 2 · a moment | The board serves the page that shows its own draw — and a browser arrives between the TRNG and the room |
 | [exp131-the-volume-is-the-app-drawer](./exp131-the-volume-is-the-app-drawer/) | 2 · a moment | Everything a phone ever needs is on the drive, including the way to replace the firmware |
 | [exp132-one-owner-or-two](./exp132-one-owner-or-two/) | 2 · a moment | Two programs watching one draw at once — which one interface cannot do, and what a second one costs |
+| [exp133-a-page-per-job](./exp133-a-page-per-job/) | 2 · a moment | The appliance page carries no log code, the log page knows nothing about draws, and both work at once |
 
 ## The browser track, finished
 

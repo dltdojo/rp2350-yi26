@@ -225,4 +225,8 @@ which is verified there.
 
 ## Next
 
-Nothing on this road. What is left is under [Planned](../README.md#planned).
+[exp133](../exp133-a-page-per-job/) spends what this measured: the same
+app-drawer volume on a two-channel firmware, with the log back as an
+independent file and an appliance page that carries no log code at all.
+
+Beyond that, nothing on this road. What is left is under [Planned](../README.md#planned).

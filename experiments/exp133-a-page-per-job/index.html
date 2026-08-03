@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prize draw — exp133</title>
+<style>
+  :root { color-scheme: dark light; --acc: #6ea8fe; --bad: #ff7b72; --ok: #7ee787; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem;
+         max-width: 40rem; margin-inline: auto; }
+  h1 { font-size: 1.1rem; margin: 0 0 .2rem; }
+  .sub { opacity: .7; font-size: .85rem; margin: 0 0 1rem; }
+  fieldset { border: 1px solid #8884; border-radius: 8px; margin: 0 0 1rem; }
+  legend { padding: 0 .4rem; font-size: .8rem; opacity: .8; }
+  input { font: inherit; width: 6rem; padding: .3rem .4rem; }
+  button { font: inherit; padding: .55rem 1.1rem; border: 1px solid var(--acc);
+           border-radius: 6px; background: var(--acc); color: #000; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #number { font: 700 clamp(3rem, 22vw, 7rem)/1 ui-monospace, monospace;
+            text-align: center; margin: 1rem 0 .2rem; letter-spacing: .04em; }
+  #status { margin: .6rem 0; font-size: .9rem; }
+  #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
+  pre { background: #8881; padding: .6rem; border-radius: 6px; overflow-x: auto;
+        font-size: .8rem; margin: .4rem 0 0; white-space: pre-wrap; }
+  .note { border-left: 3px solid #8886; padding-left: .7rem; font-size: .88rem; }
+  .warn { border-left: 3px solid var(--bad); padding-left: .7rem; font-size: .88rem; }
+</style>
+
+<h1>Prize draw</h1>
+<p class="sub">exp133 · this page claims the <b>vendor</b> interface and does
+  one job. The log is a different page, and both can be open at once.
+  Page build <b>b1</b>.</p>
+
+<p id="status">Press Connect and choose the board.</p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+</p>
+
+<fieldset>
+  <legend>Range, inclusive</legend>
+  <p>
+    <input id="lo" type="number" value="2100" min="0" step="1" disabled>
+    –
+    <input id="hi" type="number" value="2567" min="0" step="1" disabled>
+    <button id="go" disabled>Draw</button>
+  </p>
+</fieldset>
+
+<div id="number">—</div>
+<pre id="raw">(the board's reply will appear here)</pre>
+
+<div class="note">
+  <b>What this page did and did not do.</b> It sent the range and read one
+  reply. It did not choose the number. It also carries <b>no log code at all</b>
+  — open <code>LOG.HTM</code> from the same drive for that, in another tab, and
+  it will keep reading while you are here.
+</div>
+
+<div id="provenance"></div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const $ = (id) => document.getElementById(id);
+let device = null, iface = null, epIn = null, epOut = null;
+
+// Bumped whenever this file changes. The firmware answers `?` with the same
+// string. exp130 read it off the boot log instead — a page that holds only
+// the vendor interface never sees that log, so splitting the channels would
+// have taken this protection away had the command channel not been asked to
+// give it back.
+const PAGE_BUILD = 'b1';
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+
+/**
+ * Finds the vendor interface, by class rather than by number.
+ *
+ * 0xFF is the class that promises nothing, which is why no driver claims it
+ * and why this page can. exp122 established that from the libusb side; this
+ * is the first time anything here has asked a browser to do it.
+ */
+function findVendor(dev) {
+  const cfg = dev.configurations[0];
+  for (const i of cfg.interfaces) {
+    const alt = i.alternates[0];
+    if (alt.interfaceClass !== 0xFF) continue;
+    let a = null, b = null;
+    for (const e of alt.endpoints) {
+      if (e.type !== 'bulk') continue;
+      if (e.direction === 'in' && a === null) a = e.endpointNumber;
+      if (e.direction === 'out' && b === null) b = e.endpointNumber;
+    }
+    if (a !== null && b !== null) return { n: i.interfaceNumber, in: a, out: b };
+  }
+  return null;
+}
+
+$('connect').onclick = async () => {
+  if (!navigator.usb) {
+    say('This browser has no WebUSB. Chromium browsers only.', 'bad');
+    return;
+  }
+  try {
+    const known = await navigator.usb.getDevices();
+    const dev = known.find((d) => d.vendorId === 0x1209 && d.productId === 0x0001)
+      || await navigator.usb.requestDevice({ filters: FILTERS });
+    device = dev;
+    await device.open();
+    if (device.configuration === null) await device.selectConfiguration(1);
+
+    const v = findVendor(device);
+    if (!v) {
+      throw new Error('no vendor interface — is this the two-channels build? '
+        + 'The default build has only CDC, and commands go to the serial port there.');
+    }
+    iface = v.n; epIn = v.in; epOut = v.out;
+
+    // No SET_LINE_CODING and no DTR here. Those are CDC's, and this interface
+    // has no class to have opinions — which is the whole point of 0xFF.
+    await device.claimInterface(iface);
+
+    $('connect').disabled = true;
+    $('stop').disabled = false;
+    $('lo').disabled = $('hi').disabled = $('go').disabled = false;
+    say(`Connected to the vendor interface ${iface}; endpoint ${epIn} IN, ${epOut} OUT. `
+      + `The serial interface is untouched — another tab can hold it.`, 'ok');
+
+    // Ask what build the firmware carries, on this channel, because there is
+    // no other channel to hear it on.
+    await device.transferOut(epOut, new TextEncoder().encode('?'));
+    const r = await device.transferIn(epIn, 64);
+    const m = new TextDecoder().decode(r.data).match(/page build ([a-z0-9]+)/);
+    const box = $('provenance');
+    if (!m) {
+      box.innerHTML = '<p class="warn">Provenance: this firmware did not answer '
+        + '<code>?</code>. It is older than this page, or not this experiment.</p>';
+    } else if (m[1] === PAGE_BUILD) {
+      box.innerHTML = `<p class="note">Provenance: the firmware carries page build
+        <b>${m[1]}</b> and this page is build <b>${PAGE_BUILD}</b>. They match, so
+        this is the page on the board's own volume.</p>`;
+    } else {
+      box.innerHTML = `<p class="warn">Provenance: the firmware carries page build
+        <b>${m[1]}</b> and this page is build <b>${PAGE_BUILD}</b>. <b>They do not
+        match.</b> You are looking at a copy from somewhere else — open INDEX.HTM
+        from the board's drive.</p>`;
+    }
+  } catch (e) {
+    say(`${e.name}: ${e.message}`, 'bad');
+  }
+};
+
+$('stop').onclick = async () => {
+  $('stop').disabled = true;
+  $('lo').disabled = $('hi').disabled = $('go').disabled = true;
+  try { await device.close(); } catch (e) { /* already gone */ }
+  device = null;
+  $('connect').disabled = false;
+  say('Disconnected.');
+};
+
+$('go').onclick = async () => {
+  const lo = parseInt($('lo').value, 10), hi = parseInt($('hi').value, 10);
+  if (!Number.isInteger(lo) || !Number.isInteger(hi)) { say('Enter two whole numbers.', 'bad'); return; }
+  $('go').disabled = true;
+  say('Drawing…');
+  try {
+    await device.transferOut(epOut, new TextEncoder().encode(`${lo}-${hi}`));
+    const r = await device.transferIn(epIn, 64);
+    const text = new TextDecoder().decode(r.data).trim();
+    $('raw').textContent = text;
+    const m = text.match(/draw #\d+: (\d+)/);
+    $('number').textContent = m ? m[1] : '—';
+    say(m ? 'Drawn.' : 'The board answered, and it is not a draw. Its words are below.',
+        m ? 'ok' : 'bad');
+  } catch (e) {
+    say(`${e.name}: ${e.message}`, 'bad');
+  }
+  $('go').disabled = false;
+};
+
+navigator.usb?.addEventListener('disconnect', (e) => {
+  if (device && e.device === device) say('The board went away.', 'bad');
+});
+</script>
