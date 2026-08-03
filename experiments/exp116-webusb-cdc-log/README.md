@@ -10,6 +10,12 @@ what it always printed, and something else is listening.
 Needs: any RP2350 board running any firmware from this repository, a Chromium
 browser, and on Linux one command before you start.
 
+> **This page became a tool.** The maintained copy is
+> [`tools/pages/log.html`](../../tools/pages/), and it is the file the firmwares
+> from exp126 onwards serve off their own volume. The copy in this directory is
+> frozen as the experiment left it and says so when you open it — kept, rather
+> than replaced by a link, because reading this file *is* exp116.
+
 ## On Linux, run `yi26 detach` first
 
 The kernel's `cdc_acm` driver owns these interfaces. That ownership *is*

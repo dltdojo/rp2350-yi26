@@ -16,12 +16,12 @@
 //! it was. The trick that made the first experiment work is the one the last
 //! experiment builds.
 //!
-//! # The page is exp116's, byte for byte
+//! # The page is the repository's log tool, byte for byte
 //!
-//! Not a copy — `include_bytes!` pointing at
-//! `../exp116-webusb-cdc-log/cdc-log-viewer.html`, so the two cannot drift
-//! apart and `check.sh` asserts they are identical. Whatever exp116's page
-//! does, this one does, because it *is* that file.
+//! Not a copy — `include_bytes!` pointing at `tools/pages/log.html`, so the
+//! two cannot drift apart and `check.sh` asserts they are identical. Whatever
+//! that tool does, this board serves, because it *is* that file. exp116 is
+//! where it was built, and exp116 still keeps its own copy, frozen.
 //!
 //! # What this needed that exp125 did not
 //!
@@ -92,13 +92,13 @@ const BLOCK: usize = 512;
 const DISK_BLOCKS: u32 = 128;
 const DISK_BYTES: usize = DISK_BLOCKS as usize * BLOCK;
 
-/// exp116's page, embedded from the file itself.
+/// The repository's log tool, embedded from the file itself.
 ///
 /// `include_bytes!` rather than a copy: two copies of a nineteen-kilobyte
 /// page would drift, and the one on the board is the one nobody would think
 /// to check. `check.sh` asserts the two files are byte-identical, which is
 /// only meaningful because this is the same file.
-const INDEX_HTM: &[u8] = include_bytes!("../../exp116-webusb-cdc-log/cdc-log-viewer.html");
+const INDEX_HTM: &[u8] = include_bytes!("../../../tools/pages/log.html");
 
 /// The other file on the volume.
 ///

@@ -42,6 +42,12 @@ scripts build on first use; `yi26 doctor --json` is the fastest way to hand a
 complete picture of your setup to whatever is helping you debug. See
 [Platform](./experiments/README.md#platform).
 
+The other half of that toolbox needs no toolchain at all:
+[`tools/pages/`](./tools/pages/) holds four WebUSB pages — a descriptor
+inspector, a log viewer, a console, and one that puts a board into its
+bootloader — which run in a browser on a phone, and which the firmwares from
+exp126 onwards serve off the board itself.
+
 Not on Linux, and not buying a machine for this? Compiling and flashing are
 separable: a rented Linux box builds the `.uf2`, and the computer you already
 own drags it onto the board's boot drive — no toolchain, no drivers, no

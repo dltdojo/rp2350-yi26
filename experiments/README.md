@@ -438,6 +438,38 @@ Every row is declared in that experiment's own `check.sh` and checked by
 `src/main.rs` as well as against this table, so adding a HID interface and
 forgetting to write it down is caught rather than trusted.
 
+## Which page do I open?
+
+There are HTML files in several of these directories, and there are four more
+in [`tools/pages/`](../tools/pages/). They are not the same kind of thing, and
+one question separates them:
+
+> Does this page work against **every** firmware in this repository?
+
+**Yes — it is a tool**, and the maintained copy is in `tools/pages/`: a
+descriptor inspector, a log viewer, a console that types bytes back, and the
+page that puts a board into its bootloader. Those are the ones to open when you
+want to *do* something to a board. They are also the browser's half of
+[`yi26`](../tools/README.md), and that README's tables say exactly where the
+two overlap and where neither can follow the other.
+
+**No — it is an appliance**, and it belongs to the experiment whose protocol it
+speaks. exp130's and exp133's prize-draw pages know one firmware's commands and
+are useless against anything else. An appliance may even pin a serial number in
+its device filter, which a tool may never do.
+
+### Why the experiments still have their own copies
+
+exp115, exp116, exp117 and exp120 each built one of those tools, and each still
+contains the page as the experiment left it. That is on purpose. Each
+experiment's page **is** its walkthrough — turning exp116 into a link to
+somewhere else would delete what a reader came to exp116 for, and the history
+of how the tool got there would go with it. exp120 is the clearest case: its
+page cannot send `\x01`, and that gap is precisely why `console.html` exists.
+
+Those copies are frozen, are not maintained, and say so in a box at the top of
+the page. `tools/pages/check.sh` asserts every one of them still says it.
+
 ## Index
 
 | Experiment | Needs | Proves |

@@ -90,7 +90,7 @@ fi
 # is about composition. Every file on the volume is embedded from the
 # experiment that owns it, so no page can exist here in two versions.
 COPIES=""
-for f in draw.html reboot.html; do
+for f in draw.html reboot.html flash.html; do
     [[ -f "$f" ]] && COPIES="$COPIES $f"
 done
 if [[ -z "$COPIES" ]]; then
@@ -176,7 +176,7 @@ if [[ -n "$MP" ]]; then
         cmp -s "$MP/$name" "$src" || BAD="$BAD $name"
     done <<EOF
 INDEX.HTM:../exp130-the-board-draws/draw.html
-FLASH.HTM:../exp117-webusb-reboot/reboot.html
+FLASH.HTM:../../tools/pages/flash.html
 EOF
     if [[ -z "$BAD" ]]; then
         pass "both pages on the board are byte-identical to their sources"

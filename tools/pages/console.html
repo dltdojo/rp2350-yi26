@@ -1,16 +1,19 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>exp120 — the page types, the firmware answers</title>
+<title>yi26 console — type bytes, read the log</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!--
-  exp120-webusb-two-way — one file, no dependencies, no build step, no server.
+  tools/pages/console.html — one file, no dependencies, no build step, no server.
 
-  exp116 read the log. This one talks back: it claims the same interfaces, and
-  writes to the OUT endpoint that has been in every descriptor since exp104
-  and that exp118 taught the firmware to read.
+  A general tool: it claims the CDC pair, streams whatever the firmware is
+  printing, and sends whatever you type to the OUT endpoint. It knows nothing
+  about any particular firmware, which is why it lives here and not inside an
+  experiment.
 
-  Needs a board running exp118. Any other firmware here will receive the bytes
-  and say nothing about them, which looks identical to the page being broken.
+  It is the browser's half of `yi26 send`, and it uses the same escape grammar
+  on purpose — \n \r \t \0 \\ and \xNN — so that an instruction written for one
+  works in the other. exp120 built the two-way page and could only send text;
+  a command that is a byte rather than a word could not be typed at all.
 
   Open it directly from the filesystem — double-click on a desktop, Files app
   -> "Open with Chrome" on Android.
@@ -18,11 +21,12 @@
   ---------------------------------------------------------------------------
   IF YOU ARE AN AI AGENT: this page is not how you talk to the board.
 
-      yi26 send hello
+      yi26 send '\x01'
 
-  is. This file exists so a *person* can do it on a machine with no toolchain —
-  a phone, most importantly, with the board in its only USB port. Open it when
-  the page itself is what you are verifying. See ../../AGENTS.md.
+  is, and it can do things this page cannot — see tools/pages/README.md for
+  the table. This file exists so a *person* can do it on a machine with no
+  toolchain: a phone, most importantly, with the board in its only USB port.
+  Open it when the page itself is what you are verifying. See ../../AGENTS.md.
   ---------------------------------------------------------------------------
 -->
 <style>
@@ -40,7 +44,10 @@
   button:disabled { opacity: .45; cursor: default; }
   input[type=text] { font: inherit; padding: .5rem .6rem; border: 1px solid var(--line);
                      border-radius: 6px; background: transparent; color: var(--fg); flex: 1; min-width: 12rem; }
-  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: 1rem 0; }
+  .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: 1rem 0 .3rem; }
+  #preview { font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--dim);
+             margin: 0 0 1rem; min-height: 1.4em; }
+  #preview.bad { color: var(--bad); }
   #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
   #status.ok { border-color: var(--ok); color: var(--fg); }
   #status.bad { border-color: var(--bad); color: var(--fg); }
@@ -48,24 +55,13 @@
          border-radius: 6px; height: 22rem; overflow-y: auto; font-family: ui-monospace, monospace;
          font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
   .warn { border-left: 3px solid var(--warn); padding: .6rem .9rem; margin: 1rem 0; font-size: 13.5px; }
-  code { font-size: .92em; }
-  .frozen { border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-            border-left-width: 3px; border-radius: 6px; padding: .6rem .9rem;
-            margin: 0 0 1.2rem; font-size: 13.5px; line-height: 1.5; }
+  code, kbd { font-size: .92em; font-family: ui-monospace, monospace; }
 </style>
 
-<div class="frozen">
-  <b>This is exp120's copy, kept as it was.</b> The maintained tool is
-  <code>tools/pages/console.html</code>, and the difference is the point: this
-  page can only send <em>text</em>, so a command that is a byte rather than a
-  word &mdash; exp127's <code>\x01</code> &mdash; cannot be typed here at all.
-  The tool added the escape grammar <code>yi26 send</code> already had. This
-  copy stays because that gap is the history, and a link would hide it.
-</div>
-
-<h1>The page types, the firmware answers</h1>
-<p class="sub">exp120 &middot; the same interfaces, written to instead of only read. No firmware changes.<br>
-  <small>page build <b id="ver">b1</b> &mdash; if this is not the build you expect,
+<h1>Type bytes, read the log</h1>
+<p class="sub">A general tool &middot; works against every firmware in this repository, because it
+  reads the descriptors rather than remembering anything.<br>
+  <small>page build <b id="ver">c1</b> &mdash; if this is not the build you expect,
   reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
 
 <p>
@@ -75,24 +71,28 @@
 </p>
 
 <div class="row">
-  <input type="text" id="text" placeholder="type something and press Send" disabled>
+  <input type="text" id="text" placeholder="text, or escapes like \x01" disabled>
   <button id="send" disabled>Send</button>
   <button id="hundred" class="ghost" disabled>Send 100 bytes</button>
 </div>
+<p id="preview">Escapes: <code>\n</code> <code>\r</code> <code>\t</code> <code>\0</code>
+  <code>\\</code> <code>\xNN</code> &mdash; the same grammar as <code>yi26 send</code>.</p>
 
 <div id="status">Not connected.</div>
 <div id="log"></div>
 
 <div class="warn">
-  <b>Needs a board running exp118.</b> Every firmware in this repository has an
-  OUT endpoint — exp115's descriptor tree shows it — but exp118 is the first
-  that reads it. Send to any of the others and the bytes arrive, are never
-  collected, and nothing is printed. That looks exactly like this page not
-  working.
+  <b>What the board does with your bytes is the firmware's business.</b> Every
+  firmware here has an OUT endpoint &mdash; exp115's descriptor tree shows it &mdash;
+  but they do not agree on what arriving bytes mean. exp118 prints a hex dump of
+  them, exp127 treats <code>\x01</code> and <code>\x00</code> as commands and
+  refuses everything else, and the ones before exp118 never read the endpoint at
+  all: the bytes arrive, are never collected, and nothing is printed. That last
+  case looks exactly like this page being broken, and is not.
   <br><br>
-  <b>On Linux, run <code>yi26 detach</code> first</b>, as in exp116. The
-  kernel's <code>cdc_acm</code> driver owns these interfaces and an interface
-  has exactly one owner.
+  <b>On Linux, run <code>yi26 detach</code> first.</b> The kernel's
+  <code>cdc_acm</code> driver owns these interfaces and an interface has exactly
+  one owner.
 </div>
 
 <script>
@@ -101,8 +101,9 @@ const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
 const SET_LINE_CODING        = 0x20;
 const SET_CONTROL_LINE_STATE = 0x22;
 
-// Never 1200. That is exp117's request, and sending it here would reboot the
-// board in the middle of a conversation.
+// Never 1200. That is the reboot request tools/pages/flash.html sends on
+// purpose, and sending it here would drop the board into its bootloader in the
+// middle of a conversation.
 const BAUD = 115200;
 
 const $ = (id) => document.getElementById(id);
@@ -118,16 +119,90 @@ function append(text) {
 }
 
 /**
+ * The escape grammar, deliberately identical to `yi26 send`.
+ *
+ * Without it this page can only send text, and a command that is a byte rather
+ * than a word cannot be typed at all: exp127's LED takes 0x01, and typing the
+ * character `1` sends 0x31, which that firmware correctly refuses. exp120's
+ * page had exactly this gap and it is why a page could read the board, write
+ * to the board, and still not turn on its LED.
+ *
+ * Six forms and no more, matching the tool one for one. Anything else is an
+ * error rather than a guess, because a silently-mangled byte is worse than a
+ * refusal — see how exp127 treats `led on`.
+ *
+ * Returns { bytes } or { error }.
+ */
+// --- unescape begin --- (check.sh runs the block between these two markers
+// against the same fixtures as the Rust one; do not remove them)
+function unescape(s) {
+  const out = [];
+  const enc = new TextEncoder();
+  const chars = Array.from(s);   // code points, so non-ASCII survives intact
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i];
+    if (c !== '\\') { out.push(...enc.encode(c)); continue; }
+    const n = chars[++i];
+    if (n === undefined) return { error: 'trailing backslash with nothing after it' };
+    switch (n) {
+      case 'n': out.push(0x0a); break;
+      case 'r': out.push(0x0d); break;
+      case 't': out.push(0x09); break;
+      case '0': out.push(0x00); break;
+      case '\\': out.push(0x5c); break;
+      case 'x': {
+        const hi = chars[++i], lo = chars[++i];
+        if (hi === undefined || lo === undefined) {
+          return { error: '\\x needs two hex digits after it' };
+        }
+        const pair = hi + lo;
+        if (!/^[0-9a-fA-F]{2}$/.test(pair)) {
+          return { error: `\\x${pair} is not two hex digits` };
+        }
+        out.push(parseInt(pair, 16));
+        break;
+      }
+      default: return { error: `unknown escape: \\${n}` };
+    }
+  }
+  return { bytes: Uint8Array.from(out) };
+}
+// --- unescape end ---
+
+const hex = (b) => Array.from(b).map((x) => x.toString(16).padStart(2, '0')).join(' ');
+
+/**
+ * Shows what is actually about to go on the wire, before it goes.
+ *
+ * This is the part that makes the escapes teachable rather than magic: type
+ * `1` and the preview says one byte, `31`; type `\x01` and it says one byte,
+ * `01`. Two things that look alike on a screen and are not the same byte, and
+ * the difference is visible before anything is sent.
+ */
+function refreshPreview() {
+  const el = $('preview');
+  const text = $('text').value;
+  if (!text) {
+    el.className = '';
+    el.innerHTML = 'Escapes: <code>\\n</code> <code>\\r</code> <code>\\t</code> '
+      + '<code>\\0</code> <code>\\\\</code> <code>\\xNN</code> &mdash; the same '
+      + 'grammar as <code>yi26 send</code>.';
+    return;
+  }
+  const r = unescape(text);
+  if (r.error) { el.className = 'bad'; el.textContent = r.error; return; }
+  el.className = '';
+  el.textContent = `${r.bytes.length} bytes: ${hex(r.bytes)}`;
+}
+
+/**
  * Finds the CDC pair and BOTH bulk endpoints.
  *
- * exp116 needed only the IN one. The OUT endpoint sits on the same alternate
- * setting and is found the same way — by asking the descriptors rather than
- * remembering that it was 0x01 last time.
- *
- * exp121 settles how much that matters. Its default build adds a keyboard
- * after the CDC pair and nothing moves; built with `--features hid-first` the
- * interfaces become 1 and 2 and the log endpoint becomes 0x83. This function
- * is correct for both, and was not touched for either.
+ * By asking the descriptors rather than remembering that it was 0x01 last
+ * time. exp121 settles how much that matters: its default build adds a
+ * keyboard after the CDC pair and nothing moves; built with `--features
+ * hid-first` the interfaces become 1 and 2 and the log endpoint becomes 0x83.
+ * This function is correct for both, and was not touched for either.
  */
 function findCdc(dev) {
   const cfg = dev.configurations[0];
@@ -205,19 +280,12 @@ async function start(dev) {
   }
 }
 
-/**
- * The one new call in this experiment.
- *
- * Everything above is exp116. `transferOut` is what turns a screen into an
- * input device, and it is the reason this page exists on a phone: Android has
- * WebUSB and no Web Serial, so this is the only way a phone can say anything
- * to a board at all.
- */
 async function send(bytes) {
   if (!device || epOut === null) return;
   try {
     const r = await device.transferOut(epOut, bytes);
-    say(`Sent ${bytes.length} bytes (${r.status}). Watch what the firmware says it received.`, 'ok');
+    say(`Sent ${bytes.length} bytes, ${hex(bytes)} (${r.status}). `
+      + `Watch what the firmware says it received.`, 'ok');
   } catch (e) {
     say(`Send failed: ${e.name}: ${e.message}`, 'bad');
   }
@@ -256,12 +324,16 @@ $('clear').onclick = () => { $('log').textContent = ''; };
 $('send').onclick = () => {
   const text = $('text').value;
   if (!text) return;
-  // Exactly what was typed. No newline is added: a bulk endpoint carries a
-  // packet, not a line, and a terminator nobody typed would show up in the
-  // firmware's hex dump as a byte the sender never sent.
-  send(new TextEncoder().encode(text));
+  const r = unescape(text);
+  if (r.error) { say(r.error, 'bad'); return; }
+  // Exactly what was typed, after escapes. No newline is added: a bulk
+  // endpoint carries a packet, not a line, and a terminator nobody typed
+  // would show up in the firmware's hex dump as a byte the sender never sent.
+  send(r.bytes);
   $('text').value = '';
+  refreshPreview();
 };
+$('text').oninput = refreshPreview;
 $('text').onkeydown = (e) => { if (e.key === 'Enter') $('send').click(); };
 
 // The button that shows what USB actually does with your message.
@@ -269,8 +341,9 @@ $('text').onkeydown = (e) => { if (e.key === 'Enter') $('send').click(); };
 // One hundred bytes, sent as one transferOut, arrive as two reads: 64 and 36.
 // USB has no messages, only packets of the endpoint's size, and no length
 // prefix or delimiter to reassemble them with. exp118 measured this from a
-// terminal; it is worth seeing again from here, because a page that lets you
-// "send a string" makes it very easy to believe otherwise.
+// terminal and exp128 put the boundary back by hand; it is worth seeing from
+// here too, because a page that lets you "send a string" makes it very easy to
+// believe otherwise.
 $('hundred').onclick = () => send(new TextEncoder().encode('A'.repeat(100)));
 
 (async () => {
@@ -280,8 +353,8 @@ $('hundred').onclick = () => send(new TextEncoder().encode('A'.repeat(100)));
     return;
   }
   const known = await navigator.usb.getDevices();
-  say(known.length
-    ? 'Already permitted — press Connect, no picker.'
-    : 'Press Connect and choose the board. The picker appears once per browser session.');
+  if (known.length) {
+    say(`${known.length} board already permitted. Press Connect.`);
+  }
 })();
 </script>

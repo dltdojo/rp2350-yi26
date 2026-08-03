@@ -15,7 +15,7 @@ TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp126-self-hosted-viewer
 UF2=target/exp126-self-hosted-viewer.uf2
 MODEL="exp126 viewer"
-PAGE=../exp116-webusb-cdc-log/cdc-log-viewer.html
+PAGE=../../tools/pages/log.html
 
 find_dev() {
     for d in /sys/block/*/; do

@@ -16,12 +16,13 @@
 //! it was. The trick that made the first experiment work is the one the last
 //! experiment builds.
 //!
-//! # The page is exp116's, byte for byte
+//! # The pages are the repository's tools, byte for byte
 //!
-//! Not a copy — `include_bytes!` pointing at
-//! `../exp116-webusb-cdc-log/cdc-log-viewer.html`, so the two cannot drift
-//! apart and `check.sh` asserts they are identical. Whatever exp116's page
-//! does, this one does, because it *is* that file.
+//! Not copies — `include_bytes!` pointing at `tools/pages/log.html` and
+//! `tools/pages/flash.html`, so nothing can drift apart and `check.sh`
+//! asserts they are identical. The appliance page is this experiment's own;
+//! the other two are the maintained tools, which is why fixing either of them
+//! reaches this board by rebuilding and nothing else.
 //!
 //! # What this needed that exp125 did not
 //!
@@ -113,17 +114,17 @@ const INDEX_HTM: &[u8] = include_bytes!("../index.html");
 /// This is the file that makes the claim true. Without it, a phone that wants
 /// to flash the next build has to go and find a page somewhere — a repository
 /// it may not have, or a download folder — and at that point the device is no
-/// longer self-contained. exp117's page, byte for byte.
-const FLASH_HTM: &[u8] = include_bytes!("../../exp117-webusb-reboot/reboot.html");
+/// longer self-contained. `tools/pages/flash.html`, byte for byte.
+const FLASH_HTM: &[u8] = include_bytes!("../../../tools/pages/flash.html");
 
 /// And the log viewer, back, unchanged, and independent again.
 ///
 /// exp131 had to remove this: its appliance page held the only CDC pair, so
 /// opening this one always failed. Here the appliance is on the vendor
 /// interface and this has CDC to itself — measured in exp132, including with
-/// the tab in the background. It is exp116's file, byte for byte, and it knows
-/// nothing whatever about prize draws.
-const LOG_HTM: &[u8] = include_bytes!("../../exp116-webusb-cdc-log/cdc-log-viewer.html");
+/// the tab in the background. It is `tools/pages/log.html`, byte for byte,
+/// and it knows nothing whatever about prize draws.
+const LOG_HTM: &[u8] = include_bytes!("../../../tools/pages/log.html");
 
 /// The other file on the volume.
 ///

@@ -28,7 +28,7 @@ UF2=target/exp126-self-hosted-viewer.uf2
 
 MODEL="exp126 viewer"
 LABEL="YI26 EXP126"
-PAGE=../exp116-webusb-cdc-log/cdc-log-viewer.html
+PAGE=../../tools/pages/log.html
 
 if command -v cargo > /dev/null && command -v elf2flash > /dev/null; then
     pass "toolchain present (cargo, elf2flash)"
@@ -45,12 +45,14 @@ else
     fail "the fat12 crate's tests pass" "cd crates/fat12 && cargo test"
 fi
 
-# The page is embedded from exp116's file, not copied. Two copies of a
-# nineteen-kilobyte page would drift, and the one on the board is the copy
-# nobody would think to check.
-grep -q 'include_bytes!("../../exp116-webusb-cdc-log/cdc-log-viewer.html")' src/main.rs \
-    && pass "the firmware embeds exp116's page rather than a copy of it" \
-    || fail "the firmware embeds exp116's page" "src/main.rs should include_bytes! the real file"
+# The page is embedded from the repository's log tool, not copied. Two copies
+# of a nineteen-kilobyte page would drift, and the one on the board is the copy
+# nobody would think to check. exp116 built this page and still keeps its own
+# frozen copy; the maintained one lives in tools/pages/ and is the one that
+# ships, so a fix there reaches this board by rebuilding and nothing else.
+grep -q 'include_bytes!("../../../tools/pages/log.html")' src/main.rs \
+    && pass "the firmware embeds the log tool rather than a copy of it" \
+    || fail "the firmware embeds the log tool" "src/main.rs should include_bytes! tools/pages/log.html"
 
 if cargo build --release --quiet 2>/dev/null && [[ -f "$ELF" ]]; then
     pass "compiles ($(stat -c%s "$ELF") byte ELF)"

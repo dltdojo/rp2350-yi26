@@ -93,7 +93,7 @@ fi
 # The two tools are not, and a copy of either here would be a second version
 # waiting to drift.
 COPIES=""
-for f in reboot.html cdc-log-viewer.html; do
+for f in reboot.html cdc-log-viewer.html flash.html log.html; do
     [[ -f "$f" ]] && COPIES="$COPIES $f"
 done
 if [[ -z "$COPIES" ]]; then
@@ -190,8 +190,8 @@ if [[ -n "$MP" ]]; then
         cmp -s "$MP/$name" "$src" || BAD="$BAD $name"
     done <<EOF
 INDEX.HTM:index.html
-LOG.HTM:../exp116-webusb-cdc-log/cdc-log-viewer.html
-FLASH.HTM:../exp117-webusb-reboot/reboot.html
+LOG.HTM:../../tools/pages/log.html
+FLASH.HTM:../../tools/pages/flash.html
 EOF
     if [[ -z "$BAD" ]]; then
         pass "all three pages on the board are byte-identical to their sources"

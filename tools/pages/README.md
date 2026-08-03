@@ -1,0 +1,129 @@
+# tools/pages/
+
+Four pages that are **tools**, not experiments. Each one works against every
+firmware in this repository, needs no toolchain, no server and no build step,
+and is opened by double-clicking it.
+
+| Page | What it answers | Which interface it claims |
+| --- | --- | --- |
+| [`inspect.html`](./inspect.html) | what is inside this device — configurations, interfaces, endpoints | none; it only reads descriptors |
+| [`log.html`](./log.html) | what the firmware is printing, live | the **CDC** pair |
+| [`console.html`](./console.html) | the same log, plus whatever you type going back to the board | the **CDC** pair |
+| [`flash.html`](./flash.html) | put this board into its bootloader so it can be reflashed | the CDC control pipe, briefly |
+
+`log.html` and `console.html` both claim CDC, so they cannot be open at the
+same time — **one interface has exactly one owner**. Use `console.html` when
+you want to talk back and `log.html` when you only want to watch.
+
+## Two toolboxes, and the line between them
+
+This repository has two ways to talk to a board: [`yi26`](../README.md), a
+command-line program, and these pages. They overlap, but only in four places:
+
+| The job | Command line | Browser |
+| --- | --- | --- |
+| read the log | `yi26 log` | `log.html`, `console.html` |
+| send bytes | `yi26 send` | `console.html` |
+| into the bootloader | `yi26 bootsel` | `flash.html` |
+| look at the descriptors | `yi26 doctor` | `inspect.html` |
+
+Everywhere else they do not overlap, and the reason is worth knowing because it
+is not going to change:
+
+| Only `yi26` can | Why a page cannot |
+| --- | --- |
+| `doctor`, `state`, `port` | they read the host's USB tree and the processes on it |
+| `udev --install` | it writes to `/etc/udev/rules.d/` as root |
+| `drive`, `flash` | they mount a filesystem and copy a file into it |
+| `markers` | it decodes a `.uf2` container off the disk |
+| `detach` | it takes an interface away from a kernel driver |
+| `flood --storm` | it writes and toggles RTS from two threads at once |
+
+| Only a page can | Why the CLI cannot |
+| --- | --- |
+| run with **no toolchain installed** | `yi26` has to be compiled first |
+| run on a **phone** | there is no terminal, and the board is in the only port |
+| **ship on the board itself** | exp126 onwards serve these files off a volume the firmware presents; a phone that has the board has the tools |
+
+So the two sides are **not** meant to converge. A page that could write udev
+rules would be a browser bug, and a CLI that pretended it had no filesystem
+would be less useful for nothing. What must stay in step is the four jobs
+above, and in particular the **vocabulary**.
+
+### The vocabulary that is checked
+
+`console.html` accepts the same six escapes as `yi26 send` — `\n` `\r` `\t`
+`\0` `\\` and `\xNN` — and refuses anything else rather than guessing.
+`check.sh` runs the page's parser through the fixtures `tools/yi26`'s own unit
+tests use, and separately compares the *set* of accepted escapes on both sides,
+because a form added to one and not the other would pass the fixtures unseen.
+
+That matters more than it looks. An instruction that says *send `\x01`* has to
+mean one byte whichever half of the repository the reader is holding. Before
+this, it did not: exp120's page could send text only, so the byte that turns on
+exp127's LED could not be typed into a browser at all, and typing `1` sent
+`0x31`, which that firmware correctly refuses.
+
+## What belongs here, and what does not
+
+One question decides it:
+
+> Does this page work against **every** firmware in this repository?
+
+If yes it is a tool and it lives here. If no it is an **appliance** — it knows
+one firmware's protocol — and it belongs to the experiment that defines that
+protocol. exp130's and exp133's prize-draw pages are appliances and stay where
+they are.
+
+The sharpest form of the distinction is a filter. exp133's appliance page asks
+for `serialNumber: '133'`, because Chrome identifies a device by vendor,
+product *and* serial, and pinning the serial means its picker offers exactly
+one board. A tool may never do that: every firmware here sets its serial to its
+own experiment number, so a tool that pinned one would work against exactly one
+experiment. `check.sh` enforces it.
+
+**An appliance may be picky. A general tool may not.**
+
+## Where these came from, and why a copy stayed behind
+
+Every page here was built by an experiment, and **that experiment still has its
+own copy**:
+
+| Tool | Built by | The copy still there |
+| --- | --- | --- |
+| `inspect.html` | [exp115](../../experiments/exp115-webusb-enumerate/) | `usb-inspector.html` |
+| `log.html` | [exp116](../../experiments/exp116-webusb-cdc-log/) | `cdc-log-viewer.html` |
+| `flash.html` | [exp117](../../experiments/exp117-webusb-reboot/) | `reboot.html` |
+| `console.html` | [exp120](../../experiments/exp120-webusb-two-way/) | `two-way.html` |
+
+That is deliberate, and it is the opposite of what a tidy-up would do. This
+repository's experiments are read in order, and each one's page *is* its
+walkthrough — replacing exp116's file with a link to somewhere else would
+delete the thing a reader came to exp116 for. exp120 is the clearest case: its
+page cannot send `\x01`, and that limitation is the whole reason `console.html`
+exists. A link would hide it.
+
+The copies are not maintained and they say so, on the page itself, in a box a
+reader sees before anything else. `check.sh` asserts that every one of them
+says it and names its replacement, because a stale page that does not announce
+itself is worse than no page.
+
+**Fixes go here.** The firmwares from exp126 onwards `include_bytes!` these
+files, so a fix reaches every board by rebuilding and by nothing else.
+
+## Checking
+
+```sh
+./check.sh    # no board, no browser: self-contained, no serial filters,
+              # escape parity with yi26, and every frozen copy still says so
+```
+
+The one thing it cannot check is a browser: opening a page, picking a device
+from a native dialog and pressing a button needs a person. That is what the
+experiments' own `run.sh` scripts are for.
+
+## If you are an AI assistant
+
+These pages are not how you talk to a board — `yi26` is, and it can do the
+eight things in the table above that a page cannot. Open one only when the page
+itself is what you are verifying. See [`AGENTS.md`](../../AGENTS.md).

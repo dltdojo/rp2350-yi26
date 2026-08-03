@@ -16,12 +16,12 @@
 //! it was. The trick that made the first experiment work is the one the last
 //! experiment builds.
 //!
-//! # The page is exp116's, byte for byte
+//! # The pages are embedded, byte for byte
 //!
-//! Not a copy — `include_bytes!` pointing at
-//! `../exp116-webusb-cdc-log/cdc-log-viewer.html`, so the two cannot drift
-//! apart and `check.sh` asserts they are identical. Whatever exp116's page
-//! does, this one does, because it *is* that file.
+//! Not copies — `include_bytes!` pointing at exp130's `draw.html` and at
+//! `tools/pages/flash.html`, so nothing can drift apart and `check.sh`
+//! asserts they are identical. An appliance page belongs to the experiment
+//! that built it; the way back is a general tool, and the tool is what ships.
 //!
 //! # What this needed that exp125 did not
 //!
@@ -111,8 +111,8 @@ const INDEX_HTM: &[u8] = include_bytes!("../../exp130-the-board-draws/draw.html"
 /// This is the file that makes the claim true. Without it, a phone that wants
 /// to flash the next build has to go and find a page somewhere — a repository
 /// it may not have, or a download folder — and at that point the device is no
-/// longer self-contained. exp117's page, byte for byte.
-const FLASH_HTM: &[u8] = include_bytes!("../../exp117-webusb-reboot/reboot.html");
+/// longer self-contained. `tools/pages/flash.html`, byte for byte.
+const FLASH_HTM: &[u8] = include_bytes!("../../../tools/pages/flash.html");
 
 // A log viewer used to live here as LOG.HTM, and it was removed rather than
 // kept. Two pages on one volume both want the same CDC pair, an interface has

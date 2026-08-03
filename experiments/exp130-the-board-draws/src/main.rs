@@ -16,12 +16,12 @@
 //! it was. The trick that made the first experiment work is the one the last
 //! experiment builds.
 //!
-//! # The page is exp116's, byte for byte
+//! # The page is this experiment's own, byte for byte
 //!
-//! Not a copy — `include_bytes!` pointing at
-//! `../exp116-webusb-cdc-log/cdc-log-viewer.html`, so the two cannot drift
-//! apart and `check.sh` asserts they are identical. Whatever exp116's page
-//! does, this one does, because it *is* that file.
+//! Not a copy — `include_bytes!` pointing at `draw.html` beside this file, so
+//! the two cannot drift apart and `check.sh` asserts they are identical.
+//! Unlike exp126, this page is an *appliance*: it knows this firmware's
+//! protocol, so it belongs to the experiment and not to `tools/pages/`.
 //!
 //! # What this needed that exp125 did not
 //!

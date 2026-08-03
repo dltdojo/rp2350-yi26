@@ -98,6 +98,14 @@ be reading an interrupt endpoint that belongs to a keyboard.
 - [`two-way.html`](./two-way.html) — one file, no dependencies, no build step,
   no server. Most of it is exp116; the differences are marked in the comments.
 
+> **This page became a tool, and gained the thing it was missing.** It can only
+> send *text*, so a command that is a byte rather than a word cannot be typed
+> into it at all: exp127's LED takes `0x01`, and typing `1` sends `0x31`, which
+> that firmware refuses. The maintained copy,
+> [`tools/pages/console.html`](../../tools/pages/), accepts the same six escapes
+> as `yi26 send`. The page here is frozen with the gap intact, because the gap
+> is the history.
+
 ## Two ways to do it
 
 ```sh

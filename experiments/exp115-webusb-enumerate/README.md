@@ -39,6 +39,11 @@ There is deliberately **no local web server**. A server is fine on a desktop
 and impossible on a phone, and this repository is not going to teach a
 workflow that stops at the desk.
 
+> **This page became a tool.** The maintained copy is
+> [`tools/pages/inspect.html`](../../tools/pages/). The copy in this directory
+> is frozen as the experiment left it and says so when you open it — kept,
+> rather than replaced by a link, because reading this file *is* exp115.
+
 ## Two ways to do it
 
 ```sh

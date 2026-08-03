@@ -86,6 +86,12 @@ and would teach the wrong lesson both times.
 - [`reboot.html`](./reboot.html) — one file, no dependencies, no build step,
   no server. About a hundred and fifty lines with the comments.
 
+> **This page became a tool.** The maintained copy is
+> [`tools/pages/flash.html`](../../tools/pages/), and it is what the firmwares
+> that can be rebooted in software put on their volume as `FLASH.HTM` — the way
+> back, on the device. The copy here is frozen as the experiment left it and
+> says so when you open it.
+
 ## Two ways to do it
 
 ```sh

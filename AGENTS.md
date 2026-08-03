@@ -24,6 +24,13 @@ down. Those pages exist so that **a person** can see the log on a machine with
 no toolchain — a phone with the board plugged into its only port, most
 importantly. They are the product. `yi26` is the workshop tool.
 
+The maintained pages live in [`tools/pages/`](./tools/pages/), and that
+README has the table you want if you are ever unsure which side to reach for:
+the two overlap in four jobs, and there are eight things `yi26` can do that no
+page can. When they overlap they speak the same language on purpose —
+`console.html` takes the same `\xNN` escapes as `yi26 send` — so an
+instruction written for one works in the other.
+
 An agent that screenshots a browser window to find out what a firmware printed
 has taken the thing under test and used it as a measuring instrument. It is
 slower, it needs a human present to grant a permission and keep a window open,
