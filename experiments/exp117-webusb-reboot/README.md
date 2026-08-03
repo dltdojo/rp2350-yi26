@@ -157,6 +157,45 @@ the page simply works. The asymmetry is worth sitting with: the platform with
 the fewest tools needs the fewest steps, and the desktop's helpfulness is what
 gets in the way.
 
+### Captured on Android, 2026-08-03
+
+That paragraph was a prediction until this date. It is now a capture, from a
+Google Pixel 9a with an OTG cable, against a board running exp126:
+
+```text
+device            exp126 self hosted viewer
+open()            ok
+claimInterface(0) ok
+SET_LINE_CODING   1200 baud, one request, sent no…
+transfer returned ok  <- means nothing on its own
+disconnect event  <- the board reset; this is the…
+```
+
+> Rebooted. The board is in BOOTSEL mode and a drive named RP2350 should
+> appear — copy a .uf2 onto it. This page can no longer see the device, which
+> is correct: it is a different device now.
+
+And it did appear, in the phone's own file manager, carrying the bootrom's
+synthesised files rather than anything this repository wrote:
+
+| | |
+| --- | --- |
+| `INDEX.HTM` | 241 B |
+| `INFO_UF2.TXT` | 64 B |
+| Both dated | 5 September 2008 — the ROM's fixed timestamp, not the host's |
+
+No `yi26 detach`, because there was nothing to detach. **No hand on BOOTSEL**,
+which is the point: a phone can now run the whole cycle — reboot the board,
+drag a `.uf2` onto the drive that appears, and watch the new firmware come up —
+without touching the board at all.
+
+One thing that was not obvious beforehand and is worth writing down. The page
+was opened from the phone's file manager, so its address was a
+**`content://` URI**, not `file://`. WebUSB requires a secure context and there
+was no reason to assume Chrome grants one to that scheme; it does. Had it not,
+this page could not have run on a phone at all, and neither could exp126's —
+which is opened the same way.
+
 ## What is not verified here
 
 The page's three-second timeout — the message that appears when no disconnect

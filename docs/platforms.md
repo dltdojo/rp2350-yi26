@@ -195,6 +195,25 @@ so nothing the build machine did could have put that firmware there:
   had been edited into the source before the build. That line exists in no
   other artifact, so it could not have come from anywhere else.
 
+Later the same day, the one manual step left in that sequence was removed. The
+first run put the board into BOOTSEL by hand — hold the button, plug in the
+cable — because that was the instruction. It turns out not to be necessary:
+[exp117](../experiments/exp117-webusb-reboot/)'s page, opened on the phone,
+sent the 1200-baud request over WebUSB and the board rebooted itself. The
+`RP2350` drive appeared without anybody touching the board.
+
+**So a phone can run the whole cycle with no physical access to the board at
+all**: reboot it from a page, drag the `.uf2` onto the drive that appears, and
+read the result. That is the same hands-free loop the Ubuntu machine has had
+since exp105, arriving on the platform that has none of the tools.
+
+One detail worth recording because it was not obvious. The page was opened from
+the phone's file manager, so its address was a **`content://` URI** rather than
+`file://`. WebUSB requires a secure context and there was no reason to assume
+Chrome grants one to that scheme. It does — and if it had not, none of the
+browser track would work on a phone, since exp126's page off the board's own
+volume is opened the same way.
+
 Three numbers on the phone's screen agreed with the build machine without
 being told to:
 
