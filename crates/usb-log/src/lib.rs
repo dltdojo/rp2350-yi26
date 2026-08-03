@@ -62,19 +62,27 @@
 //!
 //! # What happens when the queue fills
 //!
-//! It has to give somewhere, and there are only two choices:
-//!
-//! - **Wait** for room. The log stays complete, and now the caller blocks —
-//!   which is the original bug wearing a hat.
-//! - **Drop** the line. Timing is preserved; some output is lost.
-//!
-//! This crate drops, and **counts what it dropped**. The count is attached to
-//! the first line that survives after the gap, so the loss is marked exactly
-//! where it happened:
+//! Waiting for room is disqualified: it is the original bug wearing a hat.
+//! So the line is dropped, and this crate **counts what it dropped**. The
+//! count is attached to the first line that survives after the gap, so the
+//! loss is marked exactly where it happened:
 //!
 //! ```text
 //! [    9012 ms] (+47 lines lost) heartbeat #10 (LED flashed)
 //! ```
+//!
+//! For a long time the paragraph above said there were "only two choices",
+//! wait or drop, and that was wrong in a way nobody noticed for thirty-three
+//! experiments. Dropping hides a second question: **which** line? Refusing the
+//! new arrival keeps the *oldest* entries; evicting the head keeps the
+//! *newest*. Both are dropping, both cost the same RAM, and they hand a reader
+//! two completely different logs — which matters most to somebody who opens a
+//! browser page two minutes after the interesting thing happened.
+//!
+//! [`POLICY`] is that choice, made at build time, and [`log_policy`] holds the
+//! decision itself so it can be tested without a board. The default is
+//! unchanged and always will be: refuse the newest, keep the oldest, count
+//! everything.
 //!
 //! Counting at the sending end rather than announcing it from the writer is
 //! what makes that position right: the writer only ever sees lines that were
@@ -112,7 +120,9 @@
 #![no_std]
 
 use core::fmt::{self, Write};
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
+use log_policy::{admit, Admission, Policy};
 
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver;
@@ -136,6 +146,27 @@ pub const LINE_CAPACITY: usize = 96;
 /// that a host which stops reading altogether shows you the drop message
 /// quickly instead of pretending everything is fine.
 pub const QUEUE_DEPTH: usize = 16;
+
+#[cfg(all(feature = "keep-recent", feature = "silent-while-idle"))]
+compile_error!(
+    "keep-recent and silent-while-idle are alternatives, not additions: one \
+     keeps the newest lines and the other keeps none. Choose one."
+);
+
+/// What this build does when the queue is full, or when nobody is reading.
+///
+/// Selected at compile time because the answer is a property of the firmware,
+/// not of the moment — and because a runtime switch would mean shipping all
+/// three and letting a mistake be a mistake in the field rather than in the
+/// build. See [`log_policy`] for what each one means and why none of them is
+/// universally right.
+pub const POLICY: Policy = if cfg!(feature = "keep-recent") {
+    Policy::KeepRecent
+} else if cfg!(feature = "silent-while-idle") {
+    Policy::SilentWhileIdle
+} else {
+    Policy::DropNewest
+};
 
 /// How often the writer checks whether a host has opened the port.
 ///
@@ -183,6 +214,22 @@ impl Write for Line {
 /// tasks — and, in principle, on a different core or inside an interrupt.
 static QUEUE: Channel<CriticalSectionRawMutex, Line, QUEUE_DEPTH> = Channel::new();
 
+/// Whether a host currently has the port open, as last observed by [`run`].
+///
+/// Only [`Policy::SilentWhileIdle`] reads it, and it starts `true` on purpose.
+/// `log` is a synchronous function with no access to the USB sender, so it
+/// cannot ask — it has to be told, and nobody can tell it until the writer has
+/// looked at least once. Starting `false` would mean nothing is ever queued,
+/// so the writer never wakes, so it never looks: a deadlock built out of two
+/// correct halves.
+///
+/// The cost of starting `true` is exactly one line: the first thing logged
+/// into a closed port is queued, the writer collects it, discovers DTR is low
+/// and sets this flag, and from then on nothing is queued at all. That one
+/// held line is the last thing said before the silence, which is a reasonable
+/// thing for a reader to find waiting for them.
+static READER_PRESENT: AtomicBool = AtomicBool::new(true);
+
 /// Lines thrown away since the last time we managed to say so.
 static DROPPED: AtomicU32 = AtomicU32::new(0);
 
@@ -190,12 +237,47 @@ static DROPPED: AtomicU32 = AtomicU32::new(0);
 ///
 /// Use the [`log!`] macro rather than calling this directly.
 pub fn log(args: fmt::Arguments) {
-    // Claim any outstanding loss so it can be reported on *this* line, which
-    // — if it makes it into the queue — is by definition the first one after
-    // the gap. That is why the count is carried here rather than announced by
-    // the writer: the writer only ever sees lines that survived, and would
-    // have to guess where the missing ones went.
-    let lost = DROPPED.swap(0, Ordering::Relaxed);
+    // Ask before formatting anything. The decision needs two facts and no
+    // string, and under `silent-while-idle` the cheapest line is the one that
+    // was never built.
+    let admission = admit(POLICY, QUEUE.is_full(), READER_PRESENT.load(Ordering::Relaxed));
+
+    match admission {
+        Admission::Drop => {
+            DROPPED.fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+        Admission::EvictOldest => {
+            // Discard the head to make room. `admit` only returns this for a
+            // full queue, so the receive cannot come up empty — but it is
+            // checked rather than unwrapped, because "cannot" here depends on
+            // another crate staying correct.
+            if QUEUE.try_receive().is_ok() {
+                DROPPED.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        Admission::Enqueue => {}
+    }
+
+    // Claim the loss so it can be reported on *this* line, which — if it makes
+    // it into the queue — is by definition the first one after the gap. That
+    // is why the count is carried here rather than announced by the writer:
+    // the writer only ever sees lines that survived, and would have to guess
+    // where the missing ones went.
+    //
+    // The two policies count differently, and they have to.
+    //
+    // A **delta** is safe only in a queue that never discards what it already
+    // accepted: the number is rendered into one line's text, and if that line
+    // is thrown away the number goes with it. `keep-recent` throws accepted
+    // lines away by design, so a delta would quietly undercount every gap it
+    // evicted a marker for. It therefore reports a **running total**, which
+    // survives eviction because every later line repeats it.
+    let lost = if matches!(POLICY, Policy::KeepRecent) {
+        DROPPED.load(Ordering::Relaxed)
+    } else {
+        DROPPED.swap(0, Ordering::Relaxed)
+    };
 
     let mut line = Line::new();
 
@@ -203,17 +285,28 @@ pub fn log(args: fmt::Arguments) {
     // see the module docs for why this must not happen on the way out.
     let _ = write!(&mut line, "[{:>8} ms] ", Instant::now().as_millis());
     if lost > 0 {
-        let _ = write!(&mut line, "(+{} lines lost) ", lost);
+        if matches!(POLICY, Policy::KeepRecent) {
+            let _ = write!(&mut line, "({} lines lost so far) ", lost);
+        } else {
+            let _ = write!(&mut line, "(+{} lines lost) ", lost);
+        }
     }
     let _ = line.write_fmt(args);
 
     // `try_send` is the whole design in one call: it either takes the line
     // immediately or refuses. It has no third option that involves waiting,
     // which is precisely why the caller cannot be parked here.
+    //
+    // Reaching the failure arm now means a race rather than a full queue:
+    // `is_full` said there was room and another task filled it in between.
     if QUEUE.try_send(line).is_err() {
-        // This line is lost too, and it was carrying the running total — put
-        // both back so the next survivor reports the full gap.
-        DROPPED.fetch_add(lost + 1, Ordering::Relaxed);
+        if matches!(POLICY, Policy::KeepRecent) {
+            DROPPED.fetch_add(1, Ordering::Relaxed);
+        } else {
+            // This line is lost too, and it was carrying the running total —
+            // put both back so the next survivor reports the full gap.
+            DROPPED.fetch_add(lost + 1, Ordering::Relaxed);
+        }
     }
 }
 
@@ -260,8 +353,10 @@ pub async fn run(mut sender: Sender<'static, UsbDriver>) -> ! {
         // from a `Sender` (the `ControlChanged` half belongs to the reboot
         // watcher), so poll it. This task has nothing better to do.
         while !sender.dtr() {
+            READER_PRESENT.store(false, Ordering::Relaxed);
             Timer::after_millis(DTR_POLL_MS).await;
         }
+        READER_PRESENT.store(true, Ordering::Relaxed);
 
         emit(&mut sender, &line).await;
     }

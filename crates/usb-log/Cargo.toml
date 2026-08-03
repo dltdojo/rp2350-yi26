@@ -5,7 +5,19 @@ edition = "2021"
 license = "Apache-2.0"
 description = "Non-blocking line logging over USB CDC-ACM: callable from any task, drops lines rather than stalling the caller"
 
+[features]
+default = []
+# Evict the oldest queued line to make room, instead of refusing the new one.
+keep-recent = []
+# Queue nothing at all while no host has the port open.
+silent-while-idle = []
+
 [dependencies]
+# What to do when the queue is full, and when nobody is reading. A separate
+# crate because this one cannot be tested: it depends on embassy-rp, so it
+# only compiles for the board, and every question about which line survives is
+# answerable with no hardware at all.
+log-policy = { path = "../log-policy" }
 embassy-rp = { version = "0.10.0", default-features = false }
 embassy-usb = "0.6.0"
 # The queue between the loggers and the one task allowed to touch USB.

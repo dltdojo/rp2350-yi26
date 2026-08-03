@@ -4,9 +4,9 @@ version = 4
 
 [[package]]
 name = "aho-corasick"
-version = "1.1.4"
+version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301"
+checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
 dependencies = [
  "memchr",
 ]
@@ -268,10 +268,6 @@ checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
 dependencies = [
  "litrs",
 ]
-
-[[package]]
-name = "draw"
-version = "0.1.0"
 
 [[package]]
 name = "either"
@@ -584,39 +580,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
-name = "entropy-health"
-version = "0.1.0"
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
-name = "exp133-a-page-per-job"
+name = "exp134-the-log-nobody-reads"
 version = "0.1.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
- "draw",
  "embassy-executor",
  "embassy-futures",
  "embassy-rp",
  "embassy-time",
  "embassy-usb",
- "entropy-health",
- "fat12",
+ "log-policy",
  "panic-halt",
  "rp2350-linker",
  "static_cell",
  "usb-log",
  "usb-reboot",
 ]
-
-[[package]]
-name = "fat12"
-version = "0.1.0"
 
 [[package]]
 name = "find-msvc-tools"

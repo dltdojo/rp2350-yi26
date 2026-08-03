@@ -1,0 +1,17 @@
+[package]
+name = "log-policy"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "What a bounded log queue should do when it is full, and when nobody is reading"
+
+# No dependencies, and no queue either — the caller owns the queue and asks
+# this crate one question about it. That is what lets `cargo test` run every
+# policy on the machine you are reading this on, against states that would
+# take minutes of real idle time to reach on a board.
+[dependencies]
+
+[lib]
+name = "log_policy"
+
+[workspace]

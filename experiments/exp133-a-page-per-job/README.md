@@ -265,5 +265,8 @@ came from, so "at once" means something different for it.
 
 ## Next
 
-Nothing on this road. The queue depth this design leans on is a separate
-question and is under [Planned](../README.md#planned).
+Nothing on this road. The queue this design leans on turned out to be a
+question rather than a constant, and
+[exp134](../exp134-the-log-nobody-reads/) answers it: the sixteen lines a full
+queue keeps are the *oldest* sixteen, which is why connecting the log page
+after a draw shows you the wrong end of the silence.

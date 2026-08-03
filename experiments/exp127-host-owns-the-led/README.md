@@ -321,6 +321,12 @@ DTR is low, and this firmware prints two every five seconds — so the queue
 overflows in under a minute between opening the page and pressing Connect.
 Connect first, then send.
 
+That line is where [exp134](../exp134-the-log-nobody-reads/) came from, and it
+turned out to be the more interesting half: the sixteen lines a full queue
+keeps are the **oldest** sixteen, so the gap always ends exactly where the
+reader arrives. The two minutes you just spent operating the board are the two
+minutes thrown away.
+
 ## Make it yours
 
 1. Change the readback to `is_set_high()` for both values and watch every check
