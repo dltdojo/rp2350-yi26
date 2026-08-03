@@ -227,6 +227,31 @@ label, which is `YI26 DRAW` and appears nowhere on screen. Android names the
 mount from the descriptor. The eleven characters of a FAT label are what Linux
 shows; the thirty-odd of a product string are what a phone user reads.
 
+### The log pane on a phone, page build a3
+
+Verified on the Pixel 9a with the export in place. The line the number was
+parsed from came back as:
+
+```text
+[   19717 ms] (+64 lines lost) draw #1: 2322  in 2100-2567 (468 values)
+```
+
+**`(+64 lines lost)`** is the marker worth stopping on. `crates/usb-log` holds
+sixteen lines and drops the rest while nobody is reading, and this firmware
+answers a `TEST UNIT READY` every two seconds — so by the time a phone has been
+plugged in, tapped through a permission dialog and connected, dozens of lines
+are already gone.
+
+That is not a defect and it is not hidden. It is why `Copy as JSON` carries
+`lost` as a field and a `lost_total` in its summary: a capture that quietly
+dropped a third of its lines reads almost exactly like one that dropped none,
+and somebody debugging from the JSON needs to be told which they have.
+
+The log pane below it filled with what the board says when nothing is being
+asked of it — `TEST UNIT READY -> ok`, and idle lines reporting
+`364 blocks read, 0 written`, which is the read-only volume visible in the
+firmware's own accounting.
+
 ## What is not verified here
 
 **The `WRITE(10)` refusal has never fired.** Both hosts tried — Linux and
