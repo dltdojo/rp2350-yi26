@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=2   # check.sh mounts and diffs unattended; the claim needs one browser tap
 presence_check
 
+USB_IFACE="cdc+msc"
+USB_CARRIES="log+files"
+USB_HOST="cdc_acm+usb-storage+webusb"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp126-self-hosted-viewer
 UF2=target/exp126-self-hosted-viewer.uf2

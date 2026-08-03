@@ -127,6 +127,100 @@ presence_check() {
     fi
 }
 
+# ---------- which part of USB an experiment is about -----------------------
+#
+# By exp122 this repository had a firmware declaring three USB functions at
+# once, and by exp126 a board serving files over one interface while logging
+# over another. "This experiment uses USB" had stopped saying anything, and a
+# reader could not tell whether they were looking at a log, a command, or a
+# disk — nor whether the thing consuming it was a kernel driver, a browser, or
+# `yi26` holding the interface raw.
+#
+# So every check.sh declares four things, in tokens rather than prose so that
+# the table in README.md can be reworded without breaking twenty-seven
+# scripts:
+#
+#   USB_IFACE     what the board declares
+#                 none | bootrom | cdc | cdc+hid | cdc+hid+vendor | cdc+msc
+#   USB_CARRIES   what actually travels, and there is usually more than one
+#                 none | descriptors | control | log | commands | keystrokes |
+#                 scsi | files          (join with +)
+#   USB_HOST      who claims the interface on the other end
+#                 none | bootrom | cdc_acm | usb-storage | hid | libusb |
+#                 webusb               (join with +)
+#   USB_RUNS_ON   whose firmware this runs against
+#                 own | any | bootrom | none | expNNN | expNNN+
+#
+# USB_RUNS_ON is a separate field and not a footnote because six experiments
+# here have no `src/` at all, and the difference between them matters: exp116
+# works against any firmware in this repository, while exp120 works against
+# **exp118 and nothing else**, since exp118 is the only one that reads the OUT
+# endpoint. A reader who flashes the wrong one sees a page that fails for no
+# visible reason.
+#
+# The first field is checked against the source and not only against the
+# table, which is the half of this that cannot rot: adding a HID interface and
+# forgetting to say so is caught here.
+usb_check() {
+    local dir short index row src
+    dir="$(basename "$PWD")"
+    [[ "$dir" == exp[0-9][0-9][0-9]-* ]] || dir="$(basename "$(dirname "${BASH_SOURCE[1]}")")"
+    short="${dir:0:6}"
+    index="$(dirname "${BASH_SOURCE[0]}")/README.md"
+
+    local f
+    for f in USB_IFACE USB_CARRIES USB_HOST USB_RUNS_ON; do
+        if [[ -z "${!f-}" ]]; then
+            fail "this check.sh declares $f" "see lib.sh for the vocabulary"
+            return
+        fi
+    done
+
+    # -- against the table ---------------------------------------------------
+    if [[ -f "$index" ]]; then
+        # Anchored on the backtick, not just on the experiment number. The
+        # Portability table earlier in that file has rows starting `| exp101 |`
+        # too, and matching those first made all twenty-eight rows report a
+        # disagreement with a table they were not being compared against. The
+        # USB table is the one whose second cell is a token in backticks.
+        local tick=$'\x60'
+        row="$(grep -m1 "^| $short | $tick" "$index")"
+        if [[ -z "$row" ]]; then
+            fail "$short has a row in the USB channel table" "README.md does not list it"
+            return
+        fi
+        for f in USB_IFACE USB_CARRIES USB_HOST USB_RUNS_ON; do
+            if [[ "$row" != *"\`${!f}\`"* ]]; then
+                fail "the USB channel table agrees $f is ${!f}" \
+                     "README.md's row for $short says something else"
+                return
+            fi
+        done
+    fi
+
+    # -- against the source, which is the part that cannot drift -------------
+    #
+    # Skipped where there is nothing to read: the six experiments with no
+    # firmware of their own, and exp101 which predates Rust entirely. Those
+    # are precisely the ones USB_RUNS_ON exists to describe.
+    src="src/main.rs"
+    [[ -f "$src" ]] || src="$(dirname "${BASH_SOURCE[1]}")/src/main.rs"
+    [[ -f "$src" ]] || return 0
+
+    local bad="" want have
+    for f in cdc:CdcAcmClass::new hid:HidWriter::new msc:CLASS_MSC vendor:CLASS_VENDOR; do
+        want="${f%%:*}"; have="${f#*:}"
+        if grep -qF "$have" "$src"; then
+            [[ "$USB_IFACE" == *"$want"* ]] || bad="$bad [source builds $want, USB_IFACE does not say so]"
+        else
+            [[ "$USB_IFACE" != *"$want"* ]] || bad="$bad [USB_IFACE claims $want, source does not build it]"
+        fi
+    done
+    if [[ -n "$bad" ]]; then
+        fail "USB_IFACE matches the interfaces src/main.rs actually builds" "$bad"
+    fi
+}
+
 # ---------- RP2350 board helpers -------------------------------------------
 #
 # Everything below delegates to `tools/yi26`, the repository's host-side

@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=1   # the volume mounts, and the layout crate runs under cargo test
 presence_check
 
+USB_IFACE="cdc+msc"
+USB_CARRIES="log+files"
+USB_HOST="cdc_acm+usb-storage"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp125-fat12-by-hand
 UF2=target/exp125-fat12-by-hand.uf2

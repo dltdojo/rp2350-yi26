@@ -19,6 +19,12 @@ require_supported_platform
 PRESENCE=2   # one permission tap, then the page reboots the board
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="control"
+USB_HOST="webusb"
+USB_RUNS_ON="exp105+"
+usb_check
+
 PAGE=reboot.html
 
 [[ -f "$PAGE" ]] \

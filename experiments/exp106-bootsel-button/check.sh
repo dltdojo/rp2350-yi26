@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=3   # a finger on BOOTSEL and an eye on the LED, at the same time
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp106-bootsel-button
 UF2=target/exp106-bootsel-button.uf2

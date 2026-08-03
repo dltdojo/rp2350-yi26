@@ -76,3 +76,8 @@ read them before proposing work, not instead of them:
 - **[Platform reality](./experiments/README.md#platform)** — verified on
   Ubuntu against one Pico 2, and nowhere else. Do not write claims this
   repository cannot check.
+- **[Which layer of USB is this](./experiments/README.md#which-layer-of-usb-is-this)**
+  — every experiment declares its interface, what travels on it, who claims it
+  on the host, and whose firmware it runs against. Read the row before
+  proposing anything that touches an endpoint: six experiments here have no
+  firmware of their own, and one of them runs against exp118 and nothing else.

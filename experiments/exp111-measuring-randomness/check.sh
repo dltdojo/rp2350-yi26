@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=1   # the counts arrive in the log; the tests also run with cargo test
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp111-measuring-randomness
 UF2=target/exp111-measuring-randomness.uf2

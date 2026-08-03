@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=1   # yi26 send is the whole host half
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log+commands"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp118-one-receiver-two-jobs
 UF2=target/exp118-one-receiver-two-jobs.uf2

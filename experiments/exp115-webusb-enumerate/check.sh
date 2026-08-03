@@ -18,6 +18,12 @@ require_supported_platform
 PRESENCE=2   # somebody taps the WebUSB permission dialog; the page does the rest
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="descriptors"
+USB_HOST="webusb"
+USB_RUNS_ON="any"
+usb_check
+
 PAGE=usb-inspector.html
 
 [[ -f "$PAGE" ]] \

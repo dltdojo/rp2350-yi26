@@ -17,6 +17,12 @@ require_supported_platform
 PRESENCE=1   # the host's own storage stack is the witness
 presence_check
 
+USB_IFACE="cdc+msc"
+USB_CARRIES="log+scsi"
+USB_HOST="cdc_acm+usb-storage"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp124-msc-scsi
 UF2=target/exp124-msc-scsi.uf2

@@ -304,6 +304,99 @@ PRESENCE=3   # an eye on the LED — check.sh gets the pad, not the light
 below ever disagree, so the table cannot quietly rot into a lie. It says
 nothing when they agree.
 
+## Which layer of USB is this?
+
+By exp122 a single firmware here declared **three** USB functions at once, and
+by exp126 a board was serving files over one interface while logging over
+another. At that point "this experiment uses USB" had stopped saying anything.
+
+Three questions, and they move independently:
+
+- **Which interface** does the board declare? CDC-ACM, HID, mass storage, a
+  vendor interface nobody claims — or none at all.
+- **What travels** on it? A log, a command, a control request, a file. The same
+  CDC interface carries the log in one direction and commands in the other,
+  which is the most common place to get lost.
+- **Who consumes it** on the host? A kernel driver, a browser, or `yi26`
+  holding the interface raw.
+
+That they are independent is not a technicality. **exp115, exp116 and exp117
+change no firmware whatsoever** — same board, same descriptors, same CDC
+interface. Only the host side moves, from the kernel's `cdc_acm` to a browser.
+Read down the *Host side* column and that jump is the only thing that happens.
+
+| | Interface | Carries | Host side | Runs on |
+| --- | --- | --- | --- | --- |
+| exp101 | `bootrom` | `descriptors+files` | `bootrom` | `bootrom` |
+| exp102 | `none` | `none` | `none` | `none` |
+| exp103 | `none` | `none` | `none` | `own` |
+| exp104 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp105 | `cdc` | `log+control` | `cdc_acm` | `own` |
+| exp106 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp107 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp108 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp109 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp110 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp111 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp112 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp113 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp114 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp115 | `cdc` | `descriptors` | `webusb` | `any` |
+| exp116 | `cdc` | `log+control` | `webusb` | `any` |
+| exp117 | `cdc` | `control` | `webusb` | `exp105+` |
+| exp118 | `cdc` | `log+commands` | `cdc_acm` | `own` |
+| exp119 | `cdc` | `log+commands+control` | `cdc_acm` | `own` |
+| exp120 | `cdc` | `log+commands` | `webusb` | `exp118` |
+| exp121 | `cdc+hid` | `log+keystrokes` | `cdc_acm+hid` | `own` |
+| exp122 | `cdc+hid+vendor` | `log+commands` | `cdc_acm+libusb` | `own` |
+| exp123 | `cdc+msc` | `log+scsi` | `cdc_acm+usb-storage` | `own` |
+| exp124 | `cdc+msc` | `log+scsi` | `cdc_acm+usb-storage` | `own` |
+| exp125 | `cdc+msc` | `log+files` | `cdc_acm+usb-storage` | `own` |
+| exp126 | `cdc+msc` | `log+files` | `cdc_acm+usb-storage+webusb` | `own` |
+| exp127 | `cdc` | `log+commands` | `cdc_acm` | `own` |
+| exp128 | `cdc` | `log+commands` | `cdc_acm` | `own` |
+
+### Reading the columns
+
+**Interface** — what `src/main.rs` builds. `bootrom` means the RP2350's own
+ROM is the USB device and no code here is involved, which is only exp101.
+
+**Carries** — what the experiment's *result* rides on, not every transfer the
+plumbing performs. Every WebUSB page sends `SET_LINE_CODING`; only the
+experiments where a control request is the subject are marked `control`.
+
+| | |
+| --- | --- |
+| `descriptors` | Reading what the device says it is, over EP0 |
+| `control` | An EP0 request that *changes* something — the 1200-baud touch |
+| `log` | Text, device to host |
+| `commands` | Bytes the host sends that the firmware acts on |
+| `keystrokes` | HID reports on an interrupt endpoint |
+| `scsi` | Mass-storage command blocks |
+| `files` | The contents of a volume |
+
+**Host side** — who claims the interface. `cdc_acm`, `usb-storage` and `hid`
+are kernel drivers; `libusb` means no driver claims it and `yi26` opens it
+directly; `webusb` means a browser does, which is why the kernel has to let go
+first (`yi26 detach`).
+
+**Web Serial appears nowhere in this table, deliberately.** It is the obvious
+way to read a serial port from a page and it does not exist on Android, which
+is the one host this repository's browser track was built for. exp115 works
+through that decision.
+
+**Runs on** — whose firmware this runs against, and it is a separate column
+because **six experiments here have no `src/` at all**. The difference between
+them matters: exp116 works against any firmware in this repository, while
+exp120 works against **exp118 and nothing else**, because exp118 is the only
+one that reads the OUT endpoint. Flash the wrong one and the page fails for no
+visible reason.
+
+Every row is declared in that experiment's own `check.sh` and checked by
+`usb_check` in [`lib.sh`](./lib.sh). The *Interface* column is checked against
+`src/main.rs` as well as against this table, so adding a HID interface and
+forgetting to write it down is caught rather than trusted.
+
 ## Index
 
 | Experiment | Needs | Proves |

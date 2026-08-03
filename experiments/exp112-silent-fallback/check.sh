@@ -17,6 +17,12 @@ require_supported_platform
 PRESENCE=1   # the marker is in the artifact and the fallback is in the log
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp112-silent-fallback
 HW_UF2=target/exp112-hardware.uf2

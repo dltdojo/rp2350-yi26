@@ -18,6 +18,12 @@ require_supported_platform
 PRESENCE=2   # one permission tap, then the page streams the log by itself
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log+control"
+USB_HOST="webusb"
+USB_RUNS_ON="any"
+usb_check
+
 PAGE=cdc-log-viewer.html
 
 [[ -f "$PAGE" ]] \

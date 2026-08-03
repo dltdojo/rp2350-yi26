@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=1   # yi26 bootsel and yi26 state settle it, which is the point of it
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log+control"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp105-usb-reboot
 UF2=target/exp105-usb-reboot.uf2

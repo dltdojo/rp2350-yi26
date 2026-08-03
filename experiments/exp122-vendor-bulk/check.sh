@@ -17,6 +17,12 @@ require_supported_platform
 PRESENCE=1   # yi26 echo claims the vendor interface directly
 presence_check
 
+USB_IFACE="cdc+hid+vendor"
+USB_CARRIES="log+commands"
+USB_HOST="cdc_acm+libusb"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp122-vendor-bulk
 UF2=target/exp122-vendor-bulk.uf2

@@ -18,6 +18,12 @@ require_supported_platform
 PRESENCE=2   # one permission tap, then the page types and reads the reply
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log+commands"
+USB_HOST="webusb"
+USB_RUNS_ON="exp118"
+usb_check
+
 PAGE=two-way.html
 
 [[ -f "$PAGE" ]] \

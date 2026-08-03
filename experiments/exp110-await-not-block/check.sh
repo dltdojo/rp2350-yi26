@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=1   # both builds report their numbers over the log
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp110-await-not-block
 UF2=target/exp110-await.uf2

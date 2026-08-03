@@ -18,6 +18,12 @@ require_supported_platform
 PRESENCE=0   # no board is involved at any point
 presence_check
 
+USB_IFACE="none"
+USB_CARRIES="none"
+USB_HOST="none"
+USB_RUNS_ON="none"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 
 # 1. rustup + rustc

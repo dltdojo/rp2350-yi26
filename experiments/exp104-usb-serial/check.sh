@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=1   # yi26 log reads the whole result
 presence_check
 
+USB_IFACE="cdc"
+USB_CARRIES="log"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp104-usb-serial
 UF2=target/exp104-usb-serial.uf2

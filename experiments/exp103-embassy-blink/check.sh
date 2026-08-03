@@ -16,6 +16,12 @@ require_supported_platform
 PRESENCE=3   # an eye on the LED — this firmware has no USB, so nothing else can see it
 presence_check
 
+USB_IFACE="none"
+USB_CARRIES="none"
+USB_HOST="none"
+USB_RUNS_ON="own"
+usb_check
+
 TARGET=thumbv8m.main-none-eabihf
 ELF=target/$TARGET/release/exp103-embassy-blink
 UF2=target/exp103-embassy-blink.uf2
