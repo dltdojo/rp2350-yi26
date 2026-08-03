@@ -53,6 +53,7 @@ Per experiment:
 | exp125 | Any RP2350 board. No browser. The layout crate runs `cargo test` on any machine, board or not. |
 | exp126 | Any RP2350 board, and a Chromium browser for the last step — which is opening a file off the board's own volume. |
 | exp127 | Any RP2350 board with a plain LED (change the pin). No browser. The pad readback is `SIO GPIO_IN`, which every RP2350 and RP2040 has. |
+| exp128 | Any RP2350 board. No browser. Whether a 64-byte message ever completes depends on the **host's** USB stack, so that one result may differ elsewhere — and the check says which answer it got. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -252,7 +253,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -334,6 +335,7 @@ nothing when they agree.
 | [exp125-fat12-by-hand](./exp125-fat12-by-hand/) | 1 · board | A boot sector, a FAT and a root directory written by hand, until the volume mounts with a file on it |
 | [exp126-self-hosted-viewer](./exp126-self-hosted-viewer/) | 2 · a moment | The board carries its own debug page — and the bootloader drive from exp101 turns out to have been doing this all along |
 | [exp127-host-owns-the-led](./exp127-host-owns-the-led/) | 3 · a person | One byte changes the board — and the LED stops being proof that the firmware is alive |
+| [exp128-reassemble-by-hand](./exp128-reassemble-by-hand/) | 1 · board | A message is what you put back together — and the class API keeps the boundary the wire was carrying |
 
 ## The browser track, finished
 
@@ -398,19 +400,25 @@ descriptor leaves no software route back.
 
 [exp127](./exp127-host-owns-the-led/) let the host change the board with one
 byte, and was explicit that one byte needs no framing only because it fits
-inside a packet. Everything below is the bill for that dodge. None of it has
-been interrogated yet — this repository's rule is that no experiment goes to a
-plan or to code until it has been — so this is a direction, not a schedule.
+inside a packet. What follows is the bill for that dodge.
+[exp128](./exp128-reassemble-by-hand/) paid the first instalment; the rest has
+not been interrogated yet — this repository's rule is that no experiment goes
+to a plan or to code until it has been — so it is a direction, not a schedule.
 
-- **a command longer than one byte** — exp118 proved a hundred bytes arrive as
-  `64 + 36`. `EndpointOut::read()` hands over one packet;
-  `read_transfer()` already exists in `embassy-usb-driver` and loops until a
-  short packet. Two APIs, one wire, and the difference is what a message is.
-- **the message that never arrives** — `embassy-usb`'s own CDC docs say a
-  packet of exactly `max_packet_size` is not delivered to the host until
-  something shorter follows. A 64-byte message therefore hangs, and the fix is
-  a zero-length packet. The trap is in the crate's source, which makes it
-  checkable rather than folklore.
+**Done.** [exp128](./exp128-reassemble-by-hand/) reassembles messages from
+packets, and corrected a claim this section made before anything was built:
+`read_transfer()` does exist in `embassy-usb-driver` and does loop until a
+short packet, but **`CdcAcmClass`'s `Receiver` does not expose it**. Only a
+firmware holding a raw endpoint can call it, so on CDC the boundary has to be
+put back by hand. That is a better lesson than the comparison planned here,
+and it was only findable by reading the crate.
+
+- **the message that never arrives** — a message whose length is an exact
+  multiple of 64 has no short packet to end it. exp128 measured what actually
+  happens on this host: no zero-length packet arrives, the message never
+  completes, and the *next* one is silently merged into it. The fix has a name
+  and is described in `embassy-usb`'s own CDC docs for the other direction.
+  What remains is to make one arrive and see what it takes.
 - **building a boundary out of nothing** — length-prefix against COBS, judged
   on the one question that separates them: join a stream halfway through and
   see which can resynchronise. A crate with `cargo test`, so most of it is
