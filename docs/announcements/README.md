@@ -32,3 +32,4 @@ is expected — write a new one.
 | 2026-08-02 | [誰在讀那份日誌](./2026-08-02-the-agent-reads-the-log.md) | exp118, exp119 and AGENTS.md — how the project is developed (正體中文) |
 | 2026-08-02 | [板子自己端出除錯介面](./2026-08-02-the-board-serves-its-own-page.md) | exp117 and exp120 – exp126 — the browser track reaching its destination (正體中文) |
 | 2026-08-03 | [燒錄工具是檔案管理員](./2026-08-03-the-flashing-tool-is-a-file-manager.md) | exp101 – exp128 and docs/platforms.md — flashing a board from an Android phone, verified (正體中文) |
+| 2026-08-03 | [一場抽獎,把設計改了四次](./2026-08-03-a-draw-that-changed-the-design.md) | exp127 – exp133 — the host takes control, a real use appears, and measurement keeps correcting the architecture (正體中文) |
