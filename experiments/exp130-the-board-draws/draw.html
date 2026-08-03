@@ -23,13 +23,15 @@
   #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
   pre { background: #8881; padding: .6rem; border-radius: 6px; overflow-x: auto;
         font-size: .8rem; margin: .4rem 0 0; white-space: pre-wrap; }
+  #log { height: 14rem; overflow-y: auto; font: .75rem/1.5 ui-monospace, monospace; }
+  #log:empty::before { content: "(every line the board sends will appear here)"; opacity: .5; }
   .warn { border-left: 3px solid var(--bad); padding-left: .7rem; }
   .note { border-left: 3px solid #8886; padding-left: .7rem; font-size: .88rem; }
 </style>
 
 <h1>Prize draw</h1>
 <p class="sub">exp130 · the number is drawn on the board, not in this page.
-  Page build <b id="pagebuild">a1</b>.</p>
+  Page build <b id="pagebuild">a2</b>.</p>
 
 <p id="status">Plug the board in and press Connect. The picker appears once per
   browser session.</p>
@@ -64,6 +66,16 @@
 <p class="sub" style="margin-top:1rem">Every draw is numbered by the firmware.
   If five draws happen and the fifth is announced, this says #5.</p>
 
+<fieldset>
+  <legend>Everything the board said</legend>
+  <p class="sub" style="margin:.2rem 0 .4rem">
+    Not only the draws. An interface has exactly one owner, so a second page
+    cannot watch this one work — the log has to be here, in the page holding
+    the port, or nowhere.
+  </p>
+  <pre id="log"></pre>
+</fieldset>
+
 <div id="provenance"></div>
 
 <script>
@@ -76,7 +88,7 @@ const BAUD = 115200;
 
 // Bumped whenever this file changes. The firmware prints the same string at
 // boot; if they disagree, this page is not the one on the board's volume.
-const PAGE_BUILD = 'a1';
+const PAGE_BUILD = 'a2';
 
 const $ = (id) => document.getElementById(id);
 let device = null, streaming = false, buffer = '';
@@ -127,8 +139,27 @@ function checkProvenance(line) {
   }
 }
 
+/**
+ * Appends to the log pane, which is why this page shows every line and not
+ * only the draws.
+ *
+ * exp131 put a separate log page on the volume beside this one and could not
+ * open it: an interface has exactly one owner, and this page already had it.
+ * exp132 measured the alternative — a second interface really does give two
+ * owners — and then found that a phone cannot use it, because Android offers
+ * no way to arrange two pages side by side. So the second view belongs here,
+ * in the page that holds the port, and it costs one function.
+ */
+function append(line) {
+  const el = $('log');
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  el.textContent += line + '\n';
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+
 function handleLine(line) {
   checkProvenance(line);
+  append(line);
 
   const drew = line.match(/draw #(\d+): (\d+)\s+in (\d+)-(\d+)/);
   if (drew) {

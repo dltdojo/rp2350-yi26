@@ -70,8 +70,12 @@ solves a problem the platform will not let you have.
 
 That leaves the cheaper fix as the better one *for phones*: a single page that
 shows every line it receives instead of filtering for `draw #`. It already
-receives them. One claimant, both views, no descriptor change — and it is what
-the one-channel build is for.
+receives them. One claimant, both views, no descriptor change.
+
+**That fix has been made.** exp130's page carries a log pane as of page build
+`a2`, so the draw and the whole log are on one screen held by one owner. This
+experiment is what established that the alternative works and why it is not the
+one to reach for on a phone.
 
 **It costs descriptor surface.** exp121 measured what adding an interface does
 to every number in the tree, and earlier private work on this ground rejected a
@@ -166,8 +170,9 @@ which is verified there.
    line naming the right channel, rather than ignored.
 3. Run `yi26 log` in two terminals at once against either build. The second
    fails, and it is the same rule one layer down.
-4. Add the log display to exp130's draw page and see the whole problem
-   disappear for a phone without any of this.
+4. Take the log pane back out of exp130's page and try to watch a draw from
+   `LOG.HTM` on exp131's volume. The failure is what started this experiment,
+   and it is worth seeing once before trusting the fix.
 
 ## Troubleshooting
 

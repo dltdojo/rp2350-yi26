@@ -74,20 +74,26 @@ while DTR is asserted and queues sixteen lines otherwise; the lines describing
 a draw were delivered to the page that was connected at the time, and are gone.
 `LOG.HTM` opened later shows what happened *after* the disconnect.
 
-So this experiment claimed a second, simultaneous view and does not have one.
-Two things would give it one, and both are larger than a file list:
+So this experiment claimed a second, simultaneous view and did not have one.
+Both ways out were then taken, and they went in different directions.
 
-- **Put the log in the draw page.** It already receives every line on that
-  endpoint and simply filters for `draw #`. Showing the rest costs nothing and
-  removes the contention entirely, because there is then only one claimant.
-- **Put the draw on a second interface.** [exp122](../exp122-vendor-bulk/)
-  established that a vendor interface and CDC can have different owners at the
-  same time. Commands on one, log on the other, two pages, no contention.
+- **[exp132](../exp132-one-owner-or-two/)** built the architectural answer — a
+  vendor interface carrying the commands while CDC carries the log — and
+  measured two programs receiving the same draw at the same instant. It works,
+  and it is **useless on a phone**: Android lets you choose which app opens a
+  file and gives you no second window to put a page in, so "two pages, one
+  each" is not something a person can do there.
+- **exp130's page now shows every line it receives.** It always received them
+  and filtered for `draw #`; showing the rest costs one function. One claimant,
+  both views, no descriptor change — and it is what `INDEX.HTM` on this volume
+  does today.
 
-The first is a change to exp130's page; the second is a different device. The
-honest position for now is that this volume carries three tools and **you use
-them one at a time**, which is what a phone with one USB port was always going
-to mean.
+So the second view exists, and it is not in this file. **`LOG.HTM` keeps its
+place for a different reason**: it is exp116's full viewer, with the
+`Copy as JSON` export that `docs/platforms.md` builds the whole evidence-return
+route on, and it reads the log of **any** firmware in this repository rather
+than only this one. That is worth 38 clusters. Being the second witness to a
+draw is no longer the argument for it.
 
 ## The one that names itself
 
@@ -104,12 +110,12 @@ button, a drive named `RP2350` replaces this one, copy a `.uf2` onto it.
 
 ```text
 125 clusters total, 512 bytes each
- 19  INDEX.HTM   9578 bytes
+ 22  INDEX.HTM  10871 bytes
  20  FLASH.HTM   9905
  38  LOG.HTM    19309
   2  README.TXT    817
  ---
- 79  used, 46 free
+ 82  used, 43 free
 ```
 
 Comfortable here, and not free: the log viewer is half the total. A board with

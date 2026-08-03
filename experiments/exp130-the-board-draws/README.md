@@ -26,8 +26,19 @@ that.
 
 The answer this experiment gives is not a stronger promise. It is a second
 view: the page prints the exact line the board emitted, underneath the big
-number it parsed out of it. Two views of one event, on one screen, comparable
-by anyone standing there. That is the whole mechanism.
+number it parsed out of it, and below that **every other line the board sends**.
+Two views of one event, on one screen, comparable by anyone standing there.
+That is the whole mechanism.
+
+The log pane arrived late and by way of two other experiments.
+[exp131](../exp131-the-volume-is-the-app-drawer/) put a separate log page on
+the volume beside this one and could not open it — an interface has exactly
+one owner and this page already had it.
+[exp132](../exp132-one-owner-or-two/) measured the architectural alternative,
+found that a second interface really does give two owners, and then found that
+a phone cannot use it: Android offers no way to put two pages side by side. So
+the second view belongs **in the page holding the port**, and it costs one
+function and three clusters.
 
 ## The bit exp126 left clear
 
@@ -71,7 +82,7 @@ So the firmware announces its page build at boot and the page knows its own:
 
 ```text
 [      39 ms] exp130 up. 64 KiB read-only volume, carrying its own draw page.
-[      39 ms] page build a1
+[      39 ms] page build a2
 ```
 
 The page reads that line and compares. Matching says so; differing says
@@ -112,14 +123,14 @@ Captured from a Pico 2. `yi26 log` straight after flashing:
 
 ```text
 [      39 ms] exp130 up. 64 KiB read-only volume, carrying its own draw page.
-[      39 ms] page build a1
-[      39 ms] 125 clusters; INDEX.HTM is 9578 bytes, chained across 19 of them
+[      39 ms] page build a2
+[      39 ms] 125 clusters; INDEX.HTM is 10871 bytes, chained across 22 of them
 [     103 ms] warmed up: 2048 bits through the health tests
-[    1424 ms] INQUIRY  -> 36 bytes: yi26 / exp130 draw
-[    1427 ms] TEST UNIT READY  -> ok
-[    1427 ms] READ CAPACITY  -> last LBA 127, 512 bytes each = 64 KiB
-[    1428 ms] READ(10) lba 0 +1 blocks
-[    1429 ms] MODE SENSE(6)  -> READ-ONLY (WP set), no pages
+[    1456 ms] INQUIRY  -> 36 bytes: yi26 / exp130 draw
+[    1458 ms] TEST UNIT READY  -> ok
+[    1458 ms] READ CAPACITY  -> last LBA 127, 512 bytes each = 64 KiB
+[    1459 ms] READ(10) lba 0 +1 blocks
+[    1460 ms] MODE SENSE(6)  -> READ-ONLY (WP set), no pages
 ```
 
 Draws, with the volume mounted the whole time:
@@ -139,21 +150,21 @@ PASS  toolchain present (cargo, elf2flash)
 PASS  the draw crate's tests pass
 PASS  the fat12 crate's tests pass
 PASS  compiles (150892 byte ELF)
-PASS  converts to UF2 (81408 bytes)
+PASS  converts to UF2 (83968 bytes)
 PASS  UF2 family ID is e48bff59 (rp2350-arm-s)
 PASS  auto-reboot is compiled in (a phone can reflash this without a button)
-PASS  firmware and page agree on the build string (a1)
+PASS  firmware and page agree on the build string (a2)
 PASS  MODE SENSE sets the write-protect bit
 PASS  WRITE(10) is refused with DATA PROTECT / WRITE PROTECTED
 PASS  board is running exp130
 PASS  the host created a block device (/dev/sda)
 PASS  the host marked the device read-only, because MODE SENSE said so
 PASS  the volume mounts at /media/cyline/YI26 DRAW
-PASS  INDEX.HTM on the board is byte-identical to draw.html (9578 bytes)
+PASS  INDEX.HTM on the board is byte-identical to draw.html (10871 bytes)
 PASS  README.TXT is there beside it
 PASS  a write to the volume fails (the host refuses before the device is asked)
-PASS  the board still draws while the volume is mounted (draw #6: 2220  in 2100-2567)
-PASS  the drawn number 2220 is inside 2100-2567
+PASS  the board still draws while the volume is mounted (draw #1: 2465  in 2100-2567)
+PASS  the drawn number 2465 is inside 2100-2567
 NOTE  the page itself is a human's job — the WebUSB picker is a native
       dialog behind a required user gesture. Everything above is what
       can be checked without one.
@@ -161,7 +172,9 @@ NOTE  the page itself is a human's job — the WebUSB picker is a native
 
 ### On a phone, 2026-08-03
 
-Captured on a Google Pixel 9a with an OTG cable. The board was put into BOOTSEL
+Captured on a Google Pixel 9a with an OTG cable, against **page build a1** —
+before the log pane was added. The sizes below are that page's; today's is
+10871 bytes. Nothing else in the capture changed. The board was put into BOOTSEL
 from [exp117](../exp117-webusb-reboot/)'s page — no button — the `.uf2` dragged
 onto the drive that appeared, and then `INDEX.HTM` opened **from the board's
 own volume** via the Files app.
