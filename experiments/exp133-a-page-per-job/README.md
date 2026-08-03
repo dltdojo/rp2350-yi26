@@ -211,11 +211,33 @@ The last check is worth its line. Inheriting exp131's board half is what caught
 the architecture moving: it sent a range over CDC and got told where commands
 had gone, because in this build they are not there any more.
 
+### Both tools at once, on a phone, 2026-08-03
+
+Pixel 9a, both pages opened from this board's own volume. `LOG.HTM` connected
+first and left in the background; `INDEX.HTM` drew four times in the other tab.
+Every one arrived:
+
+```text
+[   83384 ms] draw #2: 2522  in 2100-2567 (468 values)
+[   84657 ms] draw #3: 2266  in 2100-2567 (468 values)
+[   85042 ms] idle: 108 commands, 384 blocks read, 0 written
+[   85153 ms] draw #4: 2370  in 2100-2567 (468 values)
+[   85690 ms] draw #5: 2345  in 2100-2567 (468 values)
+```
+
+The appliance page showed `draw #5: 2345` and reported its provenance matching.
+The log page's own footer read `53 lines, 2634 bytes, 42.1 s`, and the idle
+lines through it say `0 written` — the read-only volume in the firmware's own
+accounting while two pages were using the device.
+
+That is the experiment: an appliance page with no log code, a log page that has
+never heard of prize draws, and both working at once off one cable.
+
 ## What is not verified here
 
-**The three pages open at once, on a phone.** exp132 measured two tabs — a log
-page in the background recording draws sent from another — and this is the same
-arrangement with a third file on the volume. It has not been run.
+**All three pages at once.** Two were, above. `FLASH.HTM` was not open beside
+them — and it is the one page whose success removes the volume the other two
+came from, so "at once" means something different for it.
 
 ## Make it yours
 
