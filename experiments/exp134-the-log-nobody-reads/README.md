@@ -110,6 +110,29 @@ line is the last thing said before the silence, which is a reasonable thing for
 a reader to find waiting for them — and `check.sh` allows at most two, because
 more would mean the flag is not being cleared.
 
+### Starting it `true` cost 65,608 bytes of nothing
+
+Worth recording because it looks alarming and is not. `AtomicBool::new(true)`
+is the first static in `crates/usb-log` whose initial value is not zero, so it
+is the first thing in that crate to land in `.data` instead of `.bss` — and a
+non-empty `.data` gets a segment of its own, aligned to 64 KiB. **Every
+firmware that depends on this crate has an ELF 65,608 bytes larger than before
+this commit**, all of it a hole in the file.
+
+Nothing about the firmware changed. Measured on exp133, built at this commit's
+parent and again after it:
+
+```text
+ELF      217320  →  282928     the padding
+.bss      0x115b0 → 0x115b0    byte-identical: no RAM cost
+UF2      140800  →  140800     byte-identical: nothing more is flashed
+```
+
+The consequence is for whoever reads the older experiments: their recorded
+`compiles (N byte ELF)` lines are all 65,608 bytes short of what a build
+produces today, and none of them is stale in any way that matters. See
+[the note in the index](../README.md#of-the-two-sizes-in-every-capture-only-one-is-the-firmware).
+
 ## Why the decision is a separate crate
 
 `crates/usb-log` cannot be tested. It depends on `embassy-rp`, so it only

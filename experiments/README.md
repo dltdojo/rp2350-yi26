@@ -304,6 +304,34 @@ Practical consequences:
   next experiment needs a human on the BOOTSEL button. That is a real cost of
   the early track, and the reason the 1200-baud experiment is worth reaching.
 
+### Of the two sizes in every capture, only one is the firmware
+
+Each `Expected output` carries a pair of lines like these, and they do not mean
+the same kind of thing:
+
+```text
+PASS  compiles (217320 byte ELF)
+PASS  converts to UF2 (140800 bytes)
+```
+
+**The UF2 is the firmware.** It is what goes on the chip, and if it changes,
+something about the image changed.
+
+**The ELF byte count is a file size**, and a file size includes symbol tables
+and whatever padding the linker felt like leaving between segments. It can move
+a long way while the firmware does not move at all — exp134 added one
+`AtomicBool::new(true)` to `crates/usb-log`, which is the first static in that
+crate with a non-zero initial value and therefore the first thing to land in
+`.data` rather than `.bss`. A non-empty `.data` gets its own 64 KiB-aligned
+segment, so **every dependent firmware's ELF grew by 65,608 bytes of hole**.
+Built at that commit's parent, exp133's ELF is 217320 bytes, the number in its
+README; built after it, 282928. `.bss` is byte-identical either way, so the RAM
+cost is nothing, and the UF2 is 140800 in both.
+
+So an ELF number that disagrees with a capture is not evidence of anything by
+itself. Compare the UF2, and if that disagrees, compare it against what changed
+in the source rather than against the toolchain.
+
 ## Which of these can I do right now
 
 The **Needs** column in the index below answers one question: how much of a

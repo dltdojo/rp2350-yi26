@@ -74,7 +74,12 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{TRNG, USB};
 use embassy_rp::trng::{Config as TrngConfig, InterruptHandler as TrngInterruptHandler, Trng};
-use embassy_rp::usb::{Driver, Endpoint, In, InterruptHandler, Out};
+use embassy_rp::usb::{Driver, InterruptHandler};
+// The raw endpoint types exist only in the build that has a vendor interface.
+// Importing them unconditionally warns on the one-channel build, which is the
+// default — and a warning nobody can fix is a warning everybody learns to skip.
+#[cfg(feature = "two-channels")]
+use embassy_rp::usb::{Endpoint, In, Out};
 use embassy_time::{Duration, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State};
 #[cfg(feature = "two-channels")]
@@ -98,6 +103,11 @@ const PACKET: usize = 64;
 /// The longest command this firmware will assemble. A range is at most
 /// twenty-one characters; the rest is room for somebody's mistake to arrive
 /// intact so it can be quoted back to them.
+///
+/// One channel only. On two, commands arrive on the vendor endpoint and one
+/// packet is one command — nothing is assembled, so there is no length to cap.
+/// That difference is easy to miss reading the two builds side by side.
+#[cfg(not(feature = "two-channels"))]
 const MESSAGE: usize = 128;
 
 /// exp109's number, not the driver's default.

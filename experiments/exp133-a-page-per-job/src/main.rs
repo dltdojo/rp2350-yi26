@@ -150,9 +150,6 @@ const DRAW_BYTES: usize = 64;
 /// windows, because a gate that has not had the chance to fail is not a gate.
 const WARMUP_BITS: u32 = 2 * entropy_health::APT_WINDOW;
 
-/// The longest command this firmware will assemble, using exp128's rule.
-const MESSAGE: usize = 128;
-
 /// Bumped whenever `draw.html` changes, and printed at boot.
 ///
 /// The page knows its own build and compares. This closes a gap that is
@@ -269,6 +266,11 @@ async fn vendor_task(
     let mut health = Health::new();
     warm_up(&mut trng, &mut health).await;
 
+    // One packet is one command here, and there is no reassembly: exp129 and
+    // exp130 assembled up to 128 bytes off the CDC endpoint because a terminal
+    // can send a line of any length, and a range like `2100-2567` is nine
+    // bytes. A command that does not fit in a packet would be a different
+    // protocol, and exp128 is where the cost of assembling one is measured.
     let mut buf = [0u8; PACKET];
     loop {
         read_ep.wait_enabled().await;
