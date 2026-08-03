@@ -69,7 +69,7 @@
 //! So this firmware says out loud when it has taken a full packet and cannot
 //! know whether the message is over, and it caps the buffer rather than
 //! growing forever. Making a 64-byte message arrive is the fix, it has a name
-//! — a zero-length packet — and it is exp129.
+//! — a zero-length packet — and exp135 sends one.
 //!
 //! # One case that looks like a bug and is not
 //!

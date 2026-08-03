@@ -61,7 +61,7 @@
 <h1>Type bytes, read the log</h1>
 <p class="sub">A general tool &middot; works against every firmware in this repository, because it
   reads the descriptors rather than remembering anything.<br>
-  <small>page build <b id="ver">c1</b> &mdash; if this is not the build you expect,
+  <small>page build <b id="ver">c2</b> &mdash; if this is not the build you expect,
   reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
 
 <p>
@@ -73,8 +73,13 @@
 <div class="row">
   <input type="text" id="text" placeholder="text, or escapes like \x01" disabled>
   <button id="send" disabled>Send</button>
+  <button id="sixtyfour" class="ghost" disabled>Send 64 bytes</button>
   <button id="hundred" class="ghost" disabled>Send 100 bytes</button>
 </div>
+<p style="margin:.2rem 0 0">
+  <label><input type="checkbox" id="zlp" disabled> end the message with a
+  <b>zero-length packet</b> when its length is a multiple of the packet size</label>
+</p>
 <p id="preview">Escapes: <code>\n</code> <code>\r</code> <code>\t</code> <code>\0</code>
   <code>\\</code> <code>\xNN</code> &mdash; the same grammar as <code>yi26 send</code>.</p>
 
@@ -108,7 +113,7 @@ const BAUD = 115200;
 
 const $ = (id) => document.getElementById(id);
 let device = null, streaming = false;
-let control = null, data = null, epIn = null, epOut = null;
+let control = null, data = null, epIn = null, epOut = null, packetSize = 64;
 
 function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
 function append(text) {
@@ -206,7 +211,7 @@ function refreshPreview() {
  */
 function findCdc(dev) {
   const cfg = dev.configurations[0];
-  let c = null, d = null, iIn = null, iOut = null;
+  let c = null, d = null, iIn = null, iOut = null, mps = 64;
   for (const iface of cfg.interfaces) {
     const alt = iface.alternates[0];
     if (alt.interfaceClass === 0x02 && c === null) c = iface.interfaceNumber;
@@ -215,11 +220,17 @@ function findCdc(dev) {
       for (const e of alt.endpoints) {
         if (e.type !== 'bulk') continue;
         if (e.direction === 'in' && iIn === null) iIn = e.endpointNumber;
-        if (e.direction === 'out' && iOut === null) iOut = e.endpointNumber;
+        if (e.direction === 'out' && iOut === null) {
+          iOut = e.endpointNumber;
+          // Asked for, not assumed. It is 64 on every firmware in this
+          // repository and it is the number that decides whether a message
+          // needs a terminator, so guessing it would be guessing the answer.
+          mps = e.packetSize;
+        }
       }
     }
   }
-  return { c, d, iIn, iOut };
+  return { c, d, iIn, iOut, mps };
 }
 
 async function start(dev) {
@@ -229,6 +240,7 @@ async function start(dev) {
 
   const found = findCdc(device);
   control = found.c; data = found.d; epIn = found.iIn; epOut = found.iOut;
+  packetSize = found.mps;
   if (control === null || data === null || epIn === null || epOut === null) {
     throw new Error(`this device does not look like the CDC devices in this repository `
       + `(control ${control}, data ${data}, in ${epIn}, out ${epOut})`);
@@ -263,6 +275,7 @@ async function start(dev) {
   $('connect').disabled = true;
   $('stop').disabled = false;
   $('text').disabled = $('send').disabled = $('hundred').disabled = false;
+  $('sixtyfour').disabled = $('zlp').disabled = false;
   $('text').focus();
   say(`Connected. Interfaces ${control} and ${data}; endpoint ${epIn} IN, endpoint ${epOut} OUT.`, 'ok');
 
@@ -280,12 +293,39 @@ async function start(dev) {
   }
 }
 
+/**
+ * Writes the bytes, and optionally ends the message.
+ *
+ * A bulk transfer ends at the first packet shorter than the endpoint's maximum,
+ * so a message whose length is an exact multiple of that maximum has nothing
+ * after it to say *stop* — exp128 measured a firmware waiting forever for one,
+ * and silently gluing the next message onto it.
+ *
+ * The terminator is a transfer with no bytes in it. That is not something a
+ * serial port can express: `printf > /dev/ttyACM0` hands bytes to a driver that
+ * decides the packets. A page holding the interface can submit one directly,
+ * and so can `yi26 send --end`, which had to claim the interface for the same
+ * reason.
+ *
+ * Appended only when the length is a non-zero multiple of the packet size. Any
+ * other length already ends in a short packet, and a second terminator would
+ * arrive as an empty message rather than as nothing.
+ */
 async function send(bytes) {
   if (!device || epOut === null) return;
+  const terminate = $('zlp').checked && bytes.length > 0
+    && bytes.length % packetSize === 0;
   try {
     const r = await device.transferOut(epOut, bytes);
-    say(`Sent ${bytes.length} bytes, ${hex(bytes)} (${r.status}). `
-      + `Watch what the firmware says it received.`, 'ok');
+    if (terminate) {
+      await device.transferOut(epOut, new Uint8Array(0));
+    }
+    const tail = terminate
+      ? ' + a zero-length packet to end it'
+      : (bytes.length > 0 && bytes.length % packetSize === 0
+          ? ` — no short packet ends this, so the firmware cannot know it is over`
+          : '');
+    say(`Sent ${bytes.length} bytes, ${hex(bytes)} (${r.status})${tail}.`, 'ok');
   } catch (e) {
     say(`Send failed: ${e.name}: ${e.message}`, 'bad');
   }
@@ -295,6 +335,7 @@ async function stop() {
   streaming = false;
   $('stop').disabled = true;
   $('text').disabled = $('send').disabled = $('hundred').disabled = true;
+  $('sixtyfour').disabled = $('zlp').disabled = true;
   try {
     if (device && device.opened) {
       if (control !== null) {
@@ -345,6 +386,11 @@ $('text').onkeydown = (e) => { if (e.key === 'Enter') $('send').click(); };
 // here too, because a page that lets you "send a string" makes it very easy to
 // believe otherwise.
 $('hundred').onclick = () => send(new TextEncoder().encode('A'.repeat(100)));
+
+// And the one that does not. Exactly one packet, exactly the maximum size, so
+// nothing follows it that a receiver could read as an ending. Tick the box and
+// press it again to see the same bytes complete.
+$('sixtyfour').onclick = () => send(new TextEncoder().encode('B'.repeat(64)));
 
 (async () => {
   if (!('usb' in navigator)) {

@@ -66,6 +66,11 @@ options:
   --seconds N       how long to read for: `log` 10, `send` 3, `flood` 4
   --packets N       `flood` only: how many to send (default 2000)
   --storm           `flood` only: toggle RTS throughout, to cancel reads
+  --raw             `send` only: claim the CDC interface instead of using the
+                    tty. Needs `yi26 detach` first
+  --end             `send` only: terminate the message with a zero-length
+                    packet when its length is a multiple of the packet size.
+                    Implies --raw, because a tty cannot express this
   --version, -V
   --help, -h
 
@@ -90,6 +95,8 @@ fn run(args: &[String]) -> i32 {
     let mut install = false;
     let mut packets: u32 = 2000;
     let mut storm = false;
+    let mut raw = false;
+    let mut end = false;
     let mut positional: Vec<String> = Vec::new();
     let mut i = 0;
 
@@ -109,6 +116,13 @@ fn run(args: &[String]) -> i32 {
                 }
             }
             "--storm" => storm = true,
+            "--raw" => raw = true,
+            // Terminating a message means putting a packet on the wire that
+            // the tty layer has no way to describe, so this implies --raw.
+            "--end" => {
+                end = true;
+                raw = true;
+            }
             "--packets" => {
                 i += 1;
                 match args.get(i).and_then(|v| v.parse().ok()) {
@@ -145,7 +159,11 @@ fn run(args: &[String]) -> i32 {
         // A shorter default than `log`: this one is a question, and a firmware
         // that answers takes milliseconds to do it. `--seconds` still wins.
         "send" => match positional.get(1) {
-            Some(text) => cmd_send(&opts, text, if seconds_given { seconds } else { 3 }),
+            Some(text) => cmd_send(&opts, text, if seconds_given { seconds } else { 3 }, raw, end),
+            // `--raw` is the one case where sending nothing is a question
+            // rather than a mistake: a zero-length transfer is the shortest
+            // way to ask whether one reaches the device at all.
+            None if raw => cmd_send(&opts, "", if seconds_given { seconds } else { 3 }, raw, end),
             None => usage_error("send needs something to send"),
         },
         "flood" => cmd_flood(&opts, packets, storm, if seconds_given { seconds } else { 4 }),
@@ -340,7 +358,11 @@ fn cmd_log(opts: &Opts, seconds: u64) -> i32 {
 // ---------------------------------------------------------------------------
 // send
 
-fn cmd_send(opts: &Opts, text: &str, seconds: u64) -> i32 {
+fn cmd_send(opts: &Opts, text: &str, seconds: u64, raw: bool, end: bool) -> i32 {
+    if raw {
+        return cmd_send_raw(opts, text, seconds, end);
+    }
+
     out::explain(
         opts,
         &Explanation {
@@ -380,6 +402,103 @@ fn cmd_send(opts: &Opts, text: &str, seconds: u64) -> i32 {
     match logread::send(&p.path, &payload, seconds, opts) {
         Ok(_) => 0,
         Err(e) => fail(opts, "send-failed", &e, "check nothing else holds the port: fuser -v <port>"),
+    }
+}
+
+/// `send --raw`, and `--end` on top of it.
+///
+/// The difference between this and the ordinary path is not speed or
+/// convenience: it is that a tty **cannot express a message boundary**.
+/// `printf > /dev/ttyACM0` hands bytes to a driver that decides how to
+/// packetise them, and nothing in that path can say *and that is the end*.
+/// exp128 measured what follows — a message whose length is an exact multiple
+/// of 64 arrives with no short packet after it and never completes.
+///
+/// Claiming the interface directly is what a browser does, and it is what this
+/// does. The interface has exactly one owner, so `yi26 detach` comes first.
+fn cmd_send_raw(opts: &Opts, text: &str, seconds: u64, end: bool) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &[],
+            notes: &[
+                "There is no hand-typed equivalent, and that is the finding rather than",
+                "a gap in this tool. A shell writes to /dev/ttyACM0, which exists only",
+                "while the kernel's cdc_acm driver owns the interface, and that path has",
+                "no way to say where a message ends. A zero-length packet is not a byte",
+                "you can echo: it is a transfer with no bytes in it, which only the",
+                "program holding the interface can submit.",
+                "So this detaches nothing and claims nothing on your behalf. Run",
+                "`yi26 detach` first — an interface has exactly one owner, and taking it",
+                "without being asked would remove /dev/ttyACM0 from under whatever else",
+                "you were doing.",
+                "--end appends the terminator only when the payload is an exact multiple",
+                "of the endpoint's packet size. Any other length already ends in a short",
+                "packet, and a second terminator would arrive as an empty message.",
+            ],
+        },
+    );
+
+    let payload = match unescape(text) {
+        Ok(p) => p,
+        Err(e) => return fail(opts, "bad-escape", &e, "yi26 send --help"),
+    };
+
+    if !board::exp_device_present() {
+        return fail(opts, "no-board", "no board found on USB", "yi26 doctor");
+    }
+
+    match board::cdc_raw_send(&payload, end, Duration::from_secs(seconds)) {
+        Ok(r) => {
+            let reply = String::from_utf8_lossy(&r.reply);
+            if opts.json {
+                println!(
+                    "{}",
+                    out::obj(&[
+                        out::kv_str("tool", "yi26"),
+                        out::kv_str("command", "send"),
+                        out::kv_str("mode", "raw"),
+                        out::kv_num("written", r.written as u64),
+                        out::kv_num("packet_size", r.packet_size as u64),
+                        out::kv_bool("zlp", r.zlp),
+                        out::kv_str("reply", reply.trim_end()),
+                    ])
+                );
+            } else {
+                let packets = if r.written == 0 {
+                    "1 zero-length packet".to_string()
+                } else {
+                    let full = r.written / r.packet_size;
+                    let rest = r.written % r.packet_size;
+                    let mut d = format!("{full} full packet(s)");
+                    if rest != 0 {
+                        d.push_str(&format!(" + {rest} bytes"));
+                    }
+                    d
+                };
+                println!(
+                    "sent {} bytes raw: {} (endpoint packet size {})",
+                    r.written, packets, r.packet_size
+                );
+                println!(
+                    "terminator: {}",
+                    if r.zlp {
+                        "a zero-length packet was submitted"
+                    } else if r.written % r.packet_size == 0 {
+                        "none — this message has no short packet to end it (try --end)"
+                    } else {
+                        "none needed — the last packet is already short"
+                    }
+                );
+                if reply.trim().is_empty() {
+                    println!("the firmware said nothing in {seconds}s");
+                } else {
+                    print!("{reply}");
+                }
+            }
+            0
+        }
+        Err(e) => fail(opts, "raw-send-failed", &e, "yi26 detach, then try again"),
     }
 }
 

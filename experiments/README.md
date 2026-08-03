@@ -60,6 +60,7 @@ Per experiment:
 | exp132 | Any RP2350 board. No browser. **RP2350 only** — it uses the TRNG. The two-channel build needs the udev rule for raw USB access, as exp122 does. |
 | exp133 | Any RP2350 board, a Chromium browser, and the udev rule for raw USB access. **RP2350 only** — it uses the TRNG. Four interfaces, which is the same count as the composites this repository already enumerates cleanly. |
 | exp134 | Any RP2350 board with a plain LED (change the pin). No browser. Every policy is decided in `crates/log-policy`, which runs `cargo test` on any machine, board or not. |
+| exp135 | A board running **exp128**, which is the instrument. No firmware of its own. The census needs raw USB access — the udev rule — because a tty cannot express the packet being measured. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -165,6 +166,14 @@ tools/yi26/target/release/yi26 detach   # or the built binary, by its full path
 
 This is written down because the instruction appears in twenty-four files and
 the answer used to appear in one.
+
+**The scripts do not use your installed copy**, and that is deliberate.
+`cargo install` takes a snapshot; pull a change that adds a flag and every
+script here would quietly run the old binary and fail on an option the source
+plainly supports. `lib.sh` builds and uses the copy in this checkout, and
+rebuilds it whenever the source is newer. So an installed `yi26` is for *your*
+typing only — re-run `cargo install` after a pull if you want the two to
+agree.
 
 ## Security disclosure
 
@@ -306,7 +315,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -413,6 +422,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp132 | `cdc+vendor` | `log+commands` | `cdc_acm+libusb` | `own` |
 | exp133 | `cdc+msc+vendor` | `log+commands+files` | `cdc_acm+usb-storage+libusb+webusb` | `own` |
 | exp134 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp135 | `cdc` | `log+commands` | `libusb+webusb` | `exp128` |
 
 ### Reading the columns
 
@@ -525,6 +535,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp132-one-owner-or-two](./exp132-one-owner-or-two/) | 2 · a moment | Two programs watching one draw at once — which one interface cannot do, and what a second one costs |
 | [exp133-a-page-per-job](./exp133-a-page-per-job/) | 2 · a moment | The appliance page carries no log code, the log page knows nothing about draws, and both work at once |
 | [exp134-the-log-nobody-reads](./exp134-the-log-nobody-reads/) | 1 · board | A full queue keeps the oldest lines, the newest, or none — three builds of one firmware, and the same silence reads three ways |
+| [exp135-a-packet-with-no-bytes](./exp135-a-packet-with-no-bytes/) | 2 · a moment | The message that never ends, ended — and why a terminal cannot send the packet that ends it |
 
 ## The browser track, finished
 

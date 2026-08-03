@@ -247,29 +247,44 @@ usb_check() {
 YI26_BIN=""
 yi26() {
     if [[ -z "$YI26_BIN" ]]; then
-        # `type -P`, not `command -v`: this function is itself called yi26, and
-        # `command -v` finds functions first — so it would report success,
-        # point this function at itself, and recurse silently until bash gave
-        # up and returned nothing. `type -P` searches PATH for an executable
-        # and nothing else.
-        local installed
-        installed="$(type -P yi26 2>/dev/null || true)"
-        if [[ -n "$installed" ]]; then
-            YI26_BIN="$installed"
-        else
-            local root built
-            root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-            built="$root/tools/yi26/target/release/yi26"
-            if [[ ! -x "$built" ]]; then
-                command -v cargo > /dev/null 2>&1 || {
-                    echo "  ${RED}yi26 helper needs cargo — run exp102 first.${RESET}" >&2
-                    return 127
-                }
-                echo "  ${DIM}building the host helper once: cargo build --release --manifest-path tools/yi26/Cargo.toml${RESET}" >&2
+        local root built
+        root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+        built="$root/tools/yi26/target/release/yi26"
+
+        # The checkout's build wins, always — even when a copy is installed on
+        # PATH. These scripts exist to check *this* checkout, and `cargo
+        # install` takes a snapshot: install the tool, pull a change that adds
+        # a flag, and every script here quietly runs the old binary and fails
+        # on an option the source plainly supports. That happened within hours
+        # of this repository first telling people to install it, and the error
+        # blamed the scripts rather than the stale copy.
+        #
+        # Rebuilt whenever anything under src/ is newer than the binary,
+        # because "it exists" is a different question from "it is current".
+        if command -v cargo > /dev/null 2>&1; then
+            if [[ ! -x "$built" ]] \
+               || [[ -n "$(find "$root/tools/yi26/src" "$root/tools/yi26/Cargo.toml" \
+                            -newer "$built" -print -quit 2>/dev/null)" ]]; then
+                echo "  ${DIM}building the host helper: cargo build --release --manifest-path tools/yi26/Cargo.toml${RESET}" >&2
                 echo "  ${DIM}(to type 'yi26' yourself, outside these scripts: cargo install --path tools/yi26)${RESET}" >&2
                 cargo build --release --quiet --manifest-path "$root/tools/yi26/Cargo.toml" >&2 || return 1
             fi
             YI26_BIN="$built"
+        elif [[ -x "$built" ]]; then
+            YI26_BIN="$built"
+        else
+            # No cargo, nothing built. `type -P`, not `command -v`: this
+            # function is itself called yi26, and `command -v` finds functions
+            # first — so it would report success, point this function at
+            # itself, and recurse silently until bash gave up.
+            local installed
+            installed="$(type -P yi26 2>/dev/null || true)"
+            if [[ -n "$installed" ]]; then
+                YI26_BIN="$installed"
+            else
+                echo "  ${RED}yi26 helper needs cargo — run exp102 first.${RESET}" >&2
+                return 127
+            fi
         fi
     fi
     "$YI26_BIN" "$@"

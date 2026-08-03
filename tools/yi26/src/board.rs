@@ -509,3 +509,217 @@ fn cdc_interface_numbers() -> Result<Vec<u8>, String> {
     control.extend(data);
     Ok(control)
 }
+
+// ---------------------------------------------------------------------------
+// Raw CDC writes, where message boundaries live
+
+/// `SET_CONTROL_LINE_STATE`. Bit 0 is DTR, bit 1 is RTS.
+///
+/// The kernel's `cdc_acm` sends this when a program opens `/dev/ttyACM0`, and
+/// `crates/usb-log` will not write a byte until it arrives. Claiming the
+/// interface directly means nobody sends it for you, so a raw writer that
+/// skips this gets a device that receives everything and answers nothing.
+const SET_CONTROL_LINE_STATE: u8 = 0x22;
+
+/// What a raw write actually put on the wire.
+pub struct RawSend {
+    /// Bytes in the data transfer. Zero means the transfer itself was empty.
+    pub written: usize,
+    /// The OUT endpoint's `wMaxPacketSize`, which is what decides the rest.
+    pub packet_size: usize,
+    /// Whether a separate zero-length transfer was submitted after the data.
+    pub zlp: bool,
+    /// Whatever the firmware said back, read off the same interface.
+    pub reply: Vec<u8>,
+}
+
+/// Writes to the CDC **data** interface directly, bypassing the kernel's tty.
+///
+/// # Why this exists at all
+///
+/// `printf > /dev/ttyACM0` cannot express a message boundary. The tty layer
+/// takes bytes and the `cdc_acm` driver decides how they are packetised; there
+/// is no interface anywhere in that path for saying *and that is the end*. So
+/// a message whose length is an exact multiple of the endpoint's packet size
+/// arrives with no short packet after it, and a receiver reassembling by hand
+/// waits forever — which is what exp128 measured.
+///
+/// Putting a zero-length packet on the wire means taking the interface away
+/// from the kernel and submitting the transfers yourself. That is not a
+/// limitation of this tool; it is the same reason a browser can do it, because
+/// WebUSB has never had a tty in the way.
+///
+/// # The rule for the terminator
+///
+/// A zero-length packet is appended only when the payload is an exact multiple
+/// of the packet size, which is the same rule `nusb`'s own `submit_end` uses.
+/// Any other length already ends in a short packet, and a second terminator
+/// would arrive as an empty message rather than as nothing.
+///
+/// An empty payload is a special case and a deliberate one: the transfer
+/// *itself* is zero-length, which is the shortest way to ask whether a
+/// zero-length write reaches the device at all.
+///
+/// Requires the CDC interfaces to be detached — `yi26 detach` — because an
+/// interface has exactly one owner.
+pub fn cdc_raw_send(payload: &[u8], terminate: bool, listen: Duration) -> Result<RawSend, String> {
+    let info = nusb::list_devices()
+        .wait()
+        .map_err(|e| format!("cannot enumerate USB: {e}"))?
+        .find(|d| d.vendor_id() == EXP_VID && d.product_id() == EXP_PID)
+        .ok_or("no board found on USB")?;
+
+    let mut control_num = None;
+    let mut data_num = None;
+    for i in info.interfaces() {
+        match i.class() {
+            0x02 if control_num.is_none() => control_num = Some(i.interface_number()),
+            0x0a if data_num.is_none() => data_num = Some(i.interface_number()),
+            _ => {}
+        }
+    }
+    let control_num = control_num.ok_or("this firmware has no CDC control interface")?;
+    let data_num = data_num.ok_or("this firmware has no CDC data interface")?;
+
+    let dev = info
+        .open()
+        .wait()
+        .map_err(|e| format!("cannot open the device: {e} — try `yi26 udev --install`"))?;
+
+    let busy = |n: u8, e: nusb::Error| {
+        if e.kind() == nusb::ErrorKind::Busy {
+            format!(
+                "interface {n} is held by something else. The kernel's cdc_acm driver \
+                 holds it until you run `yi26 detach`; a browser tab connected to the \
+                 board holds it until you close the tab. `yi26 doctor` says which."
+            )
+        } else {
+            format!("cannot claim interface {n}: {e}")
+        }
+    };
+    let control = dev
+        .claim_interface(control_num)
+        .wait()
+        .map_err(|e| busy(control_num, e))?;
+    let data = dev
+        .claim_interface(data_num)
+        .wait()
+        .map_err(|e| busy(data_num, e))?;
+
+    // The same two control transfers exp116's page performs by hand, and for
+    // the same reason: without them the firmware's logger never writes, and a
+    // reply that is never sent looks exactly like a message that never arrived
+    // — which is the failure this whole experiment is about distinguishing.
+    let mut coding = [0u8; 7];
+    coding[..4].copy_from_slice(&SAFE_BAUD.to_le_bytes());
+    coding[6] = 8;
+    control
+        .control_out(
+            nusb::transfer::ControlOut {
+                control_type: nusb::transfer::ControlType::Class,
+                recipient: nusb::transfer::Recipient::Interface,
+                request: SET_LINE_CODING,
+                value: 0,
+                index: control_num as u16,
+                data: &coding,
+            },
+            Duration::from_millis(500),
+        )
+        .wait()
+        .map_err(|e| format!("SET_LINE_CODING failed: {e}"))?;
+    let line_state = |bits: u16| {
+        control
+            .control_out(
+                nusb::transfer::ControlOut {
+                    control_type: nusb::transfer::ControlType::Class,
+                    recipient: nusb::transfer::Recipient::Interface,
+                    request: SET_CONTROL_LINE_STATE,
+                    value: bits,
+                    index: control_num as u16,
+                    data: &[],
+                },
+                Duration::from_millis(500),
+            )
+            .wait()
+            .map(|_| ())
+            .map_err(|e| format!("SET_CONTROL_LINE_STATE failed: {e}"))
+    };
+    line_state(0x03)?;
+
+    let (mut ep_out, mut ep_in) = (None, None);
+    for ep in data
+        .descriptors()
+        .next()
+        .ok_or("the CDC data interface has no alternate setting")?
+        .endpoints()
+    {
+        if ep.transfer_type() != nusb::descriptors::TransferType::Bulk {
+            continue;
+        }
+        if ep.direction() == nusb::transfer::Direction::Out && ep_out.is_none() {
+            ep_out = Some(ep.address());
+        }
+        if ep.direction() == nusb::transfer::Direction::In && ep_in.is_none() {
+            ep_in = Some(ep.address());
+        }
+    }
+    let ep_out = ep_out.ok_or("the CDC data interface has no bulk OUT endpoint")?;
+    let ep_in = ep_in.ok_or("the CDC data interface has no bulk IN endpoint")?;
+
+    let mut writer = data
+        .endpoint::<nusb::transfer::Bulk, nusb::transfer::Out>(ep_out)
+        .map_err(|e| format!("cannot open bulk OUT {ep_out:#04x}: {e}"))?;
+    let mut reader = data
+        .endpoint::<nusb::transfer::Bulk, nusb::transfer::In>(ep_in)
+        .map_err(|e| format!("cannot open bulk IN {ep_in:#04x}: {e}"))?;
+
+    let packet_size = writer.max_packet_size();
+    let timeout = Duration::from_millis(2000);
+
+    let zlp;
+    if payload.is_empty() {
+        // The transfer *is* the zero-length one. Whether the device sees a
+        // packet at all is the question this case exists to answer.
+        let sent = writer.transfer_blocking(nusb::transfer::Buffer::new(0), timeout);
+        sent.status.map_err(|e| format!("zero-length write failed: {e}"))?;
+        zlp = true;
+    } else {
+        let sent = writer.transfer_blocking(nusb::transfer::Buffer::from(payload), timeout);
+        sent.status.map_err(|e| format!("write failed: {e}"))?;
+
+        zlp = terminate && payload.len() % packet_size == 0;
+        if zlp {
+            let end = writer.transfer_blocking(nusb::transfer::Buffer::new(0), timeout);
+            end.status
+                .map_err(|e| format!("zero-length terminator failed: {e}"))?;
+        }
+    }
+
+    // Then listen on the same interface. The firmware's log comes out here,
+    // and it is the only witness to what the device made of the write.
+    let mut reply = Vec::new();
+    let want = reader.max_packet_size();
+    let deadline = std::time::Instant::now() + listen;
+    reader.submit(nusb::transfer::Buffer::new(want));
+    while std::time::Instant::now() < deadline {
+        let Some(got) = reader.wait_next_complete(Duration::from_millis(200)) else {
+            continue;
+        };
+        if got.status.is_ok() {
+            reply.extend_from_slice(&got.buffer[..got.actual_len]);
+        }
+        reader.submit(nusb::transfer::Buffer::new(want));
+    }
+
+    // Drop DTR on the way out, as closing a serial port would. Leaving it
+    // asserted would let the firmware keep writing into an endpoint nobody is
+    // collecting from, which is the failure crates/usb-log documents.
+    let _ = line_state(0x00);
+
+    Ok(RawSend {
+        written: payload.len(),
+        packet_size,
+        zlp,
+        reply,
+    })
+}

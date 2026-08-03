@@ -231,10 +231,14 @@ The 1200-baud reboot still works: `yi26 bootsel` put the board in BOOTSEL and
 
 ## Next
 
-**exp129** — the zero-length packet. `embassy-usb`'s CDC documentation states
-the rule for the IN direction in its own source: a packet of exactly
-`max_packet_size` is not delivered until something shorter follows, and a ZLP
-is what you send when there is nothing shorter to send. This experiment shows
-the OUT direction has the same shape and no such terminator arriving.
+**[exp135](../exp135-a-packet-with-no-bytes/)** — the zero-length packet, sent.
+`embassy-usb`'s CDC documentation states the rule for the IN direction in its
+own source: a packet of exactly `max_packet_size` is not delivered until
+something shorter follows, and a ZLP is what you send when there is nothing
+shorter to send. This experiment shows the OUT direction has the same shape and
+no such terminator arriving; exp135 makes one arrive, and finds that a terminal
+cannot send it at all.
+
+(This section said "exp129" for six experiments. exp129 became a prize draw.)
 
 The rest of the road is under [Planned](../README.md#planned).
