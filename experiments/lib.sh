@@ -266,6 +266,7 @@ yi26() {
                     return 127
                 }
                 echo "  ${DIM}building the host helper once: cargo build --release --manifest-path tools/yi26/Cargo.toml${RESET}" >&2
+                echo "  ${DIM}(to type 'yi26' yourself, outside these scripts: cargo install --path tools/yi26)${RESET}" >&2
                 cargo build --release --quiet --manifest-path "$root/tools/yi26/Cargo.toml" >&2 || return 1
             fi
             YI26_BIN="$built"

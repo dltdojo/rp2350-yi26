@@ -40,7 +40,9 @@ assistant and port them to your OS. The platform-specific work has been pulled
 into one small Rust program, [`tools/yi26`](./tools/README.md), which the
 scripts build on first use; `yi26 doctor --json` is the fastest way to hand a
 complete picture of your setup to whatever is helping you debug. See
-[Platform](./experiments/README.md#platform).
+[Platform](./experiments/README.md#platform). The scripts build and call it
+themselves; to type `yi26` in your own terminal, run
+`cargo install --path tools/yi26` once.
 
 The other half of that toolbox needs no toolchain at all:
 [`tools/pages/`](./tools/pages/) holds four WebUSB pages — a descriptor

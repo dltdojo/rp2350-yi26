@@ -139,8 +139,8 @@ Repository-wide, alongside `lib.sh`:
   security-relevant choices baked into each firmware, with the evidence for
   each and the risk it carries, so you can decide whether they suit you.
 - **[`../tools/yi26`](../tools/README.md)** — the host-side helper the scripts
-  call to talk to the board. `lib.sh` builds it on first use; there is nothing
-  to install. Run `yi26 doctor` when something is wrong, or
+  call to talk to the board. `lib.sh` builds it on first use, so **the scripts**
+  need nothing installed. Run `yi26 doctor` when something is wrong, or
   `yi26 doctor --json` if the thing debugging is not a person.
 
 Anything platform-specific belongs in the tool, not in a script. That is the
@@ -149,6 +149,21 @@ narrative, and the tool is the single implementation of the parts that would
 otherwise need one version per operating system. Every subcommand takes
 `--explain` and prints what it stands in for, so replacing the commands does
 not mean hiding them.
+
+### Typing `yi26` yourself needs one command first
+
+Inside a script, `yi26` is a shell function that `lib.sh` defines — not a
+program on your `PATH`. So the scripts work out of the box and a bare
+`yi26 detach` in your own terminal answers **command not found**. Every README
+here that tells you to run `yi26 something` assumes you have done one of these:
+
+```sh
+cargo install --path tools/yi26     # once, and then just: yi26 detach
+tools/yi26/target/release/yi26 detach   # or the built binary, by its full path
+```
+
+This is written down because the instruction appears in twenty-four files and
+the answer used to appear in one.
 
 ## Security disclosure
 
