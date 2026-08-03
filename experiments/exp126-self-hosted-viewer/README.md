@@ -161,5 +161,11 @@ firmware with a phone** — is reachable: exp117 flashes the board from a page,
 exp120 talks to it, exp116 reads its log, and exp126 means the page for all
 three can come off the board itself.
 
+**One word of that was too strong, and it took until exp131 to notice.** The
+claim below that the local machine then needs nothing it did not already have
+is false by one file: to flash the *next* firmware, a phone needs exp117's
+page, and this volume does not carry it. [exp131](../exp131-the-volume-is-the-app-drawer/) puts it on the drive and
+makes carrying it a rule.
+
 What remains in this repository is listed under
 [Planned](../README.md#planned), and none of it is on this road.

@@ -56,6 +56,7 @@ Per experiment:
 | exp128 | Any RP2350 board. No browser. Whether a 64-byte message ever completes depends on the **host's** USB stack, so that one result may differ elsewhere — and the check says which answer it got. |
 | exp129 | Any RP2350 board. No browser. **RP2350 only** — it uses the TRNG, which the RP2040 does not have. The `draw` crate runs `cargo test` on any machine, board or not. |
 | exp130 | Any RP2350 board, and a Chromium browser for the last step. **RP2350 only** — it uses the TRNG. The volume is declared read-only, and a host that honours that never writes to it. |
+| exp131 | Same as exp130. The volume carries three pages and still uses 79 of its 125 clusters, so a board with less SRAM would need to choose between them. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -234,6 +235,13 @@ Questions that keep recurring, worth asking of anything new:
 - **Duplication** — where does this live so it cannot drift out of sync? (see
   [`lib.sh`](./lib.sh), and the rule that code comments beat README excerpts.)
 - **Exercise** — does the reader do something, or only read?
+- **The way back** — if this firmware serves a volume and can be rebooted by
+  software, is `FLASH.HTM` on that volume? A phone user looks in one place, and
+  a build that omits it strands whoever flashed it — at the moment they next
+  want to change something, which is the worst time to find out. This is a
+  property of the chain rather than of one build, so it is checked and not
+  merely intended. [exp131](./exp131-the-volume-is-the-app-drawer/) is where it
+  became a rule, and why.
 
 The gate has teeth. It has already cut the flashing half and ~100 lines of
 script out of exp101, split toolchain setup from the first firmware into
@@ -280,7 +288,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130, exp131 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -383,6 +391,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp128 | `cdc` | `log+commands` | `cdc_acm` | `own` |
 | exp129 | `cdc` | `log+commands` | `cdc_acm` | `own` |
 | exp130 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage+webusb` | `own` |
+| exp131 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage+webusb` | `own` |
 
 ### Reading the columns
 
@@ -459,6 +468,7 @@ forgetting to write it down is caught rather than trusted.
 | [exp128-reassemble-by-hand](./exp128-reassemble-by-hand/) | 1 · board | A message is what you put back together — and the class API keeps the boundary the wire was carrying |
 | [exp129-numbered-draws](./exp129-numbered-draws/) | 1 · board | A prize draw on the board — unbiased by construction, refused when the source fails, and numbered so a discarded draw shows |
 | [exp130-the-board-draws](./exp130-the-board-draws/) | 2 · a moment | The board serves the page that shows its own draw — and a browser arrives between the TRNG and the room |
+| [exp131-the-volume-is-the-app-drawer](./exp131-the-volume-is-the-app-drawer/) | 2 · a moment | Everything a phone ever needs is on the drive, including the way to replace the firmware |
 
 ## The browser track, finished
 
