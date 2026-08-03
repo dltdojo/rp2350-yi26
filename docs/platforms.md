@@ -181,7 +181,10 @@ The half of this route nobody had run. Whether an Android phone can *write* to
 the RP2350's boot drive is not something the ROM decides — it is the phone's
 storage layer, and there was no reason to assume it would work.
 
-On **2026-08-03**, on a **Google Pixel 9a**, with an OTG cable and nothing else:
+On **2026-08-03**, on a **Google Pixel 9a**, with an OTG cable and nothing
+else. The board it flashed is a **second official Pico 2**, which lives with
+the phone and has never been attached to the machine that built the `.uf2` —
+so nothing the build machine did could have put that firmware there:
 
 - A `.uf2` built elsewhere was copied onto the `RP2350` boot drive from the
   phone's Files app. **The write succeeded**, which is the whole question this
@@ -254,7 +257,8 @@ repository does not run a server (a server is exactly what a phone cannot
 provide, which is why the browser track opens files instead), and sending the
 contents of somebody's device to a third party is a decision to be asked
 about, not a convenience to be shipped. There is also nothing here that could
-honestly verify such a service: one board, one host.
+honestly verify such a service: two boards and two hosts, no server, and
+nobody else's device to test against.
 
 Longer term the file may not need a browser at all, and half of that has now
 been built. The board does present its own volume —

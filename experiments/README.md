@@ -65,6 +65,14 @@ a pad. Whatever the mechanism, the ROM behaviour it triggers is the same.
 If you run these on a third-party board, a report either way is welcome: only
 the official Pico 2 has been verified here.
 
+There are **two** of those, and it is worth saying which, because it bounds
+what the evidence in this repository means. Both are official Pico 2 (non-W).
+One lives with an Ubuntu machine and is what every `Expected output` here was
+captured from; the other lives with an Android phone and is what
+[`docs/platforms.md`](../docs/platforms.md) verified the phone-flashing route
+against. They are never on the same bench, so nothing here has ever had two
+RP2350s talking to each other, and nothing claims to.
+
 ## Platform
 
 Verified on **Ubuntu Linux** only, against a real Pico 2. The scripts say so

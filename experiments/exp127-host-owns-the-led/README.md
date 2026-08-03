@@ -95,11 +95,13 @@ payload.
 Modbus RTU is the odd one out on purpose: its boundary is neither in the data
 nor on a wire. It is a gap in time. A third answer to the same question.
 
-**None of the non-USB rows are verified here** and they never will be. This
-repository is one board and one USB cable ([Boards](../README.md#boards)) —
-SPI or I²C framing would need either a second device or two jumper wires, and
-that is a bigger change to what this repository claims than it is worth. The
-table is a map, not a result.
+**None of the non-USB rows are verified here** and they never will be. SPI or
+I²C framing needs two pins wired together — either a loopback on one board or
+two boards on one bench — and this repository holds to a board and a USB cable
+and nothing else ([Boards](../README.md#boards)). That is a decision rather
+than a shortage, and it was taken deliberately: adding jumper wires would
+change what a reader has to own in order to follow along, which costs more
+than the comparison is worth. The table is a map, not a result.
 
 ## The LED cannot be two things at once
 
