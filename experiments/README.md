@@ -52,6 +52,7 @@ Per experiment:
 | exp124 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk, which is nothing on an RP2350 and would matter on a smaller part. |
 | exp125 | Any RP2350 board. No browser. The layout crate runs `cargo test` on any machine, board or not. |
 | exp126 | Any RP2350 board, and a Chromium browser for the last step — which is opening a file off the board's own volume. |
+| exp127 | Any RP2350 board with a plain LED (change the pin). No browser. The pad readback is `SIO GPIO_IN`, which every RP2350 and RP2040 has. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -271,6 +272,7 @@ Practical consequences:
 | [exp124-msc-scsi](./exp124-msc-scsi/) | Answer until the host agrees a disk is there — 64 KiB of RAM, and an unformatted volume |
 | [exp125-fat12-by-hand](./exp125-fat12-by-hand/) | A boot sector, a FAT and a root directory written by hand, until the volume mounts with a file on it |
 | [exp126-self-hosted-viewer](./exp126-self-hosted-viewer/) | The board carries its own debug page — and the bootloader drive from exp101 turns out to have been doing this all along |
+| [exp127-host-owns-the-led](./exp127-host-owns-the-led/) | One byte changes the board — and the LED stops being proof that the firmware is alive |
 
 ## The browser track, finished
 
@@ -331,9 +333,38 @@ descriptor leaves no software route back.
 
 ## Planned
 
-Nothing is on the browser road any more. What is left stands on its own, and
-neither item has been interrogated yet — this repository's rule is that no
-experiment goes to a plan or to code until it has been.
+### The framing road
+
+[exp127](./exp127-host-owns-the-led/) let the host change the board with one
+byte, and was explicit that one byte needs no framing only because it fits
+inside a packet. Everything below is the bill for that dodge. None of it has
+been interrogated yet — this repository's rule is that no experiment goes to a
+plan or to code until it has been — so this is a direction, not a schedule.
+
+- **a command longer than one byte** — exp118 proved a hundred bytes arrive as
+  `64 + 36`. `EndpointOut::read()` hands over one packet;
+  `read_transfer()` already exists in `embassy-usb-driver` and loops until a
+  short packet. Two APIs, one wire, and the difference is what a message is.
+- **the message that never arrives** — `embassy-usb`'s own CDC docs say a
+  packet of exactly `max_packet_size` is not delivered to the host until
+  something shorter follows. A 64-byte message therefore hangs, and the fix is
+  a zero-length packet. The trap is in the crate's source, which makes it
+  checkable rather than folklore.
+- **building a boundary out of nothing** — length-prefix against COBS, judged
+  on the one question that separates them: join a stream halfway through and
+  see which can resynchronise. A crate with `cargo test`, so most of it is
+  verifiable without a board.
+
+**SPI, I²C and CAN are not on this road, and will not be.** Their boundaries
+live on a dedicated wire, in the bus's electrical states, and in the frame
+itself — which is exactly why they are worth *comparing* to USB, and exactly
+why verifying them needs hardware this repository does not have. The
+comparison is written down in
+[exp127's README](./exp127-host-owns-the-led/#where-message-boundaries-come-from)
+as a map, labelled as unverified, rather than faked as an experiment. See
+[Platform](#platform) for why that line is where it is.
+
+### Standing alone
 
 - **boot anatomy** — open both boxes: hand-write the memory map and the
   image-definition block the ROM scans for, and read BOOTSEL the hard way.
