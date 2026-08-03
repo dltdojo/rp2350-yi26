@@ -187,20 +187,35 @@ That is the check earning its place. A page served off the board and a copy
 saved on the phone last month are both `content://` URIs from a file manager
 and cannot be told apart by looking — so the page stops relying on looking.
 
-**Not captured in this run:** whether Android left the read-only volume alone.
-exp126's writable volume acquired a `LOST.DIR` within a minute of mounting, and
-this one declares write protect, which Linux honours here — `RO` is 1 and a
-write fails. Android honouring it too is expected rather than shown, and the
-cheapest way to close that is to look at the volume's file list the next time
-the board is on the phone.
+And the volume was left alone. Same phone, same file manager, one byte of
+difference between the two firmwares:
+
+| Volume | Write protect | What Android put on it |
+| --- | --- | --- |
+| exp126 | not declared | `LOST.DIR`, within a minute of mounting |
+| exp130 | declared | nothing — `INDEX.HTM` and `README.TXT`, and that is all |
+
+Two more numbers agreed without being asked to. The phone listed `INDEX.HTM`
+as **9.58 KB**, which is the 9578 bytes the firmware reports at boot, and
+`README.TXT` as **673 B**, the same size Linux reads off the volume. Both files
+carried the FAT12 timestamps written by hand at boot rather than anything the
+phone supplied.
+
+One incidental thing worth knowing if you are naming a device. The phone titles
+the volume **"Exp130 the board draws"** — the USB *product string*, not the FAT
+label, which is `YI26 DRAW` and appears nowhere on screen. Android names the
+mount from the descriptor. The eleven characters of a FAT label are what Linux
+shows; the thirty-odd of a product string are what a phone user reads.
 
 ## What is not verified here
 
-**The `WRITE(10)` refusal has never fired.** Every host tried so far read the
-write-protect bit and declined to write, so the refusal underneath it was
-never asked for. It is written, reasoned about, and untested — described here
-rather than in `Expected output`, because those are captures. Producing it
-means a host that ignores MODE SENSE, and nothing available here does.
+**The `WRITE(10)` refusal has never fired.** Both hosts tried — Linux and
+Android — read the write-protect bit and declined to write, so the refusal
+underneath it was never asked for. That is the mechanism working, and it is
+also why the backstop is untested: it is written, reasoned about, and never
+exercised. Described here rather than in `Expected output`, because those are
+captures. Producing it means a host that ignores MODE SENSE, and neither of
+the two available here does.
 
 **A vendor Android other than a Pixel.** Whether a third-party file manager
 hands Chrome a usable `content://` URI, and whether the volume mounts at all
