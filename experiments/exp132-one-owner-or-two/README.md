@@ -17,8 +17,9 @@ witnesses while sharing one interface.
 This experiment builds both answers and measures the difference.
 
 Needs: any RP2350 board and the exp102 toolchain. The two-channel build needs
-the udev rule for raw USB access, as [exp122](../exp122-vendor-bulk/) does. No
-browser, and nobody in the room.
+the udev rule for raw USB access, as [exp122](../exp122-vendor-bulk/) does.
+`check.sh` needs no browser and nobody in the room; the two-tab finding below
+needs both.
 
 ## Two builds, one source
 
@@ -61,21 +62,63 @@ The audit argument exp130 makes — that the number is a claim, checkable
 against the device's own words — needs two witnesses to be worth anything.
 Here they exist.
 
-## And what it does not buy
+## What it buys on a phone, which is the opposite of what this said first
 
-**It does not help a phone.** Android's file manager lets you choose *which
-app* opens a file; it does not give you two windows to arrange, so "two pages,
-one each" is not a thing a person can do there. On a phone the second channel
-solves a problem the platform will not let you have.
+This section claimed, for one day, that the second channel does not help a
+phone: Android offers no way to arrange two pages side by side, so "two pages,
+one each" looked like something a person could not do.
 
-That leaves the cheaper fix as the better one *for phones*: a single page that
-shows every line it receives instead of filtering for `draw #`. It already
-receives them. One claimant, both views, no descriptor change.
+**Side by side was never the requirement.** Simultaneous *claiming* does not
+need simultaneous *visibility* — you switch tabs. That was pointed out rather
+than noticed, after the coupling it caused had already been paid for.
 
-**That fix has been made.** exp130's page carries a log pane as of page build
-`a2`, so the draw and the whole log are on one screen held by one owner. This
-experiment is what established that the alternative works and why it is not the
-one to reach for on a phone.
+Measured on a Pixel 9a, 2026-08-03, with exp116's log page in one tab and
+[`draw-vendor.html`](./draw-vendor.html) in another:
+
+```text
+[   65037 ms] idle: no draws yet — try  yi26 echo 2100-2567
+[   69194 ms] draw #1: 2217  in 2100-2567 (468 values)
+[   70037 ms] idle: 1 draw, 0 refused, 2560 bits tested
+[   71678 ms] draw #2: 2300  in 2100-2567 (468 values)
+[   72426 ms] draw #3: 2295  in 2100-2567 (468 values)
+[   75037 ms] idle: 3 draws, 0 refused, 3584 bits tested
+```
+
+The draws were sent from the other tab. The log tab was **in the background
+for all three** and recorded every one — and the idle lines either side of them
+are five seconds apart with nothing missing, `24 lines, 1469 bytes, 49.3 s`,
+no `(+N lines lost)` anywhere.
+
+So a backgrounded Chrome tab on Android keeps its WebUSB claim **and keeps
+draining the endpoint**. Two channels work on a phone.
+
+### And a page can claim a vendor interface
+
+Nothing in this repository had tried. exp122 reached class `0xFF` with libusb
+and its portability note said "No browser" — not because a browser could not,
+but because nobody had asked one to. It can, with no BOS or MS-OS descriptors:
+those buy Chrome's auto-connect notification, not the ability to claim.
+
+`draw-vendor.html` sends the range and reads the reply on the vendor endpoints,
+with no `SET_LINE_CODING` and no DTR — that interface has no class to have
+opinions about baud rates, which is what 0xFF means.
+
+### What that costs the design that came before it
+
+[exp130](../exp130-the-board-draws/)'s page has a log pane and a JSON export
+written into it, because the log could not be a separate page. On one channel
+that is still true. On two it is not, and the difference is composability: a
+log viewer that drops onto any firmware is one file, and a log pane welded into
+an appliance page is seven scattered edits that the next appliance must repeat.
+
+This experiment does not undo that. It establishes what the choice actually is:
+
+| | One channel | Two channels |
+| --- | --- | --- |
+| The log is | inside every appliance page | one independent file |
+| A new appliance costs | its own job **plus** a log pane | its own job |
+| Descriptor surface | unchanged | one interface, two endpoints |
+| Two tabs on a phone | the second one fails to claim | both work, background included |
 
 **It costs descriptor surface.** exp121 measured what adding an interface does
 to every number in the tree, and earlier private work on this ground rejected a
@@ -93,7 +136,7 @@ each time it looked like a different problem:
 | exp116 | the page cannot claim on Linux | `cdc_acm` had it — `yi26 detach` |
 | exp122 | a vendor interface with no device node | nothing claims 0xFF, so anyone can |
 | exp131 | the log page will not open | the draw page still had it |
-| here | — | two interfaces, so two owners |
+| here | — | two interfaces, so two owners — and two tabs, on a phone, both reading |
 
 ## The code IS the walkthrough
 
@@ -151,11 +194,9 @@ those are different failures.
 
 ## What is not verified here
 
-**Two browser tabs each holding a different interface.** The prior case for
-simultaneous claiming is two *processes* — a browser and a system service. Two
-tabs of one browser is a different question and nobody has answered it. It
-cannot be answered on a phone, for the reason above, so it is a desktop test
-and it has not been run.
+**The same test on a desktop.** Two tabs of Chrome on Android is now measured;
+two windows of Chrome on Linux is not, and the kernel's `cdc_acm` has to be
+detached there first, which is a different starting position.
 
 **The one-channel build on hardware.** It compiles and converts on every
 `check.sh` run; flashing it is `run.sh`'s job. Its behaviour is exp129's,

@@ -75,6 +75,15 @@ second one just teaches the wrong lesson to whoever taps it.
 `check.sh` now fails if it comes back. A guard against a file is unusual, and
 it is here because the reason it was removed is not visible from the file list.
 
+**And it is only right for a one-channel firmware, which this one is.**
+[exp132](../exp132-one-owner-or-two/) went on to measure two tabs on a phone
+against a two-channel build, and both held their interfaces — the backgrounded
+log tab recorded every draw the other tab sent, with nothing lost. So on a
+device with a second channel the log goes back to being one independent file
+that drops onto anything, and welding it into each appliance page is the wrong
+trade. This volume carries the merged page because this firmware has one
+channel, not because merging is better.
+
 ## The one that names itself## The one that names itself
 
 `reboot.html` says what it does to somebody who already knows. In a file

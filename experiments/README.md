@@ -47,7 +47,7 @@ Per experiment:
 | exp119 | Any RP2350 board. No browser. The host half is `yi26 flood`, which needs a port that can be written to and have RTS toggled at the same time. |
 | exp120 | A board running **exp118** — it is the only firmware here that reads the OUT endpoint, and sending to any other looks identical to this page failing. Chromium browser, and on Linux `yi26 detach` first. |
 | exp121 | Any RP2350 board. No browser. Checking the keypress needs read access to `/dev/input` — the `input` group — and the check says so rather than failing if you lack it. |
-| exp122 | Any RP2350 board. No browser. Needs the udev rule for raw USB access — a vendor interface has no device node, so `yi26 echo` claims it directly. |
+| exp122 | Any RP2350 board. Needs the udev rule for raw USB access — a vendor interface has no device node, so `yi26 echo` claims it directly. This one said "no browser" for a year; exp132 established that a page can claim class `0xFF` too, with no BOS descriptors. |
 | exp123 | Any RP2350 board. No browser. The evidence is partly in sysfs, so a host whose storage driver is not `usb-storage` will show different names for the same thing. |
 | exp124 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk, which is nothing on an RP2350 and would matter on a smaller part. |
 | exp125 | Any RP2350 board. No browser. The layout crate runs `cargo test` on any machine, board or not. |
@@ -288,8 +288,8 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp132 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130, exp131 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp132 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -471,7 +471,7 @@ forgetting to write it down is caught rather than trusted.
 | [exp129-numbered-draws](./exp129-numbered-draws/) | 1 · board | A prize draw on the board — unbiased by construction, refused when the source fails, and numbered so a discarded draw shows |
 | [exp130-the-board-draws](./exp130-the-board-draws/) | 2 · a moment | The board serves the page that shows its own draw — and a browser arrives between the TRNG and the room |
 | [exp131-the-volume-is-the-app-drawer](./exp131-the-volume-is-the-app-drawer/) | 2 · a moment | Everything a phone ever needs is on the drive, including the way to replace the firmware |
-| [exp132-one-owner-or-two](./exp132-one-owner-or-two/) | 1 · board | Two programs watching one draw at once — which one interface cannot do, and what a second one costs |
+| [exp132-one-owner-or-two](./exp132-one-owner-or-two/) | 2 · a moment | Two programs watching one draw at once — which one interface cannot do, and what a second one costs |
 
 ## The browser track, finished
 

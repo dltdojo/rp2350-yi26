@@ -14,7 +14,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
-PRESENCE=1   # yi26 holds both channels; no browser and nobody in the room
+PRESENCE=2   # check.sh needs nobody; the two-tab finding needed a person and a phone
 presence_check
 
 USB_IFACE="cdc+vendor"
