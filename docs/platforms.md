@@ -32,7 +32,7 @@ machines.
 | Route | Runs every experiment? | Verified here |
 | --- | --- | --- |
 | **Ubuntu, board attached** | Yes | Yes — this is the reference path |
-| **Cloud Linux VM for building, your own machine for flashing** | All but exp101 | The cloud half, yes. See below. |
+| **Cloud Linux VM for building, your own machine for flashing** | All but exp101 | Both halves, separately. The build half on 2026-08-02, and the flashing half from an Android phone on 2026-08-03 — never yet in one continuous run. See below. |
 | **Local VM with USB passthrough** (VirtualBox, VMware, Multipass) | Yes | No |
 | **WSL2 + [usbipd-win](https://github.com/dorssel/usbipd-win)** (Windows) | Yes | No |
 | **Port the scripts to your OS** | Yes | No — but every command is shown, which is what makes a port tractable |
@@ -174,6 +174,46 @@ implement it, on any platform. And **the permission is a native dialog behind a
 user gesture**: somebody has to tap it, and it does not survive restarting the
 browser. Neither is a problem for a person holding the phone. Both make the
 phone path unusable for anything automated.
+
+#### What was verified on the phone
+
+The half of this route nobody had run. Whether an Android phone can *write* to
+the RP2350's boot drive is not something the ROM decides — it is the phone's
+storage layer, and there was no reason to assume it would work.
+
+On **2026-08-03**, on a **Google Pixel 9a**, with an OTG cable and nothing else:
+
+- A `.uf2` built elsewhere was copied onto the `RP2350` boot drive from the
+  phone's Files app. **The write succeeded**, which is the whole question this
+  paragraph exists to answer.
+- The board rebooted into it and presented its own volume, which the phone
+  mounted and listed.
+- `README.TXT` opened in the phone's file viewer and carried the one line that
+  had been edited into the source before the build. That line exists in no
+  other artifact, so it could not have come from anywhere else.
+
+Three numbers on the phone's screen agreed with the build machine without
+being told to:
+
+| On the phone | Where it comes from |
+| --- | --- |
+| `README.TXT` **646 B** | the length of `const README` in exp126's `src/main.rs` |
+| `INDEX.HTM` **19.31 KB** | 19309 bytes, the size exp126's `check.sh` asserts against exp116's page |
+| Both files dated identically | FAT12 directory timestamps written by hand at boot, not by the host |
+
+And one thing nobody designed. Android created a **`LOST.DIR`** directory on
+the volume within a minute of mounting it — its storage layer does that to
+removable media. On exp126 that write lands in 64 KiB of the chip's SRAM and
+disappears at the next reset, which is harmless here and worth knowing before
+you put a volume in flash. It is also the clearest proof available that the
+phone had write access to the board, not merely read access.
+
+**What this does not establish.** The `.uf2` for that run was built on a Linux
+machine its owner owns, not on a rented one, so this verifies the *flashing*
+half only. The *building* half was verified separately on 2026-08-02, above.
+The two halves have not yet been done in one continuous run by one person who
+owns neither a Linux machine nor a compiler, which is the claim this page
+would need to make in full.
 
 ### Getting the log back to the machine that built it
 
