@@ -70,6 +70,21 @@ grep -q 'controlTransferIn' "$PAGE" \
     && pass "it reads a reply back (CMD_STATUS), so a round-trip is proven" \
     || fail "it reads a reply back" "no controlTransferIn — it cannot confirm anything"
 
+# The write-capable sibling. It DOES erase flash — that is its job — so it is
+# checked for the opposite: that its erase names the absolute address, the one
+# word that cost a debugging round on hardware.
+RECOVER=recover.html
+if [[ -f "$RECOVER" ]]; then
+    if grep -q '0x10000000' "$RECOVER" && grep -q 'FLASH_ERASE' "$RECOVER"; then
+        pass "recover.html erases at the absolute address 0x10000000 (not offset 0)"
+    else
+        fail "recover.html erases at 0x10000000" \
+             "a zero dAddr is what the bootrom STALLs on — see the README"
+    fi
+else
+    fail "recover.html is here" "the recovery page is missing"
+fi
+
 # ---- the device, if one is in BOOTSEL -------------------------------------
 # Not scripted into BOOTSEL: this check does not move the board, because the
 # person who runs run.sh decides when to. If a board happens to be there, the

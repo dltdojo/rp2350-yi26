@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PICOBOOT flash recovery — exp141</title>
+<style>
+  :root { color-scheme: dark light; --acc: #6ea8fe; --bad: #ff7b72; --ok: #7ee787; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem;
+         max-width: 42rem; margin-inline: auto; }
+  h1 { font-size: 1.15rem; margin: 0 0 .2rem; }
+  .sub { opacity: .75; font-size: .85rem; margin: 0 0 1rem; }
+  button { font: inherit; padding: .6rem 1.2rem; border: 1px solid var(--bad);
+           border-radius: 6px; background: var(--bad); color: #000; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); border-color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: .8rem 0; font-size: .95rem; }
+  #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
+  pre { background: #8881; padding: .6rem; border-radius: 6px; overflow-x: auto;
+        font-size: .8rem; margin: .4rem 0 0; white-space: pre-wrap; }
+  .note { border-left: 3px solid #8886; padding-left: .7rem; font-size: .88rem;
+          margin-top: 1rem; }
+  .warn { border-left-color: var(--bad); }
+  code { background: #8882; padding: 0 .25rem; border-radius: 3px; }
+</style>
+
+<h1>Erase a stuck board's flash, over PICOBOOT</h1>
+<p class="sub">exp141 · for a board whose flash carries a partition table
+  (exp139) that made drag-and-drop flashing refuse ordinary UF2s. The board
+  must be in <b>BOOTSEL</b> (<code>2e8a:000f</code>). No app, no udev, no
+  toolchain — Chrome on Android or desktop.</p>
+
+<p id="status">Put the board in BOOTSEL, then press Erase.</p>
+
+<p>
+  <button id="go">Erase flash (first 64 KB)</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+</p>
+
+<pre id="out">(progress will appear here)</pre>
+
+<div class="note warn">
+  <b>This one writes.</b> Unlike this experiment's read-only
+  <code>picoboot.html</code>, it erases the first 64 KB of flash — the partition
+  table and anything after it. That is exactly what un-sticks a board exp139
+  bricked, and it is harmless to a board that is already stuck: BOOTSEL is the
+  recovery state, and an erased board just sits in it waiting for a UF2.
+</div>
+
+<div class="note">
+  <b>After it succeeds:</b> the board is a blank, stock board again. Drag any
+  ordinary <code>.uf2</code> onto its <code>RP2350</code> drive — exp103 to see
+  the LED blink, for instance — and it flashes normally, because the table that
+  was in the way is gone.
+</div>
+
+<script>
+const FILTERS = [{ vendorId: 0x2e8a, productId: 0x000f }];
+
+const MAGIC = 0x431fd10b;
+const CMD_EXCLUSIVE_ACCESS = 0x1;
+const CMD_EXIT_XIP = 0x6;
+const CMD_FLASH_ERASE = 0x3;
+const IF_RESET = 0x41;
+const ERASE_SIZE = 0x10000; // 64 KiB from offset 0
+
+const $ = (id) => document.getElementById(id);
+let device = null, ifaceNum = null, epOut = null, epIn = null, token = 1;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+function log(t) { $('out').textContent += t + '\n'; }
+
+function findPicoboot(dev) {
+  for (const cfg of dev.configurations) {
+    for (const i of cfg.interfaces) {
+      for (const alt of i.alternates) {
+        if (alt.interfaceClass !== 0xFF) continue;
+        let o = null, n = null;
+        for (const e of alt.endpoints) {
+          if (e.type === 'bulk' && e.direction === 'out' && o === null) o = e.endpointNumber;
+          if (e.type === 'bulk' && e.direction === 'in' && n === null) n = e.endpointNumber;
+        }
+        if (o !== null && n !== null) return { iface: i.interfaceNumber, out: o, in: n };
+      }
+    }
+  }
+  return null;
+}
+
+/** One no-data PICOBOOT command: write the 32-byte packet to bulk OUT, then
+ *  read the bootrom's acknowledgement from bulk IN. */
+async function cmd(cmdId, args, name) {
+  const pkt = new Uint8Array(32);
+  const dv = new DataView(pkt.buffer);
+  dv.setUint32(0, MAGIC, true);
+  dv.setUint32(4, token++, true);
+  pkt[8] = cmdId;
+  pkt[9] = args.length;
+  dv.setUint32(12, 0, true); // dTransferLength: no data phase
+  pkt.set(args, 16);
+
+  const w = await device.transferOut(epOut, pkt);
+  if (w.status !== 'ok') throw new Error(`${name}: write ${w.status}`);
+  const ack = await device.transferIn(epIn, 64);
+  if (ack.status !== 'ok') throw new Error(`${name}: acknowledgement ${ack.status}`);
+  log(`${name}: accepted`);
+}
+
+async function erase() {
+  try {
+    device = await navigator.usb.requestDevice({ filters: FILTERS });
+    await device.open();
+    if (device.configuration === null) await device.selectConfiguration(1);
+
+    const p = findPicoboot(device);
+    if (!p) { say('No PICOBOOT interface — is the board really in BOOTSEL?', 'bad'); return; }
+    ifaceNum = p.iface; epOut = p.out; epIn = p.in;
+    await device.claimInterface(ifaceNum);
+    log(`claimed PICOBOOT (interface ${ifaceNum}, OUT ep ${epOut}, IN ep ${epIn})`);
+    $('stop').disabled = false;
+
+    // Clear any half-finished command state first.
+    await device.controlTransferOut({
+      requestType: 'vendor', recipient: 'interface',
+      request: IF_RESET, value: 0, index: ifaceNum,
+    });
+    log('IF_RESET: interface cleared');
+
+    token = 1;
+    await cmd(CMD_EXCLUSIVE_ACCESS, new Uint8Array([1]), 'EXCLUSIVE_ACCESS');
+    await cmd(CMD_EXIT_XIP, new Uint8Array([]), 'EXIT_XIP');
+
+    // FLASH_ERASE args: dAddr (u32) + dSize (u32). dAddr is an ABSOLUTE
+    // address — the flash XIP base 0x10000000, not a zero offset. picotool's
+    // own source passes the absolute address; a zero here is what the bootrom
+    // STALLed on.
+    const ea = new Uint8Array(8);
+    const edv = new DataView(ea.buffer);
+    edv.setUint32(0, 0x10000000, true); // dAddr: XIP base
+    edv.setUint32(4, ERASE_SIZE, true); // dSize: 64 KiB
+    await cmd(CMD_FLASH_ERASE, ea, 'FLASH_ERASE');
+
+    say(`Erased ${ERASE_SIZE / 1024} KB from offset 0. The board is blank again.`, 'ok');
+    log('\n=> The partition table is gone. Drag any ordinary .uf2 onto the');
+    log('   RP2350 drive and it will flash normally.');
+  } catch (e) {
+    say(`Failed: ${e.message}`, 'bad');
+    log(`\nexception: ${e}`);
+    log('(If the claim failed on a phone, this MSC+PICOBOOT composite may not');
+    log(' let Android Chrome claim it — try desktop Chrome with a udev rule.)');
+  }
+}
+
+async function disconnect() {
+  try { if (device && ifaceNum !== null) await device.releaseInterface(ifaceNum); } catch {}
+  try { if (device) await device.close(); } catch {}
+  device = null; ifaceNum = null;
+  say('Disconnected.', '');
+  $('stop').disabled = true;
+}
+
+if (!('usb' in navigator)) {
+  say('This browser has no WebUSB. Use Chrome or Edge.', 'bad');
+  $('go').disabled = true;
+} else {
+  $('go').onclick = erase;
+  $('stop').onclick = disconnect;
+}
+</script>

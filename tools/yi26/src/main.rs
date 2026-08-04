@@ -24,6 +24,7 @@
 
 mod board;
 mod drive;
+mod picoboot;
 mod logread;
 mod out;
 mod udev;
@@ -176,6 +177,12 @@ fn run(args: &[String]) -> i32 {
             None => usage_error("markers needs a .uf2 file"),
         },
         "bootsel" => cmd_bootsel(&opts),
+        // Recovery for a board whose flash carries a partition table that the
+        // drag-and-drop path chokes on (exp139). Drives PICOBOOT directly.
+        "nuke" => match picoboot::erase_flash(0x1_0000) {
+            Ok(msg) => { println!("{msg}"); 0 }
+            Err(e) => { eprintln!("nuke failed: {e}"); 1 }
+        },
         "drive" => cmd_drive(&opts),
         "flash" => match positional.get(1) {
             Some(f) => cmd_flash(&opts, Path::new(f)),

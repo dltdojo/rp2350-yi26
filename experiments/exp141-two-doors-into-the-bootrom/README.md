@@ -1,9 +1,10 @@
 # exp141-two-doors-into-the-bootrom — a flash port a browser can claim
 
-> **The WebUSB step is not verified on hardware yet.** The page is written, the
-> descriptor it depends on is confirmed against real silicon, and the static
-> half of `check.sh` passes. What remains is a person clicking the WebUSB
-> dialog — see [Expected output](#expected-output).
+> **Verified on hardware, 2026-08-04.** A Pixel 9a's Chrome claimed the
+> bootrom's PICOBOOT interface and drove it through a full flash erase — the
+> descriptor, the claim on Android, and every command including `FLASH_ERASE`.
+> A browser flashed the bootrom without the drag-and-drop drive. See
+> [Expected output](#expected-output).
 
 [`docs/platforms.md`](../../docs/platforms.md) recorded, on 2026-08-04, that
 dragging a `.uf2` onto the phone's BOOTSEL drive **stopped working** — Android's
@@ -47,12 +48,41 @@ that touch no flash:
 A status of `PICOBOOT_OK` (0) means the round trip worked: the browser claimed
 the bootrom's flash interface, sent it a request, and read a structured reply.
 
-**It stops before writing anything.** Flashing — `FLASH_ERASE`, `WRITE`,
-`REBOOT2` — is the next experiment, and it has a brick risk this one does not.
-`check.sh` fails if a flash command ever appears in the page, because the moment
-one does, this stops being the safe confirmation it is meant to be.
+**`picoboot.html` stops before writing anything** — `check.sh` fails if a flash
+command ever appears in it, so it stays the safe confirmation it is meant to be.
+The writing is in a second page, [`recover.html`](#recovering-a-bricked-board-below-the-way-out),
+because it earned its way in the hardest possible way: it is what un-stuck a
+board exp139 bricked.
 
-## The protocol, for the experiment that writes
+## Recovering a bricked board, below (the way out)
+
+exp139 wrote a partition table to flash offset 0, and on real silicon it did
+not boot the image — it made the bootrom's **drag-and-drop** flashing refuse
+every ordinary UF2. The board enumerated in BOOTSEL, its `RP2350` drive
+appeared, and dropping a `.uf2` on it did nothing: no error, no reboot, just a
+board that looked bricked. Only PICOBOOT still reached it.
+
+So [`recover.html`](./recover.html) drives PICOBOOT to erase the first 64 KiB
+of flash — the bad table and anything after it — and the board is a stock board
+again. Same claim, same first commands as `picoboot.html`, then:
+
+```text
+EXCLUSIVE_ACCESS → EXIT_XIP → FLASH_ERASE(0x10000000, 0x10000)
+```
+
+Verified on the phone (see [Expected output](#expected-output)). The command
+line has it too: **`yi26 nuke`** does the same over `libusb` for anyone with the
+tool built. `picotool erase -a` is the official equivalent, and any of the three
+works because all three drive PICOBOOT rather than the drive.
+
+This is why the arc matters more than one experiment. The drag-and-drop drive is
+fragile in two directions at once — Android writes to it unreliably, and a bad
+partition table makes it refuse writes entirely — and **PICOBOOT is immune to
+both**, because it does not go through the drive or the storage layer. The
+recovery is the sharpest proof the browser track has: a phone un-bricked a board
+from a web page, with no drive, no toolchain, and nothing installed.
+
+## The protocol, for the experiment that writes more
 
 Established here so the next step does not start from zero. A PICOBOOT command
 is a 32-byte packet on the bulk OUT endpoint:
@@ -61,26 +91,27 @@ is a 32-byte packet on the bulk OUT endpoint:
 dMagic (0x431fd10b) │ dToken │ bCmdId │ bCmdSize │ _unused │ dTransferLength │ args[16]
 ```
 
-The command IDs that matter for flashing: `EXCLUSIVE_ACCESS` (0x1),
-`FLASH_ERASE` (0x3), `WRITE` (0x5), `EXIT_XIP` (0x6), `REBOOT2` (0xa). A
-`bCmdId` with the top bit set (e.g. `GET_INFO` 0x8b) is a device-to-host
-transfer. None of that is used by this page; it is the map for the one after.
+The command IDs: `EXCLUSIVE_ACCESS` (0x1), `FLASH_ERASE` (0x3), `WRITE` (0x5),
+`EXIT_XIP` (0x6), `REBOOT2` (0xa). A `bCmdId` with the top bit set (e.g.
+`GET_INFO` 0x8b) is a device-to-host transfer. `recover.html` uses the erase
+path; `WRITE` — putting a whole `.uf2` on over the bulk endpoint — is what
+remains for a full browser flasher.
 
-## Why this matters more than one experiment
-
-The browser track's promise — debug and flash a board with a phone and nothing
-else — quietly depended on drag-and-drop flashing, and drag-and-drop turned out
-to be the fragile part. PICOBOOT over WebUSB is the same shape as everything
-else in this track: a browser claiming a USB interface and speaking its
-protocol, bypassing the storage layer entirely, exactly as the WebUSB log
-readers (exp115–exp126) bypass it. The reading half never had this fragility;
-the flashing half can stop having it too.
+**A range command's `dAddr` is absolute** — `0x10000000`, the flash XIP base,
+not a zero offset. That one word cost a debugging round (see the Expected
+output), and it is the thing to get right first in any command that names a
+flash address.
 
 ## The code IS the walkthrough
 
-- [`picoboot.html`](./picoboot.html) — finds PICOBOOT by class `0xFF` (as
-  exp132 does), claims it, sends the two read-only control requests, and shows
-  the status. Every command ID and the reason it is safe is in the comments.
+- [`picoboot.html`](./picoboot.html) — the read-only confirmation. Finds
+  PICOBOOT by class `0xFF` (as exp132 does), claims it, sends the two read-only
+  control requests, shows the status. No flash command, enforced by `check.sh`.
+- [`recover.html`](./recover.html) — the write. Same claim, then
+  `EXCLUSIVE_ACCESS` → `EXIT_XIP` → `FLASH_ERASE`. This is what un-bricks an
+  exp139 board, verified on the phone.
+- [`../../tools/yi26/src/picoboot.rs`](../../tools/yi26/src/picoboot.rs) —
+  `yi26 nuke`, the same erase over `libusb` for the command line.
 
 ## Two ways to do it
 
@@ -95,20 +126,46 @@ job, so that the person deciding when to enter BOOTSEL is the one who does.
 
 ## Expected output
 
-**Pending the WebUSB tap.** The descriptor half is verified — a board in
-BOOTSEL shows the vendor interface and its bulk endpoints, and `check.sh`
-confirms it. The browser half needs a person to open the page and pick the
-device from Chrome's dialog, which no tool here can do.
+Captured on a **Pixel 9a, Chrome on Android, 2026-08-04**, from
+[`recover.html`](./recover.html) — the write-capable sibling of
+`picoboot.html`, built to un-stick a board exp139 bricked (see
+[Recovering a bricked board](#recovering-a-bricked-board-below-the-way-out)).
+It drives the same claim and the same first commands, then erases:
 
-What it should show when taken: `claimed interface 1`, an `IF_RESET` accepted,
-and a 16-byte status with `dStatusCode=0`. If it does, one line goes in the
-history that the browser track has been missing — **a browser drove the
-bootrom's flash interface** — and the experiment that writes flash can begin.
+```text
+claimed PICOBOOT (interface 1, OUT ep 3, IN ep 4)
+IF_RESET: interface cleared
+EXCLUSIVE_ACCESS: accepted
+EXIT_XIP: accepted
+FLASH_ERASE: accepted
+=> Erased 64 KB from offset 0. The board is blank again.
+```
 
-If instead the claim is refused, that is also a result and goes here: which
-platform, which Chrome, and the exact error. The one real unknown left is
-whether Android's Chrome claims the PICOBOOT interface of this *composite*
-(MSC+PICOBOOT) device; desktop Chrome is the control, and can be tried first.
+Every line is a first for this repository. **`claimed PICOBOOT`** is the answer
+to the one real unknown: Android's Chrome *does* claim the PICOBOOT interface
+of this composite (MSC+PICOBOOT) device. And **`FLASH_ERASE: accepted`** is a
+browser writing the bootrom's flash — no drive, no drag-and-drop, no toolchain.
+
+Two operational details, learned in the same run and easy to trip on:
+
+- **The device picker offers two entries; one opens, one does not.** Selecting
+  the wrong one fails with `open: Access denied`. On Android the MSC half of
+  the device is already held by the kernel's `usb-storage`, so that
+  representation refuses to open; the PICOBOOT half is unclaimed and opens.
+  Pick the one that opens.
+- **After erasing, unplug and replug before flashing a UF2.** The erase leaves
+  Chrome still holding the interface and the mass-storage drive mounted at its
+  old state; re-enumerating gives a clean `RP2350` drive that accepts a dragged
+  `.uf2` (or `yi26 flash`). Dragging onto the stale mount does nothing.
+
+### The bug that the capture found
+
+The first version of `recover.html` sent `FLASH_ERASE` with `dAddr = 0` and got
+`acknowledgement stall` — while every command before it succeeded, which is
+what localised it. `picotool`'s own `picoboot_flash_erase` passes the
+**absolute** address, so `dAddr` is `0x10000000` (the flash XIP base), not a
+zero offset. One word, confirmed against `picoboot_connection.c` rather than
+guessed. Both `recover.html` and `yi26 nuke` carry the fix.
 
 ## What is not verified here
 
