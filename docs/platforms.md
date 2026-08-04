@@ -112,6 +112,8 @@ board — it is an interactive walkthrough that expects hardware. Use
 | exp133 | Same | Drag, then open two pages off the drive at once. A Chromium browser is the whole local requirement; on Linux, the udev rule and `yi26 detach` first |
 | exp134 | Same, **three times** — this experiment is three builds of one firmware | Drag each in turn, ignore the port for a minute, then read what survived. Download all three `.uf2` files before you start |
 | exp135 | Nothing to build | A board already running exp128, and a program holding the CDC interface. **On this route the browser is not the fallback, it is the shorter path**: `console.html` can end a message with a zero-length packet, and no terminal on any platform can |
+| exp136 | `./check.sh`, then download `target/*.uf2` (two builds) | Drag, then send framed bytes and read the log. The sweep that is the real evidence runs on the build machine and needs no board at all |
+| exp137 | Same | Drag, then mount the volume, send one byte, and read the same file twice. Needs a file manager and a way to unmount — the second read is the experiment |
 
 exp101 is the one genuine casualty, and it is unavoidable: an experiment about
 whether your board, cable and host can see each other cannot be run on a host
@@ -331,15 +333,27 @@ by hand, and [exp126](../experiments/exp126-self-hosted-viewer/) puts a file on
 it that a phone can open. A log written there would travel the way the `.uf2`
 already travels: a file manager, on any machine.
 
-**The log is not one of those files, and saying why is more useful than
-promising it again.** The volume is 64 KiB of SRAM whose contents the firmware
-lays down once at boot. Appending to a file after the host has mounted the
-volume means fighting the thing that makes mounting fast: the host caches
-sectors, so bytes the device writes afterwards are simply not read. Real
-devices answer that with a media-change signal — SCSI `UNIT ATTENTION` — which
-this repository has never sent and therefore cannot claim works. Until somebody
-does that experiment, the seam is a file in one direction: `.uf2` in, and the
-log still comes back through a browser.
+**The log is not one of those files, and the reason is now measured rather
+than assumed.** The volume is 64 KiB of SRAM whose contents the firmware lays
+down at boot. Appending to a file after the host has mounted the volume means
+fighting the thing that makes mounting fast: the host caches sectors, so bytes
+the device writes afterwards are simply not read. Real devices answer that with
+a media-change signal — SCSI `UNIT ATTENTION` — and
+[exp137](../experiments/exp137-the-volume-that-changes/) sends one.
+
+It works, and it is not enough. The host acts on the signal completely: it asks
+why, is told `key 6 asc 28`, re-reads the capacity, and re-reads the boot
+sector, the FAT and the root directory. And `cat` on the mounted file returns
+the bytes it returned before, because **`UNIT ATTENTION` is a notification, not
+an invalidation** — the block layer honoured it and the filesystem above it had
+already decided what that file says.
+
+A fresh mount reads the new contents, so what the device buys is a volume that
+is correct **at every mount**. For this page that is a qualified answer rather
+than the one it wanted: the log can come back as a file if whoever reads it
+unmounts and remounts between reads, which on a phone is a person pulling down
+a notification shade. So the seam is still a file in one direction for anything
+automatic: `.uf2` in, and the log comes back through a browser.
 
 ### The 1200-baud signal from a browser
 

@@ -62,6 +62,7 @@ Per experiment:
 | exp134 | Any RP2350 board with a plain LED (change the pin). No browser. Every policy is decided in `crates/log-policy`, which runs `cargo test` on any machine, board or not. |
 | exp135 | A board running **exp128**, which is the instrument. No firmware of its own. The census needs raw USB access — the udev rule — because a tty cannot express the packet being measured. |
 | exp136 | Any RP2350 board. No browser. The comparison it is named for needs no board at all — `cargo test` in `crates/framing` cuts a stream at every offset; the board is where you watch one of those cuts arrive over a real endpoint. |
+| exp137 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk. The measurement is what **your** host's storage stack does with a media change, so this is the experiment here most likely to answer differently elsewhere — and the check reports which answer it got. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -343,7 +344,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136, exp137 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -453,6 +454,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp134 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp135 | `cdc` | `log+commands` | `libusb+webusb` | `exp128` |
 | exp136 | `cdc` | `log+commands` | `cdc_acm` | `own` |
+| exp137 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage` | `own` |
 
 ### Reading the columns
 
@@ -567,6 +569,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp134-the-log-nobody-reads](./exp134-the-log-nobody-reads/) | 1 · board | A full queue keeps the oldest lines, the newest, or none — three builds of one firmware, and the same silence reads three ways |
 | [exp135-a-packet-with-no-bytes](./exp135-a-packet-with-no-bytes/) | 2 · a moment | The message that never ends, ended — and why a terminal cannot send the packet that ends it |
 | [exp136-joining-halfway](./exp136-joining-halfway/) | 1 · board | Two boundaries built out of nothing, judged on joining the stream halfway — one loses messages, the other invents them |
+| [exp137-the-volume-that-changes](./exp137-the-volume-that-changes/) | 1 · board | The volume is laid down again while the host is looking at it — the host honours the signal completely, and the file still does not change |
 
 ## The browser track, finished
 
