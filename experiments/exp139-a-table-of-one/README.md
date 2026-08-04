@@ -89,6 +89,29 @@ rather than on hardware.
 `cargo test` in that crate now covers the item encoding, the sector arithmetic,
 the permission and family bits, and the eight words as a unit.
 
+### Twelve of the values have a second source, and one does not
+
+The words were mirrored from `embassy-rp`'s encoder and then checked against
+the Pico SDK's own `picobin.h`. Both markers, all six permission bits and all
+six family bits agree exactly.
+
+**One field does not have a second source, and it is the one that decides
+whether the board boots.** The SDK defines
+`PICOBIN_BLOCK_ITEM_PARTITION_TABLE` as `0x0a` with no width in its name, while
+its neighbours carry theirs (`ITEM_1BS_IMAGE_TYPE`, `ITEM_2BS_LAST`).
+`embassy-rp` groups `0x0a` under *"these all have a 2-byte size"*, and this
+experiment follows it:
+
+```text
+0x0100040a   two-byte size — what is flashed
+0x0001040a   one-byte size — the alternative, if the first does not boot
+```
+
+Two bytes is the likelier reading for a structural reason rather than an
+authority: a table can hold sixteen partitions of several words each, and a
+one-byte length caps an item at 255 words. Both numbers are pinned by tests in
+the crate, so switching is one edit rather than an afternoon with a datasheet.
+
 ### One of those words was already measured
 
 `0xfc078000` is not a value chosen here. exp138 read it out of
@@ -154,6 +177,10 @@ before anything that writes to flash from inside a running firmware.
 predicted capture is the one thing this repository will not publish. See
 [Nothing is pushed unverified](../README.md#nothing-is-pushed-unverified).
 
+If it does not boot, that is also a result and it goes here in words: which
+word was changed, and what the board did with each version. The one field
+without a second source is named above, so that is where to start.
+
 What it should contain when it is taken: exp138's three questions, answered
 differently — a non-zero partition count, one partition covering sectors
 1..1023, and `get_b_partition(0)` still negative, because one partition has no
@@ -176,7 +203,8 @@ the experiment after this.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | `.start_block` and `.text` overlap at link time | `memory.x` reordered the sections | Keep `rp2350-linker`'s ordering; only ORIGIN changes |
-| The board does not enumerate after flashing | The ROM did not accept the table, or would not boot from sector 1 | The BOOTSEL sequence above |
+| The board does not enumerate after flashing | The ROM did not accept the table, or would not boot from sector 1 | The BOOTSEL sequence above, then try `ONE_BYTE_SIZE_ALTERNATIVE` — see below |
+| …and you want to know which word to change first | The partition-table item's size field is the one value with no second source | `crates/partition-table`, `SIZE_FIELD_IS_UNCONFIRMED`. Change `item(1, 4, …)` to the one-byte layout and rebuild |
 | `cargo test` fails in `partition-table` | A word was changed | That is the test doing its job — decide which is right before flashing |
 
 ## Next

@@ -31,6 +31,23 @@
 //!   0xab123579   end marker
 //! ```
 //!
+//! # What is independently confirmed, and the one thing that is not
+//!
+//! The values here were mirrored from `embassy-rp`'s encoder and then checked
+//! against the Pico SDK's own `picobin.h`. Twelve of them agree exactly: both
+//! markers, all six permission bits, and all six family bits.
+//!
+//! **One does not, and it is the one that decides whether a board boots.**
+//! The SDK defines `PICOBIN_BLOCK_ITEM_PARTITION_TABLE` as `0x0a` with no
+//! `1BS`/`2BS` in the name, while its neighbours carry the width in theirs
+//! (`ITEM_1BS_IMAGE_TYPE`, `ITEM_2BS_LAST`). `embassy-rp` puts `0x0a` under
+//! *"these all have a 2-byte size"*, and this crate follows it — see
+//! [`SIZE_FIELD_IS_UNCONFIRMED`] for what the alternative would be and why the
+//! choice made here is the likelier one.
+//!
+//! That is not a reason to wait. It is a reason to write it down where whoever
+//! is holding a board that will not enumerate can find it in one place.
+//!
 //! # What this crate will not do
 //!
 //! It does not write anything to flash, it has no opinion about A/B, and it
@@ -114,6 +131,33 @@ pub mod family {
     /// test case here.
     pub const ROM_DEFAULTS: u32 = ABSOLUTE | DATA | RP2350_ARM_S | RP2350_RISCV;
 }
+
+/// The one field this crate could not confirm from a second source, and what
+/// to try if a board does not boot.
+///
+/// A partition-table item's header carries a length. Whether that length is
+/// **two bytes wide** (bits 8–23, value in bits 24–31) or **one byte wide**
+/// (bits 8–15, value in bits 16–31) changes the first item word:
+///
+/// ```text
+/// 0x0100040a   two-byte size — what this crate emits, following embassy-rp
+/// 0x0001040a   one-byte size — the alternative
+/// ```
+///
+/// The two-byte reading is the likelier one and this crate uses it, for a
+/// structural reason rather than an authority: a partition table can hold
+/// sixteen partitions of several words each, and a one-byte length caps an
+/// item at 255 words. The other item the same encoder treats as two-byte —
+/// a load map — is variable-length for the same reason.
+///
+/// **If a board flashed with a table from this crate does not enumerate**,
+/// this word is the first thing to change, and
+/// [`ONE_BYTE_SIZE_ALTERNATIVE`] is what to change it to.
+pub const SIZE_FIELD_IS_UNCONFIRMED: bool = true;
+
+/// The first item word a one-byte size field would produce, for the same
+/// one-partition table. See [`SIZE_FIELD_IS_UNCONFIRMED`].
+pub const ONE_BYTE_SIZE_ALTERNATIVE: u32 = 0x0001_040a;
 
 /// One partition's two words.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -272,6 +316,44 @@ mod tests {
                 0xab12_3579,
             ]
         );
+    }
+
+    /// The alternative encoding, written down rather than left to be
+    /// re-derived by somebody holding a board that will not boot.
+    ///
+    /// This is not a test of behaviour — nothing here can know which is right.
+    /// It pins the number so that "try the other one" is one edit rather than
+    /// an afternoon with a datasheet.
+    #[test]
+    fn the_alternative_word_if_the_size_field_is_one_byte() {
+        // Same fields, moved: value in bits 16..31 instead of 24..31, length
+        // in bits 8..15 instead of 8..23.
+        let one_byte = ((1_u32) << 16) | ((4_u32) << 8) | ITEM_PARTITION_TABLE as u32;
+        assert_eq!(one_byte, ONE_BYTE_SIZE_ALTERNATIVE);
+        assert_ne!(one_byte, item(1, 4, ITEM_PARTITION_TABLE));
+    }
+
+    /// What a second source did confirm, so that the unconfirmed part is not
+    /// mistaken for the whole.
+    #[test]
+    fn the_values_the_pico_sdk_agrees_with() {
+        // picobin.h, quoted in the crate docs.
+        assert_eq!(MARKER_START, 0xffff_ded3);
+        assert_eq!(MARKER_END, 0xab12_3579);
+        assert_eq!(permission::SECURE_READ, 0x0400_0000);
+        assert_eq!(permission::SECURE_WRITE, 0x0800_0000);
+        assert_eq!(permission::NON_SECURE_READ, 0x1000_0000);
+        assert_eq!(permission::NON_SECURE_WRITE, 0x2000_0000);
+        assert_eq!(permission::BOOT_READ, 0x4000_0000);
+        assert_eq!(permission::BOOT_WRITE, 0x8000_0000);
+        assert_eq!(family::RP2040, 0x0000_4000);
+        assert_eq!(family::ABSOLUTE, 0x0000_8000);
+        assert_eq!(family::DATA, 0x0001_0000);
+        assert_eq!(family::RP2350_ARM_S, 0x0002_0000);
+        assert_eq!(family::RP2350_RISCV, 0x0004_0000);
+        assert_eq!(family::RP2350_ARM_NS, 0x0008_0000);
+        // 0x80 | 0x7f, which is the one item id the SDK spells out as 2-byte.
+        assert_eq!(ITEM_LAST, 0xff);
     }
 
     #[test]
