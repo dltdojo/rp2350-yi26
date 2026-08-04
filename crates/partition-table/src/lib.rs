@@ -55,11 +55,14 @@
 //!
 //! This matters because a reader holding a board that will not boot should
 //! **not** start by flipping the size field — that was the old advice and it is
-//! wrong. exp139 flashed this exact table on 2026-08-04 and the board did not
-//! boot the image, but the drive then refused writes, which means the ROM
-//! *honoured* the table: the encoding parsed. Whatever kept the image from
-//! booting, it was the image-in-partition setup or the flash path, not these
-//! words.
+//! wrong. exp139 flashed this exact table on 2026-08-04. A raw PICOBOOT write
+//! (`yi26 pflash`, no drive routing) put the table and image exactly where they
+//! are addressed, and the ROM then *booted from the partition* — it launched the
+//! sector-1 image, which crashed before USB and left the board dark. That the
+//! ROM booted from the partition at all means the eight words parsed: the
+//! encoding was never the problem. What crashes the image is its run address
+//! (it is linked in place at `0x10001000`, but the ROM appears to run a
+//! partition image at the XIP base `0x10000000`), not anything in this table.
 //!
 //! # What this crate will not do
 //!

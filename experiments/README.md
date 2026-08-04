@@ -743,12 +743,16 @@ interrogated yet — a direction, not a schedule:
   — so the table is **well-formed**, not the fault. And the ROM *honoured* it:
   the board did not enumerate as application firmware, but its BOOTSEL drive then
   refused every dragged `.uf2`, which a rejected table would not cause. What is
-  not settled is *why* the image did not boot — and the first run has a confound,
-  because it used `yi26 flash` (the drive, which routes UF2 blocks by family)
-  rather than `yi26 pflash` (PICOBOOT, which writes absolute addresses raw). The
-  clean test is a `pflash` flash and reading which of exp138's three questions
-  the board answers. It no longer costs a BOOTSEL press: a board with no bootable
-  image drops into BOOTSEL by itself, and `yi26 nuke` recovers it over PICOBOOT.
+  not settled is *why* the image did not boot. The clean test was run on
+  2026-08-04 — `yi26 pflash`, a raw PICOBOOT write with no drive routing — and it
+  closed the confound: the image was written exactly where it is addressed and
+  still did not run, so this is a real image-in-partition problem. The board went
+  **dark** (no application firmware, no BOOTSEL), which means the ROM launched
+  the sector-1 image and it crashed — and recovery cost a **physical BOOTSEL
+  press**, not the software path first assumed. The leading fix: the image is
+  linked to run in place at `0x10001000`, but the ROM likely runs a partition
+  image at the XIP base `0x10000000`, so it must be linked there (a load/run
+  split, or a rolling window) instead of moved. That is the next attempt.
 - **two images, one version number** — put a firmware in A and another in B
   with a higher version, and let the ROM choose. `pick_ab_parition` is the ROM
   answering the question the standard advice says it cannot.

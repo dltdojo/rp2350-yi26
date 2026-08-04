@@ -5,9 +5,11 @@
 # and move the firmware out of its way.
 #
 # This is the first script in this repository that can leave a board that does
-# not boot. It no longer costs a hand on the button, though: a board with no
-# bootable image drops into BOOTSEL by itself, and PICOBOOT (`yi26 nuke`,
-# exp141's recover.html) reaches it — which is what the recovery below uses.
+# not boot, and — measured on 2026-08-04 — it costs a physical BOOTSEL press to
+# recover. The ROM launches the sector-1 image, it crashes before USB, and the
+# board goes dark: no application firmware and no BOOTSEL, so PICOBOOT cannot
+# reach it. Only unplug/hold/replug brings it back; then `yi26 nuke` +
+# `yi26 pflash` restore a known-good image.
 #
 #   ./run.sh
 
@@ -62,20 +64,19 @@ run_cmd elf2flash convert -b rp2350 "$ELF" "$UF2"
 step 4 "What flashing this costs if it is wrong"
 say ""
 say "If the ROM accepts the table and boots the image, USB comes back and"
-say "nothing about your workflow changes. ${BOLD}If it does not, the board does not"
-say "enumerate as application firmware${RESET} — but a board that finds no bootable"
-say "image drops into BOOTSEL on its own, so it comes back as ${BOLD}2e8a:000f${RESET} and"
-say "PICOBOOT reaches it. On 2026-08-04 the honoured table then made the drag"
-say "drive ${BOLD}refuse every dragged .uf2${RESET}, so the recovery is not a drag:"
+say "nothing about your workflow changes. ${BOLD}It did not.${RESET} Measured on 2026-08-04:"
+say "the ROM launched the sector-1 image, it crashed before USB, and the board"
+say "went ${BOLD}dark${RESET} — no application firmware and ${BOLD}no BOOTSEL${RESET}. So PICOBOOT cannot"
+say "reach it, and the recovery is a ${BOLD}physical BOOTSEL press${RESET}:"
 say ""
-say "  ${BOLD}yi26 nuke${RESET}   erase the table over PICOBOOT, then reflash a known-good"
-say "              image with ${BOLD}yi26 pflash${RESET} — or open exp141's recover.html"
+say "  ${BOLD}1.${RESET} unplug, ${BOLD}2.${RESET} hold BOOTSEL, ${BOLD}3.${RESET} replug, ${BOLD}4.${RESET} release"
+say "  then ${BOLD}yi26 nuke${RESET} and ${BOLD}yi26 pflash exp138.uf2${RESET} to restore a known-good image"
 say ""
-say "This flashes with ${BOLD}yi26 pflash${RESET}, not ${DIM}yi26 flash${RESET}: PICOBOOT writes the UF2's"
-say "absolute addresses raw, so the table and the image land where they are"
-say "addressed instead of being routed by the drive's UF2-family logic. That is"
-say "the difference between ${DIM}the image did not boot${RESET} and ${DIM}the drive put it"
-say "elsewhere${RESET} — see the README's ${DIM}Expected output${RESET}."
+say "This flashes with ${BOLD}yi26 pflash${RESET}, not ${DIM}yi26 flash${RESET}, so the result is readable:"
+say "PICOBOOT writes the UF2's absolute addresses raw, table and image where they"
+say "are addressed, instead of letting the drive route blocks by UF2 family. That"
+say "is why the dark board means ${DIM}the image cannot run where it is${RESET} and not"
+say "${DIM}the drive put it elsewhere${RESET} — see the README's ${DIM}Expected output${RESET}."
 say ""
 confirm "Flash it?" || { say ""; say "Nothing was flashed. The UF2 is at ${DIM}$UF2${RESET} when you want it."; exit 0; }
 
@@ -83,13 +84,21 @@ run_cmd yi26 bootsel
 run_cmd yi26 pflash "$UF2"
 
 # ---------------------------------------------------------------------------
-step 5 "The same three questions"
+step 5 "What the board does now — and what it should do once fixed"
 say ""
-say "Same instrument as exp138, deliberately: if the questions changed, a"
-say "different answer would not mean anything."
+say "${BOLD}As of 2026-08-04 the board goes dark here.${RESET} The image is linked to run"
+say "in place at 0x10001000, but the ROM appears to run a partition image at the"
+say "XIP base 0x10000000, so it faults on its first absolute address. Expect no"
+say "log below, and recover with the physical BOOTSEL press from step 4."
 say ""
-run_cmd yi26 log --seconds 8
-say ""
-say "A non-zero partition count, one partition over sectors 1..1023 — and"
-say "${DIM}get_b_partition(0)${RESET} still negative, because one partition has no B side."
-say "That last one is the control for the experiment after this."
+if yi26_state=$(yi26 state 2>/dev/null); [ "$yi26_state" = running ]; then
+    run_cmd yi26 log --seconds 8
+    say ""
+    say "It booted — so this image is fixed. The success reading is exp138's"
+    say "instrument, unchanged: a non-zero partition count, one partition over"
+    say "sectors 1..1023, and ${DIM}get_b_partition(0)${RESET} still negative (one partition"
+    say "has no B side) — the control for the experiment after this."
+else
+    say "Board state: ${BOLD}${yi26_state:-absent}${RESET}. If it is dark, do the BOOTSEL"
+    say "press, then: ${DIM}yi26 nuke && yi26 pflash ../exp138-what-the-rom-already-knows/target/exp138.uf2${RESET}"
+fi
