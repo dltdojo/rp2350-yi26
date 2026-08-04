@@ -51,7 +51,14 @@ pub fn rule_text() -> String {
          #\n\
          # uaccess grants that to the user physically logged in at this seat, and\n\
          # to nobody else. Delete this file to undo it.\n\
-         SUBSYSTEM==\"usb\", ATTR{{idVendor}}==\"{EXP_VID:04x}\", ATTR{{idProduct}}==\"{EXP_PID:04x}\", TAG+=\"uaccess\"\n"
+         #\n\
+         # Two devices, because a board has two identities. The first is a running\n\
+         # firmware (application VID/PID). The second is the bootrom in BOOTSEL\n\
+         # (2e8a:000f), whose PICOBOOT interface `yi26 nuke` and exp141's recovery\n\
+         # page drive to erase flash — without this line, that access is denied on\n\
+         # Linux exactly as the application one is.\n\
+         SUBSYSTEM==\"usb\", ATTR{{idVendor}}==\"{EXP_VID:04x}\", ATTR{{idProduct}}==\"{EXP_PID:04x}\", TAG+=\"uaccess\"\n\
+         SUBSYSTEM==\"usb\", ATTR{{idVendor}}==\"2e8a\", ATTR{{idProduct}}==\"000f\", TAG+=\"uaccess\"\n"
     )
 }
 
@@ -191,6 +198,10 @@ mod tests {
         assert!(r.contains(r#"ATTR{idVendor}=="1209""#), "{r}");
         assert!(r.contains(r#"ATTR{idProduct}=="0001""#), "{r}");
         assert!(r.contains(r#"TAG+="uaccess""#), "{r}");
+        // The BOOTSEL device too, or `yi26 nuke` and recover.html cannot reach
+        // PICOBOOT on Linux.
+        assert!(r.contains(r#"ATTR{idVendor}=="2e8a""#), "{r}");
+        assert!(r.contains(r#"ATTR{idProduct}=="000f""#), "{r}");
     }
 
     /// The rule is written by `cat` reading stdin, so a missing trailing
