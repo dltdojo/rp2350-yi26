@@ -183,6 +183,15 @@ fn run(args: &[String]) -> i32 {
             Ok(msg) => { println!("{msg}"); 0 }
             Err(e) => { eprintln!("nuke failed: {e}"); 1 }
         },
+        // Flash a UF2 over PICOBOOT, bypassing the mass-storage drive entirely
+        // — the reliable path the drag-and-drop drive is not.
+        "pflash" => match positional.get(1) {
+            Some(f) => match picoboot::flash_uf2(Path::new(f)) {
+                Ok(msg) => { println!("{msg}"); 0 }
+                Err(e) => { eprintln!("pflash failed: {e}"); 1 }
+            },
+            None => usage_error("pflash needs a .uf2 file"),
+        },
         "drive" => cmd_drive(&opts),
         "flash" => match positional.get(1) {
             Some(f) => cmd_flash(&opts, Path::new(f)),
