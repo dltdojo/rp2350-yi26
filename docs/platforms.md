@@ -227,6 +227,48 @@ all**: reboot it from a page, drag the `.uf2` onto the drive that appears, and
 read the result. That is the same hands-free loop the Ubuntu machine has had
 since exp105, arriving on the platform that has none of the tools.
 
+#### The drag-and-drop half is fragile, and 2026-08-04 showed how
+
+The paragraph above is true and it is not reliable, which are not a
+contradiction. Dragging a `.uf2` onto the boot drive worked on 2026-08-03. It
+was tried again on the **same Pixel 9a, the next day**, with a file proven
+byte-for-byte intact, and **it did not work at all** — the flash never
+happened, on either of two file managers, for two different reasons that
+between them close the door:
+
+- **Google Files** (a privileged system app) shows the drive, accepts the
+  copy, and reports success — but the write never reaches the bootrom. The
+  `.uf2` appears in the listing and then vanishes on the next mount, because it
+  only ever lived in Android's storage cache. This is the exp137 finding
+  underneath: what Android displays and what the device received are not the
+  same thing.
+- **Material Files** (a third-party app) cannot even open the drive:
+  `AccessDeniedException: /mnt/media_rw/…: opendir: Permission denied`.
+  Android's scoped storage does not let a non-system app touch a USB mass
+  storage device by path at all.
+
+So the one app that *can* reach the drive writes ineffectively, and the app
+that would write correctly is denied access. The cause is not the app: it is
+that the bootrom presents a **synthetic FAT** the desktop OSes' drivers happen
+to tolerate and this Android's does not. A `.uf2` whose bytes are perfect —
+checked against a SHA-256 the phone displayed — still would not flash.
+
+**What this changes about the claim.** The phone *flashing* half is verified as
+*possible* (2026-08-03) and now also as *not dependable* (2026-08-04): it turns
+on the Android version, the file manager, and some storage-layer state that is
+not visible and not controllable. Treat the drag-and-drop route as a thing that
+sometimes works, not a thing you can plan on. The **reading** half over WebUSB
+(exp115–exp126) has never shown this fragility — a browser claiming a USB
+interface does not go through the storage layer — so the asymmetry is worth
+keeping in mind: on a phone, WebUSB is solid and MSC drag-and-drop is not.
+
+A route that does not depend on the storage layer at all — driving the
+bootrom's **PICOBOOT** interface over WebUSB, the way `picotool` drives it over
+USB on a desktop — would sidestep every failure above. It does not exist in
+this repository yet, and until it is built and verified, a board that will only
+accept a new firmware by drag-and-drop is a board a phone cannot be relied on
+to reflash.
+
 That run still had one dependency this page walked into without noticing: the
 reboot page had to be *sent to the phone first*, because it lived in this
 repository and not on the board.
