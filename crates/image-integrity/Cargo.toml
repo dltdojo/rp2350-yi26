@@ -1,0 +1,20 @@
+[package]
+name = "image-integrity"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A CRC32 that can be forged to any value by changing four bytes, and a hash that cannot"
+
+# One dependency, and it is the point rather than a convenience. `sha2` is the
+# thing being contrasted with CRC: the experiment forges a CRC by hand and then
+# runs the identical attack against SHA-256 to watch it fail. Implementing
+# SHA-256 here would put a 200-line distraction between the reader and that
+# comparison, so it is a crate. CRC is implemented by hand, because its
+# structure is exactly what is being taught.
+[dependencies]
+sha2 = { version = "0.10", default-features = false }
+
+[lib]
+name = "image_integrity"
+
+[workspace]

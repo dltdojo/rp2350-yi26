@@ -65,6 +65,7 @@ Per experiment:
 | exp137 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk. The measurement is what **your** host's storage stack does with a media change, so this is the experiment here most likely to answer differently elsewhere — and the check reports which answer it got. |
 | exp138 | Any RP2350 board. No browser. **RP2350 only, and in the strongest sense yet**: the ROM functions it calls do not exist on the RP2040. Reads only — nothing here writes to flash. |
 | exp139 | Any RP2350 board. No browser. **RP2350 only** — partition tables are a ROM feature the RP2040 has no equivalent of. The sector numbers assume 4 MiB of flash; a board with more can extend the partition, and one with less must shrink it or the table describes memory that is not there. |
+| exp140 | Any machine. **No board at all** — the whole thing is `cargo test` in `crates/image-integrity`, plus a demo against any `.uf2` this repository has built. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -363,7 +364,7 @@ awake — and because most of these experiments cost nothing.
 
 | | Means | Experiments |
 | --- | --- | --- |
-| **0 · none** | No board at all. A machine and nothing else | exp102 |
+| **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
@@ -477,6 +478,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp137 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage` | `own` |
 | exp138 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp139 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp140 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -594,6 +596,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp137-the-volume-that-changes](./exp137-the-volume-that-changes/) | 1 · board | The volume is laid down again while the host is looking at it — the host honours the signal completely, and the file still does not change |
 | [exp138-what-the-rom-already-knows](./exp138-what-the-rom-already-knows/) | 1 · board | The A/B firmware machinery everyone hand-rolls is already in this chip's ROM — asked, not assumed, and empty |
 | [exp139-a-table-of-one](./exp139-a-table-of-one/) | 1 · board | A partition table takes flash offset 0, so the firmware moves — and the eight words that do it are checked before any board sees them |
+| [exp140-a-checksum-that-passes](./exp140-a-checksum-that-passes/) | 0 · none | A CRC forged to any value by four bytes, and the same attack failing on a hash — why *reliability* and *authenticity* are different words |
 
 ## The browser track, finished
 
@@ -754,11 +757,13 @@ interrogated yet — a direction, not a schedule:
   either way. [exp137](./exp137-the-volume-that-changes/) already established
   what a device-served volume can and cannot make a host re-read, which is a
   constraint this inherits.
-- **a correct checksum on somebody else's firmware** — the bridge out of this
-  road. A CRC that matches, an image that was never yours, and an update that
-  accepts it. That is the experiment that makes the difference between
-  *reliability* and *authenticity* something a reader has seen rather than been
-  told.
+**Done.** *a correct checksum on somebody else's firmware* —
+[exp140](./exp140-a-checksum-that-passes/), and it needed no board, so it is
+verified and pushed while the flash experiments wait. It forges a CRC to any
+value by changing four bytes of a real `.uf2`, at the same size, and runs the
+identical attack against SHA-256 to watch it fail — because CRC32 is linear and
+a hash is not. *Reliability* and *authenticity* stop being two words for the
+same thing once you have seen the forgery a CRC waves through.
 
 **Signing and secure boot are not on this road.** RP2350 can enforce signed
 images, and turning that on means burning OTP — **irreversible**, and that
