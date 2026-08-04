@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp138 interactive walkthrough — ask the ROM what it already knows about
-# A/B firmware slots, before building anything that assumes it does not.
+# exp139 interactive walkthrough — put a partition table where the ROM looks,
+# and move the firmware out of its way.
+#
+# This is the first script in this repository that can leave a board needing a
+# hand on the BOOTSEL button, and it says so before it does anything.
 #
 #   ./run.sh
 
@@ -13,69 +16,73 @@ source ../lib.sh
 require_supported_platform
 
 TARGET=thumbv8m.main-none-eabihf
-ELF=target/$TARGET/release/exp138-what-the-rom-already-knows
-UF2=target/exp138.uf2
+ELF=target/$TARGET/release/exp139-a-table-of-one
+UF2=target/exp139.uf2
 
-echo "${BOLD}exp138 — what the ROM already knows${RESET}"
+echo "${BOLD}exp139 — a table of one${RESET}"
 say ""
-say "Every guide to dual-firmware updates on a microcontroller opens the same"
-say "way: the boot ROM is fixed silicon, it cannot know which slot you want,"
-say "so you must hand-roll a bootloader that decides."
-say ""
-say "On most parts that is exactly right. This experiment asks whether it is"
-say "right ${BOLD}here${RESET}, before an arc of experiments gets built on the assumption."
+say "exp138 asked a stock board what it knew about firmware slots: the"
+say "machinery is in the ROM, and there is nothing in it. This puts the"
+say "smallest possible something in it — one partition, no A/B."
 
 # ---------------------------------------------------------------------------
-step 1 "Build and flash — and note what this one cannot do"
+step 1 "The thing nobody tells you first"
+say ""
+say "The ROM looks for a block loop at ${BOLD}flash offset 0${RESET}. That is either your"
+say "firmware's IMAGE_DEF or a partition table. ${BOLD}They cannot both be there.${RESET}"
+say ""
+say "  ${DIM}before${RESET}                         ${DIM}after${RESET}"
+say "  image at 0x10000000            table at 0x10000000"
+say "                                 image at 0x10001000"
+say ""
+say "So writing a table is not adding one. It is ${BOLD}moving your firmware${RESET}."
+
+# ---------------------------------------------------------------------------
+step 2 "The words, checked before anything is flashed"
+run_cmd bash -c "cd ../../crates/partition-table && cargo test --quiet 2>&1 | tail -3"
+say ""
+say "Eight words go to flash offset 0. A wrong one produces a board that does"
+say "not boot and ${BOLD}cannot say why${RESET} — no log, no USB, no error. That is the"
+say "least debuggable failure in this repository, so the check for it runs"
+say "here, on your machine, rather than on the board."
+
+# ---------------------------------------------------------------------------
+step 3 "Build, and look at where things landed"
 run_cmd cargo build --release
+run_cmd bash -c "readelf -S $ELF | grep -E 'partition_table|vector_table|start_block'"
+say ""
+say "The table at ${BOLD}0x10000000${RESET}, the image at ${BOLD}0x10001000${RESET}. Nothing was"
+say "installed to do that: a memory.x of our own, and a linker section."
+say "${DIM}picotool partition create${RESET} is the usual answer and it was not needed."
 run_cmd elf2flash convert -b rp2350 "$ELF" "$UF2"
+
+# ---------------------------------------------------------------------------
+step 4 "What flashing this costs if it is wrong"
 say ""
-say "This firmware ${BOLD}only reads${RESET}. ${DIM}check.sh${RESET} fails if a flash write ever"
-say "appears in its source, because the point of starting here is that nothing"
-say "on this road can brick a board yet."
+say "If the ROM accepts the table and boots the image, USB comes back and"
+say "nothing about your workflow changes. ${BOLD}If it does not, the board does not"
+say "enumerate${RESET} — and no software route reaches it, because the 1200-baud"
+say "touch needs a running firmware to hear it."
 say ""
+say "The recovery is one press, and nothing has to be reinstalled:"
+say ""
+say "  ${BOLD}1.${RESET} Unplug the USB cable"
+say "  ${BOLD}2.${RESET} Hold ${BOLD}BOOTSEL${RESET}, plug it back in, release"
+say "  ${BOLD}3.${RESET} Drag ${DIM}../exp138-what-the-rom-already-knows/target/exp138.uf2${RESET} onto"
+say "     the drive that appears"
+say ""
+confirm "Flash it?" || { say ""; say "Nothing was flashed. The UF2 is at ${DIM}$UF2${RESET} when you want it."; exit 0; }
+
 run_cmd yi26 flash "$UF2"
 
 # ---------------------------------------------------------------------------
-step 2 "The three questions"
+step 5 "The same three questions"
 say ""
-say "  ${BOLD}1.${RESET} Is there a partition table?      ${DIM}get_partition_table_info(PT_INFO)${RESET}"
-say "  ${BOLD}2.${RESET} What chip is this?               ${DIM}get_sys_info(CHIP_INFO)${RESET}"
-say "  ${BOLD}3.${RESET} Does partition 0 have a B side?  ${DIM}get_b_partition(0)${RESET}"
-say ""
-say "The third one is the experiment. A chip whose ROM cannot answer ${DIM}which"
-say "partition is the other half of this pair${RESET} is a chip where A/B has to"
-say "be built by hand."
+say "Same instrument as exp138, deliberately: if the questions changed, a"
+say "different answer would not mean anything."
 say ""
 run_cmd yi26 log --seconds 8
-
-# ---------------------------------------------------------------------------
-step 3 "Reading the words"
 say ""
-say "Raw before interpreted, on purpose: a decoded field that is wrong reads"
-say "like a fact, and the word it came from reads like what it is."
-say ""
-say "  ${DIM}word[1] = 0x00000000${RESET}      the partition count. ${BOLD}Zero.${RESET}"
-say "  ${DIM}word[2] = 0xffffe000${RESET}      sectors 0 to 8191 — all of it unpartitioned"
-say "  ${DIM}get_b_partition(0) -> -17${RESET} no table to answer from"
-say ""
-say "So: nothing is divided, nothing is paired, and the ROM answered every"
-say "question anyway. ${BOLD}The machinery is in the chip, and it is empty.${RESET}"
-
-# ---------------------------------------------------------------------------
-step 4 "What that changes"
-say ""
-say "The functions this board just answered from are the ones a hand-rolled"
-say "bootloader exists to provide:"
-say ""
-say "  ${DIM}pick_ab_parition${RESET}   the ROM's own A/B chooser"
-say "  ${DIM}explicit_buy${RESET}       confirm a provisional image, or it rolls back"
-say "  ${DIM}ITEM_1BS_VERSION${RESET}   the version the ROM compares when it picks"
-say "  ${DIM}IMAGE_TYPE_TBYB${RESET}    the flag that makes an image provisional"
-say ""
-say "None of that makes a custom bootloader pointless — it is the measurement"
-say "that makes the comparison honest. What comes next writes a partition"
-say "table and finds out what the ROM does with one."
-say ""
-say "${DIM}./check.sh${RESET} asserts the answers above, and that this firmware never"
-say "wrote anything."
+say "A non-zero partition count, one partition over sectors 1..1023 — and"
+say "${DIM}get_b_partition(0)${RESET} still negative, because one partition has no B side."
+say "That last one is the control for the experiment after this."

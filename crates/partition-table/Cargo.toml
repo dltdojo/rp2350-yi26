@@ -1,0 +1,19 @@
+[package]
+name = "partition-table"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The block the RP2350's boot ROM reads at flash offset 0, laid out one word at a time"
+
+# No dependencies, and deliberately not embassy-rp. That crate has the types
+# and the constants; what it does not have is a way to put a table at an
+# address, because its builder keeps its words private. This crate produces
+# plain `[u32; N]`, which is the one shape a linker section can hold — and, as
+# a side effect, the one shape `cargo test` can check word by word on a machine
+# with no board.
+[dependencies]
+
+[lib]
+name = "partition_table"
+
+[workspace]

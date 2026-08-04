@@ -23,48 +23,40 @@ bind_interrupts!(struct Irqs {
 const PACKET: usize = 64;
 
 
-/// A partition table, written by hand, one word at a time.
+/// The table, at the one address the ROM looks for it.
 ///
-/// `embassy-rp` has a `PartitionTableBlock` builder and it cannot be used
-/// here: its `contents` are private and there is no accessor, so a block it
-/// builds cannot be placed at an address. That is not a complaint — the
-/// builder is for firmware that writes a table at run time, and this table has
-/// to exist before any of this firmware runs.
-///
-/// So it is written out, and the words are reproduced exactly as
-/// `PartitionTableBlock::new().add_partition_item(...)` would produce them for
-/// the one-partition case. exp125 hand-wrote a FAT12 for the same reason: a
-/// structure is an arrangement of bytes that other software has agreed to
-/// interpret, and you can write one with an array and some arithmetic.
+/// The words come from [`partition_table`], which builds them from named
+/// permissions and families and has a test asserting these exact eight — so a
+/// number typed wrongly is caught by `cargo test` on any machine, instead of
+/// by a board that will not boot and cannot say why.
 ///
 /// ```text
 ///   0xffffded3   start marker
-///   0x0100040a   one partition, four words of item, ITEM_2BS_PARTITION_TABLE
-///   0xfc078000   unpartitioned space: all permissions, the families the ROM
-///                itself defaulted to — exp138 read this exact value off a
-///                board with no table at all
+///   0x0100040a   one partition, four words of item
+///   0xfc078000   unpartitioned: all permissions, the ROM's own default
+///                families — exp138 read this exact value off a board that
+///                had never had a table written to it
 ///   0xfc7fe001   partition 0: sectors 1..1023, all permissions
-///   0xfc020000   partition 0: accepts the RP2350 ARM-S family
-///   0x000004ff   ITEM_2BS_LAST, four words
-///   0x00000000   the link to the next block: zero, so the loop is this block
+///   0xfc020000   partition 0: accepts the rp2350-arm-s family
+///   0x000004ff   last item, four words
+///   0x00000000   the link to the next block: a one-block loop links to itself
 ///   0xab123579   end marker
 /// ```
 ///
-/// Sector 0 is deliberately *not* in the partition. It is where this table
-/// lives, and a partition that contained its own table would be a partition
-/// that could be erased by writing to it.
+/// **Sector 0 is deliberately outside the partition.** It is where this table
+/// lives, and a partition containing its own table is a partition that can be
+/// erased by writing to it.
 #[link_section = ".partition_table"]
 #[used]
-static PARTITION_TABLE: [u32; 8] = [
-    0xffff_ded3,
-    0x0100_040a,
-    0xfc07_8000,
-    0xfc7f_e001,
-    0xfc02_0000,
-    0x0000_04ff,
-    0x0000_0000,
-    0xab12_3579,
-];
+static PARTITION_TABLE: [u32; 8] = partition_table::one_partition(
+    partition_table::permission::ALL | partition_table::family::ROM_DEFAULTS,
+    partition_table::Partition::new(
+        1,
+        1023,
+        partition_table::permission::ALL,
+        partition_table::family::RP2350_ARM_S,
+    ),
+);
 
 /// How long to wait before interrogating the ROM.
 ///

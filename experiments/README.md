@@ -64,6 +64,7 @@ Per experiment:
 | exp136 | Any RP2350 board. No browser. The comparison it is named for needs no board at all — `cargo test` in `crates/framing` cuts a stream at every offset; the board is where you watch one of those cuts arrive over a real endpoint. |
 | exp137 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk. The measurement is what **your** host's storage stack does with a media change, so this is the experiment here most likely to answer differently elsewhere — and the check reports which answer it got. |
 | exp138 | Any RP2350 board. No browser. **RP2350 only, and in the strongest sense yet**: the ROM functions it calls do not exist on the RP2040. Reads only — nothing here writes to flash. |
+| exp139 | Any RP2350 board. No browser. **RP2350 only** — partition tables are a ROM feature the RP2040 has no equivalent of. The sector numbers assume 4 MiB of flash; a board with more can extend the partition, and one with less must shrink it or the table describes memory that is not there. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -363,7 +364,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp138 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -475,6 +476,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp136 | `cdc` | `log+commands` | `cdc_acm` | `own` |
 | exp137 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage` | `own` |
 | exp138 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp139 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -591,6 +593,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp136-joining-halfway](./exp136-joining-halfway/) | 1 · board | Two boundaries built out of nothing, judged on joining the stream halfway — one loses messages, the other invents them |
 | [exp137-the-volume-that-changes](./exp137-the-volume-that-changes/) | 1 · board | The volume is laid down again while the host is looking at it — the host honours the signal completely, and the file still does not change |
 | [exp138-what-the-rom-already-knows](./exp138-what-the-rom-already-knows/) | 1 · board | The A/B firmware machinery everyone hand-rolls is already in this chip's ROM — asked, not assumed, and empty |
+| [exp139-a-table-of-one](./exp139-a-table-of-one/) | 1 · board | A partition table takes flash offset 0, so the firmware moves — and the eight words that do it are checked before any board sees them |
 
 ## The browser track, finished
 
@@ -724,10 +727,16 @@ So the road is not "build A/B". It is **use what is there, then measure what a
 hand-rolled one would have bought you**. In order, and none of them
 interrogated yet — a direction, not a schedule:
 
-- **a partition table, and what the ROM does with one** — write one and ask
-  exp138's three questions again. The first experiment here that writes to
-  flash, which makes it the first that can leave a board needing a hand on
-  BOOTSEL. It gets planned with that stated up front.
+- **a partition table, and what the ROM does with one** —
+  [exp139](./exp139-a-table-of-one/), built and **not yet flashed**. Two things
+  are already settled by it. `picotool` is not required: a `memory.x` of our
+  own and a `#[link_section]` put a table at flash offset 0 and the image at
+  0x10001000, checked in the ELF. And the table's eight words live in
+  [`crates/partition-table`](../crates/partition-table/) with a test pinning
+  each one, because a wrong word there is the least debuggable failure in this
+  repository — a board that draws power and says nothing. What is not settled
+  is whether the ROM will boot an image from sector 1 given that table, and
+  finding out costs one BOOTSEL press if the answer is no.
 - **two images, one version number** — put a firmware in A and another in B
   with a higher version, and let the ROM choose. `pick_ab_parition` is the ROM
   answering the question the standard advice says it cannot.

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp138 quick check — non-interactive verdict.
+# exp139 quick check — non-interactive verdict.
 #
-# Flashes nothing, writes nothing, and asks the board what the ROM told it.
-# Everything this experiment claims is in three log lines, so the check is
-# mostly about whether those lines say what the README says they say.
+# The static half of this one is the important half, and it needs no board:
+# the eight words that go to flash offset 0 are checked by cargo test, and a
+# wrong one produces a board that does not boot and cannot say why.
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 
@@ -25,8 +25,8 @@ USB_RUNS_ON="own"
 usb_check
 
 TARGET=thumbv8m.main-none-eabihf
-ELF=target/$TARGET/release/exp138-what-the-rom-already-knows
-UF2=target/exp138.uf2
+ELF=target/$TARGET/release/exp139-a-table-of-one
+UF2=target/exp139.uf2
 
 if command -v cargo > /dev/null && command -v elf2flash > /dev/null; then
     pass "toolchain present (cargo, elf2flash)"
@@ -43,13 +43,47 @@ else
     fail "compiles" "cargo build --release"
 fi
 
-# The claim that makes this experiment safe to run on anybody's board, and the
-# reason this road starts here rather than one experiment further on.
+# The table's words, checked on this machine rather than on a board. This is
+# the check that matters: the failure it guards against is a device that draws
+# power and says nothing.
+if (cd ../../crates/partition-table && cargo test --quiet) > /dev/null 2>&1; then
+    pass "the partition-table crate's tests pass (the eight words, no board)"
+else
+    fail "the partition-table crate's tests pass" "cd crates/partition-table && cargo test"
+fi
+
+# The firmware still only reads. Writing flash from a running firmware is a
+# later experiment on this road, and doing it here would mean this one could
+# fail in two different ways at once.
 if grep -qE 'flash::|blocking_write|blocking_erase|flash_range' src/main.rs; then
     fail "this firmware only reads" "src/main.rs touches flash"
 else
     pass "this firmware only reads — nothing here writes to flash"
 fi
+
+# The table has to be where the ROM looks, and the image has to be somewhere
+# else. Both are in the ELF, so both are checkable without flashing anything.
+ELF_SECTIONS="$(readelf -S "$ELF" 2>/dev/null || true)"
+if echo "$ELF_SECTIONS" | grep -qE '\.partition_table +PROGBITS +10000000'; then
+    pass "the table is linked at flash offset 0, where the ROM looks"
+else
+    fail "the table is linked at flash offset 0" "memory.x did not take effect"
+fi
+
+if echo "$ELF_SECTIONS" | grep -qE '\.vector_table +PROGBITS +10001000'; then
+    pass "the image starts at 0x10001000 — inside the partition, not on the table"
+else
+    fail "the image starts at 0x10001000" "the image and the table are competing for offset 0"
+fi
+
+# Sector 0 must not be inside the partition it describes.
+# `Partition::new(` and its first argument are on different lines, so this
+# reads the argument rather than the call. A line-based grep for the call would
+# have passed whatever the number was.
+FIRST_SECTOR="$(grep -A1 'Partition::new(' src/main.rs | tail -1 | tr -dc '0-9')"
+[[ "$FIRST_SECTOR" == "1" ]] \
+    && pass "the partition starts at sector 1, so it cannot erase its own table" \
+    || fail "the partition starts at sector 1" "it starts at ${FIRST_SECTOR:-?} — a partition holding sector 0 can erase the table describing it"
 
 # Three questions have to stay three questions. One that quietly grew a fourth
 # would have a README describing something else.
@@ -59,11 +93,11 @@ for fn in get_partition_table_info get_sys_info get_b_partition; do
         || fail "asks the ROM: $fn" "the call is gone from src/main.rs"
 done
 
-if ! exp_running 138; then
-    echo "SKIP  board is not running exp138 — flash it with ./run.sh (not an error)"
+if ! exp_running 139; then
+    echo "SKIP  board is not running exp139 — flash it with ./run.sh (not an error)"
     exit "$FAILED"
 fi
-pass "board is running exp138"
+pass "board is running exp139"
 
 # ---------------------------------------------------------------------------
 # The board half. The answers are said once, three seconds after boot, so a
