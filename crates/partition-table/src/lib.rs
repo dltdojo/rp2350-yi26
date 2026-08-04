@@ -60,9 +60,12 @@
 //! are addressed, and the ROM then *booted from the partition* — it launched the
 //! sector-1 image, which crashed before USB and left the board dark. That the
 //! ROM booted from the partition at all means the eight words parsed: the
-//! encoding was never the problem. What crashes the image is its run address
-//! (it is linked in place at `0x10001000`, but the ROM appears to run a
-//! partition image at the XIP base `0x10000000`), not anything in this table.
+//! encoding was never the problem. What crashes the image is its run address:
+//! it is linked in place at `0x10001000`, but the ROM remaps a booted
+//! partition's start to the XIP base `0x10000000` (confirmed — it is how one
+//! binary boots from either A/B slot), so the image runs `0x1000` off and
+//! faults. A partition image must be linked at `0x10000000` like any other;
+//! nothing here in the table is at fault.
 //!
 //! # What this crate will not do
 //!

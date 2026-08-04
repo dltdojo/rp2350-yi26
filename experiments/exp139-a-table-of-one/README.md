@@ -279,28 +279,47 @@ crash the instant it is booted *from a partition* is the open question — see
 
 ## What is still open
 
-Why the image crashes on launch, when the same firmware boots fine from flash
-offset 0. The leading hypothesis, not yet confirmed on hardware and the reason
-the next flash is worth its BOOTSEL press:
+The *why* is no longer open — it was confirmed after the dark board, from the
+platform's documented boot behaviour and several independent reports. What is
+still open is only whether the fix it points to boots on this board, which is
+the next flash and its BOOTSEL press.
 
-**The image is linked for the wrong address.** `memory.x` here reserves 4 KiB
-for the table and sets the image's `FLASH ORIGIN` to `0x10001000`, so the image
-runs *in place* at sector 1. But a partition image is the unit A/B switching
-moves between slots, and for one binary to boot from either slot the ROM has to
-map the chosen partition's start to a fixed run address — `0x10000000`, the XIP
-base. If the ROM does that here, then the image physically at `0x10001000` is
-executed as though it were at `0x10000000`: every absolute address in it — the
-vector table, function pointers, `.data` — is off by `0x1000`, and it faults on
-the first one. That matches "launched, then crashed."
+**The image was linked for the wrong address, and the design that put it there
+is the deeper mistake.** `memory.x` reserves 4 KiB for the table and moves the
+image's `FLASH ORIGIN` to `0x10001000`, so the image runs *in place* at sector
+1. That is not how the ROM boots a partition. When the ROM boots partition 0 it
+sets up flash address translation so the partition's physical start maps to
+`0x10000000`, the XIP base — the same fixed run address for whichever partition
+it chose, which is exactly what lets one binary boot from either A or B. So a
+partition image must be **linked for `0x10000000` like any ordinary image**, not
+for its physical offset; the ROM does the remap, automatically, with no
+rolling-window item required for the basic case. `picotool info` bears this out:
+it reports an image's address as `0x10000000` no matter which partition holds
+it. exp139's image, linked for `0x10001000`, was therefore run at `0x10000000`
+with every absolute address off by `0x1000` — it faulted on the first one, which
+is precisely "launched, then crashed, then dark."
 
-If that is right, the fix is a load-address / run-address split, not a move:
-link the image for `0x10000000` (VMA) but place it physically at `0x10001000`
-(LMA), so the UF2 writes sector 1 while the image's addresses assume the XIP
-base — which is what the ROM's rolling window provides. `embassy-rp` even exposes
-`item_rolling_window(delta)` for the explicit form. Confirming which mechanism
-the ROM uses — automatic remap by partition, or an explicit rolling-window item
-— is what the datasheet's boot chapter has to settle before the next attempt,
-because each attempt now costs a physical BOOTSEL press.
+So the fix is not a rolling window and not a load/run linker trick. It is to stop
+moving the image:
+
+- Link the image at `0x10000000`, unchanged from an ordinary firmware — revert
+  the `memory.x` origin move.
+- Keep the table at flash offset 0 (physical sector 0), and place the image
+  physically at sector 1, as a **post-link assembly step**: `[table] + [the
+  ordinary image blob, shifted up by one sector]`. The whole image shifts
+  uniformly, which is correct because the ROM remaps the whole partition
+  uniformly. The table and the image are separate concerns glued at the end, not
+  one linked object — which is how the platform actually keeps them.
+- `yi26 pflash` the assembled UF2 (raw physical writes, no drive routing), then
+  `REBOOT2` — the ROM reads the table and boots the partition.
+
+Two things only hardware can close, and each costs a press: whether one `pflash`
+of table-plus-image then reboot is enough, or whether the table must be flashed
+and the board **rebooted first** (the drive path needs that — "pt modified since
+load" — but a raw write may not); and the assembly step's details. See the
+roadmap in [`../README.md`](../README.md#planned). Sources for the mechanism:
+the RP2350 boot chapter, and the A/B and partition threads on the Raspberry Pi
+forums where `picotool info` shows the `0x10000000` remap directly.
 
 ## Make it yours
 

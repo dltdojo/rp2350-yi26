@@ -749,10 +749,13 @@ interrogated yet — a direction, not a schedule:
   still did not run, so this is a real image-in-partition problem. The board went
   **dark** (no application firmware, no BOOTSEL), which means the ROM launched
   the sector-1 image and it crashed — and recovery cost a **physical BOOTSEL
-  press**, not the software path first assumed. The leading fix: the image is
-  linked to run in place at `0x10001000`, but the ROM likely runs a partition
-  image at the XIP base `0x10000000`, so it must be linked there (a load/run
-  split, or a rolling window) instead of moved. That is the next attempt.
+  press**, not the software path first assumed. The cause is now confirmed: the
+  ROM remaps a booted partition's start to the XIP base `0x10000000` (which is
+  how one binary boots from either A/B slot), so a partition image must be linked
+  there like any ordinary image — not moved to `0x10001000` as exp139 did. The
+  fix is to stop moving the image and instead assemble `[table at sector 0] +
+  [ordinary 0x10000000-linked image at sector 1]` as a post-link step, then
+  `pflash` it. No rolling-window item is needed. That is the next attempt.
 - **two images, one version number** — put a firmware in A and another in B
   with a higher version, and let the ROM choose. `pick_ab_parition` is the ROM
   answering the question the standard advice says it cannot.
