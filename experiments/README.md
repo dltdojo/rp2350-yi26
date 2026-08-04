@@ -61,6 +61,7 @@ Per experiment:
 | exp133 | Any RP2350 board, a Chromium browser, and the udev rule for raw USB access. **RP2350 only** — it uses the TRNG. Four interfaces, which is the same count as the composites this repository already enumerates cleanly. |
 | exp134 | Any RP2350 board with a plain LED (change the pin). No browser. Every policy is decided in `crates/log-policy`, which runs `cargo test` on any machine, board or not. |
 | exp135 | A board running **exp128**, which is the instrument. No firmware of its own. The census needs raw USB access — the udev rule — because a tty cannot express the packet being measured. |
+| exp136 | Any RP2350 board. No browser. The comparison it is named for needs no board at all — `cargo test` in `crates/framing` cuts a stream at every offset; the board is where you watch one of those cuts arrive over a real endpoint. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -342,7 +343,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -451,6 +452,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp133 | `cdc+msc+vendor` | `log+commands+files` | `cdc_acm+usb-storage+libusb+webusb` | `own` |
 | exp134 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp135 | `cdc` | `log+commands` | `libusb+webusb` | `exp128` |
+| exp136 | `cdc` | `log+commands` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -564,6 +566,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp133-a-page-per-job](./exp133-a-page-per-job/) | 2 · a moment | The appliance page carries no log code, the log page knows nothing about draws, and both work at once |
 | [exp134-the-log-nobody-reads](./exp134-the-log-nobody-reads/) | 1 · board | A full queue keeps the oldest lines, the newest, or none — three builds of one firmware, and the same silence reads three ways |
 | [exp135-a-packet-with-no-bytes](./exp135-a-packet-with-no-bytes/) | 2 · a moment | The message that never ends, ended — and why a terminal cannot send the packet that ends it |
+| [exp136-joining-halfway](./exp136-joining-halfway/) | 1 · board | Two boundaries built out of nothing, judged on joining the stream halfway — one loses messages, the other invents them |
 
 ## The browser track, finished
 
@@ -631,11 +634,13 @@ descriptor leaves no software route back.
 [exp127](./exp127-host-owns-the-led/) let the host change the board with one
 byte, and was explicit that one byte needs no framing only because it fits
 inside a packet. What follows is the bill for that dodge.
-[exp128](./exp128-reassemble-by-hand/) and
-[exp135](./exp135-a-packet-with-no-bytes/) paid the first two instalments; the
-rest has not been interrogated yet — this repository's rule is that no
-experiment goes to a plan or to code until it has been — so it is a direction,
-not a schedule.
+[exp128](./exp128-reassemble-by-hand/),
+[exp135](./exp135-a-packet-with-no-bytes/) and
+[exp136](./exp136-joining-halfway/) paid it in three instalments, and the road
+is now finished: where a boundary comes from, what the transport's own boundary
+costs, and what it takes to build one out of nothing. Each of the three
+corrected something this section claimed before anything was built, which is
+the argument for interrogating a direction rather than scheduling it.
 
 **Done.** [exp128](./exp128-reassemble-by-hand/) reassembles messages from
 packets, and corrected a claim this section made before anything was built:
@@ -656,10 +661,15 @@ page could do before the command line could. Both host stacks put it on the
 wire, and one unterminated message still poisons the next — a terminator
 prevents the merge and cannot undo it.
 
-- **building a boundary out of nothing** — length-prefix against COBS, judged
-  on the one question that separates them: join a stream halfway through and
-  see which can resynchronise. A crate with `cargo test`, so most of it is
-  verifiable without a board.
+**Done.** *building a boundary out of nothing* —
+[exp136](./exp136-joining-halfway/) built both, length-prefix and COBS, and
+judged them on the one question that separates them: join a stream halfway and
+see which can resynchronise. The answer inverted the expectation.
+`crates/framing` cuts a stream at every offset, and length-prefix **loses fewer
+messages while inventing three that were never sent**; COBS invents none and
+drops one per boundary it cannot recognise. The trade is loss against
+fabrication, and they are not equally bad — a dropped message announces itself,
+an invented one is indistinguishable from a real one.
 
 **SPI, I²C and CAN are not on this road, and will not be.** Their boundaries
 live on a dedicated wire, in the bus's electrical states, and in the frame

@@ -1,0 +1,23 @@
+[package]
+name = "framing"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Two ways to put a message boundary into a byte stream, and what each costs when you join that stream halfway"
+
+# No dependencies, and no transport either. The caller owns the endpoint and
+# feeds this crate bytes, which is what lets `cargo test` cut a stream at every
+# offset on the machine you are reading this on — a thing no board could be
+# asked to do thirty thousand times.
+[dependencies]
+
+[features]
+# Which scheme the firmware links. They are alternatives, not additions: the
+# firmware asks for `Selected`, and exactly one of these decides what it gets.
+default = []
+cobs = []
+
+[lib]
+name = "framing"
+
+[workspace]
