@@ -1,0 +1,12 @@
+[package]
+name = "partimg"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Assemble a partition table and an ordinary 0x10000000-linked image into one bootable partitioned flash image (UF2) for rp2350-yi26 exp139"
+
+[dependencies]
+# The eight words of the table, from the one crate that defines and tests them.
+# This binary is std; depending on a no_std lib is fine — no_std only means the
+# lib does not pull std in, not that a std caller cannot use it.
+partition-table = { path = "../../crates/partition-table" }

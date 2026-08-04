@@ -18,7 +18,6 @@ embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critic
 embassy-usb = "0.6.0"
 static_cell = "2.1.1"
 
-partition-table = { path = "../../crates/partition-table" }
 usb-log = { path = "../../crates/usb-log" }
 usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 

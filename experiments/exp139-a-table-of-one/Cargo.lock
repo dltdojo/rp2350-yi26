@@ -597,7 +597,6 @@ dependencies = [
  "embassy-time",
  "embassy-usb",
  "panic-halt",
- "partition-table",
  "rp2350-linker",
  "static_cell",
  "usb-log",
@@ -942,10 +941,6 @@ dependencies = [
  "smallvec",
  "windows-link",
 ]
-
-[[package]]
-name = "partition-table"
-version = "0.1.0"
 
 [[package]]
 name = "paste"

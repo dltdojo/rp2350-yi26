@@ -2,7 +2,8 @@
 
 Host-side programs. Everything here runs on your computer, not on the board.
 
-There are two of them, and they are for two different hosts:
+Two of them talk to the board, and they are for two different hosts (there is
+also one build-time helper, [`partimg`](#partimg), that touches no board at all):
 
 | | For a host with | Opened by |
 | --- | --- | --- |
@@ -356,3 +357,25 @@ to compile is paid by every learner on first run, and buys little.
 script, on purpose. It runs *before* exp102 installs Rust, so it cannot depend
 on a tool that has to be compiled — and showing those commands directly is
 what that experiment is for. Every later experiment delegates to `yi26`.
+
+## `partimg`
+
+A build-time helper for [exp139](../experiments/exp139-a-table-of-one/), and
+nothing else — it never touches the board. It assembles a *partitioned* image:
+it takes an ordinary firmware UF2 (linked at `0x10000000`, like every firmware
+here), keeps every byte, shifts each block up one 4 KiB sector, and prepends the
+partition table at flash offset 0. The result is `[table at sector 0] + [image
+at sector 1]`, which `yi26 pflash` writes raw.
+
+```sh
+elf2flash convert -b rp2350 <elf> image.uf2
+cargo run --manifest-path tools/partimg/Cargo.toml -- image.uf2 exp139.uf2
+```
+
+It exists because a partition image must **not** be moved to run at its physical
+offset: the ROM remaps a booted partition's start to `0x10000000`, so the image
+is built normally and only its *placement* changes — which is a post-link step,
+not a linker trick. exp139 learned that from a board that went dark; `partimg`
+refuses an image not linked at `0x10000000` so the mistake cannot be made twice.
+The eight table words come from the [`partition-table`](../crates/partition-table/)
+crate, so they stay defined and tested in one place.

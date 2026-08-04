@@ -733,29 +733,19 @@ So the road is not "build A/B". It is **use what is there, then measure what a
 hand-rolled one would have bought you**. In order, and none of them
 interrogated yet — a direction, not a schedule:
 
-- **a partition table, and what the ROM does with one** —
-  [exp139](./exp139-a-table-of-one/), **flashed on 2026-08-04, and the image did
-  not boot**. Three things are settled by it. `picotool` is not required: a
-  `memory.x` of our own and a `#[link_section]` put a table at flash offset 0
-  and the image at 0x10001000, checked in the ELF. The table's eight words live
-  in [`crates/partition-table`](../crates/partition-table/) with a test pinning
-  each one, and they are byte-for-byte `embassy-rp`'s own minimal encoder output
-  — so the table is **well-formed**, not the fault. And the ROM *honoured* it:
-  the board did not enumerate as application firmware, but its BOOTSEL drive then
-  refused every dragged `.uf2`, which a rejected table would not cause. What is
-  not settled is *why* the image did not boot. The clean test was run on
-  2026-08-04 — `yi26 pflash`, a raw PICOBOOT write with no drive routing — and it
-  closed the confound: the image was written exactly where it is addressed and
-  still did not run, so this is a real image-in-partition problem. The board went
-  **dark** (no application firmware, no BOOTSEL), which means the ROM launched
-  the sector-1 image and it crashed — and recovery cost a **physical BOOTSEL
-  press**, not the software path first assumed. The cause is now confirmed: the
-  ROM remaps a booted partition's start to the XIP base `0x10000000` (which is
-  how one binary boots from either A/B slot), so a partition image must be linked
-  there like any ordinary image — not moved to `0x10001000` as exp139 did. The
-  fix is to stop moving the image and instead assemble `[table at sector 0] +
-  [ordinary 0x10000000-linked image at sector 1]` as a post-link step, then
-  `pflash` it. No rolling-window item is needed. That is the next attempt.
+- **a partition table, and what the ROM does with one** — **Done, verified
+  2026-08-04.** [exp139](./exp139-a-table-of-one/) puts one partition table at
+  flash offset 0 and boots an ordinary image from the partition: the board comes
+  up and `get_partition_table_info` reports **one** partition where a stock board
+  reports none. It took getting it wrong first — a moved image that went *dark* —
+  to learn the rule that makes it work: the ROM remaps a booted partition's start
+  to the XIP base `0x10000000`, so a partition image is linked there like any
+  other, not moved. The table's eight words live, tested, in
+  [`crates/partition-table`](../crates/partition-table/) (byte-for-byte
+  `embassy-rp`'s own minimal encoder output), and [`tools/partimg`](../tools/partimg/)
+  assembles `[table at sector 0] + [ordinary image at sector 1]` — no `picotool`,
+  no rolling-window item. `get_b_partition(0)` is still `-17` (one partition has
+  no B side): the control for the next item.
 - **two images, one version number** — put a firmware in A and another in B
   with a higher version, and let the ROM choose. `pick_ab_parition` is the ROM
   answering the question the standard advice says it cannot.

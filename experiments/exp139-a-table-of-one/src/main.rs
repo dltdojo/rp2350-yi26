@@ -22,41 +22,14 @@ bind_interrupts!(struct Irqs {
 
 const PACKET: usize = 64;
 
-
-/// The table, at the one address the ROM looks for it.
-///
-/// The words come from [`partition_table`], which builds them from named
-/// permissions and families and has a test asserting these exact eight — so a
-/// number typed wrongly is caught by `cargo test` on any machine, instead of
-/// by a board that will not boot and cannot say why.
-///
-/// ```text
-///   0xffffded3   start marker
-///   0x0100040a   one partition, four words of item
-///   0xfc078000   unpartitioned: all permissions, the ROM's own default
-///                families — exp138 read this exact value off a board that
-///                had never had a table written to it
-///   0xfc7fe001   partition 0: sectors 1..1023, all permissions
-///   0xfc020000   partition 0: accepts the rp2350-arm-s family
-///   0x000004ff   last item, four words
-///   0x00000000   the link to the next block: a one-block loop links to itself
-///   0xab123579   end marker
-/// ```
-///
-/// **Sector 0 is deliberately outside the partition.** It is where this table
-/// lives, and a partition containing its own table is a partition that can be
-/// erased by writing to it.
-#[link_section = ".partition_table"]
-#[used]
-static PARTITION_TABLE: [u32; 8] = partition_table::one_partition(
-    partition_table::permission::ALL | partition_table::family::ROM_DEFAULTS,
-    partition_table::Partition::new(
-        1,
-        1023,
-        partition_table::permission::ALL,
-        partition_table::family::RP2350_ARM_S,
-    ),
-);
+// This firmware is an ordinary image, linked at 0x10000000 like any other. The
+// partition table is NOT here: it is not part of the image at all. The ROM
+// remaps a booted partition's start to 0x10000000, so a partition image must be
+// linked at the XIP base — moving it (as the first version of exp139 did) makes
+// it run 0x1000 off and fault. The table is placed at flash offset 0, and this
+// image one sector above it, by `tools/partimg` at flash time — see the README.
+// The eight words themselves still live, with their tests, in the
+// `partition-table` crate; `partimg` reads them from there.
 
 /// How long to wait before interrogating the ROM.
 ///

@@ -275,13 +275,18 @@ no longer dependent on the fragile drive: PICOBOOT is the path that works.
 **And the drive is fragile in a second direction, on the desktop too.** The same
 Pixel-9a board, moved to an unrelated Linux machine, *also* refused every
 drag-and-drop `.uf2` — no error, no reboot, the files just piling up unflashed.
-That was not an Android quirk: the board carried an exp139 partition table that
-makes the bootrom **reject the drive's writes entirely** while still presenting
-the drive. So the drag-and-drop route fails in two unrelated ways — Android's
-storage cache swallows the write, and a bad partition table makes the bootrom
-refuse it — and PICOBOOT is immune to both, because it never touches the drive
-or the storage layer. When a drag-and-drop flash silently does nothing, reach
-for `yi26 pflash` / `recover.html`, not another copy.
+That was not an Android quirk: the board carried an exp139 partition table, and
+once the bootrom has loaded a table it **routes a dragged `.uf2` by partition
+rather than to the address on it** — so an image aimed at `0x10000000` (sector 0,
+now the table) has nowhere on the drive to land, and the write is refused while
+the drive still appears. The table itself was well-formed; it was the *routing* a
+valid table imposes that the drag could not satisfy (exp139 later confirmed the
+eight words parse — the ROM boots from them). So the drag-and-drop route fails in
+two unrelated ways — Android's storage cache swallows the write, and a partition
+table reroutes it — and PICOBOOT is immune to both, because it writes raw
+addresses and never touches the drive or the storage layer. When a drag-and-drop
+flash silently does nothing, reach for `yi26 pflash` / `recover.html`, not another
+copy.
 
 That run still had one dependency this page walked into without noticing: the
 reboot page had to be *sent to the phone first*, because it lived in this
