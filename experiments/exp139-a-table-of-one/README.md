@@ -1,18 +1,26 @@
 # exp139-a-table-of-one — the table takes flash offset 0, so the firmware moves
 
-> **Not yet verified on hardware.** Everything below the *Expected output*
-> heading is missing on purpose: this experiment has been built and checked
-> statically, and flashing it is the first thing on this road that can leave a
-> board needing a hand on the BOOTSEL button. See
-> [Before you flash this](#before-you-flash-this).
+> **Flashed on hardware, 2026-08-04 — and the image did not boot.** The eight
+> words are well-formed: they are byte-for-byte what `embassy-rp`'s own encoder
+> produces for a minimal one-partition table (see
+> [The words are not the fault](#the-words-are-not-the-fault)). They were
+> written to flash offset 0, the board did not come back as application
+> firmware, and its BOOTSEL drive then **refused every dragged `.uf2`** — which
+> is how we know the ROM *honoured* the table rather than ignoring it. The
+> recovery is **not** a drag-and-drop and **not** a plain BOOTSEL press; it is
+> PICOBOOT (`yi26 nuke`, or exp141's `recover.html`). What is still open is
+> *why* the image did not boot — and there is a real confound in that first
+> run, named in [Before you flash this](#before-you-flash-this). See
+> [Expected output](#expected-output) for exactly what was observed.
 
 [exp138](../exp138-what-the-rom-already-knows/) asked a stock board what it
 knew about firmware slots and got the same answer three ways: the machinery is
 in the ROM, and there is nothing in it. This experiment puts something in it —
 the smallest thing that can be there, one partition and no A/B.
 
-Needs: any RP2350 board, and the exp102 toolchain. No browser. **A person only
-if it goes wrong**, and the recovery is one BOOTSEL press.
+Needs: any RP2350 board, and the exp102 toolchain. No browser. **No person even
+if it goes wrong**: a board that finds no bootable image drops into BOOTSEL by
+itself, and `yi26 nuke` recovers it over PICOBOOT — no hand on the button.
 
 ## The thing nobody tells you first
 
@@ -135,25 +143,69 @@ a partition that can erase the table describing it, by being written to
 normally. The crate cannot prevent that — it does not know where the table
 went — so the shape is a test case rather than a rule.
 
+## The words are not the fault
+
+When the image did not boot, the first suspicion was the one word this crate
+could not confirm from a second source — the size field, `SIZE_FIELD_IS_UNCONFIRMED`.
+It is the wrong suspicion, and the check is on this machine, not on a board.
+
+`embassy-rp` ships its own partition-table encoder (`embassy_rp::block`,
+`PartitionTableBlock::add_partition_item`). Expand it for one partition with no
+id, no name and no extra families — the minimal case — and it emits, in order:
+the start marker; an item header of `item_generic_2bs(count=1, len=4,
+ITEM_2BS_PARTITION_TABLE)`; the unpartitioned flags; the partition's location
+and flags words; `item_last(4)`; a self-link of `0`; the end marker. Eight
+words. They are the eight this experiment flashes, value for value:
+
+```text
+0xffffded3  0x0100040a  0xfc078000  0xfc7fe001
+0xfc020000  0x000004ff  0x00000000  0xab123579
+```
+
+So the table is not malformed and it is not missing a required item. `picotool`
+adds a version and a SHA-256 to the tables it generates, but `embassy-rp`'s own
+test builds a working table without either — they are optional. **Whatever kept
+the image from booting, it was not the encoding of the table.** That narrows the
+open question to the image-in-partition setup and the flash path, which is where
+[Expected output](#expected-output) and [Before you flash this](#before-you-flash-this)
+now point.
+
 ## Before you flash this
 
 The board currently runs a firmware whose image starts at flash offset 0. After
 this one, offset 0 is a table and the image is at 0x10001000. If the ROM
 accepts the table and boots the image, USB comes back and everything continues
-as normal. **If it does not, the board does not enumerate**, and no software
-route reaches it — `yi26 flash` needs a running firmware to send the 1200-baud
-touch to.
+as normal. **If it does not, the board does not enumerate as application
+firmware** — but it does not draw power in silence either. A board that finds
+no bootable image drops into BOOTSEL on its own, so it comes back as `2e8a:000f`
+with the bootrom's two doors, and PICOBOOT reaches it.
 
-The recovery is one press, and nothing has to be reinstalled:
+**Flash it with `yi26 pflash`, not `yi26 flash`.** This matters for reading the
+result, not only for reliability. `yi26 flash` (and any drag-and-drop) hands the
+UF2 to the bootrom's *drive*, which routes each block by UF2 family into
+whichever partition accepts it — so a `rp2350-arm-s` image aimed at
+`0x10000000` may not land where the bytes say. `yi26 pflash` drives PICOBOOT and
+writes the UF2's absolute addresses **raw**, table and image both exactly where
+they are addressed. The first hardware run used `yi26 flash`, and that is a
+confound: "the image did not boot" is entangled with "the drive may have routed
+it elsewhere." The clean test — the one that would make a non-boot mean the
+image-in-partition setup is wrong rather than the flash path — is `yi26 pflash
+target/exp139.uf2`.
 
-1. Unplug the USB cable.
-2. **Hold BOOTSEL**, plug the cable back in, release.
-3. The `RP2350` drive appears.
-4. Drag any known-good `.uf2` onto it — for example
-   `../exp138-what-the-rom-already-knows/target/exp138.uf2`.
+The recovery is not a drag and not a plain BOOTSEL press. On the first run the
+BOOTSEL **drive refused every dragged `.uf2`** while still appearing — the
+honoured table made the bootrom reject the drive's writes. Only PICOBOOT still
+reached the board, so recover with one of:
 
-That is the whole cost of being wrong, and it is why this experiment exists
-before anything that writes to flash from inside a running firmware.
+1. `yi26 nuke` — erases the first 64 KiB (the table and what follows) over
+   PICOBOOT, on the command line. See [`tools/`](../../tools/README.md).
+2. exp141's [`recover.html`](../exp141-two-doors-into-the-bootrom/recover.html)
+   — the same erase from a browser, including a phone, with nothing installed.
+
+Then flash a known-good image with `yi26 pflash` — for example
+`../exp138-what-the-rom-already-knows/target/exp138.uf2`. That is the whole cost
+of being wrong, and it is why this experiment exists before anything that writes
+to flash from inside a running firmware.
 
 ## The code IS the walkthrough
 
@@ -173,19 +225,47 @@ before anything that writes to flash from inside a running firmware.
 
 ## Expected output
 
-**Pending.** This section stays empty until a board has run it, because a
-predicted capture is the one thing this repository will not publish. See
-[Nothing is pushed unverified](../README.md#nothing-is-pushed-unverified).
+There is no serial capture, because there was nothing to capture: the board did
+not enumerate as application firmware, so its port never opened and the three
+questions were never asked. The README always said that if it did not boot,
+that too was a result and would go here in words. Here it is, from
+**2026-08-04**.
 
-If it does not boot, that is also a result and it goes here in words: which
-word was changed, and what the board did with each version. The one field
-without a second source is named above, so that is where to start.
+`target/exp139.uf2` was flashed with `yi26 flash` — the drag-and-drop path, not
+PICOBOOT — onto a board that had been running an ordinary offset-0 firmware.
+What was observed, in order:
 
-What it should contain when it is taken: exp138's three questions, answered
-differently — a non-zero partition count, one partition covering sectors
-1..1023, and `get_b_partition(0)` still negative, because one partition has no
-B side. That last one is the point of stopping at one: it is the control for
-the experiment after this.
+```text
+- The board did not come back as 0x1209 (application firmware). No log, no CDC
+  port. The image at 0x10001000 did not run.
+- The board did present its BOOTSEL side: the RP2350 drive appeared.
+- Dragging a known-good .uf2 onto that drive did nothing — no error, no reboot,
+  the file just did not take. Every drag was refused, on more than one host.
+- `yi26 nuke` (and, separately, exp141's recover.html from a phone) erased the
+  first 64 KiB over PICOBOOT. After a replug the board was a stock board again
+  and a dragged .uf2 flashed normally.
+```
+
+Two things that behaviour settles, and one it does not.
+
+**It settles that the ROM read and honoured the table.** A table the ROM
+ignored would have left offset 0 looking like a broken image, dropped the board
+into BOOTSEL, and left the drive working normally. Instead the drive *refused*
+writes — the bootrom was enforcing a partition layout, which it can only do from
+a table it accepted. So the eight words parsed. That agrees with
+[The words are not the fault](#the-words-are-not-the-fault): the encoding was
+never the problem.
+
+**It does not settle why the image did not boot**, because the first run used
+`yi26 flash`. A `rp2350-arm-s` UF2 aimed at `0x10000000` goes to the drive,
+which routes blocks by family into partitions rather than writing them where
+they are addressed — so the image may never have reached `0x10001000` intact.
+"The image did not boot" and "the drive put the image somewhere else" are not
+distinguishable from this run. The test that separates them is `yi26 pflash`,
+which writes the UF2's absolute addresses raw; see
+[Before you flash this](#before-you-flash-this). Running that, and reading which
+of exp138's three questions the board answers, is the next hardware step and the
+one the goal — *an image booting from a partition* — actually turns on.
 
 ## Make it yours
 
@@ -203,8 +283,8 @@ the experiment after this.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | `.start_block` and `.text` overlap at link time | `memory.x` reordered the sections | Keep `rp2350-linker`'s ordering; only ORIGIN changes |
-| The board does not enumerate after flashing | The ROM did not accept the table, or would not boot from sector 1 | The BOOTSEL sequence above, then try `ONE_BYTE_SIZE_ALTERNATIVE` — see below |
-| …and you want to know which word to change first | The partition-table item's size field is the one value with no second source | `crates/partition-table`, `SIZE_FIELD_IS_UNCONFIRMED`. Change `item(1, 4, …)` to the one-byte layout and rebuild |
+| The board does not enumerate as application firmware after flashing | No bootable image was found — but the board drops into BOOTSEL on its own, so it comes back as `2e8a:000f` | Recover with `yi26 nuke` or `recover.html` (a bad table makes the drag drive refuse writes), then reflash with `yi26 pflash` — see [Before you flash this](#before-you-flash-this) |
+| …and you were about to blame the size field | The one value with no second source *looks* like the suspect, but the table matches `embassy-rp`'s own encoder byte for byte | It is not the encoding — see [The words are not the fault](#the-words-are-not-the-fault). Retest with `yi26 pflash`, which removes the drive's family routing, before changing any word |
 | `cargo test` fails in `partition-table` | A word was changed | That is the test doing its job — decide which is right before flashing |
 
 ## Next

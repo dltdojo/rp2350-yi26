@@ -734,15 +734,21 @@ hand-rolled one would have bought you**. In order, and none of them
 interrogated yet — a direction, not a schedule:
 
 - **a partition table, and what the ROM does with one** —
-  [exp139](./exp139-a-table-of-one/), built and **not yet flashed**. Two things
-  are already settled by it. `picotool` is not required: a `memory.x` of our
-  own and a `#[link_section]` put a table at flash offset 0 and the image at
-  0x10001000, checked in the ELF. And the table's eight words live in
-  [`crates/partition-table`](../crates/partition-table/) with a test pinning
-  each one, because a wrong word there is the least debuggable failure in this
-  repository — a board that draws power and says nothing. What is not settled
-  is whether the ROM will boot an image from sector 1 given that table, and
-  finding out costs one BOOTSEL press if the answer is no.
+  [exp139](./exp139-a-table-of-one/), **flashed on 2026-08-04, and the image did
+  not boot**. Three things are settled by it. `picotool` is not required: a
+  `memory.x` of our own and a `#[link_section]` put a table at flash offset 0
+  and the image at 0x10001000, checked in the ELF. The table's eight words live
+  in [`crates/partition-table`](../crates/partition-table/) with a test pinning
+  each one, and they are byte-for-byte `embassy-rp`'s own minimal encoder output
+  — so the table is **well-formed**, not the fault. And the ROM *honoured* it:
+  the board did not enumerate as application firmware, but its BOOTSEL drive then
+  refused every dragged `.uf2`, which a rejected table would not cause. What is
+  not settled is *why* the image did not boot — and the first run has a confound,
+  because it used `yi26 flash` (the drive, which routes UF2 blocks by family)
+  rather than `yi26 pflash` (PICOBOOT, which writes absolute addresses raw). The
+  clean test is a `pflash` flash and reading which of exp138's three questions
+  the board answers. It no longer costs a BOOTSEL press: a board with no bootable
+  image drops into BOOTSEL by itself, and `yi26 nuke` recovers it over PICOBOOT.
 - **two images, one version number** — put a firmware in A and another in B
   with a higher version, and let the ROM choose. `pick_ab_parition` is the ROM
   answering the question the standard advice says it cannot.

@@ -4,8 +4,10 @@
 # exp139 interactive walkthrough — put a partition table where the ROM looks,
 # and move the firmware out of its way.
 #
-# This is the first script in this repository that can leave a board needing a
-# hand on the BOOTSEL button, and it says so before it does anything.
+# This is the first script in this repository that can leave a board that does
+# not boot. It no longer costs a hand on the button, though: a board with no
+# bootable image drops into BOOTSEL by itself, and PICOBOOT (`yi26 nuke`,
+# exp141's recover.html) reaches it — which is what the recovery below uses.
 #
 #   ./run.sh
 
@@ -61,19 +63,24 @@ step 4 "What flashing this costs if it is wrong"
 say ""
 say "If the ROM accepts the table and boots the image, USB comes back and"
 say "nothing about your workflow changes. ${BOLD}If it does not, the board does not"
-say "enumerate${RESET} — and no software route reaches it, because the 1200-baud"
-say "touch needs a running firmware to hear it."
+say "enumerate as application firmware${RESET} — but a board that finds no bootable"
+say "image drops into BOOTSEL on its own, so it comes back as ${BOLD}2e8a:000f${RESET} and"
+say "PICOBOOT reaches it. On 2026-08-04 the honoured table then made the drag"
+say "drive ${BOLD}refuse every dragged .uf2${RESET}, so the recovery is not a drag:"
 say ""
-say "The recovery is one press, and nothing has to be reinstalled:"
+say "  ${BOLD}yi26 nuke${RESET}   erase the table over PICOBOOT, then reflash a known-good"
+say "              image with ${BOLD}yi26 pflash${RESET} — or open exp141's recover.html"
 say ""
-say "  ${BOLD}1.${RESET} Unplug the USB cable"
-say "  ${BOLD}2.${RESET} Hold ${BOLD}BOOTSEL${RESET}, plug it back in, release"
-say "  ${BOLD}3.${RESET} Drag ${DIM}../exp138-what-the-rom-already-knows/target/exp138.uf2${RESET} onto"
-say "     the drive that appears"
+say "This flashes with ${BOLD}yi26 pflash${RESET}, not ${DIM}yi26 flash${RESET}: PICOBOOT writes the UF2's"
+say "absolute addresses raw, so the table and the image land where they are"
+say "addressed instead of being routed by the drive's UF2-family logic. That is"
+say "the difference between ${DIM}the image did not boot${RESET} and ${DIM}the drive put it"
+say "elsewhere${RESET} — see the README's ${DIM}Expected output${RESET}."
 say ""
 confirm "Flash it?" || { say ""; say "Nothing was flashed. The UF2 is at ${DIM}$UF2${RESET} when you want it."; exit 0; }
 
-run_cmd yi26 flash "$UF2"
+run_cmd yi26 bootsel
+run_cmd yi26 pflash "$UF2"
 
 # ---------------------------------------------------------------------------
 step 5 "The same three questions"
