@@ -287,9 +287,21 @@ yi26() {
             if [[ ! -x "$built" ]] \
                || [[ -n "$(find "$root/tools/yi26/src" "$root/tools/yi26/Cargo.toml" \
                             -newer "$built" -print -quit 2>/dev/null)" ]]; then
-                echo "  ${DIM}building the host helper: cargo build --release --manifest-path tools/yi26/Cargo.toml${RESET}" >&2
+                echo "  ${DIM}building the host helper: cargo build --release (in tools/yi26)${RESET}" >&2
                 echo "  ${DIM}(to type 'yi26' yourself, outside these scripts: cargo install --path tools/yi26)${RESET}" >&2
-                cargo build --release --quiet --manifest-path "$root/tools/yi26/Cargo.toml" >&2 || return 1
+                # In a subshell, *cd'd into the tool's own directory*, and not
+                # `--manifest-path` from wherever the caller stands. Cargo picks
+                # up `.cargo/config.toml` from the working directory, and every
+                # experiment here has one that pins `target =
+                # thumbv8m.main-none-eabihf`. Building the host tool from an
+                # experiment directory therefore tried to compile it for a
+                # Cortex-M33, failed on the first host-only dependency, and
+                # returned nothing — so `yi26 port` produced no serial and the
+                # board half of that experiment's check.sh reported "board is
+                # not running expNNN". Measured, and blamed on USB enumeration
+                # for a day: exp142's check.sh carried a note saying the SKIP
+                # was nusb going briefly empty under load. It was this.
+                ( cd "$root/tools/yi26" && cargo build --release --quiet ) >&2 || return 1
             fi
             YI26_BIN="$built"
         elif [[ -x "$built" ]]; then

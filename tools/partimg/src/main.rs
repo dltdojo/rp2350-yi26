@@ -18,7 +18,7 @@
 //!   partimg ab <a.uf2> <b.uf2> <out.uf2>         exp142: an A/B pair
 //!       [A/B table]    @ 0x10000000  (sector 0)
 //!       [image A]      @ 0x10001000  (sector 1)
-//!       [image B]      @ 0x10200000  (sector 512)
+//!       [image B]      @ 0x10011000  (sector 17)
 //! ```
 //!
 //! `yi26 pflash` writes those absolute addresses raw, so table and images land

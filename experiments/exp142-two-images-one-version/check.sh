@@ -108,10 +108,18 @@ for fn in get_partition_table_info get_b_partition; do
         || fail "asks the ROM: $fn" "the call is gone from src/main.rs"
 done
 
-# Let the USB stack settle: the builds and the many yi26 calls above can leave
-# nusb enumeration briefly unable to see the board on this host. This is only
-# about reading the board's serial to confirm the right firmware — the board is
-# fine either way.
+# Let the USB stack settle after the builds above, before reading the board's
+# serial to confirm the right firmware.
+#
+# This comment used to say that the SKIP below was nusb enumeration going
+# briefly empty under load. That was wrong, and exp143 found the real cause: the
+# `yi26` wrapper in lib.sh rebuilds the host tool when it is stale, and it used
+# to do that from whatever directory the caller stood in — here, an experiment
+# directory whose `.cargo/config.toml` pins `target = thumbv8m.main-none-eabihf`.
+# The host tool was compiled for a Cortex-M33, the build failed, `yi26` returned
+# nothing, and the board half reported "board is not running exp142" against a
+# board that was running it perfectly. Fixed in lib.sh; kept written down here
+# because a wrong cause in a comment is worse than no comment.
 sleep 2
 if ! exp_running 142; then
     echo "SKIP  board is not running exp142 (or its serial did not enumerate just now)"

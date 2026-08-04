@@ -68,6 +68,7 @@ Per experiment:
 | exp140 | Any machine. **No board at all** — the whole thing is `cargo test` in `crates/image-integrity`, plus a demo against any `.uf2` this repository has built. |
 | exp141 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface, identical on any board. Reads only; writes no flash. |
 | exp142 | Any RP2350 board. No browser. **RP2350 only** — A/B partitions and image-version selection are ROM features. Two ~64 KiB slots near the start of flash; reads only, nothing here writes flash from firmware. |
+| exp143 | Any RP2350 board. No browser. **RP2350 only** — try-before-you-buy, `explicit_buy` and flash update boot are ROM features. The same two ~64 KiB slots as exp142. This one **does** write flash from firmware: the ROM rewrites slot B's first sector to clear the TBYB bit. Slot A and the table are never written. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -367,7 +368,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142, exp143 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -483,6 +484,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp140 | `none` | `none` | `none` | `none` |
 | exp141 | `vendor` | `control` | `webusb` | `bootrom` |
 | exp142 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp143 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -603,6 +605,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp140-a-checksum-that-passes](./exp140-a-checksum-that-passes/) | 0 · none | A CRC forged to any value by four bytes, and the same attack failing on a hash — why *reliability* and *authenticity* are different words |
 | [exp141-two-doors-into-the-bootrom](./exp141-two-doors-into-the-bootrom/) | 2 · a moment | BOOTSEL has two USB interfaces; a browser cannot claim the drive but can claim the other one — the flash port `picotool` drives |
 | [exp142-two-images-one-version](./exp142-two-images-one-version/) | 1 · board | Two firmwares in an A/B pair with different versions, and the ROM boots the higher — then swap the versions and the other one boots, the choice live |
+| [exp143-the-image-that-is-never-bought](./exp143-the-image-that-is-never-bought/) | 1 · board | An image marked provisional runs once on a 16.8-second clock and is taken back unless it calls `explicit_buy` — a rollback built out of not asking to stay |
 
 ## The browser track, finished
 
@@ -757,11 +760,30 @@ interrogated yet — a direction, not a schedule:
   `get_b_partition(0)` turns from exp139's `-17` to `1`. The version lives in
   each image's own `IMAGE_DEF` (a `VERSION` item, via embassy-rp's
   `imagedef-none`), and `partimg ab` places both images and the linked A/B table.
-- **the image that is never bought** — try-before-you-buy. An image that boots,
-  runs, and is never confirmed, and the ROM putting the old one back at the
-  next reset. This is where a rollback becomes something you watch rather than
-  something you are promised, and it is deliberately built out of *not calling*
-  `explicit_buy` rather than out of a deliberately broken image.
+- **the image that is never bought** — **Done, verified 2026-08-05.**
+  [exp143](./exp143-the-image-that-is-never-bought/) marks slot B
+  try-before-you-buy and watches the board be taken back from it, again and
+  again, because B never calls `explicit_buy`. Three things were measured that
+  this line, written before the experiment, had wrong or did not know:
+  - **A plain reset is not how a provisional image is tried.** An unbought TBYB
+    image is not a current image: B is v2.0 against A's v1.0 and the ROM boots
+    **A**. The only way in is `reboot(FLASH_UPDATE, update_base)` — so exp143's
+    slot A hands the board over on purpose, which is what a field update does
+    once it has written the new half.
+  - **The trial is a clock, and the clock is the watchdog.** A trial boot starts
+    with `WATCHDOG.CTRL` enabled and 16,775,289 µs left of the hardware's
+    16,777,215 µs maximum; an ordinary boot of the same binary reads 0. Two
+    samples nine seconds apart differ by exactly the nine seconds. So a trial
+    image has about **16.8 seconds** — room for USB to enumerate and say what it
+    found, which is why nothing in exp143 has to race or feed the watchdog.
+  - **The buy is a flash write, done by the ROM to the sector the image is
+    running from.** `explicit_buy` returned 0 in 37 ms, the IMAGE_TYPE word in
+    flash went `0x90210142` → `0x10210142`, and the ROM **disabled the trial
+    clock itself**. After that the same binary boots on a plain reset and reads
+    its own TBYB bit as clear.
+
+  `WATCHDOG.REASON.TIMER` is not the evidence it looks like: it is set after an
+  ordinary `pflash` too, because the ROM's own reboot goes through the watchdog.
 - **the drag-and-drop that lands in the right slot** — the question the whole
   road came from: a user drops one file and the correct half is written, with
   no `for_slotA` / `for_slotB` in the filename.
