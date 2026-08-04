@@ -83,10 +83,11 @@ log tab recorded every draw the other tab sent, with nothing lost. So on a
 device with a second channel the log goes back to being one independent file
 that drops onto anything, and welding it into each appliance page is the wrong
 trade. This volume carries the merged page because this firmware has one
-channel, not because merging is better. [exp133](../exp133-a-page-per-job/) is the same drawer built on two, with the
-log back as an independent file and an appliance page less than half the size.
+channel, not because merging is better. [exp133](../exp133-a-page-per-job/) is
+the same drawer built on two, with the log back as an independent file and an
+appliance page less than half the size.
 
-## The one that names itself## The one that names itself
+## The one that names itself
 
 `reboot.html` says what it does to somebody who already knows. In a file
 listing on a phone, beside `INDEX.HTM` and `LOG.HTM`, it does not — reboot
@@ -235,6 +236,28 @@ simply three ticks.
   because the volume is synthetic. The capture above puts this build's UF2 at
   115200 bytes; the build that also carried the log viewer came to 140288, and
   dropping that page is most of the difference.
+
+## What is not verified here
+
+**This experiment's own `Expected output` is one commit behind.** It was taken
+before `FLASH.HTM` was re-pointed at the maintained
+[`tools/pages/flash.html`](../../tools/pages/) — the same 9905 bytes, from a
+different file — and before that day's edits to `src/main.rs`. A build from
+this checkout comes out **512 bytes larger** than the `115200` recorded below,
+which is one UF2 block and nothing about the firmware's behaviour. `check.sh`
+passes against the current build, and the numbers that carry the experiment's
+argument — 125 clusters, 33 for `INDEX.HTM`, 20 for `FLASH.HTM`, 55 used — are
+unaffected.
+
+It is **deliberately not being re-taken now.** This repository is walked
+experiment by experiment, and the run that teaches exp131 to somebody is the
+run that produces its capture; a number taken outside that order has no
+walkthrough attached to it. Whoever next works through this experiment replaces
+the block above with what their board actually printed.
+
+**The phone section is the three-page build**, and says so where it appears.
+That capture is kept rather than re-taken because the page it shows failing is
+the whole reason this experiment ships two files instead of three.
 
 ## Make it yours
 

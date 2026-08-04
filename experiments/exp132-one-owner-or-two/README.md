@@ -199,8 +199,10 @@ two windows of Chrome on Linux is not, and the kernel's `cdc_acm` has to be
 detached there first, which is a different starting position.
 
 **The one-channel build on hardware.** It compiles and converts on every
-`check.sh` run; flashing it is `run.sh`'s job. Its behaviour is exp129's,
-which is verified there.
+`check.sh` run; flashing it is `run.sh`'s job. Its behaviour is exp129's, which
+is verified there — which is why this is recorded rather than queued. Whoever
+next walks through this experiment flashes both builds in turn, and that run is
+where the one-channel half stops being an inference.
 
 ## Make it yours
 

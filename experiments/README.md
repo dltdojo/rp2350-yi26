@@ -306,6 +306,24 @@ Practical consequences:
   next experiment needs a human on the BOOTSEL button. That is a real cost of
   the early track, and the reason the 1200-baud experiment is worth reaching.
 
+### A capture ages, and where that is written down
+
+`Expected output` is what one run printed on one day. When the code moves
+afterwards — a page grows, a shared crate changes, a file is re-pointed at a
+different source — the capture does not follow it, because editing a capture to
+match what you expect is the exact thing this section exists to forbid.
+
+So an aged capture is **recorded, not repaired**: the experiment's own
+`What is not verified here` says which lines have moved, by how much, and why
+the argument still holds. Three of them say so today — exp130's page build,
+exp131's UF2 size, exp132's one-channel build.
+
+They are not a backlog, and deliberately so. This repository is walked
+experiment by experiment, and the run that teaches an experiment to somebody is
+the run that produces its capture; a number taken outside that order arrives
+with no walkthrough attached to it. Whoever next works through one of those
+experiments replaces its block with what their board actually printed.
+
 ### Of the two sizes in every capture, only one is the firmware
 
 Each `Expected output` carries a pair of lines like these, and they do not mean

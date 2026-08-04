@@ -130,8 +130,9 @@ Captured from a Pico 2, against **page build a2** — the page has since gained
 its log pane and its JSON export and is build `a3`, 16469 bytes across 33
 clusters, so the three size-bearing lines below read differently on a board
 flashed today. Everything else is unchanged, and the capture stays as it was
-taken rather than being edited to match: it is re-run against `a3` when a board
-is next on the bench.
+taken rather than being edited to match — see
+[What is not verified here](#what-is-not-verified-here) for when it is
+re-taken.
 
 `yi26 log` straight after flashing:
 
@@ -272,6 +273,21 @@ the two available here does.
 **A vendor Android other than a Pixel.** Whether a third-party file manager
 hands Chrome a usable `content://` URI, and whether the volume mounts at all
 under a vendor's storage policy, is per-vendor and unconfirmed.
+
+**This experiment's own `Expected output` is one build behind.** It was taken
+against page build `a2`; the page is `a3` since it gained its log pane, so the
+lines naming `10871 bytes`, `22 clusters` and the UF2 size will read
+differently on a board flashed today. The firmware's behaviour did not change
+and every other line still holds — `check.sh` passes against `a3`, and the
+`a3` page size is corroborated by
+[exp131](../exp131-the-volume-is-the-app-drawer/)'s own verified capture, which
+embeds this very file.
+
+It is **deliberately not being re-taken now.** This repository is walked
+experiment by experiment, and the run that teaches exp130 to somebody is the
+run that produces its capture; taking one out of that order would be a number
+with no walkthrough attached to it. Whoever next works through this experiment
+replaces the block above with what their board actually printed.
 
 ## Make it yours
 
