@@ -66,6 +66,28 @@ FAILED=0
 pass() { echo "PASS  $1"; }
 fail() { echo "FAIL  $1${2:+ — $2}"; FAILED=1; }
 
+# Does this firmware carry the 1200-baud reboot watcher? Without it, the NEXT
+# flash of this board needs a physical BOOTSEL press — the most common
+# brick-adjacent property in this repo, and one no UF2 inspection can see, only
+# the source. It is a NOTE, not a fail: exp103 and exp104 lack it on purpose,
+# to show the cost before exp105 removes it. Anywhere else its absence is a
+# surprise worth flagging before you flash, not after.
+#
+#   reboot_watcher_check [src/main.rs]
+reboot_watcher_check() {
+    local src="${1:-src/main.rs}"
+    if [[ ! -f "$src" ]]; then
+        return 0
+    fi
+    if grep -qE 'reboot_if_requested|usb_reboot::run' "$src"; then
+        pass "carries the 1200-baud reboot watcher — the next flash is hands-free"
+    else
+        echo "NOTE  no 1200-baud reboot watcher in $src: after flashing this, the"
+        echo "      NEXT flash needs a physical BOOTSEL press. Intended for exp103/"
+        echo "      exp104; a surprise anywhere else."
+    fi
+}
+
 # ---------- how much of a person an experiment costs -----------------------
 #
 # Every check.sh declares one number before calling `presence_check`:

@@ -66,6 +66,9 @@ options:
   --json            machine-readable output on stdout (for scripts and agents)
   --explain         print the equivalent hand-typed commands on stderr, then act
   --install         `udev` only: write the rule as root instead of reporting
+  --force           `flash`/`pflash` only: skip the pre-flight that refuses a
+                    UF2 with no boot block at flash offset 0 (a mis-linked or
+                    data-only image that would flash but not come up)
   --seconds N       how long to read for: `log` 10, `send` 3, `flood` 4
   --packets N       `flood` only: how many to send (default 2000)
   --storm           `flood` only: toggle RTS throughout, to cancel reads
@@ -100,6 +103,7 @@ fn run(args: &[String]) -> i32 {
     let mut storm = false;
     let mut raw = false;
     let mut end = false;
+    let mut force = false;
     let mut positional: Vec<String> = Vec::new();
     let mut i = 0;
 
@@ -119,6 +123,10 @@ fn run(args: &[String]) -> i32 {
                 }
             }
             "--storm" => storm = true,
+            // Skip the pre-flight bootability check on `flash`/`pflash`. For
+            // when you mean to write a UF2 that has no boot block at offset 0
+            // — a data-only region, say — and know the board will not boot it.
+            "--force" => force = true,
             "--raw" => raw = true,
             // Terminating a message means putting a packet on the wire that
             // the tty layer has no way to describe, so this implies --raw.
@@ -188,7 +196,7 @@ fn run(args: &[String]) -> i32 {
         // Flash a UF2 over PICOBOOT, bypassing the mass-storage drive entirely
         // — the reliable path the drag-and-drop drive is not.
         "pflash" => match positional.get(1) {
-            Some(f) => match picoboot::flash_uf2(Path::new(f)) {
+            Some(f) => match picoboot::flash_uf2(Path::new(f), force) {
                 Ok(msg) => { println!("{msg}"); 0 }
                 Err(e) => { eprintln!("pflash failed: {e}"); 1 }
             },
@@ -196,7 +204,7 @@ fn run(args: &[String]) -> i32 {
         },
         "drive" => cmd_drive(&opts),
         "flash" => match positional.get(1) {
-            Some(f) => cmd_flash(&opts, Path::new(f)),
+            Some(f) => cmd_flash(&opts, Path::new(f), force),
             None => usage_error("flash needs a .uf2 file"),
         },
         "udev" => cmd_udev(&opts, install),
@@ -899,7 +907,7 @@ fn cmd_drive(opts: &Opts) -> i32 {
 // ---------------------------------------------------------------------------
 // flash
 
-fn cmd_flash(opts: &Opts, uf2: &Path) -> i32 {
+fn cmd_flash(opts: &Opts, uf2: &Path, force: bool) -> i32 {
     out::explain(
         opts,
         &Explanation {
@@ -926,6 +934,15 @@ fn cmd_flash(opts: &Opts, uf2: &Path) -> i32 {
     };
     if let Err(e) = check_uf2_family(&bytes) {
         return fail(opts, "wrong-family", &e, "elf2flash convert -b rp2350 <elf> <uf2>");
+    }
+    // Structural pre-flight: an image linked at the wrong base, or a UF2 with no
+    // boot block at offset 0, would flash cleanly and then not come up. Catch it
+    // here, before touching the board — the same class of refusal partimg makes
+    // when it assembles. --force skips it.
+    if !force {
+        if let Err(e) = picoboot::preflight_bootable(&bytes) {
+            return fail(opts, "no-boot-block", &e, "check the image's link address, or --force");
+        }
     }
 
     if !board::in_bootsel() {

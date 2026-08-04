@@ -258,12 +258,23 @@ vendor interface — `EXCLUSIVE_ACCESS`, `EXIT_XIP`, `FLASH_ERASE`, `WRITE`,
 The drive is convenient and it is fragile. The host's storage layer caches the
 drive's sectors, so a copy can report success while the bytes never reach the
 bootrom — verified here on **both Android and Linux**, where UF2s piled up on
-the drive unflashed. And a bad partition table (exp139) makes the bootrom refuse
-the drive's writes entirely, which looks exactly like a bricked board. PICOBOOT
-goes through none of that: it hands bytes to the bootrom directly, and `pflash`
-reads the first sector back to prove they landed. `nuke` is the same path
-pointed at recovery — erase the first 64 KiB and a table that bricked the drive
-is gone.
+the drive unflashed. And once the bootrom has loaded a partition table (exp139)
+it routes a dragged UF2 by partition rather than to the address on it, so an
+image aimed at a sector the table now owns has nowhere to land and the write is
+refused — which looks exactly like a bricked board. PICOBOOT goes through none of
+that: it hands bytes to the bootrom directly, and `pflash` reads the first sector
+back to prove they landed. `nuke` is the same path pointed at recovery — erase
+the first 64 KiB and a table that reroutes the drive is gone.
+
+Both `flash` and `pflash` run a **pre-flight** before touching the board: the ROM
+boots by finding a block loop (an IMAGE_DEF, or a partition table) in the first
+4 KiB of flash, so a UF2 whose lowest address is not `0x10000000`, or which has
+no such block, is refused with the reason — a mis-linked image caught before the
+write, not after, as a dark board. It is deliberately a *structural* check, the
+same class [`partimg`](#partimg) makes when it assembles: a pass means "the ROM
+will find something to boot," never "this is safe" — a well-linked image can
+still panic and go dark. `--force` skips it, for the rare UF2 you mean to write
+that has no boot block (a data-only region).
 
 This is the command-line half of what [exp141](../experiments/exp141-two-doors-into-the-bootrom/)
 does from a browser: `recover.html` erases over PICOBOOT from a phone, `pflash`

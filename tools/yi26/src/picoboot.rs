@@ -38,6 +38,12 @@ const REBOOT2_NO_RETURN: u32 = 0x100;
 const FLASH_BASE: u32 = 0x1000_0000;
 /// Flash erase granularity (one sector).
 const SECTOR: u32 = 4096;
+
+/// The markers that bracket every RP2350 boot block — an IMAGE_DEF or a
+/// partition table. The ROM scans the first 4 KiB of flash for the start
+/// marker; a UF2 with neither has nothing to boot. From `embassy_rp::block`.
+const BLOCK_MARKER_START: u32 = 0xffff_ded3;
+const BLOCK_MARKER_END: u32 = 0xab12_3579;
 /// How much to write per WRITE command. A sector at a time keeps each transfer
 /// small and sector-aligned; the bootrom's buffer comfortably holds it.
 const CHUNK: usize = 4096;
@@ -178,14 +184,69 @@ fn uf2_to_image(uf2: &[u8]) -> Result<(u32, Vec<u8>), String> {
     Ok((base, image))
 }
 
+/// Find a word-aligned little-endian `marker` in `bytes`, returning its byte
+/// offset. Blocks are word-aligned, so a 4-byte stride is enough.
+fn find_marker(bytes: &[u8], marker: u32) -> Option<usize> {
+    let m = marker.to_le_bytes();
+    bytes.chunks_exact(4).position(|w| w == m).map(|i| i * 4)
+}
+
+/// A cheap, honest pre-flight: will this UF2 *structurally* boot?
+///
+/// The ROM boots by finding a block loop — an IMAGE_DEF or a partition table,
+/// bracketed by [`BLOCK_MARKER_START`] and [`BLOCK_MARKER_END`] — in the first
+/// 4 KiB of flash, at offset 0. This checks exactly that: the image starts at
+/// [`FLASH_BASE`], and a well-formed block sits near the front. It is the same
+/// class of check as [`crate::picoboot`]'s sibling in `partimg`, moved to the
+/// flashing side so a hand-built or mis-linked UF2 is caught *before* the write.
+///
+/// It does **not** prove the firmware runs: a perfectly-linked image can still
+/// panic or hang and leave the board dark. This catches the *structural*
+/// bricks — an image linked at the wrong base, or a UF2 with no boot block —
+/// not the behavioural ones. A pass means "the ROM will find something to
+/// boot", never "this is safe".
+pub fn preflight_bootable(uf2: &[u8]) -> Result<(), String> {
+    let (base, image) = uf2_to_image(uf2)?;
+    if base != FLASH_BASE {
+        return Err(format!(
+            "the lowest flash address is {base:#010x}, not {FLASH_BASE:#010x}. \
+             Nothing would sit at flash offset 0, where the ROM boots from, so \
+             the board would not come up — was the image linked at the wrong \
+             address? Pass --force to flash it anyway."
+        ));
+    }
+    let scan = &image[..image.len().min(SECTOR as usize)];
+    let Some(start) = find_marker(scan, BLOCK_MARKER_START) else {
+        return Err(format!(
+            "no boot block in the first {} bytes: the ROM looks for a block loop \
+             (an IMAGE_DEF, or a partition table) marked {BLOCK_MARKER_START:#010x} \
+             near flash offset 0, and this UF2 has none — it would not boot. \
+             Pass --force to flash it anyway.",
+            scan.len()
+        ));
+    };
+    if find_marker(&scan[start + 4..], BLOCK_MARKER_END).is_none() {
+        return Err(format!(
+            "a boot block starts at +{start:#x} but its end marker \
+             {BLOCK_MARKER_END:#010x} is not in the first {} bytes — the block is \
+             malformed and the ROM would reject it. Pass --force to flash anyway.",
+            scan.len()
+        ));
+    }
+    Ok(())
+}
+
 /// Flash a UF2 over PICOBOOT — erase, write, reboot — with no mass-storage
 /// drive anywhere in it.
 ///
 /// This is the reliable path the drag-and-drop drive is not: the bootrom writes
 /// exactly the bytes handed to it, with no host storage cache in between. It is
 /// what makes flashing from a phone (or an automated harness) dependable.
-pub fn flash_uf2(uf2_path: &std::path::Path) -> Result<String, String> {
+pub fn flash_uf2(uf2_path: &std::path::Path, force: bool) -> Result<String, String> {
     let uf2 = std::fs::read(uf2_path).map_err(|e| format!("cannot read UF2: {e}"))?;
+    if !force {
+        preflight_bootable(&uf2)?;
+    }
     let (base, image) = uf2_to_image(&uf2)?;
     let erase_len = (image.len() as u32).div_ceil(SECTOR) * SECTOR;
 
@@ -427,4 +488,71 @@ pub fn erase_flash(size: u32) -> Result<String, String> {
          table is gone. Now UNPLUG AND REPLUG the board — that gives a clean \
          BOOTSEL that accepts a UF2 — then `yi26 flash <file>` or drag one on."
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A one-block UF2 at `base` carrying `payload`, for exercising the
+    /// pre-flight without a board.
+    fn uf2_block(base: u32, payload: &[u8]) -> Vec<u8> {
+        let mut blk = vec![0u8; 512];
+        blk[0..4].copy_from_slice(&0x0A32_4655u32.to_le_bytes());
+        blk[4..8].copy_from_slice(&0x9E5D_5157u32.to_le_bytes());
+        blk[8..12].copy_from_slice(&0x0000_2000u32.to_le_bytes());
+        blk[12..16].copy_from_slice(&base.to_le_bytes());
+        blk[16..20].copy_from_slice(&(payload.len() as u32).to_le_bytes());
+        blk[24..28].copy_from_slice(&1u32.to_le_bytes());
+        blk[28..32].copy_from_slice(&0xe48b_ff59u32.to_le_bytes());
+        blk[32..32 + payload.len()].copy_from_slice(payload);
+        blk[508..512].copy_from_slice(&0x0AB1_6F30u32.to_le_bytes());
+        blk
+    }
+
+    /// A minimal valid boot block: the two markers with nothing between them.
+    fn boot_block() -> Vec<u8> {
+        let mut p = Vec::new();
+        p.extend_from_slice(&BLOCK_MARKER_START.to_le_bytes());
+        p.extend_from_slice(&BLOCK_MARKER_END.to_le_bytes());
+        p
+    }
+
+    #[test]
+    fn accepts_a_block_at_offset_zero() {
+        // A partition image: the block marker is the very first word.
+        let uf2 = uf2_block(FLASH_BASE, &boot_block());
+        assert!(preflight_bootable(&uf2).is_ok());
+    }
+
+    #[test]
+    fn accepts_an_image_def_after_the_vector_table() {
+        // An ordinary image: a vector table first, then the IMAGE_DEF block —
+        // the ROM scans for it, and so must the pre-flight.
+        let mut payload = vec![0u8; 0x114];
+        payload.extend_from_slice(&boot_block());
+        let uf2 = uf2_block(FLASH_BASE, &payload);
+        assert!(preflight_bootable(&uf2).is_ok());
+    }
+
+    #[test]
+    fn rejects_the_wrong_base() {
+        let uf2 = uf2_block(FLASH_BASE + SECTOR, &boot_block());
+        let err = preflight_bootable(&uf2).unwrap_err();
+        assert!(err.contains("lowest flash address"), "{err}");
+    }
+
+    #[test]
+    fn rejects_no_boot_block() {
+        let uf2 = uf2_block(FLASH_BASE, &[0u8; 64]);
+        let err = preflight_bootable(&uf2).unwrap_err();
+        assert!(err.contains("no boot block"), "{err}");
+    }
+
+    #[test]
+    fn rejects_a_start_without_an_end() {
+        let uf2 = uf2_block(FLASH_BASE, &BLOCK_MARKER_START.to_le_bytes());
+        let err = preflight_bootable(&uf2).unwrap_err();
+        assert!(err.contains("end marker"), "{err}");
+    }
 }

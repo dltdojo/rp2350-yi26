@@ -69,6 +69,11 @@ else
     pass "this firmware only reads — nothing here writes to flash"
 fi
 
+# Will the next flash after this one need a physical button? A partition image
+# that crashes goes dark (this experiment learned that the hard way), so knowing
+# the board can still reboot itself matters more here than most places.
+reboot_watcher_check
+
 # The table's words, checked on this machine rather than on a board. The failure
 # they guard against is a device that draws power and says nothing.
 if (cd ../../crates/partition-table && cargo test --quiet) > /dev/null 2>&1; then
