@@ -34,3 +34,4 @@ is expected — write a new one.
 | 2026-08-03 | [燒錄工具是檔案管理員](./2026-08-03-the-flashing-tool-is-a-file-manager.md) | exp101 – exp128 and docs/platforms.md — flashing a board from an Android phone, verified (正體中文) |
 | 2026-08-03 | [一場抽獎,把設計改了四次](./2026-08-03-a-draw-that-changed-the-design.md) | exp127 – exp133 — the host takes control, a real use appears, and measurement keeps correcting the architecture (正體中文) |
 | 2026-08-03 | [從來沒有人選過的預設值](./2026-08-03-a-default-nobody-chose.md) | exp134, exp135 and tools/pages — behaviour nobody decided, inherited from a container and shipped for thirty-three experiments (正體中文) |
+| 2026-08-04 | [救不回來,就別做出來](./2026-08-04-if-you-cannot-recover-it.md) | exp139 redone, exp142, and pre-flight brick checks in partimg/yi26 — a board that could not be recovered, and the A/B choice that was in the ROM all along (正體中文) |
