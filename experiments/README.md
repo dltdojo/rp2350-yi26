@@ -63,6 +63,7 @@ Per experiment:
 | exp135 | A board running **exp128**, which is the instrument. No firmware of its own. The census needs raw USB access — the udev rule — because a tty cannot express the packet being measured. |
 | exp136 | Any RP2350 board. No browser. The comparison it is named for needs no board at all — `cargo test` in `crates/framing` cuts a stream at every offset; the board is where you watch one of those cuts arrive over a real endpoint. |
 | exp137 | Any RP2350 board. No browser. Uses 64 KiB of SRAM as the disk. The measurement is what **your** host's storage stack does with a media change, so this is the experiment here most likely to answer differently elsewhere — and the check reports which answer it got. |
+| exp138 | Any RP2350 board. No browser. **RP2350 only, and in the strongest sense yet**: the ROM functions it calls do not exist on the RP2040. Reads only — nothing here writes to flash. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -362,7 +363,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136, exp137 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp138 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -473,6 +474,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp135 | `cdc` | `log+commands` | `libusb+webusb` | `exp128` |
 | exp136 | `cdc` | `log+commands` | `cdc_acm` | `own` |
 | exp137 | `cdc+msc` | `log+commands+files` | `cdc_acm+usb-storage` | `own` |
+| exp138 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -588,6 +590,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp135-a-packet-with-no-bytes](./exp135-a-packet-with-no-bytes/) | 2 · a moment | The message that never ends, ended — and why a terminal cannot send the packet that ends it |
 | [exp136-joining-halfway](./exp136-joining-halfway/) | 1 · board | Two boundaries built out of nothing, judged on joining the stream halfway — one loses messages, the other invents them |
 | [exp137-the-volume-that-changes](./exp137-the-volume-that-changes/) | 1 · board | The volume is laid down again while the host is looking at it — the host honours the signal completely, and the file still does not change |
+| [exp138-what-the-rom-already-knows](./exp138-what-the-rom-already-knows/) | 1 · board | The A/B firmware machinery everyone hand-rolls is already in this chip's ROM — asked, not assumed, and empty |
 
 ## The browser track, finished
 
@@ -700,6 +703,59 @@ comparison is written down in
 [exp127's README](./exp127-host-owns-the-led/#where-message-boundaries-come-from)
 as a map, labelled as unverified, rather than faked as an experiment. See
 [Platform](#platform) for why that line is where it is.
+
+### The update road
+
+A firmware that can be replaced in the field has to answer two questions that
+are usually confused with each other: **can an update brick this board**, and
+**whose firmware will it accept**. This road is the first; the second is a
+separate group and is named at the end.
+
+[exp138](./exp138-what-the-rom-already-knows/) opened it by asking rather than
+assuming, and the answer reframed everything after it. The standard advice for
+dual-firmware updates — *the boot ROM is fixed silicon, it cannot know which
+slot you want, so hand-roll a bootloader* — is correct for most parts and
+**wrong for this one**. The RP2350's ROM has partition tables, A/B links, an
+image version it compares, a try-before-you-buy flag, `pick_ab_parition` and
+`explicit_buy`. A stock board answers every one of those calls and has nothing
+in them: the machinery is in the chip and it is empty.
+
+So the road is not "build A/B". It is **use what is there, then measure what a
+hand-rolled one would have bought you**. In order, and none of them
+interrogated yet — a direction, not a schedule:
+
+- **a partition table, and what the ROM does with one** — write one and ask
+  exp138's three questions again. The first experiment here that writes to
+  flash, which makes it the first that can leave a board needing a hand on
+  BOOTSEL. It gets planned with that stated up front.
+- **two images, one version number** — put a firmware in A and another in B
+  with a higher version, and let the ROM choose. `pick_ab_parition` is the ROM
+  answering the question the standard advice says it cannot.
+- **the image that is never bought** — try-before-you-buy. An image that boots,
+  runs, and is never confirmed, and the ROM putting the old one back at the
+  next reset. This is where a rollback becomes something you watch rather than
+  something you are promised, and it is deliberately built out of *not calling*
+  `explicit_buy` rather than out of a deliberately broken image.
+- **the drag-and-drop that lands in the right slot** — the question the whole
+  road came from: a user drops one file and the correct half is written, with
+  no `for_slotA` / `for_slotB` in the filename.
+- **the hand-rolled bootloader, as the control** — a custom USB volume that
+  accepts a `.bin` and writes it. Built last, against a measured baseline, so
+  the comparison is what it costs and what it buys rather than an assumption
+  either way. [exp137](./exp137-the-volume-that-changes/) already established
+  what a device-served volume can and cannot make a host re-read, which is a
+  constraint this inherits.
+- **a correct checksum on somebody else's firmware** — the bridge out of this
+  road. A CRC that matches, an image that was never yours, and an update that
+  accepts it. That is the experiment that makes the difference between
+  *reliability* and *authenticity* something a reader has seen rather than been
+  told.
+
+**Signing and secure boot are not on this road.** RP2350 can enforce signed
+images, and turning that on means burning OTP — **irreversible**, and that
+board runs nothing unsigned ever again. With two boards in total, that is a
+decision to take deliberately and separately, not as the last step of a road
+about not bricking things.
 
 ### Standing alone
 
