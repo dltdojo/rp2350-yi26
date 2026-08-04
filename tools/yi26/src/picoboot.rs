@@ -162,9 +162,16 @@ pub fn erase_flash(size: u32) -> Result<String, String> {
     ea[4..8].copy_from_slice(&size.to_le_bytes());
     run(&mut writer, &mut reader, 3, "FLASH_ERASE", CMD_FLASH_ERASE, &ea)?;
 
+    // No reboot here, and that is a lesson paid for. A PICOBOOT REBOOT
+    // (pc=0/sp=0) after the erase left the board in a BOOTSEL that does not
+    // *consume* dragged UF2s — copies piled up on the drive unflashed, on Linux
+    // exactly as they had on the phone. The verified recovery (exp141's
+    // recover.html) erases and stops, and the human replugs; that replug is
+    // what gives a normal, UF2-consuming BOOTSEL. Until a correct
+    // reboot-to-BOOTSEL is worked out, erase-and-replug is the proven path.
     Ok(format!(
-        "erased {size} bytes of flash from offset 0 over PICOBOOT. \
-         The partition table is gone; the board is a stock board again. \
-         Drag any ordinary .uf2 onto it, or `yi26 flash <file>`."
+        "erased {size} bytes of flash from offset 0 over PICOBOOT. The partition \
+         table is gone. Now UNPLUG AND REPLUG the board — that gives a clean \
+         BOOTSEL that accepts a UF2 — then `yi26 flash <file>` or drag one on."
     ))
 }
