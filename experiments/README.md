@@ -771,23 +771,24 @@ same thing once you have seen the forgery a CRC waves through.
 ### Flashing from a browser, with no drive
 
 The route out of the fragility [`docs/platforms.md`](../docs/platforms.md)
-recorded on 2026-08-04: dragging a `.uf2` onto a phone's BOOTSEL drive is not
-dependable, because Android's storage layer writes to that synthetic drive
-badly. [exp141](./exp141-two-doors-into-the-bootrom/) established the way
-around it — BOOTSEL exposes a second interface, PICOBOOT (vendor `0xFF`), which
-a browser *can* claim, and confirmed the descriptor and a read-only round trip
-against real silicon. What remains:
+recorded on 2026-08-04: dragging a `.uf2` onto a BOOTSEL drive is not
+dependable — the host storage layer writes to that synthetic drive badly (seen
+on Android *and* on a desktop Linux machine), and a bad partition table makes
+the bootrom refuse the drive's writes outright. [exp141](./exp141-two-doors-into-the-bootrom/)
+is the way around it, and on 2026-08-04 it went from an idea to a verified path:
+BOOTSEL exposes a second interface, PICOBOOT (vendor `0xFF`), a browser *can*
+claim it, and a **Pixel 9a's Chrome erased the bootrom's flash from a web page**
+with no drive at all. On the command line, `yi26 nuke` erases and `yi26 pflash`
+does a full write+`REBOOT2` over `libusb` — verified flashing and booting
+exp138. What remains:
 
 - **PICOBOOT `WRITE` from a browser** — erase a region, write a `.uf2`'s
   payload over the bulk endpoint, `REBOOT2`, and watch the board come up on new
-  firmware with no drive and no drag-and-drop. This writes flash, so it carries
-  a brick risk exp141 does not, and it is the first place the phone-flashing
-  premise is made solid rather than assumed. The protocol map is in exp141's
-  README; it has not been interrogated for scope yet.
-- **the claim on Android specifically** — exp132 proved per-interface claiming
-  of a `0xFF` interface on a phone, but against the application firmware, not
-  the bootrom's MSC+PICOBOOT composite. Desktop Chrome is the control; the
-  phone is the target.
+  firmware with no drive and no drag-and-drop. `yi26 pflash` already does exactly
+  this on the desktop, so the browser version is a port of a working path — but
+  it writes flash, so it carries a brick risk exp141's erase-and-read pages do
+  not. The protocol map is in exp141's README; it has not been interrogated for
+  scope yet.
 
 **Signing and secure boot are not on this road.** RP2350 can enforce signed
 images, and turning that on means burning OTP — **irreversible**, and that

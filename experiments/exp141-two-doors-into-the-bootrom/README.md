@@ -94,13 +94,21 @@ dMagic (0x431fd10b) │ dToken │ bCmdId │ bCmdSize │ _unused │ dTransfer
 The command IDs: `EXCLUSIVE_ACCESS` (0x1), `FLASH_ERASE` (0x3), `WRITE` (0x5),
 `EXIT_XIP` (0x6), `REBOOT2` (0xa). A `bCmdId` with the top bit set (e.g.
 `GET_INFO` 0x8b) is a device-to-host transfer. `recover.html` uses the erase
-path; `WRITE` — putting a whole `.uf2` on over the bulk endpoint — is what
-remains for a full browser flasher.
+path; `WRITE` — putting a whole `.uf2` on over the bulk endpoint, then
+`REBOOT2` to boot it — is what remains for a full *browser* flasher.
+
+That full path is not theoretical: **`yi26 pflash` already does it on the
+command line** — `EXCLUSIVE_ACCESS` → `EXIT_XIP` → `FLASH_ERASE` → `WRITE` in
+4 KiB chunks → read-back verify → `REBOOT2` — and it flashed and booted exp138
+on real silicon. So the browser experiment starts from a proven host reference,
+not from the protocol alone.
 
 **A range command's `dAddr` is absolute** — `0x10000000`, the flash XIP base,
 not a zero offset. That one word cost a debugging round (see the Expected
 output), and it is the thing to get right first in any command that names a
-flash address.
+flash address. **The reboot is `REBOOT2` (0xa) with `dFlags` type `NORMAL`**,
+not the RP2040-style `REBOOT` with a `pc`/`sp` pair — that pair lands the
+RP2350 back in BOOTSEL even over a valid image, which cost a second round.
 
 ## The code IS the walkthrough
 
@@ -111,7 +119,9 @@ flash address.
   `EXCLUSIVE_ACCESS` → `EXIT_XIP` → `FLASH_ERASE`. This is what un-bricks an
   exp139 board, verified on the phone.
 - [`../../tools/yi26/src/picoboot.rs`](../../tools/yi26/src/picoboot.rs) —
-  `yi26 nuke`, the same erase over `libusb` for the command line.
+  `yi26 nuke`, the same erase over `libusb` for the command line, and
+  `yi26 pflash`, the full write+`REBOOT2` flasher that this experiment's
+  browser version aims at (verified on hardware: it flashed and booted exp138).
 
 ## Two ways to do it
 
@@ -174,9 +184,11 @@ a `0xFF` vendor interface on a phone, but against the *application* firmware,
 not the bootrom's composite device. Desktop Chrome is the first place to run
 this — it removes every variable except the one being tested.
 
-**Anything about writing flash.** This page cannot, by design and by
-`check.sh`. Whether PICOBOOT `WRITE` from a browser actually programs flash is
-the next experiment's question, with the next experiment's brick risk.
+**`WRITE` *from a browser*.** `picoboot.html` cannot write, by design and by
+`check.sh`, and `recover.html` only erases. That PICOBOOT `WRITE`+`REBOOT2`
+programs and boots flash at all is settled — `yi26 pflash` proved it over
+`libusb`. What the next experiment adds is doing that same write *from a web
+page*, which carries the brick risk this one was built to avoid.
 
 ## Make it yours
 
@@ -202,6 +214,8 @@ the next experiment's question, with the next experiment's brick risk.
 
 The experiment this one clears the ground for: **PICOBOOT `WRITE` from a
 browser** — erase a region, write a `.uf2`'s payload, `REBOOT2`, and watch the
-board come up on new firmware, with no drive and no drag-and-drop. That one
-writes flash, so it carries the brick risk this one was built to avoid, and it
-is under [Planned](../README.md#planned) rather than started.
+board come up on new firmware, with no drive and no drag-and-drop. The command
+line already does exactly this (`yi26 pflash`, verified on hardware), so the
+browser version is a port of a working path, not a leap — but it writes flash,
+so it carries the brick risk this one was built to avoid, and it is under
+[Planned](../README.md#planned) rather than started.

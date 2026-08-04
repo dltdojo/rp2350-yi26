@@ -263,11 +263,25 @@ interface does not go through the storage layer — so the asymmetry is worth
 keeping in mind: on a phone, WebUSB is solid and MSC drag-and-drop is not.
 
 A route that does not depend on the storage layer at all — driving the
-bootrom's **PICOBOOT** interface over WebUSB, the way `picotool` drives it over
-USB on a desktop — would sidestep every failure above. It does not exist in
-this repository yet, and until it is built and verified, a board that will only
-accept a new firmware by drag-and-drop is a board a phone cannot be relied on
-to reflash.
+bootrom's **PICOBOOT** interface, the way `picotool` drives it — sidesteps every
+failure above, and as of 2026-08-04 **it exists and is verified**.
+[exp141](../experiments/exp141-two-doors-into-the-bootrom/) claims PICOBOOT from
+a browser: a Pixel 9a's Chrome erased flash from `recover.html` with no drive
+and no drag-and-drop, which is what un-bricked the board below. On the command
+line, `yi26 nuke` erases and `yi26 pflash` does a full write+`REBOOT2` over
+`libusb` — `pflash` flashed and booted exp138 on real silicon. So the phone is
+no longer dependent on the fragile drive: PICOBOOT is the path that works.
+
+**And the drive is fragile in a second direction, on the desktop too.** The same
+Pixel-9a board, moved to an unrelated Linux machine, *also* refused every
+drag-and-drop `.uf2` — no error, no reboot, the files just piling up unflashed.
+That was not an Android quirk: the board carried an exp139 partition table that
+makes the bootrom **reject the drive's writes entirely** while still presenting
+the drive. So the drag-and-drop route fails in two unrelated ways — Android's
+storage cache swallows the write, and a bad partition table makes the bootrom
+refuse it — and PICOBOOT is immune to both, because it never touches the drive
+or the storage layer. When a drag-and-drop flash silently does nothing, reach
+for `yi26 pflash` / `recover.html`, not another copy.
 
 That run still had one dependency this page walked into without noticing: the
 reboot page had to be *sent to the phone first*, because it lived in this

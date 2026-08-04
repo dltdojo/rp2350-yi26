@@ -56,6 +56,8 @@ commands:
   bootsel           put the board into BOOTSEL mode (1200-baud touch)
   drive             print the RP2350 boot drive, mounting it if needed
   flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
+  pflash <file.uf2> flash over PICOBOOT (no drive) — the reliable path; needs BOOTSEL
+  nuke              erase the first 64 KiB over PICOBOOT — un-brick a bad partition table
   udev              can a browser open the board? (--install fixes it, Linux)
   detach            take the CDC interfaces from the kernel, so a browser can claim them
   attach            give them back — /dev/ttyACM0 returns

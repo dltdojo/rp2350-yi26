@@ -106,6 +106,8 @@ for what the firmware is actually doing.
 | `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
 | `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
+| `pflash <file.uf2>` | flash over PICOBOOT, no drive — the reliable path (needs BOOTSEL) |
+| `nuke` | erase the first 64 KiB over PICOBOOT — un-brick a bad partition table |
 | `udev` | can a browser open this board? `--install` fixes it (Linux) |
 | `detach` | take the CDC interfaces from the kernel, so a browser can claim them |
 | `attach` | give them back — `/dev/ttyACM0` returns |
@@ -238,6 +240,42 @@ exp119 is the caller.
 RTS rather than DTR for the same reason `send` is one command: `crates/usb-log`
 will not write while DTR is low, so a DTR storm would silence the log the
 measurement is read from.
+
+### `pflash` and `nuke`, because the drag-and-drop drive is not reliable
+
+```sh
+yi26 pflash firmware.uf2   # flash over PICOBOOT — no drive, no drag-and-drop
+yi26 nuke                  # erase the first 64 KiB over PICOBOOT
+```
+
+There are two ways to put bytes into an RP2350's flash, and only one of them is
+dependable. `flash` uses the bootrom's **mass-storage drive**: mount it, copy a
+`.uf2`, the bootrom consumes it. `pflash` uses **PICOBOOT**, the bootrom's
+vendor interface — `EXCLUSIVE_ACCESS`, `EXIT_XIP`, `FLASH_ERASE`, `WRITE`,
+`REBOOT2` — writing flash directly.
+
+The drive is convenient and it is fragile. The host's storage layer caches the
+drive's sectors, so a copy can report success while the bytes never reach the
+bootrom — verified here on **both Android and Linux**, where UF2s piled up on
+the drive unflashed. And a bad partition table (exp139) makes the bootrom refuse
+the drive's writes entirely, which looks exactly like a bricked board. PICOBOOT
+goes through none of that: it hands bytes to the bootrom directly, and `pflash`
+reads the first sector back to prove they landed. `nuke` is the same path
+pointed at recovery — erase the first 64 KiB and a table that bricked the drive
+is gone.
+
+This is the command-line half of what [exp141](../experiments/exp141-two-doors-into-the-bootrom/)
+does from a browser: `recover.html` erases over PICOBOOT from a phone, `pflash`
+and `nuke` do it over `libusb` from a terminal. Both need the BOOTSEL device
+reachable, which on Linux is one udev line (`yi26 udev --install` now covers
+`2e8a:000f` too).
+
+Two things that cost a debugging round each, written down so they do not again.
+`FLASH_ERASE`/`WRITE`/`READ` take an **absolute** address (`0x10000000`), not a
+flash offset — a zero `dAddr` stalls. And the reboot that boots the freshly
+written image is **`REBOOT2`** (the RP2350 command) with `dFlags` type `NORMAL`,
+not the RP2040-style `REBOOT` with `pc`/`sp`, which lands this chip in BOOTSEL
+even with a valid image.
 
 ### `udev`, the one command that changes your machine
 
