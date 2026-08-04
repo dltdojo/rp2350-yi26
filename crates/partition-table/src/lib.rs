@@ -185,6 +185,24 @@ pub const SIZE_FIELD_IS_UNCONFIRMED: bool = false;
 /// rejected reading is on the record next to the accepted one.
 pub const ONE_BYTE_SIZE_ALTERNATIVE: u32 = 0x0001_040a;
 
+/// A partition's link to another partition, carried in its flags word.
+///
+/// The A/B pair is expressed here, and only here: the B partition carries a
+/// link to its A partition's index, and that link is exactly what the ROM's
+/// `get_b_partition` reads to answer "which partition is the other half of this
+/// one". Without it, two partitions are just two partitions; with it, the ROM
+/// compares their images' versions and boots the higher.
+pub mod link {
+    /// Bits marking a link to an A partition, by the A partition's index.
+    ///
+    /// From `embassy-rp`'s encoder: link type `0b01` sits at bit 1, and the
+    /// index at bit 3. So a B partition linked to A at index 0 contributes
+    /// `0x2` to its flags word.
+    pub const fn to_a(a_index: u8) -> u32 {
+        (0b01 << 1) | ((a_index as u32) << 3)
+    }
+}
+
 /// One partition's two words.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Partition {
@@ -252,6 +270,34 @@ pub const fn one_partition(unpartitioned_flags: u32, partition: Partition) -> [u
         // The length here counts every word before this one except the start
         // marker, which is the convention the ROM's own reference builder uses.
         item(0, 4, ITEM_LAST),
+        0,
+        MARKER_END,
+    ]
+}
+
+/// A block loop with an A/B pair: two partitions, the second linked to the
+/// first, so the ROM treats them as one slot with two halves and boots whichever
+/// image carries the higher version.
+///
+/// `b` must carry the link — build it with `Partition::new(.., family |
+/// link::to_a(0))`. The two are otherwise ordinary partitions; nothing here
+/// gives them ids, names, or a table version, because none of those decide the
+/// A/B boot: the link does, and each image's own `VERSION` item does the rest.
+///
+/// Ten words: the four of a one-partition table, plus a second partition's two.
+pub const fn two_partitions_ab(unpartitioned_flags: u32, a: Partition, b: Partition) -> [u32; 10] {
+    // Item body: unpartitioned flags, then two words each for A and B — five
+    // words, plus the header the length also counts, so six.
+    let header = item(2, 6, ITEM_PARTITION_TABLE);
+    [
+        MARKER_START,
+        header,
+        unpartitioned_flags,
+        a.location,
+        a.flags,
+        b.location,
+        b.flags,
+        item(0, 6, ITEM_LAST),
         0,
         MARKER_END,
     ]
@@ -386,6 +432,55 @@ mod tests {
     fn item_encoding_is_value_length_id() {
         assert_eq!(item(1, 4, ITEM_PARTITION_TABLE), 0x0100_040a);
         assert_eq!(item(0, 4, ITEM_LAST), 0x0000_04ff);
+    }
+
+    /// The A/B link bit, against a second source.
+    ///
+    /// `embassy-rp` encodes a link to an A partition as type `0b01 << 1` with
+    /// the index at bit 3. So a link to A at index 0 is `0x2`, and to index 1 is
+    /// `0x2 | (1 << 3)` = `0xa`. These are the exact values its `with_link`
+    /// produces.
+    #[test]
+    fn the_ab_link_matches_embassy_rp() {
+        assert_eq!(link::to_a(0), 0x2);
+        assert_eq!(link::to_a(1), 0xa);
+    }
+
+    /// exp142's A/B table, word for word.
+    ///
+    /// Two partitions: A over sectors 1..511, B over 512..1023 linked to A, both
+    /// accepting the rp2350-arm-s family, the unpartitioned space described the
+    /// way the ROM defaults. A wrong word here is a board that boots the wrong
+    /// slot, or does not boot — so it is pinned on the machine.
+    #[test]
+    fn exp142s_ab_table_word_for_word() {
+        let a = Partition::new(1, 16, permission::ALL, family::RP2350_ARM_S);
+        let b = Partition::new(
+            17,
+            32,
+            permission::ALL,
+            family::RP2350_ARM_S | link::to_a(0),
+        );
+        let table = two_partitions_ab(permission::ALL | family::ROM_DEFAULTS, a, b);
+        assert_eq!(
+            table,
+            [
+                0xffff_ded3,
+                0x0200_060a, // partition table item: count 2, length 6
+                0xfc07_8000, // unpartitioned
+                0xfc02_0001, // A: sectors 1..16
+                0xfc02_0000, // A: arm-s, no link
+                0xfc04_0011, // B: sectors 17..32
+                0xfc02_0002, // B: arm-s, link to A(0)
+                0x0000_06ff, // last item, length 6
+                0x0000_0000, // self-loop
+                0xab12_3579,
+            ]
+        );
+        // The B partition links to A; A does not link back. That asymmetry is
+        // what makes one the A and one the B.
+        assert_eq!(b.flags & link::to_a(0), link::to_a(0));
+        assert_eq!(a.flags & link::to_a(0), 0);
     }
 
     /// The second source the size field used to lack.

@@ -67,6 +67,7 @@ Per experiment:
 | exp139 | Any RP2350 board. No browser. **RP2350 only** — partition tables are a ROM feature the RP2040 has no equivalent of. The sector numbers assume 4 MiB of flash; a board with more can extend the partition, and one with less must shrink it or the table describes memory that is not there. |
 | exp140 | Any machine. **No board at all** — the whole thing is `cargo test` in `crates/image-integrity`, plus a demo against any `.uf2` this repository has built. |
 | exp141 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface, identical on any board. Reads only; writes no flash. |
+| exp142 | Any RP2350 board. No browser. **RP2350 only** — A/B partitions and image-version selection are ROM features. Two ~64 KiB slots near the start of flash; reads only, nothing here writes flash from firmware. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -366,7 +367,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -481,6 +482,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp139 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp140 | `none` | `none` | `none` | `none` |
 | exp141 | `vendor` | `control` | `webusb` | `bootrom` |
+| exp142 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -600,6 +602,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp139-a-table-of-one](./exp139-a-table-of-one/) | 1 · board | A partition table takes flash offset 0, so the firmware moves — and the eight words that do it are checked before any board sees them |
 | [exp140-a-checksum-that-passes](./exp140-a-checksum-that-passes/) | 0 · none | A CRC forged to any value by four bytes, and the same attack failing on a hash — why *reliability* and *authenticity* are different words |
 | [exp141-two-doors-into-the-bootrom](./exp141-two-doors-into-the-bootrom/) | 2 · a moment | BOOTSEL has two USB interfaces; a browser cannot claim the drive but can claim the other one — the flash port `picotool` drives |
+| [exp142-two-images-one-version](./exp142-two-images-one-version/) | 1 · board | Two firmwares in an A/B pair with different versions, and the ROM boots the higher — then swap the versions and the other one boots, the choice live |
 
 ## The browser track, finished
 
@@ -746,9 +749,14 @@ interrogated yet — a direction, not a schedule:
   assembles `[table at sector 0] + [ordinary image at sector 1]` — no `picotool`,
   no rolling-window item. `get_b_partition(0)` is still `-17` (one partition has
   no B side): the control for the next item.
-- **two images, one version number** — put a firmware in A and another in B
-  with a higher version, and let the ROM choose. `pick_ab_parition` is the ROM
-  answering the question the standard advice says it cannot.
+- **two images, one version number** — **Done, verified 2026-08-04.**
+  [exp142](./exp142-two-images-one-version/) puts a firmware in A and another in
+  B with a higher version and lets the ROM choose: it booted the higher, and
+  after the versions were swapped it booted the other slot — the choice the
+  standard advice says you must hand-roll, made by the ROM, live.
+  `get_b_partition(0)` turns from exp139's `-17` to `1`. The version lives in
+  each image's own `IMAGE_DEF` (a `VERSION` item, via embassy-rp's
+  `imagedef-none`), and `partimg ab` places both images and the linked A/B table.
 - **the image that is never bought** — try-before-you-buy. An image that boots,
   runs, and is never confirmed, and the ROM putting the old one back at the
   next reset. This is where a rollback becomes something you watch rather than

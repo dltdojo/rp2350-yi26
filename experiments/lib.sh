@@ -335,9 +335,18 @@ exp_serial_port() { yi26 port 2>/dev/null; }
 # `yi26 port --json` rather than matching on the product string keeps this
 # stable if the human-readable names ever get reworded.
 exp_running() {
-    local want="$1" got
-    got="$(yi26 port --json 2>/dev/null | sed -n 's/.*"serial_number":"\([^"]*\)".*/\1/p')"
-    [[ "$got" == "$want" ]]
+    local want="$1" got i
+    # `yi26 port` can enumerate empty for a moment right after heavy USB/CPU
+    # (a `cargo build` immediately before, say), so retry on an *empty* answer.
+    # A *different* serial is a real answer — another experiment on the board —
+    # so return at once rather than waiting it out.
+    for i in 1 2 3; do
+        got="$(yi26 port --json 2>/dev/null | sed -n 's/.*"serial_number":"\([^"]*\)".*/\1/p')"
+        [[ "$got" == "$want" ]] && return 0
+        [[ -n "$got" ]] && return 1
+        sleep 0.3
+    done
+    return 1
 }
 
 # Reads a firmware's serial output for N seconds and prints what arrived.

@@ -94,7 +94,7 @@ fi
 # partitioned UF2. partimg refuses anything not linked at 0x10000000, so a green
 # here is also the address rule holding.
 if elf2flash convert -b rp2350 "$ELF" "$IMG" > /dev/null 2>&1 \
-   && (cd ../../tools/partimg && cargo run --quiet -- "$EXP/$IMG" "$EXP/$UF2") > /dev/null 2>&1 \
+   && (cd ../../tools/partimg && cargo run --quiet -- one "$EXP/$IMG" "$EXP/$UF2") > /dev/null 2>&1 \
    && [[ -f "$UF2" ]]; then
     pass "assembled the partitioned UF2 ($(stat -c%s "$UF2") bytes)"
 else

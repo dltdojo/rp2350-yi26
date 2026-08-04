@@ -62,7 +62,7 @@ run_cmd elf2flash convert -b rp2350 "$ELF" "$IMG"
 say ""
 say "Now ${BOLD}partimg${RESET} places the table at sector 0 and this image at sector 1."
 say "${DIM}picotool partition create${RESET} is the usual answer and it was not needed."
-run_cmd bash -c "cd ../../tools/partimg && cargo run --quiet -- '$EXP/$IMG' '$EXP/$UF2'"
+run_cmd bash -c "cd ../../tools/partimg && cargo run --quiet -- one '$EXP/$IMG' '$EXP/$UF2'"
 
 # ---------------------------------------------------------------------------
 step 4 "Flash it over PICOBOOT"
