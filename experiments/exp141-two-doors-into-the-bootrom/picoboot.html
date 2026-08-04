@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PICOBOOT over WebUSB — exp141</title>
+<style>
+  :root { color-scheme: dark light; --acc: #6ea8fe; --bad: #ff7b72; --ok: #7ee787; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem;
+         max-width: 42rem; margin-inline: auto; }
+  h1 { font-size: 1.15rem; margin: 0 0 .2rem; }
+  .sub { opacity: .75; font-size: .85rem; margin: 0 0 1rem; }
+  button { font: inherit; padding: .55rem 1.1rem; border: 1px solid var(--acc);
+           border-radius: 6px; background: var(--acc); color: #000; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: .8rem 0; font-size: .95rem; }
+  #status.ok { color: var(--ok); } #status.bad { color: var(--bad); }
+  pre { background: #8881; padding: .6rem; border-radius: 6px; overflow-x: auto;
+        font-size: .8rem; margin: .4rem 0 0; white-space: pre-wrap; }
+  .note { border-left: 3px solid #8886; padding-left: .7rem; font-size: .88rem;
+          margin-top: 1rem; }
+  code { background: #8882; padding: 0 .25rem; border-radius: 3px; }
+  .warn { border-left-color: var(--bad); }
+</style>
+
+<h1>Can a browser drive the bootrom's flash interface?</h1>
+<p class="sub">exp141 · the board must be in <b>BOOTSEL</b> mode
+  (<code>2e8a:000f</code>). This page only <b>reads</b> — it claims PICOBOOT and
+  asks its status. It writes nothing to flash.</p>
+
+<p id="status">Put the board in BOOTSEL, then press Connect.</p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+</p>
+
+<pre id="out">(the PICOBOOT interface and its reply will appear here)</pre>
+
+<div class="note">
+  <b>What this proves, and what it does not.</b> BOOTSEL exposes two USB
+  interfaces: a mass-storage drive (the one you drag <code>.uf2</code> onto) and
+  a vendor interface called <b>PICOBOOT</b> that <code>picotool</code> drives.
+  Chrome's WebUSB refuses to claim mass storage, and — as this repository found
+  the hard way — Android's storage layer writes to that drive unreliably. This
+  page claims the <i>other</i> door, PICOBOOT, and confirms a browser can talk
+  to it. It stops before writing anything: flashing is the next experiment.
+</div>
+
+<div class="note warn">
+  <b>Nothing here can brick the board.</b> It sends two control requests —
+  reset the interface, read the status — and no flash command. Even if it did,
+  BOOTSEL is the recovery state, not a state you fall out of.
+</div>
+
+<script>
+// BOOTSEL, not the application firmware. The application is 0x1209/0x0001;
+// the bootrom presents itself as Raspberry Pi's own 0x2e8a/0x000f.
+const FILTERS = [{ vendorId: 0x2e8a, productId: 0x000f }];
+
+// The two control requests PICOBOOT answers on its interface. Neither touches
+// flash. IF_RESET clears any half-finished command; IF_CMD_STATUS reads the
+// 16-byte result of the last one.
+const PICOBOOT_IF_RESET = 0x41;
+const PICOBOOT_IF_CMD_STATUS = 0x42;
+const PICOBOOT_OK = 0;
+
+const $ = (id) => document.getElementById(id);
+let device = null, ifaceNum = null;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+function log(t) { $('out').textContent += t + '\n'; }
+function hex(dv) {
+  return [...new Uint8Array(dv.buffer)].map(b => b.toString(16).padStart(2, '0')).join(' ');
+}
+
+/** Find PICOBOOT by class, exactly as exp132 finds a vendor interface: it is
+ *  the one whose class is 0xFF. The other interface is mass storage (0x08),
+ *  which WebUSB will not let us have anyway. */
+function findPicoboot(dev) {
+  for (const cfg of dev.configurations) {
+    for (const i of cfg.interfaces) {
+      for (const alt of i.alternates) {
+        if (alt.interfaceClass === 0xFF) return i.interfaceNumber;
+      }
+    }
+  }
+  return null;
+}
+
+async function connect() {
+  try {
+    device = await navigator.usb.requestDevice({ filters: FILTERS });
+    await device.open();
+    if (device.configuration === null) await device.selectConfiguration(1);
+
+    ifaceNum = findPicoboot(device);
+    if (ifaceNum === null) {
+      say('No vendor (PICOBOOT) interface. Is the board really in BOOTSEL?', 'bad');
+      return;
+    }
+    log(`device: ${device.productName || '?'}  (${device.serialNumber || 'no serial'})`);
+    log(`PICOBOOT is interface ${ifaceNum}, class 0xFF`);
+
+    // The claim itself is the biggest unknown: can a browser take the bootrom's
+    // vendor interface at all? If this line does not throw, that is answered.
+    await device.claimInterface(ifaceNum);
+    log(`claimed interface ${ifaceNum} — a browser holds the bootrom's flash port`);
+
+    // Reset the interface. Vendor request, recipient the interface, no data.
+    await device.controlTransferOut({
+      requestType: 'vendor', recipient: 'interface',
+      request: PICOBOOT_IF_RESET, value: 0, index: ifaceNum,
+    });
+    log(`sent IF_RESET (0x41) — the device accepted it`);
+
+    // Read the 16-byte command status. This is the reply that proves a
+    // round-trip: the device filled a structure and handed it back.
+    const r = await device.controlTransferIn({
+      requestType: 'vendor', recipient: 'interface',
+      request: PICOBOOT_IF_CMD_STATUS, value: 0, index: ifaceNum,
+    }, 16);
+
+    if (r.status !== 'ok' || !r.data || r.data.byteLength < 16) {
+      say('Claimed PICOBOOT, but no status came back.', 'bad');
+      log(`status transfer: ${r.status}, ${r.data ? r.data.byteLength : 0} bytes`);
+      return;
+    }
+
+    const dToken = r.data.getUint32(0, true);
+    const dStatusCode = r.data.getUint32(4, true);
+    const bCmdId = r.data.getUint8(8);
+    const bInProgress = r.data.getUint8(9);
+    log(`status (16 bytes): ${hex(r.data)}`);
+    log(`  dToken=0x${dToken.toString(16)}  dStatusCode=${dStatusCode}` +
+        `  bCmdId=0x${bCmdId.toString(16)}  bInProgress=${bInProgress}`);
+
+    if (dStatusCode === PICOBOOT_OK) {
+      say('WebUSB drove PICOBOOT: claimed, reset, and read status = OK.', 'ok');
+      log(`\n=> A browser can talk to the bootrom's flash interface.`);
+      log(`   Writing flash is the next experiment; this one stops here.`);
+    } else {
+      say(`Talked to PICOBOOT — status code ${dStatusCode} (not OK, but it answered).`, 'ok');
+    }
+    $('stop').disabled = false;
+    $('connect').disabled = true;
+  } catch (e) {
+    say(`Failed: ${e.message}`, 'bad');
+    log(`\nexception: ${e}`);
+    // The instructive failures, named where a reader will hit them.
+    if (String(e).includes('claimInterface')) {
+      log(`(If this is a claim failure, the interface may be held elsewhere,` +
+          ` or this platform blocks it. See the README.)`);
+    }
+  }
+}
+
+async function disconnect() {
+  try { if (device && ifaceNum !== null) await device.releaseInterface(ifaceNum); } catch {}
+  try { if (device) await device.close(); } catch {}
+  device = null; ifaceNum = null;
+  say('Disconnected.', '');
+  $('stop').disabled = true;
+  $('connect').disabled = false;
+}
+
+if (!('usb' in navigator)) {
+  say('This browser has no WebUSB. Use Chrome or Edge (desktop or Android).', 'bad');
+  $('connect').disabled = true;
+} else {
+  $('connect').onclick = connect;
+  $('stop').onclick = disconnect;
+}
+</script>

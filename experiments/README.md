@@ -66,6 +66,7 @@ Per experiment:
 | exp138 | Any RP2350 board. No browser. **RP2350 only, and in the strongest sense yet**: the ROM functions it calls do not exist on the RP2040. Reads only — nothing here writes to flash. |
 | exp139 | Any RP2350 board. No browser. **RP2350 only** — partition tables are a ROM feature the RP2040 has no equivalent of. The sector numbers assume 4 MiB of flash; a board with more can extend the partition, and one with less must shrink it or the table describes memory that is not there. |
 | exp140 | Any machine. **No board at all** — the whole thing is `cargo test` in `crates/image-integrity`, plus a demo against any `.uf2` this repository has built. |
+| exp141 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface, identical on any board. Reads only; writes no flash. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -366,7 +367,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -479,6 +480,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp138 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp139 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp140 | `none` | `none` | `none` | `none` |
+| exp141 | `vendor` | `control` | `webusb` | `bootrom` |
 
 ### Reading the columns
 
@@ -597,6 +599,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp138-what-the-rom-already-knows](./exp138-what-the-rom-already-knows/) | 1 · board | The A/B firmware machinery everyone hand-rolls is already in this chip's ROM — asked, not assumed, and empty |
 | [exp139-a-table-of-one](./exp139-a-table-of-one/) | 1 · board | A partition table takes flash offset 0, so the firmware moves — and the eight words that do it are checked before any board sees them |
 | [exp140-a-checksum-that-passes](./exp140-a-checksum-that-passes/) | 0 · none | A CRC forged to any value by four bytes, and the same attack failing on a hash — why *reliability* and *authenticity* are different words |
+| [exp141-two-doors-into-the-bootrom](./exp141-two-doors-into-the-bootrom/) | 2 · a moment | BOOTSEL has two USB interfaces; a browser cannot claim the drive but can claim the other one — the flash port `picotool` drives |
 
 ## The browser track, finished
 
@@ -764,6 +767,27 @@ value by changing four bytes of a real `.uf2`, at the same size, and runs the
 identical attack against SHA-256 to watch it fail — because CRC32 is linear and
 a hash is not. *Reliability* and *authenticity* stop being two words for the
 same thing once you have seen the forgery a CRC waves through.
+
+### Flashing from a browser, with no drive
+
+The route out of the fragility [`docs/platforms.md`](../docs/platforms.md)
+recorded on 2026-08-04: dragging a `.uf2` onto a phone's BOOTSEL drive is not
+dependable, because Android's storage layer writes to that synthetic drive
+badly. [exp141](./exp141-two-doors-into-the-bootrom/) established the way
+around it — BOOTSEL exposes a second interface, PICOBOOT (vendor `0xFF`), which
+a browser *can* claim, and confirmed the descriptor and a read-only round trip
+against real silicon. What remains:
+
+- **PICOBOOT `WRITE` from a browser** — erase a region, write a `.uf2`'s
+  payload over the bulk endpoint, `REBOOT2`, and watch the board come up on new
+  firmware with no drive and no drag-and-drop. This writes flash, so it carries
+  a brick risk exp141 does not, and it is the first place the phone-flashing
+  premise is made solid rather than assumed. The protocol map is in exp141's
+  README; it has not been interrogated for scope yet.
+- **the claim on Android specifically** — exp132 proved per-interface claiming
+  of a `0xFF` interface on a phone, but against the application firmware, not
+  the bootrom's MSC+PICOBOOT composite. Desktop Chrome is the control; the
+  phone is the target.
 
 **Signing and secure boot are not on this road.** RP2350 can enforce signed
 images, and turning that on means burning OTP — **irreversible**, and that
