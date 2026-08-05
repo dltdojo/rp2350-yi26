@@ -132,6 +132,23 @@ Windows, macOS and Linux because it is the chip doing it, not the host.
 From exp105 onward the firmware can put itself back into BOOTSEL, so step 1
 stops needing a human — see below.
 
+**Not once the board has a partition table.** Measured on 2026-08-05
+([exp144](../experiments/exp144-one-file-either-half/)), on the Ubuntu machine
+where this procedure has always worked: with a partition table in flash, the ROM
+does not consume a `.uf2` copied onto that drive. One partition or two, the file
+addressed at `0x10000000` or at a partition's own start — refused every time,
+and the refusal is silent in the worst way: the copy succeeds, the file appears
+in the listing, and it is gone after an unmount and remount, because the host's
+FAT cache was showing a write the board never took. Erase the table and the
+identical file, same command, same cable, flashes.
+
+So the drag-and-drop route is not merely fragile across hosts (below) — it stops
+being available at all on exactly the boards that partition their flash for
+field updates. `yi26 pflash` (PICOBOOT, no drive) is the route that keeps
+working, which is what [exp141](../experiments/exp141-two-doors-into-the-bootrom/)
+built. One configuration is untested: a BOOTSEL entered by holding the button,
+with a table present.
+
 ### Reading the serial port
 
 Everything from exp104 onward reports what it is doing over USB serial, and on

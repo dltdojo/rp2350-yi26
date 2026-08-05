@@ -69,6 +69,7 @@ Per experiment:
 | exp141 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface, identical on any board. Reads only; writes no flash. |
 | exp142 | Any RP2350 board. No browser. **RP2350 only** — A/B partitions and image-version selection are ROM features. Two ~64 KiB slots near the start of flash; reads only, nothing here writes flash from firmware. |
 | exp143 | Any RP2350 board. No browser. **RP2350 only** — try-before-you-buy, `explicit_buy` and flash update boot are ROM features. The same two ~64 KiB slots as exp142. This one **does** write flash from firmware: the ROM rewrites slot B's first sector to clear the TBYB bit. Slot A and the table are never written. |
+| exp144 | Any RP2350 board. No browser. **RP2350 only** — partition tables, UF2 routing and A/B selection are ROM features. The drop half needs the BOOTSEL drive and `udisksctl`, as every `yi26 flash` does; the asking half needs neither. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -368,7 +369,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142, exp143 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp144 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -485,6 +486,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp141 | `vendor` | `control` | `webusb` | `bootrom` |
 | exp142 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp143 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp144 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -606,6 +608,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp141-two-doors-into-the-bootrom](./exp141-two-doors-into-the-bootrom/) | 2 · a moment | BOOTSEL has two USB interfaces; a browser cannot claim the drive but can claim the other one — the flash port `picotool` drives |
 | [exp142-two-images-one-version](./exp142-two-images-one-version/) | 1 · board | Two firmwares in an A/B pair with different versions, and the ROM boots the higher — then swap the versions and the other one boots, the choice live |
 | [exp143-the-image-that-is-never-bought](./exp143-the-image-that-is-never-bought/) | 1 · board | An image marked provisional runs once on a 16.8-second clock and is taken back unless it calls `explicit_buy` — a rollback built out of not asking to stay |
+| [exp144-one-file-either-half](./exp144-one-file-either-half/) | 1 · board | The ROM names the half a dropped file should go into, correctly — and then will not take a file from its own drive at all while a partition table exists |
 
 ## The browser track, finished
 
@@ -784,9 +787,23 @@ interrogated yet — a direction, not a schedule:
 
   `WATCHDOG.REASON.TIMER` is not the evidence it looks like: it is set after an
   ordinary `pflash` too, because the ROM's own reboot goes through the watchdog.
-- **the drag-and-drop that lands in the right slot** — the question the whole
-  road came from: a user drops one file and the correct half is written, with
-  no `for_slotA` / `for_slotB` in the filename.
+- **the drag-and-drop that lands in the right slot** — **Done, verified
+  2026-08-05, and the answer is half a yes.**
+  [exp144](./exp144-one-file-either-half/) asked the ROM and then dropped the
+  file. Asked, the ROM is right: with partition 1 running,
+  `get_uf2_target_partition(rp2350-arm-s)` names partition 0 and
+  `pick_ab_parition(0)` names 1, so the routing answer an update wants is
+  available to any firmware, from the table alone, with no drive involved.
+  Dropped, nothing happens: **a board with a partition table does not consume a
+  UF2 written to its BOOTSEL drive** — one partition or two, file addressed at
+  `0x10000000` or at the partition's own start, all refused; erase the table and
+  the identical file, same command, flashes. The refusal has exp137's shape: the
+  copy succeeds, the file lists, and it is gone after a remount, because the
+  host's cache was showing a write the board never took. So exp139's note that
+  "a *bad* partition table makes the bootrom reject the drive's writes" was the
+  wrong half of the sentence — a good one does too, and that is why every
+  partitioned board in this arc was flashed over PICOBOOT without anyone
+  noticing. Not tested: a BOOTSEL entered by the button with a table present.
 - **the hand-rolled bootloader, as the control** — a custom USB volume that
   accepts a `.bin` and writes it. Built last, against a measured baseline, so
   the comparison is what it costs and what it buys rather than an assumption
