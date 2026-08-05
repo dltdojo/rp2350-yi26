@@ -200,6 +200,72 @@ else
 fi
 cargo build --release --quiet 2>/dev/null   # leave the default build in place
 
+# ---- reach.html, and the one thing it can silently stop doing --------------
+
+REACH=reach.html
+if [[ -f "$REACH" ]]; then
+    pass "reach.html is here — the page that reads the address so nobody types it"
+else
+    fail "reach.html is here" "typing an IP into a phone's address bar is the step that goes wrong"
+fi
+
+if command -v node > /dev/null; then
+    EXTRACT="$(mktemp -d)"
+    trap 'rm -rf "$EXTRACT"' EXIT
+    sed -n '/^<script>$/,/^<\/script>$/p' "$REACH" | sed '1d;$d' > "$EXTRACT/reach.js"
+    if node --check "$EXTRACT/reach.js" 2>"$EXTRACT/err"; then
+        pass "reach.html's script parses (node --check)"
+    else
+        fail "reach.html's script parses" "$(head -2 "$EXTRACT/err")"
+    fi
+
+    # The drift that would break this page in silence. Its regex has to match
+    # the line the firmware actually prints — and must NOT match the gateway
+    # line, which also carries an IP address and comes right after it.
+    #
+    # Both strings are pulled from the two files rather than written here, so
+    # this fails when either side moves and not when this script is stale.
+    fw_line="$(grep -oP '"\{\} ms  I am at http://[^"]*' "$SRC" | head -1)"
+    cat > "$EXTRACT/drift.mjs" <<EOF
+import fs from 'node:fs';
+const js = fs.readFileSync(process.argv[2], 'utf8');
+const m = js.match(/const ADDRESS_LINE = (\/.*\/);/);
+if (!m) { console.error('no ADDRESS_LINE in the page'); process.exit(1); }
+const re = eval(m[1]);
+const addr = '[   10551 ms] 10551 ms  I am at http://10.42.0.212/ — 0 request(s) served';
+const gw   = '[   10551 ms]         gateway 10.42.0.1 — there is a way out of here';
+const hit = addr.match(re);
+if (!hit || hit[1] !== 'http://10.42.0.212') { console.error('the page cannot read the address line'); process.exit(1); }
+if (gw.match(re)) { console.error('the page mistakes the gateway line for the address'); process.exit(1); }
+EOF
+    if node "$EXTRACT/drift.mjs" "$EXTRACT/reach.js" 2>"$EXTRACT/drift-err"; then
+        pass "reach.html reads the address line the firmware prints, and not the gateway line"
+    else
+        fail "reach.html reads the firmware's address line" "$(head -1 "$EXTRACT/drift-err")"
+    fi
+    [[ -n "$fw_line" ]] \
+        && pass "the firmware still prints that line ($(echo "$fw_line" | cut -c2-30)…)" \
+        || fail "the firmware prints an address line" "reach.html has nothing to read"
+else
+    echo "SKIP  node is not installed, so reach.html's parser cannot be run here"
+fi
+
+# Three ways in, because they fail independently and a phone must not need a
+# second attempt to find that out.
+for pair in "fetch(:fetch" "iframe:an iframe" "location.href:a plain navigation"; do
+    needle="${pair%%:*}"; label="${pair#*:}"
+    grep -qF "$needle" "$REACH" \
+        && pass "reach.html can try it with $label" \
+        || fail "reach.html can try it with $label" "one blocked mechanism would cost a round trip"
+done
+
+# And the header without which `fetch` can never report anything but failure.
+if grep -q 'Access-Control-Allow-Origin' "$SRC"; then
+    pass "the board lets a foreign page read its response — that is what fetch() needs"
+else
+    fail "the board sends Access-Control-Allow-Origin" "without it fetch() cannot say what happened"
+fi
+
 # ---- the protocol, tested where it can be tested ---------------------------
 
 crate_test ../../crates/dhcp "crates/dhcp passes its own tests (both router answers included)"

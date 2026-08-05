@@ -411,7 +411,7 @@ async fn http_task(
 ) -> ! {
     let mut discard = [0u8; 512];
     let mut body: heapless::String<1024> = heapless::String::new();
-    let mut head: heapless::String<128> = heapless::String::new();
+    let mut head: heapless::String<256> = heapless::String::new();
 
     loop {
         let mut socket = TcpSocket::new(stack, &mut rx[..], &mut tx[..]);
@@ -441,9 +441,29 @@ async fn http_task(
         body.clear();
         render(&mut body, served, my_address(stack).unwrap_or([0; 4]));
         head.clear();
+        // Two headers that are a decision, not boilerplate.
+        //
+        // `Access-Control-Allow-Origin: *` lets a page that did not come from
+        // this board *read* the response, instead of only being told the
+        // request failed. That is what makes `reach.html` able to say "HTTP
+        // 200, 792 bytes" rather than "something went wrong" — and asking
+        // somebody to describe what went wrong is the thing this repository
+        // spends its round trips escaping.
+        //
+        // It is a real loosening and it is worth naming: any page that can
+        // route to this board can now read this page. What is on it is a chip
+        // ID, an uptime and a counter. On a board that served anything worth
+        // keeping, this line would be the wrong trade.
+        //
+        // `Allow-Private-Network` is Chrome's Private Network Access check: a
+        // page on a secure origin fetching a private address is preflighted,
+        // and without this the preflight fails before the request is made. It
+        // is sent on every response because this server answers every method
+        // the same way, preflight included.
         let _ = write!(
             head,
             "HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\
+Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Private-Network: true\r\n\
 Content-Length: {}\r\nConnection: close\r\n\r\n",
             body.len()
         );

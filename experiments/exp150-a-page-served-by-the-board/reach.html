@@ -1,0 +1,255 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Can this browser reach the board?</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  reach.html — one file, no dependencies, no build step, no server.
+
+  Everything this page does could be done by a person with the log open in one
+  hand and the address bar in the other. It exists because that person kept
+  getting it wrong, and the mistakes were not their fault:
+
+    - the address only exists inside the board's log, so it has to be copied
+      by eye into a browser
+    - a phone's address bar autocompletes, offers to search, and upgrades to
+      https, none of which is what was meant
+    - and when it fails, the only thing anyone can report is a screenshot of
+      an error page
+
+  So this page reads the address off the log itself — over WebUSB, on the CDC
+  interface, which is a different interface from the network one and does not
+  compete with it — and then tries to reach the board *for* you, three
+  different ways, and says in words what each one did.
+
+  Three ways, because they fail independently and this must not need a second
+  attempt to find that out:
+
+    fetch()    the real instrument: it can report a status and a byte count.
+               Needs the board to send Access-Control-Allow-Origin, which
+               exp150 does, and needs Chrome's Private Network Access check to
+               pass, which is why the board also sends
+               Access-Control-Allow-Private-Network.
+    <iframe>   a navigation, not a fetch, so no CORS is involved at all. This
+               page cannot read what came back — but a person can see it.
+    open       plain navigation, the thing you would have typed. Last, because
+               it leaves this page.
+
+  If the first is blocked and the second renders, that is an answer. If none of
+  them work, that is an answer too, and a specific one.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: on a desktop, `curl http://<address>/` tells you the
+  same thing in one line. This page is for a phone, where there is no curl and
+  where typing the address is the step that goes wrong.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 46rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; margin: 0 .4rem .5rem 0; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #found { font: 700 1.5rem/1.3 ui-monospace, monospace; margin: 1rem 0; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  #status.warn { border-color: var(--warn); color: var(--fg); }
+  pre { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .8rem;
+        border-radius: 6px; overflow-x: auto; font-size: 12.5px; line-height: 1.5;
+        max-height: 16rem; }
+  iframe { width: 100%; height: 22rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  .note { border-left: 3px solid var(--warn); padding: .6rem .9rem; margin: 1rem 0; font-size: 13.5px; }
+  code { font-size: .92em; }
+</style>
+
+<h1>Can this browser reach the board?</h1>
+<p class="sub">exp150 &middot; reads the address out of the board's own log, then tries it for you.<br>
+  <small>page build <b>r1</b> &mdash; nothing to type, nothing to copy.</small></p>
+
+<p>
+  <button id="connect">Find the board</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+</p>
+
+<div id="found"></div>
+<div id="status">Not connected. The board must be running <b>exp150</b>.</div>
+
+<p id="actions" hidden>
+  <button id="fetch">Fetch it</button>
+  <button id="frame" class="ghost">Show it here</button>
+  <button id="open" class="ghost">Open it</button>
+</p>
+
+<div id="framewrap" hidden><iframe id="iframe" title="the board's page"></iframe></div>
+
+<h2 style="font-size:1rem">What the log is saying</h2>
+<pre id="log">(nothing yet)</pre>
+
+<div class="note">
+  <b>On Linux, run <code>yi26 detach</code> first.</b> The kernel's
+  <code>cdc_acm</code> driver owns the CDC interface, and an interface has
+  exactly one owner. On Android there is no <code>cdc_acm</code>, so there is
+  nothing to move out of the way.
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const CDC_COMM = 0x02, CDC_DATA = 0x0a;
+const SET_LINE_CODING = 0x20, SET_CONTROL_LINE_STATE = 0x22;
+const BAUD = 115200;
+
+/** The line exp150's client role prints every five seconds. */
+const ADDRESS_LINE = /I am at (http:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\//;
+
+let device = null, streaming = false, address = null, tail = '';
+
+function say(msg, cls = '') { $('status').textContent = msg; $('status').className = cls; }
+
+/** Keep the last few kilobytes of log on screen — enough to see the address
+ *  line arrive, not enough to make a phone scroll forever. */
+function append(text) {
+  tail = (tail + text).slice(-4000);
+  $('log').textContent = tail;
+  $('log').scrollTop = $('log').scrollHeight;
+
+  const m = tail.match(ADDRESS_LINE);
+  if (m && m[1] !== address) {
+    address = m[1];
+    $('found').textContent = address;
+    $('actions').hidden = false;
+    say(`The board says it is at ${address}. Nothing has tried to reach it yet — press a button.`, 'ok');
+  }
+}
+
+/** Find the CDC pair the same way log.html does. */
+function pickInterfaces(dev) {
+  const cfg = dev.configuration;
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === CDC_COMM && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === CDC_DATA && data === null) {
+      data = iface.interfaceNumber;
+      for (const ep of alt.endpoints) if (ep.direction === 'in') endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function connect() {
+  try {
+    device = await navigator.usb.requestDevice({ filters: FILTERS });
+  } catch (e) {
+    say('No device chosen. Android lists the same board more than once — the live one is the entry that makes it ask for USB permission, and picking a dead one costs nothing.', 'warn');
+    return;
+  }
+  try {
+    await device.open();
+    if (!device.configuration) await device.selectConfiguration(1);
+    const { control, data, endpointIn } = pickInterfaces(device);
+    if (control === null || data === null || endpointIn === null)
+      throw new Error('this device has no CDC pair — is it running exp150?');
+
+    try {
+      await device.claimInterface(control);
+      await device.claimInterface(data);
+    } catch (e) {
+      throw new Error(
+        `cannot claim the CDC interfaces — something else owns them. On Linux that ` +
+        `is usually the kernel (fix: "yi26 detach"), or another tab of a log page ` +
+        `(fix: close it). [${e.name}]`);
+    }
+
+    const coding = new DataView(new ArrayBuffer(7));
+    coding.setUint32(0, BAUD, true);
+    coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+    await device.controlTransferOut(
+      { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control },
+      coding.buffer);
+    // DTR. `crates/usb-log` writes nothing until it sees this, so without it
+    // the page connects and then receives nothing at all, forever.
+    await device.controlTransferOut(
+      { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+    streaming = true;
+    $('connect').disabled = true; $('stop').disabled = false;
+    say('Connected. Waiting for the board to say where it is — it repeats that line every five seconds.');
+
+    const dec = new TextDecoder();
+    while (streaming) {
+      let r;
+      try { r = await device.transferIn(endpointIn, 64); }
+      catch (e) { if (streaming) say(`Transfer failed: ${e.message}`, 'bad'); break; }
+      if (r.status === 'stall') { await device.clearHalt('in', endpointIn); continue; }
+      if (r.data && r.data.byteLength) append(dec.decode(r.data, { stream: true }));
+    }
+  } catch (e) {
+    say(e.message, 'bad');
+  }
+}
+
+async function disconnect() {
+  streaming = false;
+  try { await device?.close(); } catch {}
+  $('connect').disabled = false; $('stop').disabled = true;
+  say('Disconnected.');
+}
+
+/** The real instrument. Reports what happened rather than that something did. */
+async function tryFetch() {
+  if (!address) return;
+  say(`Fetching ${address}/ …`, 'warn');
+  const started = performance.now();
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(address + '/', { cache: 'no-store', signal: ctl.signal });
+    clearTimeout(timer);
+    const text = await r.text();
+    const ms = Math.round(performance.now() - started);
+    say(`REACHED IT. HTTP ${r.status}, ${text.length} bytes, ${ms} ms. ` +
+        `This browser can talk to the board over IP.`, 'ok');
+    $('framewrap').hidden = false;
+    $('iframe').srcdoc = text;
+  } catch (e) {
+    // Distinguishing the causes matters: one of them is a browser policy and
+    // one of them is the packets not arriving, and they need different work.
+    const why = e.name === 'AbortError'
+      ? 'it timed out — the packets went somewhere and nothing came back. That is the same answer a browser address bar gives, and it is about routing, not about this page.'
+      : `the request was refused before it left: ${e.name}. That is a browser policy — a page from this origin is not allowed to reach that address — and it is a different failure from a timeout.`;
+    say(`Could not fetch it: ${why}`, 'bad');
+    say($('status').textContent + ' Try "Show it here" — an iframe is a navigation and no CORS applies to it.', 'bad');
+  }
+}
+
+/** No CORS involved: a navigation, not a fetch. This page cannot read what
+ *  comes back, which is fine — the point is that a person can see it. */
+function showHere() {
+  if (!address) return;
+  $('framewrap').hidden = false;
+  $('iframe').removeAttribute('srcdoc');
+  $('iframe').src = address + '/';
+  say('Loading it into the frame below. If the board\'s page appears there, the browser reached it — even if "Fetch it" could not.', 'warn');
+}
+
+function openIt() { if (address) location.href = address + '/'; }
+
+if (!('usb' in navigator)) {
+  say('This browser has no WebUSB. Chromium-based browsers have it; Firefox and Safari do not.', 'bad');
+  $('connect').disabled = true;
+} else {
+  $('connect').onclick = connect;
+  $('stop').onclick = disconnect;
+  $('fetch').onclick = tryFetch;
+  $('frame').onclick = showHere;
+  $('open').onclick = openIt;
+}
+</script>
