@@ -169,7 +169,10 @@ Repository-wide, alongside `lib.sh`:
   walkthrough — every step, every command, and what each should print, for
   somebody who has only the zip. Markdown links are flattened on the way out.
   exp151 and exp152 have one; the rest are a gap the zip names out loud. It refuses on a non-zero exit, so a zip is
-  evidence rather than a hope. It carries **no buildable source** and says so:
+  evidence rather than a hope. Which zips have had their own steps followed,
+  what is left and in what order, and the hazards to keep off an unattended
+  run are in [`docs/pack-verification.md`](../docs/pack-verification.md).
+  It carries **no buildable source** and says so:
   an experiment directory depends on `../../crates/` and sources `../lib.sh`,
   so anybody who wants the code wants `git clone`. Repository-wide and one
   copy, like the two above — packaging is not a third script per experiment.
