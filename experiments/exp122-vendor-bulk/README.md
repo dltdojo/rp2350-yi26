@@ -99,6 +99,123 @@ it and submitting bulk transfers, which is why `yi26 echo` exists and why
 ./check.sh    # verdict: asks sysfs which interfaces have drivers, then echoes
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. The vendor
+interface has no device node — no operating system claims it — so step 4
+writes a client that talks to the raw USB device. About twenty-five lines of
+Python, standard library only.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu with `python3`, and **write access to `/dev/bus/usb/*`** for this
+    device. That is what a udev rule is for; without one you get
+    `PermissionError` at step 5 and everything else still works.
+  * `cat`, `stty`, `lsusb`. No `yi26`.
+
+1. UNPACK IT.
+
+       unzip exp122-vendor-bulk.zip
+       cd exp122-vendor-bulk
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp122-vendor-bulk.uf2 /media/$USER/RP2350/
+
+3. LOOK AT THE INTERFACE NOBODY CLAIMED.
+
+       sleep 6
+       lsusb -d 1209:0001 -v 2>/dev/null | grep -E 'bInterfaceNumber|bInterfaceClass|bEndpointAddress'
+
+   Expect:
+
+       bInterfaceNumber  0    bInterfaceClass   2 Communications
+         bEndpointAddress 0x81 EP 1 IN
+       bInterfaceNumber  1    bInterfaceClass  10 CDC Data
+         bEndpointAddress 0x01 EP 1 OUT
+         bEndpointAddress 0x82 EP 2 IN
+       bInterfaceNumber  2    bInterfaceClass 255 Vendor Specific Class
+         bEndpointAddress 0x02 EP 2 OUT
+         bEndpointAddress 0x83 EP 3 IN
+
+   Interfaces 0 and 1 got `/dev/ttyACM0`. **Interface 2 got nothing** — class
+   255 means "ask the vendor", and no kernel driver claims it. There is no
+   file to open, which is why the next step opens the device itself.
+
+4. WRITE A CLIENT FOR IT. Paste this exactly as it is, at the left margin —
+   the body of a heredoc is literal, and indented Python is not Python.
+
+```sh
+cat > vecho.py <<'VECHO'
+import os, sys, fcntl, struct, glob, ctypes
+msg = (sys.argv[1] if len(sys.argv) > 1 else "hello").encode()
+node = None
+for d in glob.glob("/sys/bus/usb/devices/*/idVendor"):
+    if open(d).read().strip() == "1209":
+        base = os.path.dirname(d)
+        if open(base + "/idProduct").read().strip() == "0001":
+            b = int(open(base + "/busnum").read()); a = int(open(base + "/devnum").read())
+            node = f"/dev/bus/usb/{b:03d}/{a:03d}"
+if not node: sys.exit("no 1209:0001 found")
+fd = os.open(node, os.O_RDWR)
+IFACE = 2
+fcntl.ioctl(fd, 0x8004550f, struct.pack("I", IFACE))
+class Bulk(ctypes.Structure):
+    _fields_ = [("ep", ctypes.c_uint), ("len", ctypes.c_uint),
+                ("timeout", ctypes.c_uint), ("data", ctypes.c_void_p)]
+def bulk(ep, buf, n, to=2000):
+    b = Bulk(ep, n, to, ctypes.cast(buf, ctypes.c_void_p))
+    return fcntl.ioctl(fd, 0xc0185502, b)
+out = ctypes.create_string_buffer(msg)
+bulk(0x02, out, len(msg))
+inb = ctypes.create_string_buffer(64)
+n = bulk(0x83, inb, 64)
+print(f"sent {len(msg)} bytes, got back {n}: {inb.raw[:n]!r}")
+fcntl.ioctl(fd, 0x80045510, struct.pack("I", IFACE))
+os.close(fd)
+VECHO
+```
+
+   It finds the board in sysfs, opens `/dev/bus/usb/BBB/DDD`, claims interface
+   2, writes to endpoint `0x02` and reads from `0x83`. That sequence — claim,
+   write, read, release — is the whole of what a USB library does for you.
+
+5. TALK TO IT.
+
+       python3 vecho.py hello
+
+   Expect:
+
+       sent 5 bytes, got back 5: b'HELLO'
+
+   The board upper-cased it and sent it back on the other endpoint. **No
+   driver, no device file, no library** — just the four ioctls above.
+
+6. NOW DO BOTH AT ONCE. In one terminal:
+
+       stty -F /dev/ttyACM0 -icrnl
+       cat /dev/ttyACM0
+
+   In another:
+
+       python3 vecho.py "two owners"
+
+   The serial log keeps running while the vendor interface is claimed by your
+   Python. **Two owners, one device, neither aware of the other** — the kernel
+   holds interfaces 0 and 1, your process holds interface 2, and USB arbitrates
+   at the interface rather than at the device.
+
+IF IT DOES NOT WORK
+  * `PermissionError` opening `/dev/bus/usb/...` — no udev rule for this
+    device. That is the one prerequisite this experiment cannot do without.
+  * `OSError: [Errno 16] Device or resource busy` on the claim — something
+    else already holds interface 2. A browser tab with a WebUSB page open will
+    do it.
+  * `no 1209:0001 found` — the board is not running this firmware.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+
 ## Expected output
 
 ```console
