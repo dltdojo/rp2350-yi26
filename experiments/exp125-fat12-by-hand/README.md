@@ -36,6 +36,84 @@ rather than a comment asserting:
 [      38 ms] 125 clusters, which is under 4085 — that number is what makes it FAT12
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. This is the third
+of a trio and the pay-off: [exp123](../exp123-bot-framing/) refuses and gets no
+disk, [exp124](../exp124-msc-scsi/) answers and gets an unformatted one, and
+this one gets a volume the operating system will open.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat`, `stty`, `lsblk` and `ls` are already there. No `yi26`.
+
+1. UNPACK IT.
+
+       unzip exp125-fat12-by-hand.zip
+       cd exp125-fat12-by-hand
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp125-fat12-by-hand.uf2 /media/$USER/RP2350/
+
+3. WATCH A FILESYSTEM APPEAR, NOT JUST A DISK.
+
+       sleep 8
+       lsblk -f /dev/sda | tail -1
+
+   Expect:
+
+       sda  vfat  FAT12  YI26 EXP125  2635-1225  62K  1%  /media/cyline/YI26 EXP125
+
+   Compare that with exp124's line, which had a size and nothing else. **Now
+   there is a type, a label, a serial and a mount point**, and your desktop
+   probably opened a window.
+
+4. READ THE FILE OFF IT.
+
+       ls -l "/media/$USER/YI26 EXP125/"
+       cat "/media/$USER/YI26 EXP125/README.TXT"
+
+   Expect one file of 324 bytes, and its first lines:
+
+       exp125 - a FAT12 volume written by hand.
+
+       There is no filesystem driver on this board. A boot sector, one FAT with
+       12-bit entries, and a 16-entry root directory were laid into 64 KiB of RAM
+       at boot, and your operating system agreed to call the result a disk.
+
+   **That text came out of the board's RAM through a filesystem nobody
+   implemented.** There is no FAT driver in this firmware. There are bytes,
+   placed where the specification says a boot sector, a file allocation table
+   and a root directory go, and your kernel did the rest.
+
+5. READ WHY IT IS FAT12 AND NOT FAT16.
+
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 5 cat /dev/ttyACM0
+
+   The first two lines:
+
+       [      38 ms] exp125 up. 64 KiB formatted as FAT12 by hand.
+       [      38 ms] 125 clusters, which is under 4085 — that number is what makes it FAT12
+
+   The choice is not a flag anywhere in the boot sector. **The cluster count
+   is the format.** Under 4085 clusters means every FAT entry is twelve bits;
+   at 4085 the same bytes would have to be read as sixteen. Nothing declares
+   it and everything depends on it.
+
+IF IT DOES NOT WORK
+  * A disk appears with no filesystem — you are running exp124. Check the
+    first log line.
+  * The volume mounts but the file is empty or garbled — that is a real
+    finding and worth reporting; it would mean the directory entry and the
+    data clusters disagree.
+  * Nothing mounts and your desktop offers to format — say no, and check the
+    log for the cluster count line.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+
 ## Expected output
 
 The host's side, and the field that was empty in exp124:
