@@ -1024,13 +1024,16 @@ exp147 was built against, so nothing had to move to start.
   link UP, 192.168.7.2 leased, 0 request(s) served
   ```
 
-  for 245 seconds, with no connection line at all. The phone took the address
-  and then sent its browser's traffic out of its default network, where a
-  private address is blackholed. **Both builds behaved identically**, so it is
-  not about the gateway: announcing one changed nothing, and the interface
-  simply never becomes a network Android's per-app routing will select. Nothing
-  in a firmware can reach that decision, and there is no WebUSB-style userspace
-  fallback for it.
+  for 245 seconds, with no connection line at all. **Both builds behaved
+  identically**, so it is not about the gateway.
+
+  **The explanation first written here was wrong** — it said Android never
+  recognises the interface. A replug with the same firmware made Android's
+  Ethernet **tethering** toggle available, which requires an interface it has
+  recognised as Ethernet. The browser still times out. So the measurement holds
+  and the cause is still open; the live hypothesis is that tethering wants
+  Android to be the DHCP server and router on that link, which is a direct
+  conflict with a board that is one on a static address.
 
   Two things this settles rather than leaves open:
 

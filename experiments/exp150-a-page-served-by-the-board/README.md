@@ -122,9 +122,25 @@ for 245 seconds. Not one connection arrived.
 The error code carries the diagnosis. Not `ERR_ADDRESS_UNREACHABLE` and not
 `ERR_CONNECTION_REFUSED` — so the packets left by *some* route and nothing
 answered. They went out the phone's default network, where a private address is
-blackholed. **The interface never becomes a network Android's per-app routing
-will select**, and unlike WebUSB there is no userspace fallback when the OS
-declines.
+blackholed.
+
+**Why, exactly, is not settled, and the first answer written here was wrong.**
+It said the interface never becomes a network Android knows about. Then the
+phone was replugged with the *same* firmware and Android's **Ethernet tethering**
+toggle — greyed until then — became available and was switched on. Tethering
+needs an interface Android has recognised as Ethernet, so it had recognised it.
+The browser still timed out and the board still recorded `0 request(s) served`.
+
+So the measurement stands and the explanation does not. What is known: the
+packets do not arrive. What is not known: which layer drops them.
+
+There is a structural conflict worth testing before anything else, because it
+would explain the whole thing without any mystery. **Ethernet tethering means
+Android wants to be the DHCP server and the router on that link.** This firmware
+*is* a DHCP server, on a static `192.168.7.1`. Two servers, one cable — and once
+Android configures its own end for tethering, `192.168.7.1` is not on the subnet
+it chose, so there is nothing to route to. That is a hypothesis, it is cheap to
+test, and it points at the next experiment rather than at this one.
 
 ### The other arm of the experiment, and what it excluded
 
