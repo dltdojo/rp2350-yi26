@@ -89,6 +89,11 @@ const POLL: Duration = Duration::from_millis(50);
 
 const REPORT_EVERY: Duration = Duration::from_secs(5);
 
+/// Clock cycles between two ring-oscillator samples. exp109's number, not
+/// embassy-rp's — see where it is used.
+const TRNG_SAMPLE_COUNT: u32 = 1000;
+
+
 #[embassy_executor::task]
 async fn usb_task(mut device: UsbDevice<'static, Driver<'static, USB>>) -> ! {
     device.run().await
@@ -254,7 +259,26 @@ async fn main(spawner: Spawner) {
     // numbers and into the DHCP transaction ID. exp109 established that this
     // chip has a real TRNG, so there is no reason to fake it here. It is read
     // once, at boot, and the peripheral is then dropped.
-    let mut trng = Trng::new(p.TRNG, Irqs, TrngConfig::default());
+    // `sample_count` is set, and NOT left at the default, because
+    // [exp109](../../exp109-hardware-trng/) measured what the default does on
+    // this board. embassy-rp ships 25 clock cycles between ring-oscillator
+    // samples; at that spacing consecutive samples are still correlated, the
+    // TRNG's own health tests reject the block, and it starts over. exp109
+    // timed three consecutive 64-bit fills at **0.38 s, 31.4 s and 14.5 s**.
+    // At 1000 it is 5–6 ms, every time.
+    //
+    // This experiment paid to rediscover that. Boots looked dead — USB
+    // enumerated, the 1200-baud watcher answered, and nothing spawned after
+    // this line ever ran — because the log was read seven seconds after a boot
+    // that spent thirty in here. Nothing was hung; everything was waiting, and
+    // a wait long enough to be mistaken for a hang is worse than a crash.
+    //
+    // Sampling more slowly does not make the bits better. It makes them
+    // *cheaper to get*, which is a different claim and exp109 is careful about
+    // it.
+    let mut trng_config = TrngConfig::default();
+    trng_config.sample_count = TRNG_SAMPLE_COUNT;
+    let mut trng = Trng::new(p.TRNG, Irqs, trng_config);
     let mut seed = [0u8; 8];
     trng.fill_bytes(&mut seed).await;
 

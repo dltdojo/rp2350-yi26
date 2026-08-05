@@ -1,0 +1,17 @@
+[package]
+name = "dhcp"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Enough DHCPv4 to be the server on a link with one client: parse a request, build a reply, and refuse anything malformed"
+
+# No dependencies, and no socket. The caller owns the endpoint and hands this
+# crate a buffer, which is what lets `cargo test` feed it a truncated packet at
+# every length on the machine you are reading this on — the failure mode a
+# parser fed by a network actually has.
+[dependencies]
+
+[lib]
+name = "dhcp"
+
+[workspace]
