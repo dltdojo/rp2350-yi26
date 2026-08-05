@@ -246,6 +246,27 @@ slot A: v1.0 -> v3.0 (four bytes at +288)
 The LED went **fast**, and stayed fast across an unplug and replug. Four bytes,
 from a phone, and the ROM boots the other half from then on.
 
+And again, in the other direction — the switch always acts on the half that is
+not winning, so this time it was B's turn:
+
+```text
+A at 0x10001000: v3.0
+B at 0x10011000: v2.0
+slot B: v2.0 -> v4.0 (four bytes at +288)
+READ back: slot B is v4.0
+```
+
+`Slot B is the higher version now, so the ROM boots it — this time and every
+time.` The LED went **slow**, and stayed slow across a replug.
+
+Two presses, two directions, and the versions climbing as they go: 1→3, then
+2→4. Winning means being higher than the other one, so the numbers only ever go
+up — which is the fourth *make it yours* below, answered by running it.
+
+That `READ back: slot B is v4.0` line is also the read-back verification
+working. It is there because the two runs before it failed on a verification
+that could not see what it was verifying.
+
 ### The failures, which were worth more than the successes
 
 Three of them, none caught by `check.sh` while it printed seventeen PASS lines:
@@ -295,9 +316,10 @@ it is written down as a hazard to design around rather than as a result:
 3. Make the two halves differ by something other than a blink rate — a GPIO, a
    USB product string, anything a person can check without a toolchain. The
    readout is the design here, not an afterthought.
-4. Switch back and forth a few times and watch the version numbers climb. Work
-   out what happens when the major version runs out of room, and what a real
-   product would do instead.
+4. Switch back and forth a few times and watch the version numbers climb — the
+   run above went 1→3 then 2→4, because winning means being higher than the
+   other one and nothing ever goes down. Work out what happens when the major
+   version runs out of room, and what a real product would do instead.
 
 ## Troubleshooting
 
