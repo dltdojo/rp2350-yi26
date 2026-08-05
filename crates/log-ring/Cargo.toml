@@ -1,0 +1,15 @@
+[package]
+name = "log-ring"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A fixed-size ring of the most recent log lines, so something other than the serial port can read them"
+
+# No dependencies, no allocator, no I/O. The whole point is that the thing
+# deciding which lines survive can be tested on a machine with no board.
+[dependencies]
+
+[lib]
+name = "log_ring"
+
+[workspace]

@@ -233,15 +233,75 @@ static READER_PRESENT: AtomicBool = AtomicBool::new(true);
 /// Lines thrown away since the last time we managed to say so.
 static DROPPED: AtomicU32 = AtomicU32::new(0);
 
+/// How many recent lines are kept for a second reader, under `retain`.
+///
+/// Sixty-four at [`LINE_CAPACITY`] is 6 KiB of SRAM, which is nothing on an
+/// RP2350 and is about a minute of a firmware that reports every five seconds
+/// — enough that somebody who opens a page after plugging the board in sees
+/// how it started, and not so much that a phone has to scroll through a day.
+#[cfg(feature = "retain")]
+pub const RETAIN_LINES: usize = 64;
+
+/// The retained copy. A blocking mutex and not a channel: nothing awaits this,
+/// nothing is woken by it, and a reader takes what is there at the moment it
+/// asks.
+#[cfg(feature = "retain")]
+static RING: embassy_sync::blocking_mutex::Mutex<
+    CriticalSectionRawMutex,
+    core::cell::RefCell<log_ring::Ring<RETAIN_LINES, LINE_CAPACITY>>,
+> = embassy_sync::blocking_mutex::Mutex::new(core::cell::RefCell::new(log_ring::Ring::new()));
+
+/// Hand every retained line to `f`, oldest first, then the number that were
+/// overwritten before anyone asked.
+///
+/// Runs inside a critical section, so `f` must be short and must not log.
+#[cfg(feature = "retain")]
+pub fn retained(mut f: impl FnMut(&[u8])) -> u32 {
+    RING.lock(|r| {
+        let r = r.borrow();
+        r.for_each(&mut f);
+        r.lost()
+    })
+}
+
 /// Queues one line for the host. Never blocks, never waits, never fails.
 ///
 /// Use the [`log!`] macro rather than calling this directly.
 pub fn log(args: fmt::Arguments) {
+    line(args, true)
+}
+
+/// Log a line to the serial stream **without keeping it in the retained ring**.
+///
+/// For things that are noise in a history and useful in a stream — above all,
+/// a board's account of serving its own log. exp151 measured what happens
+/// without this: reading the page over HTTP logs three lines per request, the
+/// page refreshes itself every three seconds, and within a minute **58 of the
+/// 64 retained lines were the reader's own footsteps**. The log had been
+/// erased by the act of reading it.
+///
+/// The serial port still gets these lines, because somebody watching a serial
+/// port wants to see requests arriving. The distinction is not importance, it
+/// is *whose* log it belongs in.
+///
+/// With `retain` off this is exactly [`log`], because there is no ring to skip.
+pub fn log_transient(args: fmt::Arguments) {
+    line(args, false)
+}
+
+fn line(args: fmt::Arguments, retain: bool) {
+    let _ = retain;
     // Ask before formatting anything. The decision needs two facts and no
     // string, and under `silent-while-idle` the cheapest line is the one that
     // was never built.
     let admission = admit(POLICY, QUEUE.is_full(), READER_PRESENT.load(Ordering::Relaxed));
 
+    // Under `retain` the early return has to be deferred: the outgoing queue
+    // and the ring are different consumers with different rules, and a line
+    // the queue has no room for is one the ring should still keep. Without the
+    // feature this is the same early return it always was, and the line is
+    // never formatted at all.
+    #[cfg(not(feature = "retain"))]
     match admission {
         Admission::Drop => {
             DROPPED.fetch_add(1, Ordering::Relaxed);
@@ -257,6 +317,13 @@ pub fn log(args: fmt::Arguments) {
             }
         }
         Admission::Enqueue => {}
+    }
+
+    #[cfg(feature = "retain")]
+    if let Admission::EvictOldest = admission {
+        if QUEUE.try_receive().is_ok() {
+            DROPPED.fetch_add(1, Ordering::Relaxed);
+        }
     }
 
     // Claim the loss so it can be reported on *this* line, which — if it makes
@@ -293,6 +360,20 @@ pub fn log(args: fmt::Arguments) {
     }
     let _ = line.write_fmt(args);
 
+    // The ring gets it whatever the queue decides — unless the caller asked
+    // for a line that passes through without being kept. This is the only
+    // place in this function the second consumer is touched.
+    #[cfg(feature = "retain")]
+    if retain {
+        RING.lock(|r| r.borrow_mut().push(&line.buf[..line.len]));
+    }
+
+    #[cfg(feature = "retain")]
+    if let Admission::Drop = admission {
+        DROPPED.fetch_add(1, Ordering::Relaxed);
+        return;
+    }
+
     // `try_send` is the whole design in one call: it either takes the line
     // immediately or refuses. It has no third option that involves waiting,
     // which is precisely why the caller cannot be parked here.
@@ -319,6 +400,19 @@ pub fn log(args: fmt::Arguments) {
 macro_rules! log {
     ($($arg:tt)*) => {
         $crate::log(::core::format_args!($($arg)*))
+    };
+}
+
+/// Log a line that goes to the serial port but is **not** kept in the retained
+/// ring. See [`log_transient`] for why that distinction exists.
+///
+/// ```ignore
+/// usb_log::log_transient!("http: served request #{}", n);
+/// ```
+#[macro_export]
+macro_rules! log_transient {
+    ($($arg:tt)*) => {
+        $crate::log_transient(::core::format_args!($($arg)*))
     };
 }
 
