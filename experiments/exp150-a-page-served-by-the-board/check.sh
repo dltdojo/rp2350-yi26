@@ -93,22 +93,40 @@ else
          "StaticCell::init() panics the second time, before USB is up"
 fi
 
-if grep -q 'pool_size = 2' "$SRC"; then
-    pass "two HTTP workers — a browser opens more than one connection at a time"
+# smoltcp has no listen backlog: a SYN that finds no listening socket is
+# refused, not queued. So the worker count IS the concurrent-connection limit,
+# and a browser fetching a page and its favicon already needs two.
+workers="$(grep -oP 'pool_size = \K[0-9]+' "$SRC")"
+if [[ "${workers:-0}" -ge 4 ]]; then
+    pass "$workers HTTP workers — measured: N workers serve exactly N at once"
 else
-    fail "two HTTP workers" "one listener means speculative connections get an RST"
+    fail "at least four HTTP workers" \
+         "with two, four simultaneous requests measured 200 000 000 200"
 fi
 
-# `close()` sends a FIN; dropping before it is acknowledged aborts instead, and
-# a browser shown a reset after a 200 renders nothing at all.
-if grep -q 'socket.close()' "$SRC" && grep -q 'State::Closed' "$SRC"; then
-    pass "the connection is closed and the close is waited for, not dropped"
+# The bug a board found, and the reason this is a guard rather than a comment.
+# A gracefully closed socket goes to TIME-WAIT and sits there ~10 s; it never
+# reaches `Closed`. Waiting for `Closed` therefore always ran to its deadline
+# and cost the worker two seconds of not listening — `curl` in a loop measured
+# 200 200 000 000 000. `flush()` returns when the data and the FIN are
+# acknowledged, which is the thing actually worth waiting for.
+if grep -q 'socket.close()' "$SRC" && grep -q 'socket.flush()' "$SRC"; then
+    pass "the close waits on flush() — the FIN, not TIME-WAIT"
 else
-    fail "the close is waited for" "an abort after a 200 renders as a blank page"
+    fail "the close waits on flush()" "waiting for State::Closed never finishes"
+fi
+# Comments are stripped first: the code must not wait on `State::Closed`, and
+# the comment above it must be free to say why. A guard that cannot tell those
+# apart fails on its own explanation, which this one did.
+if grep -v '^[[:space:]]*//' "$SRC" | grep -q 'State::Closed'; then
+    fail "nothing waits for State::Closed" \
+         "a gracefully closed socket goes to TIME-WAIT and never reaches Closed"
+else
+    pass "nothing waits for State::Closed — it is a state this path never reaches"
 fi
 
-# ...and the wait is bounded, or a peer that never answers holds a worker.
-if sed -n '/socket.close()/,/^    }/p' "$SRC" | grep -q 'deadline'; then
+# ...and the wait is bounded, or a peer that vanishes holds a worker.
+if grep -q 'with_timeout(CLOSE_TIMEOUT' "$SRC"; then
     pass "the wait for the close is bounded"
 else
     fail "the wait for the close is bounded" "a silent peer would keep a worker forever"

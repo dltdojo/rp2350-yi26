@@ -71,7 +71,7 @@ use embassy_sync::signal::Signal;
 use embedded_io_async::Write as _;
 use core::fmt::Write as _;
 use core::sync::atomic::{AtomicU32, Ordering};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{with_timeout, Duration, Instant, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State as AcmState};
 use embassy_usb::class::cdc_ncm::embassy_net::{Device, Runner as NcmRunner, State as NetDeviceState};
 use embassy_usb::class::cdc_ncm::{CdcNcmClass, State as NcmState};
@@ -106,6 +106,11 @@ const PREFIX: u8 = 24;
 const LEASE_SECONDS: u32 = 3600;
 
 const HTTP_PORT: u16 = 80;
+
+/// How long to wait for a closed connection's FIN to be acknowledged before
+/// giving the worker back to the accept loop. A peer that has stopped answering
+/// must not hold a worker; a peer that is answering takes milliseconds.
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// `CHIP_INFO`, the first flag `get_sys_info` accepts — the same call
 /// [exp139](../../exp139-a-table-of-one/) makes. Two of its words are the
@@ -314,13 +319,13 @@ board answering and not a cache.</p>",
     );
 }
 
-/// **Two of these run**, and the second one is not a nicety.
+/// **Four of these run**, and the number was measured rather than chosen.
 ///
 /// A browser opens several connections at once, speculatively, before it knows
-/// whether it needs them. With one listener the extra SYNs meet a closed port
-/// and get an RST, and a page that half-loads on a phone is a wasted round trip
-/// to somebody who cannot see the log. Two workers cost about 3 KiB of buffers
-/// and remove that failure mode.
+/// whether it needs them — a page and its favicon is already two, and smoltcp
+/// has no listen backlog, so a SYN that finds no listening socket is refused
+/// rather than queued. With two workers, four simultaneous `curl`s got
+/// `200 000 000 200`. Each worker costs about 3 KiB of buffers.
 ///
 /// Buffers come from `main` rather than a `StaticCell` in here: `StaticCell`
 /// panics on a second `init()`, so a pooled task that allocated its own would
@@ -333,7 +338,7 @@ board answering and not a cache.</p>",
 /// firmware, and every path through this server returns the same page, so there
 /// is nothing a path could select. exp151 is where a URL starts to mean
 /// something, and that is where the parser belongs.
-#[embassy_executor::task(pool_size = 2)]
+#[embassy_executor::task(pool_size = 4)]
 async fn http_task(
     stack: embassy_net::Stack<'static>,
     rx: &'static mut [u8],
@@ -387,15 +392,24 @@ Content-Length: {}\r\nConnection: close\r\n\r\n",
             log!("http: request #{} was not delivered", served);
         }
         // `close()` only *starts* the shutdown — it sends a FIN. Dropping the
-        // socket before that has been acknowledged aborts the connection
-        // instead, and a browser shown a reset after a 200 renders nothing at
-        // all. So wait for the state machine to finish, with a bound: a peer
-        // that never answers must not hold this worker.
+        // socket before that is acknowledged aborts the connection instead, and
+        // a browser shown a reset after a 200 renders nothing at all.
+        //
+        // `flush()` is the wait that is actually wanted: it returns once the
+        // send queue is empty and the FIN has left `FinWait1`/`LastAck` — our
+        // data and our goodbye are both acknowledged. Whatever happens after
+        // that is bookkeeping the peer does not need us for.
+        //
+        // The first version of this waited for `State::Closed` instead, and a
+        // board measured the mistake. **A gracefully closed socket goes to
+        // TIME-WAIT, not to `Closed`**, and sits there for about ten seconds —
+        // so the loop always ran to its two-second deadline and cost this
+        // worker two seconds of not listening. With two workers that meant
+        // exactly two requests: `curl` in a loop got `200 200 000 000 000`.
+        // Requests a second apart all passed, which is why a gap in the test
+        // would have hidden it.
         socket.close();
-        let deadline = Instant::now() + Duration::from_secs(2);
-        while socket.state() != embassy_net::tcp::State::Closed && Instant::now() < deadline {
-            Timer::after(Duration::from_millis(10)).await;
-        }
+        let _ = with_timeout(CLOSE_TIMEOUT, socket.flush()).await;
     }
 }
 
@@ -517,9 +531,9 @@ async fn main(spawner: Spawner) {
     //
     // `gateway: None` for the same reason there is no router option in the
     // reply: this board is one end of a cable.
-    // One UDP socket for DHCP, two TCP sockets for the two HTTP workers, and
+    // One UDP socket for DHCP, four TCP sockets for the four HTTP workers, and
     // room to spare — running out here is a panic, not a refusal.
-    static RESOURCES: StaticCell<StackResources<5>> = StaticCell::new();
+    static RESOURCES: StaticCell<StackResources<6>> = StaticCell::new();
     let (stack, net_runner) = embassy_net::new(
         device,
         NetConfig::ipv4_static(StaticConfigV4 {
@@ -537,12 +551,14 @@ async fn main(spawner: Spawner) {
     spawner.spawn(dhcp_task(stack).unwrap());
     // One pair of buffers per worker, named separately so it is obvious there
     // are two of them and not one shared by accident.
-    static RX0: StaticCell<[u8; 1024]> = StaticCell::new();
-    static TX0: StaticCell<[u8; 2048]> = StaticCell::new();
-    static RX1: StaticCell<[u8; 1024]> = StaticCell::new();
-    static TX1: StaticCell<[u8; 2048]> = StaticCell::new();
-    spawner.spawn(http_task(stack, RX0.init([0; 1024]), TX0.init([0; 2048])).unwrap());
-    spawner.spawn(http_task(stack, RX1.init([0; 1024]), TX1.init([0; 2048])).unwrap());
+    // One `StaticCell` per buffer and not a `StaticCell<[[u8; N]; 4]>`, because
+    // `init()` panics the second time it is called and a loop over one cell is
+    // exactly that mistake with extra steps.
+    static RX: [StaticCell<[u8; 1024]>; 4] = [const { StaticCell::new() }; 4];
+    static TX: [StaticCell<[u8; 2048]>; 4] = [const { StaticCell::new() }; 4];
+    for (rx, tx) in RX.iter().zip(TX.iter()) {
+        spawner.spawn(http_task(stack, rx.init([0; 1024]), tx.init([0; 2048])).unwrap());
+    }
     spawner.spawn(report_task(stack).unwrap());
 
     log!("exp150 up. CDC-ACM for this log, CDC-NCM for the link.");

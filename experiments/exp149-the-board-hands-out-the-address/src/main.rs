@@ -181,6 +181,10 @@ async fn dhcp_task(stack: embassy_net::Stack<'static>) -> ! {
         server: BOARD_IP,
         mask: MASK,
         seconds: LEASE_SECONDS,
+        // The honest answer, and the only one this experiment offers. exp150
+        // builds the other arm and measures what it changes — which turned out
+        // to be nothing at all on the phone this was aimed at.
+        router: None,
     };
 
     let mut rx = [0u8; 1024];
