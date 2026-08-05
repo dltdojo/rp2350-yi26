@@ -972,6 +972,36 @@ exp147 was built against, so nothing had to move to start.
   that rescues the phone case" into "the thing that removes a manual step from
   every host".
 
+  Built, and the protocol lives in [`crates/dhcp`](../crates/dhcp/) with no
+  socket in it — 14 host-side tests. **Working on Ubuntu**: the four packets
+  complete in 2 ms and the host ends up with `192.168.7.2/24` and a route to
+  that subnet *and nothing else*, which is the evidence for the decision not to
+  offer a router option. Not yet finished: the ten-boot reliability run, a
+  README, and `check.sh`.
+
+  **On a Pixel 9a, 2026-08-05 — and the result is three things that do not
+  obviously belong together:**
+
+  | | |
+  | --- | --- |
+  | The LED went **fast** | the board sent an `ACK`, so Android ran a DHCP client and completed the handshake |
+  | Mobile data **survived** | 5G throughout — the link did not capture the default route |
+  | Settings showed **no Ethernet network at all** | nothing appeared under Network & internet |
+
+  So Android took the address at a layer that never became a user-visible
+  network. That is good news for exp151 — nothing was displaced — and it makes
+  exp150's question sharper rather than easier: **an address a browser cannot
+  route to is not reachability.** Chrome's sockets go to the default network,
+  and whether a literal `192.168.7.1` still finds its way out of the USB
+  interface is now the thing to measure, not to assume.
+
+  One likely cause is a decision made here on purpose. The offer carries no
+  router and no DNS, because the board routes nothing — and a network with no
+  gateway is one Android may correctly decline to promote. The code comment in
+  `crates/dhcp` already named this: if a host will not talk to a network with no
+  gateway, that is a finding, and adding six bytes is the experiment. exp150
+  runs both builds in one round trip rather than finding out twice.
+
 - **exp150 — the board serves its own log.** Hand-rolled HTTP/1.0, three
   endpoints, readable in any browser on any platform with nothing installed.
   The honest cost to write down beside it: `http://` is not a secure context, so
