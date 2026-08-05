@@ -1,17 +1,17 @@
 # exp147-two-firmwares-one-phone — the whole A/B arc, read off an LED
 
-> **Verified on hardware, 2026-08-05 — and it found something it was not built
-> to find.** A phone installed the pair, the ROM booted the higher version (slot
-> B, slow blink), and `ab.html` read both halves over PICOBOOT and named the
-> winner. Then the page's other button turned out to be doing something else
-> entirely: **a flash update boot of an image with no `TBYB` flag is not a trial
-> but a completed update, and the ROM erased the half it replaced.** See
-> [the finding](#the-finding-this-was-not-built-to-make).
+> **Verified on hardware, 2026-08-05, on a phone — and it found something it was
+> not built to find.** A Pixel 9a installed the pair, the ROM booted the higher
+> version (slot B, slow blink), `ab.html` read both halves over PICOBOOT and
+> named the winner, and its **switch** rewrote four bytes of the other half's
+> version word: the LED went fast and stayed fast across a replug. The whole A/B
+> arc, run from a phone, read off an LED.
 >
-> Still to run on a board: the **switch** button, which is the safe one. Its
-> mechanism was confirmed separately on the Ubuntu board — one byte of a version
-> word changed, and the other half booted — but the page has not yet done it
-> itself. See [Expected output](#expected-output).
+> The other button turned out to be doing something else entirely: **a flash
+> update boot of an image with no `TBYB` flag is not a trial but a completed
+> update, and the ROM erased the half it replaced.** That is
+> [the finding](#the-finding-this-was-not-built-to-make), and it was not in the
+> plan.
 
 Every other experiment on this road produces its evidence as text — a log line,
 a return code, a hex word. That is right for finding things out and wrong for
@@ -165,14 +165,21 @@ claim under load that reading them separately never did.
 On the machine with the board — and a phone is the interesting one:
 
 1. Build the pair and assemble it (`check.sh` leaves `target/exp147-ab.uf2`).
-2. Put the board in BOOTSEL: `flash.html` from a phone, `yi26 bootsel` otherwise.
-3. Install it with `pflash.html`. **The board now has a partition table**, so
-   from here its BOOTSEL drive will take nothing (exp144) — `pflash.html` is how
-   you reflash it, and `recover.html` erases the table if you want the drive
-   back.
-4. Look at the LED. Slow blink means slot B.
-5. `flash.html` again, then `ab.html`: **Read both halves**, then either button.
-6. Look at the LED again.
+2. **Together, without pausing between them:** `flash.html` to put the board in
+   BOOTSEL, then `pflash.html` to install `exp147-ab.uf2`. **The board now has a
+   partition table**, so from here its BOOTSEL drive will take nothing (exp144)
+   — `pflash.html` is how you reflash it, and `recover.html` erases the table if
+   you want the drive back.
+3. Look at the LED. Slow blink means slot B, which means the ROM compared two
+   versions and chose.
+4. **Together again:** `flash.html`, then `ab.html` → **Read both halves** →
+   **Switch to it permanently**.
+5. Look at the LED: fast now. Unplug and plug back in: still fast.
+
+The pairing in steps 2 and 4 is not tidiness — see
+[the phone hazard](#a-phone-hazard-the-sequence-has-to-be-built-around). A board
+left waiting in BOOTSEL while somebody reads the next step may not be in BOOTSEL
+by the time they get there.
 
 ## Expected output
 
@@ -213,7 +220,70 @@ PASS  reads slot A's version out of the real flash bytes (v1.0 at +288)
 PASS  reads slot B's version out of the real flash bytes (v2.0 at +288)
 ```
 
-**The phone half goes here when it has happened**, and not before.
+### The phone
+
+Captured on a **Pixel 9a, 2026-08-05**, with `ab.html` opened out of the Files
+app. Reading both halves:
+
+```text
+picked: RP2350 Boot — 2e8a:000f
+claimed PICOBOOT (interface 1, OUT ep 3, IN ep 4)
+A at 0x10001000: v1.0
+  4096 bytes read, starting 00 00 08 20 45 01 00 10
+B at 0x10011000: v2.0
+  4096 bytes read, starting 00 00 08 20 45 01 00 10
+```
+
+`The ROM boots slot B.` — and the LED was blinking slowly, which is the same
+sentence without a screen.
+
+Then **switch**:
+
+```text
+slot A: v1.0 -> v3.0 (four bytes at +288)
+```
+
+The LED went **fast**, and stayed fast across an unplug and replug. Four bytes,
+from a phone, and the ROM boots the other half from then on.
+
+### The failures, which were worth more than the successes
+
+Three of them, none caught by `check.sh` while it printed seventeen PASS lines:
+
+1. **The page read 256 bytes** and looked for a block loop that starts at
+   `+0x114`. It reported "no IMAGE_DEF version found" on a correctly installed
+   board. `check.sh` passed because its fixture was a whole sector while the
+   code read 256 bytes — *a test whose input is bigger than the code's input is
+   not testing the code.*
+2. **The read-back inside the switch was still 256 bytes** after the first fix.
+   The write succeeded and the verification reported failure — the one direction
+   a verification must never fail in, because it sends somebody to reinstall a
+   half that was fine, and it withholds the reboot that would have shown the
+   switch working. The check added for (1) only knew about the call site it had
+   been written for; it now fails on any read with a literal length.
+3. **The failure message blamed the wrong thing.** "Install the pair with
+   pflash.html first", said to somebody who had just installed it, would have
+   sent them round a loop.
+
+### A phone hazard the sequence has to be built around
+
+**A board does not sit in BOOTSEL safely on a phone.** If the screen sleeps and
+the port is power-cycled, the board resets — and a reset boots a firmware, it
+does not return to the bootloader. Nothing announces it; the next page simply
+finds the chooser full of ghosts.
+
+This was raised by the person running the experiment, and it fits every failure
+here that was not a bug in the page. It is not measured in this repository, so
+it is written down as a hazard to design around rather than as a result:
+
+- **Do `flash.html` immediately before the action that needs BOOTSEL**, not
+  several steps earlier and not while reading instructions.
+- **Treat "the chooser has only dead entries" as a question about state**, not
+  about the device — the page says so now.
+- **Keep the LED in view.** It answers "what state is this board in" faster than
+  any page can, and it is the one instrument a sleeping phone does not
+  interrupt. That is a second reason for the readout this experiment was built
+  around, and it was not the reason it was chosen.
 
 ## Make it yours
 

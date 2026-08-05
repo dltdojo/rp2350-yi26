@@ -319,6 +319,16 @@ third worked. Nothing in the names distinguishes them — **the live entry is th
 one that makes Android put up its own USB permission dialog**. Picking a dead
 one is free: the page has not sent a command by then, so work down the list.
 
+**And a board does not sit in BOOTSEL safely on a phone.** If the screen sleeps
+and the port is power-cycled, the board resets — and a reset boots a firmware
+rather than returning to the bootloader. Nothing announces it: the next page
+just finds a chooser full of dead entries. So put the board into BOOTSEL
+*immediately before* the action that needs it, not several steps earlier and not
+while reading instructions. This came from the person running
+[exp147](../experiments/exp147-two-firmwares-one-phone/) on a phone; it is a
+hazard to design around rather than something this repository has measured, and
+it fits every failure in that run that was not a bug in the page.
+
 A route that does not depend on the storage layer at all — driving the
 bootrom's **PICOBOOT** interface, the way `picotool` drives it — sidesteps every
 failure above, and as of 2026-08-04 **it exists and is verified**.

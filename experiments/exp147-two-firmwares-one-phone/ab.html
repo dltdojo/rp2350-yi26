@@ -125,6 +125,14 @@ that asks for USB permission.</div>
   from a phone. And to install the pair in the first place, use
   <code>pflash.html</code> with the assembled <code>exp147-ab.uf2</code>.
 </p>
+<p class="note">
+  <b>Do that immediately before pressing a button here, not several steps
+  earlier.</b> BOOTSEL is not a state a board sits in safely on a phone: if the
+  screen sleeps and the port is power-cycled, the board resets, and a reset
+  boots a firmware rather than returning to the bootloader. Every failure on
+  this page that was not a bug in it was the board having quietly left BOOTSEL
+  in between.
+</p>
 
 <p class="mark">ab.html · build 2026-08-05 · rp2350-yi26 · exp147</p>
 
@@ -294,7 +302,9 @@ async function connect() {
         ? `${e.message} — that is ${deadPicks} entries in a row, so they are ` +
           `probably all ghosts of earlier sessions and the board is NOT in ` +
           `BOOTSEL now. Is its LED blinking? Then it is running a firmware, ` +
-          `not waiting in the bootloader — use flash.html first.`
+          `not waiting in the bootloader — use flash.html first. A board can ` +
+          `leave BOOTSEL on its own if the phone sleeps and the port is ` +
+          `power-cycled, so this can happen while you are only reading.`
         : `${e.message} — on a phone this usually means a stale entry in the ` +
           `chooser. Press the button again and pick a different one; the live ` +
           `entry is the one that makes Android ask for USB permission.`);
