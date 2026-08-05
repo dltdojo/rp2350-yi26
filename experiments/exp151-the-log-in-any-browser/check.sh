@@ -166,6 +166,35 @@ else
     fail "the board asks for its address" "a self-assigned address is not reachable from a phone browser"
 fi
 
+# ---- the file that exists because a name still cannot be typed -------------
+#
+# Measured on a Pixel 9a: Chrome's address bar searches Google for
+# `http://yi26.local/`, scheme and all. So the name has to be tappable.
+GO=go.html
+if [[ -f "$GO" ]]; then
+    pass "go.html is here — the name is tappable, because it is not typable"
+else
+    fail "go.html is here" "a phone's address bar searches for yi26.local instead of opening it"
+fi
+
+# The link and the firmware have to agree on the name, and there is nothing
+# that would fail loudly if they stopped.
+fw_name="$(grep -oP 'MDNS_NAME: &\[u8\] = b"\K[^"]+' "$SRC")"
+if grep -q "href=\"http://${fw_name}.local/\"" "$GO"; then
+    pass "go.html links to ${fw_name}.local, which is the name the firmware answers to"
+else
+    fail "go.html and the firmware agree on the name" \
+         "the firmware answers to ${fw_name}.local — a link to anything else goes nowhere"
+fi
+
+# It must need nothing the students it is for do not have.
+grep -q 'navigator.usb' "$GO" \
+    && fail "go.html needs no WebUSB" "it exists for browsers that do not have it" \
+    || pass "go.html needs no WebUSB — that is the entire point of it"
+grep -qE '\bfetch\(' "$GO" \
+    && fail "go.html does not fetch" "a fetch from this page to http:// is mixed content and is refused" \
+    || pass "go.html navigates rather than fetching — the one thing measured to work"
+
 # ---- the board half --------------------------------------------------------
 PRODUCT="$(yi26 port --json 2>/dev/null | sed -n 's/.*"product":"\([^"]*\)".*/\1/p')"
 if [[ "$PRODUCT" != *"exp151"* ]]; then
