@@ -98,6 +98,115 @@ them, and `check.sh` fails if it ever does.
 ./check.sh    # verdict: works against whichever build is flashed
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. **Two firmware
+images and two terminals.** The test is not "does it work" — both work — it is
+what each one does when you join the stream halfway, which is what a reader
+attaching to a running system always does.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat`, `stty` and `printf` are already there. No `yi26`.
+  * Two terminal windows.
+
+**Put the port in raw mode before sending anything.** These are binary frames;
+a cooked terminal will mangle them and you will spend an afternoon on it:
+
+    stty -F /dev/ttyACM0 raw -echo
+
+1. UNPACK IT.
+
+       unzip exp136-joining-halfway.zip
+       cd exp136-joining-halfway
+       ls firmware/
+
+       exp136-cobs.uf2            a delimiter: one byte value that cannot appear inside
+       exp136-length-prefix.uf2   a header: magic byte, then how many bytes follow
+
+2. FLASH THE LENGTH-PREFIX BUILD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp136-length-prefix.uf2 /media/$USER/RP2350/
+
+3. LISTEN IN THE FIRST TERMINAL.
+
+       sleep 6
+       stty -F /dev/ttyACM0 raw -echo
+       cat /dev/ttyACM0
+
+   Expect `exp136 up. deframer: length-prefix, max payload 128 bytes.`
+
+4. SEND ONE CLEAN FRAME, FROM THE SECOND TERMINAL. The header is three bytes:
+   magic `A5`, then the payload length as two bytes, low first.
+
+       printf '\xa5\x05\x00hello' > /dev/ttyACM0
+
+       [  111784 ms] msg #1: 5 bytes: hello
+
+5. NOW JOIN HALFWAY. Send three bytes of somebody else's message, then a
+   whole one, in a single write — exactly what a reader sees when it attaches
+   to a stream already running.
+
+       printf 'llo\xa5\x05\x00world' > /dev/ttyACM0
+
+       [  114786 ms] msg #2: 5 bytes: world
+       [  114786 ms]   found after discarding 3 bytes
+
+   **It recovered, and it recovered by hunting for the magic byte.** Which
+   works here because no payload happened to contain `A5`. When one does, this
+   deframer locks onto a header that is not a header, reads a length that is
+   not a length, and delivers a message nobody sent. It resynchronises by
+   luck.
+
+6. FLASH THE COBS BUILD AND DO THE SAME TWO SENDS.
+
+       cp firmware/exp136-cobs.uf2 /media/$USER/RP2350/
+       sleep 6
+       stty -F /dev/ttyACM0 raw -echo
+       cat /dev/ttyACM0
+
+   In the other terminal, a COBS frame for `hello` — one length byte, the
+   payload, then the zero that ends it:
+
+       printf '\x06hello\x00' > /dev/ttyACM0
+
+       [    8735 ms]   7 bytes discarded, no message — still looking for a boundary
+
+   **The message is gone.** Not corrupted, not delayed — discarded, because
+   the deframer attached mid-stream and has no way to know that these seven
+   bytes are a whole frame rather than the tail of one. It refuses to guess.
+
+7. SEND THE JOINED-HALFWAY PAIR.
+
+       printf 'llo\x00\x06world\x00' > /dev/ttyACM0
+
+       [   11738 ms] msg #1: 5 bytes: world
+       [   11738 ms]   found after discarding 4 bytes
+
+   The junk ends at a zero, the next frame starts after it, and the boundary
+   is not a guess: the delimiter is a byte value that **cannot occur inside a
+   payload**, so finding one is proof.
+
+8. PUT THE TWO FAILURES SIDE BY SIDE.
+
+       length-prefix   delivered both, and can deliver messages nobody sent
+       cobs            lost the first, and cannot deliver one nobody sent
+
+   One loses messages, the other invents them. **Neither is the safe choice in
+   general** — a lost message you can detect, an invented one you cannot — and
+   that is the trade this experiment exists to make visible rather than to
+   settle.
+
+IF IT DOES NOT WORK
+  * Everything is discarded — the port is not in raw mode, or the header is
+    wrong. Length-prefix wants three header bytes, `A5 len_lo len_hi`, not two.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * Step 6 delivers `hello` instead of discarding it — then your board saw a
+    delimiter before it, and you are not joining halfway. Reflash and try
+    again without reading first.
+
 ## Expected output
 
 Captured from a Pico 2. The **length-prefix** build, straight after flashing:
