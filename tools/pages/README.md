@@ -1,6 +1,6 @@
 # tools/pages/
 
-Four pages that are **tools**, not experiments. Each one works against every
+Five pages that are **tools**, not experiments. Each one works against every
 firmware in this repository, needs no toolchain, no server and no build step,
 and is opened by double-clicking it.
 
@@ -9,7 +9,7 @@ and is opened by double-clicking it.
 | [`inspect.html`](./inspect.html) | what is inside this device — configurations, interfaces, endpoints | none; it only reads descriptors |
 | [`log.html`](./log.html) | what the firmware is printing, live | the **CDC** pair |
 | [`console.html`](./console.html) | the same log, plus whatever you type going back to the board — including a zero-length packet to end a message | the **CDC** pair |
-| [`flash.html`](./flash.html) | put this board into its bootloader so it can be reflashed | the CDC control pipe, briefly |
+| [`bootsel.html`](./bootsel.html) | put this board into its bootloader so it can be reflashed | the CDC control pipe, briefly |
 | [`pflash.html`](./pflash.html) | write a `.uf2` into a board that is already in BOOTSEL, and reboot it into the new firmware | the **PICOBOOT** vendor interface |
 
 `log.html` and `console.html` both claim CDC, so they cannot be open at the
@@ -23,14 +23,35 @@ screenshots, and that decides more about how they are written than any style
 rule here: what they log, when they log it, and what their error messages are
 allowed to claim.
 
-**The two `flash` names are a pair, not a duplicate.** `flash.html` gets a
-running board *into* BOOTSEL (it sets the CDC port to 1200 baud, the signal
-every firmware here has honoured since exp105). `pflash.html` is what writes
-firmware once it is there, and it is named after `yi26 pflash` for the same
-reason: they send the same PICOBOOT commands in the same order. Together they
-are the whole flashing cycle from a phone — which stopped being optional when
+**Every page here is named after the `yi26` subcommand that does the same job**
+— see the table below. `bootsel.html` sends what `yi26 bootsel` sends,
+`pflash.html` sends what `yi26 pflash` sends, in the same order. So an
+instruction written for one reads correctly for the other, and neither name has
+to be explained.
+
+`bootsel.html` was called `flash.html` until 2026-08-05, which was wrong twice
+over: it flashes nothing, and it sat beside `pflash.html`, which does. The two
+names differed by one letter while the things they did did not overlap at all,
+and this README used to carry a paragraph explaining that they were not
+duplicates. **A name that needs defending is a name doing somebody else's
+work.** Together they are the whole flashing cycle from a phone — which stopped
+being optional when
 [exp144](../../experiments/exp144-one-file-either-half/) measured that a board
 with a partition table takes nothing from its BOOTSEL drive.
+
+**On a board's own volume, this page is still called `FLASH.HTM`, and that is
+a decision.** [exp131](../../experiments/exp131-the-volume-is-the-app-drawer/),
+[exp133](../../experiments/exp133-a-page-per-job/) and
+[exp137](../../experiments/exp137-the-volume-that-changes/) embed it under that
+8.3 name, beside `INDEX.HTM` and `LOG.HTM`. Those three answer *what this board
+does*, *how to read it*, and *how to replace it* — a list of goals, read by
+somebody holding a phone with no other context. `BOOTSEL.HTM` would be the
+precise name and the wrong one there: it names a mechanism to a reader who has
+not been told the mechanism exists. The collision that forced the rename here
+does not exist there either, because no volume carries `pflash.html`.
+
+Two audiences, two names, on purpose: this directory is read by somebody who
+also has a command line, and a volume is read by somebody who has nothing else.
 
 ## Two toolboxes, and the line between them
 
@@ -41,7 +62,7 @@ command-line program, and these pages. They overlap, but only in four places:
 | --- | --- | --- |
 | read the log | `yi26 log` | `log.html`, `console.html` |
 | send bytes | `yi26 send` | `console.html` |
-| into the bootloader | `yi26 bootsel` | `flash.html` |
+| into the bootloader | `yi26 bootsel` | `bootsel.html` |
 | write firmware, no drive | `yi26 pflash` | `pflash.html` |
 | look at the descriptors | `yi26 doctor` | `inspect.html` |
 
@@ -127,7 +148,7 @@ own copy**:
 | --- | --- | --- |
 | `inspect.html` | [exp115](../../experiments/exp115-webusb-enumerate/) | `usb-inspector.html` |
 | `log.html` | [exp116](../../experiments/exp116-webusb-cdc-log/) | `cdc-log-viewer.html` |
-| `flash.html` | [exp117](../../experiments/exp117-webusb-reboot/) | `reboot.html` |
+| `bootsel.html` | [exp117](../../experiments/exp117-webusb-reboot/) | `reboot.html` |
 | `console.html` | [exp120](../../experiments/exp120-webusb-two-way/) | `two-way.html` |
 
 That is deliberate, and it is the opposite of what a tidy-up would do. This

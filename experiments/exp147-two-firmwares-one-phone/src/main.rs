@@ -93,7 +93,7 @@ async fn log_task(sender: Sender<'static, usb_reboot::UsbDriver>) -> ! {
 }
 
 /// The 1200-baud watcher. Load-bearing here: this is how a phone puts the board
-/// back into BOOTSEL between switches, with `flash.html` and no button.
+/// back into BOOTSEL between switches, with `bootsel.html` and no button.
 #[embassy_executor::task]
 async fn control_task(
     control: ControlChanged<'static>,

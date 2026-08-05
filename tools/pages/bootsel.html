@@ -1,16 +1,28 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>exp117 — reboot the board from a web page</title>
+<title>bootsel — put the board into its bootloader, from a page</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!--
-  exp117-webusb-reboot — one file, no dependencies, no build step, no server.
+  bootsel.html — one file, no dependencies, no build step, no server.
 
-  The last experiment on this track that changes no firmware. exp105 taught
-  the board to reboot into its bootloader when the host sets the port to 1200
-  baud; every firmware here has done it since. This page sends that request
-  itself, and with it a phone can put a board into BOOTSEL and then copy a
-  .uf2 onto the drive that appears — no toolchain, no second computer, no
-  hand on the button.
+  The browser half of `yi26 bootsel`, and named after it for the same reason
+  pflash.html is named after `yi26 pflash`: they do the same job by the same
+  means, so an instruction written for one reads correctly for the other.
+
+  It was called flash.html until 2026-08-05 and the name was wrong twice over.
+  It flashes nothing — it sets the port to 1200 baud, which is the request
+  exp105 taught the board to honour and every firmware here has honoured since.
+  And it sat next to pflash.html, which does the writing, so the two names
+  differed by one letter while the things they did did not overlap at all.
+
+  With this page a phone can put a board into BOOTSEL and then write to it —
+  with pflash.html, or by copying a .uf2 onto the drive that appears on a board
+  with no partition table. No toolchain, no second computer, no hand on the
+  button.
+
+  The FAT volumes in exp131, exp133 and exp137 still carry this page as
+  FLASH.HTM, and that is deliberate rather than left over — see
+  tools/pages/README.md.
 
   Open it directly from the filesystem — double-click on a desktop, Files app
   -> "Open with Chrome" on Android.
@@ -49,9 +61,9 @@
   code { font-size: .92em; }
 </style>
 
-<h1>Reboot the board from a web page</h1>
-<p class="sub">exp117 &middot; one control transfer, and the device you were talking to stops existing. No firmware changes.<br>
-  <small>page build <b id="ver">b1</b> &mdash; if this is not the build you expect,
+<h1>Put the board into its bootloader</h1>
+<p class="sub">One control transfer, and the device you were talking to stops existing. Writes nothing, changes no firmware.<br>
+  <small>page build <b id="ver">b2</b> &mdash; if this is not the build you expect,
   reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
 
 <p>

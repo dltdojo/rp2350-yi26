@@ -31,7 +31,7 @@
   page is two things that can drift apart.
 
   Open it directly from the filesystem — double-click on a desktop, Files app
-  -> "Open with Chrome" on Android. The board must be in BOOTSEL: flash.html
+  -> "Open with Chrome" on Android. The board must be in BOOTSEL: bootsel.html
   puts it there from a phone, `yi26 bootsel` from a desktop.
 
   ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@
 
 <div id="status"><b>The board must be in BOOTSEL right now</b> — not running one
 of the two firmwares. If its LED is blinking, it is running one: put it back
-with <code>flash.html</code> first. Then press <b>Read both halves</b>; on a
+with <code>bootsel.html</code> first. Then press <b>Read both halves</b>; on a
 phone the same board may be listed more than once, and the live entry is the one
 that asks for USB permission.</div>
 
@@ -121,7 +121,7 @@ that asks for USB permission.</div>
   being switched *to* is the damaged one and the half you are on still boots.
 </p>
 <p class="note">
-  <b>To do it again</b>, put the board back into BOOTSEL — <code>flash.html</code>
+  <b>To do it again</b>, put the board back into BOOTSEL — <code>bootsel.html</code>
   from a phone. And to install the pair in the first place, use
   <code>pflash.html</code> with the assembled <code>exp147-ab.uf2</code>.
 </p>
@@ -302,7 +302,7 @@ async function connect() {
         ? `${e.message} — that is ${deadPicks} entries in a row, so they are ` +
           `probably all ghosts of earlier sessions and the board is NOT in ` +
           `BOOTSEL now. Is its LED blinking? Then it is running a firmware, ` +
-          `not waiting in the bootloader — use flash.html first. A board can ` +
+          `not waiting in the bootloader — use bootsel.html first. A board can ` +
           `leave BOOTSEL on its own if the phone sleeps and the port is ` +
           `power-cycled, so this can happen while you are only reading.`
         : `${e.message} — on a phone this usually means a stale entry in the ` +

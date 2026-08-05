@@ -239,6 +239,14 @@ never heard of prize draws, and both working at once off one cable.
 them — and it is the one page whose success removes the volume the other two
 came from, so "at once" means something different for it.
 
+**The `FLASH.HTM` size in the capture is stale.** On 2026-08-05 the page it is
+built from was renamed `flash.html` → [`bootsel.html`](../../tools/pages/bootsel.html)
+and its header rewritten, taking it from the 9905 bytes listed below to 10,535.
+The name on this volume deliberately did not change — see
+[`tools/pages/README.md`](../../tools/pages/README.md). The listing is left as
+it was captured; `check.sh` reads the volume rather than the number, so it
+passes either way.
+
 ## Make it yours
 
 1. Open `LOG.HTM`, connect it, switch to `INDEX.HTM` and draw. Then switch

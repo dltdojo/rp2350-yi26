@@ -14,7 +14,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 source ../../experiments/lib.sh
 
-PAGES=(inspect.html log.html flash.html console.html)
+PAGES=(inspect.html log.html bootsel.html console.html)
 
 # ---------------------------------------------------------------------------
 # Every page, on its own terms.
@@ -51,9 +51,9 @@ for p in log.html console.html; do
 done
 
 # 1200 baud is the reboot signal. Exactly one of these pages may send it.
-grep -qE 'BAUD *= *1200|1200' flash.html \
-    && pass "flash.html sends the 1200-baud reboot signal (that is its job)" \
-    || fail "flash.html sends the 1200-baud reboot signal" "the touch is the whole page"
+grep -qE 'BAUD *= *1200|1200' bootsel.html \
+    && pass "bootsel.html sends the 1200-baud reboot signal (that is its job)" \
+    || fail "bootsel.html sends the 1200-baud reboot signal" "the touch is the whole page"
 
 for p in log.html console.html; do
     if grep -qE 'BAUD *= *1200' "$p"; then
@@ -152,7 +152,7 @@ while IFS=: read -r frozen tool; do
 done <<EOF
 ../../experiments/exp115-webusb-enumerate/usb-inspector.html:tools/pages/inspect.html
 ../../experiments/exp116-webusb-cdc-log/cdc-log-viewer.html:tools/pages/log.html
-../../experiments/exp117-webusb-reboot/reboot.html:tools/pages/flash.html
+../../experiments/exp117-webusb-reboot/reboot.html:tools/pages/bootsel.html
 ../../experiments/exp120-webusb-two-way/two-way.html:tools/pages/console.html
 EOF
 

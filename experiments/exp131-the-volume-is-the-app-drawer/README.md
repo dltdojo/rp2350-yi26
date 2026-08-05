@@ -18,7 +18,7 @@ This experiment carries it. Two pages on one read-only volume:
 | File | What it is for | Embedded from |
 | --- | --- | --- |
 | `INDEX.HTM` | what this board **does** — the prize draw | [exp130](../exp130-the-board-draws/)'s `draw.html` |
-| `FLASH.HTM` | how to **replace** it — into BOOTSEL, from here | [`tools/pages/flash.html`](../../tools/pages/), the maintained tool [exp117](../exp117-webusb-reboot/) built |
+| `FLASH.HTM` | how to **replace** it — into BOOTSEL, from here | [`tools/pages/bootsel.html`](../../tools/pages/), the maintained tool [exp117](../exp117-webusb-reboot/) built |
 
 Needs: any RP2350 board, the exp102 toolchain, and a Chromium browser. On
 Linux, `yi26 detach` first.
@@ -26,7 +26,7 @@ Linux, `yi26 detach` first.
 ## Nothing here was written for this experiment
 
 Neither page was. Both are `include_bytes!` from the file that owns them —
-exp130's `draw.html` and the repository's `flash.html` — and `check.sh` fails
+exp130's `draw.html` and the repository's `bootsel.html` — and `check.sh` fails
 if a copy ever appears in this directory. What is new is the **composition**,
 and that is the claim being made: a phone that has this board has everything,
 permanently, and never needs a download again.
@@ -89,11 +89,22 @@ appliance page less than half the size.
 
 ## The one that names itself
 
-`reboot.html` says what it does to somebody who already knows. In a file
-listing on a phone, beside `INDEX.HTM` and `LOG.HTM`, it does not — reboot
-into *what?* The file on the volume is called **`FLASH.HTM`**, because the
-thing the person wants is to put new firmware on, and FAT12's 8.3 names leave
-no room to explain.
+This page has had three names, and each one is right for who is reading it.
+
+| Where | Called | Because the reader |
+| --- | --- | --- |
+| [exp117](../exp117-webusb-reboot/) | `reboot.html` | is being shown the mechanism — one control transfer |
+| [`tools/pages/`](../../tools/pages/) | `bootsel.html` | is standing beside `pflash.html` and needs to know which is which |
+| **this volume** | **`FLASH.HTM`** | has a phone, three files, and no other context |
+
+The last one is the interesting one. In a listing beside `INDEX.HTM` and
+`LOG.HTM` — *what it does*, *how to read it* — "reboot" does not answer **into
+what?**, and "bootsel" names a mechanism to somebody who has not been told the
+mechanism exists. What that person wants is to put new firmware on, and FAT12's
+8.3 names leave no room to explain. So the volume is the one place that keeps
+the goal-shaped name, deliberately, and
+[`tools/pages/README.md`](../../tools/pages/README.md) records that as a
+decision rather than an oversight.
 
 The page's own text is unchanged and still explains the rest: press the
 button, a drive named `RP2350` replaces this one, copy a `.uf2` onto it.
@@ -158,7 +169,7 @@ Each one compared against the file it was embedded from:
 
 ```text
 INDEX.HTM == exp130-the-board-draws/draw.html ✓
-FLASH.HTM == tools/pages/flash.html ✓
+FLASH.HTM == tools/pages/bootsel.html ✓
 ```
 
 And the draw still works with the volume mounted the whole time:
@@ -239,15 +250,25 @@ simply three ticks.
 
 ## What is not verified here
 
-**This experiment's own `Expected output` is one commit behind.** It was taken
-before `FLASH.HTM` was re-pointed at the maintained
-[`tools/pages/flash.html`](../../tools/pages/) — the same 9905 bytes, from a
-different file — and before that day's edits to `src/main.rs`. A build from
-this checkout comes out **512 bytes larger** than the `115200` recorded below,
-which is one UF2 block and nothing about the firmware's behaviour. `check.sh`
-passes against the current build, and the numbers that carry the experiment's
-argument — 125 clusters, 33 for `INDEX.HTM`, 20 for `FLASH.HTM`, 55 used — are
-unaffected.
+**This experiment's own `Expected output` is two commits behind.** It was taken
+before `FLASH.HTM` was re-pointed at the maintained page in `tools/pages/` — the
+same 9905 bytes, from a different file — and before that day's edits to
+`src/main.rs`. A build from this checkout comes out **512 bytes larger** than
+the `115200` recorded below, which is one UF2 block and nothing about the
+firmware's behaviour.
+
+**And on 2026-08-05 that page was renamed and its header rewritten**, from
+`flash.html` to [`bootsel.html`](../../tools/pages/bootsel.html) — see
+[`tools/pages/README.md`](../../tools/pages/README.md) for why, and why the
+name **on this volume** stayed `FLASH.HTM`. The rename changes nothing here;
+the rewrite changes two numbers. The page went from 9905 to **10,535 bytes**,
+so at 512 bytes to a cluster it now takes **21 clusters, not 20**, and the
+volume uses **56 of its 125, not 55**. Both listings below still say the old
+numbers, and are left saying them.
+
+`check.sh` passes against the current build — it counts what is there rather
+than comparing against a number written down, which is why a page growing by
+630 bytes does not break it.
 
 It is **deliberately not being re-taken now.** This repository is walked
 experiment by experiment, and the run that teaches exp131 to somebody is the

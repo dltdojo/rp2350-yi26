@@ -21,7 +21,7 @@
 //! # The pages are the repository's tools, byte for byte
 //!
 //! Not copies — `include_bytes!` pointing at `tools/pages/log.html` and
-//! `tools/pages/flash.html`, so nothing can drift apart and `check.sh`
+//! `tools/pages/bootsel.html`, so nothing can drift apart and `check.sh`
 //! asserts they are identical. The appliance page is this experiment's own;
 //! the other two are the maintained tools, which is why fixing either of them
 //! reaches this board by rebuilding and nothing else.
@@ -114,8 +114,15 @@ const INDEX_HTM: &[u8] = include_bytes!("../index.html");
 /// This is the file that makes the claim true. Without it, a phone that wants
 /// to flash the next build has to go and find a page somewhere — a repository
 /// it may not have, or a download folder — and at that point the device is no
-/// longer self-contained. `tools/pages/flash.html`, byte for byte.
-const FLASH_HTM: &[u8] = include_bytes!("../../../tools/pages/flash.html");
+/// longer self-contained. `tools/pages/bootsel.html`, byte for byte.
+///
+/// **Two names, on purpose.** The tool is `bootsel.html`, because in a directory
+/// beside `pflash.html` a name has to say which of the two it is. On this
+/// volume it is `FLASH.HTM`, beside `INDEX.HTM` and `LOG.HTM` — three answers
+/// to *what does it do*, *how do I read it*, *how do I replace it*, read by
+/// somebody holding a phone who has not been told what BOOTSEL is. Precision
+/// there would cost more than it bought. See `tools/pages/README.md`.
+const FLASH_HTM: &[u8] = include_bytes!("../../../tools/pages/bootsel.html");
 
 /// And the log viewer, back, unchanged, and independent again.
 ///

@@ -130,7 +130,14 @@ const INDEX_HTM: &[u8] = include_bytes!("../../../tools/pages/log.html");
 /// way to flash the next one.
 ///
 /// [exp131]: ../../exp131-the-volume-is-the-app-drawer/
-const FLASH_HTM: &[u8] = include_bytes!("../../../tools/pages/flash.html");
+///
+/// **Two names, on purpose.** The tool is `bootsel.html`, because in a directory
+/// beside `pflash.html` a name has to say which of the two it is. On this
+/// volume it is `FLASH.HTM`, beside `INDEX.HTM` and `LOG.HTM` — three answers
+/// to *what does it do*, *how do I read it*, *how do I replace it*, read by
+/// somebody holding a phone who has not been told what BOOTSEL is. Precision
+/// there would cost more than it bought. See `tools/pages/README.md`.
+const FLASH_HTM: &[u8] = include_bytes!("../../../tools/pages/bootsel.html");
 
 /// The file that changes, and the only reason this experiment exists.
 ///

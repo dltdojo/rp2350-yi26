@@ -326,8 +326,14 @@ match what you expect is the exact thing this section exists to forbid.
 
 So an aged capture is **recorded, not repaired**: the experiment's own
 `What is not verified here` says which lines have moved, by how much, and why
-the argument still holds. Three of them say so today — exp130's page build,
-exp131's UF2 size, exp132's one-channel build.
+the argument still holds. Four of them say so today — exp130's page build,
+exp131's UF2 size and cluster count, exp132's one-channel build, exp133's
+`FLASH.HTM` size. The last two entries in exp131's and all of exp133's arrived
+the same way, on 2026-08-05: renaming `tools/pages/flash.html` to
+`bootsel.html` meant rewriting its header, which grew the page by 630 bytes,
+which moved a number in three volumes that embed it. **A rename is never only
+a rename** — and the rule above is what stops that turning into three edited
+captures nobody re-ran.
 
 They are not a backlog, and deliberately so. This repository is walked
 experiment by experiment, and the run that teaches an experiment to somebody is

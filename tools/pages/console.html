@@ -106,7 +106,7 @@ const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
 const SET_LINE_CODING        = 0x20;
 const SET_CONTROL_LINE_STATE = 0x22;
 
-// Never 1200. That is the reboot request tools/pages/flash.html sends on
+// Never 1200. That is the reboot request tools/pages/bootsel.html sends on
 // purpose, and sending it here would drop the board into its bootloader in the
 // middle of a conversation.
 const BAUD = 115200;

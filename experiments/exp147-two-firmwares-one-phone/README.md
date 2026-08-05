@@ -165,14 +165,14 @@ claim under load that reading them separately never did.
 On the machine with the board — and a phone is the interesting one:
 
 1. Build the pair and assemble it (`check.sh` leaves `target/exp147-ab.uf2`).
-2. **Together, without pausing between them:** `flash.html` to put the board in
+2. **Together, without pausing between them:** `bootsel.html` to put the board in
    BOOTSEL, then `pflash.html` to install `exp147-ab.uf2`. **The board now has a
    partition table**, so from here its BOOTSEL drive will take nothing (exp144)
    — `pflash.html` is how you reflash it, and `recover.html` erases the table if
    you want the drive back.
 3. Look at the LED. Slow blink means slot B, which means the ROM compared two
    versions and chose.
-4. **Together again:** `flash.html`, then `ab.html` → **Read both halves** →
+4. **Together again:** `bootsel.html`, then `ab.html` → **Read both halves** →
    **Switch to it permanently**.
 5. Look at the LED: fast now. Unplug and plug back in: still fast.
 
@@ -297,7 +297,7 @@ This was raised by the person running the experiment, and it fits every failure
 here that was not a bug in the page. It is not measured in this repository, so
 it is written down as a hazard to design around rather than as a result:
 
-- **Do `flash.html` immediately before the action that needs BOOTSEL**, not
+- **Do `bootsel.html` immediately before the action that needs BOOTSEL**, not
   several steps earlier and not while reading instructions.
 - **Treat "the chooser has only dead entries" as a question about state**, not
   about the device — the page says so now.

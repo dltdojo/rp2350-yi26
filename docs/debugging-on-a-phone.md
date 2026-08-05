@@ -97,7 +97,7 @@ wear the same exception:
 | Symptom | What it means | What to say |
 | --- | --- | --- |
 | one chooser entry of several fails to open | a stale entry | pick a different one; the live one asks for permission |
-| **every** entry fails to open | there is no live one — the board is not in that state at all | check the LED; use `flash.html` first |
+| **every** entry fails to open | there is no live one — the board is not in that state at all | check the LED; use `bootsel.html` first |
 
 The page counts the failures in a row now, because the count is what tells them
 apart. It got that right the first time it was tried, and the person's next
@@ -156,7 +156,7 @@ fits every failure in that run that was not a bug in a page. It is a hazard to
 design around:
 
 - **Pair the step that enters BOOTSEL with the step that needs it.** Not
-  "step 2: BOOTSEL … step 5: press the button". `flash.html` and the action go
+  "step 2: BOOTSEL … step 5: press the button". `bootsel.html` and the action go
   together, with no reading in between.
 - **Never leave the board in BOOTSEL while somebody reads.** Reading is exactly
   when a screen sleeps.

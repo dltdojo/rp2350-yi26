@@ -114,7 +114,7 @@ header of this file says so.
 
 And the page itself, on the machine that has the board:
 
-1. Put the board in BOOTSEL — [`flash.html`](../../tools/pages/flash.html) from
+1. Put the board in BOOTSEL — [`bootsel.html`](../../tools/pages/bootsel.html) from
    a phone, `yi26 bootsel` from a desktop.
 2. Open [`pflash.html`](../../tools/pages/pflash.html), choose a `.uf2`, press
    **Flash it**, and pick the board (**RP2350 Boot**) once.
