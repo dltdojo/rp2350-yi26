@@ -49,11 +49,30 @@ build() { # features out.uf2
         && elf2flash convert -b rp2350 "$ELF" "$2" > /dev/null 2>&1
 }
 
-if build "" "$PLAIN" && build announce-gateway "$GW"; then
-    pass "both builds compile (plain and announce-gateway)"
+CLIENT=target/exp150-client.uf2
+if build "" "$PLAIN" && build announce-gateway "$GW" && build ask-for-an-address "$CLIENT"; then
+    pass "all three builds compile (server, announce-gateway, client)"
 else
-    fail "both builds compile" "cargo build --release [--features announce-gateway]"
+    fail "all three builds compile" "cargo build --release [--features ...]"
     exit "$FAILED"
+fi
+
+# The client role is the one Android's Ethernet tethering requires: the phone is
+# the DHCP server and the router, the board is a client on its network. Whatever
+# the address turns out to be, the log has to print it — it is the only way
+# anybody finds out where to point a browser.
+if grep -q 'I am at http://' "$SRC"; then
+    pass "the client role prints the address it was given — nothing else can tell you"
+else
+    fail "the client role prints its address" "an assigned address nobody can read is unreachable"
+fi
+
+# The two roles wait for opposite things, and a line naming the wrong one sends
+# somebody looking in the wrong place.
+if grep -q 'still asking for an address' "$SRC" && grep -q 'waiting for a DISCOVER' "$SRC"; then
+    pass "each role says what it is actually waiting for"
+else
+    fail "each role says what it is waiting for" "the wrong line here costs a whole exchange"
 fi
 
 if cmp -s "$PLAIN" "$GW"; then
@@ -170,11 +189,16 @@ else
     fail "the feature switches the router option" "that is the one difference being measured"
 fi
 
+# Rebuilt on purpose: `build()` writes over the same ELF, so by now it holds
+# whichever variant was compiled last. A guard that reads a shared artifact has
+# to say which one it means.
+cargo build --release --quiet --features announce-gateway 2>/dev/null
 if strings "$ELF" 2>/dev/null | grep -q 'this build lies'; then
     pass "the gateway build says on its own page that it is lying"
 else
     fail "the gateway build admits it" "a page that claims a gateway must say so"
 fi
+cargo build --release --quiet 2>/dev/null   # leave the default build in place
 
 # ---- the protocol, tested where it can be tested ---------------------------
 

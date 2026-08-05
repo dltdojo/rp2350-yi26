@@ -55,18 +55,20 @@
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_net::tcp::TcpSocket;
+#[cfg(not(feature = "ask-for-an-address"))]
 use embassy_net::udp::{PacketMetadata, UdpSocket};
-use embassy_net::{
-    Config as NetConfig, IpAddress, IpEndpoint, Ipv4Address, Ipv4Cidr, Runner as NetRunner,
-    StackResources, StaticConfigV4,
-};
+use embassy_net::{Config as NetConfig, Runner as NetRunner, StackResources};
+#[cfg(not(feature = "ask-for-an-address"))]
+use embassy_net::{IpAddress, IpEndpoint, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{TRNG, USB};
 use embassy_rp::rom_data;
 use embassy_rp::trng::{Config as TrngConfig, InterruptHandler as TrngInterruptHandler, Trng};
 use embassy_rp::usb::{Driver, InterruptHandler};
+#[cfg(not(feature = "ask-for-an-address"))]
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+#[cfg(not(feature = "ask-for-an-address"))]
 use embassy_sync::signal::Signal;
 use embedded_io_async::Write as _;
 use core::fmt::Write as _;
@@ -96,13 +98,18 @@ const OUR_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x02, 0x50];
 /// end of the cable — one address in the pool, because a USB link has one host
 /// on it. `192.168.7.0/24` is private space that nothing else is likely to be
 /// using at the same moment as a cable plugged into one board.
+#[cfg(not(feature = "ask-for-an-address"))]
 const BOARD_IP: [u8; 4] = [192, 168, 7, 1];
+#[cfg(not(feature = "ask-for-an-address"))]
 const CLIENT_IP: [u8; 4] = [192, 168, 7, 2];
+#[cfg(not(feature = "ask-for-an-address"))]
 const MASK: [u8; 4] = [255, 255, 255, 0];
+#[cfg(not(feature = "ask-for-an-address"))]
 const PREFIX: u8 = 24;
 
 /// An hour. Long enough that nothing renews during an experiment, short enough
 /// that a client which loses the board does not remember the address for a day.
+#[cfg(not(feature = "ask-for-an-address"))]
 const LEASE_SECONDS: u32 = 3600;
 
 const HTTP_PORT: u16 = 80;
@@ -129,13 +136,70 @@ const TRNG_SAMPLE_COUNT: u32 = 1000;
 
 
 /// Set once the client has taken the address — the LED and the reporter both
-/// read it, and neither of them owns the socket that sets it.
+/// read it, and neither of them owns the socket that sets it. Only the server
+/// role has anything to signal.
+#[cfg(not(feature = "ask-for-an-address"))]
 static LEASED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 /// How many requests have been answered. The LED's fourth state is "this is
 /// not zero", and the page prints the number, so a second reload is visibly a
 /// second reload rather than a cached first one.
 static SERVED: AtomicU32 = AtomicU32::new(0);
+
+/// The two roles this firmware can take, and the whole of the difference
+/// between them.
+///
+/// **Server** (default): a fixed address, because a server without one is not a
+/// server. This is exp149's arrangement.
+///
+/// **Client** (`ask-for-an-address`): no address until somebody grants one. It
+/// is the arrangement Android's Ethernet tethering requires — the phone is the
+/// DHCP server and the router — and it is what Ubuntu's "shared to other
+/// computers" does too, which is why it can be tested without a phone.
+#[cfg(not(feature = "ask-for-an-address"))]
+fn net_config() -> NetConfig {
+    NetConfig::ipv4_static(StaticConfigV4 {
+        address: Ipv4Cidr::new(
+            Ipv4Address::new(BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3]),
+            PREFIX,
+        ),
+        gateway: None,
+        dns_servers: heapless_empty(),
+    })
+}
+
+#[cfg(feature = "ask-for-an-address")]
+fn net_config() -> NetConfig {
+    NetConfig::dhcpv4(Default::default())
+}
+
+/// The address this board is actually on, whichever way it got there. `None`
+/// while a client is still asking.
+#[cfg(feature = "ask-for-an-address")]
+fn my_address(stack: embassy_net::Stack<'_>) -> Option<[u8; 4]> {
+    stack.config_v4().map(|c| c.address.address().octets())
+}
+
+#[cfg(not(feature = "ask-for-an-address"))]
+fn my_address(_stack: embassy_net::Stack<'_>) -> Option<[u8; 4]> {
+    Some(BOARD_IP)
+}
+
+/// Has this board got somewhere for a browser to reach it?
+///
+/// The two roles answer it from different places: a server has handed its
+/// address *out* and waits for the client to take it; a client has been *given*
+/// one. The LED reads this, so it means the same thing on both builds — "there
+/// is now an address in play".
+#[cfg(feature = "ask-for-an-address")]
+fn addressed(stack: embassy_net::Stack<'_>) -> bool {
+    stack.is_config_up()
+}
+
+#[cfg(not(feature = "ask-for-an-address"))]
+fn addressed(_stack: embassy_net::Stack<'_>) -> bool {
+    LEASED.signaled()
+}
 
 #[embassy_executor::task]
 async fn usb_task(mut device: UsbDevice<'static, Driver<'static, USB>>) -> ! {
@@ -175,6 +239,7 @@ async fn net_task(mut runner: NetRunner<'static, Device<'static, MTU>>) -> ! {
 
 /// The server. Everything it knows about DHCP it gets from the `dhcp` crate;
 /// what lives here is the socket, the buffers, and the decision to broadcast.
+#[cfg(not(feature = "ask-for-an-address"))]
 #[embassy_executor::task]
 async fn dhcp_task(stack: embassy_net::Stack<'static>) -> ! {
     // One datagram in flight each way is enough: DHCP is strictly
@@ -290,7 +355,7 @@ fn chip_id() -> (u32, u32) {
 /// Deliberately plain HTML with no script and no external anything. It has to
 /// render in whatever browser a person happens to be holding, including one
 /// that never got WebUSB — that is the entire point of serving it from here.
-fn render(out: &mut heapless::String<1024>, served: u32) {
+fn render(out: &mut heapless::String<1024>, served: u32, addr: [u8; 4]) {
     let up = Instant::now().as_millis() / 1000;
     let (hi, lo) = chip_id();
     let _ = write!(
@@ -311,7 +376,7 @@ h1{{font-size:1.3rem}}dt{{color:#888;font-size:.85rem}}dd{{margin:0 0 .8rem;font
 </dl>\
 <p>Reload and watch the count go up &mdash; that is how you know this is the \
 board answering and not a cache.</p>",
-        BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3],
+        addr[0], addr[1], addr[2], addr[3],
         hi, lo,
         served,
         up,
@@ -374,7 +439,7 @@ async fn http_task(
 
         let served = SERVED.fetch_add(1, Ordering::Relaxed) + 1;
         body.clear();
-        render(&mut body, served);
+        render(&mut body, served, my_address(stack).unwrap_or([0; 4]));
         head.clear();
         let _ = write!(
             head,
@@ -421,17 +486,39 @@ async fn report_task(stack: embassy_net::Stack<'static>) -> ! {
     let mut next_idle = Instant::now() + REPORT_EVERY;
 
     loop {
-        let now = (stack.is_link_up(), LEASED.signaled());
+        let now = (stack.is_link_up(), addressed(stack));
         if last != Some(now) || Instant::now() >= next_idle {
             let ms = (Instant::now() - started).as_millis();
             match now {
                 (false, _) => log!("{} ms  link DOWN — nothing has claimed the NCM interface", ms),
+                // The two roles are waiting for opposite things here, and a
+                // line that names the wrong one sends somebody looking in the
+                // wrong place — which is the most expensive kind of wrong text
+                // in this repository. See docs/debugging-on-a-phone.md.
+                #[cfg(not(feature = "ask-for-an-address"))]
                 (true, false) => log!("{} ms  link UP, waiting for a DISCOVER", ms),
-                (true, true) => log!(
-                    "{} ms  link UP, {}.{}.{}.{} leased, {} request(s) served",
-                    ms, CLIENT_IP[0], CLIENT_IP[1], CLIENT_IP[2], CLIENT_IP[3],
-                    SERVED.load(Ordering::Relaxed)
-                ),
+                #[cfg(feature = "ask-for-an-address")]
+                (true, false) => log!("{} ms  link UP, still asking for an address", ms),
+                (true, true) => match my_address(stack) {
+                    // The line somebody reads off `log.html` and types into a
+                    // browser. It is printed on every idle tick, not once, so
+                    // it cannot have scrolled away by the time anyone looks.
+                    Some(a) => {
+                        log!(
+                            "{} ms  I am at http://{}.{}.{}.{}/ — {} request(s) served",
+                            ms, a[0], a[1], a[2], a[3], SERVED.load(Ordering::Relaxed)
+                        );
+                        // Whether there is a way *out* — the question exp151
+                        // asks, and the one thing about this link that a
+                        // client role learns and a server role cannot.
+                        #[cfg(feature = "ask-for-an-address")]
+                        if let Some(g) = stack.config_v4().and_then(|c| c.gateway) {
+                            let g = g.octets();
+                            log!("        gateway {}.{}.{}.{} — there is a way out of here", g[0], g[1], g[2], g[3]);
+                        }
+                    }
+                    None => log!("{} ms  link UP, address just went away", ms),
+                },
             }
             last = Some(now);
             next_idle = Instant::now() + REPORT_EVERY;
@@ -536,18 +623,12 @@ async fn main(spawner: Spawner) {
     static RESOURCES: StaticCell<StackResources<6>> = StaticCell::new();
     let (stack, net_runner) = embassy_net::new(
         device,
-        NetConfig::ipv4_static(StaticConfigV4 {
-            address: Ipv4Cidr::new(
-                Ipv4Address::new(BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3]),
-                PREFIX,
-            ),
-            gateway: None,
-            dns_servers: heapless_empty(),
-        }),
+        net_config(),
         RESOURCES.init(StackResources::new()),
         u64::from_le_bytes(seed),
     );
     spawner.spawn(net_task(net_runner).unwrap());
+    #[cfg(not(feature = "ask-for-an-address"))]
     spawner.spawn(dhcp_task(stack).unwrap());
     // One pair of buffers per worker, named separately so it is obvious there
     // are two of them and not one shared by accident.
@@ -562,26 +643,42 @@ async fn main(spawner: Spawner) {
     spawner.spawn(report_task(stack).unwrap());
 
     log!("exp150 up. CDC-ACM for this log, CDC-NCM for the link.");
-    log!(
-        "  I am {}.{}.{}.{}/{} and I hand out {}.{}.{}.{}",
-        BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3], PREFIX,
-        CLIENT_IP[0], CLIENT_IP[1], CLIENT_IP[2], CLIENT_IP[3]
-    );
-    if cfg!(feature = "announce-gateway") {
-        log!("  announcing myself as the gateway — this build LIES, on purpose.");
-    } else {
-        log!("  no router option, no DNS — this board routes nothing and says so.");
+
+    #[cfg(not(feature = "ask-for-an-address"))]
+    {
+        log!(
+            "  I am {}.{}.{}.{}/{} and I hand out {}.{}.{}.{}",
+            BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3], PREFIX,
+            CLIENT_IP[0], CLIENT_IP[1], CLIENT_IP[2], CLIENT_IP[3]
+        );
+        if cfg!(feature = "announce-gateway") {
+            log!("  announcing myself as the gateway — this build LIES, on purpose.");
+        } else {
+            log!("  no router option, no DNS — this board routes nothing and says so.");
+        }
+        log!("  serving http://{}.{}.{}.{}/ on port {}",
+            BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3], HTTP_PORT);
+        log!("  LED: dark=no link, slow=nobody asked, fast=address taken, SOLID=page served.");
     }
-    log!("  serving http://{}.{}.{}.{}/ on port {}",
-        BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3], HTTP_PORT);
-    log!("  LED: dark=no link, slow=nobody asked, fast=address taken, SOLID=page served.");
+
+    // The client role cannot print its address here: it does not have one yet,
+    // and will not for a few hundred milliseconds. The reporter prints it once
+    // it arrives, and keeps printing it — because the line somebody is going to
+    // read off `log.html` and type into a browser must not have scrolled away
+    // by the time they look.
+    #[cfg(feature = "ask-for-an-address")]
+    {
+        log!("  asking for an address — whoever is on the other end is the server here.");
+        log!("  serving HTTP on port {} at whatever address I am given.", HTTP_PORT);
+        log!("  LED: dark=no link, slow=still asking, fast=I have an address, SOLID=page served.");
+    }
 
     // Four states now, and the fourth is not a fourth *rate*. Three blink
     // speeds is already more than somebody can tell apart across a room, so
     // "a browser got the page" is **solid on** — the one reading that cannot
     // be confused with any of the others, for the result that matters most.
     loop {
-        match (stack.is_link_up(), LEASED.signaled(), SERVED.load(Ordering::Relaxed)) {
+        match (stack.is_link_up(), addressed(stack), SERVED.load(Ordering::Relaxed)) {
             (false, _, _) => {
                 led.set_low();
                 Timer::after(POLL).await;
@@ -598,6 +695,7 @@ async fn main(spawner: Spawner) {
 
 /// `StaticConfigV4`'s DNS list is a `heapless::Vec` that this firmware has no
 /// use for. Named rather than inlined so the empty case reads as a decision.
+#[cfg(not(feature = "ask-for-an-address"))]
 fn heapless_empty<const N: usize>() -> heapless::Vec<Ipv4Address, N> {
     heapless::Vec::new()
 }

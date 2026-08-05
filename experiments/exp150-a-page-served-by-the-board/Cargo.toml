@@ -70,6 +70,17 @@ auto-reboot = ["usb-reboot/auto-reboot"]
 # is a finding with a cost attached, and the cost is what exp151 has to weigh.
 announce-gateway = []
 
+# **Swap the roles.** The board stops being the DHCP server and asks for an
+# address instead, which is the arrangement Android's Ethernet tethering wants:
+# the phone is the server and the router, and the board is a client on its
+# network. Ubuntu's "shared to other computers" is the same role assignment, so
+# this is testable on a desk before it costs anybody a phone.
+#
+# Two things change and one does not. The address is no longer chosen, so it has
+# to be *discovered* — the log prints it, and `log.html` reads the log. The HTTP
+# server does not care: it binds a port, not an address.
+ask-for-an-address = ["embassy-net/dhcpv4"]
+
 [profile.release]
 opt-level = "s"
 lto = true
