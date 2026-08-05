@@ -114,6 +114,95 @@ sentence.
 ./check.sh    # verdict: six lengths, including the one that must NOT complete
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. **You need two
+terminals**, and the interesting result is a message that never arrives.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat`, `stty` and `printf` are already there. No `yi26`.
+  * Two terminal windows.
+
+**Two firmware images are in `firmware/`, and you want
+`exp128-reassemble-by-hand.uf2`.** The other, `exp128.uf2`, is an older build
+left in the tree under a shorter name; the two differ. Use the long one.
+
+1. UNPACK IT.
+
+       unzip exp128-reassemble-by-hand.zip
+       cd exp128-reassemble-by-hand
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp128-reassemble-by-hand.uf2 /media/$USER/RP2350/
+
+3. IN THE FIRST TERMINAL, LISTEN.
+
+       sleep 6
+       stty -F /dev/ttyACM0 -icrnl
+       cat /dev/ttyACM0
+
+   Leave it running. The banner states the rule the whole experiment is about:
+
+       [      37 ms] exp128 up. A message ends at the first packet under 64 bytes.
+
+4. SEND SOMETHING SHORT, FROM THE SECOND TERMINAL.
+
+       printf 'short' > /dev/ttyACM0
+
+   The first terminal:
+
+       [    8732 ms] msg #1: 5 bytes, 1 packet: 5
+       [    8732 ms]   short
+
+   Five bytes is under sixty-four, so the packet is the end of the message.
+   One write, one packet, one message, and everything agrees.
+
+5. NOW SEND EXACTLY SIXTY-FOUR BYTES.
+
+       printf 'A%.0s' $(seq 1 64) > /dev/ttyACM0
+
+   The first terminal:
+
+       [   10737 ms]   +64 full packet, 64 held — the message may not be over
+       [   15037 ms]   send anything short and it will complete — wrongly
+
+   **No message arrives.** Not late — never. The firmware is holding 64 bytes
+   and cannot know whether they are a whole message or the first part of a
+   longer one, because a full packet means "there may be more" and the thing
+   that would say otherwise is a zero-length packet the host did not send.
+
+6. WATCH IT COMPLETE WRONGLY.
+
+       printf 'x' > /dev/ttyACM0
+
+   The first terminal:
+
+       [   32542 ms] msg #2: 65 bytes, 2 packets: 64 1
+       [   32542 ms]   AAAAAAAAAAAAAAAAAAAAAAAA...
+
+   **65 bytes, from two writes that were never one message.** Your unrelated
+   `x` terminated somebody else's data, and the board's reassembly is correct
+   at every step — it did exactly what the boundary rule says. The rule is the
+   problem, and only a length prefix or a delimiter fixes it, which is what
+   [exp136](../exp136-joining-halfway/) is about.
+
+   This is a property of your host's USB stack rather than of the board. A
+   stack that sends a zero-length packet after a full-sized write would end
+   the message at step 5, and the answer at step 6 would be different. Report
+   what yours did.
+
+IF IT DOES NOT WORK
+  * Step 5 completes immediately with a 64-byte message — your host sends a
+    terminating zero-length packet. That is the other answer and it is worth
+    saying so.
+  * Nothing at all — the board is not running this firmware, or the cable is
+    charge-only.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+
 ## Expected output
 
 Captured from a Pico 2. `yi26 log --seconds 7` straight after flashing:
