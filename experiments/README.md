@@ -161,6 +161,18 @@ Repository-wide, alongside `lib.sh`:
   call to talk to the board. `lib.sh` builds it on first use, so **the scripts**
   need nothing installed. Run `yi26 doctor` when something is wrong, or
   `yi26 doctor --json` if the thing debugging is not a person.
+- **[`pack.sh`](./pack.sh)** — `./pack.sh exp152` puts one experiment in a
+  `.zip` somebody without a checkout can flash from: the firmware, the pages
+  that write it from a phone, the experiment's own README, and the output of
+  the `check.sh` run that built it. A README section headed exactly
+  `## Do this, in order` is lifted into the zip verbatim as the standalone
+  walkthrough — every step, every command, and what each should print, for
+  somebody who has only the zip; exp152 has one and the rest are a gap the zip
+  names out loud. It refuses on a non-zero exit, so a zip is
+  evidence rather than a hope. It carries **no buildable source** and says so:
+  an experiment directory depends on `../../crates/` and sources `../lib.sh`,
+  so anybody who wants the code wants `git clone`. Repository-wide and one
+  copy, like the two above — packaging is not a third script per experiment.
 
 Anything platform-specific belongs in the tool, not in a script. That is the
 rule the third one exists to enforce: the shell scripts are the teaching
