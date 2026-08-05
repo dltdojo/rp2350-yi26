@@ -120,11 +120,16 @@ fi
 # block that starts at +0x114, so it found nothing on a correctly installed
 # board — while this file's fixture was a whole sector and passed. A test whose
 # input is bigger than the code's input is not testing the code.
-if grep -q 'readFlash(base, SECTOR)' "$PAGE"; then
-    pass "reads a whole sector, not a page — the block loop starts at +0x114"
+# EVERY call site, not one of them. The first fix changed the read in
+# readBoth() and left the verify in switchTo() reading 256 bytes, so the write
+# succeeded and the verification said it had failed — which is the one thing a
+# verification must never do.
+short_reads="$(grep -c 'readFlash([^)]*, *[0-9]' "$PAGE" || true)"
+if [[ "$short_reads" == "0" ]]; then
+    pass "every flash read asks for a whole sector — the block loop starts at +0x114"
 else
-    fail "reads a whole sector" \
-         "the IMAGE_DEF block is past the first 256 bytes; a short read finds nothing"
+    fail "every flash read asks for a whole sector" \
+         "$short_reads call(s) pass a literal length; a short read cannot see the block"
 fi
 
 if grep -q 'did not verify' "$PAGE"; then

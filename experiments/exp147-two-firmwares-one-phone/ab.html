@@ -432,7 +432,12 @@ async function switchTo() {
     await cmd(CMD_FLASH_ERASE, addrArgs(other.base, SECTOR), 'FLASH_ERASE');
     await cmdOut(CMD_WRITE, addrArgs(other.base, SECTOR), patched, 'WRITE');
 
-    const back = await readFlash(other.base, 256);
+    // A WHOLE SECTOR again, for the same reason as the read above: the block
+    // loop starts at +0x114 and a 256-byte read cannot see it. This line said
+    // 256 after the other one was fixed, so the write succeeded and the
+    // verification reported failure — the one outcome a verification must never
+    // produce, because it sends somebody to reinstall a half that was fine.
+    const back = await readFlash(other.base, SECTOR);
     const check = findVersion(back);
     if (!check || check.value !== newVersion) {
       throw new Error('the rewrite did not verify — the board was NOT rebooted, and ' +
