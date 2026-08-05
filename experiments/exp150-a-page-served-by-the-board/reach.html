@@ -21,6 +21,13 @@
   compete with it — and then tries to reach the board *for* you, three
   different ways, and says in words what each one did.
 
+  MEASURED, Pixel 9a, 2026-08-05: only the third one works, and the reason is
+  worth more than the result. `content://` is a secure origin, so *fetching* or
+  *embedding* an `http://` address from it is mixed content and Chrome refuses
+  before anything leaves the phone. A top-level *navigation* is not mixed
+  content — there is no page for it to be mixed into — so it goes, and the
+  board answers it.
+
   Three ways, because they fail independently and this must not need a second
   attempt to find that out:
 
@@ -82,10 +89,15 @@
 <div id="status">Not connected. The board must be running <b>exp150</b>.</div>
 
 <p id="actions" hidden>
-  <button id="fetch">Fetch it</button>
+  <button id="open">Open it</button>
+  <button id="fetch" class="ghost">Fetch it</button>
   <button id="frame" class="ghost">Show it here</button>
-  <button id="open" class="ghost">Open it</button>
 </p>
+<p class="sub" id="hint" hidden><small><b>Open it</b> is the one that works on a phone, and the
+  other two are here to show you why. Measured on a Pixel 9a: a page served from
+  <code>content://</code> may not <i>fetch</i> or <i>embed</i> an <code>http://</code>
+  address — that is mixed content — but it may <b>navigate</b> to one, because a
+  navigation has no page to mix into.</small></p>
 
 <div id="framewrap" hidden><iframe id="iframe" title="the board's page"></iframe></div>
 
@@ -125,6 +137,7 @@ function append(text) {
     address = m[1];
     $('found').textContent = address;
     $('actions').hidden = false;
+    $('hint').hidden = false;
     say(`The board says it is at ${address}. Nothing has tried to reach it yet — press a button.`, 'ok');
   }
 }
@@ -225,8 +238,13 @@ async function tryFetch() {
     const why = e.name === 'AbortError'
       ? 'it timed out — the packets went somewhere and nothing came back. That is the same answer a browser address bar gives, and it is about routing, not about this page.'
       : `the request was refused before it left: ${e.name}. That is a browser policy — a page from this origin is not allowed to reach that address — and it is a different failure from a timeout.`;
-    say(`Could not fetch it: ${why}`, 'bad');
-    say($('status').textContent + ' Try "Show it here" — an iframe is a navigation and no CORS applies to it.', 'bad');
+    // The first version of this line said "try Show it here", which was the
+    // one other thing that could not work either — both are blocked as mixed
+    // content on a phone, and only a navigation is not. An error message that
+    // names the wrong next step costs a whole exchange; this repository has a
+    // document about that and this line was in it.
+    say(`Could not fetch it: ${why} Press "Open it" — a top-level navigation is ` +
+        `not mixed content, and on a phone it is the one that goes through.`, 'bad');
   }
 }
 

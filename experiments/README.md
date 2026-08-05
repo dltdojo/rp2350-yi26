@@ -1027,22 +1027,32 @@ exp147 was built against, so nothing had to move to start.
   for 245 seconds, with no connection line at all. **Both builds behaved
   identically**, so it is not about the gateway.
 
-  **The explanation first written here was wrong** — it said Android never
-  recognises the interface. A replug with the same firmware made Android's
-  Ethernet **tethering** toggle available, which requires an interface it has
-  recognised as Ethernet. The browser still times out. So the measurement holds
-  and the cause is still open; the live hypothesis is that tethering wants
-  Android to be the DHCP server and router on that link, which is a direct
-  conflict with a board that is one on a static address.
+  **Then the roles were swapped and it worked.** Built with
+  `--features ask-for-an-address`, with Android's **Ethernet tethering** on, the
+  phone is the DHCP server and the router and the board is a client on its
+  network — the arrangement Android actually supports. The board came up on
+  `10.206.115.122` with a gateway, and its page rendered in Chrome on the phone.
+
+  Three ways were tried in one sitting and only one goes through: `fetch()` is
+  refused before it leaves and an `<iframe>` stays blank, because a
+  `content://` page may not pull an `http://` resource into itself — that is
+  **mixed content**. A top-level **navigation** is not mixing anything into
+  anything, so it goes. The restriction was never about reaching a private
+  address.
+
+  So the boundary is narrower and more useful than "IP does not work on a
+  phone": **the address has to be the phone's to give, and the page has to be
+  navigated to rather than fetched.**
 
   Two things this settles rather than leaves open:
 
   - **The default-route risk is retired.** Mobile data survived throughout —
     including with the board announcing itself as the gateway, which was the
     worst case anyone had reason to fear. exp151 does not have to work around it.
-  - **exp152 is not a supplement, it is the phone route.** A browser reaching
-    the board over CDC/WebUSB is proven on this exact phone; a browser reaching
-    it over IP is not going to be.
+  - **exp152 is no longer forced.** A browser reaching the board over IP *is*
+    possible on this phone, under the conditions above. It remains interesting
+    for the case where the board wants to fetch something from the internet
+    rather than be fetched.
 
   Still expected to work on a desktop, where the interface is an ordinary one —
   `curl http://192.168.7.1/` is the check, and it is waiting on a board.

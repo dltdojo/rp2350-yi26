@@ -10,7 +10,9 @@ The cost, written beside it because it is permanent: `http://` is **not a secure
 context**, so the origin this board serves can never also use WebUSB. This road
 opens one door by closing another.
 
-**On a desktop it works. On Android it does not, and that is the finding.**
+**On a desktop it works. On Android it works too — but only when the phone
+hands out the address, and only through a navigation.** Getting to that
+sentence is most of this experiment.
 
 ## What it serves
 
@@ -105,42 +107,57 @@ That last line is not a failure — it is the property, and it is worth knowing
 before somebody points a load generator at it. A browser fetching a page and its
 favicon needs two; four is comfortable. Each worker costs about 3 KiB of buffers.
 
-## Android: the wall
+## Android: a wall, and the door beside it
 
-**Verified on a Pixel 9a, 2026-08-05.** The phone takes the address
-([exp149](../exp149-the-board-hands-out-the-address/) established that), and then
-Chrome at `http://192.168.7.1/` returns **`ERR_TIMED_OUT`**.
+**Verified on a Pixel 9a, 2026-08-05.** With the board as the DHCP server on a
+static `192.168.7.1`, Chrome returns **`ERR_TIMED_OUT`** and the board reports
+`0 request(s) served` for 245 seconds. Not one connection arrived.
 
-The board says where the packets did not go:
+Then the roles were swapped and it worked.
+
+### What actually reaches the board
+
+Build with `--features ask-for-an-address` and turn on Android's **Ethernet
+tethering**. The phone becomes the DHCP server and the router — which is the
+arrangement Android supports — and the board is a client on the phone's network:
 
 ```text
-link UP, 192.168.7.2 leased, 0 request(s) served
+I am at http://10.206.115.122/ — 0 request(s) served
+        gateway 10.206.115.129 — there is a way out of here
+...
+http: connection from Some(Endpoint { addr: Ipv4(10.206.115.129), ... })
 ```
 
-for 245 seconds. Not one connection arrived.
+The board's page then renders in Chrome, on the phone, at a phone-assigned
+address. **The address the board serves on has to be the phone's to give.**
 
-The error code carries the diagnosis. Not `ERR_ADDRESS_UNREACHABLE` and not
-`ERR_CONNECTION_REFUSED` — so the packets left by *some* route and nothing
-answered. They went out the phone's default network, where a private address is
-blackholed.
+### Three ways to try it, and only one goes through
 
-**Why, exactly, is not settled, and the first answer written here was wrong.**
-It said the interface never becomes a network Android knows about. Then the
-phone was replugged with the *same* firmware and Android's **Ethernet tethering**
-toggle — greyed until then — became available and was switched on. Tethering
-needs an interface Android has recognised as Ethernet, so it had recognised it.
-The browser still timed out and the board still recorded `0 request(s) served`.
+[`reach.html`](./reach.html) reads the address off the log over WebUSB — so
+nobody types it — and then tries all three in one sitting, because they fail
+independently:
 
-So the measurement stands and the explanation does not. What is known: the
-packets do not arrive. What is not known: which layer drops them.
+| | Result on the phone | Why |
+| --- | --- | --- |
+| `fetch()` | `TypeError`, refused before it left | a `content://` page fetching `http://` is **mixed content** |
+| `<iframe>` | blank | embedding `http://` in a secure page is mixed content too |
+| **navigation** | **the page renders** | a top-level navigation has no page to be mixed *into* |
 
-There is a structural conflict worth testing before anything else, because it
-would explain the whole thing without any mystery. **Ethernet tethering means
-Android wants to be the DHCP server and the router on that link.** This firmware
-*is* a DHCP server, on a static `192.168.7.1`. Two servers, one cable — and once
-Android configures its own end for tethering, `192.168.7.1` is not on the subnet
-it chose, so there is nothing to route to. That is a hypothesis, it is cheap to
-test, and it points at the next experiment rather than at this one.
+That is the finding worth keeping. The restriction is not about reaching a
+private address; it is about **mixing an insecure resource into a secure page**.
+A navigation is not mixing anything, so it goes.
+
+It also means the fetch button can never be the instrument on a phone, however
+many CORS headers the board sends — and the board sends them, which is how a
+desktop gets `HTTP 200, 792 bytes` in words.
+
+### What the first version got wrong
+
+`reach.html`'s fetch error said *"try Show it here"* — the one other thing that
+could not work either, for the same reason. An error naming the wrong next step
+costs an exchange, and
+[`docs/debugging-on-a-phone.md`](../../docs/debugging-on-a-phone.md) has a
+section about exactly that. The buttons are now ordered by what works.
 
 ### The other arm of the experiment, and what it excluded
 
