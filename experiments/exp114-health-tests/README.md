@@ -70,6 +70,92 @@ than stuck*, so it passes the repetition count and can only be caught by the
 adaptive proportion test — proving both, and proving they catch different
 things.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. One firmware,
+three sources, and two tests that each catch a different one.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. RP2350 only — it uses the TRNG.
+  * Ubuntu. `cat` and `stty` are already there.
+  * Twenty seconds of watching. One of the two failures needs 1024 bits before
+    it can be declared, and that is the honest cost of the test, not a delay.
+
+1. UNPACK IT.
+
+       unzip exp114-health-tests.zip
+       cd exp114-health-tests
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp114-health-tests.uf2 /media/$USER/RP2350/
+
+3. WATCH ALL THREE SOURCES FOR TWENTY SECONDS.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 20 cat /dev/ttyACM0
+
+4. READ THE HEADER AND THE FIRST REPORT.
+
+       [    2037 ms] SP 800-90B 4.4 continuous tests, alpha = 2^-20, assumed H = 1 bit/sample
+       [    2037 ms]   repetition count cutoff C = 21   adaptive proportion W = 1024, C = 589
+       [    2050 ms] trng  : HEALTHY after 256 bits (window 256/1024, 125 match ref)
+       [    2050 ms] adc   : HEALTHY after 256 bits (window 256/1024, 60 match ref)
+       [    2050 ms] broken: HEALTHY after 256 bits (window 256/1024, 231 match ref)
+
+   **The source you were told is broken says `HEALTHY`, and it is not lying.**
+   A test that has not seen enough data yet can honestly say nothing else.
+   Stopping here would certify a source handed to you as broken on purpose.
+
+   The `adc` line may already read `FAILED` at this point — it did in one of
+   the two runs behind this walkthrough. Which report catches it depends on
+   when its bottom bit happens to stick.
+
+5. WATCH THE ADC GO, ON THE FIRST TEST.
+
+       [    2050 ms] adc   : FAILED repetition count at 21 after 191 bits — OUTPUT WITHHELD
+       ...or...
+       [    3062 ms] adc   : FAILED repetition count at 21 after 293 bits — OUTPUT WITHHELD
+
+   Those are the two runs behind this walkthrough. **`at 21` is fixed and the
+   bit count is not**: the repetition count test fires the moment it sees the
+   same value twenty-one times running, and when that happens is up to the
+   source. It catches a source that has got **stuck**.
+
+6. WATCH THE BROKEN ONE GO, AT ABOUT FIVE SECONDS, ON THE OTHER TEST.
+
+       [    5083 ms] broken: FAILED adaptive proportion at 922 after 1024 bits — OUTPUT WITHHELD
+       [    5083 ms] -> 1 of 2 real sources still permitted to emit; broken source correctly rejected
+
+   **This one is reproducible to the millisecond** — 5083 and 5084 ms in the
+   two runs, and `922 after 1024 bits` in both. The broken source never
+   repeats itself; it is **biased**, not stuck, so the repetition count never
+   fires at all. The adaptive proportion test counts how many of 1024 samples
+   match a reference and wants fewer than 589. It saw 922. It could not say
+   anything at all until it had all 1024 samples, which is why this arrives at
+   five seconds and not at two.
+
+   Both lines then repeat every second for as long as you watch. If you are
+   reading a capture rather than a live port, take the *first* occurrence —
+   the later ones carry the same numbers at a later timestamp and are easy to
+   mistake for a much slower failure.
+
+7. TAKE THE POINT. Two tests, two failure modes, and neither would have caught
+   the other's. `OUTPUT WITHHELD` is the part that matters: this source does
+   not report a problem and carry on, it stops emitting. A health test whose
+   failure path still hands you bytes is a log message, not a test.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * Everything says HEALTHY forever — you read for three seconds. Step 6
+    genuinely needs about five.
+  * `adc` stays healthy — possible, and it means the bottom bit happened not
+    to stick during your run. It is a biased source, not a reliably stuck one;
+    exp111 measures the bias directly.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu.

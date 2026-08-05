@@ -40,6 +40,88 @@ you would think to run.
 4. Then searches for the timer value that reproduces those eight bytes,
    reporting how many candidates it tried and how long it took.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. One firmware, and
+it breaks its own secret in front of you.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. RP2350 only — it reads OTP.
+  * Ubuntu. `cat` and `stty` are already there.
+
+1. UNPACK IT.
+
+       unzip exp113-enumerable-seed.zip
+       cd exp113-enumerable-seed
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp113-enumerable-seed.uf2 /media/$USER/RP2350/
+
+3. WATCH IT BUILD A SEED AND THEN BREAK IT.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 8 cat /dev/ttyACM0
+
+   Expect, after three heartbeats:
+
+       [    3037 ms] otp identity (public, printed on purpose): 1f6ba31a
+       [    3037 ms] output from the seed: a8 19 79 54 ce 63 c8 9e
+       [    3037 ms] Those bytes pass every test in exp111. Now watch them stop being a secret.
+       [    3084 ms] CRACKED: hidden value was 37638 us. 37639 candidates in 46 ms.
+       [    3084 ms] The board that made this seed found it again in 46 ms. It was never a secret.
+       [    3103 ms] rate: 16384 candidates in 18905 us -> about 866 per ms
+       [    3103 ms] so a full 2^24 sweep would take about 19373 ms (extrapolated, not swept)
+       [    3103 ms] Effective difficulty was 37639 of those. Entropy is not space.
+
+   Your `otp identity` is your chip's and will differ. So will the hidden
+   value, the byte string and the timings — the seed is built from how long
+   boot happened to take. **What will not differ is that the board finds it
+   again in tens of milliseconds.**
+
+   **If you were slow, you missed it — and it does not matter.** That block is
+   printed once, at about three seconds, and your machine's serial buffer only
+   holds the last ten or twenty seconds of a board nobody is reading. Open the
+   port late and the first thing you see is the summary, which the firmware
+   repeats every ten seconds for exactly this reason:
+
+       [   33103 ms] result: seed = otp 1f6ba31a ^ boot 37630 us, recovered in 46 ms after 37631 tries
+
+   Every number in step 4 is in that one line. To see the full block anyway,
+   reboot the board and read it immediately: `stty -F /dev/ttyACM0 1200`, wait
+   five seconds, `cp firmware/exp113-enumerable-seed.uf2 /media/$USER/RP2350/`,
+   then read.
+
+4. READ THE FOUR NUMBERS IN ORDER, because the argument is in their ratio.
+
+   * `2^24` is the space the seed is *drawn from* — sixteen million values.
+   * `19373 ms` is what sweeping all of it would cost this board, extrapolated
+     from a measured rate rather than actually swept. Twenty seconds. Already
+     not a secret.
+   * `37639` is what it actually cost, because the value is a boot duration
+     and boot durations are not spread evenly over sixteen million
+     microseconds — they cluster where boots take.
+   * `46 ms` is the answer. Not twenty seconds, not centuries. **A space is
+     not an entropy**, and the difference is what the distribution does inside
+     it.
+
+5. NOTICE WHAT DID NOT HELP. The bytes on the `output from the seed` line pass
+   every statistical test in [exp111](../exp111-measuring-randomness/). They
+   look exactly like the hardware TRNG's output, and they are recoverable in
+   46 ms by the machine that made them. Looking random and being unguessable
+   are unrelated properties, and only one of them is testable from the output.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * `otp identity` reads all zeros — an unprogrammed part. The experiment
+    still runs; that line is printed rather than relied on, which is the point
+    of printing it.
+  * Nothing appears for three seconds — that is right. The heartbeats come
+    first, and the seed work starts at 3000 ms.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu.
