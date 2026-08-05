@@ -870,8 +870,11 @@ exp138. What remains:
   [`tools/pages/pflash.html`](../tools/pages/pflash.html): a phone opened a
   local HTML file, read a `.uf2` off its own storage, claimed PICOBOOT, erased
   six sectors, wrote 23,040 bytes, **read the first page back and compared it**,
-  and rebooted the board into the firmware it had just written. No drive, no
-  drag-and-drop, no toolchain, no second computer. It refuses before it writes
+  and sent `REBOOT2`, which the board accepted. No drive, no drag-and-drop, no
+  toolchain, no second computer. (Not yet observed, and marked so in the
+  experiment: the board enumerating as the new firmware afterwards. The bytes
+  are confirmed in flash by the read-back; that they run is the one link still
+  taken on trust.) It refuses before it writes
   (wrong base address, no boot block, wrong chip family) and refuses to reboot
   if the read-back does not match, because the person using it may have no way
   back.

@@ -3,9 +3,14 @@
 > **Verified on hardware, 2026-08-05, on a Pixel 9a.** A phone opened a local
 > HTML file, read a `.uf2` off its own storage, claimed the bootrom's PICOBOOT
 > interface, erased six sectors, wrote 23,040 bytes, **read the first page back
-> and compared it**, and rebooted the board into the firmware it had just
-> written. No drive, no drag-and-drop, no toolchain, no second computer. See
+> and compared it**, and sent `REBOOT2`, which the board accepted. No drive, no
+> drag-and-drop, no toolchain, no second computer. See
 > [Expected output](#expected-output).
+>
+> **One link is still an inference, and is marked as one:** nobody has yet
+> watched the board enumerate as exp138 afterwards. The bytes are confirmed *in
+> flash* by the read-back; that they are *running* is not observed until
+> `log.html` says so, and this note stays until it does.
 
 [exp141](../exp141-two-doors-into-the-bootrom/) proved a browser can claim
 PICOBOOT and drove it as far as `FLASH_ERASE` — a phone erased a board's flash
