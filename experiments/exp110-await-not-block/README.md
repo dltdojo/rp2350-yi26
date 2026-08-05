@@ -44,6 +44,94 @@ most-of-a-second stall is impossible to miss.
 ./check.sh    # verdict: builds both, and checks the running board
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. **Two firmware
+images, and the difference between them is the experiment** — one word in the
+source, and a number that moves by five orders of magnitude.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. RP2350 only — it uses the
+    TRNG, and the RP2040 has none.
+  * Ubuntu. `cat` and `stty` are already there.
+
+1. UNPACK IT.
+
+       unzip exp110-await-not-block.zip
+       cd exp110-await-not-block
+       ls firmware/
+
+   Two images:
+
+       exp110-await.uf2       asks for entropy and lets others run meanwhile
+       exp110-blocking.uf2    asks for entropy and sits on the processor
+
+2. FLASH THE AWAITING ONE. **[HUMAN STEP]** Hold BOOTSEL, plug in, let go:
+
+       cp firmware/exp110-await.uf2 /media/$USER/RP2350/
+
+3. READ IT.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 10 cat /dev/ttyACM0
+
+   Expect:
+
+       [      37 ms] exp110 up, built to AWAIT. Watch the probe's worst lateness.
+       [     927 ms] entropy: 4096 bytes in 890 ms (first byte 5d)
+       [    2037 ms] probe: 20 wakeups, worst lateness 12 us (0 ms)
+       [    2823 ms] entropy: 4096 bytes in 895 ms (first byte 87)
+       [    4037 ms] probe: 40 wakeups, worst lateness 3 us (0 ms)
+
+   **Note the probe lines land at 2037 and 4037** — on the second, every
+   second. The entropy request takes 890 ms and the probe does not care.
+
+4. FLASH THE BLOCKING ONE. **[HUMAN STEP]** Same as step 2, other file.
+
+       cp firmware/exp110-blocking.uf2 /media/$USER/RP2350/
+
+5. READ THAT.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 10 cat /dev/ttyACM0
+
+   Expect:
+
+       [      37 ms] exp110 up, built to BLOCK. Watch the probe's worst lateness.
+       [     924 ms] entropy: 4096 bytes in 886 ms (first byte 04)
+       [    2804 ms] entropy: 4096 bytes in 880 ms (first byte 9c)
+       [    2804 ms] probe: 20 wakeups, worst lateness 866976 us (866 ms)
+
+   **The timestamps depend on when you opened the port, and the evidence does
+   not.** If flashing took you a while, your first line may read `[44274 ms]`
+   instead of `[37 ms]` — your machine's serial buffer holds only the last ten
+   or twenty seconds of a board nobody is listening to, which is
+   [exp107](../exp107-debug-logging/)'s subject. The lateness figure and the
+   `wakeups` count are what to compare; they are the same at any uptime.
+
+6. COMPARE TWO NUMBERS, AND THEN A THIRD.
+
+   * **Worst lateness: 3–13 µs against 866 000 µs.** Same hardware, same
+     entropy, same 890 ms wait. The probe was supposed to run every 50 ms and
+     in the blocking build it ran 866 ms late.
+   * **The entropy itself costs the same either way** — about 885 ms in both.
+     Awaiting did not make anything faster. That is the point people expect to
+     be wrong and it is not: `await` buys nothing for the thing doing the
+     waiting, and everything for whatever else wanted the processor.
+   * **The timestamps give it away without reading any number.** In step 3
+     the probe reports at 2037 and 4037 ms. In step 5 it reports at 2804 and
+     4691 — dragged along behind the entropy line, because it could not run
+     until the draw let go.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * Both builds look the same — check which image is actually on the board.
+    The first log line says `built to AWAIT` or `built to BLOCK`, which is
+    there precisely so this cannot be got wrong.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu. First the awaiting build:

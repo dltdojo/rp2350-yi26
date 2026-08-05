@@ -40,6 +40,75 @@ average out to half — and fails the second badly.
 ./check.sh    # verdict: builds, and checks the running board if there is one
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. One firmware, and
+the experiment is watching two columns of numbers go different ways.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. RP2350 only — it uses the TRNG.
+  * Ubuntu. `cat` and `stty` are already there.
+  * Forty-five seconds of watching. The whole point is that a short look does
+    not settle it.
+
+1. UNPACK IT.
+
+       unzip exp111-measuring-randomness.zip
+       cd exp111-measuring-randomness
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp111-measuring-randomness.uf2 /media/$USER/RP2350/
+
+3. WATCH IT FOR FORTY-FIVE SECONDS.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 45 cat /dev/ttyACM0
+
+   The first screenful:
+
+       [      37 ms] exp111 up. Scoring two sources against a fair coin.
+       [      44 ms] Both of these look random. One of them is not.
+       [      44 ms] trng: 25 c0 94 69  adc-lsb: be fb 67 ad
+       [      44 ms] ones     after 64 bits: trng 46.8%  adc-lsb 56.2%  (fair coin 50.0%)
+       [      44 ms] changes  after 64 bits: trng 45.3%  adc-lsb 45.3%  (fair coin 50.0%)
+
+   **Your four numbers will not be these four numbers, and that is the point.**
+   At 64 bits both sources scatter: this run gave 46.8% and 56.2%, the next
+   gave 62.5% and 62.5% — the good source and the bad one, indistinguishable
+   and briefly identical. Neither is a hex dump any help; the two byte strings
+   on line three are equally unreadable to a person, which is the trap this
+   experiment is about.
+
+4. NOW LOOK AT THE LAST LINES.
+
+       [   50349 ms] ones     after 3264 bits: trng 50.1%  adc-lsb 29.7%  (fair coin 50.0%)
+       [   50349 ms] changes  after 3264 bits: trng 49.4%  adc-lsb 33.1%  (fair coin 50.0%)
+
+   The TRNG walked to 50.1% and 49.4% and stayed. The ADC's bottom bit walked
+   away and kept going.
+
+   **Which way it walks is not fixed.** This run's `adc-lsb` settled near 30%;
+   the capture in the section below settled near 69% on the same board on a
+   different day. The bias depends on what the ADC is reading, and reading the
+   bias itself is not the lesson — the lesson is that it does not converge on
+   half and the TRNG does.
+
+5. TAKE THE MEASURE OF THE MEASUREMENT. Two counters, `ones` and `changes`,
+   and neither alone is enough: a source that alternates `010101…` scores a
+   perfect 50% on `ones` and 100% on `changes`. Passing both is weak evidence
+   of randomness. Failing either is strong evidence against it, and that
+   asymmetry is what a health test can actually offer —
+   [exp114](../exp114-health-tests/) turns it into one.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * Both columns sit near 50% — read for longer. At 64 bits they are supposed
+    to be indistinguishable; that is step 3's point, not a fault.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu.
