@@ -61,8 +61,37 @@
 //! it refuses more than it accepts — including compression pointers, which are
 //! legal DNS and are where parsers grow loops that read their own tails.
 //!
-//! What this still has not been through: a browser that has no WebUSB at all.
-//! Everything here was measured on a desktop, which has it.
+//! # Measured on a Pixel 9a, 2026-08-05: one half works and one half does not
+//!
+//! **The log renders in Chrome on the phone**, at the address the phone handed
+//! out, refreshing itself, with no toolchain and no permission dialog. That is
+//! the claim this experiment was built for and it holds.
+//!
+//! **The name does not resolve.** `yi26.local` returns
+//! `DNS_PROBE_FINISHED_NXDOMAIN`, and the board's own log says why it is not
+//! its fault:
+//!
+//! ```text
+//! mdns: listening as yi26.local
+//! mdns: 318 bytes ignored: NotAQuery
+//! mdns: 318 bytes ignored: NotAQuery
+//! ```
+//!
+//! Multicast **does** reach the board — those are mDNS *responses*, something
+//! on the phone announcing its own services on that link. So the group was
+//! joined, the socket is live, and the phone participates. What never arrived
+//! is a **question** for `yi26.local`. Chrome asked something, was told there
+//! is no such name, and the board was not the one it asked.
+//!
+//! The likely reason is the one that has shadowed this whole road: Android
+//! resolves names on the **default network**, and a tethered link is a
+//! downstream. That is a guess about a mechanism; what is measured is that a
+//! correct responder, verified answering on Ubuntu, is unreachable from the
+//! browser on the other end of its own cable.
+//!
+//! So the name half is a **negative result**, and it is worth as much as a
+//! positive one: an implementation can be right, tested, and running, and still
+//! be useless because of a routing decision made somewhere else entirely.
 
 #![no_std]
 #![no_main]

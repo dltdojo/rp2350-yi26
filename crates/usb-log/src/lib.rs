@@ -346,18 +346,25 @@ fn line(args: fmt::Arguments, retain: bool) {
         DROPPED.swap(0, Ordering::Relaxed)
     };
 
-    let mut line = Line::new();
+    let now = Instant::now().as_millis();
 
+    // Built without the loss marker first, because that marker belongs to the
+    // **queue** and not to the ring.
+    //
+    // Measured on a phone: with nobody holding the serial port, the queue drops
+    // a line per tick and every survivor carries `(+1 lines lost)`. Those
+    // markers were being formatted into the text and then handed to *both*
+    // consumers — so the HTTP page showed `(+1 lines lost)` on every line of a
+    // log that had lost nothing at all. A reader shown a gap that is not there
+    // is worse off than one shown no marker: they go looking for the missing
+    // middle of something complete.
+    //
+    // The ring keeps its own count and [`retained`] returns it, so nothing is
+    // hidden — it is reported by whoever actually lost something.
+    let mut line = Line::new();
     // Stamped here, in the caller's task, at the moment the event happened —
     // see the module docs for why this must not happen on the way out.
-    let _ = write!(&mut line, "[{:>8} ms] ", Instant::now().as_millis());
-    if lost > 0 {
-        if matches!(POLICY, Policy::KeepRecent) {
-            let _ = write!(&mut line, "({} lines lost so far) ", lost);
-        } else {
-            let _ = write!(&mut line, "(+{} lines lost) ", lost);
-        }
-    }
+    let _ = write!(&mut line, "[{:>8} ms] ", now);
     let _ = line.write_fmt(args);
 
     // The ring gets it whatever the queue decides — unless the caller asked
@@ -367,6 +374,23 @@ fn line(args: fmt::Arguments, retain: bool) {
     if retain {
         RING.lock(|r| r.borrow_mut().push(&line.buf[..line.len]));
     }
+
+    // Now the queue's copy, which does carry the queue's marker. `Arguments` is
+    // `Copy`, so this costs a second formatting pass only in the rare case that
+    // something was actually lost.
+    let line = if lost > 0 {
+        let mut marked = Line::new();
+        let _ = write!(&mut marked, "[{:>8} ms] ", now);
+        if matches!(POLICY, Policy::KeepRecent) {
+            let _ = write!(&mut marked, "({} lines lost so far) ", lost);
+        } else {
+            let _ = write!(&mut marked, "(+{} lines lost) ", lost);
+        }
+        let _ = marked.write_fmt(args);
+        marked
+    } else {
+        line
+    };
 
     #[cfg(feature = "retain")]
     if let Admission::Drop = admission {
