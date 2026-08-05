@@ -22,6 +22,107 @@ This experiment's [`src/main.rs`](./src/main.rs) is exp104 plus one spawned
 task, and its comments cover only what changed: `split_with_control` instead
 of `split`, and why the receiver exp104 threw away now has a job.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone — no checkout, no
+compiler, no `yi26`. **This is the last experiment for which step 2 needs your
+hand**, and proving that is the whole point of it.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. A charge-only cable is the
+    commonest single cause of everything in this repository.
+  * Ubuntu. `lsusb` and `stty` are already there; nothing to install.
+  * No root, no udev rule, no network.
+
+1. UNPACK IT.
+
+       unzip exp105-usb-reboot.zip
+       cd exp105-usb-reboot
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold the BOOTSEL button
+   down, plug the board in, then let go. A drive called `RP2350` appears.
+
+       cp firmware/exp105-usb-reboot.uf2 /media/$USER/RP2350/
+
+   The board reboots by itself as the copy finishes and the drive vanishes.
+
+   *There is no without-hands route into this one, and that is the experiment.*
+   Whatever the board was running before either had this watcher or did not; if
+   it did not, a button is the only way in. From here on it does.
+
+3. CONFIRM IT IS RUNNING.
+
+       lsusb -d 1209:0001 && ls /dev/ttyACM*
+
+   Expect: `Bus 001 Device 016: ID 1209:0001 Generic pid.codes Test PID` and
+   `/dev/ttyACM0`. The bus and device numbers change every time; the ID does
+   not.
+
+4. TOUCH THE PORT AT 1200 BAUD. Do not send anything. Opening it at that speed
+   and closing it again is the entire signal.
+
+   **Give the board a few seconds first.** Ubuntu runs ModemManager, which
+   opens every new `ttyACM` device for a while to find out whether it is a
+   modem. Touch the port during that window and `stty` sits there with no
+   output and no error, because its `open()` is queued behind something else's.
+   Wait, and it returns instantly.
+
+       sleep 5
+       stty -F /dev/ttyACM0 1200
+       sleep 2
+       lsusb -d 2e8a:000f
+       ls /dev/ttyACM*
+
+   Expect: `Bus 001 Device 017: ID 2e8a:000f Raspberry Pi RP2350 Boot`, and
+   `ls: cannot access '/dev/ttyACM*': No such file or directory`.
+
+   **The board is now in its bootloader and nobody touched it.** The serial
+   port is gone because the firmware that was serving it is gone.
+
+   The board has no magic 1200-baud behaviour — your code does. Run the same
+   two lines against exp104, which has no watcher, and nothing happens at all.
+
+5. LOOK AT THE BOOT DRIVE. It came back when the firmware left.
+
+       lsblk -f /dev/sda | tail -1
+       ls /media/$USER/RP2350/
+
+   Expect a FAT16 volume labelled `RP2350`, about 128 MiB, already mounted, and
+   two files: `INDEX.HTM` and `INFO_UF2.TXT`.
+
+   Note `/dev/sda1` and not `/dev/sda`: the bootloader's drive has a partition
+   table. Later experiments serve a volume with none, so the device name is
+   different there — a detail worth having met once.
+
+6. CLOSE THE LOOP. Copy the same firmware back on, with nothing pressed.
+
+       cp firmware/exp105-usb-reboot.uf2 /media/$USER/RP2350/
+       sleep 4
+       lsusb -d 1209:0001 && ls /dev/ttyACM*
+
+   Expect the `1209:0001` line and `/dev/ttyACM0` again, and `lsusb -d
+   2e8a:000f` now finds nothing.
+
+   That is a complete edit-flash-run cycle with your hands off the board, which
+   is what every experiment after this one assumes.
+
+IF IT DOES NOT WORK
+  * `stty: /dev/ttyACM0: No such file or directory` — the board is not running
+    this firmware, or the cable is charge-only.
+  * `stty` prints nothing and never returns. It is blocked in `open()` because
+    something else has the port. On Ubuntu that is almost always ModemManager,
+    which probes each new `ttyACM` for a few seconds after it appears — press
+    Ctrl-C, wait, and run it again. A serial monitor left running does the same
+    thing and does not go away by itself.
+  * The touch does nothing and the port stays. Something else has the port open
+    and the touch never reached the firmware.
+  * The drive appears but the copy fails partway — that is normal and is
+    success. The board reboots the instant it has the whole image, so the
+    copying program may never get to close the file tidily. Some file managers
+    report it as an error.
+  * The board is in BOOTSEL and you want the firmware back but have no `.uf2`
+    — that is what `firmware/` in this zip is for.
+
 ## Two ways to do it
 
 ```sh

@@ -194,8 +194,18 @@ pack_experiment() {
     mkdir -p "$stage/pages"
     local own=0
     for p in "$dir"/*.html; do [[ -e "$p" ]] && { cp "$p" "$stage/pages/"; own=$((own + 1)); }; done
-    cp "$PAGES_DIR/bootsel.html" "$PAGES_DIR/pflash.html" "$stage/pages/"
-    say "$own page(s) of its own, plus bootsel.html and pflash.html"
+
+    # ...but not into an experiment that never touches a board. exp102 sets up
+    # a toolchain and exp140 is arithmetic over a file; shipping them a pair of
+    # pages for putting firmware on hardware is an invitation to go looking for
+    # hardware. Found by following exp102's own zip and noticing the passenger.
+    if [[ "$(declared "$dir" USB_RUNS_ON)" == "none" ]]; then
+        rmdir "$stage/pages" 2>/dev/null && say "no pages — this experiment never touches a board" \
+            || say "$own page(s) of its own; no flashing pages, it never touches a board"
+    else
+        cp "$PAGES_DIR/bootsel.html" "$PAGES_DIR/pflash.html" "$stage/pages/"
+        say "$own page(s) of its own, plus bootsel.html and pflash.html"
+    fi
 
     # -- the words ---------------------------------------------------------
     if [[ -f "$dir/README.md" ]]; then
@@ -265,13 +275,19 @@ write_flash_txt() {
             fi
             echo "  firmware/SHA256SUMS              so you can tell you got these bytes"
         else
-            echo "  NO FIRMWARE. This experiment has none of its own — it runs against"
-            echo "  another experiment's, or against no board at all. See 'WHAT IT RUNS"
-            echo "  ON' below, and README.md."
+            if [[ "$(declared "$dir" USB_RUNS_ON)" == "none" ]]; then
+                echo "  NO FIRMWARE, AND NO BOARD. This experiment is about the machine"
+                echo "  you are typing on. There is nothing here to plug in."
+            else
+                echo "  NO FIRMWARE. This experiment has none of its own — it runs against"
+                echo "  another experiment's. See 'WHAT IT RUNS ON' below, and README.md."
+            fi
         fi
-        echo "  pages/                           open these in a browser, from the file"
-        echo "                                   manager. bootsel.html and pflash.html"
-        echo "                                   are how a phone flashes a board."
+        if [[ -d "$stage/pages" ]]; then
+            echo "  pages/                           open these in a browser, from the file"
+            echo "                                   manager. bootsel.html and pflash.html"
+            echo "                                   are how a phone flashes a board."
+        fi
         echo "  README.md                        the experiment itself"
         echo "  CHECK.txt                        the output of its own check.sh, from"
         echo "                                   the run that produced this zip"
@@ -279,8 +295,8 @@ write_flash_txt() {
         echo
         if [[ -n "$steps" ]]; then
             echo "DO THIS, IN ORDER"
-            echo "  Every step, every command, and what each one should print. You do"
-            echo "  not need the source, a compiler, or anything else in the repository."
+            echo "  Every step, every command, and what each one should print. Nothing"
+            echo "  below needs the repository or anything else that is not in this zip."
             echo
             printf '%s\n' "$steps" | sed 's/^/  /;s/^  $//'
             echo
@@ -292,6 +308,25 @@ write_flash_txt() {
             echo "  files this zip does not carry. That is a gap in the repository,"
             echo "  not a step you have missed."
             echo
+        fi
+
+        # An experiment that never touches a board gets none of what follows:
+        # three flashing routes, three ways a board can be wrong, and a note
+        # about host prerequisites. All of it is answerable with "there is no
+        # board", and printing it anyway sends somebody looking for hardware
+        # that this experiment does not want.
+        if [[ "$(declared "$dir" USB_RUNS_ON)" == "none" ]]; then
+            echo
+            echo "THERE IS NO BOARD IN THIS EXPERIMENT"
+            echo "  Nothing to flash, nothing to plug in, no LED to watch. If you came"
+            echo "  here holding a Pico 2, put it down — the steps above are about the"
+            echo "  machine you are typing on."
+            echo
+            echo "PROVENANCE"
+            echo "  packed from commit $commit$dirty"
+            echo "  packed on         $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "  built by          this experiment's own check.sh, exit 0 (CHECK.txt)"
+            return
         fi
 
         echo

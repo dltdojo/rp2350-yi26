@@ -101,6 +101,64 @@ forgery it does not catch.
 - [`../../crates/image-integrity/examples/forge.rs`](../../crates/image-integrity/examples/forge.rs)
   — the demo `run.sh` and `check.sh` run against a real `.uf2`.
 
+## Do this, in order
+
+Like [exp102](../exp102-rust-toolchain/), this experiment never touches a
+board. Unlike every other one, **its substance is a test suite rather than a
+firmware**, so its zip carries the account and the verdict but the doing of it
+needs the repository — a zip carries no buildable source, and a demonstration
+rewritten in some other language to fit in one would be a second, unchecked
+statement of the same claim.
+
+So this walkthrough is short, and step 1 is the honest part.
+
+WHAT YOU NEED
+  * A machine with `cargo` — [exp102](../exp102-rust-toolchain/) puts it there.
+  * `git`. No board. Do not plug anything in.
+
+1. GET THE REPOSITORY. There is nothing to flash, so this is not a detour
+   around the zip: it is where this particular experiment lives.
+
+       git clone https://github.com/dltdojo/rp2350-yi26.git
+       cd rp2350-yi26/experiments/exp140-a-checksum-that-passes
+
+2. RUN THE ARITHMETIC. No board, no firmware, no network.
+
+       ./check.sh
+
+   Expect seven `PASS` lines and exit 0. The two that are the experiment:
+
+       PASS  a real .uf2 was forged to carry another image's CRC (exp152.uf2)
+       PASS  and the SHA-256 of the forgery does not match
+
+   **Both of those parentheses vary.** The script forges whichever `.uf2` it
+   finds first in your checkout, so the filename depends on what you have
+   built, and the CRC value depends on the file. A fresh clone that has built
+   nothing gets `exp138.uf2`, because the script builds that one rather than
+   have nothing to demonstrate on. The words are fixed; the numbers are not.
+
+3. READ WHAT IT JUST PROVED. Four bytes of a real firmware image were changed
+   so that its CRC32 came out equal to a *different* image's CRC32 — exactly,
+   not approximately. The same code, aimed at SHA-256, cannot do it and says
+   so. A CRC answers "did this arrive intact"; it does not answer "is this the
+   image I meant", and no amount of CRC checking turns one question into the
+   other.
+
+4. OPTIONAL — MAKE IT LIE ABOUT SOMETHING ELSE.
+
+       cd ../../crates/image-integrity && cargo test
+
+   Expect the crate's own tests, including `only_the_four_bytes_moved` (the
+   forgery is bounded, so a check that compared lengths or hashed the file
+   would notice) and `the_same_attack_does_not_forge_a_hash`.
+
+IF IT DOES NOT WORK
+  * `toolchain present — run exp102 first` — there is no `cargo` on this
+    machine. That experiment is the one that installs it.
+  * The `.uf2` PASS lines are missing — the script looks for a built firmware
+    anywhere in the checkout and builds exp138 if it finds none. If that build
+    failed, the arithmetic still ran; the demo against a real artifact did not.
+
 ## Two ways to do it
 
 ```sh

@@ -37,6 +37,106 @@ there, and explains what each piece is for. Safe to re-run.
 
 Non-interactive, installs nothing, exit code 0/1.
 
+## Do this, in order
+
+This one is different from every other experiment's walkthrough: there is no
+board, no firmware, and nothing to flash. What you are proving is that **this
+machine can turn source into something an RP2350 would run**. Everything below
+works from a `.zip` built by `pack.sh` alone.
+
+WHAT YOU NEED
+  * Ubuntu, a network connection, and about ten minutes the first time.
+  * `sudo` for exactly one of the five steps, and nothing else.
+  * No board. Do not plug anything in; there is nothing here to plug in.
+
+1. RUST ITSELF. Skip if `rustup --version` already answers.
+
+       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+       source "$HOME/.cargo/env"
+
+   Check it:
+
+       rustup --version && rustc --version
+
+   Expect two lines, e.g. `rustup 1.29.0 (28d1352db 2026-03-05)` and
+   `rustc 1.94.1 (e408947bf 2026-03-25)`. Newer is fine — everything here
+   builds on stable and nothing pins a compiler version.
+
+2. THE CORTEX-M33 TARGET. This is the standard library, pre-built for the
+   processor inside an RP2350. Without it `cargo build --target` has nothing
+   to link against.
+
+       rustup target add thumbv8m.main-none-eabihf
+
+   Check it:
+
+       rustup target list --installed | grep thumbv8m
+
+   Expect: `thumbv8m.main-none-eabihf`
+
+3. A C LINKER. Cargo needs one for the tools it builds to run on *this*
+   machine, not for the firmware.
+
+       sudo apt install build-essential
+
+   Check it:
+
+       cc --version | head -1
+
+   Expect a line naming a compiler, e.g. `cc (Ubuntu 13.3.0-6ubuntu2~24.04.1)
+   13.3.0`.
+
+4. THE UF2 CONVERTER. Cargo emits an ELF; the RP2350's boot drive eats UF2.
+
+       cargo install elf2flash
+
+   Check it:
+
+       elf2flash --version
+
+   Expect: `elf2flash 0.1.0` or newer.
+
+5. THE PROOF. Cross-compile something for the target. If this works, the four
+   pieces above are talking to each other, which is the whole experiment.
+
+       cargo new --lib /tmp/smoke-rp2350 && cd /tmp/smoke-rp2350
+       cat > src/lib.rs <<'RS'
+       #![no_std]
+       pub fn add(a: u32, b: u32) -> u32 { a + b }
+       RS
+       cargo build --target thumbv8m.main-none-eabihf
+
+   Expect a line ending `Finished \`dev\` profile [unoptimized + debuginfo]
+   target(s) in ...`. No warnings, no linker errors.
+
+   The repository has the same thing as `exp102-rust-toolchain/smoke/` — a
+   deliberately trivial, zero-dependency `no_std` library. It is not in this
+   zip because a zip carries no buildable source, and `cargo new` gets you an
+   identical one in a second.
+
+       cd - && rm -rf /tmp/smoke-rp2350        # tidy up
+
+6. NOW GET THE REPOSITORY. That is what you just built the tools for, and
+   every other experiment assumes a full checkout rather than a copied-out
+   directory.
+
+       git clone https://github.com/dltdojo/rp2350-yi26.git
+       cd rp2350-yi26/experiments/exp102-rust-toolchain && ./check.sh
+
+   Expect six `PASS` lines and exit 0 — the same five pieces, checked by the
+   repository's own script instead of by hand.
+
+IF IT DOES NOT WORK
+  * `rustc: command not found` right after installing rustup — the installer
+    edits your shell profile and the shell you are in has not read it.
+    `source "$HOME/.cargo/env"`, or open a new terminal.
+  * `linker \`cc\` not found` — step 3 was skipped. It is easy to skip because
+    the error mentions a linker and the thing to install is called
+    `build-essential`.
+  * `error: toolchain ... does not support target` — step 2 was skipped, or
+    the target name has a typo in it. It is long and it is `eabihf`, not
+    `eabi`.
+
 ## What's actually happening (the manual version)
 
 ```sh
