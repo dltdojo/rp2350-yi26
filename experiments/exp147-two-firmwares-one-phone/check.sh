@@ -104,6 +104,17 @@ else
     fail "'try once' uses FLASH_UPDATE" "that is the whole difference between the two buttons"
 fi
 
+# The bug this check exists because of: the page read 256 bytes and looked for a
+# block that starts at +0x114, so it found nothing on a correctly installed
+# board — while this file's fixture was a whole sector and passed. A test whose
+# input is bigger than the code's input is not testing the code.
+if grep -q 'readFlash(base, SECTOR)' "$PAGE"; then
+    pass "reads a whole sector, not a page — the block loop starts at +0x114"
+else
+    fail "reads a whole sector" \
+         "the IMAGE_DEF block is past the first 256 bytes; a short read finds nothing"
+fi
+
 if grep -q 'did not verify' "$PAGE"; then
     pass "the rewritten sector is read back before the board is rebooted"
 else

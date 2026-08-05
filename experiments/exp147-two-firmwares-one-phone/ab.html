@@ -88,9 +88,11 @@
   <button id="switch" disabled>Switch to it permanently</button>
 </div>
 
-<div id="status">Press <b>Read both halves</b>. You will be asked to pick the
-board once — it appears as <b>RP2350 Boot</b>. On a phone the same board may be
-listed more than once; the live entry is the one that asks for USB permission.</div>
+<div id="status"><b>The board must be in BOOTSEL right now</b> — not running one
+of the two firmwares. If its LED is blinking, it is running one: put it back
+with <code>flash.html</code> first. Then press <b>Read both halves</b>; on a
+phone the same board may be listed more than once, and the live entry is the one
+that asks for USB permission.</div>
 
 <pre id="out"></pre>
 
@@ -151,6 +153,9 @@ const TWO_BYTE_SIZE_ITEMS = [0x06, 0x0a, 0xfe, 0xff];
 const $ = (id) => document.getElementById(id);
 let device = null, ifaceNum = null, epOut = null, epIn = null, token = 1;
 let halves = null;
+/** How many chooser entries in a row have failed to open. Two or more means
+ *  the board is not there, not that the entry was stale. */
+let deadPicks = 0;
 
 function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
 function log(t) { $('out').textContent += t + '\n'; }
@@ -262,11 +267,26 @@ async function connect() {
     await device.open();
   } catch (e) {
     device = null;
+    deadPicks += 1;
+    // Two different failures wear the same message, and telling them apart is
+    // the difference between "tap again" and "you are in the wrong state".
+    //
+    //   one entry of several fails  -> a stale entry; the live one is the one
+    //                                  that makes Android ask for permission
+    //   every entry fails           -> there is no live one, because the board
+    //                                  is not in BOOTSEL at all. The chooser is
+    //                                  listing ghosts of earlier sessions.
     throw new Error(
-      `${e.message} — on a phone this usually means a stale entry in the ` +
-      `chooser. Press the button again and pick a different one; the live ` +
-      `entry is the one that makes Android ask for USB permission.`);
+      deadPicks >= 2
+        ? `${e.message} — that is ${deadPicks} entries in a row, so they are ` +
+          `probably all ghosts of earlier sessions and the board is NOT in ` +
+          `BOOTSEL now. Is its LED blinking? Then it is running a firmware, ` +
+          `not waiting in the bootloader — use flash.html first.`
+        : `${e.message} — on a phone this usually means a stale entry in the ` +
+          `chooser. Press the button again and pick a different one; the live ` +
+          `entry is the one that makes Android ask for USB permission.`);
   }
+  deadPicks = 0;
   if (device.configuration === null) await device.selectConfiguration(1);
   const p = findPicoboot(device);
   if (!p) { device = null; throw new Error('that device has no PICOBOOT interface — is the board in BOOTSEL?'); }
@@ -300,13 +320,27 @@ async function readBoth() {
     const out = {};
     for (const [name, sec] of [['A', A_FIRST_SECTOR], ['B', B_FIRST_SECTOR]]) {
       const base = FLASH_BASE + sec * SECTOR;
-      const bytes = await readFlash(base, 256);
+      // A WHOLE SECTOR, and this is not an over-read. The block loop does not
+      // start at offset 0 of an image: the linker puts `.start_block` after the
+      // vector table, at +0x114 in the firmwares here, and the VERSION value is
+      // at +0x120. The first version of this page read 256 bytes and found
+      // nothing on a board that was correctly installed — it had read past
+      // neither marker. check.sh passed anyway, because its fixture was a whole
+      // sector while the code read 256 bytes and nothing compared the two.
+      const bytes = await readFlash(base, SECTOR);
       const found = findVersion(bytes);
       out[name] = { base, version: found ? found.value : null, at: found ? found.at : null };
-      log(`${name} at ${hex(base)}: ${found ? 'v' + vstr(found.value) : 'no IMAGE_DEF version found'}`);
+      const head = [...bytes.subarray(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join(' ');
+      const blank = bytes.every((b) => b === 0xff);
+      log(`${name} at ${hex(base)}: ${found ? 'v' + vstr(found.value)
+            : (blank ? 'erased — nothing installed here' : 'bytes present, but no IMAGE_DEF block')}`);
+      log(`  ${bytes.length} bytes read, starting ${head}`);
     }
     if (out.A.version === null && out.B.version === null) {
-      say('Neither half has a versioned image. Install the pair with pflash.html first.', 'bad');
+      say('Neither half has a VERSION the ROM could compare. If the LED was ' +
+          'blinking before you came here, the pair IS installed and this is a ' +
+          'read problem — send the log. If the board is blank, install the pair ' +
+          'with pflash.html.', 'bad');
       halves = null;
     } else {
       // The ROM's rule, and the only one it uses: the higher VERSION wins.
