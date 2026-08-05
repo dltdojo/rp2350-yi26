@@ -128,36 +128,42 @@ pub enum FormatError {
     OutOfSpace { needed: u32, available: u32 },
 }
 
-/// Lays a whole FAT12 volume into `disk`, with `files` in the root.
+/// How many sectors a FAT12 volume's bookkeeping occupies, whatever size the
+/// volume claims to be: the boot sector, one FAT, and the root directory.
 ///
-/// Returns the number of clusters the volume ended up with, because that
-/// number is the one that decides the FAT type and is worth printing rather
-/// than assuming.
+/// Three. That is the whole filesystem, for a volume of any size this crate can
+/// describe — a device that only wants to *receive* a file never has to store
+/// the rest. [exp145](../../../experiments/exp145-a-drive-of-our-own/) serves a
+/// volume out of exactly this many sectors and throws every data sector away
+/// after reading what it wanted from it.
+pub const METADATA_SECTORS: usize = DATA_START;
+
+/// [`METADATA_SECTORS`] in bytes — the size of the buffer
+/// [`format_metadata`] fills.
+pub const METADATA_BYTES: usize = METADATA_SECTORS * SECTOR;
+
+/// Lays out the bookkeeping for an **empty** volume of `total_sectors`, without
+/// needing a buffer that size.
 ///
-/// Files are allocated consecutively from cluster 2 and chained through the
-/// FAT. A file longer than one cluster is the reason the table exists: the
-/// directory entry holds only the *first* cluster, and each FAT slot says
-/// which cluster follows, ending with [`FAT12_END_OF_CHAIN`].
-pub fn format(disk: &mut [u8], label: &[u8; 11], files: &[File]) -> Result<u32, FormatError> {
-    let total_sectors = (disk.len() / SECTOR) as u16;
-    let clusters = ((total_sectors as usize - DATA_START) / SECTORS_PER_CLUSTER as usize) as u32;
-    let bytes_per_cluster = SECTORS_PER_CLUSTER as usize * SECTOR;
+/// [`format`] needs the whole volume in memory because it places file contents
+/// into the data area. A device that serves an empty volume for a host to write
+/// *into* does not: the boot sector, the FAT and the root directory are three
+/// sectors, and everything past them can be answered with zeros or dropped on
+/// the floor.
+///
+/// Returns the cluster count the volume works out to, which is the number that
+/// decides the FAT type. `SECTORS_PER_FAT` is one here, so a FAT12 table of 512
+/// bytes runs out at about 341 clusters — declare more sectors than that and
+/// the volume describes clusters the FAT cannot address.
+pub fn format_metadata(meta: &mut [u8; METADATA_BYTES], total_sectors: u16, label: &[u8; 11]) -> u32 {
+    write_metadata(meta, total_sectors, label);
+    (total_sectors as usize - DATA_START) as u32
+}
 
-    // The volume label takes a root slot of its own, which is easy to forget
-    // because it does not look like a file.
-    if files.len() + 1 > ROOT_ENTRIES as usize {
-        return Err(FormatError::TooManyFiles);
-    }
-
-    let needed: u32 = files
-        .iter()
-        .map(|f| f.contents.len().div_ceil(bytes_per_cluster) as u32)
-        .sum();
-    if needed > clusters {
-        return Err(FormatError::OutOfSpace { needed, available: clusters });
-    }
-
-    disk.fill(0);
+/// The boot sector, the FAT's first two slots, and the root directory's volume
+/// label — the part of a layout that does not depend on what is stored in it.
+fn write_metadata(disk: &mut [u8], total_sectors: u16, label: &[u8; 11]) {
+    disk[..METADATA_BYTES].fill(0);
 
     // ---- sector 0: the boot sector -----------------------------------------
     //
@@ -191,15 +197,12 @@ pub fn format(disk: &mut [u8], label: &[u8; 11], files: &[File]) -> Result<u32, 
     boot[510] = 0x55;
     boot[511] = 0xAA;
 
-    let fat_start = RESERVED_SECTORS as usize * SECTOR;
-    let root_start = fat_start + FAT_COUNT as usize * SECTORS_PER_FAT as usize * SECTOR;
-    let data_start = DATA_START * SECTOR;
-
     // ---- the FAT's first two slots ------------------------------------------
     //
     // Entry 0 carries the media descriptor again with its top bits set; entry
     // 1 is an end-of-chain marker that means nothing. Neither describes a
     // cluster: clusters are numbered from 2, and those two slots are the price.
+    let fat_start = RESERVED_SECTORS as usize * SECTOR;
     {
         let fat = &mut disk[fat_start..fat_start + SECTOR];
         set_fat12(fat, 0, 0x0F00 | MEDIA_DESCRIPTOR as u16);
@@ -211,7 +214,49 @@ pub fn format(disk: &mut [u8], label: &[u8; 11], files: &[File]) -> Result<u32, 
     // The volume label is a directory entry with a bit set, not a property of
     // the volume — which is why the label in the boot sector above is ignored
     // by most software and this one is not.
+    let root_start = fat_start + FAT_COUNT as usize * SECTORS_PER_FAT as usize * SECTOR;
     dir_entry(&mut disk[root_start..], label, 0x08, 0, 0);
+}
+
+/// Lays a whole FAT12 volume into `disk`, with `files` in the root.
+///
+/// Returns the number of clusters the volume ended up with, because that
+/// number is the one that decides the FAT type and is worth printing rather
+/// than assuming.
+///
+/// Files are allocated consecutively from cluster 2 and chained through the
+/// FAT. A file longer than one cluster is the reason the table exists: the
+/// directory entry holds only the *first* cluster, and each FAT slot says
+/// which cluster follows, ending with [`FAT12_END_OF_CHAIN`].
+pub fn format(disk: &mut [u8], label: &[u8; 11], files: &[File]) -> Result<u32, FormatError> {
+    let total_sectors = (disk.len() / SECTOR) as u16;
+    let clusters = ((total_sectors as usize - DATA_START) / SECTORS_PER_CLUSTER as usize) as u32;
+    let bytes_per_cluster = SECTORS_PER_CLUSTER as usize * SECTOR;
+
+    // The volume label takes a root slot of its own, which is easy to forget
+    // because it does not look like a file.
+    if files.len() + 1 > ROOT_ENTRIES as usize {
+        return Err(FormatError::TooManyFiles);
+    }
+
+    let needed: u32 = files
+        .iter()
+        .map(|f| f.contents.len().div_ceil(bytes_per_cluster) as u32)
+        .sum();
+    if needed > clusters {
+        return Err(FormatError::OutOfSpace { needed, available: clusters });
+    }
+
+    disk.fill(0);
+
+    // The boot sector, the FAT's first two slots and the volume label are the
+    // same three sectors whatever the volume holds, so they are laid out in one
+    // place — the one a device that only receives files uses on its own.
+    write_metadata(disk, total_sectors, label);
+
+    let fat_start = RESERVED_SECTORS as usize * SECTOR;
+    let root_start = fat_start + FAT_COUNT as usize * SECTORS_PER_FAT as usize * SECTOR;
+    let data_start = DATA_START * SECTOR;
 
     // ---- the files, and the chains that hold them together ------------------
     let mut next_cluster = FIRST_CLUSTER;
@@ -350,6 +395,38 @@ mod tests {
         let err = format(&mut disk, b"YI26 EXP126", &[File { name: b"HUGE    BIN", contents: &huge }])
             .unwrap_err();
         assert_eq!(err, FormatError::OutOfSpace { needed: 200, available: 125 });
+    }
+
+    /// The claim `format_metadata` rests on: for an empty volume, the first
+    /// three sectors it writes are byte-for-byte what `format` writes for a
+    /// volume of the same declared size. A device can serve those three and
+    /// keep none of the rest.
+    #[test]
+    fn metadata_only_matches_the_first_three_sectors_of_a_full_format() {
+        const SECTORS: u16 = 256;
+        let mut whole = [0u8; SECTORS as usize * SECTOR];
+        format(&mut whole, b"DROP A UF2 ", &[]).unwrap();
+
+        let mut meta = [0u8; METADATA_BYTES];
+        let clusters = format_metadata(&mut meta, SECTORS, b"DROP A UF2 ");
+
+        assert_eq!(&meta[..], &whole[..METADATA_BYTES], "boot sector, FAT and root");
+        assert_eq!(clusters, SECTORS as u32 - 3, "clusters, minus the three it takes to say so");
+        assert_eq!(METADATA_SECTORS, 3, "a whole FAT12 filesystem, in three sectors");
+    }
+
+    /// A volume big enough to matter still has a three-sector filesystem — the
+    /// point of serving it this way. It also has more clusters than one 512-byte
+    /// FAT12 table can address, which is the limit to declare a size against.
+    #[test]
+    fn the_metadata_does_not_grow_with_the_volume() {
+        let mut small = [0u8; METADATA_BYTES];
+        let mut large = [0u8; METADATA_BYTES];
+        assert_eq!(format_metadata(&mut small, 64, b"SMALL      "), 61);
+        assert_eq!(format_metadata(&mut large, 320, b"LARGE      "), 317);
+        // 512 bytes of FAT12 hold 341 entries, two of which are not clusters.
+        assert!(317 < 341 - 2, "a volume whose FAT cannot address its own clusters is a lie");
+        assert_eq!(small.len(), large.len());
     }
 
     #[test]

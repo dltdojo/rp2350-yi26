@@ -70,6 +70,7 @@ Per experiment:
 | exp142 | Any RP2350 board. No browser. **RP2350 only** — A/B partitions and image-version selection are ROM features. Two ~64 KiB slots near the start of flash; reads only, nothing here writes flash from firmware. |
 | exp143 | Any RP2350 board. No browser. **RP2350 only** — try-before-you-buy, `explicit_buy` and flash update boot are ROM features. The same two ~64 KiB slots as exp142. This one **does** write flash from firmware: the ROM rewrites slot B's first sector to clear the TBYB bit. Slot A and the table are never written. |
 | exp144 | Any RP2350 board. No browser. **RP2350 only** — partition tables, UF2 routing and A/B selection are ROM features. The drop half needs the BOOTSEL drive and `udisksctl`, as every `yi26 flash` does; the asking half needs neither. |
+| exp145 | Any RP2350 board. No browser. **RP2350 only** — it writes flash from firmware into an A/B partition. Uses 67 KiB of SRAM (1.5 for the filesystem, 64 to stage the image), which is nothing on an RP2350 and would decide the design on a smaller part. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -369,7 +370,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp144 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
 
@@ -487,6 +488,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp142 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp143 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp144 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp145 | `cdc+msc` | `log+scsi` | `cdc_acm+usb-storage` | `own` |
 
 ### Reading the columns
 
@@ -609,6 +611,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp142-two-images-one-version](./exp142-two-images-one-version/) | 1 · board | Two firmwares in an A/B pair with different versions, and the ROM boots the higher — then swap the versions and the other one boots, the choice live |
 | [exp143-the-image-that-is-never-bought](./exp143-the-image-that-is-never-bought/) | 1 · board | An image marked provisional runs once on a 16.8-second clock and is taken back unless it calls `explicit_buy` — a rollback built out of not asking to stay |
 | [exp144-one-file-either-half](./exp144-one-file-either-half/) | 1 · board | The ROM names the half a dropped file should go into, correctly — and then will not take a file from its own drive at all while a partition table exists |
+| [exp145-a-drive-of-our-own](./exp145-a-drive-of-our-own/) | 1 · board | A volume served out of three sectors of filesystem takes the dropped file the ROM's drive refused, writes it into the other half, and hands over — the control the update road was built to measure against |
 
 ## The browser track, finished
 
@@ -804,12 +807,31 @@ interrogated yet — a direction, not a schedule:
   wrong half of the sentence — a good one does too, and that is why every
   partitioned board in this arc was flashed over PICOBOOT without anyone
   noticing. Not tested: a BOOTSEL entered by the button with a table present.
-- **the hand-rolled bootloader, as the control** — a custom USB volume that
-  accepts a `.bin` and writes it. Built last, against a measured baseline, so
-  the comparison is what it costs and what it buys rather than an assumption
-  either way. [exp137](./exp137-the-volume-that-changes/) already established
-  what a device-served volume can and cannot make a host re-read, which is a
-  constraint this inherits.
+- **the hand-rolled bootloader, as the control** — **Done, verified
+  2026-08-05.** [exp145](./exp145-a-drive-of-our-own/) serves its own FAT12
+  volume, takes the dropped `.uf2` the ROM's drive refused, and writes it into
+  the half of the pair that is not running. Dropped v3.0 on a board running
+  v2.0 from partition 1: 109 UF2 blocks arrived, 27,904 bytes were erased and
+  programmed into sectors 17..32 in 273 ms, the board rebooted, and the ROM
+  booted v3.0 from partition 0. Dropped v4.0 next and it went back into
+  partition 1 — the halves alternate on their own, each firmware writing the
+  one that replaces it.
+
+  Three things it did not need: a disk (three sectors — boot, FAT, root — is a
+  whole FAT12 filesystem, and every data sector is read for UF2 blocks and
+  thrown away), a protocol for "the file is complete" (UF2 blocks carry
+  `blockNo`/`numBlocks`, so the last one announces itself — exp137 is the
+  record of how little a host will tell a device), and any placement tool (the
+  ROM says where via `get_uf2_target_partition`, exp144).
+
+  **What it cost, measured against the ROM's own path:** about 4.5 KiB more
+  flash, 67 KiB of SRAM (1.5 for the filesystem, 64 to stage the image), and
+  around 390 lines over a plain firmware, most of them SCSI. **And what it
+  cannot do:** it lives inside the application. If the running firmware is
+  broken there is no volume, no SCSI and no way in — while the ROM's BOOTSEL is
+  there whatever you have done to flash. That is the trade the whole road was
+  built to price: a hand-rolled updater buys the write the ROM refused, and
+  costs the one guarantee the ROM was giving away.
 **Done.** *a correct checksum on somebody else's firmware* —
 [exp140](./exp140-a-checksum-that-passes/), and it needed no board, so it is
 verified and pushed while the flash experiments wait. It forges a CRC to any
