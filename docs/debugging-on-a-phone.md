@@ -144,6 +144,35 @@ the person looking at it, so the designer reaches for the tool *they* would use
 — a log — and forgets that they already spent effort making that unnecessary.
 An instrument you do not trust is an instrument you should not have built.
 
+## The reader's own footsteps
+
+Three experiments in a row shipped the same bug, and the third one made it
+undeniable.
+
+A board that serves its own log has two readers, and one of them is loud. Every
+HTTP request logged three lines while the page refreshed itself every three
+seconds; every mDNS query on the link logged one; and opening the board's own
+USB drive is a hundred `READ(10)` commands. Each of those is *only happening
+because somebody is reading the log*.
+
+The first measurement: **58 of 64 retained lines were the reader's own
+footsteps.** The clearest one: a phone opened the drive, followed the link, and
+was shown a log consisting entirely of the drive being opened.
+
+> **Anything that exists only because somebody is reading the log does not
+> belong in the log.**
+
+The fix is not to log less. It is to have two destinations and know which is
+which: `usb-log`'s `log_transient!` puts a line on the serial stream and not in
+the retained ring. Somebody watching a serial port is watching the mechanism on
+purpose; somebody who opens a page two minutes later wants what the board was
+doing before they arrived.
+
+And keep the failures. Three versions of the guard for this were written too
+bluntly and each one forbade something worth keeping — a startup line, a bug
+report, another function's loop. The distinction is not importance. It is
+whose log the line belongs in.
+
 ## The round trip is the expensive thing
 
 You cannot iterate. So everything that *can* be checked without the phone has to

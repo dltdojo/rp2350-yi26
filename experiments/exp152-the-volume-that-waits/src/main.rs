@@ -1034,12 +1034,26 @@ async fn storage_task(
                 let clusters = lay_down(disk, addr);
                 READY.store(true, Ordering::Relaxed);
                 MEDIA_CHANGED.store(true, Ordering::Relaxed);
-                log!(
+                log_transient!(
                     "volume: laid down for {}.{}.{}.{}, {} clusters used — the medium exists now",
                     addr[0], addr[1], addr[2], addr[3], clusters
                 );
             }
 
+            // Everything this task says about *serving* the disk is transient.
+            //
+            // The third time this pattern has come up, and the clearest: the
+            // page a person opens is reached by opening the drive, and opening
+            // the drive is a hundred READ(10) commands. The first phone to run
+            // this saw its own arrival — READ(10), PREVENT ALLOW MEDIUM
+            // REMOVAL, over and over — with the boot lines pushed out behind
+            // it. exp151 had it with HTTP requests and with mDNS chatter.
+            //
+            // The rule, now that it has been paid for three times:
+            // **anything that exists only because somebody is reading the log
+            // does not belong in the log.** The serial port still gets all of
+            // it, because somebody watching a serial port is watching the
+            // mechanism on purpose.
             let tag = le_u32(&buf[4..8]);
             let want = le_u32(&buf[8..12]);
             let to_host = buf[12] & CBW_FLAG_IN != 0;
@@ -1070,7 +1084,7 @@ async fn storage_task(
                 MEDIA_CHANGED.store(false, Ordering::Relaxed);
                 set_sense(SENSE_UNIT_ATTENTION, ASC_MEDIUM_MAY_HAVE_CHANGED);
                 status = CSW_FAILED;
-                log!(
+                log_transient!(
                     "{}  -> UNIT ATTENTION (06/28): the medium may have changed",
                     opcode_name(op)
                 );
@@ -1133,7 +1147,7 @@ async fn storage_task(
 
                 0x1b | 0x1e | 0x35 => {
                     set_sense(0, 0);
-                    log!("{}  -> ok", opcode_name(op));
+                    log_transient!("{}  -> ok", opcode_name(op));
                 }
 
                 0x12 => {
@@ -1141,7 +1155,7 @@ async fn storage_task(
                     let _ = write_ep.write(&reply[..len]).await;
                     sent = len as u32;
                     set_sense(0, 0);
-                    log!(
+                    log_transient!(
                         "INQUIRY  -> {} bytes: {} / {}",
                         len,
                         core::str::from_utf8(INQUIRY_VENDOR).unwrap_or("?").trim_end(),
@@ -1153,7 +1167,7 @@ async fn storage_task(
                     let len = request_sense(&mut reply).min(want as usize);
                     let _ = write_ep.write(&reply[..len]).await;
                     sent = len as u32;
-                    log!(
+                    log_transient!(
                         "REQUEST SENSE  -> key {} asc {:02x}",
                         SENSE_KEY.load(Ordering::Relaxed),
                         SENSE_ASC.load(Ordering::Relaxed)
@@ -1165,7 +1179,7 @@ async fn storage_task(
                     let _ = write_ep.write(&reply[..len]).await;
                     sent = len as u32;
                     set_sense(0, 0);
-                    log!(
+                    log_transient!(
                         "READ CAPACITY  -> last LBA {}, {} bytes each = {} KiB",
                         DISK_BLOCKS - 1,
                         BLOCK,
@@ -1178,7 +1192,7 @@ async fn storage_task(
                     let _ = write_ep.write(&reply[..len]).await;
                     sent = len as u32;
                     set_sense(0, 0);
-                    log!("MODE SENSE(6)  -> READ-ONLY (WP set), no pages");
+                    log_transient!("MODE SENSE(6)  -> READ-ONLY (WP set), no pages");
                 }
 
                 0x2a => {
@@ -1229,7 +1243,7 @@ async fn storage_task(
                             BLOCKS_WRITTEN.fetch_add(count, Ordering::Relaxed);
                         }
                         set_sense(0, 0);
-                        log!("{} lba {} +{} blocks", opcode_name(op), lba, count);
+                        log_transient!("{} lba {} +{} blocks", opcode_name(op), lba, count);
                     }
                 }
 

@@ -279,6 +279,31 @@ fi
 
 crate_test ../../crates/fat12 "crates/fat12 passes its own tests"
 
+# The third time this pattern has been paid for — HTTP requests in exp151, mDNS
+# chatter in exp151, and now a hundred READ(10)s. The page a person opens is
+# reached by opening the drive, so the drive's own traffic is the reader's
+# footsteps. The first phone to run this saw its own arrival and nothing else.
+if python3 - "$SRC" <<'EOF'
+import sys
+src = open(sys.argv[1]).read()
+bad = []
+for needle in ("{} lba {} +{} blocks", "{}  -> ok", "MODE SENSE(6)  -> READ-ONLY"):
+    k = src.find(needle)
+    if k < 0:
+        continue
+    before = src[:k]
+    if before[max(before.rfind("log!("), before.rfind("log_transient!(")):].startswith("log!("):
+        bad.append(needle)
+if bad:
+    print("retained:", "; ".join(bad)); sys.exit(1)
+EOF
+then
+    pass "the drive's own traffic is transient — reaching the log must not fill it"
+else
+    fail "per-command SCSI chatter is transient" \
+         "a hundred READ(10)s is what opening the drive costs, and it buried the boot lines"
+fi
+
 # A `Cursor` truncates in silence, which is right for a log line and a trap for
 # a page. This firmware fell into it: the buffer filled exactly, the href
 # survived because it comes first, and a phone showed a working button labelled
