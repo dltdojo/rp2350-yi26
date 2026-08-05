@@ -188,6 +188,103 @@ worse than either.
 ./check.sh    # verdict: builds all three, measures whichever is flashed
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. **Three firmware
+images, one experiment**: flash each, wait twenty seconds without reading, and
+compare the first line you get.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat` and `stty` are already there. No `yi26`.
+  * Twenty seconds of patience, three times. The waiting is the measurement.
+
+1. UNPACK IT.
+
+       unzip exp134-the-log-nobody-reads.zip
+       cd exp134-the-log-nobody-reads
+       ls firmware/
+
+   Three images, one per policy:
+
+       exp134-default.uf2             drop the NEWEST line when the queue is full
+       exp134-keep-recent.uf2         drop the OLDEST line when the queue is full
+       exp134-silent-while-idle.uf2   log nothing at all while nobody is reading
+
+2. FLASH THE FIRST. **[HUMAN STEP]** Hold BOOTSEL, plug in, let go:
+
+       cp firmware/exp134-default.uf2 /media/$USER/RP2350/
+
+3. WAIT TWENTY SECONDS WITHOUT OPENING THE PORT, THEN READ.
+
+       sleep 20
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 6 cat /dev/ttyACM0
+
+   The board ticks once a second and its queue holds sixteen lines, so by the
+   time you look it has had far more to say than it could hold. Expect:
+
+       [      37 ms] exp134 up. policy drop-newest, queue 16 lines, one tick per second.
+       [    1037 ms] tick #1 (drop-newest)
+       [    2037 ms] tick #2 (drop-newest)
+
+   **Tick #1.** The oldest lines survived; everything since was thrown away as
+   it arrived. You are reading the beginning of the board's life and nothing
+   about the twenty seconds you just waited.
+
+4. FLASH THE SECOND AND DO EXACTLY THE SAME.
+
+       cp firmware/exp134-keep-recent.uf2 /media/$USER/RP2350/
+       sleep 20
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 6 cat /dev/ttyACM0
+
+       [      37 ms] exp134 up. policy keep-recent, queue 16 lines, one tick per second.
+       [    7037 ms] tick #7 (keep-recent)
+       [    8037 ms] tick #8 (keep-recent)
+
+   **Tick #7**, not #1. The oldest were dropped to make room, so what survives
+   is a window ending at the moment your reader turned up.
+
+5. FLASH THE THIRD.
+
+       cp firmware/exp134-silent-while-idle.uf2 /media/$USER/RP2350/
+       sleep 20
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 6 cat /dev/ttyACM0
+
+       [      37 ms] exp134 up. policy silent-while-idle, queue 16 lines, one tick per second.
+       [   23037 ms] (+22 lines lost) tick #23 (silent-while-idle)
+       [   24037 ms] tick #24 (silent-while-idle)
+
+   **Tick #23, and it says what it cost.** This build formats nothing while
+   nobody is listening — no work, no queue pressure — and marks the gap on the
+   first line that got out.
+
+6. PUT THE THREE FIRST LINES SIDE BY SIDE.
+
+       drop-newest        tick #1     the beginning, and none of the present
+       keep-recent        tick #7     the present, and none of the beginning
+       silent-while-idle  tick #23    +22 lines lost, said out loud
+
+   **Only the first of those three numbers is fixed.** A second run here gave
+   #1, #5 and #21 — the last two move with how long you actually waited and
+   how quickly your reader attached, and `drop-newest` is pinned to #1 because
+   the beginning is the one thing it never loses.
+
+   The board did the same work in all three. **The same silence reads three
+   ways**, and which one is right depends on whether your reader arrives at
+   the start of a problem or in the middle of one. There is no default that
+   is correct for both, which is why this is three builds and not one.
+
+IF IT DOES NOT WORK
+  * All three look the same — you read too soon. The queue must overflow
+    before the policy can matter, and that takes sixteen seconds.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * The first line is not `exp134 up` — the flash did not take; check which
+    policy the banner names.
+
 ## Expected output
 
 Captured from a Pico 2. Each run is the same thing: open the port briefly,

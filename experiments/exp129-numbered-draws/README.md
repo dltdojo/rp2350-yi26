@@ -146,6 +146,85 @@ being wrong is a number nobody can account for.
 ./check.sh    # verdict: draws and checks the number is inside the range
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. **You need two
+terminals** — one listening, one asking for draws.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. RP2350 only — it uses the TRNG.
+  * Ubuntu. `cat`, `stty` and `printf` are already there. No `yi26`.
+  * Two terminal windows.
+
+1. UNPACK IT.
+
+       unzip exp129-numbered-draws.zip
+       cd exp129-numbered-draws
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp129-numbered-draws.uf2 /media/$USER/RP2350/
+
+3. IN THE FIRST TERMINAL, LISTEN.
+
+       sleep 6
+       stty -F /dev/ttyACM0 -icrnl
+       cat /dev/ttyACM0
+
+   Within a tenth of a second the board says it is ready, and says what
+   "ready" cost:
+
+       [      37 ms] exp129 up. Send a range, like  2100-2567
+       [     106 ms] warmed up: 2048 bits through the health tests
+
+   **It ran two thousand bits through exp114's health tests before accepting a
+   single request.** A draw from a source that has not been checked is not a
+   draw, and the checking happens before anyone asks rather than after
+   something looks wrong.
+
+   The idle line will suggest `yi26 send`. Ignore it — that tool is not in
+   this zip. The next step is the same thing with `printf`.
+
+4. ASK FOR A DRAW, FROM THE SECOND TERMINAL.
+
+       printf '2100-2567' > /dev/ttyACM0
+
+   The first terminal:
+
+       [   23823 ms] draw #1: 2196  in 2100-2567 (468 values)
+       [   23823 ms]   256 of 2^32 rejected to keep it unbiased
+
+   Your number will differ; everything else will not. **Read the second line.**
+   468 does not divide 2^32 evenly, so 256 of the four billion possible words
+   would make some tickets very slightly likelier than others. Those 256 are
+   thrown away and redrawn rather than folded in with a modulo.
+
+5. ASK FOR A SMALLER ONE.
+
+       printf '1-10' > /dev/ttyACM0
+
+       [   27826 ms] draw #2: 4  in 1-10 (10 values)
+       [   27826 ms]   6 of 2^32 rejected to keep it unbiased
+
+   Ten values, six rejected. The rejection count is `2^32 mod range` and it is
+   printed every time, so the fairness is not something you are asked to take
+   on trust — it is arithmetic you can check on the line in front of you.
+
+6. NOTICE THE NUMBERING. `draw #1`, `draw #2`. Every draw the board makes is
+   counted, in order, whether or not you liked the result. **A discarded draw
+   leaves a hole**: run five and keep the third, and the log shows five. That
+   is the difference between a prize draw and a story about a prize draw, and
+   it costs one counter.
+
+IF IT DOES NOT WORK
+  * Nothing happens when you send a range — check the format. `2100-2567`,
+    no spaces, no newline needed.
+  * The board refuses to draw at all — the health tests failed, which is the
+    behaviour exp114 built. It is a refusal, not a crash.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+
 ## Expected output
 
 Captured from a Pico 2. `yi26 log --seconds 8` straight after flashing:
