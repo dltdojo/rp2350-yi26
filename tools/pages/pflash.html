@@ -1,0 +1,430 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pflash — write firmware over PICOBOOT, with no drive</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  pflash.html — one file, no dependencies, no build step, no server.
+
+  Writes a .uf2 into an RP2350's flash over PICOBOOT, the bootrom's own vendor
+  interface, and reboots the board into it. No mass-storage drive is involved
+  at any point, which is the entire reason this page exists:
+
+      a board that has a partition table takes NOTHING from its BOOTSEL drive.
+
+  That was measured in exp144, on a desktop and on a phone, and it is not a
+  host problem — dragging a .uf2 onto the RP2350 drive simply stops working
+  once the board partitions its flash, which is exactly what a board that
+  accepts field updates does. PICOBOOT is immune: it writes raw addresses and
+  never touches the drive or the host's storage layer.
+
+  This is the browser port of `yi26 pflash`, command for command:
+
+      IF_RESET -> EXCLUSIVE_ACCESS -> EXIT_XIP -> FLASH_ERASE
+               -> WRITE x N -> READ back and compare -> REBOOT2
+
+  Open it directly from the filesystem — double-click on a desktop, Files app
+  -> "Open with Chrome" on Android. The board must be in BOOTSEL first:
+  flash.html does that from a phone, `yi26 bootsel` from a desktop.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you flash the board.
+
+      yi26 pflash firmware.uf2
+
+  is. This file exists so a *person* can do it on a machine with no toolchain —
+  a phone with the board plugged into its only port, most importantly. Reaching
+  for it from an agent means asking a human to click a native dialog that no
+  tool here can click for them. Open it when the page itself is what you are
+  verifying. See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 46rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button[disabled] { opacity: .45; cursor: default; }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin: .8rem 0; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); }
+  #status.ok { border-color: var(--ok); color: var(--ok); }
+  #status.bad { border-color: var(--bad); color: var(--bad); }
+  #status.warn { border-color: var(--warn); color: var(--warn); }
+  #out { white-space: pre-wrap; font: 13px/1.5 ui-monospace, monospace; background: #0000000d;
+         padding: .8rem; border-radius: 6px; min-height: 6rem; overflow-x: auto; }
+  @media (prefers-color-scheme: dark) { #out { background: #ffffff0d; } }
+  input[type=file] { font: inherit; max-width: 100%; }
+  .note { color: var(--dim); font-size: .9rem; }
+  .mark { color: var(--dim); font-size: .8rem; margin-top: 2rem; }
+  code { font-family: ui-monospace, monospace; }
+</style>
+
+<h1>Write firmware over PICOBOOT</h1>
+<p class="sub">No drive, no drag-and-drop. The board must be in BOOTSEL.</p>
+
+<div class="row">
+  <input type="file" id="file" accept=".uf2,application/octet-stream">
+</div>
+<div class="row">
+  <button id="go" disabled>Flash it</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+</div>
+
+<div id="status">Choose a <code>.uf2</code>, then press Flash it. You will be
+asked to pick the board once — it appears as <b>RP2350 Boot</b>.</div>
+
+<pre id="out"></pre>
+
+<p class="note">
+  <b>Why this page and not the drive.</b> A board with a partition table takes
+  nothing from its BOOTSEL drive — the copy appears to succeed and the file is
+  gone on the next mount. PICOBOOT does not go through the drive at all.
+</p>
+<p class="note">
+  <b>If it fails.</b> Nothing is written unless the pre-flight passes, and the
+  board is not rebooted unless the read-back matches. A board with no bootable
+  image drops into BOOTSEL by itself, so you can try again. If the board is
+  dark instead — no drive, no ports — hold BOOTSEL while plugging it in.
+</p>
+
+<p class="mark">pflash.html · build 2026-08-05 · rp2350-yi26</p>
+
+<script>
+const FILTERS = [{ vendorId: 0x2e8a, productId: 0x000f }];
+
+const MAGIC = 0x431fd10b;
+const CMD_EXCLUSIVE_ACCESS = 0x1;
+const CMD_FLASH_ERASE = 0x3;
+const CMD_WRITE = 0x5;
+const CMD_EXIT_XIP = 0x6;
+const CMD_REBOOT2 = 0xa;
+const CMD_READ = 0x84;
+const IF_RESET = 0x41;
+
+/** REBOOT2 dFlags. NORMAL boots the flash image; NO_RETURN resets rather than
+ *  returning to the caller. The RP2040-style REBOOT (pc/sp) lands back in
+ *  BOOTSEL on this chip even over a valid image — learned the hard way. */
+const REBOOT2_NORMAL = 0x0;
+const REBOOT2_NO_RETURN = 0x100;
+
+/** Every PICOBOOT flash address is absolute from the XIP base. A zero offset
+ *  is what the bootrom STALLs on. */
+const FLASH_BASE = 0x10000000;
+const SECTOR = 4096;
+/** One sector per WRITE: small, sector-aligned, and comfortably inside the
+ *  bootrom's buffer. */
+const CHUNK = 4096;
+
+/** The markers that bracket every RP2350 boot block — an IMAGE_DEF or a
+ *  partition table. The ROM scans the first 4 KiB of flash for the start
+ *  marker; a UF2 with neither has nothing to boot. */
+const BLOCK_MARKER_START = 0xffffded3;
+const BLOCK_MARKER_END = 0xab123579;
+
+const UF2_MAGIC0 = 0x0a324655;
+const UF2_FLAG_FAMILY = 0x00002000;
+const FAMILY_RP2350_ARM_S = 0xe48bff59;
+
+const $ = (id) => document.getElementById(id);
+let device = null, ifaceNum = null, epOut = null, epIn = null, token = 1;
+let image = null, base = 0;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+function log(t) { $('out').textContent += t + '\n'; }
+
+/* ---------------------------------------------------------------- the file */
+
+/** Parse a UF2 into one contiguous image and its base address.
+ *
+ *  Gaps between blocks are filled with 0xFF — erased flash — so a firmware
+ *  whose blocks are not perfectly dense still lands correctly. This mirrors
+ *  `uf2_to_image` in tools/yi26/src/picoboot.rs; the two must agree, because a
+ *  file that flashes from the command line and not from here (or the reverse)
+ *  is the worst kind of difference to debug on a phone.
+ */
+function uf2ToImage(bytes) {
+  const blocks = [];
+  let families = new Set();
+  for (let at = 0; at + 512 <= bytes.length; at += 512) {
+    const dv = new DataView(bytes.buffer, bytes.byteOffset + at, 512);
+    if (dv.getUint32(0, true) !== UF2_MAGIC0) continue;
+    const flags = dv.getUint32(8, true);
+    const addr = dv.getUint32(12, true);
+    const len = Math.min(dv.getUint32(16, true), 476);
+    if (flags & UF2_FLAG_FAMILY) families.add(dv.getUint32(28, true));
+    blocks.push({ addr, data: bytes.subarray(at + 32, at + 32 + len) });
+  }
+  if (!blocks.length) throw new Error('no UF2 blocks — is this a .uf2 file?');
+
+  let lo = Infinity, hi = 0;
+  for (const b of blocks) { lo = Math.min(lo, b.addr); hi = Math.max(hi, b.addr + b.data.length); }
+  const img = new Uint8Array(hi - lo).fill(0xff);
+  for (const b of blocks) img.set(b.data, b.addr - lo);
+  return { base: lo, image: img, blocks: blocks.length, families };
+}
+
+/** Find a word-aligned little-endian marker, returning its byte offset or -1.
+ *  Blocks are word-aligned, so a 4-byte stride is enough. */
+function findMarker(bytes, marker) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let i = 0; i + 4 <= bytes.length; i += 4) {
+    if (dv.getUint32(i, true) === marker) return i;
+  }
+  return -1;
+}
+
+/** A cheap, honest pre-flight: will this UF2 *structurally* boot?
+ *
+ *  The same check `yi26 pflash` makes, and for the same reason. It does not
+ *  prove the firmware runs — a perfectly-linked image can still panic and
+ *  leave the board dark, and PICOBOOT cannot reach a dark board. It catches
+ *  the structural bricks: an image linked at the wrong base, a UF2 with no
+ *  boot block, and a UF2 built for another chip.
+ */
+function preflight(parsed) {
+  if (parsed.base !== FLASH_BASE) {
+    throw new Error(
+      `the lowest flash address is 0x${parsed.base.toString(16)}, not ` +
+      `0x${FLASH_BASE.toString(16)}. Nothing would sit at flash offset 0, where ` +
+      `the ROM boots from, so the board would not come up — was the image ` +
+      `linked at the wrong address?`);
+  }
+  if (parsed.families.size && !parsed.families.has(FAMILY_RP2350_ARM_S)) {
+    const seen = [...parsed.families].map((f) => '0x' + f.toString(16)).join(', ');
+    throw new Error(
+      `this .uf2 is for another chip (family ${seen}, expected ` +
+      `0x${FAMILY_RP2350_ARM_S.toString(16)} rp2350-arm-s). The bootrom would ` +
+      `ignore it, which looks exactly like a board that did not come back.`);
+  }
+  const scan = parsed.image.subarray(0, Math.min(parsed.image.length, SECTOR));
+  const start = findMarker(scan, BLOCK_MARKER_START);
+  if (start < 0) {
+    throw new Error(
+      `no boot block in the first ${scan.length} bytes: the ROM looks for a ` +
+      `block loop (an IMAGE_DEF, or a partition table) near flash offset 0, ` +
+      `and this UF2 has none — it would not boot.`);
+  }
+  if (findMarker(scan.subarray(start + 4), BLOCK_MARKER_END) < 0) {
+    throw new Error(
+      `a boot block starts at +0x${start.toString(16)} but its end marker is ` +
+      `not in the first ${scan.length} bytes — the block is malformed and the ` +
+      `ROM would reject it.`);
+  }
+}
+
+/* ------------------------------------------------------------- the device */
+
+function findPicoboot(dev) {
+  for (const cfg of dev.configurations) {
+    for (const i of cfg.interfaces) {
+      for (const alt of i.alternates) {
+        if (alt.interfaceClass !== 0xFF) continue;
+        let o = null, n = null;
+        for (const e of alt.endpoints) {
+          if (e.type === 'bulk' && e.direction === 'out' && o === null) o = e.endpointNumber;
+          if (e.type === 'bulk' && e.direction === 'in' && n === null) n = e.endpointNumber;
+        }
+        if (o !== null && n !== null) return { iface: i.interfaceNumber, out: o, in: n };
+      }
+    }
+  }
+  return null;
+}
+
+/** The 32-byte command packet every PICOBOOT command starts with. */
+function packet(cmdId, args, transferLength) {
+  const pkt = new Uint8Array(32);
+  const dv = new DataView(pkt.buffer);
+  dv.setUint32(0, MAGIC, true);
+  dv.setUint32(4, token++, true);
+  pkt[8] = cmdId;
+  pkt[9] = args.length;
+  dv.setUint32(12, transferLength >>> 0, true);
+  pkt.set(args, 16);
+  return pkt;
+}
+
+/** One no-data command: write the packet, read the acknowledgement. */
+async function cmd(cmdId, args, name) {
+  const w = await device.transferOut(epOut, packet(cmdId, args, 0));
+  if (w.status !== 'ok') throw new Error(`${name}: write ${w.status}`);
+  const ack = await device.transferIn(epIn, 64);
+  if (ack.status !== 'ok') throw new Error(`${name}: acknowledgement ${ack.status}`);
+}
+
+/** A command with an OUT data phase: packet, then the data, then the ack. */
+async function cmdOut(cmdId, args, data, name) {
+  const w = await device.transferOut(epOut, packet(cmdId, args, data.length));
+  if (w.status !== 'ok') throw new Error(`${name}: command packet ${w.status}`);
+  const d = await device.transferOut(epOut, data);
+  if (d.status !== 'ok') throw new Error(`${name}: data phase ${d.status}`);
+  const ack = await device.transferIn(epIn, 64);
+  if (ack.status !== 'ok') throw new Error(`${name}: acknowledgement ${ack.status}`);
+}
+
+/** READ is an IN command: packet, then the data, then a zero-length OUT to
+ *  acknowledge — the mirror image of a write. */
+async function readFlash(addr, len) {
+  const args = new Uint8Array(8);
+  const dv = new DataView(args.buffer);
+  dv.setUint32(0, addr, true);
+  dv.setUint32(4, len, true);
+  const w = await device.transferOut(epOut, packet(CMD_READ, args, len));
+  if (w.status !== 'ok') throw new Error(`READ: command ${w.status}`);
+  const got = await device.transferIn(epIn, len);
+  if (got.status !== 'ok') throw new Error(`READ: transfer ${got.status}`);
+  await device.transferOut(epOut, new Uint8Array(0));
+  // A view over exactly what came back, not over the whole underlying buffer —
+  // a short read must stay short, or the comparison below compares padding.
+  return new Uint8Array(got.data.buffer, got.data.byteOffset, got.data.byteLength);
+}
+
+const hex = (n) => '0x' + (n >>> 0).toString(16).padStart(8, '0');
+
+async function flash() {
+  $('go').disabled = true;
+  try {
+    log(`image: ${image.length} bytes at ${hex(base)}`);
+
+    device = await navigator.usb.requestDevice({ filters: FILTERS });
+    await device.open();
+    if (device.configuration === null) await device.selectConfiguration(1);
+
+    const p = findPicoboot(device);
+    if (!p) { say('No PICOBOOT interface — is the board really in BOOTSEL?', 'bad'); return; }
+    ifaceNum = p.iface; epOut = p.out; epIn = p.in;
+    await device.claimInterface(ifaceNum);
+    log(`claimed PICOBOOT (interface ${ifaceNum}, OUT ep ${epOut}, IN ep ${epIn})`);
+    $('stop').disabled = false;
+
+    // Clear any half-finished command state first.
+    await device.controlTransferOut({
+      requestType: 'vendor', recipient: 'interface',
+      request: IF_RESET, value: 0, index: ifaceNum,
+    });
+    log('IF_RESET: interface cleared');
+
+    token = 1;
+    await cmd(CMD_EXCLUSIVE_ACCESS, new Uint8Array([1]), 'EXCLUSIVE_ACCESS');
+    log('EXCLUSIVE_ACCESS: the drive is ours now');
+    await cmd(CMD_EXIT_XIP, new Uint8Array([]), 'EXIT_XIP');
+    log('EXIT_XIP: flash is a device again, not memory');
+
+    // Erase the whole target range first, sector-aligned.
+    const eraseLen = Math.ceil(image.length / SECTOR) * SECTOR;
+    const ea = new Uint8Array(8);
+    const edv = new DataView(ea.buffer);
+    edv.setUint32(0, base, true);
+    edv.setUint32(4, eraseLen, true);
+    say(`Erasing ${eraseLen / 1024} KiB…`, 'warn');
+    await cmd(CMD_FLASH_ERASE, ea, 'FLASH_ERASE');
+    log(`FLASH_ERASE: ${eraseLen} bytes at ${hex(base)} (${eraseLen / SECTOR} sectors)`);
+
+    // Write in sector-sized chunks, each padded to a 256-byte page with 0xFF
+    // so the length stays flash-aligned.
+    let off = 0;
+    while (off < image.length) {
+      const end = Math.min(off + CHUNK, image.length);
+      let chunk = image.subarray(off, end);
+      if (chunk.length % 256 !== 0) {
+        const padded = new Uint8Array(Math.ceil(chunk.length / 256) * 256).fill(0xff);
+        padded.set(chunk);
+        chunk = padded;
+      }
+      const wa = new Uint8Array(8);
+      const wdv = new DataView(wa.buffer);
+      wdv.setUint32(0, base + off, true);
+      wdv.setUint32(4, chunk.length, true);
+      await cmdOut(CMD_WRITE, wa, chunk, 'WRITE');
+      off = end;
+      const pct = Math.round((off / image.length) * 100);
+      say(`Writing… ${pct}% (${off} of ${image.length} bytes)`, 'warn');
+    }
+    log(`WRITE: ${image.length} bytes in ${Math.ceil(image.length / CHUNK)} chunks`);
+
+    // Read the first page back and compare, so a WRITE that did not take is
+    // caught here rather than as a board that mysteriously will not boot.
+    const checkLen = Math.min(image.length, 256);
+    const back = await readFlash(base, checkLen);
+    let same = back.length >= checkLen;
+    for (let i = 0; same && i < checkLen; i++) if (back[i] !== image[i]) same = false;
+    if (!same) {
+      const got = [...back.subarray(0, 16)].map((b) => b.toString(16).padStart(2, '0')).join(' ');
+      log(`READ back: ${got} …`);
+      throw new Error(
+        'the write did not verify — flash does not match the image, so the ' +
+        'board was NOT rebooted. It is still in BOOTSEL; try again.');
+    }
+    log(`READ back ${checkLen} bytes at ${hex(base)}: matches`);
+
+    // Only now, with the bytes confirmed on the chip.
+    const rb = new Uint8Array(16);
+    const rdv = new DataView(rb.buffer);
+    rdv.setUint32(0, REBOOT2_NORMAL | REBOOT2_NO_RETURN, true);
+    rdv.setUint32(4, 100, true); // dDelayMS
+    try {
+      await device.transferOut(epOut, packet(CMD_REBOOT2, rb, 0));
+    } catch (e) {
+      // The board resets mid-command; the transfer failing here is the reboot.
+      log(`REBOOT2: ${e.message} (the board went away, which is the reboot)`);
+    }
+    log('REBOOT2: NORMAL | NO_RETURN');
+
+    say(`Flashed ${image.length} bytes and rebooted the board. No drive, no ` +
+        `drag-and-drop.`, 'ok');
+    log('\n=> The board is running the firmware you chose. Open log.html to ' +
+        'watch it say so.');
+  } catch (e) {
+    say(`Failed: ${e.message}`, 'bad');
+    log(`\nexception: ${e}`);
+    log('(If the claim failed on a phone, this MSC+PICOBOOT composite may not');
+    log(' let Android Chrome claim it — try desktop Chrome with a udev rule.)');
+  } finally {
+    $('go').disabled = !image;
+  }
+}
+
+async function disconnect() {
+  try { if (device && ifaceNum !== null) await device.releaseInterface(ifaceNum); } catch {}
+  try { if (device) await device.close(); } catch {}
+  device = null; ifaceNum = null;
+  say('Disconnected.', '');
+  $('stop').disabled = true;
+}
+
+$('file').onchange = async (ev) => {
+  const f = ev.target.files[0];
+  image = null;
+  $('go').disabled = true;
+  $('out').textContent = '';
+  if (!f) return;
+  try {
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    const parsed = uf2ToImage(bytes);
+    preflight(parsed);
+    base = parsed.base;
+    image = parsed.image;
+    log(`${f.name}: ${f.size} bytes, ${parsed.blocks} UF2 blocks`);
+    log(`pre-flight: ${parsed.image.length} bytes at ${hex(parsed.base)}, boot block present`);
+    say(`${f.name} looks bootable. Press Flash it.`, 'ok');
+    $('go').disabled = false;
+  } catch (e) {
+    say(`Refused: ${e.message}`, 'bad');
+    log(`refused before anything was written: ${e.message}`);
+  }
+};
+
+if (!('usb' in navigator)) {
+  say('This browser has no WebUSB. Use Chrome or Edge.', 'bad');
+  $('file').disabled = true;
+} else {
+  $('go').onclick = flash;
+  $('stop').onclick = disconnect;
+}
+</script>

@@ -10,10 +10,20 @@ and is opened by double-clicking it.
 | [`log.html`](./log.html) | what the firmware is printing, live | the **CDC** pair |
 | [`console.html`](./console.html) | the same log, plus whatever you type going back to the board — including a zero-length packet to end a message | the **CDC** pair |
 | [`flash.html`](./flash.html) | put this board into its bootloader so it can be reflashed | the CDC control pipe, briefly |
+| [`pflash.html`](./pflash.html) | write a `.uf2` into a board that is already in BOOTSEL, and reboot it into the new firmware | the **PICOBOOT** vendor interface |
 
 `log.html` and `console.html` both claim CDC, so they cannot be open at the
 same time — **one interface has exactly one owner**. Use `console.html` when
 you want to talk back and `log.html` when you only want to watch.
+
+**The two `flash` names are a pair, not a duplicate.** `flash.html` gets a
+running board *into* BOOTSEL (it sets the CDC port to 1200 baud, the signal
+every firmware here has honoured since exp105). `pflash.html` is what writes
+firmware once it is there, and it is named after `yi26 pflash` for the same
+reason: they send the same PICOBOOT commands in the same order. Together they
+are the whole flashing cycle from a phone — which stopped being optional when
+[exp144](../../experiments/exp144-one-file-either-half/) measured that a board
+with a partition table takes nothing from its BOOTSEL drive.
 
 ## Two toolboxes, and the line between them
 
@@ -25,6 +35,7 @@ command-line program, and these pages. They overlap, but only in four places:
 | read the log | `yi26 log` | `log.html`, `console.html` |
 | send bytes | `yi26 send` | `console.html` |
 | into the bootloader | `yi26 bootsel` | `flash.html` |
+| write firmware, no drive | `yi26 pflash` | `pflash.html` |
 | look at the descriptors | `yi26 doctor` | `inspect.html` |
 
 Everywhere else they do not overlap, and the reason is worth knowing because it
