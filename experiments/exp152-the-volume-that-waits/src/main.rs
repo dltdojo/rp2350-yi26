@@ -594,7 +594,11 @@ async fn report_task(stack: embassy_net::Stack<'static>) -> ! {
                 // in this repository. See docs/debugging-on-a-phone.md.
                 #[cfg(not(feature = "ask-for-an-address"))]
                 (true, false) => log!("{} ms  link UP, waiting for a DISCOVER", ms),
-                (true, false) => log!("{} ms  link UP, still asking for an address", ms),
+                (true, false) => log!(
+                    "{} ms  link UP, still asking. TURN ON Ethernet tethering — \
+Settings > Network & internet > Hotspot & tethering. Nothing appears until you do.",
+                    ms
+                ),
                 (true, true) => match my_address(stack) {
                     // The line somebody reads off `log.html` and types into a
                     // browser. It is printed on every idle tick, not once, so
@@ -1260,7 +1264,7 @@ async fn storage_task(
 /// link is a top-level navigation, which is the one thing exp150 measured going
 /// through from a `content://` page.
 fn lay_down(disk: &mut [u8], addr: [u8; 4]) -> u32 {
-    let mut page = [0u8; 640];
+    let mut page = [0u8; 1024];
     let mut w = Cursor { buf: &mut page, n: 0 };
     let _ = write!(
         w,
@@ -1280,6 +1284,18 @@ permission dialog, nothing installed.</p>",
         addr[0], addr[1], addr[2], addr[3], addr[0], addr[1], addr[2], addr[3]
     );
     let page_len = w.n;
+    // A `Cursor` truncates silently — that is its bargain, and it is the right
+    // one for a log line. For a page it is a trap, and this firmware fell into
+    // it: at 640 bytes the buffer filled exactly, the link's `href` survived
+    // because it comes first, and the text after it was cut mid-address. The
+    // phone showed a working button labelled `http://10`.
+    //
+    // The evidence was on screen the whole time — a directory listing saying
+    // `OPEN.HTM  640`, against a buffer declared as 640. A buffer that
+    // truncates in silence needs something that breaks the silence.
+    if page_len == page.len() {
+        log!("volume: OPEN.HTM filled its buffer exactly — it is probably truncated");
+    }
 
     let mut text = [0u8; 96];
     let mut w = Cursor { buf: &mut text, n: 0 };
@@ -1298,4 +1314,4 @@ permission dialog, nothing installed.</p>",
     .expect("checked by the crate's own tests")
 }
 
-const README: &[u8] = b"exp152 - the drive that waited until it had something to say.\r\n\r\nThis volume did not exist when you plugged the board in. It appeared once\r\nthe board had been given an address, because a disk that is mounted before\r\nit knows the answer is a disk whose file the host will serve you out of its\r\nown cache - which exp137 measured, on a different host, a month earlier.\r\n\r\nOPEN.HTM   tap the link. It goes to this board's own log.\r\nADDRESS.TXT  the same address as plain text, if you would rather read it.\r\n\r\nThe phone must be sharing its connection: Settings > Network & internet >\r\nHotspot & tethering > Ethernet tethering. That switch is greyed out until\r\na device is attached.\r\n";
+const README: &[u8] = b"exp152 - the drive that waited until it had something to say.\r\n\r\nTHE ORDER MATTERS. This drive did not exist until the phone gave the board\r\nan address, and the phone will not do that until you turn ON Ethernet\r\ntethering - which is greyed out until something is plugged in. So:\r\n\r\n  1. plug the board in\r\n  2. turn on Ethernet tethering, straight away\r\n  3. wait for the LED to blink fast; this drive appears then\r\n\r\nLeaving a long gap at step 2 is what goes wrong. The board keeps asking\r\nforever, but a host that has been told 'no medium' for long enough may\r\nstop looking.\r\n\r\nThis volume did not exist when you plugged the board in. It appeared once\r\nthe board had been given an address, because a disk that is mounted before\r\nit knows the answer is a disk whose file the host will serve you out of its\r\nown cache - which exp137 measured, on a different host, a month earlier.\r\n\r\nOPEN.HTM   tap the link. It goes to this board's own log.\r\nADDRESS.TXT  the same address as plain text, if you would rather read it.\r\n\r\nThe phone must be sharing its connection: Settings > Network & internet >\r\nHotspot & tethering > Ethernet tethering. That switch is greyed out until\r\na device is attached.\r\n";

@@ -279,6 +279,32 @@ fi
 
 crate_test ../../crates/fat12 "crates/fat12 passes its own tests"
 
+# A `Cursor` truncates in silence, which is right for a log line and a trap for
+# a page. This firmware fell into it: the buffer filled exactly, the href
+# survived because it comes first, and a phone showed a working button labelled
+# `http://10`. The evidence was a directory listing saying `OPEN.HTM 640`
+# against a buffer declared as 640, and nobody compared them.
+if grep -q 'filled its buffer exactly' "$SRC"; then
+    pass "a page that fills its buffer says so — silence is what hid the last one"
+else
+    fail "truncation is detected, not silent" \
+         "a cut page renders as a working button with half an address on it"
+fi
+
+# The ordering is the thing a person gets wrong, so it has to be in front of
+# them rather than in a repository they have not got.
+if grep -q 'THE ORDER MATTERS' "$SRC"; then
+    pass "the drive's own README leads with the order, not with the explanation"
+else
+    fail "the drive says what order to do things in" \
+         "tethering is greyed out until something is plugged in, so there is only one order"
+fi
+if grep -q 'TURN ON Ethernet tethering' "$SRC"; then
+    pass "the waiting log names the action, not just the state"
+else
+    fail "the waiting log names the action" "'still asking' does not tell anybody what to do"
+fi
+
 # ---- the board half --------------------------------------------------------
 PRODUCT="$(yi26 port --json 2>/dev/null | sed -n 's/.*"product":"\([^"]*\)".*/\1/p')"
 if [[ "$PRODUCT" != *"exp152"* ]]; then
