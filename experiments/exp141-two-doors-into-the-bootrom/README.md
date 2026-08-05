@@ -7,11 +7,14 @@
 > [Expected output](#expected-output).
 
 [`docs/platforms.md`](../../docs/platforms.md) recorded, on 2026-08-04, that
-dragging a `.uf2` onto the phone's BOOTSEL drive **stopped working** — Android's
-storage layer writes to that drive unreliably, and it is not a file problem or
-an app problem. That threatens the repository's whole premise: a phone, one
-cable, no second computer. If a board can only be reflashed by drag-and-drop,
-the phone cannot be relied on to do it.
+dragging a `.uf2` onto the phone's BOOTSEL drive **stopped working**, and blamed
+Android's storage layer. [exp144](../exp144-one-file-either-half/) later found
+the real cause — the board had a partition table, and a board with a table takes
+nothing from that drive on *any* host — so the phone was acquitted. The threat
+to the repository's premise (a phone, one cable, no second computer) is
+unchanged in shape and only moved: if a board can only be reflashed by
+drag-and-drop, then the moment it carries a partition table, nothing can reflash
+it.
 
 This experiment is the way out, and it starts by confirming the way out exists.
 
@@ -21,7 +24,7 @@ Hold BOOTSEL and the bootrom presents **two** USB interfaces, not one:
 
 | Interface | Class | What it is | Can a browser claim it? |
 | --- | --- | --- | --- |
-| 0 | `0x08` Mass Storage | the `RP2350` drive you drag `.uf2` onto | **No** — Chrome's WebUSB blocks the mass-storage class outright, and this is the door Android writes to unreliably |
+| 0 | `0x08` Mass Storage | the `RP2350` drive you drag `.uf2` onto | **No** — Chrome's WebUSB blocks the mass-storage class outright, and this is the door that takes nothing at all once the board has a partition table (exp144) |
 | 1 | `0xFF` Vendor | **PICOBOOT**, the interface `picotool` drives | **Yes** — `0xFF` is not on Chrome's block list, and this repository already claims `0xFF` in [exp122](../exp122-vendor-bulk/) and [exp132](../exp132-one-owner-or-two/) |
 
 Read from a real board in BOOTSEL, not from a datasheet:
@@ -75,10 +78,14 @@ line has it too: **`yi26 nuke`** does the same over `libusb` for anyone with the
 tool built. `picotool erase -a` is the official equivalent, and any of the three
 works because all three drive PICOBOOT rather than the drive.
 
-This is why the arc matters more than one experiment. The drag-and-drop drive is
-fragile in two directions at once — Android writes to it unreliably, and a bad
-partition table makes it refuse writes entirely — and **PICOBOOT is immune to
-both**, because it does not go through the drive or the storage layer. The
+This is why the arc matters more than one experiment. The drag-and-drop drive
+was thought to be fragile in two directions at once — Android writing to it
+unreliably, and a bad partition table making it refuse writes.
+[exp144](../exp144-one-file-either-half/) collapsed that into one direction on
+2026-08-05: **any** partition table makes the drive refuse a `.uf2`, on any
+host, and the Android half was the same board with the same table rather than a
+platform problem. One cause, and **PICOBOOT is immune to it**, because it does
+not go through the drive or the storage layer. The
 recovery is the sharpest proof the browser track has: a phone un-bricked a board
 from a web page, with no drive, no toolchain, and nothing installed.
 

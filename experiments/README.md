@@ -842,11 +842,19 @@ same thing once you have seen the forgery a CRC waves through.
 
 ### Flashing from a browser, with no drive
 
-The route out of the fragility [`docs/platforms.md`](../docs/platforms.md)
-recorded on 2026-08-04: dragging a `.uf2` onto a BOOTSEL drive is not
-dependable — the host storage layer writes to that synthetic drive badly (seen
-on Android *and* on a desktop Linux machine), and a bad partition table makes
-the bootrom refuse the drive's writes outright. [exp141](./exp141-two-doors-into-the-bootrom/)
+The route around the wall [`docs/platforms.md`](../docs/platforms.md) ran into
+on 2026-08-04, and the wall turned out to be a different one than it looked.
+That day's verdict was "dragging a `.uf2` onto a BOOTSEL drive is not dependable
+— the host storage layer writes to that synthetic drive badly, seen on Android
+*and* on a desktop Linux machine". **Corrected on 2026-08-05 by
+[exp144](./exp144-one-file-either-half/):** the host was never the problem. A
+board with a **partition table** — any table, well-formed or not — does not
+consume a UF2 written to its BOOTSEL drive, and both of those machines were
+facing a board that had just been given one. Erase the table and the same file
+flashes on the same host. So the rule is *table present → the drive takes
+nothing*, and the phone was acquitted; the road out is still worth having,
+because a partition table is exactly what a field-updatable board has.
+[exp141](./exp141-two-doors-into-the-bootrom/)
 is the way around it, and on 2026-08-04 it went from an idea to a verified path:
 BOOTSEL exposes a second interface, PICOBOOT (vendor `0xFF`), a browser *can*
 claim it, and a **Pixel 9a's Chrome erased the bootrom's flash from a web page**

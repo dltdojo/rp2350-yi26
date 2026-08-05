@@ -142,12 +142,18 @@ in the listing, and it is gone after an unmount and remount, because the host's
 FAT cache was showing a write the board never took. Erase the table and the
 identical file, same command, same cable, flashes.
 
-So the drag-and-drop route is not merely fragile across hosts (below) — it stops
-being available at all on exactly the boards that partition their flash for
-field updates. `yi26 pflash` (PICOBOOT, no drive) is the route that keeps
-working, which is what [exp141](../experiments/exp141-two-doors-into-the-bootrom/)
-built. One configuration is untested: a BOOTSEL entered by holding the button,
-with a table present.
+So the drag-and-drop route does not degrade on boards that partition their flash
+for field updates — it stops being available at all. `yi26 pflash` (PICOBOOT, no
+drive) is the route that keeps working, which is what
+[exp141](../experiments/exp141-two-doors-into-the-bootrom/) built. One
+configuration is untested: a BOOTSEL entered by holding the button, with a table
+present.
+
+**This is also the correction to what this page said about phones**, below: the
+2026-08-04 verdict that Android's drag-and-drop was undependable was measuring a
+board that had just been given a partition table. On a board without one, the
+drive path works — on Ubuntu, measured, and on the Pixel 9a the day before the
+table existed.
 
 ### Reading the serial port
 
@@ -244,40 +250,54 @@ all**: reboot it from a page, drag the `.uf2` onto the drive that appears, and
 read the result. That is the same hands-free loop the Ubuntu machine has had
 since exp105, arriving on the platform that has none of the tools.
 
-#### The drag-and-drop half is fragile, and 2026-08-04 showed how
+#### What looked like a fragile phone was a partition table — corrected 2026-08-05
 
-The paragraph above is true and it is not reliable, which are not a
-contradiction. Dragging a `.uf2` onto the boot drive worked on 2026-08-03. It
+**This section used to say the phone was unreliable. It was wrong, and the
+correction matters more than the original claim did.**
+
+What happened: dragging a `.uf2` onto the boot drive worked on 2026-08-03. It
 was tried again on the **same Pixel 9a, the next day**, with a file proven
-byte-for-byte intact, and **it did not work at all** — the flash never
-happened, on either of two file managers, for two different reasons that
-between them close the door:
+byte-for-byte intact, and it did not work at all. Two file managers, two
+different-looking failures:
 
-- **Google Files** (a privileged system app) shows the drive, accepts the
-  copy, and reports success — but the write never reaches the bootrom. The
-  `.uf2` appears in the listing and then vanishes on the next mount, because it
-  only ever lived in Android's storage cache. This is the exp137 finding
-  underneath: what Android displays and what the device received are not the
-  same thing.
-- **Material Files** (a third-party app) cannot even open the drive:
+- **Google Files** (a privileged system app) shows the drive, accepts the copy,
+  and reports success — but the flash never happens. The `.uf2` appears in the
+  listing and then vanishes on the next mount.
+- **Material Files** (a third-party app) cannot open the drive at all:
   `AccessDeniedException: /mnt/media_rw/…: opendir: Permission denied`.
-  Android's scoped storage does not let a non-system app touch a USB mass
-  storage device by path at all.
 
-So the one app that *can* reach the drive writes ineffectively, and the app
-that would write correctly is denied access. The cause is not the app: it is
-that the bootrom presents a **synthetic FAT** the desktop OSes' drivers happen
-to tolerate and this Android's does not. A `.uf2` whose bytes are perfect —
-checked against a SHA-256 the phone displayed — still would not flash.
+The first of those was written up as Android's storage cache swallowing the
+write, and from there as a property of *phones*. It is not.
+[exp144](../experiments/exp144-one-file-either-half/) measured the same failure
+on **Ubuntu**, on the machine where this procedure has always worked, and
+isolated the cause with a control: **a board that has a partition table does not
+consume a UF2 written to its BOOTSEL drive.** Erase the table and the identical
+file, same host, same cable, flashes.
 
-**What this changes about the claim.** The phone *flashing* half is verified as
-*possible* (2026-08-03) and now also as *not dependable* (2026-08-04): it turns
-on the Android version, the file manager, and some storage-layer state that is
-not visible and not controllable. Treat the drag-and-drop route as a thing that
-sometimes works, not a thing you can plan on. The **reading** half over WebUSB
-(exp115–exp126) has never shown this fragility — a browser claiming a USB
-interface does not go through the storage layer — so the asymmetry is worth
-keeping in mind: on a phone, WebUSB is solid and MSC drag-and-drop is not.
+And the board that phone was facing on 2026-08-04 had one — the exp139 table,
+flashed that day, which is the same table that "made the BOOTSEL drive refuse
+every dragged `.uf2` until PICOBOOT erased it". The symptom that was read as a
+host-side cache — *the file lists, then vanishes on remount* — is exactly what a
+**device-refused** write looks like, on any operating system, because the host
+is showing its own FAT cache of a write the board never took.
+
+So, corrected:
+
+| Claim | Status |
+| --- | --- |
+| A phone can flash the board by copying a `.uf2` onto the boot drive | **Stands, verified 2026-08-03.** No evidence against it |
+| The phone / Android is unreliable at this | **Withdrawn.** The 2026-08-04 run was measuring the board, not the phone |
+| The bootrom's synthetic FAT is one Android tolerates badly | **Withdrawn.** Nothing supports it; the write was refused at the device |
+| A third-party Android file manager cannot reach a USB drive by path | **Stands.** Scoped storage, and it never reaches the device at all — use the system Files app |
+| Dragging onto a board **that has a partition table** does nothing | **Stands, and it is the real rule** — on Android and on desktop alike |
+
+Not re-tested on the phone since the cause was found, so the honest statement is
+"the case against the phone collapsed", not "the phone was re-verified". The one
+thing to plan around is the table, not the platform.
+
+There is still an asymmetry worth keeping: the **reading** half over WebUSB
+(exp115–exp126) never showed any of this, because a browser claiming a USB
+interface does not go through the storage layer at all.
 
 A route that does not depend on the storage layer at all — driving the
 bootrom's **PICOBOOT** interface, the way `picotool` drives it — sidesteps every
@@ -289,21 +309,21 @@ line, `yi26 nuke` erases and `yi26 pflash` does a full write+`REBOOT2` over
 `libusb` — `pflash` flashed and booted exp138 on real silicon. So the phone is
 no longer dependent on the fragile drive: PICOBOOT is the path that works.
 
-**And the drive is fragile in a second direction, on the desktop too.** The same
-Pixel-9a board, moved to an unrelated Linux machine, *also* refused every
-drag-and-drop `.uf2` — no error, no reboot, the files just piling up unflashed.
-That was not an Android quirk: the board carried an exp139 partition table, and
-once the bootrom has loaded a table it **routes a dragged `.uf2` by partition
-rather than to the address on it** — so an image aimed at `0x10000000` (sector 0,
-now the table) has nowhere on the drive to land, and the write is refused while
-the drive still appears. The table itself was well-formed; it was the *routing* a
-valid table imposes that the drag could not satisfy (exp139 later confirmed the
-eight words parse — the ROM boots from them). So the drag-and-drop route fails in
-two unrelated ways — Android's storage cache swallows the write, and a partition
-table reroutes it — and PICOBOOT is immune to both, because it writes raw
-addresses and never touches the drive or the storage layer. When a drag-and-drop
-flash silently does nothing, reach for `yi26 pflash` / `recover.html`, not another
-copy.
+**One cause, not two.** The same board, moved to an unrelated Linux machine,
+*also* refused every drag-and-drop `.uf2` — no error, no reboot, the files just
+piling up unflashed. At the time that was read as a second, independent failure
+sitting next to the phone's. [exp144](../experiments/exp144-one-file-either-half/)
+showed it is the same one: the partition table, on any host. It was also thought
+to be a *routing* failure specific to an image aimed at `0x10000000` — that is
+ruled out too, because the same image shifted to a partition's own start sector
+is refused identically, and so is a `.uf2` dropped on a board with a single
+partition.
+
+The rule, as measured: **table present → the drive takes nothing; no table → the
+drive works.** PICOBOOT is immune either way, because it writes raw addresses
+and never touches the drive or the storage layer. When a drag-and-drop flash
+silently does nothing, reach for `yi26 pflash` / `recover.html`, not another
+copy — and check whether the board has a table before blaming the host.
 
 That run still had one dependency this page walked into without noticing: the
 reboot page had to be *sent to the phone first*, because it lived in this

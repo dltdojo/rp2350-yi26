@@ -87,11 +87,22 @@ So the answer to the road's question, on this board, is:
   which is exactly when the routing would have mattered. Whatever a partition
   table does to the bootrom's UF2 download path, it stops it.
 
-That also revises something this repository wrote down earlier: exp139 recorded
-that "a bad partition table makes the bootrom reject the drive's writes
-outright". The table here is good — it boots, the ROM enumerates it, A/B
-selection works off it. It is refused anyway. The word "bad" was the wrong half
-of that sentence.
+That also revises two things this repository had written down.
+
+**exp139's** note said "a *bad* partition table makes the bootrom reject the
+drive's writes outright". The table here is good — it boots, the ROM enumerates
+it, A/B selection works off it. It is refused anyway. The word "bad" was the
+wrong half of that sentence.
+
+**And `docs/platforms.md` had convicted the wrong suspect.** On 2026-08-04 a
+Pixel 9a failed to flash a proven `.uf2` by drag-and-drop, and that was written
+up as Android's storage layer being unreliable — a property of phones. The board
+it was facing that day had just been given the exp139 table, and the symptom
+recorded there is the one above, word for word: the copy succeeds, the file
+lists, and it is gone on the next mount. Same cause. The phone was doing nothing
+wrong, and neither was the unrelated Linux machine that failed the same way.
+What is undependable is dragging onto a board with a partition table — on every
+host that has been tried.
 
 **And it is why the flashing road exists.** `yi26 pflash` writes the same bytes
 over PICOBOOT and never touches the drive, which is why every partitioned board
