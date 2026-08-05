@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Open the board</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  go.html — one link, and the reason it has to exist.
+
+  exp151 gives the board a name so that nobody has to know its address. On a
+  phone that turned out not to be enough: Chrome's address bar treats
+  `yi26.local` as something to search for, and it does it even when the whole
+  `http://yi26.local/` is typed in with the scheme. The measurement is a
+  screenshot of a Google results page for `http://yi26.local/`.
+
+  So the name still cannot be *typed*. It can be tapped.
+
+  There is no WebUSB here and no fetch, because both of those are the things
+  this file exists to avoid:
+
+    - WebUSB is Chromium-only, and the students this is for do not have it
+    - a fetch from this page to `http://` is mixed content and is refused
+      before it leaves — measured on a Pixel 9a, see exp150
+
+  A link is a top-level navigation, which is neither of those, and it is the
+  one thing that has been shown to work.
+
+  This file never changes: the name is fixed at compile time. That matters,
+  because it is what makes the board able to carry this file on its own USB
+  volume — exp137 measured that a mounted volume's *changing* file is served
+  from the host's cache, and a constant one has nothing to go stale.
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --acc:#1a5fb4; --line:#ddd; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --acc:#78aeed; --line:#333; }
+  }
+  body { font: 16px/1.6 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 32rem; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 1.25rem; margin: 0 0 .4rem; }
+  p { color: var(--dim); margin: 0 0 1.2rem; }
+  a.big { display: block; text-align: center; font: 600 1.25rem/1 system-ui, sans-serif;
+          padding: 1.3rem 1rem; border-radius: 10px; background: var(--acc); color: #fff;
+          text-decoration: none; margin: 0 0 1.5rem; }
+  h2 { font-size: .95rem; margin: 2rem 0 .4rem; }
+  dl { font-size: .9rem; margin: 0; }
+  dt { font-family: ui-monospace, monospace; color: var(--fg); margin-top: .8rem; }
+  dd { margin: .15rem 0 0; color: var(--dim); }
+  form { display: flex; gap: .5rem; margin: .6rem 0 0; }
+  input { flex: 1; font: inherit; padding: .55rem .7rem; border: 1px solid var(--line);
+          border-radius: 6px; background: transparent; color: var(--fg); }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc);
+           border-radius: 6px; background: var(--acc); color: #fff; }
+  code { font-size: .92em; }
+</style>
+
+<h1>Open the board</h1>
+<p>Tap this. Do not type it — a phone's address bar will search for it instead,
+  which is why this file exists.</p>
+
+<a class="big" href="http://yi26.local/">http://yi26.local/</a>
+
+<p>The board must be plugged in, and the phone must be sharing its connection
+  with it: <b>Settings → Network &amp; internet → Hotspot &amp; tethering →
+  Ethernet tethering</b>. That switch is greyed out until a device is attached.</p>
+
+<h2>If it does not open</h2>
+<dl>
+  <dt>This site can't be reached — yi26.local's server IP address could not be found</dt>
+  <dd>The name did not resolve. Either the board has no address yet — give it
+    ten seconds after plugging in — or this browser does not do
+    <code>.local</code> lookups. Android has since 2021, Chrome's address bar
+    since Android 12.</dd>
+
+  <dt>ERR_TIMED_OUT</dt>
+  <dd>The name resolved and the packets went nowhere. That is routing, not
+    naming: check that Ethernet tethering is actually on.</dd>
+
+  <dt>Nothing happens at all</dt>
+  <dd>Some browsers refuse to follow an <code>http://</code> link from a page
+    opened out of the Files app. Use the box below, which navigates rather than
+    fetching.</dd>
+</dl>
+
+<h2>Or go straight to an address</h2>
+<p>If you already know the number — the board prints it in its own log — this
+  box sidesteps the address bar and its opinions.</p>
+<form id="manual">
+  <input id="addr" value="yi26.local" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <button type="submit">Go</button>
+</form>
+
+<script>
+// The only script here, and it replaces the address bar rather than the link
+// above. A form cannot navigate to an arbitrary URL on its own, and typing into
+// Chrome's omnibox is the thing that does not work.
+document.getElementById('manual').onsubmit = e => {
+  e.preventDefault();
+  let v = document.getElementById('addr').value.trim();
+  if (!/^https?:\/\//i.test(v)) v = 'http://' + v;
+  location.href = v;
+};
+</script>
