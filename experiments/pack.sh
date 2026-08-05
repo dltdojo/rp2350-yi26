@@ -385,6 +385,22 @@ write_flash_txt() {
         echo "  ('runs on: own' means this firmware. Anything else names the"
         echo "  experiment whose firmware this one measures — flash that one.)"
 
+        # Ten of these firmwares print advice naming `yi26`, which is this
+        # repository's host tool and is not in any zip. Found by following
+        # exp118, whose idle line says "try yi26 send hello" to a reader who
+        # has no yi26 — so the board itself sends them somewhere they cannot
+        # go. Detected rather than listed, so it stays true as firmware moves.
+        if grep -qE '"[^"]*yi26 ' "$dir"/src/main.rs 2>/dev/null; then
+            echo
+            echo "THE BOARD WILL NAME A COMMAND YOU DO NOT HAVE"
+            echo "  This firmware's own log suggests running \`yi26 something\`. That is"
+            echo "  the repository's host tool; it is not in this zip and cannot be,"
+            echo "  because a zip carries no buildable source. Where it matters, the"
+            echo "  steps above give the equivalent built from what your machine"
+            echo "  already has — usually \`cat\`, \`stty\` and \`printf\` on /dev/ttyACM0."
+
+        fi
+
         echo
         echo "FLASHING IT IS NOT THE SAME AS SEEING IT WORK"
         echo "  Most experiments here need something arranged on the HOST as well —"

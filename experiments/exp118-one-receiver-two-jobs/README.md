@@ -120,6 +120,81 @@ listening. One open handle, no gap.
 The rate is always 115200 and cannot be given. 1200 is exp105's reboot signal,
 and a send command that took a baud rate would let a typo reset the board.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. **You need two
+terminals**, because something has to be listening while something else talks.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat`, `stty` and `printf` are already there — no `yi26`.
+  * Two terminal windows.
+
+1. UNPACK IT.
+
+       unzip exp118-one-receiver-two-jobs.zip
+       cd exp118-one-receiver-two-jobs
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp118-one-receiver-two-jobs.uf2 /media/$USER/RP2350/
+
+3. IN THE FIRST TERMINAL, LISTEN.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       cat /dev/ttyACM0
+
+   Leave it running. Within five seconds it says:
+
+       [    5037 ms] idle: nothing received yet — try  yi26 send hello
+
+   **Ignore the advice on that line.** `yi26` is this repository's own tool and
+   it is not in this zip; the next step is the same thing with `printf`.
+
+4. IN THE SECOND TERMINAL, SEND FIVE BYTES.
+
+       printf 'hello' > /dev/ttyACM0
+
+   The first terminal answers:
+
+       [    8427 ms] in #1: 5 bytes
+       [    8427 ms]   0000  68 65 6c 6c 6f                                   hello
+       [   10037 ms] idle: 1 packet, 5 bytes received so far
+
+   The board was listening before you sent anything, and the idle line proves
+   it: a receiver that only exists while something is arriving cannot report
+   that nothing has.
+
+5. SEND A HUNDRED BYTES AND WATCH THEM ARRIVE AS TWO.
+
+       printf 'A%.0s' $(seq 1 100) > /dev/ttyACM0
+
+   The first terminal:
+
+       [   10434 ms] in #2: 64 bytes
+       [   10434 ms]   0000  41 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41  AAAAAAAAAAAAAAAA
+       ...
+       [   10435 ms] in #3: 36 bytes
+
+   **One `printf`, two packets.** 64 and 36. You did not ask for that split
+   and you cannot prevent it: 64 bytes is the endpoint's maximum packet size
+   on full-speed USB, and anything longer is delivered in pieces. A reader
+   that assumes one write becomes one read is already wrong at 65 bytes.
+
+6. STOP LISTENING, AND NOTICE WHAT KEEPS WORKING. Press Ctrl-C in the first
+   terminal, then send again from the second and start listening once more.
+   The count carries on from where it was — the receiving task never stopped.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * `printf` succeeds and nothing appears — you are writing to the wrong port,
+    or the first terminal is not actually reading.
+  * Nothing at all, ever — the board is not running this firmware, or the
+    cable is charge-only.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu, flashed and then sent to:
