@@ -336,6 +336,15 @@ async fn main(spawner: Spawner) {
     // Sampling more slowly does not make the bits better. It makes them
     // *cheaper to get*, which is a different claim and exp109 is careful about
     // it.
+    //
+    // And the rule the detour paid for, which outlives this line:
+    // **nothing may block the executor before USB is up.** `.await` here leaves
+    // `usb_task` free to enumerate and `control_task` free to answer the
+    // 1200-baud touch, so however long this takes the board can still be
+    // reflashed. The blocking version does not, and a board that cannot
+    // enumerate cannot be recovered without a hand on BOOTSEL — which, on the
+    // bench this firmware is aimed at, means a phone and no button anybody is
+    // going to reach.
     let mut trng_config = TrngConfig::default();
     trng_config.sample_count = TRNG_SAMPLE_COUNT;
     let mut trng = Trng::new(p.TRNG, Irqs, trng_config);
