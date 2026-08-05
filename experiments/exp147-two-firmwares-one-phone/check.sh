@@ -99,9 +99,21 @@ for pair in "CMD_FLASH_ERASE 0x3" "CMD_WRITE 0x5" "CMD_READ 0x84" "CMD_REBOOT2 0
 done
 
 if grep -q 'REBOOT2_FLASH_UPDATE = 0x4' "$PAGE"; then
-    pass "'try once' uses reboot type FLASH_UPDATE (0x4), which writes nothing"
+    pass "the other-half button uses reboot type FLASH_UPDATE (0x4)"
 else
-    fail "'try once' uses FLASH_UPDATE" "that is the whole difference between the two buttons"
+    fail "the other-half button uses FLASH_UPDATE" "that is the difference between the two buttons"
+fi
+
+# Measured on a phone, 2026-08-05: a flash update boot of an image with NO TBYB
+# flag is a completed update, and the ROM erased the other half's first sector.
+# The page called that button "try once" and promised it wrote nothing. It must
+# not say that again.
+if grep -q 'COMMITS' "$PAGE" && grep -q 'erases the other half' "$PAGE" \
+   && ! grep -q 'writes nothing at all' "$PAGE"; then
+    pass "the page says the other-half boot commits and erases, because it does"
+else
+    fail "the page does not promise a free trial" \
+         "a flash update boot of a non-TBYB image erased slot B — see the README"
 fi
 
 # The bug this check exists because of: the page read 256 bytes and looked for a

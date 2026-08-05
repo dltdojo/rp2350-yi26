@@ -772,7 +772,12 @@ interrogated yet — a direction, not a schedule:
   `get_b_partition(0)` turns from exp139's `-17` to `1`. The version lives in
   each image's own `IMAGE_DEF` (a `VERSION` item, via embassy-rp's
   `imagedef-none`), and `partimg ab` places both images and the linked A/B table.
-- **the image that is never bought** — **Done, verified 2026-08-05.**
+- **the image that is never bought** — **Done, verified 2026-08-05**, and
+  [exp147](./exp147-two-firmwares-one-phone/) later sharpened what it means: a
+  flash update boot of an image **without** the TBYB flag is not a trial at all
+  but a completed update, and the ROM erases the half it replaced. The trial is
+  the flag's doing, not the reboot's — the bit below is the whole mechanism, and
+  exp147 is what its absence looks like.
   [exp143](./exp143-the-image-that-is-never-bought/) marks slot B
   try-before-you-buy and watches the board be taken back from it, again and
   again, because B never calls `explicit_buy`. Three things were measured that

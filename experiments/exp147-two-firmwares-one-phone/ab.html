@@ -10,9 +10,13 @@
   two different answers to "run the other one", and they are not the same
   thing:
 
-    TRY ONCE      reboot(FLASH_UPDATE, other_half) — writes NOTHING. The other
-                  half runs until the next reset, and then it is gone. This is
-                  the mechanism exp143 found under try-before-you-buy.
+    BOOT THE      reboot(FLASH_UPDATE, other_half). This page was built calling
+    OTHER HALF    it "try once", on the reading that the other half runs and the
+                  next reset puts it back. A phone measured otherwise on
+                  2026-08-05: with images that carry no TBYB flag, the ROM
+                  treats a flash update boot as a COMPLETED update and erases
+                  the other half's first sector on a downgrade. The trial is the
+                  flag's doing, not this reboot's.
 
     SWITCH        rewrite FOUR BYTES — the other half's VERSION word — so it is
                   higher than this one's. Now the ROM boots it every time. This
@@ -84,7 +88,7 @@
 </div>
 
 <div class="row">
-  <button id="try" disabled>Try the other half once</button>
+  <button id="try" disabled>Boot the other half (COMMITS)</button>
   <button id="switch" disabled>Switch to it permanently</button>
 </div>
 
@@ -97,9 +101,18 @@ that asks for USB permission.</div>
 <pre id="out"></pre>
 
 <p class="note">
-  <b>Try once</b> sends <code>reboot(FLASH_UPDATE)</code> at the other half and
-  writes nothing at all. The LED changes rate, and the next reset puts it back —
-  that is the mechanism try-before-you-buy is built on.
+  <b>Boot the other half</b> sends <code>reboot(FLASH_UPDATE)</code> at it. This
+  page was built expecting that to be a <i>try</i> — the other half runs, and the
+  next reset puts it back. <b>Measured on hardware, that is wrong for these
+  images.</b> A flash update boot of an image with no <code>TBYB</code> flag is a
+  <b>completed update</b>: the ROM treats it as bought, and because it is a
+  downgrade it <b>erases the other half's first sector</b>. The LED changes and
+  it stays changed, because there is no other half left to go back to.
+</p>
+<p class="note">
+  So the trial in try-before-you-buy comes from <b>the flag</b>, not from the
+  flash update boot. Without it this button is one-way. Reinstall the pair with
+  <code>pflash.html</code> to get both halves back.
 </p>
 <p class="note">
   <b>Switch permanently</b> rewrites four bytes: the other half's VERSION word,
@@ -375,14 +388,17 @@ async function tryOnce() {
     dv.setUint32(0, REBOOT2_FLASH_UPDATE | REBOOT2_NO_RETURN, true);
     dv.setUint32(4, 100, true);        // dDelayMS
     dv.setUint32(8, other.base, true); // dParam0: update_base
-    log(`REBOOT2 FLASH_UPDATE at ${hex(other.base)} — slot ${other.name}, once`);
+    log(`REBOOT2 FLASH_UPDATE at ${hex(other.base)} — slot ${other.name}. This is`);
+    log(`  a commit, not a trial: measured 2026-08-05, the ROM erased the other half.`);
     try {
       await device.transferOut(epOut, packet(CMD_REBOOT2, rb, 0));
     } catch (e) {
       log(`  (the board went away, which is the reboot: ${e.message})`);
     }
-    say(`Slot ${other.name} is running now, and nothing was written. Reset the ` +
-        `board and the LED goes back to the other rate.`, 'ok');
+    say(`Slot ${other.name} is running now — and this COMMITTED it. Read both ` +
+        `halves again and the one you came from is very likely erased: a flash ` +
+        `update boot of an image with no TBYB flag is a finished update, not a ` +
+        `trial. Reinstall with pflash.html to get the pair back.`, 'warn');
     device = null; $('stop').disabled = true;
   } catch (e) {
     say(`Failed: ${e.message}`, 'bad');

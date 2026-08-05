@@ -1,16 +1,17 @@
 # exp147-two-firmwares-one-phone — the whole A/B arc, read off an LED
 
-> **Half verified on hardware, 2026-08-05.** The pair installs and the ROM boots
-> the higher version: slot B (v2.0, slow blink) came up. Then **one byte** of
-> slot A's VERSION word was changed — nothing else in the image — and the board
-> booted slot A (fast blink) instead, reporting `v3.0 in flash (built as v1.0)`.
-> That is the mechanism `ab.html`'s switch button uses, confirmed before anyone
-> was asked to press it.
+> **Verified on hardware, 2026-08-05 — and it found something it was not built
+> to find.** A phone installed the pair, the ROM booted the higher version (slot
+> B, slow blink), and `ab.html` read both halves over PICOBOOT and named the
+> winner. Then the page's other button turned out to be doing something else
+> entirely: **a flash update boot of an image with no `TBYB` flag is not a trial
+> but a completed update, and the ROM erased the half it replaced.** See
+> [the finding](#the-finding-this-was-not-built-to-make).
 >
-> **Not yet verified: the page itself.** Reading both halves over PICOBOOT,
-> "try once", and "switch" have not been run from a browser on a board. That
-> needs a person, a phone, and an LED, and this header says so until it has
-> happened. See [Expected output](#expected-output).
+> Still to run on a board: the **switch** button, which is the safe one. Its
+> mechanism was confirmed separately on the Ubuntu board — one byte of a version
+> word changed, and the other half booted — but the page has not yet done it
+> itself. See [Expected output](#expected-output).
 
 Every other experiment on this road produces its evidence as text — a log line,
 a return code, a hex word. That is right for finding things out and wrong for
@@ -26,22 +27,62 @@ readout is the rate an LED blinks at.
 Needs: any RP2350 board with a plain LED, a Chromium browser (a phone's is the
 point), and the exp102 toolchain only to build the pair in the first place.
 
+## The finding this was not built to make
+
+This experiment was built as a demonstration of things already measured. It
+produced a new result instead, and the result contradicts what the page
+originally said.
+
+`ab.html` had a button labelled **try the other half once**, described as
+writing nothing: send `reboot(FLASH_UPDATE, other_half)`, the other half runs,
+the next reset puts it back. That is what
+[exp143](../exp143-the-image-that-is-never-bought/) had seen — but exp143's
+image carried the **TBYB flag**, and exp147's do not.
+
+On a phone, 2026-08-05, with a board holding A = v1.0 (fast) and B = v2.0
+(slow):
+
+1. The ROM booted B. Slow blink, and the page read `A v1.0 / B v2.0`.
+2. **Boot the other half** → the LED went fast. Slot A was running.
+3. Unplug, plug back in → **still fast**. It had not gone back.
+4. Read both halves again:
+
+```text
+A at 0x10001000: v1.0
+B at 0x10011000: erased — nothing installed here
+  4096 bytes read, starting ff ff ff ff ff ff ff ff
+```
+
+**Slot B's first sector was erased.** Not by the page — the page sent one
+reboot command and nothing else. By the ROM.
+
+That is `explicit_buy`'s documented behaviour arriving where nobody called it:
+buying an image *erases the first sector of the other partition when the new
+image is a version downgrade*. An image with no TBYB flag has nothing to buy,
+so a flash update boot of it is not a trial at all — it is a **completed
+update**, bought the moment it starts. Slot A was v1.0 against B's v2.0, which
+made it a downgrade, and the ROM cleaned up the half it had replaced.
+
+**So the trial in try-before-you-buy is the flag's doing, not the flash update
+boot's.** exp143 could have been read as "a flash update boot runs an image
+once"; it does not. It runs an image once *if that image is marked provisional*,
+and otherwise it commits it and tidies up. The bit exp143 spent an experiment on
+is the whole mechanism, and this is what its absence looks like.
+
 ## The two answers to "run the other one"
 
-The arc found two, and they are not the same thing. `ab.html` puts them side by
-side because the difference is the most useful thing on this page:
-
-| | Try the other half **once** | **Switch** to it |
+| | Boot the other half | **Switch** to it |
 | --- | --- | --- |
 | What it sends | `reboot(FLASH_UPDATE, other_half)` | rewrites four bytes, then `reboot(NORMAL)` |
-| Flash written | **none at all** | one sector of the other half |
-| Survives a reset | no — the LED goes back | yes — the ROM boots it every time |
-| Where it comes from | [exp143](../exp143-the-image-that-is-never-bought/), the way into a try-before-you-buy image | [exp142](../exp142-two-images-one-version/), the only rule the ROM uses |
-| If it goes wrong | nothing was written, so nothing can be wrong | the half being switched *to* is damaged; the half you are on still boots |
+| Flash written by the page | none | one sector of the other half |
+| Flash written **by the ROM** | the other half's first sector, **erased**, on a downgrade | none |
+| Survives a reset | yes — there is nothing to go back to | yes — the ROM boots it every time |
+| Reversible | only by reinstalling the pair | yes, switch back |
+| Where it comes from | [exp143](../exp143-the-image-that-is-never-bought/), **minus the flag that made it a trial** | [exp142](../exp142-two-images-one-version/), the only rule the ROM uses |
 
-A person can see the difference without being told it: press **try once**, watch
-the LED change, unplug and plug the board back in — and it has changed back.
-Press **switch**, do the same, and it has not.
+A person can see the difference without being told it, and it is not the
+difference this page was built to show: press **boot the other half**, and one
+of the two firmwares is gone. Press **switch**, and both are still there.
 
 ## Four bytes
 
@@ -97,9 +138,11 @@ does, it is the maintained tool for it, and a second flashing implementation
 living in a demo page is two things that can drift apart. `ab.html` does only
 the things `pflash.html` cannot: read the two halves, and switch between them.
 
-**It proves nothing new.** exp139, exp142, exp143, exp144 and exp146 are where
-the findings are. This is the integration test that runs all of them at once,
-and the honest name for it is a demonstration.
+**It was not built to prove anything new.** exp139, exp142, exp143, exp144 and
+exp146 are where the findings are; this was meant to be the integration test
+that runs all of them at once. It found something anyway, which is an argument
+for building demonstrations: assembling five results into one sequence put a
+claim under load that reading them separately never did.
 
 ## The code IS the walkthrough
 
