@@ -1,0 +1,53 @@
+[package]
+name = "exp148-a-wire-with-no-address"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A CDC-NCM virtual Ethernet link that the firmware can watch come up — and a DHCP client that finds nobody home when the host is a phone"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-futures = "0.1.2"
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
+# `max-interface-count-8`: this firmware declares FOUR interfaces — CDC-ACM is
+# two (comm + data) and CDC-NCM is another two. embassy-usb's default ceiling
+# is exactly four, so the build fits with nothing to spare; the next function
+# added would blow it. Raised here so that limit is a decision and not a
+# surprise. exp150 will need the same.
+embassy-usb = { version = "0.6.0", features = ["max-interface-count-8"] }
+static_cell = "2.1.1"
+
+# The whole reason this experiment exists. `dhcpv4` pulls in `proto-ipv4` and
+# `medium-ethernet` on its own; they are named anyway because this firmware's
+# subject is exactly those three layers and hiding two of them behind a
+# transitive feature would be the wrong kind of tidy.
+#
+# What is NOT here: `tcp`. Nothing in exp148 opens a socket. A link and an
+# address are two separate achievements and this experiment stops after the
+# second one — see the README on why that is the whole point.
+embassy-net = { version = "0.9.1", default-features = false, features = [
+    "dhcpv4",
+    "proto-ipv4",
+    "medium-ethernet",
+] }
+
+usb-log = { path = "../../crates/usb-log" }
+usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+
+[features]
+default = ["auto-reboot"]
+
+auto-reboot = ["usb-reboot/auto-reboot"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]

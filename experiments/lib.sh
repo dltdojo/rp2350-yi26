@@ -168,13 +168,14 @@ presence_check() {
 # scripts:
 #
 #   USB_IFACE     what the board declares
-#                 none | bootrom | cdc | cdc+hid | cdc+hid+vendor | cdc+msc
+#                 none | bootrom | cdc | cdc+hid | cdc+hid+vendor | cdc+msc |
+#                 cdc+ncm              (join with +)
 #   USB_CARRIES   what actually travels, and there is usually more than one
 #                 none | descriptors | control | log | commands | keystrokes |
-#                 scsi | files          (join with +)
+#                 scsi | files | frames          (join with +)
 #   USB_HOST      who claims the interface on the other end
 #                 none | bootrom | cdc_acm | usb-storage | hid | libusb |
-#                 webusb               (join with +)
+#                 webusb | cdc_ncm     (join with +)
 #   USB_RUNS_ON   whose firmware this runs against
 #                 own | any | bootrom | none | expNNN | expNNN+
 #
@@ -235,7 +236,11 @@ usb_check() {
     [[ -f "$src" ]] || return 0
 
     local bad="" want have
-    for f in cdc:CdcAcmClass::new hid:HidWriter::new msc:CLASS_MSC vendor:CLASS_VENDOR; do
+    # `ncm` is checked before `cdc` would swallow it: the two class names differ
+    # by one letter, and a firmware that builds both declares `cdc+ncm`. The
+    # substring test below is safe either way — "cdc" is not a substring of
+    # "ncm" — but the pair is worth reading together.
+    for f in cdc:CdcAcmClass::new ncm:CdcNcmClass::new hid:HidWriter::new msc:CLASS_MSC vendor:CLASS_VENDOR; do
         want="${f%%:*}"; have="${f#*:}"
         if grep -qF "$have" "$src"; then
             [[ "$USB_IFACE" == *"$want"* ]] || bad="$bad [source builds $want, USB_IFACE does not say so]"

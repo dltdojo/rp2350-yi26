@@ -73,6 +73,7 @@ Per experiment:
 | exp145 | Any RP2350 board. No browser. **RP2350 only** — it writes flash from firmware into an A/B partition. Uses 67 KiB of SRAM (1.5 for the filesystem, 64 to stage the image), which is nothing on an RP2350 and would decide the design on a smaller part. |
 | exp146 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser — a phone's is the point. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface. It **writes flash**, which is what exp141 stopped short of. |
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
+| exp148 | Any RP2350 board **with an LED you can see** (change the pin). No browser. Portable to the RP2040 in principle — CDC-NCM is a USB class, not a chip feature — except for the TRNG it seeds the stack from. **What is not portable is the result**: the desktop half needs a host that binds `cdc_ncm` and can share a connection, and the answer on any given phone is a property of that phone. Report either way. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -493,6 +494,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp145 | `cdc+msc` | `log+scsi` | `cdc_acm+usb-storage` | `own` |
 | exp146 | `vendor` | `control` | `webusb` | `bootrom` |
 | exp147 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp148 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 
 ### Reading the columns
 
@@ -512,6 +514,7 @@ experiments where a control request is the subject are marked `control`.
 | `keystrokes` | HID reports on an interrupt endpoint |
 | `scsi` | Mass-storage command blocks |
 | `files` | The contents of a volume |
+| `frames` | Ethernet frames, in both directions, with an IP stack above them |
 
 **Host side** — who claims the interface. `cdc_acm`, `usb-storage` and `hid`
 are kernel drivers; `libusb` means no driver claims it and `yi26` opens it
@@ -618,6 +621,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp145-a-drive-of-our-own](./exp145-a-drive-of-our-own/) | 1 · board | A volume served out of three sectors of filesystem takes the dropped file the ROM's drive refused, writes it into the other half, and hands over — the control the update road was built to measure against |
 | [exp146-a-page-that-writes-flash](./exp146-a-page-that-writes-flash/) | 2 · a moment | The browser port of `yi26 pflash` — a phone writes firmware over PICOBOOT and reboots the board, which is the only route left once a partition table closes the drive |
 | [exp147-two-firmwares-one-phone](./exp147-two-firmwares-one-phone/) | 3 · a person | The whole A/B arc arranged so a phone can run it and an LED reports the answer — fast blink or slow, and two different ways to make it change |
+| [exp148-a-wire-with-no-address](./exp148-a-wire-with-no-address/) | 3 · a person | A CDC-NCM link and a DHCP client, kept apart: the firmware can see a host driver claim it, and can see that having a wire is not having an address |
 
 ## The browser track, finished
 
@@ -894,3 +898,73 @@ exp138. What remains:
   nothing in the names says which. And this page's own diagnostics were wrong
   the first time: it named the picked device *after* opening it, so it said
   nothing about exactly the attempts that failed.
+
+### The network road
+
+The Pico 2 has no network interface, and does not need one to be on a network:
+**CDC-NCM** makes it a USB Ethernet adapter, and the machine it is plugged into
+is the other end of the wire. That machine can be a laptop or a phone, which is
+the whole reason this road is worth walking — a board that serves a web page is
+reachable from *any* browser, with no WebUSB, no permission chooser, and no
+Chromium requirement. The entire `tools/pages/` track exists inside those
+constraints; this is the way out of them.
+
+The stack is the one this repository already runs — `embassy-net 0.9.1` sits on
+exactly the `embassy-rp 0.10` / `embassy-usb 0.6` / `embassy-time 0.5` versions
+exp147 was built against, so nothing had to move to start.
+
+- **[exp148](./exp148-a-wire-with-no-address/) — a link is not a network.**
+  **Done, verified 2026-08-05.** A CDC-NCM link and a DHCP client, kept
+  deliberately apart, because "networking works" is two achievements and they
+  arrive from different places. The firmware can see the first one happen: a
+  host driver claiming the function is what selects the data interface's alt
+  setting, and until it does, `is_link_up()` is false. On this Ubuntu machine
+  the kernel bound `cdc_ncm` **1,400 ms** after boot and the board said so.
+
+  The second achievement never arrived, and that is the finding. The prediction
+  was that a *phone* would leave the board at "link up, no address" — Android
+  runs a DHCP client on a USB Ethernet gadget, and so does this board, so two
+  clients wait for each other. NetworkManager does the identical thing: its
+  default for a new wired interface is to be a client. **The deadlock is not a
+  phone problem; it is what every host does until somebody tells it otherwise.**
+  Turning on connection sharing is a manual step on a laptop and does not exist
+  at all on a phone.
+
+  Cost, against exp147 as the nearest network-free equivalent: **+17,408 bytes**
+  of flash and **+9,704 bytes** of static RAM, most of the latter being eight
+  whole-MTU packet buffers. A firmware with a TCP/IP stack in it still fits a
+  64 KiB A/B slot with 25 KiB spare, so the network road does not close the
+  update road.
+
+- **exp149 — the board hands out the address.** `embassy-net`'s `dhcpv4` is a
+  client only; there is no server socket in it, and `mdns` is a resolver rather
+  than a responder. So a board that wants to be reachable the moment it is
+  plugged in has to answer DHCP itself: four packets on UDP 67, DISCOVER→OFFER
+  and REQUEST→ACK, hand-rolled and visible. exp148 turned this from "the thing
+  that rescues the phone case" into "the thing that removes a manual step from
+  every host".
+
+- **exp150 — the board serves its own log.** Hand-rolled HTTP/1.0, three
+  endpoints, readable in any browser on any platform with nothing installed.
+  The honest cost to write down beside it: `http://` is not a secure context, so
+  the origin the board serves can never also use WebUSB. This road opens one
+  door by closing another.
+
+- **exp151 — the board as an HTTP client** (desktop only, and deliberately so).
+  The same stack pointed outward. It needs the host to route and NAT for it,
+  which a laptop can be told to do and a phone cannot — there is no such UI. It
+  is here to be built, run, and then to hit that wall in front of the reader,
+  because a warning in prose does not teach the same thing.
+
+- **exp152 — the browser as the board's gateway.** The answer to exp151's wall:
+  the board asks over CDC for a URL, the page fetches it, and the reply comes
+  back. Over **CDC/WebUSB rather than NCM**, so it never competes with Android's
+  routing and the phone's Wi-Fi stays up — the page has to reach the internet
+  before it can fetch anything on the board's behalf. The limit to teach here is
+  CORS: a page can only read a response the server allowed it to read, which is
+  the first time in this repository that `curl` can fetch something a browser
+  cannot.
+
+Not on this road: TLS, and two boards talking to each other. The first is a
+different curriculum and a much larger binary; the second is something this
+repository cannot do, because its two boards are never on the same bench.
