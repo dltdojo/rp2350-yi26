@@ -90,7 +90,7 @@ announce-gateway = []
 # Two things change and one does not. The address is no longer chosen, so it has
 # to be *discovered* — the log prints it, and `log.html` reads the log. The HTTP
 # server does not care: it binds a port, not an address.
-ask-for-an-address = ["embassy-net/dhcpv4"]
+ask-for-an-address = ["embassy-net/dhcpv4", "embassy-net/dhcpv4-hostname"]
 
 [profile.release]
 opt-level = "s"

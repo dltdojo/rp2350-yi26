@@ -102,7 +102,10 @@ use embassy_net::tcp::TcpSocket;
 // Not gated on a role here: exp151 has only one, and the mDNS responder
 // needs UDP whatever else is going on.
 use embassy_net::udp::{PacketMetadata, UdpSocket};
-use embassy_net::{Config as NetConfig, Runner as NetRunner, StackResources};
+use embassy_net::{
+    Config as NetConfig, ConfigV4, Ipv4Address, Ipv4Cidr, Runner as NetRunner, StackResources,
+    StaticConfigV4,
+};
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{TRNG, USB};
@@ -171,7 +174,88 @@ static SERVED: AtomicU32 = AtomicU32::new(0);
 /// what Android's Ethernet tethering does and what Ubuntu's "shared to other
 /// computers" does.
 fn net_config() -> NetConfig {
-    NetConfig::dhcpv4(Default::default())
+    let mut dhcp = embassy_net::DhcpConfig::default();
+    // Option 12, the client's own name. A Linux host running dnsmasq turns this
+    // into a resolvable name for free; whether Android's tethering DHCP server
+    // does anything with it at all is the cheap half of this experiment — one
+    // line, riding along with a test that was happening anyway.
+    dhcp.hostname = Some(heapless::String::try_from(MDNS_NAME_STR).unwrap());
+    NetConfig::dhcpv4(dhcp)
+}
+
+/// The host part this board moves to once it knows which network it is on.
+///
+/// **Why move at all.** The address a DHCP server picks is the server's
+/// business, and a bookmark to it is only as durable as that decision. Pinning
+/// makes the address a property of the *subnet* rather than of the lease, and
+/// the subnet is the part Android keeps stable — measured across two sessions
+/// on one phone, both `10.206.115.x`.
+///
+/// So the unknown shrinks from "an address" to "a network", and a bookmark made
+/// once keeps working.
+const PINNED_HOST: u8 = 250;
+
+/// Put `host` into the network `addr`/`prefix` belongs to.
+///
+/// Written as mask arithmetic rather than "replace the last octet" because the
+/// last octet is only the host part when the prefix is 24, and nothing
+/// guarantees that. `None` when the result would be the network address or the
+/// broadcast address, which are not usable and would take the board off the
+/// air silently.
+fn pin_into_subnet(addr: [u8; 4], prefix: u8, host: u8) -> Option<[u8; 4]> {
+    if prefix >= 31 {
+        return None; // no room for a host part worth choosing
+    }
+    let a = u32::from_be_bytes(addr);
+    let mask = u32::MAX << (32 - prefix as u32);
+    let pinned = (a & mask) | (host as u32 & !mask);
+    if pinned == (a & mask) || pinned == (a & mask) | !mask {
+        return None; // the network address, or the broadcast address
+    }
+    Some(pinned.to_be_bytes())
+}
+
+/// Waits for a lease, then stops being a DHCP client and takes a fixed address
+/// on the same network.
+///
+/// Switching to a static config **removes the DHCP socket**, so nothing
+/// afterwards overwrites this. That is a property of `embassy-net` worth
+/// knowing before relying on it, and it was read out of the source rather than
+/// hoped for.
+#[embassy_executor::task]
+async fn pin_task(stack: embassy_net::Stack<'static>) -> ! {
+    stack.wait_config_up().await;
+    let Some(cfg) = stack.config_v4() else {
+        core::future::pending::<()>().await;
+        unreachable!()
+    };
+    let got = cfg.address.address().octets();
+    let prefix = cfg.address.prefix_len();
+
+    match pin_into_subnet(got, prefix, PINNED_HOST) {
+        Some(pinned) => {
+            log!(
+                "pinning: was given {}.{}.{}.{}/{}, taking {}.{}.{}.{} instead",
+                got[0], got[1], got[2], got[3], prefix,
+                pinned[0], pinned[1], pinned[2], pinned[3]
+            );
+            log!("  the subnet is the stable part; the lease is not. Bookmark the new one.");
+            stack.set_config_v4(ConfigV4::Static(StaticConfigV4 {
+                address: Ipv4Cidr::new(
+                    Ipv4Address::new(pinned[0], pinned[1], pinned[2], pinned[3]),
+                    prefix,
+                ),
+                gateway: cfg.gateway,
+                dns_servers: cfg.dns_servers,
+            }));
+        }
+        None => log!(
+            "pinning: /{} leaves no room for host {} — keeping the leased address",
+            prefix, PINNED_HOST
+        ),
+    }
+    core::future::pending::<()>().await;
+    unreachable!()
 }
 
 /// The address this board was given. `None` until somebody gives it one, which
@@ -295,7 +379,8 @@ this board's log.</p><pre>",
 
 /// The name this board answers to. `<this>.local`, and nothing else — no
 /// subdomains, because a board is one thing and not a zone.
-const MDNS_NAME: &[u8] = b"yi26";
+const MDNS_NAME: &[u8] = MDNS_NAME_STR.as_bytes();
+const MDNS_NAME_STR: &str = "yi26";
 
 /// How long a resolver may believe the answer. Two minutes: long enough that a
 /// page reloading every three seconds does not ask again each time, short
@@ -682,6 +767,7 @@ async fn main(spawner: Spawner) {
             http_task(stack, rx.init([0; 1024]), tx.init([0; 2048]), page.init([0; 8192])).unwrap(),
         );
     }
+    spawner.spawn(pin_task(stack).unwrap());
     spawner.spawn(mdns_task(stack).unwrap());
     spawner.spawn(report_task(stack).unwrap());
 
@@ -696,6 +782,7 @@ async fn main(spawner: Spawner) {
         log!("  asking for an address — whoever is on the other end is the server here.");
         log!("  serving the log itself on port {}, at whatever address I am given.", HTTP_PORT);
         log!("  and answering to yi26.local, so nobody has to know the number.");
+        log!("  I also tell the DHCP server my name — some of them make that resolvable.");
         log!("  LED: dark=no link, slow=still asking, fast=I have an address, SOLID=page served.");
     }
 

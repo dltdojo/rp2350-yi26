@@ -54,7 +54,7 @@ crate_test ../../crates/mdns "crates/mdns passes its own tests"
 #
 # Serving the log is useless to somebody without WebUSB if finding the board
 # needs WebUSB. A name is what closes that.
-if grep -q 'MDNS_NAME: &\[u8\] = b"yi26"' "$SRC"; then
+if grep -qP 'MDNS_NAME_STR: &str = "\w+"' "$SRC"; then
     pass "the board answers to a name, so nobody has to be told a number"
 else
     fail "the board answers to a name" "an address discovered over CDC needs the WebUSB this escapes"
@@ -166,6 +166,38 @@ else
     fail "the board asks for its address" "a self-assigned address is not reachable from a phone browser"
 fi
 
+# ---- the address is pinned to the subnet, not to the lease -----------------
+#
+# A bookmark is only as durable as the address it points at, and a leased
+# address is the server's business. Pinning makes it a property of the subnet,
+# which is the part Android keeps stable.
+if grep -q 'fn pin_into_subnet' "$SRC" && grep -q 'set_config_v4' "$SRC"; then
+    pass "the board takes a fixed address on whatever network it is given"
+else
+    fail "the board pins its address" "a bookmark to a leased address is only as good as the lease"
+fi
+# Mask arithmetic, not "replace the last octet" — the last octet is only the
+# host part at /24, and nothing promises /24.
+if grep -q 'u32::MAX << (32 - prefix' "$SRC"; then
+    pass "the pinning is mask arithmetic, so it holds at any prefix length"
+else
+    fail "the pinning is mask arithmetic" "replacing the last octet is only right at /24"
+fi
+# The two addresses in every subnet that are not usable. Landing on either
+# would take the board off the air without saying so.
+if grep -q 'the network address, or the broadcast address' "$SRC"; then
+    pass "the network and broadcast addresses are refused rather than taken"
+else
+    fail "network and broadcast are refused" "either would take the board off the air in silence"
+fi
+# One line, riding along: some DHCP servers make a client's own name
+# resolvable. Whether Android's does is the cheap half of this experiment.
+if grep -q 'dhcp.hostname = Some' "$SRC"; then
+    pass "the board tells the DHCP server its name — free to ask, and it might land"
+else
+    fail "the board sends a DHCP hostname" "option 12 costs one line and some servers act on it"
+fi
+
 # ---- the file that exists because a name still cannot be typed -------------
 #
 # Measured on a Pixel 9a: Chrome's address bar searches Google for
@@ -179,7 +211,11 @@ fi
 
 # The link and the firmware have to agree on the name, and there is nothing
 # that would fail loudly if they stopped.
-fw_name="$(grep -oP 'MDNS_NAME: &\[u8\] = b"\K[^"]+' "$SRC")"
+# Pulled from the one place the name is written, so this guard moves when the
+# name does. An earlier version keyed on the literal `b"yi26"` and went stale
+# the moment the constant was expressed differently — the guard drifted, not
+# the thing it was guarding.
+fw_name="$(grep -oP 'MDNS_NAME_STR: &str = "\K[^"]+' "$SRC")"
 if grep -q "href=\"http://${fw_name}.local/\"" "$GO"; then
     pass "go.html links to ${fw_name}.local, which is the name the firmware answers to"
 else
