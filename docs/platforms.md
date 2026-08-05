@@ -319,6 +319,10 @@ third worked. Nothing in the names distinguishes them — **the live entry is th
 one that makes Android put up its own USB permission dialog**. Picking a dead
 one is free: the page has not sent a command by then, so work down the list.
 
+**Building something for this route?** The mechanics of getting a page right
+when the person running it is holding the only board are collected in
+[`debugging-on-a-phone.md`](./debugging-on-a-phone.md).
+
 **And a board does not sit in BOOTSEL safely on a phone.** If the screen sleeps
 and the port is power-cycled, the board resets — and a reset boots a firmware
 rather than returning to the bootloader. Nothing announces it: the next page

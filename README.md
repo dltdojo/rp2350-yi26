@@ -47,10 +47,13 @@ themselves; to type `yi26` in your own terminal, run
 `cargo install --path tools/yi26` once.
 
 The other half of that toolbox needs no toolchain at all:
-[`tools/pages/`](./tools/pages/) holds four WebUSB pages — a descriptor
-inspector, a log viewer, a console, and one that puts a board into its
-bootloader — which run in a browser on a phone, and which the firmwares from
-exp126 onwards serve off the board itself.
+[`tools/pages/`](./tools/pages/) holds five WebUSB pages — a descriptor
+inspector, a log viewer, a console, one that puts a board into its bootloader,
+and one that **writes firmware** over the bootrom's own interface — which run in
+a browser on a phone, and which the firmwares from exp126 onwards serve off the
+board itself. Writing one of your own, for somebody else to run on hardware you
+cannot see? [`docs/debugging-on-a-phone.md`](./docs/debugging-on-a-phone.md) is
+what that loop costs and how to build for it.
 
 Not on Linux, and not buying a machine for this? Compiling and flashing are
 separable: a rented Linux box builds the `.uf2`, and the computer you already

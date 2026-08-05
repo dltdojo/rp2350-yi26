@@ -89,6 +89,14 @@ read them before proposing work, not instead of them:
 - **[Platform reality](./experiments/README.md#platform)** — verified on
   Ubuntu against one Pico 2, and nowhere else. Do not write claims this
   repository cannot check.
+- **[Debugging on somebody else's phone](./docs/debugging-on-a-phone.md)** —
+  read this *before* writing a page a person will run on hardware you cannot
+  see. You will not get to iterate: they cannot screenshot a native dialog, a
+  sleeping phone quietly takes a board out of BOOTSEL, and an error message
+  that names the wrong cause costs a whole exchange. The page has to say what
+  it received, before the call that fails, in quantities that separate
+  hypotheses — and the offline test has to be fed exactly what the code asks
+  for, not something adjacent to it.
 - **[Which layer of USB is this](./experiments/README.md#which-layer-of-usb-is-this)**
   — every experiment declares its interface, what travels on it, who claims it
   on the host, and whose firmware it runs against. Read the row before

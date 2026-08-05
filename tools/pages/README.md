@@ -16,6 +16,13 @@ and is opened by double-clicking it.
 same time — **one interface has exactly one owner**. Use `console.html` when
 you want to talk back and `log.html` when you only want to watch.
 
+**Writing one of these for somebody else to run?** Read
+[`docs/debugging-on-a-phone.md`](../../docs/debugging-on-a-phone.md) first. These
+pages are used on a phone by a person the author cannot see, over a link made of
+screenshots, and that decides more about how they are written than any style
+rule here: what they log, when they log it, and what their error messages are
+allowed to claim.
+
 **The two `flash` names are a pair, not a duplicate.** `flash.html` gets a
 running board *into* BOOTSEL (it sets the CDC port to 1200 baud, the signal
 every firmware here has honoured since exp105). `pflash.html` is what writes
