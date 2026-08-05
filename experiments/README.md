@@ -870,11 +870,12 @@ exp138. What remains:
   [`tools/pages/pflash.html`](../tools/pages/pflash.html): a phone opened a
   local HTML file, read a `.uf2` off its own storage, claimed PICOBOOT, erased
   six sectors, wrote 23,040 bytes, **read the first page back and compared it**,
-  and sent `REBOOT2`, which the board accepted. No drive, no drag-and-drop, no
-  toolchain, no second computer. (Not yet observed, and marked so in the
-  experiment: the board enumerating as the new firmware afterwards. The bytes
-  are confirmed in flash by the read-back; that they run is the one link still
-  taken on trust.) It refuses before it writes
+  and rebooted the board, which came up on that firmware and said so over its
+  own log. No drive, no drag-and-drop, no toolchain, no second computer. The two
+  halves even name the same silicon: the bootrom gave the flashing page the
+  serial `7FCAF01F5613A90C`, and the firmware that booted reports its chip ID as
+  `0x7fcaf01f 0x5613a90c` — so the board written and the board that booted are
+  provably one board, which had been an assumption. It refuses before it writes
   (wrong base address, no boot block, wrong chip family) and refuses to reboot
   if the read-back does not match, because the person using it may have no way
   back.

@@ -304,10 +304,11 @@ interface does not go through the storage layer at all.
 Verified 2026-08-05 on the Pixel 9a:
 [`tools/pages/pflash.html`](../tools/pages/pflash.html) claimed the bootrom's
 PICOBOOT interface, erased six sectors, wrote 23,040 bytes, read the first page
-back to check it, and sent the reboot command, which the board accepted — from a
-page opened out of the Files app, with the `.uf2` on the phone's own storage.
-(The board coming up *on* that firmware is not yet observed; the bytes are
-confirmed in flash by the read-back.) So the
+back to check it, and rebooted the board, which came up on that firmware and
+streamed its log to `log.html` on the same phone — all from pages opened out of
+the Files app, with the `.uf2` on the phone's own storage. The chip ID the
+firmware reports equals the serial the bootrom gave the flashing page, so it is
+the same board at both ends. So the
 phone no longer depends on the drive for flashing at all, which matters most on
 exactly the boards where the drive takes nothing: partitioned ones.
 

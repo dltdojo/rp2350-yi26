@@ -3,14 +3,11 @@
 > **Verified on hardware, 2026-08-05, on a Pixel 9a.** A phone opened a local
 > HTML file, read a `.uf2` off its own storage, claimed the bootrom's PICOBOOT
 > interface, erased six sectors, wrote 23,040 bytes, **read the first page back
-> and compared it**, and sent `REBOOT2`, which the board accepted. No drive, no
-> drag-and-drop, no toolchain, no second computer. See
-> [Expected output](#expected-output).
->
-> **One link is still an inference, and is marked as one:** nobody has yet
-> watched the board enumerate as exp138 afterwards. The bytes are confirmed *in
-> flash* by the read-back; that they are *running* is not observed until
-> `log.html` says so, and this note stays until it does.
+> and compared it**, and rebooted the board — which then came up on that
+> firmware and said so over its own log. No drive, no drag-and-drop, no
+> toolchain, no second computer. And the board that came up is provably the
+> board that was written: the chip ID it reports equals the serial number the
+> bootrom gave the flashing page. See [Expected output](#expected-output).
 
 [exp141](../exp141-two-doors-into-the-bootrom/) proved a browser can claim
 PICOBOOT and drove it as far as `FLASH_ERASE` — a phone erased a board's flash
@@ -187,6 +184,36 @@ Both interfaces of the BOOTSEL composite are visible in that listing, which is
 [exp141](../exp141-two-doors-into-the-bootrom/)'s finding arriving as a routine
 line in a log: interface 0 is the mass-storage drive Chrome will not touch, and
 interface 1 is the door this page went through.
+
+### And the board came up on it
+
+`log.html`, on the same phone, a few minutes later:
+
+```text
+Streaming from exp138 what the rom knows — interfaces 0 and 1, endpoint 2 IN.
+
+[    3037 ms] get_sys_info(CHIP_INFO) -> 4
+[    3037 ms]   word[0] = 0x00000001
+[    3037 ms]   word[1] = 0x00000001
+[    3037 ms]   word[2] = 0x5613a90c
+[    3037 ms]   word[3] = 0x7fcaf01f
+[    3037 ms] get_b_partition(0) -> -17
+[    3037 ms]   negative: partition 0 has no B side, or there is no table
+[    3037 ms] done. nothing was written; this firmware only reads.
+[    8037 ms] idle: the answers above are all of them — see the README to decode
+```
+
+**The two halves name the same silicon.** The flashing page reported the
+bootrom's serial as `7FCAF01F5613A90C`; the firmware that came up reports its
+chip ID as `word[3] word[2]` = `0x7fcaf01f 0x5613a90c`. One number, read twice
+by two different pieces of software over two different USB interfaces at two
+different times — so the board that was written and the board that booted are
+provably the same one, which is otherwise an assumption nobody had checked.
+
+`get_b_partition(0) -> -17` also says this board has **no partition table**, so
+its BOOTSEL drive would have accepted a dragged `.uf2` perfectly well. That is
+the honest framing of this run: it proves the route works, not that the other
+route was broken. exp144 is where the other route is measured.
 
 ### The thing that took three tries, and what it means
 
