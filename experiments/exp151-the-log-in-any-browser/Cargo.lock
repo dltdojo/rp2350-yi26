@@ -661,6 +661,7 @@ dependencies = [
  "embassy-usb",
  "embedded-io-async 0.7.0",
  "heapless 0.9.3",
+ "mdns",
  "panic-halt",
  "rp2350-linker",
  "static_cell",
@@ -915,6 +916,10 @@ checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
 dependencies = [
  "regex-automata",
 ]
+
+[[package]]
+name = "mdns"
+version = "0.1.0"
 
 [[package]]
 name = "memchr"

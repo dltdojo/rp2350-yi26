@@ -48,6 +48,60 @@ readelf -S "$ELF" 2>/dev/null | grep -qE '\.vector_table +PROGBITS +10000000' \
 reboot_watcher_check "$SRC"
 
 crate_test ../../crates/log-ring "crates/log-ring passes its own tests"
+crate_test ../../crates/mdns "crates/mdns passes its own tests"
+
+# ---- the half that makes the window real -----------------------------------
+#
+# Serving the log is useless to somebody without WebUSB if finding the board
+# needs WebUSB. A name is what closes that.
+if grep -q 'MDNS_NAME: &\[u8\] = b"yi26"' "$SRC"; then
+    pass "the board answers to a name, so nobody has to be told a number"
+else
+    fail "the board answers to a name" "an address discovered over CDC needs the WebUSB this escapes"
+fi
+if grep -q 'join_multicast_group' "$SRC"; then
+    pass "it joins 224.0.0.251 — one-shot queries arrive nowhere else"
+else
+    fail "it joins the mDNS group" "nothing can be received without it"
+fi
+# The reply goes back to whoever asked, not to the group. That is what a
+# one-shot querier — which is what Android is — waits for.
+if grep -q 'send_to(&tx\[..len\], from.endpoint)' "$SRC"; then
+    pass "the answer goes back to the asker, which is what a one-shot query wants"
+else
+    fail "the answer is unicast to the asker" "a one-shot querier is not listening to the group"
+fi
+# Per-query mDNS chatter must not push the board's own history out of the ring
+# — the same bug the HTTP server had, one link layer down. The distinction is
+# not importance but *whose log it belongs in*: an answer given and a question
+# about somebody else are chatter, while "listening as yi26.local" and anything
+# that stops the responder are what a late reader needs waiting for them.
+#
+# Three earlier versions of this guard were blunter and failed on exactly those
+# lines. It is done in Python because the calls span lines and their strings
+# carry format placeholders, so no single grep sees both ends of one.
+if python3 - "$SRC" <<'EOF'
+import re, sys
+src = open(sys.argv[1]).read()
+bad = []
+for needle in ("mdns: answered", "bytes ignored"):
+    k = src.find(needle)
+    if k < 0:
+        continue
+    before = src[:k]
+    macro = max(before.rfind("log!("), before.rfind("log_transient!("))
+    if before[macro:].startswith("log!("):
+        bad.append(needle)
+if bad:
+    print("retained:", ", ".join(bad))
+    sys.exit(1)
+EOF
+then
+    pass "per-query mDNS chatter is transient; startup and failures are kept"
+else
+    fail "per-query mDNS chatter is transient" \
+         "58 of 64 was the measurement when the server kept its own noise"
+fi
 
 # ---- the crate this experiment was most at risk of breaking ----------------
 #

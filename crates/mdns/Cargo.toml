@@ -1,0 +1,16 @@
+[package]
+name = "mdns"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Enough mDNS to answer to one name: parse an A query, build an A answer, and refuse everything else"
+
+# No dependencies and no socket. The caller owns the endpoint and hands this
+# crate a datagram, which is what lets `cargo test` cut a query at every length
+# on the machine you are reading this on.
+[dependencies]
+
+[lib]
+name = "mdns"
+
+[workspace]

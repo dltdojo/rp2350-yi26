@@ -43,14 +43,26 @@
 //! address is unreachable from the browser it is trying to serve. So this
 //! firmware has no server role at all: it asks.
 //!
-//! # What is still missing, and it is not small
+//! # And a name, which is the other half
 //!
-//! The address is discovered by reading the log over CDC, which needs the
-//! WebUSB this experiment exists to escape. Serving the log is half the window;
-//! **finding the board without WebUSB is the other half**, and it is not here.
-//! Two candidates, neither built: an mDNS responder so a name works instead of
-//! an address, and a file on the board's own USB volume carrying a link to
-//! itself. Do not describe this as finished.
+//! Serving the log is useless to somebody without WebUSB if *finding* the board
+//! needs WebUSB — and until this experiment it did: the address was read out of
+//! the log over CDC. So the board answers to **`yi26.local`**.
+//!
+//! Android has resolved `.local` since 2021 by sending an ordinary DNS query to
+//! `224.0.0.251:5353` and waiting for a reply — RFC 6762 §5.1, "one-shot
+//! multicast DNS" — and Chrome's address bar goes through that resolver from
+//! Android 12 on. So the responder needed here is small: receive, check the
+//! question is for us, answer whoever asked. No probing, no announcements, no
+//! service discovery, no caching. All of those exist because a real network has
+//! many responders; a USB cable has one host on the other end.
+//!
+//! The protocol is in [`mdns`](../../../crates/mdns/) with no socket in it, and
+//! it refuses more than it accepts — including compression pointers, which are
+//! legal DNS and are where parsers grow loops that read their own tails.
+//!
+//! What this still has not been through: a browser that has no WebUSB at all.
+//! Everything here was measured on a desktop, which has it.
 
 #![no_std]
 #![no_main]
@@ -58,21 +70,16 @@
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_net::tcp::TcpSocket;
-#[cfg(not(feature = "ask-for-an-address"))]
+// Not gated on a role here: exp151 has only one, and the mDNS responder
+// needs UDP whatever else is going on.
 use embassy_net::udp::{PacketMetadata, UdpSocket};
 use embassy_net::{Config as NetConfig, Runner as NetRunner, StackResources};
-#[cfg(not(feature = "ask-for-an-address"))]
-use embassy_net::{IpAddress, IpEndpoint, Ipv4Address, Ipv4Cidr, StaticConfigV4};
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{TRNG, USB};
 use embassy_rp::rom_data;
 use embassy_rp::trng::{Config as TrngConfig, InterruptHandler as TrngInterruptHandler, Trng};
 use embassy_rp::usb::{Driver, InterruptHandler};
-#[cfg(not(feature = "ask-for-an-address"))]
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-#[cfg(not(feature = "ask-for-an-address"))]
-use embassy_sync::signal::Signal;
 use embedded_io_async::Write as _;
 use core::fmt::Write as _;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -97,24 +104,6 @@ const MTU: usize = 1514;
 const HOST_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x01, 0x51];
 const OUR_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x02, 0x51];
 
-/// The whole network. `.1` is this board and `.2` is whatever is on the other
-/// end of the cable — one address in the pool, because a USB link has one host
-/// on it. `192.168.7.0/24` is private space that nothing else is likely to be
-/// using at the same moment as a cable plugged into one board.
-#[cfg(not(feature = "ask-for-an-address"))]
-const BOARD_IP: [u8; 4] = [192, 168, 7, 1];
-#[cfg(not(feature = "ask-for-an-address"))]
-const CLIENT_IP: [u8; 4] = [192, 168, 7, 2];
-#[cfg(not(feature = "ask-for-an-address"))]
-const MASK: [u8; 4] = [255, 255, 255, 0];
-#[cfg(not(feature = "ask-for-an-address"))]
-const PREFIX: u8 = 24;
-
-/// An hour. Long enough that nothing renews during an experiment, short enough
-/// that a client which loses the board does not remember the address for a day.
-#[cfg(not(feature = "ask-for-an-address"))]
-const LEASE_SECONDS: u32 = 3600;
-
 const HTTP_PORT: u16 = 80;
 
 /// How long to wait for a closed connection's FIN to be acknowledged before
@@ -138,71 +127,36 @@ const REPORT_EVERY: Duration = Duration::from_secs(5);
 const TRNG_SAMPLE_COUNT: u32 = 1000;
 
 
-/// Set once the client has taken the address — the LED and the reporter both
-/// read it, and neither of them owns the socket that sets it. Only the server
-/// role has anything to signal.
-#[cfg(not(feature = "ask-for-an-address"))]
-static LEASED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
 
 /// How many requests have been answered. The LED's fourth state is "this is
 /// not zero", and the page prints the number, so a second reload is visibly a
 /// second reload rather than a cached first one.
 static SERVED: AtomicU32 = AtomicU32::new(0);
 
-/// The two roles this firmware can take, and the whole of the difference
-/// between them.
+/// No address until somebody grants one.
 ///
-/// **Server** (default): a fixed address, because a server without one is not a
-/// server. This is exp149's arrangement.
-///
-/// **Client** (`ask-for-an-address`): no address until somebody grants one. It
-/// is the arrangement Android's Ethernet tethering requires — the phone is the
-/// DHCP server and the router — and it is what Ubuntu's "shared to other
-/// computers" does too, which is why it can be tested without a phone.
-#[cfg(not(feature = "ask-for-an-address"))]
-fn net_config() -> NetConfig {
-    NetConfig::ipv4_static(StaticConfigV4 {
-        address: Ipv4Cidr::new(
-            Ipv4Address::new(BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3]),
-            PREFIX,
-        ),
-        gateway: None,
-        dns_servers: heapless_empty(),
-    })
-}
-
-#[cfg(feature = "ask-for-an-address")]
+/// exp149 and exp150 could be either — a server with a fixed address, or a
+/// client asking for one — and exp150 measured that only the second is
+/// reachable from a phone's browser. So there is one arrangement here and no
+/// feature to choose it: the host is the DHCP server and the router, which is
+/// what Android's Ethernet tethering does and what Ubuntu's "shared to other
+/// computers" does.
 fn net_config() -> NetConfig {
     NetConfig::dhcpv4(Default::default())
 }
 
-/// The address this board is actually on, whichever way it got there. `None`
-/// while a client is still asking.
-#[cfg(feature = "ask-for-an-address")]
+/// The address this board was given. `None` until somebody gives it one, which
+/// is most of the first ten seconds.
 fn my_address(stack: embassy_net::Stack<'_>) -> Option<[u8; 4]> {
     stack.config_v4().map(|c| c.address.address().octets())
 }
 
-#[cfg(not(feature = "ask-for-an-address"))]
-fn my_address(_stack: embassy_net::Stack<'_>) -> Option<[u8; 4]> {
-    Some(BOARD_IP)
-}
 
-/// Has this board got somewhere for a browser to reach it?
-///
-/// The two roles answer it from different places: a server has handed its
-/// address *out* and waits for the client to take it; a client has been *given*
-/// one. The LED reads this, so it means the same thing on both builds — "there
-/// is now an address in play".
-#[cfg(feature = "ask-for-an-address")]
+/// Has this board got somewhere a browser could reach it? The LED reads this.
 fn addressed(stack: embassy_net::Stack<'_>) -> bool {
     stack.is_config_up()
 }
 
-#[cfg(not(feature = "ask-for-an-address"))]
-fn addressed(_stack: embassy_net::Stack<'_>) -> bool {
-    LEASED.signaled()
-}
 
 #[embassy_executor::task]
 async fn usb_task(mut device: UsbDevice<'static, Driver<'static, USB>>) -> ! {
@@ -240,111 +194,9 @@ async fn net_task(mut runner: NetRunner<'static, Device<'static, MTU>>) -> ! {
     runner.run().await
 }
 
-/// The server. Everything it knows about DHCP it gets from the `dhcp` crate;
-/// what lives here is the socket, the buffers, and the decision to broadcast.
-#[cfg(not(feature = "ask-for-an-address"))]
-#[embassy_executor::task]
-async fn dhcp_task(stack: embassy_net::Stack<'static>) -> ! {
-    // One datagram in flight each way is enough: DHCP is strictly
-    // request-then-reply, and a client that sends two before reading one is not
-    // a client this board is trying to serve.
-    static RX_META: StaticCell<[PacketMetadata; 2]> = StaticCell::new();
-    static TX_META: StaticCell<[PacketMetadata; 2]> = StaticCell::new();
-    static RX_BUF: StaticCell<[u8; 1024]> = StaticCell::new();
-    static TX_BUF: StaticCell<[u8; 1024]> = StaticCell::new();
-
-    let mut socket = UdpSocket::new(
-        stack,
-        RX_META.init([PacketMetadata::EMPTY; 2]),
-        RX_BUF.init([0; 1024]),
-        TX_META.init([PacketMetadata::EMPTY; 2]),
-        TX_BUF.init([0; 1024]),
-    );
-
-    // Bound to the port and *not* to an address. That is what makes the socket
-    // accept a datagram sent to 255.255.255.255, which is the only address a
-    // client that has no address of its own can send to.
-    socket.bind(dhcp::SERVER_PORT).unwrap();
-    log!("dhcp: listening on port {}", dhcp::SERVER_PORT);
-
-    let broadcast = IpEndpoint::new(
-        IpAddress::Ipv4(Ipv4Address::new(255, 255, 255, 255)),
-        dhcp::CLIENT_PORT,
-    );
-    let lease = dhcp::Lease {
-        client: CLIENT_IP,
-        server: BOARD_IP,
-        mask: MASK,
-        seconds: LEASE_SECONDS,
-        // Six bytes, and the whole difference between the two builds this
-        // experiment ships. See the feature's comment in Cargo.toml.
-        router: if cfg!(feature = "announce-gateway") { Some(BOARD_IP) } else { None },
-    };
-
-    let mut rx = [0u8; 1024];
-    let mut tx = [0u8; dhcp::REPLY_LEN];
-
-    loop {
-        let (n, from) = match socket.recv_from(&mut rx).await {
-            Ok(v) => v,
-            Err(e) => {
-                log!("dhcp: recv failed ({:?}) — carrying on", e);
-                continue;
-            }
-        };
-
-        let req = match dhcp::parse(&rx[..n]) {
-            Ok(req) => req,
-            Err(why) => {
-                // Printed rather than dropped silently. A malformed packet on
-                // port 67 is either a client this server does not understand or
-                // something else entirely, and both are worth seeing once.
-                log!("dhcp: {} bytes from {} refused: {:?}", n, from.endpoint, why);
-                continue;
-            }
-        };
-
-        let c = req.chaddr;
-        let Some(reply) = dhcp::Reply::to(req.kind) else {
-            log!(
-                "dhcp: {:?} from {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x} — nothing to say",
-                req.kind, c[0], c[1], c[2], c[3], c[4], c[5]
-            );
-            continue;
-        };
-
-        log!(
-            "dhcp: {:?} from {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-            req.kind, c[0], c[1], c[2], c[3], c[4], c[5]
-        );
-
-        let Some(len) = dhcp::build_reply(reply, &req, &lease, &mut tx) else {
-            log!("dhcp: reply buffer too small — this is a bug, not a network problem");
-            continue;
-        };
-
-        match socket.send_to(&tx[..len], broadcast).await {
-            Ok(()) => {
-                log!(
-                    "dhcp: {:?} {}.{}.{}.{} broadcast, {} bytes",
-                    reply, CLIENT_IP[0], CLIENT_IP[1], CLIENT_IP[2], CLIENT_IP[3], len
-                );
-                // An OFFER is a proposal; an ACK is the client having taken it.
-                // Only the second one changes the LED, because only the second
-                // one means the host agreed.
-                if reply == dhcp::Reply::Ack {
-                    LEASED.signal(());
-                }
-            }
-            Err(e) => log!("dhcp: send failed ({:?})", e),
-        }
-    }
-}
-
-/// Reads the chip's own ID out of the ROM. Two words, and they are what makes
-/// the served page identifiably *this* board — the same number
-/// [exp146](../../exp146-a-page-that-writes-flash/) used to prove that the board
-/// a page had written was the board that then booted.
+/// Reads the chip's own ID out of the ROM — the same call
+/// [exp139](../../exp139-a-table-of-one/) makes. It goes on the page so that
+/// what a browser is looking at is identifiably *this* board.
 fn chip_id() -> (u32, u32) {
     let mut buf = [0u32; 8];
     let n = unsafe { rom_data::get_sys_info(buf.as_mut_ptr(), buf.len(), SYS_INFO_CHIP_INFO) };
@@ -410,6 +262,90 @@ this board's log.</p><pre>",
         let _ = write!(w, "<p>{} earlier line(s) scrolled out of the ring.</p>", lost);
     }
     w.n
+}
+
+/// The name this board answers to. `<this>.local`, and nothing else — no
+/// subdomains, because a board is one thing and not a zone.
+const MDNS_NAME: &[u8] = b"yi26";
+
+/// How long a resolver may believe the answer. Two minutes: long enough that a
+/// page reloading every three seconds does not ask again each time, short
+/// enough that a board unplugged and replugged onto a different address is not
+/// remembered wrongly for an afternoon.
+const MDNS_TTL: u32 = 120;
+
+/// Answers `yi26.local` for as long as this board has an address to give.
+///
+/// Android resolves `.local` by sending an ordinary DNS query to
+/// 224.0.0.251:5353 and waiting for a reply — RFC 6762 §5.1, one-shot
+/// multicast DNS. So the whole responder is: receive, check it is a question
+/// for us, reply to whoever asked. The protocol lives in
+/// [`mdns`](../../../crates/mdns/), which has no socket in it.
+///
+/// The reply goes **unicast, back to the sender**, rather than to the
+/// multicast group. That is what a one-shot querier is waiting for, and on a
+/// link with one host there is nobody else the answer would be for.
+#[embassy_executor::task]
+async fn mdns_task(stack: embassy_net::Stack<'static>) -> ! {
+    static RX_META: StaticCell<[PacketMetadata; 4]> = StaticCell::new();
+    static TX_META: StaticCell<[PacketMetadata; 4]> = StaticCell::new();
+    static RX_BUF: StaticCell<[u8; 1024]> = StaticCell::new();
+    static TX_BUF: StaticCell<[u8; 512]> = StaticCell::new();
+
+    // Nothing can be received until the group is joined, and the group cannot
+    // be joined until the interface has an address. Waiting here rather than
+    // retrying blindly keeps the failure legible.
+    stack.wait_config_up().await;
+    match stack.join_multicast_group(embassy_net::Ipv4Address::new(
+        mdns::MULTICAST[0], mdns::MULTICAST[1], mdns::MULTICAST[2], mdns::MULTICAST[3],
+    )) {
+        Ok(()) => log!("mdns: listening as {}.local", core::str::from_utf8(MDNS_NAME).unwrap_or("?")),
+        Err(e) => {
+            log!("mdns: could not join the multicast group ({:?}) — no name for this board", e);
+            core::future::pending::<()>().await;
+            unreachable!()
+        }
+    }
+
+    let mut socket = UdpSocket::new(
+        stack,
+        RX_META.init([PacketMetadata::EMPTY; 4]),
+        RX_BUF.init([0; 1024]),
+        TX_META.init([PacketMetadata::EMPTY; 4]),
+        TX_BUF.init([0; 512]),
+    );
+    if let Err(e) = socket.bind(mdns::PORT) {
+        log!("mdns: cannot bind port {} ({:?})", mdns::PORT, e);
+        core::future::pending::<()>().await;
+    }
+
+    let mut rx = [0u8; 1024];
+    let mut tx = [0u8; mdns::REPLY_LEN];
+    loop {
+        let Ok((n, from)) = socket.recv_from(&mut rx).await else { continue };
+        let Some(addr) = my_address(stack) else { continue };
+
+        match mdns::question_for(&rx[..n], MDNS_NAME) {
+            Ok(q) => {
+                let Some(len) = mdns::answer(&rx[..n], &q, addr, MDNS_TTL, &mut tx) else {
+                    log!("mdns: reply buffer too small — a bug, not a network problem");
+                    continue;
+                };
+                match socket.send_to(&tx[..len], from.endpoint).await {
+                    Ok(()) => log_transient!(
+                        "mdns: answered {}.local -> {}.{}.{}.{}",
+                        core::str::from_utf8(MDNS_NAME).unwrap_or("?"),
+                        addr[0], addr[1], addr[2], addr[3]
+                    ),
+                    Err(e) => log_transient!("mdns: reply failed ({:?})", e),
+                }
+            }
+            // Left at transient too: a link with any traffic on it carries
+            // questions about other names, and a log full of "not mine" is a
+            // log with the interesting part pushed out of it.
+            Err(why) => log_transient!("mdns: {} bytes ignored: {:?}", n, why),
+        }
+    }
 }
 
 /// A `core::fmt::Write` over a plain byte slice that truncates instead of
@@ -571,7 +507,6 @@ async fn report_task(stack: embassy_net::Stack<'static>) -> ! {
                 // in this repository. See docs/debugging-on-a-phone.md.
                 #[cfg(not(feature = "ask-for-an-address"))]
                 (true, false) => log!("{} ms  link UP, waiting for a DISCOVER", ms),
-                #[cfg(feature = "ask-for-an-address")]
                 (true, false) => log!("{} ms  link UP, still asking for an address", ms),
                 (true, true) => match my_address(stack) {
                     // The line somebody reads off `log.html` and types into a
@@ -585,7 +520,6 @@ async fn report_task(stack: embassy_net::Stack<'static>) -> ! {
                         // Whether there is a way *out* — the question exp151
                         // asks, and the one thing about this link that a
                         // client role learns and a server role cannot.
-                        #[cfg(feature = "ask-for-an-address")]
                         if let Some(g) = stack.config_v4().and_then(|c| c.gateway) {
                             let g = g.octets();
                             log!("        gateway {}.{}.{}.{} — there is a way out of here", g[0], g[1], g[2], g[3]);
@@ -694,7 +628,7 @@ async fn main(spawner: Spawner) {
     // reply: this board is one end of a cable.
     // One UDP socket for DHCP, four TCP sockets for the four HTTP workers, and
     // room to spare — running out here is a panic, not a refusal.
-    static RESOURCES: StaticCell<StackResources<6>> = StaticCell::new();
+    static RESOURCES: StaticCell<StackResources<7>> = StaticCell::new();
     let (stack, net_runner) = embassy_net::new(
         device,
         net_config(),
@@ -702,8 +636,6 @@ async fn main(spawner: Spawner) {
         u64::from_le_bytes(seed),
     );
     spawner.spawn(net_task(net_runner).unwrap());
-    #[cfg(not(feature = "ask-for-an-address"))]
-    spawner.spawn(dhcp_task(stack).unwrap());
     // One pair of buffers per worker, named separately so it is obvious there
     // are two of them and not one shared by accident.
     // One `StaticCell` per buffer and not a `StaticCell<[[u8; N]; 4]>`, because
@@ -721,36 +653,20 @@ async fn main(spawner: Spawner) {
             http_task(stack, rx.init([0; 1024]), tx.init([0; 2048]), page.init([0; 8192])).unwrap(),
         );
     }
+    spawner.spawn(mdns_task(stack).unwrap());
     spawner.spawn(report_task(stack).unwrap());
 
     log!("exp151 up. The log goes to CDC *and* to anyone who asks over HTTP.");
 
-    #[cfg(not(feature = "ask-for-an-address"))]
-    {
-        log!(
-            "  I am {}.{}.{}.{}/{} and I hand out {}.{}.{}.{}",
-            BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3], PREFIX,
-            CLIENT_IP[0], CLIENT_IP[1], CLIENT_IP[2], CLIENT_IP[3]
-        );
-        if cfg!(feature = "announce-gateway") {
-            log!("  announcing myself as the gateway — this build LIES, on purpose.");
-        } else {
-            log!("  no router option, no DNS — this board routes nothing and says so.");
-        }
-        log!("  serving http://{}.{}.{}.{}/ on port {}",
-            BOARD_IP[0], BOARD_IP[1], BOARD_IP[2], BOARD_IP[3], HTTP_PORT);
-        log!("  LED: dark=no link, slow=nobody asked, fast=address taken, SOLID=page served.");
-    }
-
-    // The client role cannot print its address here: it does not have one yet,
+        // The client role cannot print its address here: it does not have one yet,
     // and will not for a few hundred milliseconds. The reporter prints it once
     // it arrives, and keeps printing it — because the line somebody is going to
     // read off `log.html` and type into a browser must not have scrolled away
     // by the time they look.
-    #[cfg(feature = "ask-for-an-address")]
     {
         log!("  asking for an address — whoever is on the other end is the server here.");
         log!("  serving the log itself on port {}, at whatever address I am given.", HTTP_PORT);
+        log!("  and answering to yi26.local, so nobody has to know the number.");
         log!("  LED: dark=no link, slow=still asking, fast=I have an address, SOLID=page served.");
     }
 
@@ -774,12 +690,6 @@ async fn main(spawner: Spawner) {
     }
 }
 
-/// `StaticConfigV4`'s DNS list is a `heapless::Vec` that this firmware has no
-/// use for. Named rather than inlined so the empty case reads as a decision.
-#[cfg(not(feature = "ask-for-an-address"))]
-fn heapless_empty<const N: usize>() -> heapless::Vec<Ipv4Address, N> {
-    heapless::Vec::new()
-}
 
 async fn blink(led: &mut Output<'static>, half: Duration) {
     led.set_high();
