@@ -22,6 +22,84 @@ command block, the same SCSI that talks to a hard disk over a cable that has
 nothing to do with USB. USB is carrying somebody else's protocol, and mass
 storage is mostly the envelope.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. This experiment
+declares a disk and then refuses every command about it, so that you can read
+how your host decides whether a disk is there.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat`, `stty`, `lsblk` and `ls` are already there. No `yi26`.
+
+1. UNPACK IT.
+
+       unzip exp123-bot-framing.zip
+       cd exp123-bot-framing
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp123-bot-framing.uf2 /media/$USER/RP2350/
+
+3. CHECK THAT NO DISK APPEARED.
+
+       sleep 7
+       lsblk -o NAME,SIZE,LABEL,MODEL -d | grep -v loop
+
+   Expect **your own disks and nothing else** — no `sda`, no drive icon, no
+   dialog. Good. The board declared a mass-storage interface and your host
+   decided against it.
+
+4. CHECK THAT THE HOST TRIED ANYWAY.
+
+       ls /sys/bus/usb/drivers/usb-storage/
+
+   Expect a device among the entries, something like `1-7:1.2`. **The driver
+   bound.** Your host did not ignore the board; it attached its storage driver,
+   asked questions, disliked the answers, and stopped short of creating a block
+   device. Those are two different outcomes and only the log tells them apart.
+
+5. READ WHAT IT ASKED.
+
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 6 cat /dev/ttyACM0
+
+   Expect:
+
+       [      37 ms] exp123 up. A disk is declared. Nothing here is a disk.
+       [    1422 ms] cbw #1: tag 00000001 lun 0 IN  36 bytes
+       [    1422 ms]    12 00 00 00 24 00  <- INQUIRY
+       [    1423 ms] cbw #2: tag 00000002 lun 0 IN  18 bytes
+       [    1423 ms]    03 00 00 00 12 00  <- REQUEST SENSE
+
+6. COUNT WHAT IT DID AND DID NOT ASK. In six seconds this host sent eight
+   command blocks, and only two kinds:
+
+       4 x INQUIRY          "what are you"
+       4 x REQUEST SENSE    "why did that fail"
+
+   **It never asked TEST UNIT READY, never READ CAPACITY, never READ.** It
+   asked what the device was, was refused, asked why, was refused, and gave
+   up — four times, because that is how many retries this driver allows.
+
+   That is the shape of the negotiation, and you now have it from both ends at
+   once: the host's decision in step 3, the driver's attachment in step 4, and
+   the actual conversation in step 5. A disk exists when the host says it
+   does, and the host says so only after being answered.
+
+IF IT DOES NOT WORK
+  * A disk DOES appear — you are not running this firmware. Check the first
+    log line.
+  * `/sys/bus/usb/drivers/usb-storage/` is empty or missing — your host binds
+    something other than `usb-storage` to mass storage. The experiment still
+    works; the names in step 4 are your system's, not this firmware's.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * The log shows no `cbw` lines at all — read sooner. The whole negotiation
+    is over within two seconds of plugging in, and the kernel buffer only
+    holds the last little while.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu, in the two seconds after the board
