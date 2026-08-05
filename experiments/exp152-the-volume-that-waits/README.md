@@ -101,13 +101,18 @@ WHAT YOU NEED
        unzip exp152-the-volume-that-waits.zip
        cd exp152-the-volume-that-waits
 
-2. PUT THE FIRMWARE ON THE BOARD. Hold the BOOTSEL button down, plug the board
-   in, then let go. A drive called `RP2350` appears.
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold the BOOTSEL button
+   down, plug the board in, then let go. A drive called `RP2350` appears.
 
        cp firmware/exp152.uf2 /media/$USER/RP2350/
 
    The board reboots by itself as the copy finishes, and the drive vanishes.
    That is success, not an error — some file managers report it as one.
+
+   *Without hands:* if the board is already running exp105 or later, it reboots
+   itself when its port is opened at 1200 baud, so `yi26 flash exp152.uf2`
+   does the whole thing — but `yi26` needs the repository. A board running
+   exp101–exp104 has no such watcher and there is no substitute for the button.
 
 3. FIND THE BOARD'S NETWORK INTERFACE. It is named after the experiment.
 

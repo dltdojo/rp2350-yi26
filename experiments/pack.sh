@@ -77,6 +77,45 @@ steps_section() {
         | cat -s
 }
 
+# ---------------------------------------------------------------------------
+# Pack verification, and why it is a hash and not a date.
+#
+# A walkthrough is verified by somebody unzipping it and doing what it says,
+# which is expensive and which an experiment only earns once: these are frozen
+# after they are made. So the record is bound to the CONTENT rather than to a
+# promise — everything that decides the procedure or the firmware goes into one
+# hash, and the moment any of it moves the record says so instead of aging
+# quietly into a lie.
+#
+# `target/` is excluded: a rebuilt .uf2 differs across checkout paths (measured)
+# and is not a change to the experiment. PACKED.md excludes itself, or writing
+# the record would invalidate it.
+content_hash() {
+    find "$1" -type f \
+        \( -name '*.rs' -o -name '*.toml' -o -name '*.lock' -o -name '*.html' \
+           -o -name '*.sh' -o -name 'README.md' \) \
+        -not -path '*/target/*' -print0 2>/dev/null \
+        | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -c1-16
+}
+
+# One of: unverified | ok | stale
+pack_status() {
+    local dir="$1" rec="$1/PACKED.md" recorded
+    [[ -f "$rec" ]] || { echo "unverified"; return; }
+    recorded="$(sed -n 's/^hash: *//p' "$rec" | head -1)"
+    [[ "$recorded" == "$(content_hash "$dir")" ]] && echo ok || echo stale
+}
+
+pack_status_line() {
+    local dir="$1" rec="$1/PACKED.md" when
+    when="$(sed -n 's/^verified: *//p' "$rec" 2>/dev/null | head -1)"
+    case "$(pack_status "$dir")" in
+        ok)         echo "${GREEN}pack-verified $when${RESET} — content unchanged, nothing to redo" ;;
+        stale)      echo "${YELLOW}pack-verified $when, but the experiment has CHANGED since${RESET}" ;;
+        unverified) echo "${DIM}not pack-verified — nobody has followed this zip's own steps${RESET}" ;;
+    esac
+}
+
 presence_words() {
     case "$1" in
         0) echo "no board at all — a machine and nothing else" ;;
@@ -170,6 +209,8 @@ pack_experiment() {
             "https://github.com/dltdojo/rp2350-yi26" > "$stage/README-MISSING.txt"
     fi
     printf '%s\n' "$check_out" > "$stage/CHECK.txt"
+    [[ -f "$dir/PACKED.md" ]] && cp "$dir/PACKED.md" "$stage/"
+    say "$(pack_status_line "$dir")"
 
     write_flash_txt "$dir" "$num" "$stage" "${uf2s[@]:-}"
 
@@ -343,6 +384,40 @@ write_flash_txt() {
 }
 
 # ---------------------------------------------------------------------------
+
+# Stamp a PACKED.md with the hash of what it was written against. Separate from
+# writing the record on purpose: the prose is a person's account of doing the
+# thing, and only the binding is mechanical.
+if [[ "${1-}" == --stamp ]]; then
+    [[ -n "${2-}" ]] || { echo "usage: ./pack.sh --stamp expNNN"; exit 1; }
+    for d in "${2%/}"*/; do
+        [[ -f "$d/PACKED.md" ]] || { echo "${RED}${d%/} has no PACKED.md to stamp${RESET}"; exit 1; }
+        h="$(content_hash "${d%/}")"
+        sed -i "s/^hash:.*/hash: $h/" "$d/PACKED.md"
+        echo "  ${d%/}  hash: $h"
+    done
+    exit 0
+fi
+
+if [[ "${1-}" == --status ]]; then
+    echo "${BOLD}Which experiments have had their own zip followed, step by step${RESET}"
+    echo "${DIM}A hash over every .rs .toml .lock .html .sh and README.md decides${RESET}"
+    echo "${DIM}whether a recorded verification still describes what is there now.${RESET}"
+    echo
+    n_ok=0; n_stale=0; n_none=0
+    for d in exp*/; do
+        case "$(pack_status "${d%/}")" in
+            ok)         n_ok=$((n_ok + 1));    mark="${GREEN}verified${RESET}" ;;
+            stale)      n_stale=$((n_stale + 1)); mark="${YELLOW}STALE   ${RESET}" ;;
+            unverified) n_none=$((n_none + 1)); mark="${DIM}—       ${RESET}" ;;
+        esac
+        printf '  %s  %-42s %s\n' "$mark" "${d%/}" \
+            "$(sed -n 's/^steps: *//p' "${d%/}/PACKED.md" 2>/dev/null | head -1)"
+    done
+    echo
+    echo "  $n_ok verified, $n_stale stale, $n_none never done."
+    exit 0
+fi
 
 if [[ "${1-}" == -h || "${1-}" == --help ]]; then
     sed -n '3,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'

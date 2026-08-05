@@ -73,13 +73,18 @@ WHAT YOU NEED
        unzip exp151-the-log-in-any-browser.zip
        cd exp151-the-log-in-any-browser
 
-2. PUT THE FIRMWARE ON THE BOARD. Hold the BOOTSEL button down, plug the board
-   in, then let go. A drive called `RP2350` appears.
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold the BOOTSEL button
+   down, plug the board in, then let go. A drive called `RP2350` appears.
 
        cp firmware/exp151.uf2 /media/$USER/RP2350/
 
    The board reboots by itself as the copy finishes and the drive vanishes.
    That is success, not an error — some file managers report it as one.
+
+   *Without hands:* if the board is already running exp105 or later, it reboots
+   itself when its port is opened at 1200 baud, so `yi26 flash exp151.uf2`
+   does the whole thing — but `yi26` needs the repository. A board running
+   exp101–exp104 has no such watcher and there is no substitute for the button.
 
 3. FIND THE BOARD'S NETWORK INTERFACE. It is named after the experiment.
 
@@ -102,13 +107,17 @@ WHAT YOU NEED
    Expect: `Connection successfully activated`, in whatever language your
    machine is set to.
 
-5. WAIT ABOUT FIFTEEN SECONDS. The LED tells you where you are without your
-   having to read anything:
+5. WAIT ABOUT FIFTEEN SECONDS. **[HUMAN STEP]** The LED tells you where you
+   are without your having to read anything:
 
        dark    no link
        slow    link up, still asking for an address
        fast    address in hand, nobody has read the page
        solid   a browser got the log
+
+   *Without eyes:* the same four states are in the serial log, and step 6
+   answers the only question that matters anyway — if the address serves a
+   page, the board got an address. Nothing here needs the LED to proceed.
 
 6. OPEN THE LOG IN A BROWSER — any browser — at:
 
