@@ -323,6 +323,35 @@ one is free: the page has not sent a command by then, so work down the list.
 when the person running it is holding the only board are collected in
 [`debugging-on-a-phone.md`](./debugging-on-a-phone.md).
 
+#### A phone will also be a network for the board
+
+Verified 2026-08-05 on the Pixel 9a with
+[exp148](../experiments/exp148-a-wire-with-no-address/): plug in a board that
+declares a **CDC-NCM** virtual Ethernet function and **Android binds a driver
+for it**. The firmware can tell, because a host only enables the data
+interface's endpoints once one of its drivers owns the function, and the board
+reported the change on its LED.
+
+This had been an open question with no way around it — attaching an
+Ethernet-class gadget is OS policy, not an app-visible API, and unlike WebUSB
+there is no userspace fallback when the OS declines. It does not decline.
+
+What the phone will *not* do is give the board an address. Android runs a DHCP
+**client** on such an interface, and so does a board using `embassy-net`'s
+`dhcpv4`; two clients wait for each other forever. This is not an Android
+quirk — an unconfigured Ubuntu does exactly the same, and the difference is only
+that a laptop can be told to share a connection and a phone has no such setting.
+A board that wants to be reachable from a phone has to hand out the address
+itself.
+
+Two things that run has **not** established, worth not over-reading:
+
+- **Whether a USB Ethernet link can capture the phone's default route.** Mobile
+  data stayed up throughout, but an interface with no address was never a
+  candidate default network, so nothing was at stake.
+- **Anything about Wi-Fi specifically.** That phone had none available at the
+  time.
+
 **And a board does not sit in BOOTSEL safely on a phone.** If the screen sleeps
 and the port is power-cycled, the board resets — and a reset boots a firmware
 rather than returning to the bootloader. Nothing announces it: the next page

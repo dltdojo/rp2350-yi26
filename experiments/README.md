@@ -932,6 +932,26 @@ exp147 was built against, so nothing had to move to start.
   Turning on connection sharing is a manual step on a laptop and does not exist
   at all on a phone.
 
+  **Verified on a Pixel 9a the same day: slow blink.** So the first genuinely
+  open question on this road is closed — **Android does bind `cdc_ncm` for an
+  arbitrary RP2350 gadget**. That is OS policy, not something a firmware can
+  influence, and there is no WebUSB-style fallback if a phone declines; the rest
+  of this road was a guess until a phone was holding one. It then stopped in
+  exactly the same place, for exactly the same reason, as the laptop.
+
+  What that run did *not* settle: whether a phone lets a USB Ethernet link
+  capture its default route. Mobile data stayed up throughout — but an interface
+  with no address was never a candidate to become the default network, so
+  nothing was at stake. exp149 is where that becomes a real question.
+
+  The firmware got onto that board with [`pflash.html`](../../tools/pages/pflash.html),
+  writing **straight over exp147's partition table** with no erase step in front
+  of it. PICOBOOT clears every sector it is about to write and the table lives in
+  the first of them. Which is the other half of exp144: the ROM's own *drive*
+  refuses a dropped `.uf2` while a table exists, and PICOBOOT does not consult
+  the table at all. Same board, same table, opposite answers depending on the
+  door.
+
   Cost, against exp147 as the nearest network-free equivalent: **+17,408 bytes**
   of flash and **+9,704 bytes** of static RAM, most of the latter being eight
   whole-MTU packet buffers. A firmware with a TCP/IP stack in it still fits a

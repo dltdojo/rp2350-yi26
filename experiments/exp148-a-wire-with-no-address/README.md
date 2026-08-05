@@ -233,21 +233,60 @@ before it is yours.
 ## The phone, which is the point
 
 Nothing in this repository can do this part and nothing in it can see the
-result. The firmware is already flashed; the phone needs no app, no browser and
-no permission dialog.
+result. The phone needs no app and no toolchain — but the firmware has to get
+onto the board somehow, and on a board that came from exp147 there is no drive
+to drag it to. [`pflash.html`](../../tools/pages/pflash.html) is the way in, and
+the answer above holds there too: **it wrote straight over the partition table
+with nothing erasing it first.**
 
-Plug it in and read the LED:
+```text
+exp148.uf2: 80384 bytes, 157 UF2 blocks
+pre-flight: 40192 bytes at 0x10000000, boot block present
+picked: RP2350 Boot — 2e8a:000f, serial 7FCAF01F5613A90C
+  interface 0: class 0x08
+  interface 1: class 0xff  <- PICOBOOT
+FLASH_ERASE: 40960 bytes at 0x10000000 (10 sectors)
+WRITE: 40192 bytes in 10 chunks
+READ back 256 bytes at 0x10000000: matches
+REBOOT2: NORMAL | NO_RETURN
+```
+
+Then read the LED.
+
+### Result, 2026-08-05, on a Pixel 9a: **slow**
 
 | | |
 | --- | --- |
-| **dark** | Android did not bind a driver — the network road stops here |
-| **slow** | Android bound it, and neither end will hand out an address |
-| **fast** | something on the phone is a DHCP server — unexpected, and good |
+| dark | Android did not bind a driver — the network road stops here |
+| **slow** | **← this. Android bound it, and neither end will hand out an address** |
+| fast | something on the phone is a DHCP server |
 
-Then look at the status bar too, and check whether **Wi-Fi survived**. A phone
-that adopts this as its default network is the risk that decides whether
-[exp151](../README.md#the-network-road) can exist at all: a board that reaches
-the internet needs the host to still have one.
+That answers the question this experiment was built for, and it was a genuinely
+open one: **Android binds `cdc_ncm` for an arbitrary RP2350 gadget.** It is not
+an app-visible API, there is no WebUSB-style fallback if the OS declines, and
+nothing in the firmware can influence it — so until a phone was holding one of
+these, the whole road after this point was a guess.
+
+The board reached exactly where the Ubuntu machine reached, and stopped in the
+same place for the same reason. **The address deadlock is not a phone problem**;
+it is what an unconfigured host does, and a phone is simply a host with no way
+to be configured.
+
+### What the phone did *not* answer
+
+Mobile data stayed up — 5G throughout, nothing dropped. That is worth recording
+and it is **not** the answer to the default-route question, which is the risk
+that decides whether [exp151](../README.md#the-network-road) can exist:
+
+> An interface with no address was never a candidate to become the default
+> network. Nothing was at stake, so nothing moving proves nothing.
+
+The real test needs a board the phone has actually accepted an address from,
+which is exp149's whole job. Ask again there.
+
+Also untested, and worth saying rather than leaving implied: this phone had no
+Wi-Fi available at the time, so the specific case of *Wi-Fi* being displaced by
+a USB Ethernet link has not been tried here at all.
 
 ## What this experiment does not do
 
