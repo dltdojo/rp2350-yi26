@@ -299,6 +299,23 @@ There is still an asymmetry worth keeping: the **reading** half over WebUSB
 (exp115–exp126) never showed any of this, because a browser claiming a USB
 interface does not go through the storage layer at all.
 
+#### And the phone can now write firmware without the drive at all
+
+Verified 2026-08-05 on the Pixel 9a:
+[`tools/pages/pflash.html`](../tools/pages/pflash.html) claimed the bootrom's
+PICOBOOT interface, erased six sectors, wrote 23,040 bytes, read the first page
+back to check it, and rebooted the board into the new firmware — from a page
+opened out of the Files app, with the `.uf2` on the phone's own storage. So the
+phone no longer depends on the drive for flashing at all, which matters most on
+exactly the boards where the drive takes nothing: partitioned ones.
+
+**One thing to know before you try it.** Android's device chooser listed the
+same board **three times**, and two of those entries failed with
+`SecurityError: Failed to execute 'open' on 'USBDevice': Access denied`. The
+third worked. Nothing in the names distinguishes them — **the live entry is the
+one that makes Android put up its own USB permission dialog**. Picking a dead
+one is free: the page has not sent a command by then, so work down the list.
+
 A route that does not depend on the storage layer at all — driving the
 bootrom's **PICOBOOT** interface, the way `picotool` drives it — sidesteps every
 failure above, and as of 2026-08-04 **it exists and is verified**.

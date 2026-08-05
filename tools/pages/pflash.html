@@ -69,7 +69,12 @@
 <p class="sub">No drive, no drag-and-drop. The board must be in BOOTSEL.</p>
 
 <div class="row">
-  <input type="file" id="file" accept=".uf2,application/octet-stream">
+  <!-- No `accept` filter on purpose. Android's file pickers routinely grey out
+       a .uf2 when one is set, because the file has no registered MIME type
+       there — and a page you cannot hand a file to is worse than one that
+       accepts anything and explains what it refuses. The pre-flight below is
+       the real filter, and it says why in words. -->
+  <input type="file" id="file">
 </div>
 <div class="row">
   <button id="go" disabled>Flash it</button>
@@ -91,6 +96,14 @@ asked to pick the board once — it appears as <b>RP2350 Boot</b>.</div>
   board is not rebooted unless the read-back matches. A board with no bootable
   image drops into BOOTSEL by itself, so you can try again. If the board is
   dark instead — no drive, no ports — hold BOOTSEL while plugging it in.
+</p>
+<p class="note">
+  <b>On a phone, the chooser may list the same board more than once</b> — three
+  entries, on the Pixel 9a this was verified on. Two of them failed
+  <code>open()</code> with <i>Access denied</i> and one worked. There is nothing
+  to read in the names: the live entry is <b>the one that makes Android ask for
+  USB permission</b>. Picking a dead one costs nothing, because the page has not
+  sent a single command by then.
 </p>
 
 <p class="mark">pflash.html · build 2026-08-05 · rp2350-yi26</p>
@@ -293,11 +306,44 @@ async function flash() {
     log(`image: ${image.length} bytes at ${hex(base)}`);
 
     device = await navigator.usb.requestDevice({ filters: FILTERS });
-    await device.open();
+
+    // Say what was picked BEFORE opening it. Measured on a Pixel 9a: Android's
+    // chooser can list the same board several times, and only one of those
+    // entries is the live one — the others fail `open()` with
+    // "SecurityError: Access denied". Logging after the open would have said
+    // nothing about exactly the attempts that failed, which is what the first
+    // version of this page did.
+    const id = (n) => n.toString(16).padStart(4, '0');
+    log(`picked: ${device.productName || '(no product name)'} — ` +
+        `${id(device.vendorId)}:${id(device.productId)}, ` +
+        `serial ${device.serialNumber || '(none)'}`);
+
+    try {
+      await device.open();
+    } catch (e) {
+      throw new Error(
+        `${e.message} — on a phone this usually means a stale entry in the ` +
+        `chooser, not a real refusal. Press Flash it again and pick a ` +
+        `different one; the live entry is the one that makes Android ask for ` +
+        `USB permission. Nothing was written.`);
+    }
     if (device.configuration === null) await device.selectConfiguration(1);
 
+    for (const cfg of device.configurations) {
+      for (const i of cfg.interfaces) {
+        for (const alt of i.alternates) {
+          log(`  interface ${i.interfaceNumber}: class 0x${id(alt.interfaceClass).slice(2)}` +
+              `${alt.interfaceClass === 0xFF ? '  <- PICOBOOT' : ''}`);
+        }
+      }
+    }
+
     const p = findPicoboot(device);
-    if (!p) { say('No PICOBOOT interface — is the board really in BOOTSEL?', 'bad'); return; }
+    if (!p) {
+      say('That device has no PICOBOOT interface. Nothing was written — pick a ' +
+          'different entry from the list, or check the board is in BOOTSEL.', 'bad');
+      return;
+    }
     ifaceNum = p.iface; epOut = p.out; epIn = p.in;
     await device.claimInterface(ifaceNum);
     log(`claimed PICOBOOT (interface ${ifaceNum}, OUT ep ${epOut}, IN ep ${epIn})`);

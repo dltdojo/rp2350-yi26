@@ -865,25 +865,20 @@ with no drive at all. On the command line, `yi26 nuke` erases and `yi26 pflash`
 does a full write+`REBOOT2` over `libusb` — verified flashing and booting
 exp138. What remains:
 
-- **PICOBOOT `WRITE` from a browser** — erase a region, write a `.uf2`'s
-  payload over the bulk endpoint, `REBOOT2`, and watch the board come up on new
-  firmware with no drive and no drag-and-drop. `yi26 pflash` already does exactly
-  this on the desktop, so the browser version is a port of a working path — but
-  it writes flash, so it carries a brick risk exp141's erase-and-read pages do
-  not. The protocol map is in exp141's README; it has not been interrogated for
-  scope yet.
+- **PICOBOOT `WRITE` from a browser** — **Done, verified 2026-08-05 on a
+  Pixel 9a.** [exp146](./exp146-a-page-that-writes-flash/) is
+  [`tools/pages/pflash.html`](../tools/pages/pflash.html): a phone opened a
+  local HTML file, read a `.uf2` off its own storage, claimed PICOBOOT, erased
+  six sectors, wrote 23,040 bytes, **read the first page back and compared it**,
+  and rebooted the board into the firmware it had just written. No drive, no
+  drag-and-drop, no toolchain, no second computer. It refuses before it writes
+  (wrong base address, no boot block, wrong chip family) and refuses to reboot
+  if the read-back does not match, because the person using it may have no way
+  back.
 
-**Signing and secure boot are not on this road.** RP2350 can enforce signed
-images, and turning that on means burning OTP — **irreversible**, and that
-board runs nothing unsigned ever again. With two boards in total, that is a
-decision to take deliberately and separately, not as the last step of a road
-about not bricking things.
-
-### Standing alone
-
-- **boot anatomy** — open both boxes: hand-write the memory map and the
-  image-definition block the ROM scans for, and read BOOTSEL the hard way.
-  The most dangerous idea in this list: a malformed image definition is a
-  board the ROM will not start, and there is no software route back from that.
-- **defmt/RTT logging** *(needs a debug probe — optional side track, and the
-  first thing here that would break the one-cable rule)*.
+  Two things learned by doing it. Android's chooser listed the same board
+  **three times** and two of those entries failed `open()` with *Access denied*
+  — the live one is **the entry that makes Android ask for USB permission**, and
+  nothing in the names says which. And this page's own diagnostics were wrong
+  the first time: it named the picked device *after* opening it, so it said
+  nothing about exactly the attempts that failed.

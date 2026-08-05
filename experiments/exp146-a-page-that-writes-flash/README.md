@@ -1,10 +1,11 @@
 # exp146-a-page-that-writes-flash — the last thing the phone could not do
 
-> **Status: the page is built and the half that can be checked without a browser
-> is checked. The flash itself is NOT yet verified on hardware** — a WebUSB page
-> needs a person to pick the device from a native dialog, so this one is
-> verified by somebody holding a phone. Nothing here claims it works until that
-> has happened, and this header says so until it does.
+> **Verified on hardware, 2026-08-05, on a Pixel 9a.** A phone opened a local
+> HTML file, read a `.uf2` off its own storage, claimed the bootrom's PICOBOOT
+> interface, erased six sectors, wrote 23,040 bytes, **read the first page back
+> and compared it**, and rebooted the board into the firmware it had just
+> written. No drive, no drag-and-drop, no toolchain, no second computer. See
+> [Expected output](#expected-output).
 
 [exp141](../exp141-two-doors-into-the-bootrom/) proved a browser can claim
 PICOBOOT and drove it as far as `FLASH_ERASE` — a phone erased a board's flash
@@ -142,7 +143,68 @@ PASS  refuses an image with nothing at flash offset 0 (the lowest flash address 
 PASS  refuses a file that is not a UF2 (no UF2 blocks — is this a .uf2 file?)
 ```
 
-**The hardware half goes here when it has happened**, and not before.
+### The phone
+
+Captured on a **Pixel 9a, Chrome on Android, 2026-08-05**, from
+`pflash.html` opened as a `content://` URI out of the Files app. The board was
+in BOOTSEL; the file was `exp138.uf2`, sitting on the phone's own storage.
+
+The pre-flight, before anything was picked or written:
+
+```text
+exp138.uf2: 46080 bytes, 90 UF2 blocks
+pre-flight: 23040 bytes at 0x10000000, boot block present
+```
+
+Those are the same numbers `check.sh` gets on a desktop from the same file,
+which is the point of the parser being one implementation rather than two.
+
+Then the flash:
+
+```text
+image: 23040 bytes at 0x10000000
+picked: RP2350 Boot — 2e8a:000f, serial 7FCAF01F5613A90C
+  interface 0: class 0x08
+  interface 1: class 0xff  <- PICOBOOT
+claimed PICOBOOT (interface 1, OUT ep 3, IN ep 4)
+IF_RESET: interface cleared
+EXCLUSIVE_ACCESS: the drive is ours now
+EXIT_XIP: flash is a device again, not memory
+FLASH_ERASE: 24576 bytes at 0x10000000 (6 sectors)
+WRITE: 23040 bytes in 6 chunks
+READ back 256 bytes at 0x10000000: matches
+REBOOT2: NORMAL | NO_RETURN
+
+=> The board is running the firmware you chose. Open log.html to watch it say so.
+```
+
+Both interfaces of the BOOTSEL composite are visible in that listing, which is
+[exp141](../exp141-two-doors-into-the-bootrom/)'s finding arriving as a routine
+line in a log: interface 0 is the mass-storage drive Chrome will not touch, and
+interface 1 is the door this page went through.
+
+### The thing that took three tries, and what it means
+
+Android's chooser listed the **same board three times**. Two of those entries
+failed at `open()`:
+
+```text
+exception: SecurityError: Failed to execute 'open' on 'USBDevice': Access denied.
+```
+
+The third made Android put up its own USB permission dialog, and after that it
+worked. There is nothing in the names to tell them apart — **the live entry is
+the one that asks for permission**. A dead entry costs nothing: the page has not
+sent a command at that point, which is why it is safe to work down the list.
+
+That cost two attempts to learn, and it exposed a flaw in this page's own
+diagnostics: the line naming the picked device was logged *after* `open()`, so
+it said nothing about exactly the attempts that failed. It is logged before the
+open now, and a failed open explains what to do instead of quoting a
+`SecurityError` at somebody holding a phone.
+
+`docs/platforms.md` carries the same note, because that is where a person
+troubleshooting a phone will look.
 
 ## Next
 
