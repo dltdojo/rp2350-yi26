@@ -117,6 +117,116 @@ wins.
 - [`../audit.sh`](../audit.sh) — the check itself, in the section on random
   number generators.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. Three firmware
+images are in it; two of them are the experiment and they are **designed to be
+indistinguishable** until you do the one thing nobody does.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. RP2350 only.
+  * Ubuntu. `cat`, `stty`, `strings` and `grep` are already there.
+
+1. UNPACK IT, AND ASK THE ARTIFACT BEFORE YOU RUN ANYTHING.
+
+       unzip exp112-silent-fallback.zip
+       cd exp112-silent-fallback
+       for f in firmware/exp112-hardware.uf2 firmware/exp112-software.uf2; do
+           printf '%-32s ' "$(basename $f)"
+           strings -a "$f" | grep -o 'yi26-cfg:rng=[a-z]*' | head -1
+       done
+
+   Expect each image to name its own generator:
+
+       exp112-hardware.uf2              yi26-cfg:rng=hardware
+       exp112-software.uf2              yi26-cfg:rng=software
+
+   Each build stamps into its own binary which generator it selected. **This
+   is the only check here that reads the thing that will actually run** rather
+   than the source it came from or the log it prints. It costs one command and
+   needs nothing but `strings`.
+
+   **There is a third image in `firmware/`, and you should ignore it.**
+   `exp112-silent-fallback.uf2` is a by-product: it is whatever `check.sh`
+   happened to build last, so its marker says `hardware` or `software`
+   depending on nothing you can see. It has the most official-looking name of
+   the three and it is the one file here you cannot conclude anything from.
+   That is a wart in this experiment's build, recorded rather than hidden,
+   and it is a small demonstration of the same lesson: a name is not evidence.
+
+2. FLASH THE SOFTWARE ONE. **[HUMAN STEP]** Hold BOOTSEL, plug in, let go:
+
+       cp firmware/exp112-software.uf2 /media/$USER/RP2350/
+
+3. READ ITS FIRST THREE DRAWS.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 8 cat /dev/ttyACM0
+
+       [      37 ms] bytes #1: a1 72 35 03 31 86 41 01
+       [     537 ms] bytes #2: b2 60 70 01 21 e6 a2 a1
+       [    1037 ms] bytes #3: d2 aa b1 51 47 cc 90 f9
+
+   Look at them and try to see anything wrong. There is nothing to see. The
+   generator is xorshift32, picked because it is *good* at looking random, and
+   it passes the statistical tests from [exp111](../exp111-measuring-randomness/)
+   comfortably.
+
+4. REBOOT IT AND READ THEM AGAIN. This is the whole experiment, and it takes
+   ten seconds.
+
+       stty -F /dev/ttyACM0 1200
+       sleep 5
+       cp firmware/exp112-software.uf2 /media/$USER/RP2350/
+       sleep 6
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 8 cat /dev/ttyACM0
+
+   **Wait for the drive.** The touch puts the board in its bootloader, but the
+   `RP2350` volume takes a second or two to appear and be mounted; copy too
+   early and the file goes nowhere, leaving the board sitting in BOOTSEL. If
+   that happens, nothing is broken — the drive is there now, so just run the
+   `cp` again.
+
+   Expect **the same three lines, byte for byte**:
+
+       [      37 ms] bytes #1: a1 72 35 03 31 86 41 01
+       [     537 ms] bytes #2: b2 60 70 01 21 e6 a2 a1
+       [    1037 ms] bytes #3: d2 aa b1 51 47 cc 90 f9
+
+   A generator seeded from a constant produces the same bytes on every boot,
+   of every board, forever.
+
+5. NOW DO BOTH AGAIN WITH THE HARDWARE BUILD.
+
+       cp firmware/exp112-hardware.uf2 /media/$USER/RP2350/
+
+   ...then steps 3 and 4 unchanged, other than the filename. Expect two boots
+   that share nothing:
+
+       boot 1   bytes #1: be b0 0a e5 5b a8 b9 78
+       boot 2   bytes #1: 6c a9 35 fe 0d dc bf 7a
+
+6. COUNT WHAT DID NOT CATCH IT. The output looked fine. The statistical tests
+   passed. The firmware's own banner said which generator it had — and that
+   line is the least trustworthy thing here, because it proves what the
+   firmware *prints*, not what it *does*. It enumerated, logged and blinked
+   identically.
+
+   Two things caught it, and step 1 was one of them. The other was rebooting,
+   which is free, and which nobody does, because a random number generator
+   that returns the same value twice is *obviously* broken and therefore not
+   worth checking for.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * After step 4's touch there is no `/dev/ttyACM0` and no drive either —
+    give it a moment; the board is between two identities.
+  * The board is in BOOTSEL and you want it back — copy any `.uf2` from
+    `firmware/` onto the drive. That is all reflashing ever is here.
+
 ## Two ways to do it
 
 ```sh
