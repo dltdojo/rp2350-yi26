@@ -167,8 +167,8 @@ Repository-wide, alongside `lib.sh`:
   the `check.sh` run that built it. A README section headed exactly
   `## Do this, in order` is lifted into the zip verbatim as the standalone
   walkthrough — every step, every command, and what each should print, for
-  somebody who has only the zip; exp152 has one and the rest are a gap the zip
-  names out loud. It refuses on a non-zero exit, so a zip is
+  somebody who has only the zip. Markdown links are flattened on the way out.
+  exp151 and exp152 have one; the rest are a gap the zip names out loud. It refuses on a non-zero exit, so a zip is
   evidence rather than a hope. It carries **no buildable source** and says so:
   an experiment directory depends on `../../crates/` and sources `../lib.sh`,
   so anybody who wants the code wants `git clone`. Repository-wide and one

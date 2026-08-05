@@ -72,7 +72,9 @@ steps_section() {
         $0 == h { on = 1; next }
         on && /^## / { exit }
         on && !/^```/ { print }
-    ' "$1/README.md" | sed -e 's/[[:space:]]*$//' | cat -s
+    ' "$1/README.md" \
+        | sed -e 's/\[\([^][]*\)\](\([^()]*\))/\1/g' -e 's/[[:space:]]*$//' \
+        | cat -s
 }
 
 presence_words() {
