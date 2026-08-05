@@ -76,6 +76,115 @@ experiment.**
 ./check.sh    # verdict: floods under a storm, checks the control variable first
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. This one needs a
+host program that `cat` and `printf` cannot be, so step 3 writes one — about
+twenty lines of Python, standard library only, nothing to install.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu with `python3`, which a desktop install already has.
+  * Two terminals, and about four minutes for the storm run.
+
+1. UNPACK IT.
+
+       unzip exp119-cancelled-reads.zip
+       cd exp119-cancelled-reads
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp119-cancelled-reads.uf2 /media/$USER/RP2350/
+
+3. WRITE THE FLOOD TOOL. `printf` cannot do this job: the storm run has to
+   write packets and toggle RTS *at the same time*, on the same open port.
+
+```sh
+cat > flood.py <<'PY'
+import os, sys, time, fcntl, struct
+port, storm = sys.argv[1], len(sys.argv) > 2 and sys.argv[2] == "--storm"
+fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+TIOCMBIS, TIOCMBIC, TIOCM_RTS = 0x5416, 0x5417, 0x004
+toggles = 0
+for i in range(20001):
+    pkt = struct.pack("<I", i) + b"\xa5" * 60
+    while True:
+        try:
+            os.write(fd, pkt); break
+        except BlockingIOError:
+            time.sleep(0.0005)
+    if storm:
+        fcntl.ioctl(fd, TIOCMBIC, struct.pack("I", TIOCM_RTS))
+        fcntl.ioctl(fd, TIOCMBIS, struct.pack("I", TIOCM_RTS))
+        toggles += 2
+os.close(fd)
+print(f"sent 20001 packets ({20001*64} bytes), {toggles} RTS toggles during the send")
+PY
+```
+
+   **Paste that exactly as it is, at the left margin.** The body of a heredoc
+   is taken literally, so a Python program that picks up leading spaces on the
+   way in stops being a Python program. Everything else in this file is
+   indented for reading; this block is not, and that is deliberate.
+
+   Each packet carries its own sequence number in its first four bytes, which
+   is how the board can tell a gap from a repeat from a runt.
+
+4. THE CONTROL RUN, WITH NO TOGGLING. In the first terminal:
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       cat /dev/ttyACM0
+
+   In the second:
+
+       python3 flood.py /dev/ttyACM0
+
+   Expect `sent 20001 packets (1280064 bytes), 0 RTS toggles during the send`,
+   and on the board:
+
+       [    6037 ms] rx 20000 (+1044/s)  gaps 0  repeats 0  cancels 0  runts 0
+       [    6038 ms]    -> 0 cancelled reads: this run has tested nothing
+       [    7038 ms] settled: 20000 packets, nothing further arriving
+
+   **Twenty thousand packets, not one lost, and the run is worthless.** Every
+   line says so. Zero cancelled reads means the thing this experiment is about
+   never happened, so a clean result proves nothing at all. That second line
+   exists because a green number with nothing behind it is worse than no
+   number.
+
+5. THE STORM RUN. Same listener, and in the second terminal:
+
+       python3 flood.py /dev/ttyACM0 --storm
+
+   This takes a few minutes — every packet is followed by dropping and
+   raising RTS, and each of those cancels a read in progress on the board.
+
+       sent 20001 packets (1280064 bytes), 40002 RTS toggles during the send
+
+   And on the board:
+
+       [  111039 ms] rx 14477 (+3856/s)  gaps 0  repeats 0  cancels 28955  runts 0
+       [  112039 ms] rx 18306 (+3829/s)  gaps 0  repeats 0  cancels 36614  runts 0
+       [  113039 ms] rx 20000 (+1694/s)  gaps 0  repeats 0  cancels 40002  runts 0
+
+6. READ THE ROW THAT MATTERS. **40002 cancelled reads. 20000 packets. `gaps 0
+   repeats 0 runts 0`.** Every read in progress was destroyed and reissued
+   forty thousand times, and not one byte was lost, duplicated or truncated.
+
+   Now compare against step 4's row, which has the same three zeros and means
+   nothing. The `cancels` column is the control variable: **it is what turns
+   three zeros from an absence of evidence into evidence.**
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * `cancels 0` in the storm run — the RTS toggles are not reaching the
+    device. Some USB-serial stacks swallow them.
+  * The flood is very slow — that is right in `--storm`; two ioctls per packet
+    is the cost of the thing being measured.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu. First the quiet run:

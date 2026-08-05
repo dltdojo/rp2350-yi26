@@ -68,10 +68,18 @@ declared() { sed -n "s/^$2=\"\{0,1\}\([^\"]*\)\"\{0,1\}\$/\1/p" "$1/check.sh" | 
 STEPS_HEADING='## Do this, in order'
 steps_section() {
     [[ -f "$1/README.md" ]] || return 1
+    # Lines inside a fenced block are emitted with a marker so the caller can
+    # leave them at column zero. A heredoc body that picks up two spaces of
+    # decoration stops being the program it was: exp119 ships a Python flood
+    # tool inside `cat > flood.py <<'PY'`, and indenting its body turns a
+    # copy-paste into an IndentationError. Prose gets indented; payload does
+    # not.
     awk -v h="$STEPS_HEADING" '
         $0 == h { on = 1; next }
         on && /^## / { exit }
-        on && !/^```/ { print }
+        on && /^```/ { fence = !fence; next }
+        on && fence { print "\001" $0; next }
+        on { print }
     ' "$1/README.md" \
         | sed -e 's/\[\([^][]*\)\](\([^()]*\))/\1/g' -e 's/[[:space:]]*$//' \
         | cat -s
@@ -298,7 +306,7 @@ write_flash_txt() {
             echo "  Every step, every command, and what each one should print. Nothing"
             echo "  below needs the repository or anything else that is not in this zip."
             echo
-            printf '%s\n' "$steps" | sed 's/^/  /;s/^  $//'
+            printf '%s\n' "$steps" | sed -e '/^\x01/!{s/^/  /;s/^  $//}' -e 's/^\x01//'
             echo
             echo "  ---------------------------------------------------------------"
         else
