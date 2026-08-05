@@ -88,15 +88,18 @@ say "fits one of exp142's slots with room over. Worth knowing before assuming a"
 say "network firmware puts the A/B road out of reach — it does not, at least yet."
 
 # ---------------------------------------------------------------------------
-step 3 "Flash it — which means removing the partition table first"
+step 3 "Flash it — over the partition table, and that is all it takes"
 say ""
-say "Not because of size. Because a board that came from exp147 has a ${BOLD}table${RESET} in"
-say "sector 0, and this is not a partition image — it is an ordinary one, which"
-say "wants sector 0 for itself. ${BOLD}yi26 nuke${RESET} erases the first 64 KiB, table and"
-say "slot A together, and then this flashes as any firmware before exp139 did."
-confirm "Erase the partition table and flash exp148?" || { say ""; say "Nothing was flashed."; exit 0; }
+say "A board that came from exp147 has a ${BOLD}table in sector 0${RESET}, and this is an"
+say "ordinary image that wants sector 0 for itself. No ${BOLD}yi26 nuke${RESET} is needed"
+say "anyway: PICOBOOT erases every sector it is about to write, and sector 0 is"
+say "the first of them. The table is gone by the time the image lands on it."
+say ""
+say "Which is worth pausing on. ${DIM}exp144${RESET} found that the ROM's own ${BOLD}drive${RESET} refuses a"
+say "dropped .uf2 while a table exists. PICOBOOT is not the drive and does not"
+say "consult the table at all — it writes where it is told."
+confirm "Flash exp148 over whatever is there?" || { say ""; say "Nothing was flashed."; exit 0; }
 run_cmd yi26 bootsel
-run_cmd yi26 nuke
 run_cmd yi26 pflash "$UF2"
 sleep 5
 say ""

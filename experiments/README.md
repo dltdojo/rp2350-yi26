@@ -919,7 +919,9 @@ exp147 was built against, so nothing had to move to start.
   arrive from different places. The firmware can see the first one happen: a
   host driver claiming the function is what selects the data interface's alt
   setting, and until it does, `is_link_up()` is false. On this Ubuntu machine
-  the kernel bound `cdc_ncm` **1,400 ms** after boot and the board said so.
+  the kernel bound `cdc_ncm` shortly after enumeration — 400 ms on one run and
+  1,400 ms on another — and the board reported the change before anything on
+  the host did.
 
   The second achievement never arrived, and that is the finding. The prediction
   was that a *phone* would leave the board at "link up, no address" — Android

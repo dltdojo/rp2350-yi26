@@ -87,46 +87,55 @@ with 25 KiB spare. A network image does not put the exp142–exp147 road out of
 reach. `check.sh` measures that rather than trusting it, because exp150 adds TCP
 and an HTTP server to this same base and the claim has an expiry date.
 
-## Flashing it needs the partition table gone
+## Flashing it over a partition table takes nothing special
 
-Not because of size — see above. Because a board that came from exp147 has a
-**table in sector 0**, and this is an ordinary image that wants sector 0 for
-itself.
+A board that came from exp147 has a **table in sector 0**, and this is an
+ordinary image that wants sector 0 for itself. That turns out not to need a
+step:
 
 ```sh
 yi26 bootsel
-yi26 nuke                 # erases the first 64 KiB: the table and slot A
 yi26 pflash target/exp148.uf2
 ```
 
-`run.sh` does this with a confirmation. After it, the board is back to being an
-ordinary pre-exp139 board: the boot drive takes a dropped `.uf2` again.
+PICOBOOT erases every sector it is about to write, and sector 0 is the first of
+them, so the table is gone by the time the image lands on top of it. No
+`yi26 nuke` — that was in this README's first draft and a board disproved it.
+
+Worth pausing on, because it is the other half of a finding this repository
+already had. [exp144](../exp144-one-file-either-half/) established that the
+ROM's own **drive** will not take a dropped `.uf2` while a table exists.
+PICOBOOT is not the drive and does not consult the table at all. Same board,
+same table, two completely different answers depending on which door you use —
+and it is why [`pflash.html`](../../tools/pages/pflash.html) can do this from a
+phone with no nuke button anywhere in it.
 
 ## Expected output
 
-Captured on Ubuntu, 2026-08-05, against an official Pico 2.
+Captured on Ubuntu, 2026-08-05, against an official Pico 2 that was running
+exp147's A/B pair a moment earlier.
 
 ```console
-$ yi26 nuke
-erased 65536 bytes of flash from offset 0 over PICOBOOT. The partition table is gone. ...
+$ yi26 bootsel
+board is in BOOTSEL mode (1200-baud touch)
 
 $ yi26 pflash target/exp148.uf2
 flashed 40192 bytes to 0x10000000 over PICOBOOT (10 sectors erased), and rebooted into it. No drive, no drag-and-drop.
 
-$ yi26 log --seconds 10
-[      56 ms] exp148 up. CDC-ACM for this log, CDC-NCM for the link.
-[      56 ms]   our MAC 02:26:00:00:02:48, the host's end 02:26:00:00:01:48
-[      56 ms]   LED: dark = no link, slow = link but no address, fast = address.
-[      56 ms] 0 ms  link DOWN — no host driver has claimed the NCM data interface
-[    1456 ms] 1400 ms  link UP, no address — DHCP is asking and nobody is answering
-[    6457 ms] 6400 ms  link UP, no address — DHCP is asking and nobody is answering
-[   11457 ms] 11401 ms  link UP, no address — DHCP is asking and nobody is answering
-[   16458 ms] 16401 ms  link UP, no address — DHCP is asking and nobody is answering
+$ yi26 log --seconds 8
+[      38 ms] exp148 up. CDC-ACM for this log, CDC-NCM for the link.
+[      38 ms]   our MAC 02:26:00:00:02:48, the host's end 02:26:00:00:01:48
+[      38 ms]   LED: dark = no link, slow = link but no address, fast = address.
+[      38 ms] 0 ms  link DOWN — no host driver has claimed the NCM data interface
+[     438 ms] 400 ms  link UP, no address — DHCP is asking and nobody is answering
+[    5439 ms] 5400 ms  link UP, no address — DHCP is asking and nobody is answering
+[   10439 ms] 10401 ms  link UP, no address — DHCP is asking and nobody is answering
 ```
 
-**1,400 ms** is the whole of achievement one. The board went from "nobody is
-talking to me" to "a driver owns me" without doing anything, because the kernel
-did it:
+That transition is the whole of achievement one, and the board did nothing to
+earn it — the kernel did it. **How long it takes is the host's business, not
+the firmware's**: two runs on this same machine took 400 ms and 1,400 ms, so
+treat it as "shortly after enumeration" rather than as a number.
 
 ```console
 $ ip -brief link show enx022600000148
@@ -173,11 +182,21 @@ nmcli connection add type ethernet ifname enx022600000148 \
 nmcli connection up yi26-exp148
 ```
 
-NetworkManager then runs dnsmasq, puts this host on `10.42.0.1`, and should
-lease the board an address on that subnet, at which point the log names it and
-the LED speeds up. **That third state is the one capture this experiment does
-not yet have** — the two above were taken from a board, this one is what the
-code does. To undo the change:
+NetworkManager then runs dnsmasq and puts this host on `10.42.0.1`. Within a few
+seconds the third state arrives:
+
+```console
+$ ip -brief addr show enx022600000148
+enx022600000148  UP    10.42.0.1/24 fe80::6dab:b65b:8ecf:3472/64
+
+$ yi26 log --seconds 7
+[ 1229687 ms] 1229631 ms  link UP, address 10.42.0.204/24
+[ 1229687 ms]         gateway 10.42.0.1
+[ 1234688 ms] 1234631 ms  link UP, address 10.42.0.204/24
+[ 1234688 ms]         gateway 10.42.0.1
+```
+
+To undo the change:
 
 ```sh
 nmcli connection delete yi26-exp148
@@ -185,6 +204,31 @@ nmcli connection delete yi26-exp148
 
 The lease takes a few seconds, not instants. A script that gives up too early
 reads as a firmware bug, which is a mistake worth not repeating.
+
+### Three achievements, and still nothing to talk to
+
+The board has a link, an address and a gateway. The host can resolve it:
+
+```console
+$ ip neigh show | grep 10.42.0.204
+10.42.0.204 dev enx022600000148 lladdr 02:26:00:00:02:48 REACHABLE
+```
+
+And it does not answer a ping:
+
+```console
+$ ping -c 3 -W 2 10.42.0.204
+3 packets transmitted, 0 received, 100% packet loss, time 2045ms
+```
+
+Not a fault, and worth sitting with. ARP is answered by the interface layer, so
+`REACHABLE` comes for free. **ICMP is not** — `auto-icmp-echo-reply` is a
+feature this `Cargo.toml` does not enable, and there is no socket of any kind in
+this firmware. The board is fully addressable and entirely mute.
+
+That is exp148's thesis arriving a third time. A wire is not an address, an
+address is not a service, and each of those steps is somebody else's decision
+before it is yours.
 
 ## The phone, which is the point
 
