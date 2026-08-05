@@ -35,3 +35,7 @@ is expected — write a new one.
 | 2026-08-03 | [一場抽獎,把設計改了四次](./2026-08-03-a-draw-that-changed-the-design.md) | exp127 – exp133 — the host takes control, a real use appears, and measurement keeps correcting the architecture (正體中文) |
 | 2026-08-03 | [從來沒有人選過的預設值](./2026-08-03-a-default-nobody-chose.md) | exp134, exp135 and tools/pages — behaviour nobody decided, inherited from a container and shipped for thirty-three experiments (正體中文) |
 | 2026-08-04 | [救不回來,就別做出來](./2026-08-04-if-you-cannot-recover-it.md) | exp139 redone, exp142, and pre-flight brick checks in partimg/yi26 — a board that could not be recovered, and the A/B choice that was in the ROM all along (正體中文) |
+| 2026-08-05 | [來回才是最貴的東西](./2026-08-05-the-round-trip-is-the-cost.md) | exp143 – exp147 and docs/debugging-on-a-phone.md — the update road finished, and what it costs to debug on somebody else's phone (正體中文) |
+| 2026-08-05 | [有線,但沒有位址](./2026-08-05-a-wire-with-no-address.md) | exp148, exp149 and crates/dhcp — a board with no network interface gets onto a network, and finds nobody willing to hand out an address (正體中文) |
+| 2026-08-05 | [一個位址,三種到不了的方式](./2026-08-05-three-ways-not-to-arrive.md) | exp150 — the board serves a page, and a phone's browser reaches it only one way out of three (正體中文) |
+| 2026-08-05 | [一個等到有話說才出現的磁碟](./2026-08-05-a-drive-that-waits.md) | exp151, exp152 and crates/log-ring, crates/mdns — reading this board's log without WebUSB, which had been assumed since the first experiment that printed anything (正體中文) |
