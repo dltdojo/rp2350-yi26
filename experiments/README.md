@@ -72,6 +72,7 @@ Per experiment:
 | exp144 | Any RP2350 board. No browser. **RP2350 only** — partition tables, UF2 routing and A/B selection are ROM features. The drop half needs the BOOTSEL drive and `udisksctl`, as every `yi26 flash` does; the asking half needs neither. |
 | exp145 | Any RP2350 board. No browser. **RP2350 only** — it writes flash from firmware into an A/B partition. Uses 67 KiB of SRAM (1.5 for the filesystem, 64 to stage the image), which is nothing on an RP2350 and would decide the design on a smaller part. |
 | exp146 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser — a phone's is the point. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface. It **writes flash**, which is what exp141 stopped short of. |
+| exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 
 Two cases need more than a pin change: the **Pico 2 W** routes its LED through
 the wireless chip, and boards whose only LED is an **RGB/NeoPixel** need a PIO
@@ -373,7 +374,7 @@ awake — and because most of these experiments cost nothing.
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
-| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
 somebody to a bench for no reason:
@@ -491,6 +492,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp144 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp145 | `cdc+msc` | `log+scsi` | `cdc_acm+usb-storage` | `own` |
 | exp146 | `vendor` | `control` | `webusb` | `bootrom` |
+| exp147 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -615,6 +617,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp144-one-file-either-half](./exp144-one-file-either-half/) | 1 · board | The ROM names the half a dropped file should go into, correctly — and then will not take a file from its own drive at all while a partition table exists |
 | [exp145-a-drive-of-our-own](./exp145-a-drive-of-our-own/) | 1 · board | A volume served out of three sectors of filesystem takes the dropped file the ROM's drive refused, writes it into the other half, and hands over — the control the update road was built to measure against |
 | [exp146-a-page-that-writes-flash](./exp146-a-page-that-writes-flash/) | 2 · a moment | The browser port of `yi26 pflash` — a phone writes firmware over PICOBOOT and reboots the board, which is the only route left once a partition table closes the drive |
+| [exp147-two-firmwares-one-phone](./exp147-two-firmwares-one-phone/) | 3 · a person | The whole A/B arc arranged so a phone can run it and an LED reports the answer — fast blink or slow, and two different ways to make it change |
 
 ## The browser track, finished
 

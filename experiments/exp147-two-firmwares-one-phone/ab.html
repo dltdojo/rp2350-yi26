@@ -1,0 +1,427 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp147 — two firmwares, and the switch between them</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp147 — one file, no dependencies, no build step, no server.
+
+  Reads both halves of an A/B pair over PICOBOOT, says which one the ROM will
+  boot, and switches between them two different ways — because this chip has
+  two different answers to "run the other one", and they are not the same
+  thing:
+
+    TRY ONCE      reboot(FLASH_UPDATE, other_half) — writes NOTHING. The other
+                  half runs until the next reset, and then it is gone. This is
+                  the mechanism exp143 found under try-before-you-buy.
+
+    SWITCH        rewrite FOUR BYTES — the other half's VERSION word — so it is
+                  higher than this one's. Now the ROM boots it every time. This
+                  is exp142's rule, used as a lever.
+
+  The LED is the readout: slot A blinks fast, slot B blinks slow. Nothing has
+  to be installed on the host to see which one is running, which is the whole
+  reason this experiment is arranged the way it is.
+
+  It does NOT install the pair. tools/pages/pflash.html does that, it is the
+  maintained tool for it, and a second flashing implementation living in a demo
+  page is two things that can drift apart.
+
+  Open it directly from the filesystem — double-click on a desktop, Files app
+  -> "Open with Chrome" on Android. The board must be in BOOTSEL: flash.html
+  puts it there from a phone, `yi26 bootsel` from a desktop.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: you cannot run this page. It needs a person to pick
+  the device from a native dialog and a person to look at an LED. The parts
+  that can be checked without either are in check.sh, which runs this file's
+  own parser against real fixtures. See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 46rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button[disabled] { opacity: .45; cursor: default; }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin: .8rem 0; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); }
+  #status.ok { border-color: var(--ok); color: var(--ok); }
+  #status.bad { border-color: var(--bad); color: var(--bad); }
+  #status.warn { border-color: var(--warn); color: var(--warn); }
+  #halves { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin: 1rem 0; }
+  .half { border: 1px solid var(--line); border-radius: 8px; padding: .8rem; }
+  .half.wins { border-color: var(--ok); }
+  .half h2 { font-size: 1rem; margin: 0 0 .3rem; }
+  .half .v { font: 15px ui-monospace, monospace; }
+  .half .tag { font-size: .8rem; color: var(--dim); }
+  .half.wins .tag { color: var(--ok); }
+  #out { white-space: pre-wrap; font: 13px/1.5 ui-monospace, monospace; background: #0000000d;
+         padding: .8rem; border-radius: 6px; min-height: 5rem; overflow-x: auto; }
+  @media (prefers-color-scheme: dark) { #out { background: #ffffff0d; } }
+  .note { color: var(--dim); font-size: .9rem; }
+  .mark { color: var(--dim); font-size: .8rem; margin-top: 2rem; }
+  code { font-family: ui-monospace, monospace; }
+</style>
+
+<h1>Two firmwares, and the switch between them</h1>
+<p class="sub">Slot A blinks fast, slot B blinks slow. The board must be in BOOTSEL.</p>
+
+<div class="row">
+  <button id="read">Read both halves</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+</div>
+
+<div id="halves">
+  <div class="half" id="halfA"><h2>A · fast</h2><div class="v">—</div><div class="tag">sectors 1–16</div></div>
+  <div class="half" id="halfB"><h2>B · slow</h2><div class="v">—</div><div class="tag">sectors 17–32</div></div>
+</div>
+
+<div class="row">
+  <button id="try" disabled>Try the other half once</button>
+  <button id="switch" disabled>Switch to it permanently</button>
+</div>
+
+<div id="status">Press <b>Read both halves</b>. You will be asked to pick the
+board once — it appears as <b>RP2350 Boot</b>. On a phone the same board may be
+listed more than once; the live entry is the one that asks for USB permission.</div>
+
+<pre id="out"></pre>
+
+<p class="note">
+  <b>Try once</b> sends <code>reboot(FLASH_UPDATE)</code> at the other half and
+  writes nothing at all. The LED changes rate, and the next reset puts it back —
+  that is the mechanism try-before-you-buy is built on.
+</p>
+<p class="note">
+  <b>Switch permanently</b> rewrites four bytes: the other half's VERSION word,
+  set above this one's. The ROM then boots it every time, because that is the
+  only rule it uses. One sector is erased and written; if that fails, the half
+  being switched *to* is the damaged one and the half you are on still boots.
+</p>
+<p class="note">
+  <b>To do it again</b>, put the board back into BOOTSEL — <code>flash.html</code>
+  from a phone. And to install the pair in the first place, use
+  <code>pflash.html</code> with the assembled <code>exp147-ab.uf2</code>.
+</p>
+
+<p class="mark">ab.html · build 2026-08-05 · rp2350-yi26 · exp147</p>
+
+<script>
+const FILTERS = [{ vendorId: 0x2e8a, productId: 0x000f }];
+
+const MAGIC = 0x431fd10b;
+const CMD_EXCLUSIVE_ACCESS = 0x1;
+const CMD_FLASH_ERASE = 0x3;
+const CMD_WRITE = 0x5;
+const CMD_EXIT_XIP = 0x6;
+const CMD_REBOOT2 = 0xa;
+const CMD_READ = 0x84;
+const IF_RESET = 0x41;
+
+const REBOOT2_NORMAL = 0x0;
+/** Boot the image at param0 ONCE, without changing what a plain reset does.
+ *  §5.5.8.5, and the way into a try-before-you-buy image (exp143). */
+const REBOOT2_FLASH_UPDATE = 0x4;
+const REBOOT2_NO_RETURN = 0x100;
+
+const FLASH_BASE = 0x10000000;
+const SECTOR = 4096;
+
+/** Where `tools/partimg` puts the two halves. check.sh compares these against
+ *  partimg's own constants, because a page that guesses the layout writes to
+ *  the wrong place in silence. */
+const A_FIRST_SECTOR = 1;
+const B_FIRST_SECTOR = 17;
+
+const BLOCK_MARKER_START = 0xffffded3;
+/** Item IDs, from `embassy_rp::block`. */
+const ITEM_1BS_VERSION = 0x48;
+const ITEM_2BS_LAST = 0xff;
+/** The items whose length field is two bytes wide, not one. Getting this wrong
+ *  walks off the end of an item and reads the next one as a header. */
+const TWO_BYTE_SIZE_ITEMS = [0x06, 0x0a, 0xfe, 0xff];
+
+const $ = (id) => document.getElementById(id);
+let device = null, ifaceNum = null, epOut = null, epIn = null, token = 1;
+let halves = null;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+function log(t) { $('out').textContent += t + '\n'; }
+const hex = (n) => '0x' + (n >>> 0).toString(16).padStart(8, '0');
+const vstr = (v) => `${(v >>> 16) & 0xffff}.${v & 0xffff}`;
+
+/* ------------------------------------------------- reading an IMAGE_DEF ---- */
+
+/** Find the VERSION item in a sector of flash, and say where it is.
+ *
+ *  Walks the block loop the ROM walks: the start marker, then items, each one
+ *  a header word carrying its own length. Returns the byte offset of the
+ *  version *value* — the four bytes this page rewrites — and the value.
+ */
+function findVersion(sector) {
+  const dv = new DataView(sector.buffer, sector.byteOffset, sector.byteLength);
+  let start = -1;
+  for (let i = 0; i + 4 <= sector.length; i += 4) {
+    if (dv.getUint32(i, true) === BLOCK_MARKER_START) { start = i; break; }
+  }
+  if (start < 0) return null;
+
+  let p = start + 4;
+  while (p + 8 <= sector.length) {
+    const w = dv.getUint32(p, true);
+    const id = w & 0xff;
+    if (id === ITEM_2BS_LAST) return null;
+    const len = TWO_BYTE_SIZE_ITEMS.includes(id) ? (w >>> 8) & 0xffff : (w >>> 8) & 0xff;
+    if (len === 0) return null;
+    if (id === ITEM_1BS_VERSION) {
+      return { at: p + 4, value: dv.getUint32(p + 4, true), blockAt: start };
+    }
+    p += len * 4;
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------- the device */
+
+function findPicoboot(dev) {
+  for (const cfg of dev.configurations) {
+    for (const i of cfg.interfaces) {
+      for (const alt of i.alternates) {
+        if (alt.interfaceClass !== 0xFF) continue;
+        let o = null, n = null;
+        for (const e of alt.endpoints) {
+          if (e.type === 'bulk' && e.direction === 'out' && o === null) o = e.endpointNumber;
+          if (e.type === 'bulk' && e.direction === 'in' && n === null) n = e.endpointNumber;
+        }
+        if (o !== null && n !== null) return { iface: i.interfaceNumber, out: o, in: n };
+      }
+    }
+  }
+  return null;
+}
+
+function packet(cmdId, args, transferLength) {
+  const pkt = new Uint8Array(32);
+  const dv = new DataView(pkt.buffer);
+  dv.setUint32(0, MAGIC, true);
+  dv.setUint32(4, token++, true);
+  pkt[8] = cmdId;
+  pkt[9] = args.length;
+  dv.setUint32(12, transferLength >>> 0, true);
+  pkt.set(args, 16);
+  return pkt;
+}
+
+async function cmd(cmdId, args, name) {
+  const w = await device.transferOut(epOut, packet(cmdId, args, 0));
+  if (w.status !== 'ok') throw new Error(`${name}: write ${w.status}`);
+  const ack = await device.transferIn(epIn, 64);
+  if (ack.status !== 'ok') throw new Error(`${name}: acknowledgement ${ack.status}`);
+}
+
+async function cmdOut(cmdId, args, data, name) {
+  const w = await device.transferOut(epOut, packet(cmdId, args, data.length));
+  if (w.status !== 'ok') throw new Error(`${name}: command packet ${w.status}`);
+  const d = await device.transferOut(epOut, data);
+  if (d.status !== 'ok') throw new Error(`${name}: data phase ${d.status}`);
+  const ack = await device.transferIn(epIn, 64);
+  if (ack.status !== 'ok') throw new Error(`${name}: acknowledgement ${ack.status}`);
+}
+
+function addrArgs(addr, len) {
+  const a = new Uint8Array(8);
+  const dv = new DataView(a.buffer);
+  dv.setUint32(0, addr, true);
+  dv.setUint32(4, len, true);
+  return a;
+}
+
+async function readFlash(addr, len) {
+  const w = await device.transferOut(epOut, packet(CMD_READ, addrArgs(addr, len), len));
+  if (w.status !== 'ok') throw new Error(`READ: command ${w.status}`);
+  const got = await device.transferIn(epIn, len);
+  if (got.status !== 'ok') throw new Error(`READ: transfer ${got.status}`);
+  await device.transferOut(epOut, new Uint8Array(0));
+  return new Uint8Array(got.data.buffer, got.data.byteOffset, got.data.byteLength);
+}
+
+async function connect() {
+  if (device) return;
+  device = await navigator.usb.requestDevice({ filters: FILTERS });
+  const id = (n) => n.toString(16).padStart(4, '0');
+  log(`picked: ${device.productName || '(no product name)'} — ` +
+      `${id(device.vendorId)}:${id(device.productId)}`);
+  try {
+    await device.open();
+  } catch (e) {
+    device = null;
+    throw new Error(
+      `${e.message} — on a phone this usually means a stale entry in the ` +
+      `chooser. Press the button again and pick a different one; the live ` +
+      `entry is the one that makes Android ask for USB permission.`);
+  }
+  if (device.configuration === null) await device.selectConfiguration(1);
+  const p = findPicoboot(device);
+  if (!p) { device = null; throw new Error('that device has no PICOBOOT interface — is the board in BOOTSEL?'); }
+  ifaceNum = p.iface; epOut = p.out; epIn = p.in;
+  await device.claimInterface(ifaceNum);
+  await device.controlTransferOut({
+    requestType: 'vendor', recipient: 'interface',
+    request: IF_RESET, value: 0, index: ifaceNum,
+  });
+  token = 1;
+  await cmd(CMD_EXCLUSIVE_ACCESS, new Uint8Array([1]), 'EXCLUSIVE_ACCESS');
+  await cmd(CMD_EXIT_XIP, new Uint8Array([]), 'EXIT_XIP');
+  log(`claimed PICOBOOT (interface ${ifaceNum}, OUT ep ${epOut}, IN ep ${epIn})`);
+  $('stop').disabled = false;
+}
+
+/* ------------------------------------------------------------- the actions */
+
+function show(which, half) {
+  const el = $(which === 'A' ? 'halfA' : 'halfB');
+  el.querySelector('.v').textContent = half.version === null ? 'no image' : `v${vstr(half.version)}`;
+  el.classList.toggle('wins', !!half.wins);
+  el.querySelector('.tag').textContent = half.wins
+    ? 'the ROM boots this one'
+    : (which === 'A' ? 'sectors 1–16' : 'sectors 17–32');
+}
+
+async function readBoth() {
+  try {
+    await connect();
+    const out = {};
+    for (const [name, sec] of [['A', A_FIRST_SECTOR], ['B', B_FIRST_SECTOR]]) {
+      const base = FLASH_BASE + sec * SECTOR;
+      const bytes = await readFlash(base, 256);
+      const found = findVersion(bytes);
+      out[name] = { base, version: found ? found.value : null, at: found ? found.at : null };
+      log(`${name} at ${hex(base)}: ${found ? 'v' + vstr(found.value) : 'no IMAGE_DEF version found'}`);
+    }
+    if (out.A.version === null && out.B.version === null) {
+      say('Neither half has a versioned image. Install the pair with pflash.html first.', 'bad');
+      halves = null;
+    } else {
+      // The ROM's rule, and the only one it uses: the higher VERSION wins.
+      const a = out.A.version === null ? -1 : out.A.version;
+      const b = out.B.version === null ? -1 : out.B.version;
+      out.A.wins = a >= b && a >= 0;
+      out.B.wins = b > a;
+      halves = out;
+      const winner = out.A.wins ? 'A' : 'B';
+      const other = out.A.wins ? 'B' : 'A';
+      say(`The ROM boots slot ${winner}. "Try once" and "Switch" both act on slot ${other}.`, 'ok');
+      $('try').disabled = out[other].version === null;
+      $('switch').disabled = out[other].version === null;
+    }
+    show('A', out.A); show('B', out.B);
+  } catch (e) {
+    say(`Failed: ${e.message}`, 'bad');
+    log(`exception: ${e}`);
+  }
+}
+
+function otherHalf() {
+  return halves.A.wins ? { name: 'B', ...halves.B } : { name: 'A', ...halves.A };
+}
+
+/** Boot the other half once, writing nothing. */
+async function tryOnce() {
+  try {
+    const other = otherHalf();
+    const rb = new Uint8Array(16);
+    const dv = new DataView(rb.buffer);
+    dv.setUint32(0, REBOOT2_FLASH_UPDATE | REBOOT2_NO_RETURN, true);
+    dv.setUint32(4, 100, true);        // dDelayMS
+    dv.setUint32(8, other.base, true); // dParam0: update_base
+    log(`REBOOT2 FLASH_UPDATE at ${hex(other.base)} — slot ${other.name}, once`);
+    try {
+      await device.transferOut(epOut, packet(CMD_REBOOT2, rb, 0));
+    } catch (e) {
+      log(`  (the board went away, which is the reboot: ${e.message})`);
+    }
+    say(`Slot ${other.name} is running now, and nothing was written. Reset the ` +
+        `board and the LED goes back to the other rate.`, 'ok');
+    device = null; $('stop').disabled = true;
+  } catch (e) {
+    say(`Failed: ${e.message}`, 'bad');
+    log(`exception: ${e}`);
+  }
+}
+
+/** Rewrite the other half's VERSION so the ROM prefers it from now on. */
+async function switchTo() {
+  try {
+    const other = otherHalf();
+    const winner = halves.A.wins ? halves.A : halves.B;
+    const newVersion = ((((winner.version >>> 16) & 0xffff) + 1) << 16) >>> 0;
+
+    // The whole sector, because that is the erase granularity — the four bytes
+    // cannot be changed without rewriting everything around them.
+    const sector = await readFlash(other.base, SECTOR);
+    if (sector.length !== SECTOR) {
+      throw new Error(`read back ${sector.length} bytes of ${SECTOR}; not rewriting a sector ` +
+                      `from a short read`);
+    }
+    const found = findVersion(sector);
+    if (!found) throw new Error('no VERSION item in that half — nothing was written');
+
+    const patched = new Uint8Array(sector);
+    new DataView(patched.buffer).setUint32(found.at, newVersion, true);
+    log(`slot ${other.name}: v${vstr(found.value)} -> v${vstr(newVersion)} ` +
+        `(four bytes at +${found.at})`);
+
+    say(`Erasing and rewriting one sector of slot ${other.name}…`, 'warn');
+    await cmd(CMD_FLASH_ERASE, addrArgs(other.base, SECTOR), 'FLASH_ERASE');
+    await cmdOut(CMD_WRITE, addrArgs(other.base, SECTOR), patched, 'WRITE');
+
+    const back = await readFlash(other.base, 256);
+    const check = findVersion(back);
+    if (!check || check.value !== newVersion) {
+      throw new Error('the rewrite did not verify — the board was NOT rebooted, and ' +
+                      `slot ${other.name} may need reinstalling with pflash.html`);
+    }
+    log(`READ back: slot ${other.name} is v${vstr(check.value)}`);
+
+    const rb = new Uint8Array(16);
+    new DataView(rb.buffer).setUint32(0, REBOOT2_NORMAL | REBOOT2_NO_RETURN, true);
+    new DataView(rb.buffer).setUint32(4, 100, true);
+    try {
+      await device.transferOut(epOut, packet(CMD_REBOOT2, rb, 0));
+    } catch (e) {
+      log(`  (the board went away, which is the reboot: ${e.message})`);
+    }
+    say(`Slot ${other.name} is the higher version now, so the ROM boots it — this ` +
+        `time and every time. Four bytes.`, 'ok');
+    device = null; $('stop').disabled = true;
+  } catch (e) {
+    say(`Failed: ${e.message}`, 'bad');
+    log(`exception: ${e}`);
+  }
+}
+
+async function disconnect() {
+  try { if (device && ifaceNum !== null) await device.releaseInterface(ifaceNum); } catch {}
+  try { if (device) await device.close(); } catch {}
+  device = null; ifaceNum = null;
+  say('Disconnected.', '');
+  $('stop').disabled = true;
+}
+
+if (!('usb' in navigator)) {
+  say('This browser has no WebUSB. Use Chrome or Edge.', 'bad');
+  $('read').disabled = true;
+} else {
+  $('read').onclick = readBoth;
+  $('try').onclick = tryOnce;
+  $('switch').onclick = switchTo;
+  $('stop').onclick = disconnect;
+}
+</script>
