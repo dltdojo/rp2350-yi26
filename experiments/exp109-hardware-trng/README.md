@@ -73,6 +73,116 @@ as the ring oscillator is. What changes is that consecutive samples become
 independent enough that the health tests stop rejecting them, so less work is
 wasted. Those are different claims and it is worth not merging them.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. **Two firmware
+images are in it and they are not interchangeable** — comparing them is the
+experiment.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. The TRNG is inside the chip;
+    the RP2040 has none, so this one is RP2350 only.
+  * Ubuntu. `cat` and `stty` are already there.
+  * Two minutes, because one of the two measurements needs sixty seconds of
+    watching nothing happen.
+
+1. UNPACK IT.
+
+       unzip exp109-hardware-trng.zip
+       cd exp109-hardware-trng
+       ls firmware/
+
+   Two images:
+
+       exp109-hardware-trng.uf2        this repository's sample_count = 1000
+       exp109-upstream-default.uf2     the driver's own default, 25
+
+2. FLASH THE FIRST ONE. **[HUMAN STEP]** Hold BOOTSEL, plug in, let go:
+
+       cp firmware/exp109-hardware-trng.uf2 /media/$USER/RP2350/
+
+3. MEASURE IT. Sixty seconds, so there is no arguing about the second round.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 60 cat /dev/ttyACM0 | grep cost:
+
+   Expect about sixty-five lines, one a second, each costing ~5–6 ms:
+
+       [      43 ms] cost: 5850 us this time, 5850 best, 5850 worst over 1 rounds
+       [    1049 ms] cost: 5594 us this time, 5594 best, 5850 worst over 2 rounds
+       ...
+       [   64408 ms] cost: 5583 us this time, 4982 best, 11028 worst over 65 rounds
+
+4. FLASH THE OTHER ONE. **[HUMAN STEP]** Same as step 2, other file.
+
+       cp firmware/exp109-upstream-default.uf2 /media/$USER/RP2350/
+
+5. MEASURE THAT. Same command, same sixty seconds.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 60 cat /dev/ttyACM0 | grep cost:
+
+   Expect **one line**, and do not expect its number to match anyone else's:
+
+       [     401 ms] cost: 363837 us this time, 363837 best, 363837 worst over 1 rounds
+
+   One. Not sixty-five slower ones — one, and then nothing for the rest of the
+   minute.
+
+   **The count is the reproducible part; the cost is not.** Three clean boots
+   here gave 363837 µs, 50063 µs and 144 µs for that single round — a spread
+   of three orders of magnitude, on one board, within an hour. All three gave
+   exactly one round. A draw that returns in 144 µs has not gathered much of
+   anything, which is the shape of the problem [exp112](../exp112-silent-fallback/)
+   is named after; whether it is the same problem is not established here.
+
+6. CHECK THAT THE BOARD IS STILL ALIVE. Run the same capture without the
+   `grep` and you will see `heartbeat #1` … `#60` ticking away the whole time.
+   The executor is fine. It is the draw that never comes back.
+
+   That is the finding, and it is bigger than the one this experiment was
+   built to make. `sample_count = 25` does not merely make entropy expensive.
+   After the first draw, this board stopped producing it altogether for a full
+   minute, while everything else kept running — which is the failure mode you
+   would least like to discover in something that seeds a key.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * Step 5 shows more than one line — say so. It would mean this depends on
+    something about the board or the moment, and one board is not a sample.
+  * Nothing at all from either image — the board is not running this firmware,
+    or the cable is charge-only.
+
+## What sixty seconds found that a screenful did not
+
+Measured 2026-08-06, on the Pico 2 this repository is captured from, both
+images flashed from a clean boot and read continuously from second zero:
+
+| build | `sample_count` | rounds in 60 s | cost per round |
+| --- | --- | --- | --- |
+| this repository's | 1000 | **65**, every run | ~5.6 ms, steady |
+| the driver's default | 25 | **1**, every run | 364 ms / 50 ms / 0.14 ms |
+
+Three clean boots of the slow build gave those three costs for their one and
+only round. The round count did not vary once.
+
+The `Expected output` below is the older capture and it is not wrong: its
+first round costs 381901 µs, which agrees with the 363837 µs above. It simply
+stops at `heartbeat #2`, and everything that matters happens after that.
+
+So the headline "wrong by a factor of thousands" understates it in one
+direction and overstates it in another. Per draw, the ratio is about 65×, not
+thousands. But the slow build does not go on being slow — **it stops**, and
+the heartbeat task keeps running beside it, which means nothing in the
+firmware looks wrong from the outside.
+
+This is measured, not diagnosed. What is known: `fill_bytes().await` returned
+once and had not returned again sixty seconds later. Why is not established
+here, and one board is not a sample.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu, at `sample_count = 1000`:

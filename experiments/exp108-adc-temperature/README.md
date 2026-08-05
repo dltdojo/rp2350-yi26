@@ -54,6 +54,69 @@ and therefore a *smaller* count — worth checking against the log below:
 `raw 843` gives 42.58 °C and `raw 841` gives 43.52 °C. Smaller count, higher
 temperature. If your numbers move the other way, that sign is where to look.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone — no checkout, no
+compiler, no `yi26`. The instrument is `cat`.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable. Nothing else — the sensor is
+    inside the chip, and there is no part to add.
+  * Ubuntu. `cat` and `stty` are already there.
+
+1. UNPACK IT.
+
+       unzip exp108-adc-temperature.zip
+       cd exp108-adc-temperature
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go, and copy:
+
+       cp firmware/exp108-adc-temperature.uf2 /media/$USER/RP2350/
+
+   *Without hands:* a board already running exp105 or later takes
+   `yi26 flash`, which needs the repository.
+
+3. READ THE TEMPERATURE. Give the board five seconds first — Ubuntu's
+   ModemManager opens each new `ttyACM` for a moment and `stty` will block
+   behind it.
+
+       sleep 5
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 6 cat /dev/ttyACM0
+
+   Expect:
+
+       [      37 ms] exp108 up. Reading ADC channel 4 — the sensor inside the chip.
+       [      37 ms] temp: raw 852 of 4095 -> 38.37 C
+       [    1037 ms] temp: raw 844 of 4095 -> 42.11 C
+       [    2037 ms] temp: raw 844 of 4095 -> 42.11 C
+
+   **Around 40 °C, not room temperature.** That is not a broken sensor: it is
+   a chip that has been running, and a Pico 2 doing almost nothing still sits
+   well above the air around it. If you were expecting 22 °C you were
+   expecting a thermometer, and this is a chip reporting on itself.
+
+   The first reading is usually the odd one out. It is taken before anything
+   has settled, and the ones after it agree with each other.
+
+4. WATCH IT MOVE. **[HUMAN STEP]** Pinch the black chip in the middle of the
+   board between finger and thumb for a few seconds while the log is running.
+   The number climbs several degrees and then falls back when you let go.
+
+   *Without a finger:* leave `cat` running for a minute and watch the raw
+   count drift by one or two — the same sensor, moving more slowly. The
+   arithmetic is what is being checked here, and it is checked by the numbers
+   being plausible and stable, not by their reacting to you.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * Every line double-spaced — `-icrnl` was skipped.
+  * The temperature reads a wild number like −40 or 200 — that is the
+    arithmetic, not the sensor. The conversion in `src/main.rs` is the
+    datasheet's, and it is one line worth reading.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu.

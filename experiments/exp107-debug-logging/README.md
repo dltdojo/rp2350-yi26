@@ -29,6 +29,84 @@ policy for when things go wrong — that async is for.
 - [`crates/usb-log/src/lib.rs`](../../crates/usb-log/src/lib.rs) — **read this
   one.** About a hundred lines, and the actual subject of the experiment.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone — no checkout, no
+compiler, no `yi26`. The instrument is `cat`, which is already on your machine.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat` and `stty` are already there.
+  * Patience for exactly twenty seconds, at step 4. That wait IS the
+    experiment; skipping it is skipping the thing this proves.
+
+1. UNPACK IT.
+
+       unzip exp107-debug-logging.zip
+       cd exp107-debug-logging
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go, and copy:
+
+       cp firmware/exp107-debug-logging.uf2 /media/$USER/RP2350/
+
+   *Without hands:* a board already running exp105 or later reboots itself
+   when its port is opened at 1200 baud, so `yi26 flash` does it — but `yi26`
+   needs the repository.
+
+3. DO NOT OPEN THE PORT. Not yet. The board is running, three tasks are
+   logging, and nobody is listening. That is the situation being measured.
+
+4. WAIT TWENTY SECONDS, then read.
+
+       sleep 20
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 8 cat /dev/ttyACM0
+
+   `-icrnl` stops the terminal turning carriage returns into newlines, which
+   would double-space everything. `timeout` is there because `cat` on a serial
+   port never ends by itself.
+
+5. READ THE GAP. This is the whole experiment, and it is in three parts:
+
+       [      37 ms] exp107 up. Queue holds 16 lines.
+       [      37 ms] Nothing has been read from this port yet, and nothing cares.
+       [      87 ms] heartbeat #1 (LED flashed)
+       ...
+       [    7087 ms] heartbeat #8 (LED flashed)
+       [   23037 ms] (+30 lines lost) scheduler: 230 wakeups, worst lateness 5 us
+       [   23088 ms] heartbeat #24 (LED flashed)
+
+   * **The board's first seven seconds are in there**, starting at 37 ms, even
+     though nothing opened the port until twenty seconds later. Output written
+     before anyone was listening survived — your kernel held it.
+   * **The log jumps from heartbeat #8 to #24**, and the numbering is
+     unbroken. Sixteen heartbeats are missing from the LOG; not one is missing
+     from the WORK. The task kept its rhythm the entire time its output was
+     going nowhere, which is the thing a logger must never take away.
+   * **`(+30 lines lost)`** is attached to the first line that got out after
+     the gap, so the loss is marked where it happened rather than announced
+     from somewhere convenient. It landed on a `scheduler:` line — the
+     survivor is whichever task logged first, not a designated one.
+
+   Your numbers will differ. `+30` and `#24` depend on how long you actually
+   waited, and the microseconds depend on your board. The shape does not: a
+   run of early lines, one marked gap, and an unbroken sequence across it.
+
+6. WATCH TWO TASKS INTERLEAVE. Still in the same output — `scheduler:` every
+   second and `heartbeat` every second, offset by 50 ms, from two loops that
+   know nothing about each other and share one queue.
+
+IF IT DOES NOT WORK
+  * `stty` prints nothing and never returns — Ubuntu's ModemManager probes
+    every new `ttyACM` for a few seconds. Ctrl-C, wait, try again.
+  * Every line is double-spaced — `-icrnl` was skipped.
+  * `cat` shows nothing at all and never returns — the board is not running
+    this firmware, or the cable is charge-only.
+  * There is no gap and no `lines lost` — you read too early. The kernel's own
+    buffer covers the first several seconds; the loss only starts once the
+    board has out-talked it.
+
 ## Two ways to do it
 
 ```sh
