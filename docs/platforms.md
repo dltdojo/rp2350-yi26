@@ -344,13 +344,32 @@ that a laptop can be told to share a connection and a phone has no such setting.
 A board that wants to be reachable from a phone has to hand out the address
 itself.
 
-Two things that run has **not** established, worth not over-reading:
+#### ...and then a browser cannot reach it
 
-- **Whether a USB Ethernet link can capture the phone's default route.** Mobile
-  data stayed up throughout, but an interface with no address was never a
-  candidate default network, so nothing was at stake.
-- **Anything about Wi-Fi specifically.** That phone had none available at the
-  time.
+Measured the same day with [exp150](../experiments/exp150-a-page-served-by-the-board/),
+and it is the boundary of this whole route. The board hands the phone an address
+and serves HTTP on it; Chrome at `http://192.168.7.1/` returns
+**`ERR_TIMED_OUT`**, and the board reports `0 request(s) served` for the whole
+attempt. Not one connection arrived.
+
+The error code is the useful part. `ERR_TIMED_OUT` rather than
+`ERR_ADDRESS_UNREACHABLE` or `ERR_CONNECTION_REFUSED` means the packets left by
+*some* route and nothing answered — the phone's default network, where a private
+address goes nowhere. **The interface never becomes a network Android's per-app
+routing will select**, and no firmware can reach that decision.
+
+Tested with and without a DHCP **router option**, in case a gatewayless network
+was one Android declined to promote. Identical result, so that is not the cause.
+
+The compensation is that the risk everyone expected did **not** happen: mobile
+data survived every variant, including the build that announced the board as the
+gateway. A USB Ethernet gadget on this phone does not displace anything. It also
+does not carry anything.
+
+So on an unrooted phone, from a browser: **PICOBOOT and CDC over WebUSB work; IP
+does not.** That is why
+[`tools/pages/`](../tools/pages/) is built the way it is, and it is now a
+measurement rather than an assumption.
 
 **And a board does not sit in BOOTSEL safely on a phone.** If the screen sleeps
 and the port is power-cycled, the board resets — and a reset boots a firmware

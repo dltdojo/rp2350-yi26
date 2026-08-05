@@ -109,6 +109,41 @@ megabyte of firmware. Saying "this page does not write" and meaning "nothing
 gets written" is the kind of error that only shows up on somebody else's board,
 and the person holding it has no way back.
 
+## Trust the instrument you built
+
+The worst procedure in this record was written by somebody who had already
+solved the problem and then did not notice.
+
+exp150's LED has four states, and the fourth exists precisely so that nobody has
+to read a log:
+
+```text
+fast   an address was leased, and NO request has been served
+solid  a browser got the page
+```
+
+When the page would not load, the person was asked for the LED — and answered
+**"fast"**. That was the complete answer. It said the board had a link, had
+leased an address, and had served nothing, which is exactly what the whole
+question was.
+
+They were then asked to unzip a second package, open `log.html`, tap through a
+device chooser, connect it, keep that tab alive, open a second tab, type an
+address, wait for a timeout, switch back, and screenshot. Six steps, one
+exchange, **and the log said `0 request(s) served`** — the same fact the LED had
+already reported, in a form that took ten times as long to obtain.
+
+Their reply was *"除錯過程太複雜"*, and it was the right correction.
+
+> **Before asking for a diagnostic, check whether the readout you already built
+> answers the question.** If it does, the extra steps buy confirmation, and
+> confirmation is not worth a round trip through somebody else's hands.
+
+The trap is specific to this arrangement: the person who designed the LED is not
+the person looking at it, so the designer reaches for the tool *they* would use
+— a log — and forgets that they already spent effort making that unnecessary.
+An instrument you do not trust is an instrument you should not have built.
+
 ## The round trip is the expensive thing
 
 You cannot iterate. So everything that *can* be checked without the phone has to

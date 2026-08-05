@@ -1008,11 +1008,41 @@ exp147 was built against, so nothing had to move to start.
   gateway, that is a finding, and adding six bytes is the experiment. exp150
   runs both builds in one round trip rather than finding out twice.
 
-- **exp150 — the board serves its own log.** Hand-rolled HTTP/1.0, three
-  endpoints, readable in any browser on any platform with nothing installed.
-  The honest cost to write down beside it: `http://` is not a secure context, so
-  the origin the board serves can never also use WebUSB. This road opens one
-  door by closing another.
+- **[exp150](./exp150-a-page-served-by-the-board/) — a page served by the
+  board.** Hand-rolled HTTP/1.0 over the same link, so a page needs no WebUSB,
+  no permission dialog, no chooser and no Chromium. The honest cost beside it:
+  `http://` is not a secure context, so the origin the board serves can never
+  also use WebUSB. This road opens one door by closing another.
+
+  **On Android it does not open. Measured 2026-08-05 on a Pixel 9a, and this is
+  the wall the whole road was walking towards.** Chrome at
+  `http://192.168.7.1/` returns `ERR_TIMED_OUT` — not `ERR_ADDRESS_UNREACHABLE`
+  and not `ERR_CONNECTION_REFUSED`, so the packets went *somewhere* and nothing
+  came back. The board says where they did not go:
+
+  ```text
+  link UP, 192.168.7.2 leased, 0 request(s) served
+  ```
+
+  for 245 seconds, with no connection line at all. The phone took the address
+  and then sent its browser's traffic out of its default network, where a
+  private address is blackholed. **Both builds behaved identically**, so it is
+  not about the gateway: announcing one changed nothing, and the interface
+  simply never becomes a network Android's per-app routing will select. Nothing
+  in a firmware can reach that decision, and there is no WebUSB-style userspace
+  fallback for it.
+
+  Two things this settles rather than leaves open:
+
+  - **The default-route risk is retired.** Mobile data survived throughout —
+    including with the board announcing itself as the gateway, which was the
+    worst case anyone had reason to fear. exp151 does not have to work around it.
+  - **exp152 is not a supplement, it is the phone route.** A browser reaching
+    the board over CDC/WebUSB is proven on this exact phone; a browser reaching
+    it over IP is not going to be.
+
+  Still expected to work on a desktop, where the interface is an ordinary one —
+  `curl http://192.168.7.1/` is the check, and it is waiting on a board.
 
 - **exp151 — the board as an HTTP client** (desktop only, and deliberately so).
   The same stack pointed outward. It needs the host to route and NAT for it,
