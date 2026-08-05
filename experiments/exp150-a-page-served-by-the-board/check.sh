@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# exp150 quick check — non-interactive verdict.
+#
+# PRESENCE 3: the result of this experiment is whether a page appears in a
+# browser on a phone, and nothing here can see a browser or a phone.
+#
+# Most of what follows is not "does it compile". It is the set of mistakes that
+# would each cost a round trip to somebody holding the only board — a panic
+# before USB is ready, a socket that resets instead of closing, a page that
+# needs the internet to render. docs/debugging-on-a-phone.md is the argument
+# for why those are worth a guard rather than a code review.
+#
+#   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
+
+set -u
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+source ../lib.sh
+require_supported_platform
+
+PRESENCE=3   # a browser on a phone is the instrument
+presence_check
+
+USB_IFACE="cdc+ncm"
+USB_CARRIES="log+frames"
+USB_HOST="cdc_acm+cdc_ncm"
+USB_RUNS_ON="own"
+usb_check
+
+TARGET=thumbv8m.main-none-eabihf
+ELF=target/$TARGET/release/exp150-a-page-served-by-the-board
+SRC=src/main.rs
+PLAIN=target/exp150.uf2
+GW=target/exp150-gw.uf2
+
+if command -v cargo > /dev/null && command -v elf2flash > /dev/null; then
+    pass "toolchain present (cargo, elf2flash)"
+else
+    fail "toolchain present" "run exp102 first"
+    exit 1
+fi
+
+# ---- both builds, because both are shipped ---------------------------------
+
+build() { # features out.uf2
+    cargo build --release --quiet ${1:+--features "$1"} 2>/dev/null \
+        && elf2flash convert -b rp2350 "$ELF" "$2" > /dev/null 2>&1
+}
+
+if build "" "$PLAIN" && build announce-gateway "$GW"; then
+    pass "both builds compile (plain and announce-gateway)"
+else
+    fail "both builds compile" "cargo build --release [--features announce-gateway]"
+    exit "$FAILED"
+fi
+
+if cmp -s "$PLAIN" "$GW"; then
+    fail "the two builds differ" "announce-gateway changed nothing — the experiment has one arm"
+else
+    pass "the two builds differ — the phone gets both in one round trip"
+fi
+
+if readelf -S "$ELF" 2>/dev/null | grep -qE '\.vector_table +PROGBITS +10000000'; then
+    pass "linked at 0x10000000 — an ordinary image"
+else
+    fail "linked at 0x10000000" "a moved image is the exp139 dark-board bug"
+fi
+
+reboot_watcher_check "$SRC"
+
+# Still under an A/B slot, and getting closer. exp148 had 25 KiB spare; a TCP
+# stack and a server spend most of it. Reported rather than asserted at a
+# threshold, because the number itself is the interesting part.
+flash=$(( $(stat -c%s "$PLAIN") / 2 ))
+if [[ "$flash" -le 65536 ]]; then
+    pass "still fits an A/B slot ($flash of 65536, $(( 65536 - flash )) spare)"
+else
+    fail "fits an A/B slot" "$flash bytes — the network road has outgrown exp142's geometry"
+fi
+
+# ---- the mistakes that cost a round trip -----------------------------------
+
+# A `StaticCell` inside a pooled task panics on the second worker's `init()`,
+# and a panic here happens before USB is ready — which is the one failure this
+# firmware cannot be recovered from without a hand on BOOTSEL. The buffers must
+# come from `main`.
+if ! sed -n '/async fn http_task/,/^}/p' "$SRC" | grep -q 'StaticCell'; then
+    pass "the pooled task allocates nothing of its own — a second init() would panic"
+else
+    fail "the pooled task allocates nothing of its own" \
+         "StaticCell::init() panics the second time, before USB is up"
+fi
+
+if grep -q 'pool_size = 2' "$SRC"; then
+    pass "two HTTP workers — a browser opens more than one connection at a time"
+else
+    fail "two HTTP workers" "one listener means speculative connections get an RST"
+fi
+
+# `close()` sends a FIN; dropping before it is acknowledged aborts instead, and
+# a browser shown a reset after a 200 renders nothing at all.
+if grep -q 'socket.close()' "$SRC" && grep -q 'State::Closed' "$SRC"; then
+    pass "the connection is closed and the close is waited for, not dropped"
+else
+    fail "the close is waited for" "an abort after a 200 renders as a blank page"
+fi
+
+# ...and the wait is bounded, or a peer that never answers holds a worker.
+if sed -n '/socket.close()/,/^    }/p' "$SRC" | grep -q 'deadline'; then
+    pass "the wait for the close is bounded"
+else
+    fail "the wait for the close is bounded" "a silent peer would keep a worker forever"
+fi
+
+if grep -q 'set_timeout' "$SRC"; then
+    pass "sockets have a timeout — browsers open connections and then say nothing"
+else
+    fail "sockets have a timeout" "a speculative connection would hold a worker forever"
+fi
+
+# ---- the page has to render with no network at all -------------------------
+#
+# It is served by a board on a USB cable to a phone whose browser may have no
+# route anywhere else. Anything fetched from elsewhere is a blank rectangle.
+page="$(sed -n '/fn render/,/^}/p' "$SRC")"
+if ! echo "$page" | grep -qE 'https?://[a-z]' ; then
+    pass "the page references nothing outside the board"
+else
+    fail "the page is self-contained" "an external URL will not load over a USB cable"
+fi
+if ! echo "$page" | grep -q '<script'; then
+    pass "no script in the page — it renders in whatever browser is holding it"
+else
+    fail "no script in the page" "this page exists to work where WebUSB does not"
+fi
+
+# The count is the proof it is not a cache. Without it, a reload that shows the
+# same page proves nothing, and "reload it" is the instruction a phone user gets.
+if echo "$page" | grep -q 'served' && grep -q 'SERVED.fetch_add' "$SRC"; then
+    pass "the page prints a request count — a reload is visibly a second request"
+else
+    fail "the page prints a request count" "otherwise a cached page and a served page look identical"
+fi
+
+# ---- the router option, which is the whole variable ------------------------
+
+if grep -q 'cfg!(feature = "announce-gateway")' "$SRC" && grep -q 'router:' "$SRC"; then
+    pass "the router option is what the feature switches, and nothing else is"
+else
+    fail "the feature switches the router option" "that is the one difference being measured"
+fi
+
+if strings "$ELF" 2>/dev/null | grep -q 'this build lies'; then
+    pass "the gateway build says on its own page that it is lying"
+else
+    fail "the gateway build admits it" "a page that claims a gateway must say so"
+fi
+
+# ---- the protocol, tested where it can be tested ---------------------------
+
+crate_test ../../crates/dhcp "crates/dhcp passes its own tests (both router answers included)"
+
+# ---- the board half, if one is here ----------------------------------------
+
+PRODUCT="$(yi26 port --json 2>/dev/null | sed -n 's/.*"product":"\([^"]*\)".*/\1/p')"
+if [[ "$PRODUCT" != *"exp150"* ]]; then
+    echo "SKIP  no board running exp150 (enumerated as: ${PRODUCT:-nothing})"
+    echo "NOTE  and the result of this experiment is not here anyway: it is whether"
+    echo "      a page appears in a browser on a phone. Both .uf2 files are built."
+    exit "$FAILED"
+fi
+echo "NOTE  enumerated as: $PRODUCT"
+
+OUT="$(yi26 log --seconds 8 2>/dev/null || true)"
+if echo "$OUT" | grep -q 'serving http://'; then
+    pass "the board says it is serving"
+else
+    echo "SKIP  the boot lines have aged out — replug the board"
+fi
+if echo "$OUT" | grep -q 'http: served request'; then
+    pass "a request has been answered — $(echo "$OUT" | grep -o 'served request #[0-9]*' | tail -1)"
+else
+    echo "NOTE  no request served yet. On this host: curl http://192.168.7.1/"
+fi
+
+exit "$FAILED"

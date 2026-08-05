@@ -1,0 +1,78 @@
+[package]
+name = "exp150-a-page-served-by-the-board"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The board serves a web page over its own USB link, to answer whether a phone browser can reach an address the phone never showed as a network"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-futures = "0.1.2"
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
+# `max-interface-count-8`: this firmware declares FOUR interfaces — CDC-ACM is
+# two (comm + data) and CDC-NCM is another two. embassy-usb's default ceiling
+# is exactly four, so the build fits with nothing to spare; the next function
+# added would blow it. Raised here so that limit is a decision and not a
+# surprise. exp150 will need the same.
+embassy-usb = { version = "0.6.0", features = ["max-interface-count-8"] }
+static_cell = "2.1.1"
+
+# Note what is gone from exp148's list: **`dhcpv4`**. That feature is the
+# client, and this board is not one any more — it has a static address and
+# hands one out. `udp` replaces it, because four packets on port 67 is the
+# entire difference between the two experiments.
+#
+# Still not here: `tcp`. An address is not a service, and exp150 is where that
+# stops being true.
+embassy-net = { version = "0.9.1", default-features = false, features = [
+    "udp",
+    "tcp",
+    "proto-ipv4",
+    "medium-ethernet",
+] }
+# `write_all` on the TCP socket.
+embedded-io-async = "0.7.0"
+
+# `Signal` — the one thing the socket task tells the LED and the reporter.
+embassy-sync = "0.8.0"
+# Only for `StaticConfigV4::dns_servers`, which is a `heapless::Vec`. Pinned to
+# the same 0.9 embassy-net itself uses: two versions in the graph would be two
+# incompatible `Vec` types with one name, and the error says nothing useful.
+heapless = { version = "0.9", default-features = false }
+
+usb-log = { path = "../../crates/usb-log" }
+usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+# The protocol, with no socket in it — so `cargo test` can feed it a packet cut
+# at every length on the machine you are reading this on.
+dhcp = { path = "../../crates/dhcp" }
+
+[features]
+default = ["auto-reboot"]
+
+auto-reboot = ["usb-reboot/auto-reboot"]
+
+# Put a **router option** in the DHCP offer — a claim that this board is a way
+# out to somewhere, which it is not.
+#
+# It exists because exp149 measured a phone that took the address, kept its
+# mobile data, and never listed the link as a network at all. A network with no
+# gateway is one Android may correctly decline to promote, and if that is why,
+# this feature is the difference. Both builds ship together: the phone answers
+# in one round trip instead of two.
+#
+# If the plain build works, this one is a curiosity. If only this one works, it
+# is a finding with a cost attached, and the cost is what exp151 has to weigh.
+announce-gateway = []
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]

@@ -41,6 +41,11 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
+// Only the tests allocate — `codes()` collects the option codes of a built
+// reply so a test can say what is and is not in it.
+#[cfg(test)]
+extern crate alloc;
+
 /// The fixed part of a DHCP message, before any options: `op` through `file`.
 /// Everything up to here is at a known offset, which is why the parser can
 /// check one length and then stop worrying.
@@ -67,6 +72,7 @@ const HLEN_ETHERNET: u8 = 6;
 
 const OPT_PAD: u8 = 0;
 const OPT_SUBNET_MASK: u8 = 1;
+const OPT_ROUTER: u8 = 3;
 const OPT_REQUESTED_IP: u8 = 50;
 const OPT_LEASE_TIME: u8 = 51;
 const OPT_MESSAGE_TYPE: u8 = 53;
@@ -256,6 +262,19 @@ pub struct Lease {
     pub server: [u8; 4],
     pub mask: [u8; 4],
     pub seconds: u32,
+    /// Option 3, the default gateway — and the one field here that is a
+    /// **claim about the world** rather than a fact about this link.
+    ///
+    /// `None` is the honest answer for a board that is one end of a cable: it
+    /// routes nothing, and a host told otherwise will act on it. exp149
+    /// measured what `None` buys and what it may cost. A Pixel 9a took the
+    /// address, kept its mobile data — and never showed the link as a network
+    /// at all, which may be Android correctly declining to promote a network
+    /// with no way out.
+    ///
+    /// So this is `Option`, and both answers are built, because the difference
+    /// is a measurement rather than a preference. See exp150.
+    pub router: Option<[u8; 4]>,
 }
 
 /// Write a reply into `out`, returning how many bytes to send.
@@ -265,12 +284,12 @@ pub struct Lease {
 /// no reply — the client waits out its timeout either way, and the truncated
 /// one may be parsed first.
 ///
-/// **No router option, and no DNS.** Both are conventional and both would be a
-/// lie: this board is one end of a cable and routes nothing. A host told
-/// otherwise will act on it — and a phone that decides a USB link is its way to
-/// the internet is a phone that has lost its way to the internet. If a later
-/// experiment finds a host that will not talk to a network with no gateway,
-/// that is a finding, and adding six bytes here is the experiment.
+/// **No DNS, ever.** This board resolves nothing.
+///
+/// **A router option only if [`Lease::router`] asks for one.** The default is
+/// none, because it is the honest answer — and exp150 builds both, because
+/// exp149 found a phone that took the address and still never treated the link
+/// as a network, which a missing gateway would explain.
 pub fn build_reply(
     reply: Reply,
     req: &Request,
@@ -310,6 +329,9 @@ pub fn build_reply(
     put(OPT_SERVER_ID, &lease.server, &mut i);
     put(OPT_LEASE_TIME, &lease.seconds.to_be_bytes(), &mut i);
     put(OPT_SUBNET_MASK, &lease.mask, &mut i);
+    if let Some(router) = lease.router {
+        put(OPT_ROUTER, &router, &mut i);
+    }
     out[i] = OPT_END;
     i += 1;
 
@@ -328,6 +350,7 @@ mod tests {
         server: [192, 168, 7, 1],
         mask: [255, 255, 255, 0],
         seconds: 3600,
+        router: None,
     };
 
     /// A DISCOVER as a client would send it: fixed header, cookie, message
@@ -524,19 +547,47 @@ mod tests {
         assert_eq!(differ, 1, "only the message type changes");
     }
 
+    /// Walk the options of a built reply and return the ones present.
+    fn codes(out: &[u8], n: usize) -> alloc::vec::Vec<u8> {
+        let mut v = alloc::vec::Vec::new();
+        let mut i = FIXED_LEN + 4;
+        while i < n && out[i] != OPT_END {
+            v.push(out[i]);
+            i += 2 + out[i + 1] as usize;
+        }
+        v
+    }
+
     #[test]
-    fn there_is_no_router_option() {
+    fn no_router_is_the_default_and_it_is_a_decision_not_an_omission() {
         let req = parse(&discover()).unwrap();
         let mut out = [0u8; REPLY_LEN];
         let n = build_reply(Reply::Ack, &req, &LEASE, &mut out).unwrap();
-        // Option 3 is `router`. Its absence is a decision, so it is a test:
-        // this board is one end of a cable and routes nothing, and a host that
-        // is told otherwise will act on it.
-        let mut i = FIXED_LEN + 4;
-        while i < n && out[i] != OPT_END {
-            assert_ne!(out[i], 3, "a router option appeared in the reply");
-            i += 2 + out[i + 1] as usize;
-        }
+        assert!(!codes(&out, n).contains(&OPT_ROUTER));
+        // And never DNS, under any configuration — there is no field for it.
+        assert!(!codes(&out, n).contains(&6));
+    }
+
+    #[test]
+    fn a_router_is_offered_when_the_lease_names_one() {
+        let req = parse(&discover()).unwrap();
+        let mut out = [0u8; REPLY_LEN];
+        let lease = Lease { router: Some([192, 168, 7, 1]), ..LEASE };
+        let n = build_reply(Reply::Ack, &req, &lease, &mut out).unwrap();
+        assert!(codes(&out, n).contains(&OPT_ROUTER));
+        // Six bytes: code, length, four octets. The whole difference between
+        // the two builds exp150 ships.
+        let mut plain = [0u8; REPLY_LEN];
+        let m = build_reply(Reply::Ack, &req, &LEASE, &mut plain).unwrap();
+        assert_eq!(n - m, 6);
+    }
+
+    #[test]
+    fn a_router_still_fits_the_smallest_buffer_build_reply_promises() {
+        let req = parse(&discover()).unwrap();
+        let lease = Lease { router: Some([192, 168, 7, 1]), ..LEASE };
+        let mut out = [0u8; REPLY_LEN];
+        assert!(build_reply(Reply::Ack, &req, &lease, &mut out).is_some());
     }
 
     #[test]

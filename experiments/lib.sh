@@ -253,6 +253,29 @@ usb_check() {
     fi
 }
 
+# ---------- running a crate's own tests from an experiment -------------------
+#
+# `cargo test` must not be run from an experiment's directory. Every experiment
+# here has a `.cargo/config.toml` pinning `target = thumbv8m.main-none-eabihf`,
+# and cargo reads that from the *working directory* — so the tests get
+# cross-compiled for a Cortex-M33 and then cannot be run at all.
+#
+# This is the second time that trap has been sprung. `lib.sh`'s `yi26` wrapper
+# carries the first: building the host tool from an experiment directory failed
+# on its first host-only dependency, produced nothing, and the resulting "board
+# is not running expNNN" was blamed on USB enumeration for a day. Rather than
+# leave every check.sh to remember, there is one helper.
+#
+#   crate_test ../../crates/dhcp "the protocol passes its own tests"
+crate_test() { # dir label
+    local dir="$1" label="$2"
+    if ( cd "$dir" && cargo test --quiet ) > /dev/null 2>&1; then
+        pass "$label"
+    else
+        fail "$label" "cd $dir && cargo test"
+    fi
+}
+
 # ---------- RP2350 board helpers -------------------------------------------
 #
 # Everything below delegates to `tools/yi26`, the repository's host-side
