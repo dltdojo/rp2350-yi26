@@ -109,6 +109,87 @@ the end.
   SENSE` can answer *why*, and a `[u8; 65536]` that is the disk. About 150
   lines of SCSI.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. Read
+[exp123](../exp123-bot-framing/) first if you can: it refuses every command
+and gets no disk, and this one answers and gets a disk. The pair is the
+lesson.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu. `cat`, `stty` and `lsblk` are already there. No `yi26`.
+
+1. UNPACK IT.
+
+       unzip exp124-msc-scsi.zip
+       cd exp124-msc-scsi
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug in, let
+   go:
+
+       cp firmware/exp124-msc-scsi.uf2 /media/$USER/RP2350/
+
+3. WATCH A DISK APPEAR.
+
+       sleep 8
+       lsblk -o NAME,SIZE,LABEL,MODEL -d | grep -v loop
+
+   Expect a new line among your own disks:
+
+       sda        64K       exp124 ram disk
+
+   **64 KiB, and the model string is the one this firmware chose.** In exp123
+   the same host, the same cable and the same declared interface produced no
+   such line. The difference is entirely in what got answered.
+
+   The `LABEL` column is empty and that is correct: there is a disk here and
+   there is no filesystem on it. Your desktop will not offer to open it, and
+   may offer to format it. Decline — [exp125](../exp125-fat12-by-hand/) is
+   where the volume gets a filesystem, laid down by hand.
+
+4. READ THE CONVERSATION THAT GOT IT THERE.
+
+       stty -F /dev/ttyACM0 -icrnl
+       timeout 6 cat /dev/ttyACM0
+
+   Expect:
+
+       [      38 ms] exp124 up. 64 KiB of RAM, answering as a disk.
+       [    1452 ms] INQUIRY  -> 36 bytes: yi26 / exp124 ram disk
+       [    1454 ms] TEST UNIT READY  -> ok
+       [    1454 ms] READ CAPACITY  -> last LBA 127, 512 bytes each = 64 KiB
+       [    1455 ms] READ(10) lba 0 +1 blocks
+       [    1456 ms] MODE SENSE(6)  -> writable, no pages
+
+5. COMPARE THE CENSUS WITH exp123'S. Six seconds of a host that got what it
+   wanted:
+
+       5 x TEST UNIT READY      "is the medium there"
+       5 x READ(10)             "give me these blocks"
+       4 x MODE SENSE(6)        "can I write to it"
+       2 x READ CAPACITY        "how big"
+       1 x PREVENT ALLOW MEDIUM REMOVAL
+       1 x INQUIRY              "what are you"
+
+   exp123's six seconds were four INQUIRY and four REQUEST SENSE, and nothing
+   else. **The host asks the next question only when the last one was
+   answered.** Read the two lists side by side and the negotiation stops being
+   a protocol diagram and becomes a conversation that either continues or
+   does not.
+
+   `READ CAPACITY -> last LBA 127` is the whole size claim: 128 blocks of 512
+   bytes. Everything the host does afterwards is bounded by that one answer.
+
+IF IT DOES NOT WORK
+  * No `sda` appears — check the first log line; you may still be running
+    exp123, which is supposed to produce exactly this non-result.
+  * Your desktop offers to format the disk — expected. Say no.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * The log shows nothing — read sooner. The interesting part is over about a
+    second and a half after enumeration.
+
 ## Two ways to do it
 
 ```sh
