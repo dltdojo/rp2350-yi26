@@ -156,6 +156,103 @@ landed.
 ./check.sh    # verdict: builds both, then asks the host what it thinks
 ```
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone. Two firmware
+images, differing only in **which order the two functions are declared** — and
+that turns out to change things nobody thought were involved.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 and a USB data cable.
+  * Ubuntu, and membership of the `input` group so you can read
+    `/dev/input/*`. Check with `id -nG | grep input`; if it is missing,
+    `sudo usermod -aG input $USER` and log out and back in.
+  * `cat`, `stty`, `printf`, `lsusb`. No `yi26`.
+
+1. UNPACK IT.
+
+       unzip exp121-composite-hid.zip
+       cd exp121-composite-hid
+
+2. FLASH THE DEFAULT ORDERING. **[HUMAN STEP]** Hold BOOTSEL, plug in, let go:
+
+       cp firmware/exp121-composite-hid.uf2 /media/$USER/RP2350/
+
+3. SEE ONE CABLE CARRYING TWO DEVICES.
+
+       sleep 6
+       lsusb -d 1209:0001 -v 2>/dev/null | grep -E 'bInterfaceNumber|bInterfaceClass'
+       ls /dev/input/by-id/ | grep exp121
+       ls /dev/ttyACM*
+
+   Expect three interfaces and two host drivers:
+
+       bInterfaceNumber  0    bInterfaceClass  2 Communications
+       bInterfaceNumber  1    bInterfaceClass 10 CDC Data
+       bInterfaceNumber  2    bInterfaceClass  3 Human Interface Device
+
+       usb-rp2350-yi26_exp121_composite_hid_121-if02-event-kbd
+       /dev/ttyACM0
+
+   **The same cable is a serial port and a keyboard at once**, and your desktop
+   bound a driver to each without being told anything.
+
+4. MAKE IT TYPE, AND READ THE KEYPRESS FROM THE KERNEL. Two terminals. In the
+   first:
+
+       timeout 6 cat /dev/input/by-id/*exp121*event-kbd > /tmp/k.bin
+
+   In the second, within those six seconds:
+
+       printf 'k' > /dev/ttyACM0
+
+   Then:
+
+       stat -c%s /tmp/k.bin
+
+   Expect a non-zero size — 144 bytes here. **That is the kernel's own input
+   layer**, not the firmware's opinion of itself. The board said it pressed a
+   key and the operating system agrees.
+
+   It presses Scroll Lock, deliberately, because nothing modern acts on it.
+   Do not look at a desktop indicator to check: GNOME does nothing with Scroll
+   Lock, so a working keypress and a broken one look identical there. Read the
+   event bytes.
+
+5. NOW FLASH THE OTHER ORDERING AND RUN STEP 3 AGAIN.
+
+       cp firmware/exp121-hid-first.uf2 /media/$USER/RP2350/
+       sleep 6
+       lsusb -d 1209:0001 -v 2>/dev/null | grep -E 'bInterfaceNumber|bInterfaceClass'
+       ls /dev/input/by-id/ | grep exp121
+
+   Everything has moved:
+
+       bInterfaceNumber  0    bInterfaceClass  3 Human Interface Device
+       bInterfaceNumber  1    bInterfaceClass  2 Communications
+       bInterfaceNumber  2    bInterfaceClass 10 CDC Data
+
+       usb-rp2350-yi26_exp121_composite_hid_121-event-kbd
+
+6. LOOK AT WHAT THE FILENAME DID. In step 3 the keyboard was
+   `..._121-if02-event-kbd`. Now it is `..._121-event-kbd` — **the `if02`
+   is gone**, because the HID function is no longer interface 2.
+
+   One line moved in the source. The interface numbers changed, so the
+   endpoint numbers changed, so the path your host uses to name the device
+   changed. Anything that hard-coded that path is now broken, and nothing in
+   the firmware's own log would tell you.
+
+IF IT DOES NOT WORK
+  * `Permission denied` reading `/dev/input/...` — you are not in the `input`
+    group. That is a permission, not a person: see WHAT YOU NEED.
+  * `/tmp/k.bin` is empty — the `printf` missed the six-second window, or went
+    to the wrong port. Start the reader first.
+  * `stty` prints nothing and never returns — ModemManager. Ctrl-C, wait,
+    retry.
+  * Nothing under `/dev/input/by-id` matches `exp121` — the board is not
+    running this firmware.
+
 ## Expected output
 
 Captured from a real Pico 2 on Ubuntu. At boot:
