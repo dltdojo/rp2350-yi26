@@ -215,45 +215,178 @@ something indistinguishable from a network state.** `slow` looks like "still
 asking"; `off` looks like "no link". That is what handing over an instrument
 means. `/led/auto` gives it back, and `check.sh` gives it back when it is done.
 
-## Running it
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone — no checkout, no
+compiler, no `yi26`. `pack.sh` lifts this section verbatim into that zip, so
+there is one copy of the procedure and it is this one.
+
+There are two routes and they end in the same place. **The phone route is the
+point of the experiment**; the Ubuntu route is how the numbers in this README
+were measured.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 (RP2350A, LED on GPIO 25) and a USB data cable.
+  * EITHER an Android phone with an OTG cable and Chrome,
+    OR Ubuntu with NetworkManager — `nmcli`, which a desktop install has.
+  * Nothing installed on either. No udev rule, no root, no toolchain.
+  * For the last two steps on Ubuntu only: `google-chrome` and `python3`.
+
+### On a phone
+
+1. UNPACK THE ZIP on the phone, with the Files app. You need `pages/` and
+   `firmware/` out of it.
+
+2. FLASH THE BOARD FROM THE PHONE. **[HUMAN STEP]** Open `pages/bootsel.html`
+   in Chrome and use it to put the board into BOOTSEL, then open
+   `pages/pflash.html` and give it `firmware/exp155.uf2`. Do those two without
+   a pause — a board left in BOOTSEL while somebody reads the next step may
+   not still be there when they get back.
+
+   If the board is already running exp105 or later, `bootsel.html` needs no
+   button. If it is dark or refuses, hold BOOTSEL while plugging it in.
+
+3. TURN ON ETHERNET TETHERING, STRAIGHT AWAY. Settings → Network & internet →
+   Hotspot & tethering → Ethernet tethering. **The switch is greyed out until
+   something is plugged in**, which is why this is step 3 and not step 1.
+
+   Do not leave a gap here. The board goes on asking forever, but a host that
+   has been told "no medium" for long enough may stop looking. exp153 measured
+   the drive still appearing 30.5 s after boot, so this is *sooner is better*
+   rather than a cliff.
+
+4. WAIT FOR THE LED TO BLINK FAST. **[HUMAN STEP]**
+
+       dark    no link — nothing has claimed the network interface
+       slow    link up, still asking for an address
+       fast    it has an address; the drive appears now
+
+5. OPEN THE DRIVE — **the one the board is serving**, which appears in the
+   Files app under a name like `YI26 BOARD`. It is not the zip you unpacked,
+   and it did not exist until step 4.
+
+6. TAP `OPEN.HTM`, THEN TAP THE BIG BLUE LINK ON IT. Tap it; do not type the
+   address. A phone's address bar searches for what you type, `http://` and
+   all — measured.
+
+   You are now on a page the board served over the USB cable. Nothing was
+   installed and no app claimed the device.
+
+7. TAP **fast**. **[HUMAN STEP]** The LED on the board in your hand blinks
+   fast. That is a web page controlling hardware over one USB cable, with
+   nothing installed at either end.
+
+8. TAP **/log**. The firmware's own log, including a line about the request
+   you just made — `led: now fast — asked over GET by no stated origin`.
+
+9. TAP **give it back**. The LED returns to reporting the network, and the
+   log says so.
+
+### On Ubuntu
+
+1. UNPACK IT.
+
+       unzip exp155-who-else-can-knock.zip
+       cd exp155-who-else-can-knock
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold BOOTSEL, plug the
+   board in, let go. A drive called `RP2350` appears.
+
+       cp firmware/exp155.uf2 /media/$USER/RP2350/
+
+   The board reboots as the copy finishes and the drive vanishes. That is
+   success, not an error — some file managers report it as one.
+
+3. FIND THE BOARD'S NETWORK INTERFACE. It is named after the experiment.
+
+       nmcli -t -f DEVICE,TYPE,STATE device | grep enx
+
+   Expect a line beginning `enx022600000155:ethernet:`. Whatever state follows
+   is fine; step 4 overrides it.
+
+4. BECOME ITS DHCP SERVER. The board asks and will not invent an address.
+
+       nmcli connection add type ethernet ifname enx022600000155 \
+             con-name yi26-exp155 ipv4.method shared
+       nmcli connection up yi26-exp155
+
+   Expect: `Connection successfully activated`. This needs no `sudo`.
+
+5. WAIT FOR THE DRIVE. About twenty-five seconds on this machine.
+
+       lsblk -o NAME,SIZE,LABEL,MODEL -d | grep sda
+
+   Expect: `sda        64K YI26 BOARD exp155 knocking`, and the LED blinking
+   fast. Before the address arrives the same command shows `0B` and no label:
+   a card reader with no card.
+
+6. READ THE ADDRESS OFF THE DRIVE. Ubuntu mounts it on its own; if not,
+   `udisksctl mount -b /dev/sda` first.
+
+       cat "/media/$USER/YI26 BOARD/ADDRESS.TXT"
+
+   Expect: `http://10.42.0.250/` — that exact address on a machine with no
+   other shared connection, because NetworkManager hands out `10.42.0.x` and
+   the board pins itself to `.250` of whatever subnet it is given.
+
+7. CHANGE THE BOARD FROM A URL. This is the open door.
+
+       curl -s http://10.42.0.250/led/fast
+       curl -s http://10.42.0.250/status
+
+   Expect `led: fast`, then JSON containing `"led":"fast"`. **[HUMAN STEP]**
+   The LED is blinking fast because a URL was fetched. Nothing was asked, no
+   header was consulted, and any page in any browser that can route here could
+   have done the same with an `<img>` tag.
+
+8. KNOCK ON THE GUARDED DOOR, WRONGLY AND THEN RIGHTLY.
+
+       curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+            -H "X-Yi26-Control: 1" -H "Origin: http://elsewhere.example" \
+            http://10.42.0.250/control/led/off
+       curl -s -X POST -H "X-Yi26-Control: 1" http://10.42.0.250/control/led/off
+
+   Expect `403`, then `led: off`. The first was refused for its origin; the
+   second stated none, and `curl` is not a browser — which is the honest limit
+   of this guard and is why the README says so before you find it.
+
+9. WATCH A PAGE FROM SOMEWHERE ELSE PULL THE OPEN DOOR. Needs `google-chrome`
+   and `python3`.
+
+       curl -s http://10.42.0.250/led/auto > /dev/null
+       mkdir -p /tmp/foreign && curl -s http://10.42.0.250/probe > /tmp/foreign/index.html
+       python3 -m http.server 8155 --directory /tmp/foreign > /dev/null 2>&1 &
+       google-chrome --headless=new --disable-gpu --virtual-time-budget=6000 \
+            --dump-dom http://127.0.0.1:8155/ > /dev/null 2>&1
+       sleep 3; curl -s http://10.42.0.250/status
+       pkill -f "http.server 8155"
+
+   Expect `"led":"slow"`, `"led_is_auto":false` and `"turned_away"` one higher
+   than before. That page
+   came from `127.0.0.1:8155`, not from the board, and it changed the board
+   twice — with an `<img>` and with a cross-site form POST. Its third attempt,
+   at the guarded door, was refused before it was answered.
+
+   **That is the experiment.** CORS never stopped the request; it only governs
+   whether the reply may be read. What stopped the third one was a preflight.
+
+10. PUT IT BACK.
+
+       curl -s http://10.42.0.250/led/auto
+       nmcli connection delete yi26-exp155
+
+## From a checkout
 
 ```sh
 cargo build --release
 elf2flash convert -b rp2350 \
     target/thumbv8m.main-none-eabihf/release/exp155-who-else-can-knock \
     target/exp155.uf2
-yi26 flash target/exp155.uf2
-
-nmcli connection add type ethernet ifname enx022600000155 \
-      con-name yi26-exp155 ipv4.method shared
-nmcli connection up yi26-exp155
-
-yi26 log --seconds 30        # it prints the address, and keeps printing it
-./check.sh                   # board half and browser half
+yi26 flash target/exp155.uf2      # hands-free; no BOOTSEL button
+yi26 log --seconds 30             # it prints the address, and keeps printing it
+./check.sh                        # 46 checks: board half and browser half
 ```
 
-Put the connection back with `nmcli connection delete yi26-exp155`.
-
-Open `http://<address>/` in any browser and the LED controls are five ordinary
-links. That is the demonstration this pair of experiments was built for: **one
-USB cable carrying a user interface, a control channel and a log at once**, with
-nothing installed on the host and no device claimed by anything.
-
-### On a phone, which is who the drive is for
-
-1. Plug the board in.
-2. Turn on **Ethernet tethering** straight away — Settings → Network & internet
-   → Hotspot & tethering. It is greyed out until something is plugged in, and
-   leaving a gap here is what goes wrong: a host told "no medium" for long
-   enough may stop looking. exp153 measured the drive still appearing at 30.5 s,
-   so this is a *sooner is better*, not a cliff.
-3. Wait for the LED to blink **fast**. The drive appears then, and not before.
-4. Open it in the Files app and tap **`OPEN.HTM`**, then tap the link on it.
-5. Tap **fast**. The LED on the board in your hand blinks fast, and you
-   installed nothing to make that happen.
-
-Step 5 is the experiment as a person can see it; the rest of this README is the
-same thing with numbers on it.
 
 ## Expected output
 
@@ -301,7 +434,7 @@ PASS  a preflight from elsewhere gets 403 and no Allow-Origin — and the LED di
 PASS  a preflight from this board's own origin is answered 204 with that one origin echoed
 PASS  /probe is served, and points at this board by absolute address
 PASS  a page from http://127.0.0.1:8155 changed this board's LED — twice, by <img> and by form POST
-PASS  ...and its fetch to the guarded door was turned away (7 → 8)
+PASS  ...and its fetch to the guarded door was turned away (3 → 4)
 PASS  the guarded door was never opened by a page that did not come from here
 PASS  the identical page served from this board opened the guarded door — only the origin differed
 PASS  a 'YI26 BOARD' volume is present, and its SCSI model names exp155

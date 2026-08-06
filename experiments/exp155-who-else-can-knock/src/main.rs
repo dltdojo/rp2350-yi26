@@ -546,7 +546,7 @@ fn render_status(out: &mut [u8], addr: [u8; 4], gateway: Option<[u8; 4]>, link: 
     // instrument, and nobody has to be looking at the board.
     let _ = write!(
         w,
-        "\"led\":\"{}\",\"led_is_mine\":{},",
+        "\"led\":\"{}\",\"led_is_auto\":{},",
         lamp_of(LAMP.load(Ordering::Relaxed)).word(),
         LAMP.load(Ordering::Relaxed) == LAMP_AUTO,
     );
