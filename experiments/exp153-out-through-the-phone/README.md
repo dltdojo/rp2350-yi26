@@ -139,6 +139,9 @@ WHAT YOU NEED
   * A Raspberry Pi Pico 2 (RP2350A, LED on GPIO 25) and a USB data cable.
   * Either an Android phone with an OTG cable and Chromium — **or** Ubuntu with
     NetworkManager (`nmcli`, which a desktop install already has).
+  * On a phone, `pages/log.html` is the instrument. Nothing else in this zip
+    can tell you why something did not happen, and every step below has a
+    failure whose only witness is the board's own log.
   * `unzip`. No udev rule, no `input` group, no root, no `sudo`.
   * The host must be able to reach the internet, because that is what is being
     borrowed.
@@ -204,6 +207,15 @@ WHAT YOU NEED
    **system** Files app — third-party file managers get `Permission denied` and
    never reach the device — tap `OPEN.HTM`, then tap the link.
 
+   **If no drive appears, open `pages/log.html` and read the board's own log.**
+   That page is the instrument in this zip: it claims the CDC interface over
+   WebUSB and shows every line the firmware has printed, including the one that
+   says what it is waiting for. There is no drive *because* there is no address,
+   and the log says which of the two reasons it is — `link DOWN` means nothing
+   claimed the interface, `still asking` means nothing offered an address. Do
+   not re-flash and do not guess: this experiment ships an instrument precisely
+   so nobody has to.
+
    *On Ubuntu:* the board pins nothing, so read the address off the log, or take
    NetworkManager's word for its subnet and ask:
 
@@ -227,6 +239,17 @@ WHAT YOU NEED
        nmcli connection delete yi26-exp153
 
 IF IT DOES NOT WORK
+
+  **Ask the board first.** On a phone that means `pages/log.html`; on a desktop
+  it means `yi26 log`. Every entry below is something the log already says in
+  words, and reading it costs one tap.
+
+  * **No drive appeared on the phone**, and the flash reported success. The
+    drive does not exist until the board has an address — that is exp152's
+    design and it is deliberate. So this is not a storage failure, it is the
+    absence of a lease, and `log.html` names which half: `link DOWN` (nothing
+    claimed the NCM interface) or `still asking` (nothing offered an address —
+    tethering is off, or was turned on too late).
   * No `enx…` device at all — the board is not running this firmware, or the
     cable is charge-only. A charge-only cable is the commonest single cause of
     everything in this repository.

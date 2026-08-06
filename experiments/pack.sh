@@ -211,8 +211,19 @@ pack_experiment() {
         rmdir "$stage/pages" 2>/dev/null && say "no pages — this experiment never touches a board" \
             || say "$own page(s) of its own; no flashing pages, it never touches a board"
     else
-        cp "$PAGES_DIR/bootsel.html" "$PAGES_DIR/pflash.html" "$stage/pages/"
-        say "$own page(s) of its own, plus bootsel.html and pflash.html"
+        # `log.html` joins the other two, and it is a gap being closed rather
+        # than a page being added. `pflash.html` ends every successful flash
+        # with "Open log.html to watch it say so" — and no zip this repository
+        # has ever produced contained that file. On a desktop nobody noticed,
+        # because `yi26 log` is right there. On a phone it is the ONLY way to
+        # find out why a board is not doing what the walkthrough says, and a
+        # recipient holding a phone is exactly who these zips are for.
+        #
+        # Found on 2026-08-06, by a phone, on exp153: the flash succeeded, the
+        # drive the walkthrough said would appear did not, and there was
+        # nothing in the zip that could be asked why.
+        cp "$PAGES_DIR/bootsel.html" "$PAGES_DIR/pflash.html" "$PAGES_DIR/log.html" "$stage/pages/"
+        say "$own page(s) of its own, plus bootsel.html, pflash.html and log.html"
     fi
 
     # -- the words ---------------------------------------------------------
@@ -294,7 +305,10 @@ write_flash_txt() {
         if [[ -d "$stage/pages" ]]; then
             echo "  pages/                           open these in a browser, from the file"
             echo "                                   manager. bootsel.html and pflash.html"
-            echo "                                   are how a phone flashes a board."
+            echo "                                   are how a phone flashes a board;"
+            echo "                                   log.html is how it reads what the"
+            echo "                                   board then says, which is the only"
+            echo "                                   way to ask a phone-side failure why."
         fi
         echo "  README.md                        the experiment itself"
         echo "  CHECK.txt                        the output of its own check.sh, from"
@@ -351,6 +365,9 @@ write_flash_txt() {
         echo "     it, then open pages/pflash.html and give it the .uf2. Do those two"
         echo "     without a pause: a board left waiting in BOOTSEL while somebody"
         echo "     reads the next step may not still be in BOOTSEL when they get there."
+        echo "     Then open pages/log.html: it reads the board's own log over the"
+        echo "     same WebUSB, and it is the only instrument in this zip. If"
+        echo "     anything below does not happen, ask the board before guessing."
         echo
         echo "  3. yi26 flash <file>.uf2 — from a checkout. Hands-free on any board"
         echo "     already running exp105 or later, because the firmware reboots itself"
