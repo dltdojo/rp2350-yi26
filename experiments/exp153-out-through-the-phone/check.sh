@@ -177,6 +177,16 @@ fi
 # HTTP requests in exp151, mDNS chatter in exp151, a hundred READ(10)s in
 # exp152. The page a person opens is reached by opening the drive, so the
 # drive's own traffic and the server's own traffic are both the reader arriving.
+# New here, and a board taught it: a state change is history, saying the same
+# thing again is the reader's own waiting. Two retained lines every five seconds
+# fill the 64-line ring in under three minutes, and what they push out is the
+# measurement. Measured on Ubuntu, 2026-08-06, before it was fixed.
+if grep -q 'if changed { log!($($a)\*) } else { log_transient!($($a)\*) }' "$SRC"; then
+    pass "only a state change is kept; the idle repeat is transient"
+else
+    fail "the periodic report is transient" \
+         "two retained lines every 5 s bury 'out: … 301' inside three minutes"
+fi
 noisy="$(grep -cE '^\s*log!\("http:' "$SRC" || true)"
 if [[ "$noisy" == "0" ]]; then
     pass "nothing the HTTP server says about itself is retained"
@@ -284,12 +294,6 @@ fi
 echo "NOTE  enumerated as: $PRODUCT"
 OUT="$(yi26 log --seconds 8 2>/dev/null || true)"
 
-if echo "$OUT" | grep -q 'link UP'; then
-    pass "a host driver claimed the NCM interface"
-else
-    echo "NOTE  no link yet — nothing has bound cdc_ncm on this host"
-fi
-
 addr="$(echo "$OUT" | grep -oE 'http://[0-9.]+' | tail -1)"
 if [[ -z "$addr" ]]; then
     echo "NOTE  no address. This host is not sharing its connection, which is a sudo"
@@ -306,8 +310,23 @@ elif echo "$OUT" | grep -q 'nothing to try. Nothing was sent'; then
     echo "NOTE  the lease had no gateway. Nothing was sent, which is not a failed attempt."
 fi
 
-root_code="$(echo "$OUT" | grep -oE 'GET http://1\.1\.1\.1/ — HTTP/1\.[01] [0-9]{3}' | grep -oE '[0-9]{3}$' | tail -1)"
-c204="$(echo "$OUT" | grep -oE 'generate_204 — HTTP/1\.[01] [0-9]{3}' | grep -oE '[0-9]{3}$' | tail -1)"
+# Read the answers off the PAGE, not off the stream. The measurement happens
+# once, seconds after boot, and its lines are retained rather than repeated — so
+# a `yi26 log --seconds 8` started later sees none of them. The page carries the
+# ring, which is what the ring is for.
+PAGE="$(curl -s --max-time 6 "$addr/" || true)"
+if [[ -n "$PAGE" ]]; then
+    pass "it served its own page over HTTP ($(printf %s "$PAGE" | wc -c) bytes)"
+else
+    echo "NOTE  nothing answered at $addr"
+fi
+# Also off the page, and for the same reason: `link UP` is now printed once, on
+# the change, so a window opened later will not contain it.
+printf %s "$PAGE" | grep -q 'link UP' \
+    && pass "a host driver claimed the NCM interface" \
+    || echo "NOTE  no 'link UP' in the ring — it may have scrolled, which is not a failure"
+root_code="$(printf %s "$PAGE" | grep -oP 'GET http://1\.1\.1\.1/</td><td><b class=yes>\K[0-9]{3}' | tail -1)"
+c204="$(printf %s "$PAGE" | grep -oP 'generate_204</td><td><b class=yes>\K[0-9]{3}' | tail -1)"
 if [[ -n "$root_code" && -n "$c204" ]]; then
     pass "the board got out: / -> $root_code, /generate_204 -> $c204"
     if [[ "$root_code" == "301" && "$c204" == "204" ]]; then

@@ -122,8 +122,12 @@ bind_interrupts!(struct Irqs {
 const PACKET: usize = 64;
 const MTU: usize = 1514;
 
-const HOST_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x01, 0x52];
-const OUR_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x02, 0x52];
+// The last octet is the experiment number, which is what names the host's
+// interface — `enx022600000153`. It was `0x52` here for one build, inherited
+// from exp152, and an interface named after the wrong experiment is a
+// walkthrough that tells somebody to grep for a string that is not there.
+const HOST_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x01, 0x53];
+const OUR_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x02, 0x53];
 
 const HTTP_PORT: u16 = 80;
 
@@ -788,44 +792,49 @@ async fn report_task(stack: embassy_net::Stack<'static>) -> ! {
 
     loop {
         let now = (stack.is_link_up(), addressed(stack));
-        if last != Some(now) || Instant::now() >= next_idle {
+        let changed = last != Some(now);
+        if changed || Instant::now() >= next_idle {
             let ms = (Instant::now() - started).as_millis();
+
+            // **A state change is history; saying the same thing again is the
+            // reader's own waiting.** That rule is new here and a board is why.
+            //
+            // exp152 repeated its address line on every idle tick so it could
+            // not have scrolled away before somebody looked, and that was right
+            // for exp152, where the result was the page existing at all. It is
+            // wrong here. Two retained lines every five seconds fill the
+            // 64-line ring in under three minutes, and what they push out is
+            // `out: … 301` and `Location: https://1.1.1.1/` — which in this
+            // experiment *are* the evidence. Measured on Ubuntu, 2026-08-06,
+            // before this was fixed.
+            //
+            // Nothing is lost by it: the address is on the page's own heading
+            // and on the drive, and the answers are in the table above the log.
+            macro_rules! report {
+                ($($a:tt)*) => {
+                    if changed { log!($($a)*) } else { log_transient!($($a)*) }
+                };
+            }
+
             match now {
-                (false, _) => log!("{} ms  link DOWN — nothing has claimed the NCM interface", ms),
-                // There is one role in this firmware, so there is one line. The
-                // line names the switch, because naming the wrong thing here
-                // sends somebody looking in the wrong place — the most
-                // expensive kind of wrong text in this repository. See
+                (false, _) => report!("{} ms  link DOWN — nothing has claimed the NCM interface", ms),
+                // Two hosts can be the one waited on, and the action is
+                // different on each. Naming only one sends the other's reader
+                // looking in the wrong place, which is the most expensive kind
+                // of wrong text in this repository — see
                 // docs/debugging-on-a-phone.md.
-                (true, false) => log!(
-                    "{} ms  link UP, still asking. TURN ON Ethernet tethering — \
-Settings > Network & internet > Hotspot & tethering. Nothing appears until you do.",
+                (true, false) => report!(
+                    "{} ms  link UP, still asking. Nothing has offered an address: on a phone \
+TURN ON Ethernet tethering (Settings > Network & internet > Hotspot & tethering); \
+on a desktop, share this connection — the README has the command.",
                     ms
                 ),
                 (true, true) => match my_address(stack) {
-                    // The line somebody reads off `log.html` and types into a
-                    // browser. It is printed on every idle tick, not once, so
-                    // it cannot have scrolled away by the time anyone looks.
-                    Some(a) => {
-                        log!(
-                            "{} ms  I am at http://{}.{}.{}.{}/ — {} request(s) served",
-                            ms, a[0], a[1], a[2], a[3], SERVED.load(Ordering::Relaxed)
-                        );
-                        // exp152 printed the gateway here and called it "a way
-                        // out". It is not one — it is an offer, and this
-                        // experiment exists because nobody had checked. So the
-                        // repeated line carries the measured answer instead,
-                        // and `lease_task` prints the offer once, where an
-                        // offer belongs.
-                        if OUT_DONE.load(Ordering::Relaxed) {
-                            log!(
-                                "        the way out: / -> {}, /generate_204 -> {}",
-                                STATUS_ROOT.load(Ordering::Relaxed),
-                                STATUS_204.load(Ordering::Relaxed)
-                            );
-                        }
-                    }
-                    None => log!("{} ms  link UP, address just went away", ms),
+                    Some(a) => report!(
+                        "{} ms  I am at http://{}.{}.{}.{}/ — {} request(s) served",
+                        ms, a[0], a[1], a[2], a[3], SERVED.load(Ordering::Relaxed)
+                    ),
+                    None => report!("{} ms  link UP, address just went away", ms),
                 },
             }
             last = Some(now);
