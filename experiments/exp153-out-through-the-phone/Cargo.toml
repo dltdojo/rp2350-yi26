@@ -1,0 +1,79 @@
+[package]
+name = "exp153-out-through-the-phone"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The board sends a request to the internet through the phone it is plugged into, which the plan for this experiment said a phone could not do"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-futures = "0.1.2"
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
+# `max-interface-count-8`: this firmware declares FOUR interfaces — CDC-ACM is
+# two (comm + data) and CDC-NCM is another two. embassy-usb's default ceiling
+# is exactly four, so the build fits with nothing to spare; the next function
+# added would blow it. Raised here so that limit is a decision and not a
+# surprise. exp150 will need the same.
+embassy-usb = { version = "0.6.0", features = ["max-interface-count-8"] }
+static_cell = "2.1.1"
+
+# One feature is new against exp152, and it is the third measurement: **`dns`**.
+# It adds a resolver and a socket for it, and it is here so that "a name did not
+# resolve" and "a packet did not get out" can be told apart — which is the whole
+# reason the DNS query is run separately from the two HTTP requests rather than
+# in front of them.
+embassy-net = { version = "0.9.1", default-features = false, features = [
+    "tcp",
+    "dns",
+    "proto-ipv4",
+    "medium-ethernet",
+] }
+# `write_all` on the TCP socket.
+embedded-io-async = "0.7.0"
+
+# `Signal` — the one thing the socket task tells the LED and the reporter.
+embassy-sync = "0.8.0"
+# Only for `StaticConfigV4::dns_servers`, which is a `heapless::Vec`. Pinned to
+# the same 0.9 embassy-net itself uses: two versions in the graph would be two
+# incompatible `Vec` types with one name, and the error says nothing useful.
+heapless = { version = "0.9", default-features = false }
+
+# `retain`: keep the recent lines where the HTTP server can reach them. The
+# outgoing serial queue cannot be that second reader — it forgets each line as
+# it sends it, which is exactly why it never stalls.
+usb-log = { path = "../../crates/usb-log", features = ["retain"] }
+usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+# `crates/dhcp` is **not** here, and its absence is the role. That crate is the
+# server side — the four packets a board hands out — and this board is the one
+# asking. `embassy-net/dhcpv4` is the client.
+#
+# The filesystem the drive is made of — three sectors of metadata and the files.
+fat12 = { path = "../../crates/fat12" }
+
+[features]
+# There is one build. The board has to be a DHCP client, because the thing being
+# tested is a *gateway somebody else supplied* — a board that assigns itself an
+# address has no way out by construction, and would answer the question by
+# refusing to ask it.
+default = ["auto-reboot", "ask-for-an-address"]
+
+auto-reboot = ["usb-reboot/auto-reboot"]
+
+# The client role. Kept as a named feature rather than folded in, so the
+# firmware still says out loud which of the two arrangements exp150 measured it
+# is in — and so `dhcpv4-hostname` travels with it, which is what puts the
+# board's name into the lease.
+ask-for-an-address = ["embassy-net/dhcpv4", "embassy-net/dhcpv4-hostname"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]
