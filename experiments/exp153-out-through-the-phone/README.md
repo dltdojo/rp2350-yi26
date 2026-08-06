@@ -215,11 +215,24 @@ WHAT YOU NEED
 
    *Without eyes:* step 5 answers the only question that matters anyway.
 
-5. READ THE ANSWER.
+5. READ THE ANSWER. It is on a drive the **board** provides, not in this zip.
 
-   *On a phone:* a drive appears once the board has an address. Open it in the
-   **system** Files app — third-party file managers get `Permission denied` and
-   never reach the device — tap `OPEN.HTM`, then tap the link.
+   *On a phone:* **`OPEN.HTM` is not in this zip.** Nothing you unpacked
+   contains it and no amount of looking in `Downloads` will find it. The board
+   *makes* it: 64 KiB of FAT12 assembled in the firmware's own RAM and served
+   over USB, so it is a **separate storage device**, one the phone did not have
+   until the board had an address.
+
+   Open the **system** Files app — third-party file managers get `Permission
+   denied` on `/mnt/media_rw/…` and never reach the device at all. Go to where
+   it lists storage, beside Internal storage, and look for a drive called:
+
+       YI26 BOARD
+
+   Tap it, tap `OPEN.HTM`, tap the link. There are three files on it and that is
+   the whole volume.
+
+   *On Ubuntu the same drive is* `/media/$USER/YI26 BOARD/`.
 
    **If no drive appears, open `pages/log.html` and read the board's own log.**
    That page is the instrument in this zip: it claims the CDC interface over
@@ -258,7 +271,14 @@ IF IT DOES NOT WORK
   it means `yi26 log`. Every entry below is something the log already says in
   words, and reading it costs one tap.
 
-  * **No drive appeared on the phone**, and the flash reported success. Two
+  * **`OPEN.HTM` is nowhere in the unpacked zip.** Correct — it is not supposed
+    to be. It exists only on the drive the board serves, which is called
+    `YI26 BOARD` and sits with the phone's other storage, not under `Downloads`.
+    This is the first thing to rule out and it costs one look, because a drive
+    that is present and a drive that is looked for in the wrong place are
+    indistinguishable from the far end of a message.
+
+  * **No `YI26 BOARD` drive at all**, and the flash reported success. Two
     different causes, and `log.html` tells them apart in one line.
 
     `still asking` — nothing offered an address. Tethering is off, or the switch

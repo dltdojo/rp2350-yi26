@@ -267,6 +267,32 @@ if grep -q 'OPEN    HTM' "$SRC" && grep -q 'ADDRESS TXT' "$SRC"; then
 else
     fail "the drive carries a link and the address" "the whole point is not having to type it"
 fi
+
+# The walkthrough has to name the volume, and the name has to be the one the
+# firmware writes. `OPEN.HTM` is not in the zip — the board makes it — and a
+# reader told to "open the drive" with no name will look in the folder they
+# just unpacked, which is where it can never be. That happened, 2026-08-06, and
+# it cost a round trip and a wrong diagnosis before anybody asked the obvious
+# question. Pulled from the one place the label is written, so this guard moves
+# when the label does.
+LABEL="$(python3 -c "
+import re,sys
+s = open('$SRC').read()
+m = re.search(r'fat12::format\(\s*disk,\s*b\"([^\"]+)\"', s)
+print(m.group(1).rstrip() if m else '')
+")"
+if [[ -n "$LABEL" ]] && grep -q "$LABEL" README.md; then
+    pass "the walkthrough names the drive — '$LABEL', which is what the firmware labels it"
+else
+    fail "the walkthrough names the drive" \
+         "'open the drive' sends a reader into the folder they unpacked, where OPEN.HTM can never be"
+fi
+if grep -qi 'not in this zip' README.md; then
+    pass "...and says out loud that OPEN.HTM is not something they unpacked"
+else
+    fail "the walkthrough says OPEN.HTM is not in the zip" \
+         "a file that is generated and a file that is missing look identical to somebody searching"
+fi
 if grep -q 'filled its buffer exactly' "$SRC"; then
     pass "a page that fills its buffer says so — silence is what hid the last one"
 else
