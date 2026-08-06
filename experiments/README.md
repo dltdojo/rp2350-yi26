@@ -74,6 +74,7 @@ Per experiment:
 | exp146 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser — a phone's is the point. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface. It **writes flash**, which is what exp141 stopped short of. |
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
+| exp155 | Same as exp154 in hardware. Its second half needs a **browser**, and any browser will do — the measurement is what a browser does with a cross-origin request, and the instrument is the board's own `/status`, so nobody has to watch the LED. Verified with headless Chrome on Ubuntu; the answers are Chrome's CORS and Private Network Access policy, which is the same everywhere Chromium is and may differ elsewhere. |
 | exp154 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -400,7 +401,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp155 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147 |
 
@@ -528,6 +529,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp152 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp153 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp154 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
+| exp155 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 
 ### Reading the columns
 
@@ -656,6 +658,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp147-two-firmwares-one-phone](./exp147-two-firmwares-one-phone/) | 3 · a person | The whole A/B arc arranged so a phone can run it and an LED reports the answer — fast blink or slow, and two different ways to make it change |
 | [exp148-a-wire-with-no-address](./exp148-a-wire-with-no-address/) | 3 · a person | A CDC-NCM link and a DHCP client, kept apart: the firmware can see a host driver claim it, and can see that having a wire is not having an address |
 | [exp149-the-board-hands-out-the-address](./exp149-the-board-hands-out-the-address/) | 3 · a person | The board answers DHCP itself — four packets, hand-rolled — so a phone gets an address with nothing to configure, because a phone has no setting to configure |
+| [exp155-who-else-can-knock](./exp155-who-else-can-knock/) | 1 · board | The first route here that changes the board because somebody asked over a network — and a measurement of who else could have asked, which turns out to be any page in the same browser |
 | [exp154-one-port-four-doors](./exp154-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
 | [exp153-out-through-the-phone](./exp153-out-through-the-phone/) | 3 · a person | The board reaches the internet through the phone it is plugged into — refuting this repository's own written claim that a phone cannot NAT — and is redirected off the plain web to a protocol it cannot speak |
 | [exp152-the-volume-that-waits](./exp152-the-volume-that-waits/) | 3 · a person | The board carries a drive that does not exist until it knows its own address — verified on a phone: plug in, turn on tethering, tap two things, and the log is there |
@@ -1148,6 +1151,36 @@ exp147 was built against, so nothing had to move to start.
   rather than trusting it, and the LED keeps all four of the meanings exp153
   gave it. Writes are exp155's, because a route that changes the board changes
   the question from *which path* to *who may ask*.
+
+- **[exp155](./exp155-who-else-can-knock/) — who else can knock.**
+  **Done, verified 2026-08-06.** The first route in this repository that changes
+  the board because somebody asked over a network, and a measurement of who else
+  could have asked. Two doors: `/led/<state>`, which consults nothing, and
+  `/control/led/<state>`, which needs a header nothing sends by accident and an
+  `Origin` that is this board's own.
+
+  **The finding is about the browser the owner is already running, not about the
+  network.** The same page, byte for byte, served from a foreign origin and from
+  the board's own: an `<img>` pulled `/led/fast` and it worked; a cross-site form
+  `POST` pulled `/led/slow` and it worked; the `fetch` at the guarded door was
+  refused, and the identical page from the board's own origin got through. **CORS
+  never stopped a request** — it governs whether the reply may be *read* — and
+  **the method was never the boundary** either. What stopped the third knock was
+  a preflight, which is the one thing that makes a browser ask before it acts.
+
+  A sharper detail from the board's own log: the `<img>` request arrived with
+  **no `Origin` at all**, so the open door cannot refuse its caller and cannot
+  even name it afterwards.
+
+  Stated in the README rather than left to be discovered: an origin check is
+  worth what the browser enforcing it is worth. `curl` sends any `Origin` you
+  like. The guard is against a page, not against a program — and neither is a
+  CDC port.
+
+  `crates/http-route` grew by exactly one capability to do it — find one named
+  header — and the test that matters most is that **an unfinished header block
+  is never read as an empty one**, because that bug would let a cross-origin
+  write through on a slow link, and only sometimes.
 
 Not on this road: TLS, and two boards talking to each other. The first is a
 different curriculum and a much larger binary; the second is something this

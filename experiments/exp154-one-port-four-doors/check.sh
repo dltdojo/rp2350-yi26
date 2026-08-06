@@ -115,7 +115,7 @@ Log /log
 Status /status
 Trng /trng
 DOORS
-if grep -q 'Route::Unknown' "$SRC" && grep -q '404' "$SRC"; then
+if grep -q 'Route::Unknown' "$ROUTESRC" && grep -q 'render_error(page, 404' "$SRC"; then
     pass "a well-formed path that names nothing is a 404, not a 400"
 else
     fail "unknown paths are 404" "a parsed request that named nothing is not a malformed request"
@@ -142,7 +142,7 @@ then
 else
     fail "every route reads" "a route that writes is exp155, and it needs exp155's measurement"
 fi
-if grep -q 'Method::Post, .. }) => {' "$SRC" && grep -q '405' "$SRC"; then
+if grep -q 'Method::Post | Method::Options, .. }) => {' "$SRC" && grep -q '405' "$SRC"; then
     pass "POST is refused with a 405 rather than silently treated as a GET"
 else
     fail "POST is refused" "a method nothing implements must not fall through to a page"

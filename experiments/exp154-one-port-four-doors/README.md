@@ -63,8 +63,7 @@ answer that depends on how the host's stack split the packet.
 
 So [`crates/http-route`](../../crates/http-route/) has three outcomes and not
 two — complete, **incomplete**, refused — and the firmware waits when it is
-told to wait. Sixteen host-side tests, and the two that matter cut a real
-request at every offset:
+told to wait. The two tests that matter cut a real request at every offset:
 
 ```text
   every_prefix_of_a_good_request_is_incomplete   0..32 bytes → Incomplete, always

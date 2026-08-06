@@ -49,23 +49,27 @@
 //! - **Origin-form only.** `GET http://elsewhere/log HTTP/1.1` is what a proxy
 //!   is sent, and this board is not one. Refused, rather than quietly ignoring
 //!   the part that says where it was really meant to go.
-//! - **`GET` and `POST` only.** `HEAD` is refused, deliberately: answering a
-//!   `HEAD` with a body is a worse bug than not answering it, and no route
-//!   here needs one.
+//! - **`GET`, `POST` and `OPTIONS` only.** `HEAD` is refused, deliberately:
+//!   answering a `HEAD` with a body is a worse bug than not answering it, and
+//!   no route here needs one. `OPTIONS` is here because a preflight is a
+//!   *question*, and a server that cannot be asked one can only be told things.
 //!
 //! The limits ([`MAX_LINE`], [`MAX_PATH`]) exist because the caller's buffer
 //! does. A request line longer than the buffer is refused the moment it is
 //! longer, not after the buffer has been filled.
 //!
-//! # What it does not do
+//! # Headers came one experiment later, and that is the point
 //!
-//! Headers. Not one. This crate reads the request *line* and stops, and the
-//! caller reads the rest to the end of the request and discards it. That is
-//! enough for every route in
-//! [exp154](../../../experiments/exp154-one-port-four-doors/) — and the moment
-//! it is not enough, the thing that is missing is `Host:` validation, which is
-//! a security decision and gets its own experiment rather than a quiet
-//! addition here.
+//! The first version of this crate read the request *line* and stopped, because
+//! every route in [exp154](../../../experiments/exp154-one-port-four-doors/)
+//! only read things, and it said what was therefore missing: any check on
+//! *who* was asking.
+//!
+//! [exp155](../../../experiments/exp155-who-else-can-knock/) has a route that
+//! changes the board, and the difference between "the page I served asked" and
+//! "some other page asked" is a header and nothing else. So [`headers`] exists,
+//! it finds one named header at a time, and it is the whole of the growth —
+//! no table, no allocation, no `Content-Length`, no bodies.
 
 #![no_std]
 #![forbid(unsafe_code)]
@@ -100,6 +104,12 @@ pub const MAX_QUERY: usize = 64;
 pub enum Method {
     Get,
     Post,
+    /// The preflight. A browser sends this **before** a request that is not
+    /// "simple" — and exp155 exists because that word does a great deal of
+    /// work: a `GET` an `<img>` can make is simple, a cross-site form `POST` is
+    /// simple, and neither is preflighted. Answering `OPTIONS` is how a server
+    /// gets asked before anything happens rather than told afterwards.
+    Options,
 }
 
 /// Which of the board's doors a path names.
@@ -117,6 +127,19 @@ pub enum Route {
     Status,
     /// `/trng` — bytes from the hardware random number generator.
     Trng,
+    /// `/led/<lamp>` — **the open door**, and the first route in this
+    /// repository that changes the board because somebody asked over a
+    /// network. No header is consulted; whoever can route here can pull it.
+    /// That is a measurement in exp155 and not an oversight.
+    Led(Lamp),
+    /// `/control/led/<lamp>` — the same change, behind a rule: the request has
+    /// to carry a header nothing adds by accident, which is what makes a
+    /// browser ask permission first.
+    Control(Lamp),
+    /// `/probe` — the board's own page for exp155, which exists so that the
+    /// *same* script can be run from the board's origin and from somebody
+    /// else's, with only the origin differing.
+    Probe,
     /// A path that is well-formed and names nothing. **This is not an error**
     /// — the request parsed. The caller answers 404, and the difference
     /// between this and a [`Refusal`] is the difference between a 404 and a
@@ -135,7 +158,60 @@ impl Route {
             b"/log" => Route::Log,
             b"/status" => Route::Status,
             b"/trng" => Route::Trng,
-            _ => Route::Unknown,
+            b"/probe" => Route::Probe,
+            rest => match rest.strip_prefix(b"/led/" as &[u8]) {
+                Some(lamp) => Lamp::of(lamp).map(Route::Led).unwrap_or(Route::Unknown),
+                None => match rest.strip_prefix(b"/control/led/" as &[u8]) {
+                    Some(lamp) => Lamp::of(lamp).map(Route::Control).unwrap_or(Route::Unknown),
+                    None => Route::Unknown,
+                },
+            },
+        }
+    }
+}
+
+/// What a request may ask the LED to be.
+///
+/// Four states and no fifth, because the thing being controlled is one pin and
+/// the thing being read off it, across a room, is a person's eyes.
+/// [`Lamp::Auto`] is not in here on purpose: giving the LED back to the network
+/// reporter is a separate route (`/led/auto`), and it is the one this
+/// experiment's page offers first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lamp {
+    /// Solid on.
+    On,
+    /// Dark. **Indistinguishable from "no link"**, which is why exp155 only
+    /// hands the LED over once there is an address — before that, dark means
+    /// something the firmware needs it to keep meaning.
+    Off,
+    Slow,
+    Fast,
+    /// Give it back: the LED goes on reporting the network again.
+    Auto,
+}
+
+impl Lamp {
+    fn of(word: &[u8]) -> Option<Lamp> {
+        match word {
+            b"on" => Some(Lamp::On),
+            b"off" => Some(Lamp::Off),
+            b"slow" => Some(Lamp::Slow),
+            b"fast" => Some(Lamp::Fast),
+            b"auto" => Some(Lamp::Auto),
+            _ => None,
+        }
+    }
+
+    /// The word this state is spelled with, for a page, a log line and a
+    /// `/status` field — one spelling, so three places cannot disagree.
+    pub fn word(self) -> &'static str {
+        match self {
+            Lamp::On => "on",
+            Lamp::Off => "off",
+            Lamp::Slow => "slow",
+            Lamp::Fast => "fast",
+            Lamp::Auto => "auto",
         }
     }
 }
@@ -265,6 +341,7 @@ pub fn parse(buf: &[u8]) -> Parsed<'_> {
     let method = match method {
         b"GET" => Method::Get,
         b"POST" => Method::Post,
+        b"OPTIONS" => Method::Options,
         _ => return Parsed::Refused(Refusal::MethodNotAllowed),
     };
 
@@ -319,6 +396,123 @@ pub fn parse(buf: &[u8]) -> Parsed<'_> {
         route: Route::of(path),
         line_len,
     })
+}
+
+/// The most header bytes that will be scanned after the request line.
+///
+/// A browser sends four to six hundred bytes of headers for an ordinary page
+/// request, so this is roughly double what a real client needs. Past it the
+/// caller refuses: a client that has not finished its headers in a kilobyte is
+/// filling a buffer, not asking a question.
+pub const MAX_HEADERS: usize = 1024;
+
+/// What the bytes after the request line amount to.
+///
+/// # Why this is separate from [`parse`], and arrived one experiment later
+///
+/// exp154 read the request line and stopped, and said so in as many words:
+/// no headers, and therefore no `Host:` validation. That was the right size for
+/// an experiment where every route read something.
+///
+/// exp155 has a route that *changes the board*, and the only thing that can
+/// tell "the page I served asked" from "some other page asked" is a header. So
+/// the parser grows by exactly one capability — find a named header — and the
+/// cost of that growth is the thing exp155 reports rather than hides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Headers<'a> {
+    /// No blank line yet. Read more.
+    Incomplete,
+    /// The blank line arrived; these are the header bytes before it.
+    Complete(HeaderSet<'a>),
+    /// More than [`MAX_HEADERS`] and still no blank line.
+    TooLong,
+}
+
+/// The header block, scanned on demand rather than parsed into a table.
+///
+/// No allocation, no fixed-size array of slices, no maximum count — the whole
+/// block is walked each time a name is asked for. A firmware asks for one or
+/// two headers per request, so a table would cost more to build than the walks
+/// cost to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeaderSet<'a> {
+    bytes: &'a [u8],
+}
+
+impl<'a> HeaderSet<'a> {
+    /// The value of the first header with this name, or `None`.
+    ///
+    /// Names are compared **case-insensitively**, because HTTP header names are
+    /// case-insensitive and a browser is free to send `origin` — the one place
+    /// in this crate where being forgiving is correct rather than convenient.
+    /// Values are returned with surrounding spaces removed and are refused
+    /// unless they are printable ASCII, so nothing that reaches a log line or a
+    /// comparison can carry a control character.
+    pub fn get(&self, name: &str) -> Option<&'a str> {
+        for line in self.bytes.split(|&b| b == b'\n') {
+            let line = match line.split_last() {
+                Some((b'\r', rest)) => rest,
+                _ => line,
+            };
+            let Some(colon) = line.iter().position(|&b| b == b':') else { continue };
+            let (found, value) = line.split_at(colon);
+            if found.len() != name.len()
+                || !found
+                    .iter()
+                    .zip(name.as_bytes())
+                    .all(|(a, b)| a.eq_ignore_ascii_case(b))
+            {
+                continue;
+            }
+            let value = trim_spaces(&value[1..]);
+            if value.is_empty() || !value.iter().all(|&b| is_printable_ascii(b) || b == b' ') {
+                return None;
+            }
+            return core::str::from_utf8(value).ok();
+        }
+        None
+    }
+}
+
+/// Find the header block that follows a request line.
+///
+/// `line_len` is [`Request::line_len`] — where the headers start. The block
+/// ends at the first empty line, which is what a client sends to say it has
+/// finished asking.
+pub fn headers(buf: &[u8], line_len: usize) -> Headers<'_> {
+    if line_len > buf.len() {
+        return Headers::Incomplete;
+    }
+    let rest = &buf[line_len..];
+    // Walked line by line rather than by searching for `\r\n\r\n`, so that a
+    // block ended with bare LFs works too — the same reason `parse` accepts a
+    // bare LF, which is that a reader should be able to drive this from `nc`.
+    let mut pos = 0;
+    while pos < rest.len() {
+        let Some(nl) = rest[pos..].iter().position(|&b| b == b'\n') else { break };
+        let mut line = &rest[pos..pos + nl];
+        if line.last() == Some(&b'\r') {
+            line = &line[..line.len() - 1];
+        }
+        if line.is_empty() {
+            return Headers::Complete(HeaderSet { bytes: &rest[..pos] });
+        }
+        pos += nl + 1;
+    }
+    if rest.len() > MAX_HEADERS {
+        return Headers::TooLong;
+    }
+    Headers::Incomplete
+}
+
+fn trim_spaces(mut v: &[u8]) -> &[u8] {
+    while let [b' ' | b'\t', rest @ ..] = v {
+        v = rest;
+    }
+    while let [rest @ .., b' ' | b'\t'] = v {
+        v = rest;
+    }
+    v
 }
 
 /// The one set of bytes a path may be made of.
@@ -510,6 +704,118 @@ mod tests {
         // The caller can find the second, and this board chooses not to.
         let rest = &both[first.line_len + 2..];
         assert_eq!(complete(rest).route, Route::Trng);
+    }
+
+    #[test]
+    fn the_doors_that_change_something() {
+        for (target, want) in [
+            ("/led/on", Route::Led(Lamp::On)),
+            ("/led/off", Route::Led(Lamp::Off)),
+            ("/led/slow", Route::Led(Lamp::Slow)),
+            ("/led/fast", Route::Led(Lamp::Fast)),
+            ("/led/auto", Route::Led(Lamp::Auto)),
+            ("/control/led/on", Route::Control(Lamp::On)),
+            ("/control/led/auto", Route::Control(Lamp::Auto)),
+            ("/probe", Route::Probe),
+        ] {
+            let req = format!("GET {target} HTTP/1.1\r\n");
+            assert_eq!(complete(req.as_bytes()).route, want, "{target}");
+        }
+    }
+
+    #[test]
+    fn a_lamp_that_is_not_a_lamp_is_a_404_and_not_a_guess() {
+        // Nothing here is fuzzy-matched to the nearest state. A firmware that
+        // guesses what `/led/onn` meant is a firmware that can be talked into
+        // the wrong state by a typo.
+        for target in ["/led/onn", "/led/", "/led", "/led/on/off", "/control/led/x"] {
+            let req = format!("GET {target} HTTP/1.1\r\n");
+            assert_eq!(complete(req.as_bytes()).route, Route::Unknown, "{target}");
+        }
+    }
+
+    #[test]
+    fn one_spelling_of_each_state() {
+        // The page, the log line and the /status field all use this, so a
+        // rename cannot make two of them disagree.
+        assert_eq!(Lamp::Fast.word(), "fast");
+        assert_eq!(Lamp::Auto.word(), "auto");
+        assert_eq!(Lamp::of(Lamp::Off.word().as_bytes()), Some(Lamp::Off));
+    }
+
+    #[test]
+    fn options_is_a_method_because_a_preflight_is_a_question() {
+        let req = complete(b"OPTIONS /control/led/on HTTP/1.1\r\n");
+        assert_eq!(req.method, Method::Options);
+        assert_eq!(req.route, Route::Control(Lamp::On));
+    }
+
+    #[test]
+    fn a_header_is_found_by_name_whatever_its_case() {
+        let buf = b"POST /control/led/on HTTP/1.1\r\n\
+Host: 10.42.0.250\r\n\
+origin: http://10.42.0.250\r\n\
+X-Yi26-Control:   1  \r\n\
+\r\n";
+        let line = match parse(buf) { Parsed::Complete(r) => r.line_len, o => panic!("{o:?}") };
+        let Headers::Complete(h) = headers(buf, line) else { panic!("not complete") };
+        assert_eq!(h.get("Origin"), Some("http://10.42.0.250"));
+        assert_eq!(h.get("ORIGIN"), Some("http://10.42.0.250"));
+        assert_eq!(h.get("x-yi26-control"), Some("1"));
+        assert_eq!(h.get("Host"), Some("10.42.0.250"));
+        assert_eq!(h.get("Referer"), None);
+    }
+
+    #[test]
+    fn a_header_block_that_has_not_finished_is_not_an_empty_header_block() {
+        // The bug this prevents is the expensive one: a guarded route that
+        // reads "no Origin header" out of a block that simply had not arrived
+        // yet would let a cross-origin write through on a slow link.
+        let buf = b"POST /control/led/on HTTP/1.1\r\nOrigin: http://elsewhere\r\n";
+        let line = match parse(buf) { Parsed::Complete(r) => r.line_len, o => panic!("{o:?}") };
+        assert_eq!(headers(buf, line), Headers::Incomplete);
+
+        // ...and every prefix of a complete block says the same thing.
+        let full = b"POST /control/led/on HTTP/1.1\r\nOrigin: http://elsewhere\r\n\r\n";
+        for cut in line..full.len() {
+            assert_eq!(headers(&full[..cut], line), Headers::Incomplete, "cut at {cut}");
+        }
+        let Headers::Complete(h) = headers(full, line) else { panic!("not complete") };
+        assert_eq!(h.get("Origin"), Some("http://elsewhere"));
+    }
+
+    #[test]
+    fn a_request_with_no_headers_at_all_is_complete_not_pending() {
+        let buf = b"GET /led/on HTTP/1.1\r\n\r\n";
+        let line = match parse(buf) { Parsed::Complete(r) => r.line_len, o => panic!("{o:?}") };
+        let Headers::Complete(h) = headers(buf, line) else { panic!("not complete") };
+        assert_eq!(h.get("Origin"), None);
+    }
+
+    #[test]
+    fn bare_lf_headers_work_so_nc_can_drive_this_too() {
+        let buf = b"GET /control/led/off HTTP/1.1\nX-Yi26-Control: 1\n\n";
+        let line = match parse(buf) { Parsed::Complete(r) => r.line_len, o => panic!("{o:?}") };
+        let Headers::Complete(h) = headers(buf, line) else { panic!("not complete") };
+        assert_eq!(h.get("X-Yi26-Control"), Some("1"));
+    }
+
+    #[test]
+    fn headers_that_never_end_are_refused_rather_than_read_forever() {
+        let mut buf = b"GET /led/on HTTP/1.1\r\n".to_vec();
+        let line = buf.len();
+        buf.extend(core::iter::repeat(b'A').take(MAX_HEADERS + 1));
+        assert_eq!(headers(&buf, line), Headers::TooLong);
+    }
+
+    #[test]
+    fn a_header_value_with_a_control_character_is_not_a_value() {
+        // It would end up in a log line and in a comparison, and a value that
+        // can carry a newline can forge a second log line.
+        let buf = b"GET /led/on HTTP/1.1\r\nOrigin: http://a\x07b\r\n\r\n";
+        let line = match parse(buf) { Parsed::Complete(r) => r.line_len, o => panic!("{o:?}") };
+        let Headers::Complete(h) = headers(buf, line) else { panic!("not complete") };
+        assert_eq!(h.get("Origin"), None);
     }
 
     #[test]

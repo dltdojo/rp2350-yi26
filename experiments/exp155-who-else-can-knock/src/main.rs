@@ -1,86 +1,66 @@
-//! exp154 — one port, four doors.
+//! exp155 — who else can knock.
 //!
-//! Every experiment on this road so far has served **one thing**.
-//! [exp150](../../exp150-a-page-served-by-the-board/) served a status page and
-//! read the request line only to throw it away;
-//! [exp151](../../exp151-the-log-in-any-browser/) replaced the page with the
-//! log and threw the request away just the same. Both said why, in the same
-//! comment:
-//!
-//! > Parsing a request line means parsing untrusted input in a firmware, and
-//! > every path through this server returns the same page, so there is nothing
-//! > a path could select. exp151 is where a URL starts to mean something, and
-//! > that is where the parser belongs.
-//!
-//! Here a path selects something. Four of them:
+//! [exp154](../../exp154-one-port-four-doors/) put four doors on one port and
+//! every one of them read something. This one adds a door that **changes the
+//! board**, which is the first time in this repository that a network request
+//! moves a pin — and the whole experiment is about what that costs, measured
+//! rather than asserted.
 //!
 //! ```text
-//!   /          what is on this board, and links to the rest
-//!   /log       the retained log — exp151's page, unchanged
-//!   /status    the same facts as JSON, for something that is not a person
-//!   /trng      bytes from the hardware random number generator
+//!   GET|POST /led/<on|off|slow|fast|auto>          nothing is consulted
+//!   POST     /control/led/<...>  + X-Yi26-Control  and an Origin that is mine
+//!   OPTIONS  /control/led/<...>                    the question a browser asks first
+//!   GET      /probe                                the same three knocks, from here
 //! ```
 //!
-//! # Why this is worth an experiment and not an afternoon
+//! # The thing this was built to find out
 //!
-//! Because two of the three things it teaches are only visible once there is
-//! more than one door.
+//! The obvious worry about serving control over HTTP is "can somebody else on
+//! the network do this". The real answer is narrower and much more useful, and
+//! it is about **the browser somebody is already running**, not about the
+//! network:
 //!
-//! **A truncation is not a 404.** A TCP read returns whatever has arrived, and
-//! nothing promises a whole request line is in it. A parser that answers
-//! "unknown path" to `GET /lo` hands back an answer that depends on how the
-//! host's stack split the packet — the same class of bug `crates/dhcp` was
-//! written to make testable, and the reason the parser here lives in
-//! [`http-route`](../../../crates/http-route/) with `cargo test` cutting a
-//! request at every offset.
+//! - A `GET` that changes something can be pulled by **any page**, from any
+//!   origin, with an `<img>` tag. No CORS is involved: CORS was never about
+//!   whether the request is *sent*, only about whether the reply may be *read*.
+//! - A cross-site `POST` is no better. A form submission is a "simple" request
+//!   and is not preflighted either.
+//! - What a foreign page cannot do is send a request carrying a header nobody
+//!   sends by accident, because that forces the browser to **ask first**, and
+//!   asking is the one thing the board gets to answer.
 //!
-//! **Multiplexing is free until something is shared.** Four workers serve four
-//! different paths at once with no interference — that part is what the async
-//! executor is for. But `/trng` reaches for **the one TRNG this chip has**, and
-//! there is exactly one of it behind a mutex, so a second `/trng` waits for the
-//! first while `/log` beside it does not wait at all. The URL space is not the
-//! thing that runs out. The peripheral is.
+//! So the boundary is not the method and not the network. It is whether the
+//! board is *asked before* anything happens. `/led/...` is the door with no
+//! such question; `/control/led/...` is the door with one. Both are here on
+//! purpose, and the README carries what a real Chrome did to each.
 //!
-//! # What this does and does not say about USB CDC
+//! # The LED, and why the handover waits for an address
 //!
-//! It is tempting to summarise this experiment as "HTTP paths instead of
-//! serial ports, because serial ports are scarce". That is not what this
-//! repository measured, and the real finding is more useful:
+//! The LED is the instrument this whole road is read with on a phone
+//! ([`docs/debugging-on-a-phone.md`](../../../docs/debugging-on-a-phone.md)),
+//! and exp154 refused to spend it. This experiment spends it deliberately, and
+//! only after the two states that carry information have stopped carrying it:
+//! **dark = no link** and **slow = still asking** belong to the firmware until
+//! there is an address, because until then they are the only thing anybody can
+//! read. Once a browser can reach the board, being asked at all proves both.
 //!
-//! - **An interface has exactly one owner.** exp122 established it, exp131 was
-//!   stopped dead by it — its appliance page held the only CDC pair, so the log
-//!   page could not open at all — and exp132 built both ways round it to
-//!   measure the difference. Adding a second CDC function is possible; what it
-//!   does not do is let two programs read the same one.
-//! - **A path costs nothing on the host.** No driver binds it, no device node
-//!   appears, nobody has to work out which `/dev/ttyACM*` is the log and which
-//!   is the control channel, and as many clients can ask at once as the stack
-//!   has sockets.
+//! The consequence is stated rather than hidden: a page can set the LED to
+//! something indistinguishable from a network state. That is what handing over
+//! an instrument means.
 //!
-//! So the axis is **ownership versus dispatch**, not scarcity. What is bought
-//! is stated in the README beside what it costs, and the cost is not small:
-//! this firmware carries a TCP/IP stack, a DHCP client, an mDNS responder and
-//! an HTTP parser that a CDC log does not need, and `http://` is not a secure
-//! context, so the origin this board serves can never also use WebUSB.
+//! # What grew, and what did not
 //!
-//! # What is deliberately not here
+//! [`http-route`](../../../crates/http-route/) gains exactly one capability —
+//! find one named header — plus `OPTIONS` and the `/led/...` table. No bodies,
+//! no `Content-Length`, no header table. exp154 named the gap it was leaving
+//! (nothing about *who* is asking) and this is the smallest thing that closes
+//! it.
 //!
-//! **Writes.** Nothing on this board changes because of an HTTP request — every
-//! route reads. The moment one of them writes, the question stops being "which
-//! path" and becomes "who is allowed to ask", and that is
-//! [exp155](../../exp155-who-else-can-knock/), which measures it rather than
-//! asserting it.
-//!
-//! **`Host:` validation, and any header at all.** The parser reads the request
-//! line and stops. That is a real gap with a name — DNS rebinding — and it
-//! belongs to the experiment that has something worth rebinding *to*.
-//!
-//! # The LED is untouched
-//!
-//! Four states, exactly as exp153 left them: dark, slow, fast, solid. This is
-//! the instrument the whole network road is read with on a phone —
-//! [`docs/debugging-on-a-phone.md`](../../../docs/debugging-on-a-phone.md) —
-//! and an experiment about URLs has no business spending it.
+//! What did not grow: authentication, TLS, tokens, sessions. The guard here is
+//! an origin check, and an origin check is only worth what the browser
+//! enforcing it is worth — `curl` will send any `Origin` you like, and the
+//! README says so plainly rather than letting a reader mistake this for
+//! security against a program.
 
 #![no_std]
 #![no_main]
@@ -105,9 +85,9 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embedded_io_async::Write as _;
 use core::fmt::Write as _;
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
-use http_route::{Method, Parsed, Refusal, Request, Route};
+use http_route::{Headers, Lamp, Method, Parsed, Refusal, Route};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State as AcmState};
 use embassy_usb::class::cdc_ncm::embassy_net::{Device, Runner as NcmRunner, State as NetDeviceState};
 use embassy_usb::class::cdc_ncm::{CdcNcmClass, State as NcmState};
@@ -125,8 +105,8 @@ bind_interrupts!(struct Irqs {
 const PACKET: usize = 64;
 const MTU: usize = 1514;
 
-const HOST_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x01, 0x54];
-const OUR_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x02, 0x54];
+const HOST_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x01, 0x55];
+const OUR_MAC: [u8; 6] = [0x02, 0x26, 0x00, 0x00, 0x02, 0x55];
 
 const HTTP_PORT: u16 = 80;
 
@@ -197,6 +177,92 @@ const TRNG_MAX: usize = 1024;
 
 /// What `/trng` produces when nobody said how much.
 const TRNG_DEFAULT: usize = 32;
+
+/// How many times a route changed the LED, and how many were turned away.
+static COUNT_LED: AtomicU32 = AtomicU32::new(0);
+static COUNT_CONTROL: AtomicU32 = AtomicU32::new(0);
+static COUNT_TURNED_AWAY: AtomicU32 = AtomicU32::new(0);
+
+/// What the LED has been told to be, or `LAMP_AUTO` for "go on reporting the
+/// network".
+///
+/// A `u8` and not a `Mutex<Lamp>`: the LED loop reads this every 50 ms and a
+/// request writes it, which is exactly what an atomic is for, and a lock held
+/// across an `.await` in the blink loop would be a lock a request waits on.
+static LAMP: AtomicU8 = AtomicU8::new(LAMP_AUTO);
+const LAMP_AUTO: u8 = 0;
+
+/// The header a request has to carry to reach the guarded door.
+///
+/// Its *name* is the whole mechanism and its value is not a secret — `1` is
+/// fine. A header outside the handful CORS calls "simple" is one a browser will
+/// not send without asking the server first, and being asked first is the only
+/// thing on this board that a cross-origin page cannot route around.
+const CONTROL_HEADER: &str = "X-Yi26-Control";
+
+/// Which CORS answer a response carries. See where it is written out.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Cors {
+    /// `*` — anyone may read this. The reading routes, as exp151 left them.
+    Open,
+    /// This one origin may read it. The guarded door, when it opened.
+    Allowed,
+    /// Nothing. A browser reads the absence as a refusal.
+    Denied,
+    /// The answer to a preflight: yes, and here is what you may then send.
+    Preflight,
+}
+
+fn lamp_code(lamp: Lamp) -> u8 {
+    match lamp {
+        Lamp::Auto => LAMP_AUTO,
+        Lamp::On => 1,
+        Lamp::Off => 2,
+        Lamp::Slow => 3,
+        Lamp::Fast => 4,
+    }
+}
+
+fn lamp_of(code: u8) -> Lamp {
+    match code {
+        1 => Lamp::On,
+        2 => Lamp::Off,
+        3 => Lamp::Slow,
+        4 => Lamp::Fast,
+        _ => Lamp::Auto,
+    }
+}
+
+/// Returns whether this actually changed anything.
+///
+/// The distinction is not tidiness: a page that polls a control route would
+/// otherwise write a retained log line every few seconds and bury the
+/// measurement under its own footsteps — sixty-four lines is the whole ring.
+fn set_lamp(lamp: Lamp) -> bool {
+    LAMP.swap(lamp_code(lamp), Ordering::Relaxed) != lamp_code(lamp)
+}
+
+/// Is this `Origin` header this board's own?
+///
+/// Compared against the address the board is currently at, formatted the way a
+/// browser formats an origin. Port 80 is never written out — `http://10.42.0.250`
+/// and not `http://10.42.0.250:80` — which is a rule about origins, not a
+/// simplification: a browser that sent the port would be sending a *different*
+/// origin string, and this comparison would correctly refuse it.
+///
+/// `yi26.local` is accepted as well, because it is the same board by another
+/// name and exp151 put that name on it.
+fn same_origin(origin: Option<&str>, addr: [u8; 4]) -> bool {
+    let Some(origin) = origin else { return true };
+    let mut expected: heapless::String<40> = heapless::String::new();
+    let _ = write!(expected, "http://{}.{}.{}.{}", addr[0], addr[1], addr[2], addr[3]);
+    if origin == expected.as_str() {
+        return true;
+    }
+    let mut by_name: heapless::String<40> = heapless::String::new();
+    let _ = write!(by_name, "http://{}.local", MDNS_NAME_STR);
+    origin == by_name.as_str()
+}
 
 /// How long a worker waits for the rest of a request line before giving up.
 ///
@@ -397,7 +463,18 @@ your machine and nothing claimed a device: this is HTTP.</p>\
 <tr><td>refused</td><td>parsed and not acted on</td><td>{}</td></tr>\
 </table>\
 <p>The count beside each path is how many times it has been asked for. \
-They move independently, which is the whole point.</p>",
+They move independently, which is the whole point.</p>\
+<h1>the LED, from here</h1>\
+<p>The LED is <b>{}</b>. These are ordinary links &mdash; no script, no form, \
+nothing but a URL, which is exactly what makes them worth measuring. \
+<b>Any page that can route to this board can pull the same four.</b></p>\
+<nav><a href=\"/led/on\">on</a><a href=\"/led/off\">off</a>\
+<a href=\"/led/slow\">slow</a><a href=\"/led/fast\">fast</a>\
+<a href=\"/led/auto\">give it back</a></nav>\
+<p>&ldquo;Give it back&rdquo; returns the LED to reporting the network, which is \
+what it does before anybody asks and whenever there is no address. \
+<a href=\"/probe\">/probe</a> knocks on all three doors from this origin; \
+serve the same page from anywhere else and only the origin differs.</p>",
         addr[0], addr[1], addr[2], addr[3],
         addr[0], addr[1], addr[2], addr[3], hi, lo, up,
         COUNT_LOG.load(Ordering::Relaxed),
@@ -406,6 +483,7 @@ They move independently, which is the whole point.</p>",
         COUNT_TRNG.load(Ordering::Relaxed),
         COUNT_INDEX.load(Ordering::Relaxed),
         COUNT_REFUSED.load(Ordering::Relaxed),
+        lamp_of(LAMP.load(Ordering::Relaxed)).word(),
     );
     w.n
 }
@@ -434,14 +512,27 @@ fn render_status(out: &mut [u8], addr: [u8; 4], gateway: Option<[u8; 4]>, link: 
         Some(g) => { let _ = write!(w, "\"gateway\":\"{}.{}.{}.{}\",", g[0], g[1], g[2], g[3]); }
         None => { let _ = write!(w, "\"gateway\":null,"); }
     }
+    // The LED's state, and how it got there. This is the field the whole
+    // experiment is read from: a browser is the subject, `/status` is the
+    // instrument, and nobody has to be looking at the board.
     let _ = write!(
         w,
-        "\"served\":{{\"index\":{},\"log\":{},\"status\":{},\"trng\":{},\"refused\":{}}},\
+        "\"led\":\"{}\",\"led_is_mine\":{},",
+        lamp_of(LAMP.load(Ordering::Relaxed)).word(),
+        LAMP.load(Ordering::Relaxed) == LAMP_AUTO,
+    );
+    let _ = write!(
+        w,
+        "\"served\":{{\"index\":{},\"log\":{},\"status\":{},\"trng\":{},\
+\"led\":{},\"control\":{},\"turned_away\":{},\"refused\":{}}},\
 \"log_lines_lost\":{}}}",
         COUNT_INDEX.load(Ordering::Relaxed),
         COUNT_LOG.load(Ordering::Relaxed),
         COUNT_STATUS.load(Ordering::Relaxed),
         COUNT_TRNG.load(Ordering::Relaxed),
+        COUNT_LED.load(Ordering::Relaxed),
+        COUNT_CONTROL.load(Ordering::Relaxed),
+        COUNT_TURNED_AWAY.load(Ordering::Relaxed),
         COUNT_REFUSED.load(Ordering::Relaxed),
         // `usb-log` has no "how many were lost" call of its own — the count
         // comes back from the walk. Walking with an empty closure is the whole
@@ -490,6 +581,69 @@ sampling took {} us; waiting for the one TRNG took {} us\n\n",
         w.byte(if (i + 1) % 32 == 0 { b'\n' } else { b' ' });
     }
     w.byte(b'\n');
+    w.n
+}
+
+/// The answer to a request that asked the LED to be something.
+///
+/// Plain text, and it names the state rather than saying "ok": a caller that
+/// polls this can tell what the board thinks the LED is without a second
+/// request, and a person watching a real LED can compare the two.
+fn render_lamp(out: &mut [u8], lamp: Lamp, done: bool, why: &str) -> usize {
+    let mut w = Cursor { buf: out, n: 0 };
+    if done {
+        let _ = write!(w, "led: {}\n", lamp.word());
+    } else {
+        let _ = write!(w, "led: unchanged, still {}\nrefused: {}\n",
+                       lamp_of(LAMP.load(Ordering::Relaxed)).word(), why);
+    }
+    w.n
+}
+
+/// `/probe` — the page that knocks on all three doors, from the board's own
+/// origin.
+///
+/// **This is the only page in this repository with a script in it, and it is
+/// not a page for a phone.** It is a test instrument: the same four attempts,
+/// run from an origin that is this board's own. Serve the identical file from
+/// anywhere else and the only thing that differs is the origin — which is the
+/// whole experiment, and the reason it is written as one page rather than two.
+///
+/// What it reports on screen is a convenience. **The measurement is read from
+/// `/status` and from the log**, because the question is what reached the
+/// board, and a page cannot be a witness to that — it can only say what its own
+/// browser told it. `AGENTS.md` has the general form of that rule.
+fn render_probe(out: &mut [u8], addr: [u8; 4]) -> usize {
+    let mut w = Cursor { buf: out, n: 0 };
+    let _ = write!(
+        w,
+        "<!doctype html>{CHROME}<title>probe</title>\
+<h1>knocking on three doors</h1>\
+<p>Base: <code>http://{}.{}.{}.{}</code>. Read the real answer from \
+<a href=\"/status\">/status</a> and <a href=\"/log\">/log</a>, not from this page.</p>\
+<pre id=out>starting…\n</pre>\
+<iframe name=sink style=\"display:none\"></iframe>\
+<form id=f method=post target=sink action=\"http://{}.{}.{}.{}/led/slow\"></form>\
+<script>\
+const B='http://{}.{}.{}.{}';\
+const o=document.getElementById('out');\
+const say=(s)=>{{o.textContent+=s+'\\n';}};\
+const img=new Image();\
+img.onerror=()=>say('1 <img src=/led/fast>: request left the browser (the reply is not an image, which is fine)');\
+img.onload=()=>say('1 <img src=/led/fast>: loaded');\
+img.src=B+'/led/fast';\
+setTimeout(()=>{{document.getElementById('f').submit();say('2 cross-site form POST /led/slow: submitted');}},600);\
+setTimeout(()=>{{\
+fetch(B+'/control/led/off',{{method:'POST',headers:{{'{}':'1'}}}})\
+.then(r=>say('3 fetch POST /control/led/off: HTTP '+r.status))\
+.catch(e=>say('3 fetch POST /control/led/off: blocked before it was answered — '+e));\
+}},1200);\
+</script>",
+        addr[0], addr[1], addr[2], addr[3],
+        addr[0], addr[1], addr[2], addr[3],
+        addr[0], addr[1], addr[2], addr[3],
+        CONTROL_HEADER
+    );
     w.n
 }
 
@@ -694,11 +848,12 @@ async fn http_task(
     tx: &'static mut [u8],
     page: &'static mut [u8],
 ) -> ! {
-    // Big enough for a request line and the first headers of a real browser,
-    // and small enough that filling it is itself an answer: a client that has
-    // sent this much without ending a line is not going to.
-    let mut req = [0u8; 512];
-    let mut head: heapless::String<256> = heapless::String::new();
+    // Bigger than exp154's 512, because this experiment reads headers and a
+    // browser sends four to six hundred bytes of them. Still small enough that
+    // filling it is itself an answer.
+    let mut req = [0u8; 1536];
+    let mut head: heapless::String<384> = heapless::String::new();
+    let mut origin_seen: heapless::String<64> = heapless::String::new();
 
     loop {
         let mut socket = TcpSocket::new(stack, &mut rx[..], &mut tx[..]);
@@ -714,118 +869,241 @@ async fn http_task(
         }
         log_transient!("http: connection from {:?}", socket.remote_endpoint());
 
-        // Read until the first line is whole, the buffer is full, or the peer
-        // stops talking. `have` is the only state this loop carries; the
-        // request itself is re-parsed once afterwards, so that the borrow of
-        // `req` never has to outlive the reads into it.
+        // Read until the request line **and its headers** are whole, the buffer
+        // is full, or the peer stops talking.
+        //
+        // exp154 stopped at the line. This one cannot: the difference between
+        // "the page I served asked" and "some other page asked" is a header, so
+        // a request whose header block has not arrived is not a request yet.
+        // Getting that wrong in the other direction is the expensive mistake —
+        // reading "no Origin" out of a block that had simply not arrived would
+        // let a cross-origin write through on a slow link, and it would do so
+        // *sometimes*, which is the worst kind of bug to be handed.
+        //
+        // `have` is the only state this loop carries; the request is re-parsed
+        // once afterwards, so the borrow of `req` never outlives the reads
+        // into it.
         let mut have = 0usize;
         let mut gone = false;
-        let decided = loop {
+        let decided: Option<Result<usize, Refusal>> = loop {
             match http_route::parse(&req[..have]) {
+                // A line that will never be acceptable is refused now. Waiting
+                // for the headers of a request that is already malformed only
+                // holds a worker open for whoever sent it.
+                Parsed::Refused(why) => break Some(Err(why)),
+                Parsed::Complete(r) => match http_route::headers(&req[..have], r.line_len) {
+                    Headers::Complete(_) => break Some(Ok(r.line_len)),
+                    Headers::TooLong => break Some(Err(Refusal::LineTooLong)),
+                    Headers::Incomplete => {}
+                },
                 Parsed::Incomplete => {}
-                other => break Some(matches!(other, Parsed::Complete(_))),
             }
             if have == req.len() {
-                // A full buffer with no line in it. The parser refuses this on
-                // length as soon as it is asked, so let it say so.
-                break Some(false);
+                break Some(Err(Refusal::LineTooLong));
             }
             match with_timeout(REQUEST_TIMEOUT, socket.read(&mut req[have..])).await {
                 Ok(Ok(0)) | Ok(Err(_)) => { gone = true; break None }
                 Err(_) => {
-                    log_transient!("http: no request line within {} s", REQUEST_TIMEOUT.as_secs());
+                    log_transient!("http: no whole request within {} s", REQUEST_TIMEOUT.as_secs());
                     gone = true;
                     break None;
                 }
                 Ok(Ok(n)) => have += n,
             }
         };
-        if gone || decided.is_none() {
+        let Some(decided) = decided else {
+            let _ = gone;
             socket.abort();
             continue;
-        }
+        };
 
         let served = SERVED.fetch_add(1, Ordering::Relaxed) + 1;
+        let addr = my_address(stack).unwrap_or([0; 4]);
+        origin_seen.clear();
 
         // One place where a path becomes an answer. Everything above this is
         // transport and everything below it is bytes; this match is the
         // experiment.
-        let (status, ctype, len) = match http_route::parse(&req[..have]) {
-            Parsed::Complete(Request { method: Method::Get, route: Route::Index, .. }) => {
-                COUNT_INDEX.fetch_add(1, Ordering::Relaxed);
-                (200, "text/html; charset=utf-8", render_index(page, my_address(stack).unwrap_or([0; 4])))
-            }
-            Parsed::Complete(Request { method: Method::Get, route: Route::Log, .. }) => {
-                COUNT_LOG.fetch_add(1, Ordering::Relaxed);
-                (200, "text/html; charset=utf-8", render(page, my_address(stack).unwrap_or([0; 4])))
-            }
-            Parsed::Complete(Request { method: Method::Get, route: Route::Status, .. }) => {
-                COUNT_STATUS.fetch_add(1, Ordering::Relaxed);
-                let cfg = stack.config_v4();
-                let len = render_status(
-                    page,
-                    my_address(stack).unwrap_or([0; 4]),
-                    cfg.and_then(|c| c.gateway).map(|g| g.octets()),
-                    stack.is_link_up(),
-                );
-                (200, "application/json", len)
-            }
-            Parsed::Complete(Request { method: Method::Get, route: Route::Trng, query, .. }) => {
-                COUNT_TRNG.fetch_add(1, Ordering::Relaxed);
-                let want = wanted_bytes(query);
-                let mut bytes = [0u8; TRNG_MAX];
-
-                // The two numbers this experiment exists to produce, kept
-                // apart: how long the queue was, and how long the work took.
-                // A single "elapsed" would hide which of the two a second
-                // caller is paying for.
-                let asked = Instant::now();
-                let mut guard = RNG.lock().await;
-                let waited = (Instant::now() - asked).as_micros();
-                let began = Instant::now();
-                if let Some(trng) = guard.as_mut() {
-                    trng.fill_bytes(&mut bytes[..want]).await;
-                }
-                let took = (Instant::now() - began).as_micros();
-                drop(guard);
-
-                log_transient!("http: /trng {} bytes, waited {} us, took {} us", want, waited, took);
-                (200, "text/plain; charset=utf-8", render_trng(page, &bytes[..want], took, waited))
-            }
-            // Parsed, well-formed, and names nothing **on this firmware**. A 404
-            // and not a 400 — the difference matters to whoever is reading the
-            // log, because one of them means "you asked for something that is
-            // not here" and the other means "I could not tell what you asked".
-            //
-            // `Route` has variants this experiment does not serve: exp155 added
-            // `/led/…` to the shared table, and on this board those paths do not
-            // exist. They land here, which is exactly right — a routing table is
-            // allowed to know about doors a given firmware did not build.
-            Parsed::Complete(Request { method: Method::Get, path, .. }) => {
-                COUNT_REFUSED.fetch_add(1, Ordering::Relaxed);
-                log_transient!("http: 404 for a path of {} bytes", path.len());
-                (404, "text/plain; charset=utf-8", render_error(page, 404, "no such path"))
-            }
-            // A method this board parses and does not act on — POST /log, or a
-            // preflight for a route that could not be written to anyway.
-            // Nothing here writes, which is exp155's subject, so this is a 405
-            // rather than a quiet success.
-            Parsed::Complete(Request { method: Method::Post | Method::Options, .. }) => {
-                COUNT_REFUSED.fetch_add(1, Ordering::Relaxed);
-                log_transient!("http: 405 — nothing on this board is written by a request");
-                (405, "text/plain; charset=utf-8", render_error(page, 405, Refusal::MethodNotAllowed.reason()))
-            }
-            Parsed::Refused(why) => {
+        let (status, ctype, len, cors) = match decided {
+            Err(why) => {
                 COUNT_REFUSED.fetch_add(1, Ordering::Relaxed);
                 // The reason is logged and also sent. On a phone the log is
                 // three taps away and the response body is on the screen.
                 log_transient!("http: {} — {}", why.status(), why.reason());
-                (why.status(), "text/plain; charset=utf-8", render_error(page, why.status(), why.reason()))
+                (why.status(), "text/plain; charset=utf-8",
+                 render_error(page, why.status(), why.reason()), Cors::Open)
             }
-            // Unreachable: the loop above only leaves with a decision.
-            Parsed::Incomplete => {
-                socket.abort();
-                continue;
+            // Cannot happen — the loop above leaves only when both of these are
+            // there — and it answers rather than panicking, because a panic
+            // here is a board that stops enumerating and needs a hand on
+            // BOOTSEL. An `unreachable!()` in a firmware is a bet, not an
+            // assertion.
+            Ok(line_len)
+                if !matches!(http_route::parse(&req[..have]), Parsed::Complete(_))
+                    || !matches!(http_route::headers(&req[..have], line_len), Headers::Complete(_)) =>
+            {
+                COUNT_REFUSED.fetch_add(1, Ordering::Relaxed);
+                log!("http: a decided request would not re-parse — a bug, not a client");
+                let len = render_error(page, 400, "could not re-read the request");
+                (400, "text/plain; charset=utf-8", len, Cors::Open)
+            }
+            Ok(line_len) => {
+                let (r, h) = match (
+                    http_route::parse(&req[..have]),
+                    http_route::headers(&req[..have], line_len),
+                ) {
+                    (Parsed::Complete(r), Headers::Complete(h)) => (r, h),
+                    // Excluded by the guard above; the compiler cannot know it.
+                    _ => continue,
+                };
+
+                // Who is asking. Recorded for every request, acted on for one
+                // kind — which is the whole shape of this experiment.
+                let origin = h.get("Origin");
+                if let Some(o) = origin {
+                    let _ = origin_seen.push_str(o);
+                }
+                let ours = origin.is_none() || same_origin(origin, addr);
+
+                match (r.method, r.route) {
+                    (Method::Get, Route::Index) => {
+                        COUNT_INDEX.fetch_add(1, Ordering::Relaxed);
+                        (200, "text/html; charset=utf-8", render_index(page, addr), Cors::Open)
+                    }
+                    (Method::Get, Route::Log) => {
+                        COUNT_LOG.fetch_add(1, Ordering::Relaxed);
+                        (200, "text/html; charset=utf-8", render(page, addr), Cors::Open)
+                    }
+                    (Method::Get, Route::Probe) => {
+                        COUNT_INDEX.fetch_add(1, Ordering::Relaxed);
+                        (200, "text/html; charset=utf-8", render_probe(page, addr), Cors::Open)
+                    }
+                    (Method::Get, Route::Status) => {
+                        COUNT_STATUS.fetch_add(1, Ordering::Relaxed);
+                        let cfg = stack.config_v4();
+                        let len = render_status(
+                            page,
+                            addr,
+                            cfg.and_then(|c| c.gateway).map(|g| g.octets()),
+                            stack.is_link_up(),
+                        );
+                        (200, "application/json", len, Cors::Open)
+                    }
+                    (Method::Get, Route::Trng) => {
+                        COUNT_TRNG.fetch_add(1, Ordering::Relaxed);
+                        let want = wanted_bytes(r.query);
+                        let mut bytes = [0u8; TRNG_MAX];
+
+                        // The two numbers exp154 exists to produce, kept apart:
+                        // how long the queue was, and how long the work took.
+                        let asked = Instant::now();
+                        let mut guard = RNG.lock().await;
+                        let waited = (Instant::now() - asked).as_micros();
+                        let began = Instant::now();
+                        if let Some(trng) = guard.as_mut() {
+                            trng.fill_bytes(&mut bytes[..want]).await;
+                        }
+                        let took = (Instant::now() - began).as_micros();
+                        drop(guard);
+
+                        log_transient!("http: /trng {} bytes, waited {} us, took {} us", want, waited, took);
+                        (200, "text/plain; charset=utf-8",
+                         render_trng(page, &bytes[..want], took, waited), Cors::Open)
+                    }
+
+                    // ---- the open door -------------------------------------
+                    //
+                    // **No header is consulted.** Any page in any browser that
+                    // can route to this board can pull this, with an `<img>`
+                    // tag it does not even need to be able to read the reply
+                    // of; and `POST` is no better, because a cross-site form
+                    // submission is not preflighted either. That is not a bug
+                    // to be fixed in a later commit — it is the measurement,
+                    // and the README carries what a browser actually did.
+                    (Method::Get | Method::Post, Route::Led(lamp)) => {
+                        COUNT_LED.fetch_add(1, Ordering::Relaxed);
+                        let changed = set_lamp(lamp);
+                        // A state change is history; the same state again is
+                        // the caller's own repetition. exp153's rule, and the
+                        // reason a page polling this cannot erase the log.
+                        if changed {
+                            log!("led: now {} — asked over {} by {}", lamp.word(),
+                                 if matches!(r.method, Method::Get) { "GET" } else { "POST" },
+                                 if origin_seen.is_empty() { "no stated origin" } else { origin_seen.as_str() });
+                        } else {
+                            log_transient!("led: {} again", lamp.word());
+                        }
+                        (200, "text/plain; charset=utf-8", render_lamp(page, lamp, true, ""), Cors::Open)
+                    }
+
+                    // ---- the door that asks who is knocking ----------------
+                    //
+                    // Two conditions, and neither is a secret: a header nothing
+                    // adds by accident, and an `Origin` that is this board's
+                    // own or absent. The header is what forces a browser to
+                    // *preflight* — to ask before it acts — and the origin
+                    // check is the answer it gets.
+                    (Method::Post, Route::Control(lamp)) => {
+                        let has_token = h.get(CONTROL_HEADER) == Some("1");
+                        if has_token && ours {
+                            COUNT_CONTROL.fetch_add(1, Ordering::Relaxed);
+                            let changed = set_lamp(lamp);
+                            if changed {
+                                log!("led: now {} — asked through the guarded door", lamp.word());
+                            }
+                            (200, "text/plain; charset=utf-8",
+                             render_lamp(page, lamp, true, ""), Cors::Allowed)
+                        } else {
+                            COUNT_TURNED_AWAY.fetch_add(1, Ordering::Relaxed);
+                            let why = if !has_token {
+                                "no X-Yi26-Control header — this door has to be knocked on deliberately"
+                            } else {
+                                "that origin is not this board's own"
+                            };
+                            log!("led: turned away — {} ({})", why,
+                                 if origin_seen.is_empty() { "no stated origin" } else { origin_seen.as_str() });
+                            (403, "text/plain; charset=utf-8",
+                             render_lamp(page, lamp, false, why), Cors::Denied)
+                        }
+                    }
+
+                    // ---- the question a browser asks first -----------------
+                    //
+                    // A preflight. Answering it with the origin echoed back is
+                    // the board saying yes; answering without those headers is
+                    // the board saying nothing, and a browser treats silence as
+                    // no. **Nothing is done here** — a preflight must never be
+                    // the thing that changes the board.
+                    (Method::Options, Route::Control(_)) => {
+                        if ours {
+                            (204, "text/plain; charset=utf-8", 0, Cors::Preflight)
+                        } else {
+                            COUNT_TURNED_AWAY.fetch_add(1, Ordering::Relaxed);
+                            log!("led: refused a preflight from {}",
+                                 if origin_seen.is_empty() { "no stated origin" } else { origin_seen.as_str() });
+                            (403, "text/plain; charset=utf-8",
+                             render_error(page, 403, "not this board's origin"), Cors::Denied)
+                        }
+                    }
+
+                    // Parsed, well-formed, and names nothing. A 404 and not a
+                    // 400 — one means "you asked for something that is not
+                    // here", the other "I could not tell what you asked".
+                    (Method::Get, _) => {
+                        COUNT_REFUSED.fetch_add(1, Ordering::Relaxed);
+                        log_transient!("http: 404 for a path of {} bytes", r.path.len());
+                        (404, "text/plain; charset=utf-8",
+                         render_error(page, 404, "no such path"), Cors::Open)
+                    }
+                    // A method this route does not answer — POST /log, or a
+                    // preflight for something that cannot be written anyway.
+                    (Method::Post | Method::Options, _) => {
+                        COUNT_REFUSED.fetch_add(1, Ordering::Relaxed);
+                        log_transient!("http: 405 for that method on that path");
+                        (405, "text/plain; charset=utf-8",
+                         render_error(page, 405, Refusal::MethodNotAllowed.reason()), Cors::Open)
+                    }
+                }
             }
         };
 
@@ -853,18 +1131,62 @@ async fn http_task(
         // the same way, preflight included.
         let reason = match status {
             200 => "OK",
+            204 => "No Content",
             400 => "Bad Request",
+            403 => "Forbidden",
             404 => "Not Found",
             405 => "Method Not Allowed",
             _ => "Error",
         };
         let _ = write!(
             head,
-            "HTTP/1.0 {} {}\r\nContent-Type: {}\r\n\
-Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Private-Network: true\r\n\
-Content-Length: {}\r\nConnection: close\r\n\r\n",
+            "HTTP/1.0 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\n",
             status, reason, ctype, len
         );
+        // The CORS headers are now **four different answers**, and which one is
+        // sent is the point of the experiment.
+        //
+        // `Cors::Open` on the reading routes is exp151's decision, inherited:
+        // any page may read a chip ID, an uptime and a log. `Cors::Allowed`
+        // echoes one origin — this board's own — rather than `*`, because `*`
+        // on a route that writes would hand the door to every page there is.
+        // `Cors::Denied` sends nothing at all: a browser reads silence as no,
+        // and there is no header that means "no" more clearly than the absence
+        // of the one that means yes.
+        //
+        // `Allow-Private-Network` is Chrome's Private Network Access check: a
+        // page on a public origin fetching a private address is preflighted,
+        // and without this that preflight fails before the request is made.
+        match cors {
+            Cors::Open => {
+                let _ = write!(head, "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Private-Network: true\r\n");
+            }
+            // A request with no `Origin` is not a cross-origin request, so it
+            // needs no permission and gets no header. **Echoing the literal
+            // `null` here would have been a real mistake**, and it was caught
+            // by looking at what `curl` was actually sent: `null` is not the
+            // absence of an origin, it is the origin a sandboxed iframe and a
+            // `file://` page carry — so a board that answers `null` has granted
+            // exactly the callers least able to say who they are.
+            Cors::Allowed if !origin_seen.is_empty() => {
+                let _ = write!(head, "Access-Control-Allow-Origin: {}\r\nVary: Origin\r\n", origin_seen.as_str());
+            }
+            Cors::Allowed => {}
+            Cors::Preflight => {
+                if !origin_seen.is_empty() {
+                    let _ = write!(head, "Access-Control-Allow-Origin: {}\r\nVary: Origin\r\n", origin_seen.as_str());
+                }
+                let _ = write!(
+                    head,
+                    "Access-Control-Allow-Methods: POST\r\nAccess-Control-Allow-Headers: {}\r\n\
+Access-Control-Allow-Private-Network: true\r\nAccess-Control-Max-Age: 60\r\n",
+                    CONTROL_HEADER
+                );
+            }
+            // Deliberately nothing.
+            Cors::Denied => {}
+        }
+        let _ = write!(head, "Connection: close\r\n\r\n");
 
         let ok = socket.write_all(head.as_bytes()).await.is_ok()
             && socket.write_all(&page[..len]).await.is_ok()
@@ -951,8 +1273,8 @@ async fn main(spawner: Spawner) {
 
     let mut config = UsbConfig::new(0x1209, 0x0001);
     config.manufacturer = Some("rp2350-yi26");
-    config.product = Some("exp154 one port four doors");
-    config.serial_number = Some("154");
+    config.product = Some("exp155 who else can knock");
+    config.serial_number = Some("155");
     config.device_class = 0xef;
     config.device_sub_class = 0x02;
     config.device_protocol = 0x01;
@@ -1073,7 +1395,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(mdns_task(stack).unwrap());
     spawner.spawn(report_task(stack).unwrap());
 
-    log!("exp154 up. One port, four paths: / /log /status /trng.");
+    log!("exp155 up. The LED can now be set over HTTP, and the log says by whom.");
 
         // The client role cannot print its address here: it does not have one yet,
     // and will not for a few hundred milliseconds. The reporter prints it once
@@ -1082,28 +1404,60 @@ async fn main(spawner: Spawner) {
     // by the time they look.
     {
         log!("  asking for an address — whoever is on the other end is the server here.");
-        log!("  port {}: / is the index, /log is this log, /status is JSON, /trng is bytes.", HTTP_PORT);
-        log!("  /trng takes ?n= up to {}, and shares one TRNG between four workers.", TRNG_MAX);
+        log!("  port {}: / /log /status /trng, plus /led/<on|off|slow|fast|auto>.", HTTP_PORT);
+        log!("  /led is open to anybody who can route here; /control/led needs a header and my origin.");
         log!("  and answering to yi26.local, so nobody has to know the number.");
-        log!("  LED: dark=no link, slow=still asking, fast=I have an address, SOLID=page served.");
+        log!("  LED until an address arrives: dark=no link, slow=still asking. After that it is yours.");
     }
 
-    // Four states now, and the fourth is not a fourth *rate*. Three blink
-    // speeds is already more than somebody can tell apart across a room, so
-    // "a browser got the page" is **solid on** — the one reading that cannot
-    // be confused with any of the others, for the result that matters most.
+    // **The LED is handed over, and only after there is an address.**
+    //
+    // Before that it goes on meaning what exp148 through exp154 made it mean —
+    // dark for no link, slow for still asking — because those are the two
+    // states somebody is watching when nothing else can tell them anything, and
+    // a page that could take them away would be taking away the instrument at
+    // exactly the moment it is the only one there is.
+    //
+    // Once an address exists, a browser can reach the board, and the four
+    // network states have already said everything they can say: being able to
+    // ask at all proves the link and the lease. So from there the LED is the
+    // caller's, until somebody asks for `/led/auto` back.
+    //
+    // The consequence is worth stating rather than hiding: **a page can set the
+    // LED to something indistinguishable from a network state.** `slow` looks
+    // like "still asking" and `off` looks like "no link". That is not a flaw in
+    // the mechanism, it is what handing over an instrument means, and it is why
+    // the handover does not start until the network states are moot.
     loop {
-        match (stack.is_link_up(), addressed(stack), SERVED.load(Ordering::Relaxed)) {
-            (false, _, _) => {
-                led.set_low();
-                Timer::after(POLL).await;
-            }
-            (true, false, _) => blink(&mut led, BLINK_LINK).await,
-            (true, true, 0) => blink(&mut led, BLINK_LEASED).await,
-            (true, true, _) => {
+        let network_state = (stack.is_link_up(), addressed(stack), SERVED.load(Ordering::Relaxed));
+        let told = if network_state.1 { lamp_of(LAMP.load(Ordering::Relaxed)) } else { Lamp::Auto };
+        match told {
+            Lamp::On => {
                 led.set_high();
                 Timer::after(POLL).await;
             }
+            Lamp::Off => {
+                led.set_low();
+                Timer::after(POLL).await;
+            }
+            Lamp::Slow => blink(&mut led, BLINK_LINK).await,
+            Lamp::Fast => blink(&mut led, BLINK_LEASED).await,
+            // Nobody has asked, or the address went away. Four states, and the
+            // fourth is not a fourth *rate*: three blink speeds is already more
+            // than somebody can tell apart across a room, so "a browser got the
+            // page" is solid on.
+            Lamp::Auto => match network_state {
+                (false, _, _) => {
+                    led.set_low();
+                    Timer::after(POLL).await;
+                }
+                (true, false, _) => blink(&mut led, BLINK_LINK).await,
+                (true, true, 0) => blink(&mut led, BLINK_LEASED).await,
+                (true, true, _) => {
+                    led.set_high();
+                    Timer::after(POLL).await;
+                }
+            },
         }
     }
 }
