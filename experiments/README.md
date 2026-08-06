@@ -74,7 +74,7 @@ Per experiment:
 | exp146 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser — a phone's is the point. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface. It **writes flash**, which is what exp141 stopped short of. |
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
-| exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is a `sudo` step. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. |
+| exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
 | exp150 | Same as exp149, plus **a browser — any browser**, which is the point. This is the first experiment here whose page needs no WebUSB, no permission dialog and no Chromium. Whether the browser can reach the board is a property of the host's routing, not of this firmware. |
@@ -654,7 +654,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp147-two-firmwares-one-phone](./exp147-two-firmwares-one-phone/) | 3 · a person | The whole A/B arc arranged so a phone can run it and an LED reports the answer — fast blink or slow, and two different ways to make it change |
 | [exp148-a-wire-with-no-address](./exp148-a-wire-with-no-address/) | 3 · a person | A CDC-NCM link and a DHCP client, kept apart: the firmware can see a host driver claim it, and can see that having a wire is not having an address |
 | [exp149-the-board-hands-out-the-address](./exp149-the-board-hands-out-the-address/) | 3 · a person | The board answers DHCP itself — four packets, hand-rolled — so a phone gets an address with nothing to configure, because a phone has no setting to configure |
-| [exp153-out-through-the-phone](./exp153-out-through-the-phone/) | 3 · a person | The board sends a request to the internet through the phone it is plugged into — which the plan for this experiment said a phone could not do — and gets redirected to a protocol it cannot speak |
+| [exp153-out-through-the-phone](./exp153-out-through-the-phone/) | 3 · a person | The board reaches the internet through the phone it is plugged into — refuting this repository's own written claim that a phone cannot NAT — and is redirected off the plain web to a protocol it cannot speak |
 | [exp152-the-volume-that-waits](./exp152-the-volume-that-waits/) | 3 · a person | The board carries a drive that does not exist until it knows its own address — verified on a phone: plug in, turn on tethering, tap two things, and the log is there |
 | [exp151-the-log-in-any-browser](./exp151-the-log-in-any-browser/) | 3 · a person | The board serves its own log over HTTP — verified rendering in Chrome on a phone — and answers to a name that phone will not ask it for |
 | [exp150-a-page-served-by-the-board](./exp150-a-page-served-by-the-board/) | 3 · a person | The board serves its own web page: no WebUSB, no permission dialog, no chooser, any browser — and the question of whether a phone can route to an address it never showed as a network |
@@ -1087,20 +1087,22 @@ exp147 was built against, so nothing had to move to start.
   > It needs the host to route and NAT for it, which a laptop can be told to do
   > and a phone cannot — there is no such UI.
 
-  **That paragraph is the thing
-  [exp153](./exp153-out-through-the-phone/) exists to check, and it was written
-  before exp150 measured what Ethernet tethering does.** Tethering is not a
-  setting that hands out addresses; it is a setting that *shares a connection* —
-  the phone is the DHCP server, the router **and the NAT**. exp150 watched the
-  board come up with a gateway and never asked what was on the other side of it,
-  and exp151 and exp152 both go on requiring somebody to turn that same switch
-  on.
+  **That paragraph is wrong, and [exp153](./exp153-out-through-the-phone/)
+  refuted it on a Pixel 9a on 2026-08-06.** Ethernet tethering is that UI. It is
+  not a setting that hands out addresses; it is a setting that *shares a
+  connection* — the phone becomes the DHCP server, the router **and the NAT** —
+  and it is not named after what it does, which is how three experiments came to
+  require somebody to turn it on without anybody asking what else it was doing.
+  The board took a lease with a gateway from the phone and reached `1.1.1.1`
+  through it, with mobile data up the whole time.
 
-  exp153 is **built and smoke-tested on Ubuntu, not yet run on a phone**, so
-  this bullet stays until a phone has answered it. What it measures beyond the
-  gateway is the second half, and the more durable one: two requests to
-  `1.1.1.1`, one header apart, where the redirect to `https://` is the cost of
-  having no TLS stated as a number rather than as a warning.
+  It was not refuted by new hardware or a clever workaround, but by reading what
+  the last three experiments had already needed. **A prediction written into a
+  plan is not evidence, and this one sat here for a day being cited.**
+
+  The second half of exp153 is the more durable one: two requests to `1.1.1.1`,
+  one header apart, where the redirect to `https://` states the cost of having
+  no TLS as a number rather than as a warning.
 
 - **The browser as the board's gateway**, planned as exp152. The board asks over
   CDC for a URL, the page fetches it, and the reply comes back — over
@@ -1109,11 +1111,13 @@ exp147 was built against, so nothing had to move to start.
   it to read, which would be the first time here that `curl` can fetch something
   a browser cannot.
 
-  **Its reason for existing was to be the way around exp153's wall, and it is
-  waiting to find out whether there is one.** If the board gets out through the
-  phone by itself, this is a lesson about CORS wearing the costume of a
-  workaround, and the honest thing is to say so rather than to build it because
-  it was listed. Not scheduled until exp153 has been run.
+  **Its reason for existing is gone.** It was the way around exp153's wall, and
+  on 2026-08-06 exp153 measured that there is no wall: the board reaches the
+  internet through the phone by itself. What is left is a lesson about CORS
+  wearing the costume of a workaround, and the honest thing is to say so rather
+  than to build it because it was listed. **Not scheduled.** If CORS is worth
+  teaching here it should be taught as CORS, on its own terms, and given a
+  reason that is not a detour around something that turned out to be open.
 
 Not on this road: TLS, and two boards talking to each other. The first is a
 different curriculum and a much larger binary; the second is something this

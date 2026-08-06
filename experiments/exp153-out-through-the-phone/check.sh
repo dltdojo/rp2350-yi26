@@ -311,26 +311,16 @@ else
     fail "the waiting log names the action" "'still asking' does not tell anybody what to do"
 fi
 
-# The walkthrough must put a REPLUG between flashing and tethering, and this
-# guard exists because the first version of it did not. exp152 measured that
-# the medium has to arrive at a host that is still asking; flashing from the
-# phone puts minutes of "no medium" in front of the address, and Android stops
-# polling. Cost: one phone session that reported success at every step and
-# produced no drive. 2026-08-06.
-if python3 - README.md <<'EOF'
-import sys
-src = open(sys.argv[1]).read()
-steps = src[src.find("## Do this, in order"):]
-steps = steps[:steps.find("\n## ", 1)]
-teth = steps.find("Ethernet tethering")
-plug = steps.rfind("PLUG IT BACK IN", 0, teth)
-sys.exit(0 if plug >= 0 else 1)
-EOF
-then
-    pass "the walkthrough replugs before tethering — the medium must find a host still asking"
+# The walkthrough must not put a replug back in front of tethering. It had one
+# for an hour, added on a diagnosis that a phone then refuted: the lease landed
+# 30.5 s after boot, thirty seconds of NOT READY, and the drive appeared anyway.
+# A step invented to fix something that was never happening is a step somebody
+# does forever.
+if grep -qi 'UNPLUG THE BOARD AND PLUG IT BACK IN FIRST' README.md; then
+    fail "no replug is demanded before tethering" \
+         "measured on a Pixel 9a: 30.5 s of no medium, and the drive still arrived"
 else
-    fail "the walkthrough replugs before tethering" \
-         "flashing from the phone spends the host's patience before the address arrives"
+    pass "the walkthrough does not demand a replug — a phone measured that it is not needed"
 fi
 
 # ---- the board half --------------------------------------------------------

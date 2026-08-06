@@ -175,24 +175,19 @@ WHAT YOU NEED
    and an address alone is not the point — it needs the host to **share its
    connection**, which is the same thing as routing and NAT.
 
-   *On a phone:* **UNPLUG THE BOARD AND PLUG IT BACK IN FIRST**, then turn on
-   Ethernet tethering straight away — Settings → Network & internet → Hotspot &
-   tethering.
+   *On a phone:* turn on Ethernet tethering — Settings → Network & internet →
+   Hotspot & tethering. That switch is greyed out until something is plugged in,
+   which is why it cannot be done in advance.
 
-   The replug is not superstition and it is not optional after a flash. exp152
-   measured that the drive has to arrive at a host that is still *asking*: this
-   firmware reports **no medium at all** until it has an address, and a host
-   told "no medium" for long enough stops polling and never comes back. Flashing
-   from the phone puts several minutes of that between the board appearing and
-   tethering coming on — reading this step is itself part of the gap — so by the
-   time the address arrives, Android has stopped listening and **no drive
-   appears even though everything worked.** Measured on a Pixel 9a, 2026-08-06:
-   flash reported success and read back matching bytes, the board was fine, and
-   the drive never came.
-
-   A replug restarts that clock. Then the order is exp152's verified one, which
-   is the only one anybody has watched work: plug in, tethering on immediately,
-   wait.
+   **No replug is needed after flashing, and that is measured rather than
+   assumed.** exp152's rule is that the medium has to arrive at a host still
+   asking — this firmware reports no medium at all until it has an address, and
+   a host told that for long enough stops polling. The worry was that flashing
+   from the phone spends that patience before the address arrives. On a Pixel
+   9a, 2026-08-06, it does not: the lease landed at **30.5 seconds** after boot,
+   thirty seconds of `NOT READY / MEDIUM NOT PRESENT`, and the drive appeared
+   anyway. Sooner is still better and there is no reason to dawdle, but a flash
+   in front of the switch does not cost the experiment.
 
    *On Ubuntu:* the interface is named after the experiment.
 
@@ -285,11 +280,11 @@ IF IT DOES NOT WORK
     was found too late.
 
     `I am at http://…` — **the board has an address and the drive still did not
-    appear**, which means the host stopped polling before the medium existed.
-    This is what step 3's replug prevents, and if it happened anyway the cure is
-    the same: unplug, plug back in, tethering on immediately. Nothing is wrong
-    with the board, and re-flashing it will not help — the address on that log
-    line is also the answer, so tap it and skip the drive entirely.
+    appear**, which would mean the host stopped polling before the medium
+    existed. Not seen on a Pixel 9a even after thirty seconds of no medium, but
+    if it happens: unplug, plug back in, tethering on immediately. Do not
+    re-flash — nothing is wrong with the board, and the address on that log line
+    is itself the answer, so tap it and skip the drive entirely.
   * No `enx…` device at all — the board is not running this firmware, or the
     cable is charge-only. A charge-only cable is the commonest single cause of
     everything in this repository.
@@ -341,18 +336,50 @@ USB Ethernet gadget, a host's masquerade and the public internet.
 
 ## Status
 
-**Verified on Ubuntu, 2026-08-06.** Everything above is a capture, not a
-prediction: the board took a lease with a gateway, connected to `1.1.1.1` in
-9 ms, was redirected to `https://` it cannot speak, was served `204` by the
-captive-portal endpoint, and resolved a name through the resolver the lease
-named. The desktop half of this experiment is done.
+**Verified on both, 2026-08-06. The claim is refuted.**
 
-**Not yet measured: the phone half**, which is the claim the experiment was
-written to test. Ubuntu sharing a connection was never in doubt; what was in
-doubt is whether Android's Ethernet tethering does the same job under a name
-that does not say so. Until a phone has run it, the sentence in
-[`../README.md`](../README.md) stands unrefuted — the apparatus is verified and
-the claim is not.
+On Ubuntu, with `nmcli … ipv4.method shared` and no `sudo`: lease with a
+gateway, `1.1.1.1` in 9 ms, `301` to a protocol it cannot speak, `204` from the
+captive-portal endpoint, and a name resolved through the lease's resolver.
+
+**On a Pixel 9a, flashed from that phone with `pflash.html`, with Ethernet
+tethering as the only host-side action:**
+
+```text
+[     546 ms] 500 ms  link UP, still asking. Nothing has offered an address…
+[   30535 ms] lease: 10.206.115.125/24
+[   30535 ms]   gateway 10.206.115.129 — a claim that there is a way out
+[   30535 ms]   DNS 10.206.115.129
+[   30624 ms] out: GET http://1.1.1.1/ — conn…
+```
+
+and on the page the phone was holding:
+
+```text
+10.206.115.125 — chip 0x7fcaf01f 0x5613a90c
+up 1309 s, 3 request(s) answered
+
+GET http://1.1.1.1/                        301
+GET http://cp.cloudflare.com/generate_204  204
+cp.cloudflare.com resolves to              104.16.133.2…
+```
+
+So the sentence in [`../README.md`](../README.md) — *"a laptop can be told to do
+[NAT] and a phone cannot — there is no such UI"* — is wrong. **Ethernet
+tethering is that UI.** It is not named after what it does, which is why three
+experiments could require somebody to turn it on without anybody noticing that
+it also routes and masquerades.
+
+The chip ID on that page is `0x7fcaf01f 0x5613a90c` and the serial the bootrom
+gave `pflash.html` while writing this firmware was `7FCAF01F5613A90C`. Same
+silicon over two interfaces: the board that was written and the board that
+reached the internet are provably one board, which would otherwise have been an
+assumption.
+
+**What it cost the phone: nothing.** Mobile data stayed up throughout, as it did
+in exp149 and exp150 — a USB Ethernet gadget on this phone displaces nothing,
+and now that has been measured with traffic actually flowing through it rather
+than with an idle link.
 
 The request bytes were checked against the real server from the host before any
 of this: the `301` puts `Location: https://1.1.1.1/` at byte 154, inside the 256
