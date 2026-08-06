@@ -285,6 +285,28 @@ else
     fail "the waiting log names the action" "'still asking' does not tell anybody what to do"
 fi
 
+# The walkthrough must put a REPLUG between flashing and tethering, and this
+# guard exists because the first version of it did not. exp152 measured that
+# the medium has to arrive at a host that is still asking; flashing from the
+# phone puts minutes of "no medium" in front of the address, and Android stops
+# polling. Cost: one phone session that reported success at every step and
+# produced no drive. 2026-08-06.
+if python3 - README.md <<'EOF'
+import sys
+src = open(sys.argv[1]).read()
+steps = src[src.find("## Do this, in order"):]
+steps = steps[:steps.find("\n## ", 1)]
+teth = steps.find("Ethernet tethering")
+plug = steps.rfind("PLUG IT BACK IN", 0, teth)
+sys.exit(0 if plug >= 0 else 1)
+EOF
+then
+    pass "the walkthrough replugs before tethering — the medium must find a host still asking"
+else
+    fail "the walkthrough replugs before tethering" \
+         "flashing from the phone spends the host's patience before the address arrives"
+fi
+
 # ---- the board half --------------------------------------------------------
 PRODUCT="$(yi26 port --json 2>/dev/null | sed -n 's/.*"product":"\([^"]*\)".*/\1/p')"
 if [[ "$PRODUCT" != *"exp153"* ]]; then

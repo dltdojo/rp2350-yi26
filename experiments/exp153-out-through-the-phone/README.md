@@ -175,10 +175,24 @@ WHAT YOU NEED
    and an address alone is not the point — it needs the host to **share its
    connection**, which is the same thing as routing and NAT.
 
-   *On a phone:* turn on Ethernet tethering **straight away** — Settings →
-   Network & internet → Hotspot & tethering. That switch is greyed out until
-   something is plugged in, which is why the order is forced. A long gap here is
-   what fails: a host told "no medium" for long enough may stop looking.
+   *On a phone:* **UNPLUG THE BOARD AND PLUG IT BACK IN FIRST**, then turn on
+   Ethernet tethering straight away — Settings → Network & internet → Hotspot &
+   tethering.
+
+   The replug is not superstition and it is not optional after a flash. exp152
+   measured that the drive has to arrive at a host that is still *asking*: this
+   firmware reports **no medium at all** until it has an address, and a host
+   told "no medium" for long enough stops polling and never comes back. Flashing
+   from the phone puts several minutes of that between the board appearing and
+   tethering coming on — reading this step is itself part of the gap — so by the
+   time the address arrives, Android has stopped listening and **no drive
+   appears even though everything worked.** Measured on a Pixel 9a, 2026-08-06:
+   flash reported success and read back matching bytes, the board was fine, and
+   the drive never came.
+
+   A replug restarts that clock. Then the order is exp152's verified one, which
+   is the only one anybody has watched work: plug in, tethering on immediately,
+   wait.
 
    *On Ubuntu:* the interface is named after the experiment.
 
@@ -244,12 +258,18 @@ IF IT DOES NOT WORK
   it means `yi26 log`. Every entry below is something the log already says in
   words, and reading it costs one tap.
 
-  * **No drive appeared on the phone**, and the flash reported success. The
-    drive does not exist until the board has an address — that is exp152's
-    design and it is deliberate. So this is not a storage failure, it is the
-    absence of a lease, and `log.html` names which half: `link DOWN` (nothing
-    claimed the NCM interface) or `still asking` (nothing offered an address —
-    tethering is off, or was turned on too late).
+  * **No drive appeared on the phone**, and the flash reported success. Two
+    different causes, and `log.html` tells them apart in one line.
+
+    `still asking` — nothing offered an address. Tethering is off, or the switch
+    was found too late.
+
+    `I am at http://…` — **the board has an address and the drive still did not
+    appear**, which means the host stopped polling before the medium existed.
+    This is what step 3's replug prevents, and if it happened anyway the cure is
+    the same: unplug, plug back in, tethering on immediately. Nothing is wrong
+    with the board, and re-flashing it will not help — the address on that log
+    line is also the answer, so tap it and skip the drive entirely.
   * No `enx…` device at all — the board is not running this firmware, or the
     cable is charge-only. A charge-only cable is the commonest single cause of
     everything in this repository.
