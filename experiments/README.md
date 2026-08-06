@@ -74,6 +74,7 @@ Per experiment:
 | exp146 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser — a phone's is the point. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface. It **writes flash**, which is what exp141 stopped short of. |
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
+| exp154 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
@@ -399,7 +400,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147 |
 
@@ -526,6 +527,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp151 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 | exp152 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp153 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
+| exp154 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 
 ### Reading the columns
 
@@ -654,6 +656,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp147-two-firmwares-one-phone](./exp147-two-firmwares-one-phone/) | 3 · a person | The whole A/B arc arranged so a phone can run it and an LED reports the answer — fast blink or slow, and two different ways to make it change |
 | [exp148-a-wire-with-no-address](./exp148-a-wire-with-no-address/) | 3 · a person | A CDC-NCM link and a DHCP client, kept apart: the firmware can see a host driver claim it, and can see that having a wire is not having an address |
 | [exp149-the-board-hands-out-the-address](./exp149-the-board-hands-out-the-address/) | 3 · a person | The board answers DHCP itself — four packets, hand-rolled — so a phone gets an address with nothing to configure, because a phone has no setting to configure |
+| [exp154-one-port-four-doors](./exp154-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
 | [exp153-out-through-the-phone](./exp153-out-through-the-phone/) | 3 · a person | The board reaches the internet through the phone it is plugged into — refuting this repository's own written claim that a phone cannot NAT — and is redirected off the plain web to a protocol it cannot speak |
 | [exp152-the-volume-that-waits](./exp152-the-volume-that-waits/) | 3 · a person | The board carries a drive that does not exist until it knows its own address — verified on a phone: plug in, turn on tethering, tap two things, and the log is there |
 | [exp151-the-log-in-any-browser](./exp151-the-log-in-any-browser/) | 3 · a person | The board serves its own log over HTTP — verified rendering in Chrome on a phone — and answers to a name that phone will not ask it for |
@@ -1118,6 +1121,33 @@ exp147 was built against, so nothing had to move to start.
   than to build it because it was listed. **Not scheduled.** If CORS is worth
   teaching here it should be taught as CORS, on its own terms, and given a
   reason that is not a detour around something that turned out to be open.
+
+- **[exp154](./exp154-one-port-four-doors/) — a URL starts meaning something.**
+  **Done, verified 2026-08-06.** exp150 and exp151 both read the request line
+  and threw it away, and both wrote down that the parser belonged in the
+  experiment where a path selects something. Four doors on one port — `/`,
+  `/log`, `/status`, `/trng` — and
+  [`crates/http-route`](../crates/http-route/) with sixteen tests, two of which
+  cut a real request at every offset. **A truncation is not a 404**: the same
+  lesson `crates/dhcp` had to be written twice to learn, one layer up. Measured
+  on the board with the request cut in half and the halves 600 ms apart, and the
+  right page came back.
+
+  **Its finding is the one only a second door could show.** Four clients asking
+  four different things are served in 10–20 ms each, because that is what an
+  async executor is for. Three clients asking for 1 KiB of TRNG each queue
+  behind one peripheral — waits of 9 µs, 221 ms and 450 ms — while a `/status`
+  issued in the middle of that answers in 3.7 ms. **The URL space is not what
+  runs out; the peripheral is.**
+
+  It is also the first experiment on this road that needs **nobody**: level 1,
+  where exp148 through exp153 are all level 3. The claim is `curl`-shaped, so a
+  shell can check the whole of it.
+
+  And it is deliberately read-only. Every route reads, `check.sh` enforces that
+  rather than trusting it, and the LED keeps all four of the meanings exp153
+  gave it. Writes are exp155's, because a route that changes the board changes
+  the question from *which path* to *who may ask*.
 
 Not on this road: TLS, and two boards talking to each other. The first is a
 different curriculum and a much larger binary; the second is something this

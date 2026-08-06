@@ -1,0 +1,79 @@
+[package]
+name = "exp154-one-port-four-doors"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "One HTTP port, four paths, and what a shared peripheral does to the third one — the log, the status, and the TRNG on the same cable"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-futures = "0.1.2"
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
+# `max-interface-count-8`: this firmware declares FOUR interfaces — CDC-ACM is
+# two (comm + data) and CDC-NCM is another two. embassy-usb's default ceiling
+# is exactly four, so the build fits with nothing to spare.
+#
+# **And that ceiling is half of what this experiment is about.** Four paths are
+# served here over one function; four *functions* would not fit at all without
+# this line, and each one costs a host driver, a device node, and an owner. See
+# the README's comparison table.
+embassy-usb = { version = "0.6.0", features = ["max-interface-count-8"] }
+static_cell = "2.1.1"
+
+# `udp` is here for the mDNS responder and nothing else — the DHCP server role
+# is not in this experiment. exp150 measured that a phone's browser reaches the
+# board only when the *phone* hands out the address, so this board asks, exactly
+# as exp151, exp152 and exp153 do.
+embassy-net = { version = "0.9.1", default-features = false, features = [
+    "udp",
+    "tcp",
+    # Joining 224.0.0.251 is how the one-shot `.local` queries reach us at all.
+    "multicast",
+    "proto-ipv4",
+    "medium-ethernet",
+] }
+# `write_all` on the TCP socket.
+embedded-io-async = "0.7.0"
+
+# `Mutex` — one TRNG, four workers. Which is a measurement in this experiment
+# and not a detail: see `TRNG` in `src/main.rs`.
+embassy-sync = "0.8.0"
+# Only for the response header, which is formatted into a fixed-capacity string.
+heapless = { version = "0.9", default-features = false }
+
+# `retain`: keep the recent lines where the HTTP server can reach them.
+usb-log = { path = "../../crates/usb-log", features = ["retain"] }
+usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+# Enough mDNS to answer to one name, with no socket in it.
+mdns = { path = "../../crates/mdns" }
+# The request line, with no socket in it — so `cargo test` can cut a request at
+# every offset on the machine you are reading this on. This crate is new in
+# this experiment and it is the whole reason the URL can mean something:
+# exp150's server read the request and threw it away, and said that the parser
+# belonged in the experiment where a path selects something. This is it.
+http-route = { path = "../../crates/http-route" }
+
+[features]
+# `ask-for-an-address` is not optional here, for the reason exp151 states: a
+# board that assigns itself an address is unreachable from the browser it is
+# trying to serve. Routing does not care either way — a server binds a port,
+# not an address — so this experiment changes nothing about the arrangement it
+# inherited, which is what keeps its result about paths.
+default = ["auto-reboot", "ask-for-an-address"]
+
+auto-reboot = ["usb-reboot/auto-reboot"]
+
+ask-for-an-address = ["embassy-net/dhcpv4", "embassy-net/dhcpv4-hostname"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]

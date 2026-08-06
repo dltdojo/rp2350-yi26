@@ -1,0 +1,18 @@
+[package]
+name = "http-route"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Enough of an HTTP request line to decide which of a handful of paths was asked for, and to refuse everything else"
+
+# No dependencies, and no socket. The caller owns the connection and hands this
+# crate the bytes it has so far, which is what lets `cargo test` cut a request
+# at every offset on the machine you are reading this on — the failure mode a
+# parser fed by a network actually has, and the one `crates/dhcp` was written
+# the same way to reach.
+[dependencies]
+
+[lib]
+name = "http_route"
+
+[workspace]
