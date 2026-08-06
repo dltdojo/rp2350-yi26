@@ -212,6 +212,42 @@ noisy="$(grep -cE '^\s*log!\("http:' "$SRC" || true)"
     && pass "the only retained http: line is the one that should never happen" \
     || fail "the server's own lines are transient" "$noisy retained line(s)"
 
+# ---- a log line that does not fit is a log line that lies ------------------
+#
+# `usb-log` cuts at LINE_CAPACITY = 96 bytes **including the `[   45 ms] `
+# stamp**, and says nothing about it. A phone found this: two banner lines came
+# out ending mid-word, and the reader had no way to know a sentence had been
+# taken from them.
+#
+# The static text of every retained line is checked here. A `{}` can still push
+# a line over at runtime, which is exactly why the one runtime value that could
+# — the caller's Origin — is truncated where it can be *marked* instead.
+if python3 - "$SRC" <<'EOF'
+import re, sys
+STAMP = len("[   1234 ms] ")
+src = open(sys.argv[1]).read()
+bad = []
+for m in re.finditer(r'log!\("((?:[^"\\]|\\.)*)"', src):
+    text = m.group(1).replace('\\"', '"')
+    static = re.sub(r'\{[^{}]*\}', '', text)
+    n = len(static.encode()) + STAMP
+    if n > 96:
+        bad.append((n, static[:50]))
+for n, t in bad:
+    print(f"{n} bytes: {t}…")
+sys.exit(1 if bad else 0)
+EOF
+then
+    pass "every retained log line fits in 96 bytes, stamp included"
+else
+    fail "a retained line would be cut" "usb-log truncates at 96 and does not say so"
+fi
+if grep -q "origin_seen.push('~')" "$SRC"; then
+    pass "an Origin too long to record is marked, not silently shortened"
+else
+    fail "a cut Origin is marked" "a security log that loses the tail of who asked is worse than one that says so"
+fi
+
 # ---- the pages ---------------------------------------------------------------
 #
 # exp151's rule holds for every page a person reads: no script, because these

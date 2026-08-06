@@ -395,7 +395,7 @@ the board's own drive mounted, 2026-08-06.
 
 ```console
 PASS  toolchain present (cargo, elf2flash)
-PASS  builds (181760 byte .uf2)
+PASS  builds (182784 byte .uf2)
 PASS  linked at 0x10000000 — an ordinary image
 PASS  carries the 1200-baud reboot watcher — the next flash is hands-free
 PASS  crates/http-route passes its own tests
@@ -421,6 +421,8 @@ PASS  the LED is only the caller's once there is an address
 PASS  ...and the cost of handing it over is written down where it happens
 PASS  asking for the state it is already in is transient, not retained
 PASS  the only retained http: line is the one that should never happen
+PASS  every retained log line fits in 96 bytes, stamp included
+PASS  an Origin too long to record is marked, not silently shortened
 PASS  no script in the index or the log page
 PASS  /probe is named as the exception, and as an instrument rather than a page
 NOTE  enumerated as: exp155 who else can knock
@@ -434,7 +436,7 @@ PASS  a preflight from elsewhere gets 403 and no Allow-Origin — and the LED di
 PASS  a preflight from this board's own origin is answered 204 with that one origin echoed
 PASS  /probe is served, and points at this board by absolute address
 PASS  a page from http://127.0.0.1:8155 changed this board's LED — twice, by <img> and by form POST
-PASS  ...and its fetch to the guarded door was turned away (3 → 4)
+PASS  ...and its fetch to the guarded door was turned away (4 → 5)
 PASS  the guarded door was never opened by a page that did not come from here
 PASS  the identical page served from this board opened the guarded door — only the origin differed
 PASS  a 'YI26 BOARD' volume is present, and its SCSI model names exp155
@@ -445,6 +447,58 @@ NOTE  the LED has been given back to the network reporter.
 NOTE  what this script cannot see: that the pin lights an LED. exp103 and
       exp127 established that, and this experiment does not re-establish it.
 ```
+
+## What the phone found that Ubuntu could not
+
+The walkthrough was followed on a Pixel 9a on 2026-08-06, on the **other** board
+— chip `0x7fcaf01f 0x5613a90c`, flashed from the phone over PICOBOOT (90,880
+bytes, 23 sectors, read back and matched). It worked: the drive appeared, the
+link on `OPEN.HTM` opened the index at `http://10.206.115.250/`, the five LED
+links were there, and the log rendered.
+
+**And two defects showed up that no desktop run could have shown.**
+
+**1. Two log lines were being cut mid-word.** `usb-log` truncates at
+`LINE_CAPACITY = 96` bytes **including the `[   45 ms] ` stamp**, and says
+nothing when it does. Two banner lines were 88 characters of text and came out
+of the phone's `/log` ending in `…needs a header an` and `…After that i`.
+
+Two things came out of fixing it. The lines are shorter, and `check.sh` now
+computes the static width of every retained line so this cannot come back. And
+the more interesting half: **the line that records who knocked can be pushed
+over 96 by its own runtime value.** A long `Origin` would have had its tail
+silently eaten — a security log losing the end of *who asked* is worse than one
+that admits it. So the origin is now truncated where it can be marked:
+
+```text
+[   39120 ms]   it said it was http://a-very-long-hostname-that-will-not-fit.e~
+```
+
+That `~` is the whole point. exp153 learned the same lesson one layer down, when
+a phone showed a button labelled `http://10`.
+
+**2. `/trng` ran off the right edge of the phone and never came back.** Chrome
+does not wrap `text/plain`, so a single long header line and 32 bytes of hex per
+line meant the reader saw `waiting for the one TRNG took` with the number
+missing. There is no stylesheet to fix that afterwards — a plain-text body has
+none — so **the wrapping has to be in the bytes**. Everything `/trng` emits is
+now inside 32 columns, and the two costs are on separate lines because they are
+two different facts:
+
+```console
+$ curl -s http://10.42.0.250/trng?n=16
+16 bytes from the RP2350 TRNG
+sampling: 5104 us
+waiting for the one TRNG: 10 us
+
+02 dd 12 ab e9 42 74 4f
+e3 28 e9 7c 90 63 70 dd
+```
+
+A third thing, which is not a defect but a second data point: the phone's board
+took **10,785 µs for 32 bytes** where this one takes 5,822 µs for 8 and 220 ms
+for 1024. Per byte that is 337 µs against 728 and 213 — the same shape, on a
+different chip: most of a small draw is the cost of asking.
 
 ## Two things the harness taught, both worth keeping
 

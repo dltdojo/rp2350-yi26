@@ -597,17 +597,30 @@ fn wanted_bytes(query: Option<&str>) -> usize {
 /// cruelty. The elapsed time is part of the body because it is the number this
 /// experiment is about — ask for two of these at once and watch the second one
 /// pay for the first.
+///
+/// # Narrow, because a phone measured it
+///
+/// Everything here is inside **32 columns**, and that is not a style
+/// preference. A phone rendered the first version with one long header line and
+/// 32 bytes of hex per line, and Chrome does not wrap `text/plain`: the line
+/// ran off the right edge and the reader saw `waiting for the one TRNG took`
+/// with the number missing. A `text/plain` body has no stylesheet to fix that
+/// afterwards, so the wrapping has to be in the bytes.
+///
+/// The two costs are on their own lines for the same reason, and it improves
+/// the desktop reading too — they are two different facts.
 fn render_trng(out: &mut [u8], bytes: &[u8], took_us: u64, waited_us: u64) -> usize {
     let mut w = Cursor { buf: out, n: 0 };
     let _ = write!(
         w,
         "{} bytes from the RP2350 TRNG\n\
-sampling took {} us; waiting for the one TRNG took {} us\n\n",
+sampling: {} us\n\
+waiting for the one TRNG: {} us\n\n",
         bytes.len(), took_us, waited_us
     );
     for (i, b) in bytes.iter().enumerate() {
         let _ = write!(w, "{:02x}", b);
-        w.byte(if (i + 1) % 32 == 0 { b'\n' } else { b' ' });
+        w.byte(if (i + 1) % 8 == 0 { b'\n' } else { b' ' });
     }
     w.byte(b'\n');
     w.n
@@ -882,7 +895,7 @@ async fn http_task(
     // filling it is itself an answer.
     let mut req = [0u8; 1536];
     let mut head: heapless::String<384> = heapless::String::new();
-    let mut origin_seen: heapless::String<64> = heapless::String::new();
+    let mut origin_seen: heapless::String<48> = heapless::String::new();
 
     loop {
         let mut socket = TcpSocket::new(stack, &mut rx[..], &mut tx[..]);
@@ -990,7 +1003,20 @@ async fn http_task(
                 // kind — which is the whole shape of this experiment.
                 let origin = h.get("Origin");
                 if let Some(o) = origin {
-                    let _ = origin_seen.push_str(o);
+                    // Truncated **here**, visibly, rather than by the log line.
+                    //
+                    // `usb-log` cuts a whole line at 96 bytes, timestamp
+                    // included, and says nothing about it. A security log whose
+                    // record of *who asked* silently loses its tail is worse
+                    // than one that says it lost it — the phone that read
+                    // exp153's `http://10` learned this one layer down. So a
+                    // long origin is cut where it can be marked.
+                    let fits = o.len().min(origin_seen.capacity() - 1);
+                    let cut = o.is_char_boundary(fits);
+                    let _ = origin_seen.push_str(if cut { &o[..fits] } else { o.split_at(fits).0 });
+                    if o.len() > fits {
+                        let _ = origin_seen.push('~');
+                    }
                 }
                 let ours = origin.is_none() || same_origin(origin, addr);
 
@@ -1056,7 +1082,7 @@ async fn http_task(
                         // the caller's own repetition. exp153's rule, and the
                         // reason a page polling this cannot erase the log.
                         if changed {
-                            log!("led: now {} — asked over {} by {}", lamp.word(),
+                            log!("led: {} via {} from {}", lamp.word(),
                                  if matches!(r.method, Method::Get) { "GET" } else { "POST" },
                                  if origin_seen.is_empty() { "no stated origin" } else { origin_seen.as_str() });
                         } else {
@@ -1085,12 +1111,13 @@ async fn http_task(
                         } else {
                             COUNT_TURNED_AWAY.fetch_add(1, Ordering::Relaxed);
                             let why = if !has_token {
-                                "no X-Yi26-Control header — this door has to be knocked on deliberately"
+                                "no X-Yi26-Control header"
                             } else {
-                                "that origin is not this board's own"
+                                "that origin is not mine"
                             };
-                            log!("led: turned away — {} ({})", why,
-                                 if origin_seen.is_empty() { "no stated origin" } else { origin_seen.as_str() });
+                            log!("led: turned away, {}", why);
+                            log!("  it said it was {}",
+                                 if origin_seen.is_empty() { "nobody in particular" } else { origin_seen.as_str() });
                             (403, "text/plain; charset=utf-8",
                              render_lamp(page, lamp, false, why), Cors::Denied)
                         }
@@ -1109,7 +1136,7 @@ async fn http_task(
                         } else {
                             COUNT_TURNED_AWAY.fetch_add(1, Ordering::Relaxed);
                             log!("led: refused a preflight from {}",
-                                 if origin_seen.is_empty() { "no stated origin" } else { origin_seen.as_str() });
+                                 if origin_seen.is_empty() { "nobody in particular" } else { origin_seen.as_str() });
                             (403, "text/plain; charset=utf-8",
                              render_error(page, 403, "not this board's origin"), Cors::Denied)
                         }
@@ -1453,10 +1480,11 @@ async fn main(spawner: Spawner) {
     // by the time they look.
     {
         log!("  asking for an address — whoever is on the other end is the server here.");
-        log!("  port {}: / /log /status /trng, plus /led/<on|off|slow|fast|auto>.", HTTP_PORT);
-        log!("  /led is open to anybody who can route here; /control/led needs a header and my origin.");
+        log!("  port {}: / /log /status /trng /led/<on|off|slow|fast|auto>.", HTTP_PORT);
+        log!("  /led is open to whoever can route here.");
+        log!("  /control/led needs a header and an origin that is mine.");
         log!("  and answering to yi26.local, so nobody has to know the number.");
-        log!("  LED until an address arrives: dark=no link, slow=still asking. After that it is yours.");
+        log!("  LED before an address: dark=no link, slow=asking. After it, yours.");
     }
 
     // **The LED is handed over, and only after there is an address.**

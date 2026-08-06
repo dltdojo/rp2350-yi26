@@ -24,13 +24,19 @@ than saying nothing.
 
 ## Where it got to
 
-**24 of 52 verified**, on 2026-08-06, on Ubuntu against a Pico 2 (non-W).
+**25 of 52 verified**, on 2026-08-06. Twenty-four on Ubuntu against a Pico 2
+(non-W); **exp155 on a phone**, against the other board — the first zip here
+followed on the machine these zips are actually for.
 
 ```
 exp102 exp105 exp107 exp108 exp109 exp110 exp111 exp112 exp113 exp114
 exp118 exp119 exp121 exp122 exp123 exp124 exp125 exp128 exp129 exp134
-exp136 exp140 exp151 exp152
+exp136 exp140 exp151 exp152 exp155
 ```
+
+exp155's is the one to read if you are carrying this on: it found two defects
+no desktop run could have found, and its `PACKED.md` says which two screens
+changed *after* the walk and are therefore confirmed on Ubuntu only.
 
 Run `./pack.sh --status` for the current answer; the list above is what one day
 produced and it is not maintained by hand.
