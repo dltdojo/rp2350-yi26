@@ -22,6 +22,64 @@ connection, and — for the second half — a browser. Nobody has to be in the
 room: the board reports the LED's state in `/status`, so **the subject is a
 browser and the instrument is the board**.
 
+## And a drive, because a page nobody can find controls nothing
+
+[exp154](../exp154-one-port-four-doors/) could do without one. This experiment
+cannot, and the reason is the whole point of the road: **its audience is
+somebody holding a phone.** Three things this repository measured make the
+address undiscoverable there otherwise —
+
+- `yi26.local` **does not resolve on the phone** (exp151: the responder is
+  correct, answers on Ubuntu, and the query never arrives).
+- A phone's address bar **searches for what you type**, `http://` and all.
+- A `content://` page may not `fetch` or `<iframe>` an `http://` URL — mixed
+  content — so a page out of a zip cannot reach the board. **Only a navigation
+  goes through** (exp150).
+
+So the address has to arrive already tappable, and [exp152](../exp152-the-volume-that-waits/)'s
+mechanism is carried over unchanged: a 64 KiB read-only volume that **does not
+exist until the board has an address**, with `OPEN.HTM` (one link), `ADDRESS.TXT`
+(the same thing as text) and `README.TXT` on it.
+
+```console
+$ lsblk -no LABEL,MODEL /dev/sda
+YI26 BOARD exp155 knocking
+
+$ ls "/media/cyline/YI26 BOARD"
+ADDRESS.TXT  OPEN.HTM  README.TXT
+
+$ cat "/media/cyline/YI26 BOARD/ADDRESS.TXT"
+http://10.42.0.250/
+```
+
+`check.sh` compares the address written on the drive with the address the board
+actually answers at. Nobody had checked that before, and it is exactly the class
+of thing a phone cannot be asked about afterwards.
+
+### Five interfaces, and it took a question to count them
+
+```console
+$ lsusb -d 1209:0001 -v | grep -E 'bNumInterfaces|bInterfaceClass'
+    bNumInterfaces          5
+      bInterfaceClass         2 Communications     ┐ CDC-ACM: the log, and the
+      bInterfaceClass        10 CDC Data           ┘ 1200-baud reboot watcher
+      bInterfaceClass         2 Communications     ┐ CDC-NCM: the network
+      bInterfaceClass        10 CDC Data           ┘
+      bInterfaceClass         8 Mass Storage         one interface, two endpoints
+```
+
+Three experiments in this repository said **six**, in three places — exp152's
+index row, and a code comment in exp152 and exp153 reading *"the fifth and sixth
+interfaces"*. A mass-storage function's two **endpoints** had been counted as
+two interfaces. All three are corrected, and the number above is `lsusb`'s
+rather than anybody's arithmetic.
+
+The CDC pair is worth defending while we are counting: it is not there for
+comparison. It carries the 1200-baud reboot watcher — which is why every flash
+in this repository since exp105 needs nobody at the BOOTSEL button — and it is
+what `yi26 log` reads, which `AGENTS.md` requires an agent to use instead of a
+browser.
+
 ## What most people expect, and what a browser actually does
 
 The worry about putting control on HTTP is usually stated as "somebody else on
@@ -181,19 +239,41 @@ links. That is the demonstration this pair of experiments was built for: **one
 USB cable carrying a user interface, a control channel and a log at once**, with
 nothing installed on the host and no device claimed by anything.
 
+### On a phone, which is who the drive is for
+
+1. Plug the board in.
+2. Turn on **Ethernet tethering** straight away — Settings → Network & internet
+   → Hotspot & tethering. It is greyed out until something is plugged in, and
+   leaving a gap here is what goes wrong: a host told "no medium" for long
+   enough may stop looking. exp153 measured the drive still appearing at 30.5 s,
+   so this is a *sooner is better*, not a cliff.
+3. Wait for the LED to blink **fast**. The drive appears then, and not before.
+4. Open it in the Files app and tap **`OPEN.HTM`**, then tap the link on it.
+5. Tap **fast**. The LED on the board in your hand blinks fast, and you
+   installed nothing to make that happen.
+
+Step 5 is the experiment as a person can see it; the rest of this README is the
+same thing with numbers on it.
+
 ## Expected output
 
-`./check.sh`, captured on Ubuntu against a real Pico 2 with Chrome present,
-2026-08-06. Run three times in a row for the same result.
+`./check.sh`, captured on Ubuntu against a real Pico 2 with Chrome present and
+the board's own drive mounted, 2026-08-06.
 
 ```console
 PASS  toolchain present (cargo, elf2flash)
-PASS  builds (162816 byte .uf2)
+PASS  builds (181760 byte .uf2)
 PASS  linked at 0x10000000 — an ordinary image
 PASS  carries the 1200-baud reboot watcher — the next flash is hands-free
 PASS  crates/http-route passes its own tests
 PASS  crates/log-ring passes its own tests
 PASS  crates/mdns passes its own tests
+PASS  crates/fat12 passes its own tests
+PASS  the drive carries a link to tap and the address as plain text
+PASS  the address is in the contents, not squeezed into an 8.3 name
+PASS  the volume is laid down exactly once — there is no second version
+PASS  a page that fills its buffer says so — silence is what hid exp153's truncation
+PASS  the interface count is stated as five, which is what lsusb says
 PASS  the parser can find a named header — the whole of what exp154 was missing
 PASS  an unfinished header block is never read as an empty one
 PASS  the worker waits for the whole header block before deciding anything
@@ -221,9 +301,13 @@ PASS  a preflight from elsewhere gets 403 and no Allow-Origin — and the LED di
 PASS  a preflight from this board's own origin is answered 204 with that one origin echoed
 PASS  /probe is served, and points at this board by absolute address
 PASS  a page from http://127.0.0.1:8155 changed this board's LED — twice, by <img> and by form POST
-PASS  ...and its fetch to the guarded door was turned away (12 → 13)
+PASS  ...and its fetch to the guarded door was turned away (7 → 8)
 PASS  the guarded door was never opened by a page that did not come from here
 PASS  the identical page served from this board opened the guarded door — only the origin differed
+PASS  a 'YI26 BOARD' volume is present, and its SCSI model names exp155
+PASS  the address on the drive is the address the board answers at — http://10.42.0.250
+PASS  ADDRESS.TXT and README.TXT are on it too — three files, no toolchain needed
+PASS  OPEN.HTM is 881 bytes — short of its 1024-byte buffer, so it is whole
 NOTE  the LED has been given back to the network reporter.
 NOTE  what this script cannot see: that the pin lights an LED. exp103 and
       exp127 established that, and this experiment does not re-establish it.

@@ -655,6 +655,7 @@ dependencies = [
  "embassy-time",
  "embassy-usb",
  "embedded-io-async 0.7.0",
+ "fat12",
  "heapless 0.9.3",
  "http-route",
  "mdns",
@@ -664,6 +665,10 @@ dependencies = [
  "usb-log",
  "usb-reboot",
 ]
+
+[[package]]
+name = "fat12"
+version = "0.1.0"
 
 [[package]]
 name = "find-msvc-tools"

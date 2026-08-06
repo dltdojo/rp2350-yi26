@@ -15,14 +15,19 @@ embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "execu
 embassy-futures = "0.1.2"
 embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
 embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
-# `max-interface-count-8`: this firmware declares FOUR interfaces — CDC-ACM is
-# two (comm + data) and CDC-NCM is another two. embassy-usb's default ceiling
-# is exactly four, so the build fits with nothing to spare.
+# `max-interface-count-8`: this firmware declares **five** interfaces — CDC-ACM
+# is two (comm + data), CDC-NCM is another two, and mass storage is **one**
+# interface with two endpoints. embassy-usb's default ceiling is four, so this
+# line is what makes the fifth possible.
 #
-# **And that ceiling is half of what this experiment is about.** Four paths are
-# served here over one function; four *functions* would not fit at all without
-# this line, and each one costs a host driver, a device node, and an owner. See
-# the README's comparison table.
+# Five is the number `lsusb` reports and it is worth stating, because exp152 and
+# exp153 said "six" in three places — a mass-storage function's two *endpoints*
+# were counted as two interfaces. Those three places are now corrected.
+#
+# The ceiling is also half of what this experiment is about: five paths are
+# served here over one NCM function, and five *functions* would not fit at all.
+# Each function costs a host driver, a device node and an owner; a path costs a
+# match arm.
 embassy-usb = { version = "0.6.0", features = ["max-interface-count-8"] }
 static_cell = "2.1.1"
 
@@ -52,6 +57,10 @@ usb-log = { path = "../../crates/usb-log", features = ["retain"] }
 usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 # Enough mDNS to answer to one name, with no socket in it.
 mdns = { path = "../../crates/mdns" }
+# The filesystem the drive is made of — three sectors of metadata and the files.
+# exp152's answer to the question this experiment could not otherwise ask on a
+# phone: how does somebody find out the address? They tap a link on a drive.
+fat12 = { path = "../../crates/fat12" }
 # The request line, with no socket in it — so `cargo test` can cut a request at
 # every offset on the machine you are reading this on. This crate is new in
 # this experiment and it is the whole reason the URL can mean something:

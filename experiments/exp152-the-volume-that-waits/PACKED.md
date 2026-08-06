@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 10 of 10 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W), NetworkManager
-hash: c8dd6be2ef60239d
+hash: ba4027af7172b8ec
 
 The zip built by `pack.sh` was unpacked into an empty directory and its
 `FLASH.txt` was followed from step 1 to step 10, with nothing read from the
@@ -44,3 +44,18 @@ been fixed earlier, on the run that produced the walkthrough: step 3 claimed
 configuration)`; steps 5 and 6 had approximate `lsblk` output rather than what
 the command prints; and step 4's expected message was in this machine's locale
 rather than in English.
+
+## Re-stamped 2026-08-06, and what moved
+
+A **code comment** was corrected: `src/main.rs` called the mass-storage function
+"the fifth and sixth interfaces", and `lsusb` says a mass-storage function is
+**one** interface with two endpoints. Five, not six. The same error was in this
+experiment's index row and in exp153; all three are now corrected, and exp155
+carries the `lsusb` capture that settles it.
+
+**Nothing about the procedure or the firmware's behaviour changed** — no step,
+no command, no expected output, and the same bytes on the wire. The content hash
+covers every `.rs` in the directory, so it moved anyway, which is the mechanism
+working rather than failing. Re-stamped without re-walking, and this paragraph
+is why. A re-walk would be the honest answer to any change that could alter what
+a reader does or sees; this one cannot.

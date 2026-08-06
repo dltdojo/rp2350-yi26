@@ -15,11 +15,13 @@ embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "execu
 embassy-futures = "0.1.2"
 embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
 embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info"] }
-# `max-interface-count-8`: this firmware declares FOUR interfaces — CDC-ACM is
-# two (comm + data) and CDC-NCM is another two. embassy-usb's default ceiling
-# is exactly four, so the build fits with nothing to spare; the next function
-# added would blow it. Raised here so that limit is a decision and not a
-# surprise. exp150 will need the same.
+# `max-interface-count-8`: this firmware declares **five** interfaces — CDC-ACM
+# is two (comm + data), CDC-NCM is another two, and mass storage is **one**
+# interface with two endpoints. embassy-usb's default ceiling is four, so this
+# line is what makes the fifth possible.
+#
+# This comment said FOUR for as long as this firmware has had a drive: it was
+# inherited from exp151 and never updated. `lsusb` says five.
 embassy-usb = { version = "0.6.0", features = ["max-interface-count-8"] }
 static_cell = "2.1.1"
 

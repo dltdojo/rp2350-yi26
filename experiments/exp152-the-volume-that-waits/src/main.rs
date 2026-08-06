@@ -664,9 +664,13 @@ async fn main(spawner: Spawner) {
         PACKET as u16,
     );
 
-    // The fifth and sixth interfaces. CDC is two, NCM is two, and this is one
-    // more — the most complex composite in this repository, and the reason
-    // `max-interface-count-8` is set rather than inherited.
+    // The fifth interface — **the fifth, not the fifth and sixth**. CDC is two,
+    // NCM is two, and a mass-storage function is ONE interface carrying two
+    // endpoints. That makes five, which is what `lsusb` reports and what
+    // exp155 measured when this arithmetic was questioned. This comment said
+    // "fifth and sixth" for three experiments; two endpoints were counted as
+    // two interfaces. It is still the most complex composite here and still the
+    // reason `max-interface-count-8` is set rather than inherited.
     let (msc_out, msc_in) = {
         let mut function = builder.function(CLASS_MSC, SUBCLASS_SCSI, PROTOCOL_BOT);
         let mut interface = function.interface();

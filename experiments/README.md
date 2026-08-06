@@ -74,10 +74,10 @@ Per experiment:
 | exp146 | Any RP2350 board, in BOOTSEL mode. Needs a Chromium browser — a phone's is the point. **RP2350/RP2040 bootrom behaviour** — PICOBOOT is the bootrom's own interface. It **writes flash**, which is what exp141 stopped short of. |
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
-| exp155 | Same as exp154 in hardware. Its second half needs a **browser**, and any browser will do — the measurement is what a browser does with a cross-origin request, and the instrument is the board's own `/status`, so nobody has to watch the LED. Verified with headless Chrome on Ubuntu; the answers are Chrome's CORS and Private Network Access policy, which is the same everywhere Chromium is and may differ elsewhere. |
+| exp155 | Same as exp152 in hardware — it carries the **drive** too, because its audience is somebody holding a phone and that is the only way an address gets there tappable. Five USB interfaces. Its second half needs a **browser**, and any browser will do — the measurement is what a browser does with a cross-origin request, and the instrument is the board's own `/status`, so nobody has to watch the LED. Verified with headless Chrome on Ubuntu; the answers are Chrome's CORS and Private Network Access policy, which is the same everywhere Chromium is and may differ elsewhere. |
 | exp154 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
-| exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
+| exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
 | exp150 | Same as exp149, plus **a browser — any browser**, which is the point. This is the first experiment here whose page needs no WebUSB, no permission dialog and no Chromium. Whether the browser can reach the board is a property of the host's routing, not of this firmware. |
 | exp148 | Any RP2350 board **with an LED you can see** (change the pin). No browser. Portable to the RP2040 in principle — CDC-NCM is a USB class, not a chip feature — except for the TRNG it seeds the stack from. **What is not portable is the result**: the desktop half needs a host that binds `cdc_ncm` and can share a connection, and the answer on any given phone is a property of that phone. Report either way. |
@@ -529,7 +529,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp152 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp153 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp154 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
-| exp155 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
+| exp155 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 
 ### Reading the columns
 
@@ -1181,6 +1181,19 @@ exp147 was built against, so nothing had to move to start.
   header — and the test that matters most is that **an unfinished header block
   is never read as an empty one**, because that bug would let a cross-origin
   write through on a slow link, and only sometimes.
+
+  It carries exp152's **drive** as well, which exp154 did without: a page that
+  controls the board is no use to somebody who cannot find the board, and on a
+  phone the address is otherwise unreachable — the name does not resolve, the
+  address bar searches for what you type, and a `content://` page may not fetch
+  an `http://` URL. `check.sh` now compares the address written on the drive with
+  the address the board answers at, which nobody had checked.
+
+  **And it settled an arithmetic error this repository had repeated three
+  times.** Asked to justify "six interfaces", `lsusb` said **five**: a
+  mass-storage function is one interface with two endpoints, and the two
+  endpoints had been counted as two interfaces. exp152's index row and code
+  comments in exp152 and exp153 are corrected.
 
 Not on this road: TLS, and two boards talking to each other. The first is a
 different curriculum and a much larger binary; the second is something this

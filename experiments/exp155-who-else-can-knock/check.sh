@@ -28,9 +28,9 @@ require_supported_platform
 PRESENCE=1
 presence_check
 
-USB_IFACE="cdc+ncm"
-USB_CARRIES="log+frames"
-USB_HOST="cdc_acm+cdc_ncm"
+USB_IFACE="cdc+ncm+msc"
+USB_CARRIES="log+frames+scsi+files"
+USB_HOST="cdc_acm+cdc_ncm+usb-storage"
 USB_RUNS_ON="own"
 usb_check
 
@@ -61,6 +61,41 @@ reboot_watcher_check "$SRC"
 crate_test ../../crates/http-route "crates/http-route passes its own tests"
 crate_test ../../crates/log-ring "crates/log-ring passes its own tests"
 crate_test ../../crates/mdns "crates/mdns passes its own tests"
+crate_test ../../crates/fat12 "crates/fat12 passes its own tests"
+
+# ---- the drive, which is how anybody without a toolchain finds the page -----
+#
+# A page that controls the board is no use to somebody who cannot find the
+# board. exp154 could do without this; a phone cannot, because the address
+# otherwise lives only in the CDC log and reading that needs WebUSB.
+if grep -q 'OPEN    HTM' "$SRC" && grep -q 'ADDRESS TXT' "$SRC"; then
+    pass "the drive carries a link to tap and the address as plain text"
+else
+    fail "the drive carries a link and the address" "the whole point is not having to type it"
+fi
+if grep -qE 'fat12::File \{ name: b"[0-9-]+' "$SRC"; then
+    fail "the address is not encoded in a filename" \
+         "8.3 holds eight characters and an IPv4 address needs up to fifteen"
+else
+    pass "the address is in the contents, not squeezed into an 8.3 name"
+fi
+if [[ "$(grep -c 'let clusters = lay_down(disk' "$SRC")" == "1" ]]; then
+    pass "the volume is laid down exactly once — there is no second version"
+else
+    fail "the volume is laid down once" "a second version is a cache question again"
+fi
+if grep -q 'filled its buffer exactly' "$SRC"; then
+    pass "a page that fills its buffer says so — silence is what hid exp153's truncation"
+else
+    fail "truncation is detected, not silent" "a phone once showed a button labelled http://10"
+fi
+# The count the user caught: a mass-storage function is ONE interface with two
+# endpoints. exp152 and exp153 said six in three places.
+if grep -q 'five interfaces' Cargo.toml || grep -q '\*\*five\*\* interfaces' Cargo.toml; then
+    pass "the interface count is stated as five, which is what lsusb says"
+else
+    fail "five interfaces, not six" "MSC is one interface with two endpoints"
+fi
 
 # ---- the one capability the parser grew, and its edges ---------------------
 if grep -q 'pub fn headers' "$ROUTESRC"; then
@@ -340,6 +375,38 @@ else
 fi
 
 curl -s --max-time 6 "$A/led/auto" > /dev/null
+
+# ---- the drive, on this host ------------------------------------------------
+#
+# The check nobody had: **the address on the drive and the address the board
+# answers at have to be the same one.** A drive laid down before the pinning
+# settled, or after a second lease, would send a phone to a page that is not
+# there — and a phone cannot be asked which address it was given.
+if lsblk -no LABEL,MODEL 2>/dev/null | grep -q "YI26 BOARD.*exp155"; then
+    pass "a 'YI26 BOARD' volume is present, and its SCSI model names exp155"
+else
+    echo "NOTE  no volume seen by lsblk — it appears only once the board has an address."
+fi
+MNT="$(lsblk -no LABEL,MOUNTPOINT 2>/dev/null | sed -n 's/^YI26 BOARD *//p' | head -1)"
+if [[ -n "$MNT" && -f "$MNT/OPEN.HTM" ]]; then
+    on_drive="$(grep -o 'href="http://[0-9.]*/"' "$MNT/OPEN.HTM" | grep -o 'http://[0-9.]*')"
+    if [[ "$on_drive" == "$A" ]]; then
+        pass "the address on the drive is the address the board answers at — $on_drive"
+    else
+        fail "the drive and the board agree on the address" "drive says $on_drive, board answers at $A"
+    fi
+    [[ -f "$MNT/ADDRESS.TXT" && -f "$MNT/README.TXT" ]] \
+        && pass "ADDRESS.TXT and README.TXT are on it too — three files, no toolchain needed" \
+        || fail "the drive carries all three files" "$(ls "$MNT")"
+    # exp153's silent truncation, checked as a size rather than trusted.
+    size="$(stat -c%s "$MNT/OPEN.HTM")"
+    [[ "$size" -lt 1024 ]] \
+        && pass "OPEN.HTM is $size bytes — short of its 1024-byte buffer, so it is whole" \
+        || fail "OPEN.HTM is not truncated" "$size bytes against a 1024-byte buffer"
+else
+    echo "NOTE  the volume is not mounted here; mount it to check the address on it."
+fi
+
 echo "NOTE  the LED has been given back to the network reporter."
 echo "NOTE  what this script cannot see: that the pin lights an LED. exp103 and"
 echo "      exp127 established that, and this experiment does not re-establish it."

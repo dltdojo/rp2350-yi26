@@ -34,9 +34,12 @@ obvious summary is wrong.
 
 **The obvious summary:** "USB CDC ports are scarce, so use HTTP paths instead."
 This repository has not measured that and it is not true — a composite can
-carry a second CDC function; six USB interfaces is the most this repository has
-enumerated at once ([exp152](../exp152-the-volume-that-waits/)) and the host
-took it.
+carry a second CDC function, and **five** USB interfaces is the most this
+repository has enumerated at once ([exp152](../exp152-the-volume-that-waits/),
+[exp155](../exp155-who-else-can-knock/)) with the host taking it — CDC-ACM two,
+CDC-NCM two, mass storage one. Three experiments here said six until somebody
+counted a mass-storage function's two endpoints and noticed they are one
+interface.
 
 **What this repository actually measured**, twice, on hardware:
 

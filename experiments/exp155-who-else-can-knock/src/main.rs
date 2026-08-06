@@ -80,12 +80,13 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{TRNG, USB};
 use embassy_rp::rom_data;
 use embassy_rp::trng::{Config as TrngConfig, InterruptHandler as TrngInterruptHandler, Trng};
-use embassy_rp::usb::{Driver, InterruptHandler};
+use embassy_rp::usb::{Driver, Endpoint, In, InterruptHandler, Out};
+use embassy_usb::driver::{Endpoint as _, EndpointIn, EndpointOut};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embedded_io_async::Write as _;
 use core::fmt::Write as _;
-use core::sync::atomic::{AtomicU32, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
 use embassy_time::{with_timeout, Duration, Instant, Timer};
 use http_route::{Headers, Lamp, Method, Parsed, Refusal, Route};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State as AcmState};
@@ -96,6 +97,28 @@ use panic_halt as _;
 use rp2350_linker as _;
 use static_cell::StaticCell;
 use usb_log::{log, log_transient};
+
+/// The volume does not exist until this is true. Everything the host asks about
+/// the medium is refused until then — see `storage_task`. exp152's mechanism,
+/// unchanged: a drive that mounts before it knows the answer is a drive whose
+/// file the host will serve out of its own cache.
+static READY: AtomicBool = AtomicBool::new(false);
+
+/// Set by `pin_task` once the address is settled, consumed by `storage_task`,
+/// which is the only thing allowed to touch the disk bytes.
+static PENDING_VOLUME: embassy_sync::blocking_mutex::Mutex<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    core::cell::Cell<Option<[u8; 4]>>,
+> = embassy_sync::blocking_mutex::Mutex::new(core::cell::Cell::new(None));
+
+trait TakeAddr { fn take(&self) -> Option<[u8; 4]>; fn put(&self, a: [u8; 4]); }
+impl TakeAddr for embassy_sync::blocking_mutex::Mutex<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    core::cell::Cell<Option<[u8; 4]>>,
+> {
+    fn take(&self) -> Option<[u8; 4]> { self.lock(|c| c.take()) }
+    fn put(&self, a: [u8; 4]) { self.lock(|c| c.set(Some(a))); }
+}
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
@@ -359,6 +382,12 @@ async fn pin_task(stack: embassy_net::Stack<'static>) -> ! {
             "pinning: /{} leaves no room for host {} — keeping the leased address",
             prefix, PINNED_HOST
         ),
+    }
+    // Whatever address won, the drive is laid down with *that* one. Reading it
+    // back out of the stack rather than reusing `pinned` is what makes the two
+    // agree even when the pinning was declined.
+    if let Some(addr) = my_address(stack) {
+        PENDING_VOLUME.put(addr);
     }
     core::future::pending::<()>().await;
     unreachable!()
@@ -1303,6 +1332,21 @@ async fn main(spawner: Spawner) {
         PACKET as u16,
     );
 
+    // The fifth interface, and it is the fifth and not the sixth: **a
+    // mass-storage function is one interface with two endpoints**. CDC-ACM is
+    // two interfaces, CDC-NCM is two, and this is one — five, which is why
+    // `max-interface-count-8` is set rather than inherited from the default of
+    // four. exp152 and exp153 called this "the fifth and sixth" and were wrong;
+    // `lsusb` says five, and the count is in the README beside the reading.
+    let (msc_out, msc_in) = {
+        let mut function = builder.function(CLASS_MSC, SUBCLASS_SCSI, PROTOCOL_BOT);
+        let mut interface = function.interface();
+        let mut alt = interface.alt_setting(CLASS_MSC, SUBCLASS_SCSI, PROTOCOL_BOT, None);
+        let out = alt.endpoint_bulk_out(None, PACKET as u16);
+        let in_ = alt.endpoint_bulk_in(None, PACKET as u16);
+        (out, in_)
+    };
+
     let usb = builder.build();
     spawner.spawn(usb_task(usb).unwrap());
 
@@ -1391,6 +1435,11 @@ async fn main(spawner: Spawner) {
             http_task(stack, rx.init([0; 1024]), tx.init([0; 2048]), page.init([0; 8192])).unwrap(),
         );
     }
+    // The disk's bytes. Left zeroed on purpose: nothing is laid down into them
+    // until the board knows its address, and until then the medium does not
+    // exist as far as the host is concerned.
+    static DISK: StaticCell<[u8; DISK_BYTES]> = StaticCell::new();
+    spawner.spawn(storage_task(msc_out, msc_in, DISK.init([0; DISK_BYTES])).unwrap());
     spawner.spawn(pin_task(stack).unwrap());
     spawner.spawn(mdns_task(stack).unwrap());
     spawner.spawn(report_task(stack).unwrap());
@@ -1469,3 +1518,530 @@ async fn blink(led: &mut Output<'static>, half: Duration) {
     led.set_low();
     Timer::after(half).await;
 }
+const CLASS_MSC: u8 = 0x08;
+const SUBCLASS_SCSI: u8 = 0x06;
+const PROTOCOL_BOT: u8 = 0x50;
+
+const CBW_SIGNATURE: u32 = 0x4342_5355;
+const CSW_SIGNATURE: u32 = 0x5342_5355;
+const CBW_LEN: usize = 31;
+const CSW_LEN: usize = 13;
+const CBW_FLAG_IN: u8 = 0x80;
+
+const CSW_GOOD: u8 = 0x00;
+const CSW_FAILED: u8 = 0x01;
+
+/// 512 bytes, because everything above assumes it.
+///
+/// A SCSI disk may declare any block size and `READ CAPACITY` says which. In
+/// practice partition tables, filesystems and the tools that read them are
+/// written for 512, and a device that picks something else discovers how much
+/// software only *believes* it is asking.
+const BLOCK: usize = 512;
+
+/// A small disk, entirely in RAM.
+///
+/// 64 KiB is enough to be a real volume with a real partition sector, small
+/// enough to sit in SRAM without thought, and distinctive in `lsblk` — a
+/// removable disk that size is unmistakably this experiment and not somebody's
+/// USB stick.
+const DISK_BLOCKS: u32 = 128;
+const DISK_BYTES: usize = DISK_BLOCKS as usize * BLOCK;
+
+/// The repository's log tool, embedded from the file itself.
+///
+/// UNIT ATTENTION / NOT READY TO READY CHANGE, MEDIUM MAY HAVE CHANGED.
+///
+/// The whole vocabulary this experiment adds. `0x06` is the key a device uses
+/// to say *something happened that you were not told about*, and `0x28` is the
+/// one that means the medium is not the medium you were reading.
+
+/// SCSI sense, kept so that `REQUEST SENSE` can answer the question the host
+/// asks after a command is refused. Two atomics rather than a struct because
+/// they are written from one task and read from the same one.
+static SENSE_KEY: AtomicU32 = AtomicU32::new(0);
+static SENSE_ASC: AtomicU32 = AtomicU32::new(0);
+
+/// Set when the medium appears, reported once on the next command that is
+/// neither INQUIRY nor REQUEST SENSE.
+static MEDIA_CHANGED: AtomicBool = AtomicBool::new(false);
+
+/// `TEST UNIT READY` arrives about twice a second forever, so it is counted
+/// rather than logged — exp137 buried its own measurement under those lines
+/// once and this firmware inherits the lesson.
+static POLLS: AtomicU32 = AtomicU32::new(0);
+/// The same poll, answered "there is no disk". Counting it separately is how
+/// the log shows how long the host was kept waiting.
+static NOT_READY_POLLS: AtomicU32 = AtomicU32::new(0);
+
+static COMMANDS: AtomicU32 = AtomicU32::new(0);
+static BLOCKS_READ: AtomicU32 = AtomicU32::new(0);
+static BLOCKS_WRITTEN: AtomicU32 = AtomicU32::new(0);
+
+/// NOT READY / MEDIUM NOT PRESENT — a card reader with no card in it.
+const SENSE_NOT_READY: u32 = 0x02;
+const ASC_MEDIUM_NOT_PRESENT: u32 = 0x3a;
+
+const SENSE_UNIT_ATTENTION: u32 = 0x06;
+const ASC_MEDIUM_MAY_HAVE_CHANGED: u32 = 0x28;
+
+/// DATA PROTECT / WRITE PROTECTED, for a volume that declared itself read-only.
+const SENSE_DATA_PROTECT: u32 = 0x07;
+const ASC_WRITE_PROTECTED: u32 = 0x27;
+
+/// ILLEGAL REQUEST / INVALID COMMAND OPERATION CODE.
+const SENSE_ILLEGAL_REQUEST: u32 = 0x05;
+const ASC_INVALID_COMMAND: u32 = 0x20;
+/// ILLEGAL REQUEST / LOGICAL BLOCK ADDRESS OUT OF RANGE.
+const ASC_LBA_OUT_OF_RANGE: u32 = 0x21;
+
+fn le_u32(b: &[u8]) -> u32 {
+    u32::from_le_bytes([b[0], b[1], b[2], b[3]])
+}
+
+/// SCSI's byte order, and the reason this has a name of its own.
+fn be_u32(b: &[u8]) -> u32 {
+    u32::from_be_bytes([b[0], b[1], b[2], b[3]])
+}
+
+fn be_u16(b: &[u8]) -> u16 {
+    u16::from_be_bytes([b[0], b[1]])
+}
+
+fn opcode_name(op: u8) -> &'static str {
+    match op {
+        0x00 => "TEST UNIT READY",
+        0x03 => "REQUEST SENSE",
+        0x12 => "INQUIRY",
+        0x1a => "MODE SENSE(6)",
+        0x1b => "START STOP UNIT",
+        0x1e => "PREVENT ALLOW MEDIUM REMOVAL",
+        0x23 => "READ FORMAT CAPACITIES",
+        0x25 => "READ CAPACITY(10)",
+        0x28 => "READ(10)",
+        0x2a => "WRITE(10)",
+        0x35 => "SYNCHRONIZE CACHE(10)",
+        0x5a => "MODE SENSE(10)",
+        _ => "unsupported",
+    }
+}
+
+fn set_sense(key: u32, asc: u32) {
+    SENSE_KEY.store(key, Ordering::Relaxed);
+    SENSE_ASC.store(asc, Ordering::Relaxed);
+}
+
+/// The 36-byte answer to "what are you".
+///
+/// The strings are fixed-width and space-padded, not NUL-terminated — SCSI
+/// predates that convention. `lsblk` prints them as VENDOR and MODEL, so this
+/// is where the name in the disk listing comes from.
+/// The two strings a host shows in its disk listing.
+///
+/// Named once and used twice — in the bytes that go out and in the line that
+/// says what went out. They were literals in both places for one build, the
+/// bytes were updated and the log line was not, and the firmware spent that
+/// build reporting a product name it was not sending. A log that disagrees
+/// with the artifact is the failure this repository keeps meeting.
+const INQUIRY_VENDOR: &[u8; 8] = b"yi26    ";
+const INQUIRY_PRODUCT: &[u8; 16] = b"exp155 knocking ";
+
+fn inquiry(out: &mut [u8]) -> usize {
+    out[..36].fill(0);
+    out[0] = 0x00; // peripheral qualifier 0, direct-access block device
+    out[1] = 0x80; // removable
+    out[2] = 0x02; // SCSI-2
+    out[3] = 0x02; // response data format 2
+    out[4] = 31; // additional length: 36 - 5
+    out[8..16].copy_from_slice(INQUIRY_VENDOR);
+    out[16..32].copy_from_slice(INQUIRY_PRODUCT);
+    out[32..36].copy_from_slice(b"0001");
+    36
+}
+
+/// Fixed-format sense data: what went wrong with the previous command.
+fn request_sense(out: &mut [u8]) -> usize {
+    out[..18].fill(0);
+    out[0] = 0x70; // current error, fixed format
+    out[2] = SENSE_KEY.load(Ordering::Relaxed) as u8;
+    out[7] = 10; // additional sense length
+    out[12] = SENSE_ASC.load(Ordering::Relaxed) as u8;
+    18
+}
+
+/// Last addressable block and block size — both big-endian.
+///
+/// `DISK_BLOCKS - 1`, not `DISK_BLOCKS`. READ CAPACITY reports the address of
+/// the last block, not how many there are, and an off-by-one here is a disk
+/// that is one block too large: the host will eventually read past the end and
+/// find out.
+fn read_capacity(out: &mut [u8]) -> usize {
+    out[0..4].copy_from_slice(&(DISK_BLOCKS - 1).to_be_bytes());
+    out[4..8].copy_from_slice(&(BLOCK as u32).to_be_bytes());
+    8
+}
+
+/// A four-byte mode parameter header and no pages.
+///
+/// Byte 2 carries the write-protect bit, which is the only thing in here the
+/// host cares about.
+///
+/// Set here, unlike exp126, and for this experiment's own reason: a volume
+/// that is laid down again from the device side would silently eat whatever
+/// the host had written. Declaring it read-only means the host never writes,
+/// so "the volume changed" has exactly one cause and the measurement has one
+/// variable. exp130 established that a host which reads this bit does honour
+/// it.
+fn mode_sense6(out: &mut [u8]) -> usize {
+    out[..4].fill(0);
+    out[0] = 3; // mode data length, not counting itself
+    out[2] = 0x80; // WP
+    4
+}
+
+async fn send_csw(
+    write_ep: &mut Endpoint<'static, USB, In>,
+    tag: u32,
+    residue: u32,
+    status: u8,
+) -> bool {
+    let mut csw = [0u8; CSW_LEN];
+    csw[0..4].copy_from_slice(&CSW_SIGNATURE.to_le_bytes());
+    csw[4..8].copy_from_slice(&tag.to_le_bytes());
+    csw[8..12].copy_from_slice(&residue.to_le_bytes());
+    csw[12] = status;
+    write_ep.write(&csw).await.is_ok()
+}
+
+/// Reads command wrappers, serves them, and reports.
+#[embassy_executor::task]
+async fn storage_task(
+    mut read_ep: Endpoint<'static, USB, Out>,
+    mut write_ep: Endpoint<'static, USB, In>,
+    disk: &'static mut [u8],
+) -> ! {
+    let mut buf = [0u8; PACKET];
+    let mut reply = [0u8; 64];
+
+    loop {
+        read_ep.wait_enabled().await;
+
+        loop {
+            let n = match read_ep.read(&mut buf).await {
+                Ok(n) => n,
+                Err(_) => break,
+            };
+            if n != CBW_LEN || le_u32(&buf[0..4]) != CBW_SIGNATURE {
+                log!("not a CBW: {} bytes", n);
+                continue;
+            }
+
+            // Before anything is answered: if the address has arrived since
+            // the last command, this is the only place allowed to build the
+            // volume, because this task owns the bytes.
+            if let Some(addr) = PENDING_VOLUME.take() {
+                let clusters = lay_down(disk, addr);
+                READY.store(true, Ordering::Relaxed);
+                MEDIA_CHANGED.store(true, Ordering::Relaxed);
+                log_transient!(
+                    "volume: laid down for {}.{}.{}.{}, {} clusters used — the medium exists now",
+                    addr[0], addr[1], addr[2], addr[3], clusters
+                );
+            }
+
+            // Everything this task says about *serving* the disk is transient.
+            //
+            // The third time this pattern has come up, and the clearest: the
+            // page a person opens is reached by opening the drive, and opening
+            // the drive is a hundred READ(10) commands. The first phone to run
+            // this saw its own arrival — READ(10), PREVENT ALLOW MEDIUM
+            // REMOVAL, over and over — with the boot lines pushed out behind
+            // it. exp151 had it with HTTP requests and with mDNS chatter.
+            //
+            // The rule, now that it has been paid for three times:
+            // **anything that exists only because somebody is reading the log
+            // does not belong in the log.** The serial port still gets all of
+            // it, because somebody watching a serial port is watching the
+            // mechanism on purpose.
+            let tag = le_u32(&buf[4..8]);
+            let want = le_u32(&buf[8..12]);
+            let to_host = buf[12] & CBW_FLAG_IN != 0;
+            let cb = [
+                buf[15], buf[16], buf[17], buf[18], buf[19], buf[20], buf[21], buf[22], buf[23],
+                buf[24],
+            ];
+            let op = cb[0];
+            COMMANDS.fetch_add(1, Ordering::Relaxed);
+
+            let mut status = CSW_GOOD;
+            let mut sent: u32 = 0;
+
+            // The media change, reported exactly once, on whatever command
+            // happens to arrive next.
+            //
+            // Two commands are exempt and the exemption is not politeness.
+            // `INQUIRY` asks what the device *is*, which a medium cannot
+            // change, and `REQUEST SENSE` is how the host collects the reason
+            // for the failure — failing that one would hide the very message
+            // being sent. Everything else is refused, the host asks why, and
+            // the answer is `06/28`.
+            //
+            // What it costs the host to ignore this is nothing: it is a
+            // notification, not an instruction. Whether any host acts on it is
+            // the measurement, and the firmware's job is only to have said it.
+            if MEDIA_CHANGED.load(Ordering::Relaxed) && op != 0x12 && op != 0x03 {
+                MEDIA_CHANGED.store(false, Ordering::Relaxed);
+                set_sense(SENSE_UNIT_ATTENTION, ASC_MEDIUM_MAY_HAVE_CHANGED);
+                status = CSW_FAILED;
+                log_transient!(
+                    "{}  -> UNIT ATTENTION (06/28): the medium may have changed",
+                    opcode_name(op)
+                );
+                // A failed command still owes the host its data phase, even
+                // though there is no data. exp124 learned this the hard way:
+                // a host that asked for bytes and is given neither bytes nor
+                // a refusal simply waits.
+                if want > 0 && to_host {
+                    let _ = write_ep.write(&[]).await;
+                }
+                if !send_csw(&mut write_ep, tag, want, status).await {
+                    break;
+                }
+                continue;
+            }
+
+            // Anything that assumes a medium is refused the same way, and for
+            // the same reason: a host told the capacity of a disk that does not
+            // exist yet will happily mount it.
+            if !READY.load(Ordering::Relaxed) && matches!(op, 0x25 | 0x28 | 0x2a | 0x23) {
+                set_sense(SENSE_NOT_READY, ASC_MEDIUM_NOT_PRESENT);
+                if want > 0 && to_host {
+                    let _ = write_ep.write(&[]).await;
+                }
+                if !send_csw(&mut write_ep, tag, want, CSW_FAILED).await {
+                    break;
+                }
+                continue;
+            }
+
+            match op {
+                // No data, and the answer is "yes" because there is a disk.
+                //
+                // `TEST UNIT READY` is not logged, and that is a change this
+                // experiment forced. A host polls it about twice a second
+                // forever — it is how a host asks "is the medium still the
+                // one I know about" — so logging it costs the log. The first
+                // run of this firmware buried its own measurement under 135
+                // dropped lines, which is exp134's queue arriving as a
+                // consequence for the second time. Counted here, reported in
+                // the idle line, never printed on its own.
+                // TEST UNIT READY, and the whole experiment turns on this arm.
+                //
+                // Until the board knows its address there is no medium, and
+                // saying so is not a stall: `NOT READY / MEDIUM NOT PRESENT` is
+                // the answer a card reader with no card gives, and hosts know
+                // what to do with it — nothing. They wait, and they mount
+                // nothing, so there is no cache for a later answer to be stale
+                // against.
+                0x00 => {
+                    if READY.load(Ordering::Relaxed) {
+                        set_sense(0, 0);
+                        POLLS.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        set_sense(SENSE_NOT_READY, ASC_MEDIUM_NOT_PRESENT);
+                        status = CSW_FAILED;
+                        NOT_READY_POLLS.fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+
+                0x1b | 0x1e | 0x35 => {
+                    set_sense(0, 0);
+                    log_transient!("{}  -> ok", opcode_name(op));
+                }
+
+                0x12 => {
+                    let len = inquiry(&mut reply).min(want as usize);
+                    let _ = write_ep.write(&reply[..len]).await;
+                    sent = len as u32;
+                    set_sense(0, 0);
+                    log_transient!(
+                        "INQUIRY  -> {} bytes: {} / {}",
+                        len,
+                        core::str::from_utf8(INQUIRY_VENDOR).unwrap_or("?").trim_end(),
+                        core::str::from_utf8(INQUIRY_PRODUCT).unwrap_or("?").trim_end()
+                    );
+                }
+
+                0x03 => {
+                    let len = request_sense(&mut reply).min(want as usize);
+                    let _ = write_ep.write(&reply[..len]).await;
+                    sent = len as u32;
+                    log_transient!(
+                        "REQUEST SENSE  -> key {} asc {:02x}",
+                        SENSE_KEY.load(Ordering::Relaxed),
+                        SENSE_ASC.load(Ordering::Relaxed)
+                    );
+                }
+
+                0x25 => {
+                    let len = read_capacity(&mut reply).min(want as usize);
+                    let _ = write_ep.write(&reply[..len]).await;
+                    sent = len as u32;
+                    set_sense(0, 0);
+                    log_transient!(
+                        "READ CAPACITY  -> last LBA {}, {} bytes each = {} KiB",
+                        DISK_BLOCKS - 1,
+                        BLOCK,
+                        DISK_BYTES / 1024
+                    );
+                }
+
+                0x1a => {
+                    let len = mode_sense6(&mut reply).min(want as usize);
+                    let _ = write_ep.write(&reply[..len]).await;
+                    sent = len as u32;
+                    set_sense(0, 0);
+                    log_transient!("MODE SENSE(6)  -> READ-ONLY (WP set), no pages");
+                }
+
+                0x2a => {
+                    // Refused with a reason, not ignored. The host asked to
+                    // write to a volume that told it not to, and the only
+                    // useful answer names the rule it broke.
+                    set_sense(SENSE_DATA_PROTECT, ASC_WRITE_PROTECTED);
+                    status = CSW_FAILED;
+                    log!("WRITE(10)  -> DATA PROTECT / WRITE PROTECTED");
+                }
+
+                0x28 => {
+                    let lba = be_u32(&cb[2..6]);
+                    let count = be_u16(&cb[7..9]) as u32;
+                    let reading = op == 0x28;
+
+                    if lba.saturating_add(count) > DISK_BLOCKS {
+                        // The failure that matters most, and the one a
+                        // dishonest READ CAPACITY causes: refuse it precisely
+                        // rather than reading off the end of an array.
+                        set_sense(SENSE_ILLEGAL_REQUEST, ASC_LBA_OUT_OF_RANGE);
+                        status = CSW_FAILED;
+                        log!("{} lba {} +{}  -> OUT OF RANGE", opcode_name(op), lba, count);
+                    } else {
+                        let start = lba as usize * BLOCK;
+                        let end = start + count as usize * BLOCK;
+                        if reading {
+                            for chunk in disk[start..end].chunks(PACKET) {
+                                if write_ep.write(chunk).await.is_err() {
+                                    break;
+                                }
+                            }
+                            sent = (end - start) as u32;
+                            BLOCKS_READ.fetch_add(count, Ordering::Relaxed);
+                        } else {
+                            let mut at = start;
+                            while at < end {
+                                match read_ep.read(&mut buf).await {
+                                    Ok(got) => {
+                                        let take = got.min(end - at);
+                                        disk[at..at + take].copy_from_slice(&buf[..take]);
+                                        at += take.max(1);
+                                    }
+                                    Err(_) => break,
+                                }
+                            }
+                            sent = (end - start) as u32;
+                            BLOCKS_WRITTEN.fetch_add(count, Ordering::Relaxed);
+                        }
+                        set_sense(0, 0);
+                        log_transient!("{} lba {} +{} blocks", opcode_name(op), lba, count);
+                    }
+                }
+
+                // Everything else is refused with a reason the host can read.
+                // exp123 refused these too, and refused REQUEST SENSE as well,
+                // which is why its host learned nothing and retried.
+                _ => {
+                    set_sense(SENSE_ILLEGAL_REQUEST, ASC_INVALID_COMMAND);
+                    status = CSW_FAILED;
+                    if want > 0 && to_host {
+                        let _ = write_ep.write(&[]).await;
+                    }
+                    log!("{:02x} {}  -> refused, invalid command", op, opcode_name(op));
+                }
+            }
+
+            // A short reply is not a failure. The residue says how much of the
+            // requested transfer did not happen, and a host that asked for 36
+            // bytes and got 36 sees zero residue.
+            if !send_csw(&mut write_ep, tag, want.saturating_sub(sent), status).await {
+                break;
+            }
+        }
+    }
+}
+
+/// What the drive carries. Written once, when the address is known.
+///
+/// `OPEN.HTM` is the whole point: a page whose only content is a link. A phone's
+/// address bar searches for what it is given — measured, `http://yi26.local/`
+/// went to Google — so the address has to be **tappable rather than typable**. A
+/// link is a top-level navigation, which is the one thing exp150 measured going
+/// through from a `content://` page: a `fetch` and an `<iframe>` are both
+/// refused as mixed content, and a navigation is not.
+///
+/// This is exp152's mechanism, unchanged, and it is here for a reason exp154
+/// could do without: **a page that controls the board is no use to somebody who
+/// cannot find the board.** Without a drive, the address lives only in the CDC
+/// log, and reading that on a phone needs WebUSB — Chromium only, which is the
+/// thing this whole road exists to escape.
+fn lay_down(disk: &mut [u8], addr: [u8; 4]) -> u32 {
+    let mut page = [0u8; 1024];
+    let mut w = Cursor { buf: &mut page, n: 0 };
+    let _ = write!(
+        w,
+        "<!doctype html><meta charset=utf-8>\
+<meta name=viewport content=\"width=device-width,initial-scale=1\">\
+<title>Open the board</title>\
+<style>body{{font:16px/1.6 system-ui,sans-serif;margin:0 auto;max-width:30rem;padding:2rem 1rem}}\
+a{{display:block;text-align:center;font:600 1.2rem/1 system-ui,sans-serif;padding:1.3rem;\
+border-radius:10px;background:#1a5fb4;color:#fff;text-decoration:none;margin:1.5rem 0}}\
+p{{color:#666}}</style>\
+<h1>The board is at this address</h1>\
+<p>This drive came off the board, and so did the address below. Tap it &mdash; \
+do not type it, because a phone's address bar will search for it instead.</p>\
+<a href=\"http://{}.{}.{}.{}/\">http://{}.{}.{}.{}/</a>\
+<p>On that page: five links that change the LED on the board in your hand, the \
+firmware's own log, and its status. Nothing is installed and nothing claimed a \
+device &mdash; it is one USB cable carrying all three.</p>",
+        addr[0], addr[1], addr[2], addr[3], addr[0], addr[1], addr[2], addr[3]
+    );
+    let page_len = w.n;
+    // A `Cursor` truncates silently — that is its bargain, and it is the right
+    // one for a log line. For a page it is a trap, and exp153 fell into it: at
+    // 640 bytes the buffer filled exactly, the link's `href` survived because it
+    // comes first, and the text after it was cut mid-address. The phone showed a
+    // working button labelled `http://10`.
+    //
+    // A buffer that truncates in silence needs something that breaks the
+    // silence, so this says so — and the buffer is 1024 rather than 640.
+    if page_len == page.len() {
+        log!("volume: OPEN.HTM filled its buffer exactly — it is probably truncated");
+    }
+
+    let mut text = [0u8; 96];
+    let mut w = Cursor { buf: &mut text, n: 0 };
+    let _ = write!(w, "http://{}.{}.{}.{}/\r\n", addr[0], addr[1], addr[2], addr[3]);
+    let text_len = w.n;
+
+    fat12::format(
+        disk,
+        b"YI26 BOARD ",
+        &[
+            fat12::File { name: b"OPEN    HTM", contents: &page[..page_len] },
+            fat12::File { name: b"ADDRESS TXT", contents: &text[..text_len] },
+            fat12::File { name: b"README  TXT", contents: README },
+        ],
+    )
+    .expect("checked by the crate's own tests")
+}
+
+const README: &[u8] = b"exp155 - who else can knock.\r\n\r\nOne USB cable, carrying a user interface, a control channel and a log at\r\nonce. Nothing is installed on your phone and nothing claimed a device: the\r\nboard serves an ordinary web page over the cable, and any browser can open\r\nit - no WebUSB, no permission dialog, no Chromium requirement.\r\n\r\nOPEN.HTM     tap the link. That page has the LED controls, the log and the\r\n             status on it.\r\nADDRESS.TXT  the same address as plain text, if you would rather read it.\r\n\r\nWhat to try, in the order that shows the point:\r\n\r\n  1. tap 'fast' - the LED on the board blinks fast, and you did not install\r\n     anything to make that happen\r\n  2. tap /log - the firmware's own log, including the line about the request\r\n     you just made\r\n  3. tap 'give it back' - the LED goes back to reporting the network\r\n\r\nTHE ORDER MATTERS. This drive did not exist until the phone gave the board\r\nan address, and the phone will not do that until you turn ON Ethernet\r\ntethering - which is greyed out until something is plugged in. So:\r\n\r\n  1. plug the board in\r\n  2. turn on Ethernet tethering, straight away\r\n  3. wait for the LED to blink fast; this drive appears then\r\n\r\nLeaving a long gap at step 2 is what goes wrong. The board keeps asking\r\nforever, but a host that has been told 'no medium' for long enough may\r\nstop looking.\r\n\r\nAbout that LED: until the board has an address it means something -\r\ndark is no link, slow blink is still asking. After that it is yours, which\r\nis why the controls only work once you can reach the page at all.\r\n\r\nWhat this experiment measured, if you want the rest of it: a page from\r\nSOMEBODY ELSE'S site can pull those same LED links with an <img> tag, and\r\nit works. CORS does not stop the request; it only stops the reply being\r\nread. The one door that refused is the one that made the browser ask first.\r\nREADME.md in this zip has the numbers.\r\n";
