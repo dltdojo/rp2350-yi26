@@ -181,8 +181,9 @@ Repository-wide, alongside `lib.sh`:
   `## Do this, in order` is lifted into the zip verbatim as the standalone
   walkthrough — every step, every command, and what each should print, for
   somebody who has only the zip. Markdown links are flattened on the way out.
-  exp151 and exp152 have one; the rest are a gap the zip names out loud. It refuses on a non-zero exit, so a zip is
-  evidence rather than a hope. Which zips have had their own steps followed,
+  The experiments that have one ship a walkthrough somebody can follow with
+  the zip and nothing else; the ones that do not are a gap the zip names out
+  loud. It refuses on a non-zero exit, so a zip is evidence rather than a hope. Which zips have had their own steps followed,
   what is left and in what order, and the hazards to keep off an unattended
   run are in [`docs/pack-verification.md`](../docs/pack-verification.md).
   It carries **no buildable source** and says so:
@@ -1018,8 +1019,8 @@ exp147 was built against, so nothing had to move to start.
   socket in it — 14 host-side tests. **Working on Ubuntu**: the four packets
   complete in 2 ms and the host ends up with `192.168.7.2/24` and a route to
   that subnet *and nothing else*, which is the evidence for the decision not to
-  offer a router option. Not yet finished: the ten-boot reliability run, a
-  README, and `check.sh`.
+  offer a router option. **Done, verified 2026-08-05** — the ten-boot run came
+  back `Ack=1 addr=1` on all ten, and the README and `check.sh` are written.
 
   **On a Pixel 9a, 2026-08-05 — and the result is three things that do not
   obviously belong together:**
