@@ -63,6 +63,15 @@ administrator rights. [`docs/platforms.md`](./docs/platforms.md) lays out that
 split experiment by experiment, and says which parts have been verified here
 and which have not.
 
+No computer at all — a phone, a board, and nothing else? The thing that builds
+the `.uf2` can be a cloud AI session you describe the change to in sentences,
+and the phone flashes what comes back with
+[`pflash.html`](./tools/pages/pflash.html).
+[`docs/building-without-a-computer.md`](./docs/building-without-a-computer.md)
+is that loop, what it was measured to cost, and the limit that does not go
+away: **the agent does the part that needs a toolchain, you do the part that
+needs a room.**
+
 ## Hardware
 
 Target is the [RP2350](https://www.raspberrypi.com/products/rp2350/), the
