@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W)
-hash: 6a7ee7ef91882290
+hash: 607578f28ce170cb
 
 The zip was unpacked into an empty directory and its `FLASH.txt` followed. The
 instrument is `cat`, which is on every machine — no `yi26` and no repository.

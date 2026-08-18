@@ -224,6 +224,28 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 6. pack.sh's content hash must not depend on the machine it runs on.
+#
+#    This one is here because it already happened. `content_hash` piped its
+#    file list through a bare `sort`, which orders by the locale's collation
+#    rules — so twenty-four verification records written on a machine with a
+#    locale read as STALE on a machine without one, with not a byte of their
+#    content changed. A record whose whole purpose is to say "this has moved"
+#    said it about everything, which is the same as saying nothing.
+#
+#    The invariant is small enough to check by reading: the sort that decides
+#    the order of the hashed list runs under a pinned collation. Anything that
+#    reintroduces a locale-sensitive sort there fails here rather than a month
+#    later on somebody else's machine.
+
+if grep -q 'LC_ALL=C sort -z' pack.sh; then
+    pass "pack.sh's content hash sorts under a pinned collation"
+else
+    fail "pack.sh's content hash sorts under a pinned collation" \
+         "a bare sort orders by locale, and every verification record written elsewhere goes stale"
+fi
+
+# ---------------------------------------------------------------------------
 # What this deliberately does not do: rewrite anything. A generator that
 # silently fixes a table means nobody ever learns the document was wrong, and
 # the prose *around* a generated block can still contradict it. `pack.sh`

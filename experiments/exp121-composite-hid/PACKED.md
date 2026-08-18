@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W), user in the `input` group
-hash: b5bc5f12bdaa2d4a
+hash: 4ff725f4f5584625
 
 Unpacked into an empty directory, `FLASH.txt` followed. Two firmware images,
 differing only in which order the two functions are declared.

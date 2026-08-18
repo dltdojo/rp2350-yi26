@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W)
-hash: 30f2640ade2fbb75
+hash: f0b7e00a48276f26
 
 The zip was unpacked into an empty directory and its `FLASH.txt` followed from
 step 1 to step 6, with nothing read from the repository.

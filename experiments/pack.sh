@@ -98,12 +98,21 @@ steps_section() {
 # `target/` is excluded: a rebuilt .uf2 differs across checkout paths (measured)
 # and is not a change to the experiment. PACKED.md excludes itself, or writing
 # the record would invalidate it.
+#
+# `LC_ALL=C` on the sort is not decoration, and leaving it out cost a day.
+# `sort` orders by the locale's collation rules, so the same unchanged files
+# hashed under en_US.UTF-8 and under C come out in a different ORDER and
+# produce a different hash. Every record written on a machine with a locale
+# read as STALE on a machine without one — twenty-four of them at once, which
+# looks exactly like the experiments having moved and is the one thing this
+# record exists to be able to say. Byte order is the only order that means the
+# same thing everywhere.
 content_hash() {
     find "$1" -type f \
         \( -name '*.rs' -o -name '*.toml' -o -name '*.lock' -o -name '*.html' \
            -o -name '*.sh' -o -name 'README.md' \) \
         -not -path '*/target/*' -print0 2>/dev/null \
-        | sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -c1-16
+        | LC_ALL=C sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -c1-16
 }
 
 # One of: unverified | ok | stale

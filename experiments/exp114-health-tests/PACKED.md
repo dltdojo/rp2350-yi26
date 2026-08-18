@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 7 of 7 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W)
-hash: d692263422b49fb2
+hash: 9ecc73bc36268a82
 
 Unpacked into an empty directory, `FLASH.txt` followed. One firmware, three
 sources, two tests that each catch a different one.

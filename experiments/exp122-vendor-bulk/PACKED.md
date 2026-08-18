@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W), udev rule 70-rp2350-yi26.rules present
-hash: f66003d6e88052f3
+hash: 8429987cb8917890
 
 Unpacked into an empty directory, `FLASH.txt` followed, including pasting the
 raw-USB client straight out of it.
