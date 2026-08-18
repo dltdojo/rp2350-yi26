@@ -118,6 +118,89 @@ costs: a fact printed once is a fact most readers never see, and anyone
 attaching afterwards finds heartbeats and no way to tell a finished run from a
 stuck one.
 
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone — no checkout, no
+compiler, no `yi26`. `pack.sh` lifts this section verbatim into that zip, so
+there is one copy of the procedure and it is this one.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 (RP2350A) and a USB data cable.
+  * **A phone is enough.** Android with Chrome, and the board in its only port.
+    A desktop with Chrome or Edge works the same way.
+  * Nothing installed. No compiler, no driver, no root.
+  * On Linux only: the kernel's `cdc_acm` driver claims the board's serial
+    interfaces, and an interface has exactly one owner. `yi26 detach` frees
+    them, and that one command does need the repository. **A phone has no such
+    driver and needs no such step** — which is the shortest description of why
+    the browser track exists.
+
+1. UNPACK IT. On a phone: the Files app will do it in place.
+
+       unzip exp154-somewhere-to-put-a-key.zip
+       cd exp154-somewhere-to-put-a-key
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold the BOOTSEL button
+   down, plug the board in, then let go. A drive called `RP2350` appears, and
+   you copy the firmware onto it.
+
+       cp firmware/exp154-somewhere-to-put-a-key.uf2 /media/$USER/RP2350/
+
+   On a phone, do the copy in the Files app instead — or skip the button
+   entirely if the board is already running exp105 or later: open
+   `pages/bootsel.html`, then `pages/pflash.html`, and give it the `.uf2`. Do
+   those two without a pause; a board left waiting in BOOTSEL may not still be
+   waiting when you come back.
+
+   **The drive vanishing as the copy finishes is success**, not an error. Some
+   file managers report it as one.
+
+3. WATCH THE LED FOR A MOMENT. It is not the result — it is how you tell a
+   board that is working from one that is not, before opening anything.
+
+       fast, about 5 Hz    running, sweep not finished
+       slow, about 1 Hz    sweep finished, the answer is ready
+       dark                the firmware is not running
+
+   It should be fast for a few seconds and then slow. **If it stays fast, stop
+   and say so**: that means the sweep started and did not finish, which is a
+   real finding and not a mistake you made.
+
+4. OPEN THE RESULT.
+
+       pages/otp-map.html
+
+   On Android: Files app, tap the file, *Open with* → Chrome. On a desktop,
+   double-click it. Press **Connect**, and pick the board from the chooser
+   Chrome puts up. That permission dialog is the one thing on this list nobody
+   can automate for you.
+
+   The page draws all 4096 OTP rows as a grid, one cell each:
+
+       blue    programmed — something is in that row
+       grey    blank — nothing has been written there
+       RED     REFUSED — the hardware declined to hand it over
+
+   **The whole experiment is the question "is any of it red".** A red cell is a
+   place this chip already will not let the core read, which is what the
+   signing road went looking for. No red is an equally real answer, and the
+   page says which of the two it is reading.
+
+   Underneath the grid: the totals, the rows a signing experiment elsewhere
+   assumed held a private key, the identity rows exp113 uses, and the raw log.
+
+5. IF THE PAGE SHOWS NOTHING. The summary repeats every ten seconds, so
+   arriving late is fine — wait fifteen seconds before concluding anything. If
+   it is still empty, `pages/log.html` reads the same serial stream without any
+   parsing in the way, and whatever it shows is the thing to report.
+
+WHAT THIS DOES NOT DO
+  It never writes to OTP. Not once, not optionally, not behind a flag. OTP is
+  one-time programmable, so a wrong write does not fail a test — it ruins the
+  board for every experiment after this one. `check.sh` greps the source for
+  the write functions and fails if any of them appears, because "we did not
+  mean to" is not something you can check afterwards.
+
 ## Expected output
 
 **Not captured yet — this experiment has not run on a board.**
