@@ -117,6 +117,7 @@
 <table id="idrows"><tr><td class="meta">not reported yet</td></tr></table>
 
 <h2>Raw log</h2>
+<button id="copy" class="ghost">Copy the log</button>
 <div id="log"></div>
 <p class="meta">The page reads; it never writes to the board, and it never sends 1200 baud — which would reboot it into the bootloader.</p>
 
@@ -302,8 +303,30 @@ async function start(dev) {
   streaming = true;
   $('connect').disabled = true;
   $('stop').disabled = false;
-  say(`Streaming from ${device.productName} — interfaces ${control} and ${data}, endpoint ${endpointIn} IN. ` +
-      `If the board booted a while ago the detailed runs have already gone by; the summary repeats every ten seconds.`, 'ok');
+
+  // Which firmware is actually on the board.
+  //
+  // Every firmware here puts its experiment number in the USB serial number —
+  // it is what `exp_running` in lib.sh matches on — so the page can tell, and
+  // it costs one comparison to stop a reader concluding that this experiment
+  // failed when what happened is that a different experiment is running.
+  //
+  // This was written after a session where the map stayed empty and every
+  // field read "not reported yet", because the board was running something
+  // else entirely. The page had that fact, in device.productName, and said it
+  // in a sentence nobody had a reason to read closely.
+  const serial = device.serialNumber || '(none)';
+  if (serial !== '154') {
+    say(`This board is NOT running exp154. It reports itself as "${device.productName}", ` +
+        `serial ${serial} — exp154 reports serial 154. The log below is that firmware's, ` +
+        `and the map will stay empty because nothing is sending a survey. Flash ` +
+        `firmware/exp154-somewhere-to-put-a-key.uf2 and connect again.`, 'bad');
+    $('verdict').className = 'bad';
+    $('verdict').innerHTML = '<b>No survey is being sent.</b> The board is running other firmware — see the message above.';
+  } else {
+    say(`Streaming from ${device.productName} — interfaces ${control} and ${data}, endpoint ${endpointIn} IN. ` +
+        `If the board booted a while ago the detailed runs have already gone by; the summary repeats every ten seconds.`, 'ok');
+  }
 
   const dec = new TextDecoder();
   while (streaming) {
@@ -340,5 +363,37 @@ $('connect').addEventListener('click', async () => {
     $('stop').disabled = true;
   }
 });
+// Copying, because reading a log on a phone means scrolling a small box and
+// selecting inside it, and reporting one means getting all of it out. The
+// button copies everything received, not what happens to be on screen.
+//
+// Two mechanisms, and the second is not a fallback for old browsers. This page
+// is opened from a file manager on Android, which gives it a `content://`
+// origin — and that is **not a secure context**, so `navigator.clipboard` is
+// simply absent exactly where this button matters most. `execCommand('copy')`
+// still works there.
+async function copyLog() {
+  const text = $('log').textContent;
+  if (!text.trim()) { say('Nothing to copy yet.', 'bad'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.split('\n').length - 1} lines.`, 'ok');
+    return;
+  } catch (_) { /* content:// is not a secure context — fall through */ }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  ta.remove();
+  say(ok ? `Copied ${text.split('\n').length - 1} lines.`
+         : 'Could not copy. Long-press inside the log box and use Select all instead.',
+      ok ? 'ok' : 'bad');
+}
+
+$('copy').addEventListener('click', copyLog);
 $('stop').addEventListener('click', stop);
 </script>
