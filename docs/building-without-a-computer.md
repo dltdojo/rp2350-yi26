@@ -99,6 +99,119 @@ its own. Say which one it was.
 That trade is worth making anyway when the alternative is not doing the
 experiment at all.
 
+## Which experiments can I actually do
+
+The first question anybody asks after reading the above is *"so which ones can
+I do — all of them?"*, usually alongside the reasonable-sounding claim that **if
+the phone can install the `.uf2`, the phone can confirm the result**.
+
+The first half is nearly true. The second half is the one to take apart, and
+it is worth taking apart carefully, because getting it wrong sends somebody to
+flash a board and then stare at it wondering what they were supposed to see.
+
+### Flashing, observing and verifying are three different things
+
+| | What it means | On a phone |
+| --- | --- | --- |
+| **Flashing** | the `.uf2` gets into the board | yes, with `pflash.html` — see the traps below |
+| **Observing** | you can tell what the firmware did | yes, for nearly everything |
+| **Verifying** | `check.sh` returns a verdict | **no, for most of them** |
+
+That last row is the one the claim misses. Most `check.sh` scripts here drive
+the board through [`yi26`](../tools/README.md), which is a program that runs on
+a Linux host. A phone can flash a board and watch it work and still not be able
+to run the thing that says PASS. Count them for yourself:
+
+```sh
+ls experiments/exp*/check.sh | wc -l                 # all of them
+grep -l 'yi26 ' experiments/exp*/check.sh | wc -l    # the ones a phone cannot run
+```
+
+**You will see the experiment. You will not get its verdict.** For a class that
+is often fine — the verdict was somebody else's evidence, and the point is the
+thing the board does — but it should be said rather than discovered.
+
+### The Needs column does not answer this question
+
+Every experiment carries a `Needs` level, and it is tempting to read it as the
+answer. It is not.
+[Needs](../experiments/README.md#which-of-these-can-i-do-right-now) measures
+**how much of a person** an experiment costs. This question is about **how much
+of a computer**. The two axes are not parallel, and the clearest proof is
+level 1, *"a board attached, and nothing but software after that"* — where the
+software in question is `yi26`, which is the very thing a phone does not have.
+
+### What does answer it: the declarations in each check.sh
+
+Every experiment declares what its USB link is and who claims it — the same
+tokens [`usb_check`](../experiments/lib.sh) validates against the table in the
+[experiments index](../experiments/README.md#which-layer-of-usb-is-this). Those
+are what to read:
+
+```sh
+grep -H '^USB_IFACE=\|^USB_RUNS_ON=' experiments/exp*/check.sh
+```
+
+- **`USB_IFACE` contains `cdc`** — the firmware has a serial log, and a phone
+  reads it with [`log.html`](../tools/pages/log.html) or
+  [`console.html`](../tools/pages/console.html). WebUSB claims a CDC-ACM
+  interface directly, which is not obvious and is exactly what
+  [exp116](../experiments/exp116-webusb-cdc-log/) exists to prove. This is most
+  of the firmware in this repository.
+- **`USB_IFACE` is `none`** — no USB at all. Three say this, and telling them
+  apart matters: two of them need no board in the first place, so there is
+  nothing to flash and nothing to watch. The third,
+  [exp103](../experiments/exp103-embassy-blink/), has firmware and no way at all
+  to talk about it, so the only evidence is the LED and your eyes. It is the
+  simplest firmware here and the one with the least standing between your change
+  and something you can see.
+- **`USB_RUNS_ON` is not `own`** — the experiment has no firmware of its own and
+  runs against somebody else's. `any` will work with whatever is on the board;
+  `exp118` means exp118 and nothing else.
+
+### Start here
+
+**To run something end to end, verdict included, without flashing anything:**
+[exp115](../experiments/exp115-webusb-enumerate/),
+[exp116](../experiments/exp116-webusb-cdc-log/) and
+[exp117](../experiments/exp117-webusb-reboot/). They have no firmware of their
+own — they need only that the board already has *some* — and they were built
+for a phone from the start. There is no `yi26` step to be missing, because the
+browser is doing the whole job.
+
+**To watch your own edit become a physical thing:**
+[exp103](../experiments/exp103-embassy-blink/). Change the numbers in
+`src/main.rs`, ask for a `.uf2`, flash it, look at the LED. Nothing stands
+between the change and the evidence — which is also why it is filed as a
+Needs 3.
+
+### Three traps worth knowing before the first attempt
+
+1. **From [exp139](../experiments/exp139-a-table-of-one/) on, dragging the
+   `.uf2` onto the drive does nothing.** Those firmwares carry a partition
+   table, and [exp144](../experiments/exp144-one-file-either-half/) measured
+   that the ROM's own drive refuses a dropped file while a table exists. Use
+   [`pflash.html`](../tools/pages/pflash.html), which speaks PICOBOOT and does
+   not consult the table. This fails *quietly*, which is the worst way for a
+   first attempt to fail.
+2. **Getting into BOOTSEL has two routes and they are not interchangeable.** A
+   board running exp103 or exp104 has no USB to ask, so it needs a hand on the
+   button. From [exp105](../experiments/exp105-usb-reboot/) on the firmware
+   reboots itself and [`bootsel.html`](../tools/pages/bootsel.html) does it from
+   the phone.
+3. **The browser experiments are picky about what is already on the board.**
+   [exp120](../experiments/exp120-webusb-two-way/) works against exp118 and
+   nothing else; [exp135](../experiments/exp135-a-packet-with-no-bytes/) against
+   exp128. Flash the wrong one and the page fails for no visible reason.
+   `USB_RUNS_ON` is where each of them says so.
+
+### One thing that is not a trap
+
+**No experiment here needs hardware beyond the board and its cable.** No
+breakout, no jumper wires, no external supply — [exp127](../experiments/exp127-host-owns-the-led/)
+even records deciding against jumper wires on purpose. A phone, a board and a
+cable is the whole list.
+
 ## What to ask for
 
 The agent has the whole repository, so ask for the outcome and let it find the
