@@ -144,17 +144,29 @@ PASS/FAIL accounting, and the platform guard above — live in one place,
 cannot drift apart; it also means experiments assume a full checkout of this
 repository, not a copied-out directory.
 
-Every experiment directory contains the same two scripts, always with these
-names:
+Every experiment directory contains `check.sh`, and most contain `run.sh`
+beside it — always with these names:
 
 - **`run.sh`** — the interactive walkthrough. It guides you through every
   manual step (button presses, replugging), runs each command visibly, and
   explains the output. Use it the first time through.
 - **`check.sh`** — the quick verdict. Non-interactive, no prompts, exit code
-  0/1. Use it to re-verify a setup you already understand.
+  0/1. Use it to re-verify a setup you already understand. This is the one
+  every experiment has: the newest ones ship the verdict first and the
+  walkthrough later, and [`docs-check.sh`](./docs-check.sh) lists which are
+  still waiting for theirs.
 
 Repository-wide, alongside `lib.sh`:
 
+- **[`docs-check.sh`](./docs-check.sh)** — the guard for facts that belong to
+  no single experiment. `presence_check` and `usb_check` keep each experiment's
+  own declarations honest and fire only inside the experiment being run, so
+  every number that is a *sum over experiments* went unwatched — and every one
+  of them drifted, while not a single per-experiment declaration did. This
+  counts them from the tree instead: index rows both ways, the presence
+  distribution, and all of the `PRESENCE` and USB declarations at once. It
+  needs no board and no toolchain, so there is no excuse to skip it, and CI
+  runs it on every push.
 - **[`audit.sh`](./audit.sh)** — disclosure report. Prints the
   security-relevant choices baked into each firmware, with the evidence for
   each and the risk it carries, so you can decide whether they suit you.
@@ -401,7 +413,7 @@ awake — and because most of these experiments cost nothing.
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
-| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
 somebody to a bench for no reason:
@@ -558,7 +570,7 @@ is the one host this repository's browser track was built for. exp115 works
 through that decision.
 
 **Runs on** — whose firmware this runs against, and it is a separate column
-because **six experiments here have no `src/` at all**. The difference between
+because **a good many experiments here have no `src/` at all**. The difference between
 them matters: exp116 works against any firmware in this repository, while
 exp120 works against **exp118 and nothing else**, because exp118 is the only
 one that reads the OUT endpoint. Flash the wrong one and the page fails for no

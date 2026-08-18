@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What can be verified without a board.
+#
+# Most of this repository needs hardware, and nothing here pretends otherwise.
+# But three things do not, and until now nothing ran them on their own: the
+# documents' agreement with the tree, the host-side crates' tests, and the two
+# experiments whose presence level is 0.
+#
+# That gap is the reason this workflow exists. `presence_check` and `usb_check`
+# already keep each experiment's declarations honest — and they only fire
+# inside the experiment somebody happens to be running. Adding exp154 does not
+# make exp103's check.sh run, so a summary table can sit stale for six
+# experiments without a single failing check anywhere. It did.
+
+name: checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # The documents against the tree. No board, no toolchain, no network —
+  # deliberately, so there is never a reason to skip it.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: experiments/docs-check.sh
+
+  # The host-side crates. These are where the protocol and policy logic lives
+  # with no socket and no hardware in it, which is exactly what makes them
+  # testable on the machine you are reading this on.
+  #
+  # Three of the thirteen are not: they depend on cortex-m or embassy-rp, so
+  # they assemble Cortex-M instructions or need a chip feature the experiment
+  # selects, and neither is a thing an x86 runner can do. They are classified
+  # by reading their manifests rather than by a list kept here, because a list
+  # here is one more thing to update when a crate is added — the failure this
+  # whole workflow exists to stop. What they are, and why they are uncovered,
+  # is printed rather than passed over: `usb-log` and `usb-reboot` are compiled
+  # by the thirty-nine and forty-one experiments that depend on them, which is
+  # where their coverage actually comes from.
+  crates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: cargo test, every crate that can run on a host
+        run: |
+          set -uo pipefail
+          failed=(); skipped=()
+          for manifest in crates/*/Cargo.toml; do
+              crate="$(basename "$(dirname "$manifest")")"
+              if grep -qE '^(cortex-m|embassy-[a-z]+) *=' "$manifest"; then
+                  skipped+=("$crate")
+                  continue
+              fi
+              echo "::group::$crate"
+              cargo test --manifest-path "$manifest" || failed+=("$crate")
+              echo "::endgroup::"
+          done
+          echo "not covered here (firmware-only): ${skipped[*]:-none}"
+          if [[ ${#failed[@]} -gt 0 ]]; then
+              echo "failed: ${failed[*]}"
+              exit 1
+          fi
+
+  # The two experiments that need no board at all: exp102 proves this machine
+  # can cross-compile RP2350 firmware, exp140 is pure arithmetic. Running them
+  # here means the toolchain instructions in exp102's README are executed on a
+  # clean machine on every push, rather than being believed.
+  #
+  # libudev-dev is not incidental: elf2flash links against libudev to find the
+  # board, and without the headers its build script panics before any Rust
+  # compiles. That is the failure a clean container actually hits, and it is
+  # the row exp102's troubleshooting table now carries.
+  presence-zero:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libudev-dev pkg-config
+      - name: Cross-compilation target
+        run: rustup target add thumbv8m.main-none-eabihf
+      - name: elf2flash
+        run: cargo install elf2flash --locked
+      - name: exp102 — this machine can build RP2350 firmware
+        run: experiments/exp102-rust-toolchain/check.sh
+      - name: exp140 — a CRC forged to any value
+        run: experiments/exp140-a-checksum-that-passes/check.sh

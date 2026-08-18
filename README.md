@@ -9,7 +9,8 @@ for the on-chip peripherals worth putting *through* that USB link. Rust +
 Embassy is the only stack used here: no C/C++ Pico SDK, no TinyUSB, and no
 blocking HAL.
 
-> **Status:** thirty-five experiments in — board bring-up, the chip's own
+> **Status:** see the [experiments index](./experiments/README.md) for the
+> current count — board bring-up, the chip's own
 > sensors and entropy source, composite USB devices that carry a log, a
 > keyboard, a vendor interface and a filesystem at once, and a board that
 > serves the browser pages used to debug it — and nothing is published here

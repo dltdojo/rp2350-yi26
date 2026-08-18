@@ -1,0 +1,233 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# docs-check.sh — the guard for facts that belong to no single experiment.
+#
+# `presence_check` and `usb_check` in lib.sh already keep each experiment's own
+# declarations honest, and they work: every experiment here declares its
+# presence level and its four USB tokens, and none of those has drifted.
+#
+# What drifted instead was every number that is a **sum over experiments** —
+# the count in the top-level README, the presence distribution table, the
+# counts that used to sit in lib.sh's own comments. None of them belongs to an
+# experiment, so no experiment's check.sh was ever going to notice.
+#
+# Two reasons those escaped, and this script closes both:
+#
+#   1. Nothing computed them. A per-row guard compares one row to one
+#      declaration; an aggregate needs somebody to count.
+#   2. Nothing ran repo-wide. `presence_check` fires only inside the experiment
+#      being run, so adding exp154 does not make exp103's check.sh run, and the
+#      distribution table could sit stale for six experiments without a single
+#      failing check anywhere.
+#
+# So this runs over the whole tree at once, and needs **no board and no
+# toolchain** — presence level 0, deliberately, so there is no excuse not to
+# run it and CI can run it on every push.
+#
+#   ./docs-check.sh        exit 0 = the documents agree with the tree
+
+set -uo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+source ./lib.sh
+
+INDEX=README.md
+ROOT_README=../README.md
+
+# ---------------------------------------------------------------------------
+# The tree is the truth. Everything below is compared against these.
+
+mapfile -t DIRS < <(find . -maxdepth 1 -type d -name 'exp[0-9][0-9][0-9]-*' -printf '%f\n' | sort)
+COUNT=${#DIRS[@]}
+
+# `expNNN` prefixes, for the tables that key on the number alone.
+mapfile -t SHORTS < <(printf '%s\n' "${DIRS[@]}" | cut -c1-6)
+
+# ---------------------------------------------------------------------------
+# 1. Every experiment directory has a row in the index, and every row has a
+#    directory. The second direction is the one a rename or a deletion breaks:
+#    a row pointing at a directory nobody has, which reads as a working link
+#    until somebody clicks it.
+
+missing_row=()
+for d in "${DIRS[@]}"; do
+    grep -qF "[$d](./$d/)" "$INDEX" || missing_row+=("$d")
+done
+if [[ ${#missing_row[@]} -eq 0 ]]; then
+    pass "every experiment directory has an index row ($COUNT)"
+else
+    fail "every experiment directory has an index row" "missing: ${missing_row[*]}"
+fi
+
+orphan_row=()
+while read -r linked; do
+    [[ -d "$linked" ]] || orphan_row+=("$linked")
+done < <(grep -oP '^\| \[\Kexp[0-9]{3}-[^\]]+' "$INDEX" | sort -u)
+if [[ ${#orphan_row[@]} -eq 0 ]]; then
+    pass "every index row has a directory"
+else
+    fail "every index row has a directory" "no such directory: ${orphan_row[*]}"
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Every experiment has the two scripts the conventions promise. A README
+#    that says "every experiment directory contains the same two scripts" is a
+#    claim, and this is the only thing that checks it.
+
+no_check=(); no_run=(); no_readme=()
+for d in "${DIRS[@]}"; do
+    [[ -f "$d/check.sh"  ]] || no_check+=("$d")
+    [[ -f "$d/run.sh"    ]] || no_run+=("${d:0:6}")
+    [[ -f "$d/README.md" ]] || no_readme+=("$d")
+done
+
+if [[ ${#no_check[@]} -eq 0 ]]; then
+    pass "every experiment has check.sh ($COUNT)"
+else
+    fail "every experiment has check.sh" "missing: ${no_check[*]}"
+fi
+
+if [[ ${#no_readme[@]} -eq 0 ]]; then
+    pass "every experiment has a README ($COUNT)"
+else
+    fail "every experiment has a README" "missing: ${no_readme[*]}"
+fi
+
+# run.sh is reported, not required. The Conventions section used to promise
+# both scripts in every directory; the newest experiments ship the verdict
+# first and the walkthrough later, so the promise was the thing that was
+# wrong. Printing the list keeps that visible without turning a known,
+# deliberate gap into a failure everybody learns to ignore — which is how a
+# red check stops meaning anything.
+if [[ ${#no_run[@]} -gt 0 ]]; then
+    say "no run.sh yet (${#no_run[@]}): ${no_run[*]}"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Every check.sh's declared PRESENCE agrees with its index row — the same
+#    comparison `presence_check` makes, but for all of them at once and without
+#    running a single experiment. That is the whole point: the per-experiment
+#    guard is correct and almost never fires, because almost nobody runs
+#    fifty-odd check.sh files after editing a table.
+
+declare -A LEVEL_OF
+presence_bad=()
+for d in "${DIRS[@]}"; do
+    declared="$(grep -m1 -oP '^PRESENCE=\K[0-3]' "$d/check.sh" 2>/dev/null || true)"
+    if [[ -z "$declared" ]]; then
+        presence_bad+=("$d: declares no PRESENCE")
+        continue
+    fi
+    LEVEL_OF["${d:0:6}"]="$declared"
+    row="$(grep -m1 -F "[$d](./$d/)" "$INDEX")"
+    [[ "$row" == *"| $declared · "* ]] || presence_bad+=("$d: check.sh says $declared, index says otherwise")
+done
+if [[ ${#presence_bad[@]} -eq 0 ]]; then
+    pass "every check.sh's PRESENCE matches its index row ($COUNT)"
+else
+    fail "every check.sh's PRESENCE matches its index row" "${presence_bad[*]}"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. The presence distribution table. This is the one that was wrong: it
+#    stopped at exp147 while six later experiments sat in the index at level 3.
+#
+#    The cells are written for a reader — `exp107–exp114` rather than eight
+#    entries — so the ranges are expanded before the sets are compared. The
+#    dash is an en-dash (U+2013), which is what the table actually uses; a
+#    hyphen is accepted too, so fixing the typography does not break the guard.
+
+expand_cell() {
+    # stdin: a table cell such as "exp102, exp140" or "exp107–exp114, exp118"
+    # stdout: one expNNN per line
+    local item lo hi n
+    # `read` returns non-zero on a final line with no newline, and a table
+    # cell has no trailing newline — without the `|| [[ -n ]]` the loop drops
+    # the last experiment out of every cell, which reads as a real drift.
+    # The dash is matched by alternation rather than a bracket: the table uses
+    # an en-dash (U+2013), and a multibyte character inside a bracket
+    # expression is not something bash's regex can be trusted with.
+    tr ',' '\n' | tr -d ' ' | while read -r item || [[ -n "$item" ]]; do
+        [[ -n "$item" ]] || continue
+        if [[ "$item" =~ ^exp([0-9]{3})(–|-)exp([0-9]{3})$ ]]; then
+            lo=${BASH_REMATCH[1]}; hi=${BASH_REMATCH[3]}
+            for ((n = 10#$lo; n <= 10#$hi; n++)); do printf 'exp%03d\n' "$n"; done
+        elif [[ "$item" =~ ^exp[0-9]{3}$ ]]; then
+            echo "$item"
+        else
+            echo "UNPARSEABLE:$item"
+        fi
+    done
+}
+
+dist_bad=()
+for level in 0 1 2 3; do
+    # The distribution row starts `| **N · `; the index rows never do.
+    cell="$(grep -m1 -oP "^\| \*\*$level · [^|]*\| [^|]*\| \K[^|]*" "$INDEX" | sed 's/ *$//')"
+    if [[ -z "$cell" ]]; then
+        dist_bad+=("level $level: no row in the distribution table")
+        continue
+    fi
+
+    claimed="$(printf '%s' "$cell" | expand_cell | sort -u)"
+    actual="$(for s in "${SHORTS[@]}"; do
+                  [[ "${LEVEL_OF[$s]-}" == "$level" ]] && echo "$s"
+              done | sort -u)"
+
+    if [[ "$claimed" != "$actual" ]]; then
+        # Name the difference in both directions — "these disagree" sends the
+        # reader back to diffing two lists by eye, which is the job.
+        only_claimed="$(comm -23 <(echo "$claimed") <(echo "$actual") | tr '\n' ' ')"
+        only_actual="$(comm -13 <(echo "$claimed") <(echo "$actual") | tr '\n' ' ')"
+        [[ -n "${only_claimed// /}" ]] && dist_bad+=("level $level: table lists but tree disagrees: $only_claimed")
+        [[ -n "${only_actual// /}" ]] && dist_bad+=("level $level: tree has but table omits: $only_actual")
+    fi
+done
+if [[ ${#dist_bad[@]} -eq 0 ]]; then
+    pass "the presence distribution table matches the index"
+else
+    fail "the presence distribution table matches the index" "${dist_bad[*]}"
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Every check.sh's four USB tokens agree with the USB channel table — the
+#    comparison `usb_check` makes, again for all of them at once. Same gap as
+#    check 3: the per-experiment guard is correct and only fires for the one
+#    experiment somebody happens to be running.
+#
+#    `usb_check` also compares USB_IFACE against src/main.rs, which is the half
+#    that cannot rot. That part is deliberately left where it is: it needs the
+#    firmware source, and this script's whole value is that it needs nothing.
+
+usb_bad=()
+for d in "${DIRS[@]}"; do
+    short="${d:0:6}"
+    row="$(grep -m1 "^| $short | \`" "$INDEX")"
+    if [[ -z "$row" ]]; then
+        usb_bad+=("$short: no row in the USB channel table")
+        continue
+    fi
+    for f in USB_IFACE USB_CARRIES USB_HOST USB_RUNS_ON; do
+        declared="$(grep -m1 -oP "^$f=\"?\K[^\"]*" "$d/check.sh" 2>/dev/null || true)"
+        if [[ -z "$declared" ]]; then
+            usb_bad+=("$short: declares no $f")
+        elif [[ "$row" != *"\`$declared\`"* ]]; then
+            usb_bad+=("$short: check.sh says $f=$declared, the table says otherwise")
+        fi
+    done
+done
+if [[ ${#usb_bad[@]} -eq 0 ]]; then
+    pass "every check.sh's USB tokens match the USB channel table ($COUNT)"
+else
+    fail "every check.sh's USB tokens match the USB channel table" "${usb_bad[*]}"
+fi
+
+# ---------------------------------------------------------------------------
+# What this deliberately does not do: rewrite anything. A generator that
+# silently fixes a table means nobody ever learns the document was wrong, and
+# the prose *around* a generated block can still contradict it. `pack.sh`
+# refuses on a non-zero exit for the same reason — the output is evidence, not
+# a hope.
+
+exit "$FAILED"

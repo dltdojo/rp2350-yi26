@@ -114,16 +114,16 @@ reboot_watcher_check() {
 #
 # The declaration lives beside the code so it cannot drift from it, and this
 # helper makes sure the index in README.md agrees. It is silent when they do:
-# a guard that prints a line on success would put a new PASS into twenty-seven
-# experiments' captured `Expected output`, which is a lot of churn to announce
+# a guard that prints a line on success would put a new PASS into every
+# experiment's captured `Expected output`, which is a lot of churn to announce
 # that nothing is wrong.
 presence_check() {
     local dir index row declared
     # Which experiment is this? Two answers are needed because the scripts do
-    # not agree on where they stand: twenty-six of them cd into their own
+    # not agree on where they stand: most of them cd into their own
     # directory first, and exp101's resolves SCRIPT_DIR and stays put. Trusting
     # $PWD alone reported an experiment called "experiments"; trusting the
-    # caller's path alone broke the other twenty-six, because by then the cd
+    # caller's path alone broke all the others, because by then the cd
     # had already happened and the relative path no longer resolved. So: the
     # working directory when it is an experiment, and the caller's path when it
     # is not.
@@ -147,7 +147,7 @@ presence_check() {
     fi
 
     # The cell is written `N · word`; only the number is compared, so the
-    # wording can be reworded without breaking twenty-seven scripts.
+    # wording can be reworded without breaking every experiment's script.
     if [[ "$row" != *"| $declared · "* ]]; then
         fail "the index agrees this experiment needs presence level $declared" \
              "README.md's row says something else — one of the two is stale"
@@ -164,8 +164,8 @@ presence_check() {
 # `yi26` holding the interface raw.
 #
 # So every check.sh declares four things, in tokens rather than prose so that
-# the table in README.md can be reworded without breaking twenty-seven
-# scripts:
+# the table in README.md can be reworded without breaking every
+# experiment's script:
 #
 #   USB_IFACE     what the board declares
 #                 none | bootrom | cdc | cdc+hid | cdc+hid+vendor | cdc+msc |
@@ -179,8 +179,9 @@ presence_check() {
 #   USB_RUNS_ON   whose firmware this runs against
 #                 own | any | bootrom | none | expNNN | expNNN+
 #
-# USB_RUNS_ON is a separate field and not a footnote because six experiments
-# here have no `src/` at all, and the difference between them matters: exp116
+# USB_RUNS_ON is a separate field and not a footnote because a good many
+# experiments here have no `src/` at all, and the difference between them
+# matters: exp116
 # works against any firmware in this repository, while exp120 works against
 # **exp118 and nothing else**, since exp118 is the only one that reads the OUT
 # endpoint. A reader who flashes the wrong one sees a page that fails for no
@@ -208,7 +209,7 @@ usb_check() {
     if [[ -f "$index" ]]; then
         # Anchored on the backtick, not just on the experiment number. The
         # Portability table earlier in that file has rows starting `| exp101 |`
-        # too, and matching those first made all twenty-eight rows report a
+        # too, and matching those first made every row report a
         # disagreement with a table they were not being compared against. The
         # USB table is the one whose second cell is a token in backticks.
         local tick=$'\x60'
@@ -228,7 +229,7 @@ usb_check() {
 
     # -- against the source, which is the part that cannot drift -------------
     #
-    # Skipped where there is nothing to read: the six experiments with no
+    # Skipped where there is nothing to read: the experiments with no
     # firmware of their own, and exp101 which predates Rust entirely. Those
     # are precisely the ones USB_RUNS_ON exists to describe.
     src="src/main.rs"
