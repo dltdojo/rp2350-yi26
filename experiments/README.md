@@ -1135,3 +1135,124 @@ exp147 was built against, so nothing had to move to start.
 Not on this road: TLS, and two boards talking to each other. The first is a
 different curriculum and a much larger binary; the second is something this
 repository cannot do, because its two boards are never on the same bench.
+
+### The signing road
+
+The update road answered **can an update brick this board**. It said at the
+outset that *whose firmware will it accept* was a separate group, and this is
+it. [exp140](./exp140-a-checksum-that-passes/) is already its first experiment
+without having been filed as one: a CRC forged to any value by four bytes, and
+the same attack failing on a hash, is the argument for why anything here needs
+a signature at all.
+
+This road starts from prior work rather than from an idea — two experiments
+built elsewhere, `exp107-trustzone-ecdsa` and `exp108-trustzone-mldsa`, which
+sign a hash inside what they call the Secure World and return it to a CLI. They
+were read before anything below was derived, and reading them decided the shape
+of the road.
+
+**They are one experiment, not two.** Their sources differ by the package name
+and one dependency line: `p256` becomes `ml-dsa`. Everything else — the OTP
+read, the gateway, the CLI, the fallback key — is identical. So the crypto is a
+variable, and the thing worth building is whatever holds still while it changes.
+
+**And the boundary they demonstrate is not enforced.** There is no SAU
+programming anywhere in either of them. The only TrustZone in the source is
+`extern "cmse-nonsecure-entry"` on one function, which makes the compiler emit
+a secure-gateway veneer; it does not put the core into Non-Secure state. The
+"Non-Secure World" is other functions in the same image, running Secure, and
+nothing is prevented. Their own README half-says so — *"if memory-partitioning
+or TrustZone is inactive, this key does NOT have hardware-level access
+restrictions"*. What they prove is that a function can be **called**. The claim
+they are named for is that a key cannot be **read**, and that claim is untested.
+
+That is the same defect [exp140](./exp140-a-checksum-that-passes/) is about
+from the other side: a check that cannot fail has not passed. So the wall comes
+first here, and the cryptography comes last.
+
+Two more things reading them turned up. Their OTP access is hand-rolled —
+`read_volatile(0x40130000 + row * 8)`, assuming 8-byte row spacing and assuming
+rows `0xE80`–`0xE8F` hold a device key — while
+[exp113](./exp113-enumerable-seed/) already reads OTP through
+`embassy_rp::otp::read_ecc_word`. Two routes that do not agree, and exp113's
+own comment says which rows carry what is *"a question for the datasheet and
+the board in front of you"*. It gets asked here, not assumed. And they need
+nightly: `extern "cmse-nonsecure-entry"` is still `E0658` on stable 1.97.1,
+measured 2026-08-18.
+
+**Nightly is not on the table**, so the secure gateway is hand-written — a
+`global_asm!` veneer ending in `SG`, which is stable, and SAU programming, which
+is register writes. This is the house style rather than a workaround: exp125
+hand-built FAT12, exp123 and exp124 hand-rolled Bulk-Only Transport and SCSI,
+exp149 hand-rolled DHCP. [exp103](./exp103-embassy-blink/) has been promising
+since the beginning that a later experiment opens its one box of magic by hand.
+
+#### Four experiments, and the cryptography is the last of them
+
+None of these is interrogated yet — a direction, not a schedule.
+
+- **what the chip will say about its own secrets** — the exp138 of this road.
+  Read OTP through the HAL, print what is there, and find out whether there is
+  anywhere to put a key that Non-Secure cannot reach. Read-only: nothing here
+  programs a fuse, because OTP is permanent and a ruined board teaches nobody
+  anything. Needs 1.
+- **a wall you can measure** — no cryptography at all. Put a known pattern in a
+  Secure region, program the SAU, drop to Non-Secure, and read it. **The
+  experiment passes when the read faults**, with the same read from Secure
+  returning the pattern as the control. This is the one the prior work skipped,
+  and without it nothing after it means anything. Needs 1.
+- **the signature is not the hard part** — ECDSA P-256 behind that wall. Sign a
+  hash in Secure, return 64 bytes, and let something else check them.
+- **the same wall, a much larger signature** — swap the crate for ML-DSA-65 and
+  measure. A 3,309-byte signature and a 1,952-byte public key against 64 and 64
+  is not a detail; [exp147](./exp147-two-firmwares-one-phone/) needs a firmware
+  to fit a 64 KiB A/B slot and [exp148](./exp148-a-wire-with-no-address/)
+  measured a TCP/IP stack costing 17,408 bytes with 25 KiB still spare. **Does
+  a post-quantum signature still fit the update road?** A "no" is a finding.
+
+#### The channel, and why the framing decision comes with it
+
+Every one of these should be readable from a phone, and the mechanism is not in
+doubt: twelve experiments here already ship their own page, and
+[exp116](./exp116-webusb-cdc-log/) proved WebUSB claims a CDC-ACM interface
+directly. **CDC, two-way, with the page served off the board's own volume** —
+[exp118](./exp118-one-receiver-two-jobs/)'s shape for the firmware,
+[exp131](./exp131-the-volume-is-the-app-drawer/)'s for delivery, so there is
+nothing to download before the phone can look.
+
+The network road's HTTP route reaches any browser rather than Chromium only,
+which is better, and costs Ethernet tethering turned on by hand plus everything
+[exp148](./exp148-a-wire-with-no-address/) found waiting behind it. That is a
+fair trade for a finished appliance and a bad one for a teaching sequence.
+
+What that channel forces is a framing decision, and it is not neutral here.
+A 3,309-byte signature is roughly fifty-two 64-byte packets, so the boundary
+has to come from the bytes — and [exp136](./exp136-joining-halfway/) measured
+what the two candidates do to a reader that joins halfway. Length-prefix loses
+fewer messages **and invents three**; COBS invents nothing by construction and
+drops one per boundary it cannot find. On this road that asymmetry stops being
+a trade: an invented frame carrying a signature is a signature-shaped thing
+that fails to verify, and a reader will blame the cryptography for what the
+framing did. **COBS**, and the reason written down where somebody can disagree
+with it.
+
+#### Questions this road has not answered, and must not assume
+
+- **Does `embassy-rp` do anything with SAU or TrustZone at all?** Asked before
+  anything is planned around it, not after.
+- **Which OTP rows are actually available for a key on an unprogrammed part**,
+  and does the RP2350's row spacing match either of the two routes above?
+- **Can a phone check the signature it was just handed?** A browser's WebCrypto
+  does ECDSA P-256, so the classical half may verify with nothing installed. The
+  post-quantum half is the interesting question, and the answer belongs in the
+  experiment rather than in this paragraph.
+- **What does the fault in the wall experiment do to the log?** A HardFault
+  takes USB with it, and a firmware that proves its point by going silent has
+  proved nothing a reader can tell from a crash —
+  [exp134](./exp134-the-log-nobody-reads/) is the record of how many ways
+  silence reads. The wall has to catch its own fault and say what it caught.
+
+Not on this road: programming a fuse, and a key this repository asks anybody to
+trust. Every key here is a test key, printed in its own README, and the
+experiment that would burn a real one into OTP is a different document with a
+different warning on it.
