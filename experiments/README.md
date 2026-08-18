@@ -1214,10 +1214,26 @@ since the beginning that a later experiment opens its one box of magic by hand.
 None of these is interrogated yet — a direction, not a schedule.
 
 - **what the chip will say about its own secrets** — the exp138 of this road.
-  Read OTP through the HAL, print what is there, and find out whether there is
-  anywhere to put a key that Non-Secure cannot reach. Read-only: nothing here
-  programs a fuse, because OTP is permanent and a ruined board teaches nobody
-  anything. Needs 1.
+  **Done, verified 2026-08-18.**
+  [exp154](./exp154-somewhere-to-put-a-key/) sweeps all 4096 OTP rows through
+  the HAL and prints what each one says, read on a phone through a page that
+  draws the result as a map. On a stock Pico 2: **23 programmed, 4073 blank,
+  and not one row refused a read.**
+
+  So the answer is the opposite of exp138's, and it is worth having asked. The
+  A/B machinery turned out to be in the chip already; the boundary this road
+  needs is not. OTP here is a place to *store* a key, not a place that *hides*
+  one — every row handed its contents to ordinary firmware with no privilege of
+  any kind. Whatever conceals a key on this part has to be built, which is the
+  next experiment.
+
+  It also settles what the prior work was reading: rows `0xE80`–`0xE8F` are
+  blank, so a firmware that takes an ECDSA key from them and falls back to a
+  compiled-in test key falls back **every time, on every board**.
+
+  Read-only throughout — nothing programs a fuse, and `check.sh` greps for the
+  HAL's write functions rather than trusting the author, because OTP is
+  permanent and the cost of being wrong is somebody's board. Needs 1.
 - **a wall you can measure** — no cryptography at all. Put a known pattern in a
   Secure region, program the SAU, drop to Non-Secure, and read it. **The
   experiment passes when the read faults**, with the same read from Secure

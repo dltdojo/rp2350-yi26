@@ -182,6 +182,17 @@ const RE_TOTALS  = /totals:\s*(\d+) programmed,\s*(\d+) blank,\s*(\d+) refused/;
 const RE_SURVEY  = /survey:\s*(\d+) programmed,\s*(\d+) blank,\s*(\d+) refused/;
 const RE_ROW     = /(?:^|\s)row ([0-9a-f]{4}) = (REFUSED|[0-9a-f]{4})\s*$/;
 
+// The same two tables, as one repeating line each.
+//
+// The per-row detail is printed once, and on a real run 73 lines of it were
+// lost to the log ring before a phone attached — leaving this page with the
+// verdict and both tables empty. So the firmware repeats them compactly and
+// these read that form. Both shapes are accepted: whichever arrives first wins,
+// and a reader who attached early is not made to wait ten seconds for a table
+// they already had.
+const RE_IDENT   = /survey: identity rows 0000-0003 = ((?:[0-9a-f]{4}\s*){4})/;
+const RE_KEYS    = /survey: rows ([0-9a-f]{4})-[0-9a-f]{4} = ((?:[0-9a-f]{4}\s*){16})/;
+
 const keyRows = new Map(), idRows = new Map();
 
 function renderRows(map, tableId) {
@@ -228,6 +239,17 @@ function handleLine(line) {
   }
   if ((m = line.match(RE_TOTALS)) || (m = line.match(RE_SURVEY))) {
     setTotals(+m[1], +m[2], +m[3]);
+    return;
+  }
+  if ((m = line.match(RE_IDENT))) {
+    m[1].trim().split(/\s+/).forEach((v, i) => idRows.set(i.toString(16).padStart(4, '0'), v));
+    renderRows(idRows, 'idrows');
+    return;
+  }
+  if ((m = line.match(RE_KEYS))) {
+    const first = parseInt(m[1], 16);
+    m[2].trim().split(/\s+/).forEach((v, i) => keyRows.set((first + i).toString(16).padStart(4, '0'), v));
+    renderRows(keyRows, 'keyrows');
     return;
   }
   if ((m = line.match(RE_ROW))) {

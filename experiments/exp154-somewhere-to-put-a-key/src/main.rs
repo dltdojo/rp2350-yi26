@@ -243,9 +243,10 @@ async fn survey_task() -> ! {
 
     // -- the identity rows, for continuity with exp113 -----------------------
     log!("identity rows, the ones exp113 folds into its public value:");
+    let mut identity = [0u16; 4];
     for row in 0..4usize {
         match otp::read_ecc_word(row) {
-            Ok(w) => log!("  row {:04x} = {:04x}", row, w),
+            Ok(w) => { identity[row] = w; log!("  row {:04x} = {:04x}", row, w); }
             Err(_) => log!("  row {:04x} = REFUSED", row),
         }
     }
@@ -257,6 +258,7 @@ async fn survey_task() -> ! {
         CLAIMED_KEY_FIRST + CLAIMED_KEY_ROWS - 1
     );
     let mut all_blank = true;
+    let mut key_rows = [0u16; CLAIMED_KEY_ROWS];
     for i in 0..CLAIMED_KEY_ROWS {
         let row = CLAIMED_KEY_FIRST + i;
         match otp::read_ecc_word(row) {
@@ -264,6 +266,7 @@ async fn survey_task() -> ! {
                 if w != 0 {
                     all_blank = false;
                 }
+                key_rows[i] = w;
                 log!("  row {:04x} = {:04x}", row, w);
             }
             Err(_) => {
@@ -302,6 +305,27 @@ async fn survey_task() -> ! {
         if all_blank {
             log!("survey: rows {:04x}+ hold no key on this part.", CLAIMED_KEY_FIRST);
         }
+
+        // The per-row detail above is printed once and was measured being lost
+        // to the ring on a real run — 73 lines gone before a phone attached,
+        // which left a page with the verdict and neither table filled in. The
+        // rate limit is `crates/log-ring`'s job and this is not a reason to
+        // argue with it; the fix is for the answer to fit in lines that repeat.
+        //
+        // Sixteen rows and four rows, each as one line, in the same
+        // `row NNNN = VVVV` shape the detail uses so one reader reads both.
+        log!(
+            "survey: identity rows 0000-0003 = {:04x} {:04x} {:04x} {:04x}",
+            identity[0], identity[1], identity[2], identity[3]
+        );
+        log!(
+            "survey: rows {:04x}-{:04x} = {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x} {:04x}",
+            CLAIMED_KEY_FIRST, CLAIMED_KEY_FIRST + CLAIMED_KEY_ROWS - 1,
+            key_rows[0], key_rows[1], key_rows[2], key_rows[3],
+            key_rows[4], key_rows[5], key_rows[6], key_rows[7],
+            key_rows[8], key_rows[9], key_rows[10], key_rows[11],
+            key_rows[12], key_rows[13], key_rows[14], key_rows[15]
+        );
     }
 }
 

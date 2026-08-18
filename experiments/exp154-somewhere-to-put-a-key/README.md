@@ -203,23 +203,83 @@ WHAT THIS DOES NOT DO
 
 ## Expected output
 
-**Not captured yet — this experiment has not run on a board.**
+Captured on a Raspberry Pi Pico 2 (non-W), read on an Android phone through
+[`otp-map.html`](./otp-map.html), 2026-08-18.
 
-The [rule](../README.md#nothing-is-pushed-unverified) is that this section is a
-paste of a real run and is never written from what the code should do, so it
-stays empty until somebody plugs a board in. The build half is verified: it
-compiles, converts to a 47,104-byte UF2, and the family ID is `e48bff59`.
+```console
+[      37 ms] exp154 up. Asking the chip what it already has, and writing nothing.
+[    3037 ms] sweeping 4096 OTP rows. Nothing here writes.
+[    3037 ms] rows 0000-000b (  12): programmed
+[    3037 ms] rows 000c-000f (   4): blank
+[    3037 ms] rows 0010-0011 (   2): programmed
+[    3038 ms] rows 0012-0017 (   6): blank
+[    3038 ms] rows 0018-0018 (   1): programmed
+[    3038 ms] rows 0019-0035 (  29): blank
+[    3038 ms] rows 0036-0037 (   2): programmed
+[    3039 ms]   ... reached row 0400
+[    3040 ms]   ... reached row 0800
+[    3041 ms]   ... reached row 0c00
+[    3042 ms] rows 0038-0f7f (3912): blank
+[    3042 ms] rows 0f80-0f81 (   2): programmed
+[    3042 ms] rows 0f82-0f82 (   1): blank
+[    3042 ms] rows 0f83-0f83 (   1): programmed
+[    3042 ms] rows 0f84-0f84 (   1): blank
+[   36288 ms] (+73 lines lost) heartbeat #34
+[   43042 ms] survey: 23 programmed, 4073 blank, 0 refused, of 4096 rows
+[   43042 ms] survey: nothing on this part is hidden from this core by OTP alone.
+[   43042 ms] survey: rows 0e80+ hold no key on this part.
+```
 
-What the survey will say is the finding, and predicting it here would be the
-exact thing this section exists to forbid.
+**23 programmed, 4073 blank, 0 refused.** The map is almost entirely grey with
+a dozen blue cells at the top and a couple more at `0f80`, and **no red at
+all**.
+
+### The answer, and what it costs the road that asked
+
+**Nothing on a stock part refuses to be read.** OTP here is a place to *store*
+a key; it is not a place that *hides* one from the core doing the reading. Every
+one of the 4096 rows handed its contents over to ordinary firmware with no
+privilege of any kind.
+
+So the boundary the [signing road](../README.md#the-signing-road) needs does not
+come free with the chip, the way [exp138](../exp138-what-the-rom-already-knows/)
+found the A/B machinery did. It has to be built, which is what the next
+experiment goes and does — and that is a useful thing to have learned by asking
+for ten seconds rather than by discovering it underneath a working signature.
+
+**Rows `0xE80`–`0xE8F` hold nothing.** The prior work that reads an ECDSA
+private key from them, and falls back to a compiled-in test key when they read
+zero, would fall back on this part — every time, on every board, since 4073 of
+4096 rows are blank.
+
+### The capture is missing 73 lines, and that is the log working
+
+`(+73 lines lost)` is `crates/log-ring` saying what it dropped rather than
+quietly dropping it — [exp134](../exp134-the-log-nobody-reads/)'s subject
+exactly. The board printed the identity rows and the sixteen key rows into a
+ring nobody was draining yet, because the phone had not attached, and by the
+time it did those lines were gone. The verdict survived only because it repeats.
+
+That is a finding about this experiment's own design, not about the chip, and it
+has been fixed the way exp134 would: **the two tables now repeat too**, one
+compact line each, so a reader who attaches at any moment gets the whole answer
+rather than the summary and two empty tables. What is above is the run that
+found it.
 
 ## What is not verified here
 
-- **Everything the board does.** No run, no capture, no totals.
-- **Whether `read_raw_word` distinguishes a locked row from a blank one on a
-  stock part.** The HAL reports `InvalidPermissions` when a raw read comes back
-  all-ones, which is the documented behaviour rather than a measured one.
-- **What is in rows `0xE80`–`0xE8F` on any real part.** That is the question.
+- **The capture predates two lines.** It was taken before the identity and key
+  rows were made to repeat, so a run of the current firmware prints two
+  `survey:` lines the block above does not show. The rule here is that an aged
+  capture is [recorded, not repaired](../README.md#a-capture-ages-and-where-that-is-written-down)
+  — editing it to match would be inventing a run.
+- **One board.** 23 programmed rows is this part's number. Which rows a factory
+  programs is not something one Pico 2 can establish for every Pico 2.
+- **Nothing about what a lock would look like.** `read_raw_word` reports
+  `InvalidPermissions` when a raw read comes back all-ones, and no row on this
+  board did — so the code path that would report a refusal has never been seen
+  to run. A board with OTP locks set would be needed to exercise it, and this
+  experiment cannot make one without writing, which it will not do.
 
 ## The ideas to take away
 
