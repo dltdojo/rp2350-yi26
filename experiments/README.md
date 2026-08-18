@@ -327,10 +327,30 @@ from required to optional.
 
 One rule governs what reaches GitHub:
 
-> **Nothing is pushed until it has been verified on real hardware.**
+> **Nothing reaches `main` until it has been verified on real hardware.**
 
-Work in progress is committed locally as often as is useful, but a push means
-someone plugged a board in and watched it work. The `Expected output` section
+Work in progress is committed locally as often as is useful, and a push to
+`main` means someone plugged a board in and watched it work.
+
+That sentence used to say *nothing is pushed*, full stop, and it was rewritten
+on 2026-08-18 for a reason worth stating rather than quietly absorbing.
+Development here increasingly happens in a cloud session whose container is
+reclaimed without notice, so "committed locally" stopped meaning *kept* — a
+day's work can exist only inside a machine that is about to be deleted. Holding
+an unverified branch hostage to a bench visit does not make the claim any
+truer; it just risks losing the code that would have been checked.
+
+So unverified work may reach a **branch**, under two conditions that are not
+negotiable, because they are the whole reason the rule exists:
+
+- **The commit message says so plainly**, in the subject line where nobody has
+  to go looking. `NOT YET VERIFIED ON HARDWARE` is the wording used.
+- **`Expected output` stays empty.** A section that says *not captured yet* is
+  honest. One filled in from what the code should do is the exact failure this
+  rule was written against, and moving the push does not license it.
+
+`main` is unchanged: a board ran it, somebody watched, and the capture is in
+the file. The `Expected output` section
 of each experiment is that verification, pasted in — never hand-written,
 never predicted from what the code "should" do.
 
