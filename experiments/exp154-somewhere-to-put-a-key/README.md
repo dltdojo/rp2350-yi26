@@ -73,6 +73,33 @@ proves its point by going silent has proved nothing a reader can tell from a
 crash — [exp134](../exp134-the-log-nobody-reads/) is the record of how many
 ways silence reads.
 
+## What the LED tells you, with no page open at all
+
+This experiment has **no drive and no web page** — it declares one CDC serial
+interface and nothing else, so a boot drive that vanishes after the copy is the
+flash succeeding, not a fault. Reading the log needs
+[`log.html`](../../tools/pages/log.html), `console.html`, or `yi26 log`.
+
+None of which you need to tell whether it is working, because the LED is
+carrying that:
+
+| LED | Means |
+| --- | --- |
+| **fast, 5 Hz** | running, sweep not finished |
+| **slow, 1 Hz** | sweep finished — the answer is in the log |
+| **dark** | the firmware is not running |
+
+The middle state is the one worth having. Reading OTP is the only operation
+here that could fault, and a fault takes USB and the log with it — but a board
+stuck on fast blink says *started and did not finish*, which is a different
+diagnosis from one that never started, and neither needs a page to see.
+
+The log summary also **repeats every ten seconds**, because
+[exp113](../exp113-enumerable-seed/) already wrote down what printing once
+costs: a fact printed once is a fact most readers never see, and anyone
+attaching afterwards finds heartbeats and no way to tell a finished run from a
+stuck one.
+
 ## Expected output
 
 **Not captured yet — this experiment has not run on a board.**

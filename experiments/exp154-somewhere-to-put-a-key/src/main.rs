@@ -59,6 +59,7 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_time::{Duration, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State};
 use embassy_usb::{Builder, Config as UsbConfig, UsbDevice};
+use core::sync::atomic::{AtomicBool, Ordering};
 use panic_halt as _;
 use rp2350_linker as _;
 use static_cell::StaticCell;
@@ -77,6 +78,23 @@ const TOTAL_ROWS: usize = 4096;
 /// The rows the prior work named as a device key, read as row numbers.
 const CLAIMED_KEY_FIRST: usize = 0xE80;
 const CLAIMED_KEY_ROWS: usize = 16;
+
+/// Set once the sweep has finished, and read by the heartbeat.
+///
+/// The LED is the only channel that works with no page open and no terminal
+/// attached, so it is made to say something rather than merely prove the board
+/// is powered. [exp147](../exp147-two-firmwares-one-phone/) already uses blink
+/// rate as a report; this is the same idea for one bit of state:
+///
+///   * **fast, 5 Hz** — running, sweep not finished
+///   * **slow, 1 Hz** — sweep finished, the answer is in the log
+///   * **dark** — the firmware is not running at all
+///
+/// The middle state matters most. Reading OTP is the one operation here that
+/// could fault, and a fault takes USB and the log with it — but a board stuck
+/// on fast blink says "it started and did not finish", which is a different
+/// diagnosis from a board that never started, and neither needs a page to see.
+static SWEEP_DONE: AtomicBool = AtomicBool::new(false);
 
 /// What one row had to say when it was asked.
 ///
@@ -172,6 +190,17 @@ async fn survey_task() -> ! {
             Timer::after(Duration::from_ticks(1)).await;
         }
 
+        // Say where it has got to, every 1024 rows.
+        //
+        // Not progress for its own sake. Reading OTP is the one thing here
+        // that could fault, and a fault takes USB with it — so a sweep that
+        // only speaks at the end would leave a board that says nothing, with
+        // no way to tell "died on row 3000" from "never started". Four lines
+        // buy a location for the silence.
+        if row != 0 && row % 1024 == 0 {
+            log!("  ... reached row {:04x}", row);
+        }
+
         if answer != run_answer {
             log!(
                 "rows {:04x}-{:04x} ({:4}): {}",
@@ -248,9 +277,31 @@ async fn survey_task() -> ! {
     }
 
     log!("survey done. The README records what this printed; nothing is concluded here.");
+    SWEEP_DONE.store(true, Ordering::Relaxed);
 
+    // Everything above is printed once, a few seconds after boot — and exp113
+    // already wrote down what that costs: a fact printed once is a fact most
+    // readers never see. Anyone who opens a log page after this point would
+    // find heartbeats and nothing else, with no way to tell a finished survey
+    // from a firmware that never got started.
+    //
+    // So the answer repeats, compactly, forever. Slowly enough not to bury the
+    // detail above for somebody who did attach in time.
     loop {
-        Timer::after(Duration::from_secs(60)).await;
+        Timer::after(Duration::from_secs(10)).await;
+        log!(
+            "survey: {} programmed, {} blank, {} refused, of {} rows",
+            programmed,
+            blank,
+            refused,
+            TOTAL_ROWS
+        );
+        if refused == 0 {
+            log!("survey: nothing on this part is hidden from this core by OTP alone.");
+        }
+        if all_blank {
+            log!("survey: rows {:04x}+ hold no key on this part.", CLAIMED_KEY_FIRST);
+        }
     }
 }
 
@@ -299,11 +350,18 @@ async fn main(spawner: Spawner) {
     // the executor — the same role it plays in exp113.
     let mut beat: u32 = 0;
     loop {
-        beat += 1;
+        let done = SWEEP_DONE.load(Ordering::Relaxed);
+        // 5 Hz while the sweep runs, 1 Hz once it has finished. See SWEEP_DONE
+        // for why the LED is carrying this and not only the log.
+        let (on, off) = if done { (50, 950) } else { (100, 100) };
+
         led.set_high();
-        Timer::after(Duration::from_millis(50)).await;
+        Timer::after(Duration::from_millis(on)).await;
         led.set_low();
-        log!("heartbeat #{}", beat);
-        Timer::after(Duration::from_millis(950)).await;
+        if done {
+            beat += 1;
+            log!("heartbeat #{}", beat);
+        }
+        Timer::after(Duration::from_millis(off)).await;
     }
 }
