@@ -76,6 +76,7 @@ Per experiment:
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp154 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp155 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
 | exp150 | Same as exp149, plus **a browser — any browser**, which is the point. This is the first experiment here whose page needs no WebUSB, no permission dialog and no Chromium. Whether the browser can reach the board is a property of the host's routing, not of this firmware. |
@@ -433,7 +434,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp155 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -693,6 +694,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp151-the-log-in-any-browser](./exp151-the-log-in-any-browser/) | 3 · a person | The board serves its own log over HTTP — verified rendering in Chrome on a phone — and answers to a name that phone will not ask it for |
 | [exp150-a-page-served-by-the-board](./exp150-a-page-served-by-the-board/) | 3 · a person | The board serves its own web page: no WebUSB, no permission dialog, no chooser, any browser — and the question of whether a phone can route to an address it never showed as a network |
 | [exp154-somewhere-to-put-a-key](./exp154-somewhere-to-put-a-key/) | 1 · board | Ask the chip whether it has anywhere to keep a secret — every OTP row, classified, and the rows a signing experiment elsewhere assumed were a key |
+| [exp155-a-wall-you-can-measure](./exp155-a-wall-you-can-measure/) | 1 · board | A boundary that refuses, measured — core 1 forced Non-secure faults on the address core 0 reads, and both halves are watched |
 
 ## The browser track, finished
 
@@ -1234,11 +1236,22 @@ None of these is interrogated yet — a direction, not a schedule.
   Read-only throughout — nothing programs a fuse, and `check.sh` greps for the
   HAL's write functions rather than trusting the author, because OTP is
   permanent and the cost of being wrong is somebody's board. Needs 1.
-- **a wall you can measure** — no cryptography at all. Put a known pattern in a
-  Secure region, program the SAU, drop to Non-Secure, and read it. **The
-  experiment passes when the read faults**, with the same read from Secure
-  returning the pattern as the control. This is the one the prior work skipped,
-  and without it nothing after it means anything. Needs 1.
+- **a wall you can measure** — no cryptography at all.
+  [exp155](./exp155-a-wall-you-can-measure/) is **built and not yet verified on
+  hardware.** One address, read from two places: core 0 Secure and privileged,
+  core 1 put into Non-secure state by `ACCESSCTRL.FORCE_CORE_NS`, with I2C1
+  denied to Non-secure. **It passes only when both halves happen** — the Secure
+  read returns a value and the Non-secure read faults — because a read that
+  faults could be a broken core and a read that works says nothing about
+  anybody else.
+
+  It is not the SAU, and the reason is the interrogation this section demanded:
+  `embassy-rp` mentions SAU, TrustZone and Non-secure in not one file, while
+  `rp-pac` models ACCESSCTRL in full. ACCESSCTRL also settles the open question
+  about the fault taking the log with it — it does not, because the core that
+  faults is not the core holding USB. The hand-written `SG` veneer is still
+  coming; it belongs to the experiment with code on both sides of the line, not
+  to the one measuring whether the line is there. Needs 1.
 - **the signature is not the hard part** — ECDSA P-256 behind that wall. Sign a
   hash in Secure, return 64 bytes, and let something else check them.
 - **the same wall, a much larger signature** — swap the crate for ML-DSA-65 and

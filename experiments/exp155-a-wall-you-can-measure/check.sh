@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# exp155 quick check — non-interactive verdict.
+# Builds and converts, and if the board is running this firmware, reads its
+# verdict. The verdict itself is the experiment's finding; this asserts that
+# one was reached and that the control held, not which way it went.
+#
+#   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
+
+set -u
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+source ../lib.sh
+require_supported_platform
+
+PRESENCE=1   # the board prints both halves; nothing here needs a hand on it
+presence_check
+
+USB_IFACE="cdc"
+USB_CARRIES="log"
+USB_HOST="cdc_acm"
+USB_RUNS_ON="own"
+usb_check
+
+TARGET=thumbv8m.main-none-eabihf
+ELF=target/$TARGET/release/exp155-a-wall-you-can-measure
+UF2=target/exp155-a-wall-you-can-measure.uf2
+
+if command -v cargo > /dev/null && command -v elf2flash > /dev/null; then
+    pass "toolchain present (cargo, elf2flash)"
+else
+    fail "toolchain present" "run exp102 first"
+    exit 1
+fi
+
+if cargo build --release --quiet 2>/dev/null && [[ -f "$ELF" ]]; then
+    pass "firmware compiles ($(stat -c%s "$ELF") byte ELF)"
+else
+    fail "firmware compiles" "run: cargo build --release"
+    exit 1
+fi
+
+if elf2flash convert -b rp2350 "$ELF" "$UF2" > /dev/null 2>&1 && [[ -f "$UF2" ]]; then
+    pass "converts to UF2 ($(stat -c%s "$UF2") bytes)"
+else
+    fail "converts to UF2" "run: elf2flash convert -b rp2350 $ELF $UF2"
+    exit 1
+fi
+FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
+[[ "$FAMILY" == "e48bff59" ]] \
+    && pass "UF2 family ID is e48bff59 (rp2350-arm-s)" \
+    || fail "UF2 family ID is e48bff59 (rp2350-arm-s)" "got: $FAMILY"
+
+# ACCESSCTRL.LOCK makes a configuration survive until reset and cannot be
+# undone by software. This experiment is meant to be re-runnable and reversible
+# by a power cycle, so the absence of that call is checked rather than intended.
+if grep -qE '\.lock\(\)' src/main.rs; then
+    fail "the firmware never locks ACCESSCTRL" "src/main.rs calls .lock()"
+else
+    pass "the firmware never locks ACCESSCTRL"
+fi
+
+# The target address is taken from the PAC. A hardcoded one is how the first
+# draft came to deny I2C1 and read I2C0 — which would have reported no wall,
+# convincingly. Guarded because the mistake is invisible in a passing build.
+if grep -qE 'const TARGET.*0x[0-9a-fA-F_]+ as \*const' src/main.rs; then
+    fail "the target address comes from the PAC" "src/main.rs hardcodes an address"
+else
+    pass "the target address comes from the PAC"
+fi
+
+if ! exp_running 155; then
+    echo "SKIP  board is not running exp155 — flash it with ./run.sh (not an error)"
+    exit "$FAILED"
+fi
+pass "board enumerated as 1209:0001"
+
+# The verdict lands about six seconds in and repeats every ten.
+OUT="$(exp_read_log 20)"
+
+SECURE="$(echo "$OUT" | grep -o 'core 0 (Secure) read [0-9a-fx]*' | tail -1)"
+if [[ -n "$SECURE" ]]; then
+    pass "the control ran — $SECURE"
+else
+    fail "the control ran" "no Secure read reported in 20 s"
+fi
+
+if echo "$OUT" | grep -q 'VERDICT:'; then
+    pass "a verdict was reached"
+    echo "      $(echo "$OUT" | grep -o 'VERDICT:.*' | tail -1)"
+else
+    fail "a verdict was reached" "no VERDICT line in 20 s — see the core 1 step it reports"
+fi
+
+exit "$FAILED"

@@ -1,0 +1,306 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp155 — a wall you can measure</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp155-a-wall-you-can-measure — one file, no dependencies, no build step,
+  no server. Open it directly: double-click on a desktop, Files app ->
+  "Open with Chrome" on Android.
+
+  It claims the board's CDC interfaces the way tools/pages/log.html does, and
+  reads the two halves of one measurement: what core 0 got from an address in
+  Secure state, and what core 1 got from the same address in Non-secure state.
+
+  Both halves are shown side by side because either one alone proves nothing.
+  A read that faults could be a broken core; a read that works says nothing
+  about anybody else. The verdict below the two panels is only allowed to say
+  "there is a wall" when both arrived and disagreed in the right direction.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log.
+      yi26 log --json --seconds 20
+  is. See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd;
+          --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333;
+            --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 52rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1rem; margin: 1.6rem 0 .5rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  .sides { display: flex; flex-wrap: wrap; gap: .7rem; margin: 1rem 0; }
+  .side { flex: 1 1 13rem; border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; }
+  .side h3 { margin: 0 0 .1rem; font-size: .95rem; }
+  .side .who { font-size: 12.5px; color: var(--dim); margin-bottom: .7rem; }
+  .side .val { font-family: ui-monospace, monospace; font-size: 1.2rem; word-break: break-all; }
+  .side .note { font-size: 12.5px; color: var(--dim); margin-top: .4rem; }
+  .side.read { border-color: var(--ok); }
+  .side.refused { border-color: var(--ok); }
+  .side.leaked { border-color: var(--bad); }
+  .side.pending .val { color: var(--dim); font-size: 1rem; }
+  #verdict { margin: 1rem 0; padding: .9rem 1rem; border-left: 3px solid var(--line); }
+  #verdict.wall { border-color: var(--ok); }
+  #verdict.nowall { border-color: var(--bad); }
+  #verdict.unclear { border-color: var(--warn); }
+  #verdict b { font-size: 1.05rem; }
+  #log { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .8rem;
+         border-radius: 6px; height: 16rem; overflow-y: auto; font-family: ui-monospace, monospace;
+         font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .warn { border-left: 3px solid var(--warn); padding: .6rem .9rem; margin: 1rem 0; font-size: 13.5px; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .6rem; }
+  code { font-size: .92em; }
+</style>
+
+<h1>exp155 — a wall you can measure</h1>
+<p class="sub">One address, read from two places. No cryptography anywhere in it.</p>
+
+<button id="connect">Connect to the board</button>
+<button id="stop" class="ghost" disabled>Stop</button>
+
+<div id="status">Plug the board in, then press Connect. The verdict lands about six seconds after the board boots and repeats every ten, so arriving late is fine.</div>
+
+<div class="warn">
+  This page needs <b>Chrome or Edge</b> — WebUSB is Chromium-only. On Linux the
+  kernel's <code>cdc_acm</code> driver owns these interfaces until you run
+  <code>yi26 detach</code>; an interface has exactly one owner.
+</div>
+
+<h2>The same address, from both sides</h2>
+<div class="sides">
+  <div class="side pending" id="s-secure">
+    <h3>Secure</h3>
+    <div class="who">core 0 — privileged, owns this log</div>
+    <div class="val" id="v-secure">waiting</div>
+    <div class="note">The control. If this fails, nothing else means anything.</div>
+  </div>
+  <div class="side pending" id="s-ns">
+    <h3>Non-secure</h3>
+    <div class="who">core 1 — forced Non-secure by ACCESSCTRL</div>
+    <div class="val" id="v-ns">waiting</div>
+    <div class="note" id="n-ns">Expected to fault. A value here means no wall.</div>
+  </div>
+</div>
+
+<div id="verdict">Waiting for both halves.</div>
+
+<h2>Raw log</h2>
+<button id="copy" class="ghost">Copy the log</button>
+<div id="log"></div>
+<p class="meta">The page reads; it never writes to the board, and it never sends 1200 baud — which would reboot it into the bootloader.</p>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+const BAUD = 115200;
+
+let device = null, streaming = false, carry = '';
+const $ = (id) => document.getElementById(id);
+function say(msg, cls) { const s = $('status'); s.textContent = msg; s.className = cls || ''; }
+
+// Every line carries crates/usb-log's `[    3037 ms] ` prefix, and sometimes a
+// `(+N lines lost)` marker after it, so nothing may be anchored to the start.
+const RE_SECURE  = /core 0 \(Secure\) read (0x[0-9a-f]+)/;
+const RE_FAULT   = /core 1 \(Non-secure\) faulted at pc (0x[0-9a-f]+)/;
+const RE_NOFAULT = /core 1 \(Non-secure\) read (0x[0-9a-f]+) — no fault/;
+const RE_STEP    = /core 1 (?:is alive|never started|at step (\d+))/;
+const RE_VERDICT = /VERDICT: (.*)$/;
+const RE_CONTROL = /control FAILED/;
+
+let secureVal = null, nsFaultPc = null, nsVal = null;
+
+function decide() {
+  const v = $('verdict');
+  if (secureVal && nsFaultPc) {
+    v.className = 'wall';
+    v.innerHTML = `<b>The wall is there.</b> The same address returned ` +
+      `<code>${secureVal}</code> to Secure code on core 0 and faulted on core 1 in ` +
+      `Non-secure state. Both halves were watched, which is what makes this a ` +
+      `measurement rather than a claim.`;
+  } else if (secureVal && nsVal) {
+    v.className = 'nowall';
+    v.innerHTML = `<b>No wall.</b> Non-secure code read <code>${nsVal}</code> from the ` +
+      `address Secure code read <code>${secureVal}</code> from. ACCESSCTRL did not ` +
+      `refuse it, and a key kept here would be readable by anything running on core 1.`;
+  } else if (nsFaultPc && !secureVal) {
+    v.className = 'unclear';
+    v.innerHTML = `<b>Inconclusive.</b> Core 1 faulted, but the Secure control has not ` +
+      `reported. A read that faults on one core and was never shown to work on the ` +
+      `other is not a boundary — it is one broken read.`;
+  }
+}
+
+function handleLine(line) {
+  const el = $('log');
+  const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+  el.textContent += line + '\n';
+  if (atBottom) el.scrollTop = el.scrollHeight;
+
+  let m;
+  if ((m = line.match(RE_SECURE))) {
+    secureVal = m[1];
+    $('v-secure').textContent = secureVal;
+    $('s-secure').className = 'side read';
+    decide();
+  }
+  if (line.match(RE_CONTROL)) {
+    $('s-secure').className = 'side leaked';
+    $('v-secure').textContent = 'returned zero';
+  }
+  if ((m = line.match(RE_FAULT))) {
+    nsFaultPc = m[1];
+    $('v-ns').textContent = 'FAULTED';
+    $('n-ns').textContent = `at pc ${nsFaultPc} — the access never completed`;
+    $('s-ns').className = 'side refused';
+    decide();
+  }
+  if ((m = line.match(RE_NOFAULT))) {
+    nsVal = m[1];
+    $('v-ns').textContent = nsVal;
+    $('n-ns').textContent = 'the read completed — nothing refused it';
+    $('s-ns').className = 'side leaked';
+    decide();
+  }
+  if (!nsFaultPc && !nsVal && (m = line.match(RE_STEP))) {
+    $('v-ns').textContent = 'no result yet';
+    $('n-ns').textContent = line.replace(/^\[[^\]]*\]\s*/, '');
+  }
+  if ((m = line.match(RE_VERDICT))) {
+    // The firmware's own wording, kept verbatim beneath the page's reading of
+    // it. If the two ever disagree, the board is right.
+    $('verdict').title = m[1];
+  }
+}
+
+function feed(text) {
+  carry += text;
+  const parts = carry.split('\n');
+  carry = parts.pop();
+  for (const p of parts) handleLine(p.replace(/\r$/, ''));
+}
+
+// -- WebUSB, the same sequence tools/pages/log.html performs ----------------
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function start(dev) {
+  device = dev;
+  await device.open();
+  if (device.configuration === null) await device.selectConfiguration(1);
+
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null) {
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  }
+
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(
+      `cannot claim the interfaces — something else owns them, and an interface has ` +
+      `exactly one owner. The kernel's cdc_acm driver (fix: "yi26 detach"), or another ` +
+      `tab of this page (fix: close it). "yi26 doctor" says which. [${e.name}: ${e.message}]`);
+  }
+
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true);
+  coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control },
+    coding.buffer);
+  // Not optional: crates/usb-log waits for DTR before writing a byte.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  $('connect').disabled = true;
+  $('stop').disabled = false;
+
+  // Which firmware is actually on the board. exp154 shipped without this and a
+  // reader spent a round concluding an experiment had failed when a different
+  // one was running.
+  const serial = device.serialNumber || '(none)';
+  if (serial !== '155') {
+    say(`This board is NOT running exp155. It reports itself as "${device.productName}", ` +
+        `serial ${serial} — exp155 reports serial 155. Flash ` +
+        `firmware/exp155-a-wall-you-can-measure.uf2 and connect again.`, 'bad');
+    $('verdict').className = 'unclear';
+    $('verdict').innerHTML = '<b>Nothing is being measured.</b> The board is running other firmware — see above.';
+  } else {
+    say(`Streaming from ${device.productName} — interfaces ${control} and ${data}, endpoint ${endpointIn} IN. ` +
+        `The verdict repeats every ten seconds.`, 'ok');
+  }
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try { r = await device.transferIn(endpointIn, 64); }
+    catch (e) { if (streaming) say(`transfer stopped: ${e.message}`, 'bad'); break; }
+    if (r.data && r.data.byteLength) feed(dec.decode(r.data));
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('connect').disabled = false;
+  $('stop').disabled = true;
+  try { if (device) await device.close(); } catch (_) { /* already gone */ }
+  device = null;
+  say('Stopped.');
+}
+
+// content:// is not a secure context, so navigator.clipboard is absent exactly
+// where this button matters most — on a phone. execCommand still works there.
+async function copyLog() {
+  const text = $('log').textContent;
+  if (!text.trim()) { say('Nothing to copy yet.', 'bad'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.split('\n').length - 1} lines.`, 'ok');
+    return;
+  } catch (_) { /* fall through */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  ta.remove();
+  say(ok ? `Copied ${text.split('\n').length - 1} lines.`
+         : 'Could not copy. Long-press inside the log box and use Select all instead.',
+      ok ? 'ok' : 'bad');
+}
+
+$('connect').addEventListener('click', async () => {
+  if (!navigator.usb) { say('This browser has no WebUSB. Chrome or Edge.', 'bad'); return; }
+  try { await start(await navigator.usb.requestDevice({ filters: FILTERS })); }
+  catch (e) { say(e.message, 'bad'); $('connect').disabled = false; $('stop').disabled = true; }
+});
+$('stop').addEventListener('click', stop);
+$('copy').addEventListener('click', copyLog);
+</script>
