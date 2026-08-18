@@ -73,28 +73,46 @@ proves its point by going silent has proved nothing a reader can tell from a
 crash — [exp134](../exp134-the-log-nobody-reads/) is the record of how many
 ways silence reads.
 
-## What the LED tells you, with no page open at all
+## How to see the result
 
-This experiment has **no drive and no web page** — it declares one CDC serial
-interface and nothing else, so a boot drive that vanishes after the copy is the
-flash succeeding, not a fault. Reading the log needs
-[`log.html`](../../tools/pages/log.html), `console.html`, or `yi26 log`.
+**[`otp-map.html`](./otp-map.html)** — open it in Chrome or Edge, press Connect,
+pick the board. One file, no build step, no server; on Android it is Files app →
+*Open with Chrome*.
 
-None of which you need to tell whether it is working, because the LED is
-carrying that:
+It claims the CDC interfaces the same way
+[`tools/pages/log.html`](../../tools/pages/log.html) does and then draws what
+the firmware says: 4096 rows as a grid, one cell each, coloured by what the
+chip answered. The question this experiment exists to ask — *is there anywhere
+on this part the core cannot read* — becomes **is any of it red**, which is a
+thing you can see rather than a thing you count. The raw log is on the page too,
+underneath.
+
+A grid rather than the log viewer that already works, because the answer here is
+a map of 4096 rows, and a map read as lines of text is not read at all.
+
+This experiment has **no drive and serves no page of its own** — it declares one
+CDC interface and nothing else, so a boot drive that vanishes after the copy is
+the flash succeeding, not a fault. Putting the page on the board is
+[exp131](../exp131-the-volume-is-the-app-drawer/)'s trick and belongs to a later
+experiment on this road.
+
+### And the LED, when you have no page at all
+
+The LED is a fallback for telling a stuck board from a dead one, not a way to
+read the result:
 
 | LED | Means |
 | --- | --- |
 | **fast, 5 Hz** | running, sweep not finished |
-| **slow, 1 Hz** | sweep finished — the answer is in the log |
+| **slow, 1 Hz** | sweep finished — the answer is on the page |
 | **dark** | the firmware is not running |
 
-The middle state is the one worth having. Reading OTP is the only operation
-here that could fault, and a fault takes USB and the log with it — but a board
-stuck on fast blink says *started and did not finish*, which is a different
-diagnosis from one that never started, and neither needs a page to see.
+The middle state is the one worth having. Reading OTP is the only operation here
+that could fault, and a fault takes USB and the page with it — but a board stuck
+on fast blink says *started and did not finish*, which is a different diagnosis
+from one that never started.
 
-The log summary also **repeats every ten seconds**, because
+The summary also **repeats every ten seconds**, because
 [exp113](../exp113-enumerable-seed/) already wrote down what printing once
 costs: a fact printed once is a fact most readers never see, and anyone
 attaching afterwards finds heartbeats and no way to tell a finished run from a
