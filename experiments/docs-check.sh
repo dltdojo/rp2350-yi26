@@ -246,6 +246,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 7. No document is mostly copies of itself.
+#
+#    platforms.md was committed at 52 MB and 1,063,326 lines, of which 110 were
+#    distinct: one 29-line section repeated 35,425 times, each copy with a
+#    different character stuck to the front of its heading. It did not append —
+#    it replaced, so the 470 lines of document that had been there were gone,
+#    and stayed gone for a fortnight in a repository that reads its own prose
+#    carefully. Nothing noticed, because nothing was looking at whole files.
+#
+#    A runaway writer is not a subtle failure and does not need a subtle test.
+#    The most-repeated line in every hand-written document here is a table rule
+#    at thirteen, so a line appearing fifty times is not prose. Checking the
+#    ratio rather than the size is what catches the version of this that is
+#    only a few hundred kilobytes and looks perfectly ordinary in a listing.
+
+REPEAT_LIMIT=50
+repeated=()
+while IFS= read -r doc; do
+    worst="$(grep -v '^[[:space:]]*$' "$doc" 2>/dev/null | sort | uniq -c | sort -rn | head -1)"
+    count="$(awk '{print $1}' <<< "$worst")"
+    [[ -n "$count" ]] || continue
+    if (( count > REPEAT_LIMIT )); then
+        repeated+=("${doc#../}: a line appears $count times")
+    fi
+done < <(find .. -name '*.md' -not -path '*/target/*' -not -path '*/.git/*' 2>/dev/null | sort)
+
+if [[ ${#repeated[@]} -eq 0 ]]; then
+    pass "no document is mostly copies of itself"
+else
+    fail "no document is mostly copies of itself" "${repeated[*]}"
+fi
+
+# ---------------------------------------------------------------------------
 # What this deliberately does not do: rewrite anything. A generator that
 # silently fixes a table means nobody ever learns the document was wrong, and
 # the prose *around* a generated block can still contradict it. `pack.sh`
