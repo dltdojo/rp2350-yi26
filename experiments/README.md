@@ -75,6 +75,7 @@ Per experiment:
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
+| exp154 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
 | exp150 | Same as exp149, plus **a browser — any browser**, which is the point. This is the first experiment here whose page needs no WebUSB, no permission dialog and no Chromium. Whether the browser can reach the board is a property of the host's routing, not of this firmware. |
@@ -412,7 +413,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -671,6 +672,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp152-the-volume-that-waits](./exp152-the-volume-that-waits/) | 3 · a person | The board carries a drive that does not exist until it knows its own address — verified on a phone: plug in, turn on tethering, tap two things, and the log is there |
 | [exp151-the-log-in-any-browser](./exp151-the-log-in-any-browser/) | 3 · a person | The board serves its own log over HTTP — verified rendering in Chrome on a phone — and answers to a name that phone will not ask it for |
 | [exp150-a-page-served-by-the-board](./exp150-a-page-served-by-the-board/) | 3 · a person | The board serves its own web page: no WebUSB, no permission dialog, no chooser, any browser — and the question of whether a phone can route to an address it never showed as a network |
+| [exp154-somewhere-to-put-a-key](./exp154-somewhere-to-put-a-key/) | 1 · board | Ask the chip whether it has anywhere to keep a secret — every OTP row, classified, and the rows a signing experiment elsewhere assumed were a key |
 
 ## The browser track, finished
 
