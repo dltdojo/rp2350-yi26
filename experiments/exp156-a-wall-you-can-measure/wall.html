@@ -1,9 +1,9 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>exp155 — a wall you can measure</title>
+<title>exp156 — a wall you can measure</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!--
-  exp155-a-wall-you-can-measure — one file, no dependencies, no build step,
+  exp156-a-wall-you-can-measure — one file, no dependencies, no build step,
   no server. Open it directly: double-click on a desktop, Files app ->
   "Open with Chrome" on Android.
 
@@ -64,7 +64,7 @@
   code { font-size: .92em; }
 </style>
 
-<h1>exp155 — a wall you can measure</h1>
+<h1>exp156 — a wall you can measure</h1>
 <p class="sub">One address, read from two places. No cryptography anywhere in it.</p>
 
 <button id="connect">Connect to the board</button>
@@ -246,10 +246,10 @@ async function start(dev) {
   // reader spent a round concluding an experiment had failed when a different
   // one was running.
   const serial = device.serialNumber || '(none)';
-  if (serial !== '155') {
-    say(`This board is NOT running exp155. It reports itself as "${device.productName}", ` +
-        `serial ${serial} — exp155 reports serial 155. Flash ` +
-        `firmware/exp155-a-wall-you-can-measure.uf2 and connect again.`, 'bad');
+  if (serial !== '156') {
+    say(`This board is NOT running exp156. It reports itself as "${device.productName}", ` +
+        `serial ${serial} — exp156 reports serial 156. Flash ` +
+        `firmware/exp156-a-wall-you-can-measure.uf2 and connect again.`, 'bad');
     $('verdict').className = 'unclear';
     $('verdict').innerHTML = '<b>Nothing is being measured.</b> The board is running other firmware — see above.';
   } else {

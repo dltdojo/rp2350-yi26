@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp155 quick check — non-interactive verdict.
+# exp156 quick check — non-interactive verdict.
 # Builds and converts, and if the board is running this firmware, reads its
 # verdict. The verdict itself is the experiment's finding; this asserts that
 # one was reached and that the control held, not which way it went.
@@ -24,8 +24,8 @@ USB_RUNS_ON="own"
 usb_check
 
 TARGET=thumbv8m.main-none-eabihf
-ELF=target/$TARGET/release/exp155-a-wall-you-can-measure
-UF2=target/exp155-a-wall-you-can-measure.uf2
+ELF=target/$TARGET/release/exp156-a-wall-you-can-measure
+UF2=target/exp156-a-wall-you-can-measure.uf2
 
 if command -v cargo > /dev/null && command -v elf2flash > /dev/null; then
     pass "toolchain present (cargo, elf2flash)"
@@ -70,8 +70,8 @@ else
     pass "the target address comes from the PAC"
 fi
 
-if ! exp_running 155; then
-    echo "SKIP  board is not running exp155 — flash it with ./run.sh (not an error)"
+if ! exp_running 156; then
+    echo "SKIP  board is not running exp156 — flash it with ./run.sh (not an error)"
     exit "$FAILED"
 fi
 pass "board enumerated as 1209:0001"

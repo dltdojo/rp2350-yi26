@@ -1,4 +1,4 @@
-//! exp155 — a wall you can measure.
+//! exp156 — a wall you can measure.
 //!
 //! [exp154](../exp154-somewhere-to-put-a-key/) asked the chip whether it
 //! already had somewhere to keep a secret and got a clean answer: **no**.
@@ -300,8 +300,8 @@ async fn main(spawner: Spawner) {
 
     let mut config = UsbConfig::new(0x1209, 0x0001);
     config.manufacturer = Some("rp2350-yi26");
-    config.product = Some("exp155 a wall you can measure");
-    config.serial_number = Some("155");
+    config.product = Some("exp156 a wall you can measure");
+    config.serial_number = Some("156");
     config.device_class = 0xef;
     config.device_sub_class = 0x02;
     config.device_protocol = 0x01;
@@ -329,7 +329,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(reboot_task(control, receiver).unwrap());
     spawner.spawn(log_task(sender).unwrap());
 
-    log!("exp155 up. No cryptography here — only whether an address refuses.");
+    log!("exp156 up. No cryptography here — only whether an address refuses.");
     spawner.spawn(verdict_task().unwrap());
 
     // Slow while waiting, fast once there is a verdict — the same one bit

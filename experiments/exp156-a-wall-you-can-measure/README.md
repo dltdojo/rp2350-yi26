@@ -1,4 +1,4 @@
-# exp155-a-wall-you-can-measure — a boundary that refuses, watched from both sides
+# exp156-a-wall-you-can-measure — a boundary that refuses, watched from both sides
 
 [exp154](../exp154-somewhere-to-put-a-key/) asked this chip whether it already
 had somewhere to keep a secret, and the answer was clean: **no**. Not one of
