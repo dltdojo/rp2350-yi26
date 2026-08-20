@@ -11,8 +11,9 @@ constant, and the finding that mattered — that the wall was already there — 
 visible in the firmware's own output the first time it ran. Seven rounds went
 somewhere else, and where they went is measurable.
 
-**Nothing in the "what to build" section below has been verified.** It is a
-design derived from evidence, and it says so where it stops being evidence.
+**The mechanism levers 1 and 2 rest on has now been measured**, on a Pico 2, on
+2026-08-20 — see [Measured](#measured-2026-08-20) below. The harness built on it
+has not. This document says where it stops being evidence.
 
 ---
 
@@ -73,17 +74,19 @@ Each has a fix, and none of the fixes is "try harder".
 A fault or a hang should not be the end of the report. It should be the
 *beginning* of the next boot's report.
 
-The RP2350 has the parts already, and this repository has verified half of them:
+The RP2350 has the parts, and [Measured](#measured-2026-08-20) below is this
+repository watching them work:
 
-- **`WATCHDOG.REASON.TIMER` says the last reset was a watchdog timeout**, and it
-  is readable at boot before anything else runs.
-  [exp143](../experiments/exp143-the-image-that-is-never-bought/) does exactly
-  that, by hand, because `embassy-rp` keeps its watchdog PAC private and its own
-  driver only starts and feeds one.
-- **`WATCHDOG.SCRATCH0`–`SCRATCH7` survive a watchdog reset.** That is not a
-  trick; it is the documented mechanism the bootrom itself uses, and it is how
-  `reset_usb_boot()` tells the ROM to come up in BOOTSEL.
-- `rp-pac` models all eight (`WATCHDOG.scratch0()` … `scratch7()`).
+- **`WATCHDOG.REASON` reads `0x1` after a timeout**, at boot, before anything
+  else runs. [exp143](../experiments/exp143-the-image-that-is-never-bought/)
+  already reads that register by hand for a different purpose.
+- **`WATCHDOG.SCRATCH0`–`SCRATCH3` survive a watchdog reset**, through the
+  bootrom, back into an `embassy-rp` firmware — measured, not inferred. Survival
+  is the documented mechanism the bootrom uses for `reset_usb_boot()`; what
+  needed measuring was whether the bottom four words are left alone, and they
+  are.
+- `embassy-rp` 0.10 exposes the whole thing: `Watchdog::start`, `feed`,
+  `trigger_reset`, `set_scratch`, `get_scratch`. Only `REASON` needs the PAC.
 
 **`SCRATCH4`–`SCRATCH7` belong to the bootrom.** It reads magic values there to
 decide the boot outcome, so a breadcrumb must live in `SCRATCH0`–`SCRATCH3`.
@@ -110,9 +113,16 @@ boot
 handler fires for that. The board simply stopped, and the only signal was
 darkness. A watchdog catches it and the breadcrumb names it.
 
-Cost: the board reboots, so USB re-enumerates and any page has to reconnect. The
-step numbers must be written *before* each step and never after, which exp156
-already does for its LED rungs.
+Cost: the board reboots, so USB re-enumerates and any page has to reconnect —
+five reboots in a row re-enumerated cleanly and printed every time. The step
+numbers must be written *before* each step and never after, which exp156 already
+does for its LED rungs.
+
+**And the harness must keep reporting after it gives up.** The spike stopped
+logging once it hit its attempt limit, so a reader who attached a moment later
+saw a blinking LED and silence — which is exactly the state round 7 of exp156
+could not diagnose. The stop is a state to be *announced*, repeatedly, not a
+state to fall quiet in.
 
 ---
 
@@ -202,33 +212,77 @@ The fix costs nothing and needs no hardware:
 
 ---
 
-## What is verified here, and what is not
+## Measured, 2026-08-20
 
-Verified on hardware, in this repository:
+A throwaway spike, written and run before any of this was planned, because the
+process here says **establish the facts first and never offer an option built on
+an assumption**. It wrote a counter and a magic word into `SCRATCH0`–`SCRATCH3`,
+armed a two-second watchdog, and then **hung on purpose** — not faulted, hung,
+which is the shape of exp156's very first failure and the one no fault handler
+catches.
 
-- Everything in [exp156's README](../experiments/exp156-a-wall-you-can-measure/README.md),
-  including the round-by-round record this document does arithmetic on.
-- [exp143](../experiments/exp143-the-image-that-is-never-bought/) reads
-  `WATCHDOG.CTRL`, `LOAD` and `REASON` by hand at boot, before
-  `embassy_rp::init`, and reports whether the last reset was a timeout.
+```console
+[    3073 ms] spike up. What the previous run left behind:
+[    3074 ms]   SCRATCH0=0x00000002 SCRATCH1=0xb1ead500
+[    3074 ms]   SCRATCH2=0x0000002a SCRATCH3=0xdead0002
+[    3074 ms]   WATCHDOG.REASON=0x00000001 (bit0 TIMER, bit1 FORCE)
+[    3074 ms] SURVIVED: boot #2, and step 42 is where it hung.
+[    3074 ms] arming a 2 s watchdog, writing the breadcrumb, then hanging on purpose.
+```
 
-Documented, and **not measured by this repository**:
+…and four boots later, having climbed 2 → 3 → 4 → 5 with the magic word and the
+step number intact through every one:
 
-- That `SCRATCH0`–`SCRATCH7` survive a watchdog reset, and that the bootrom
-  claims `SCRATCH4`–`SCRATCH7`.
+```console
+[    3074 ms] SURVIVED: boot #5, and step 42 is where it hung.
+[    3074 ms] STOP: 5 boots reached. Arming nothing. The board stays reflashable.
+```
 
-Not verified at all — this is a design, and it is the whole of levers 1 and 2:
+Five facts, and every lever-1 and lever-2 claim rests on one of them:
 
-- That a breadcrumb in `SCRATCH0`–`SCRATCH3` survives a watchdog reboot *on this
-  part, from this firmware*, with `embassy-rp` and the bootrom in the picture.
-- That a HardFault handler can arm-and-wait reliably enough to reboot rather
-  than park.
-- That a board rebooting every few seconds re-enumerates cleanly enough for a
-  page to follow it, or for the 1200-baud reflash touch to still land.
-- That the whole thing survives contact with a phone, which is the host this
+1. **`SCRATCH0`–`SCRATCH3` survive a watchdog reset**, through the RP2350
+   bootrom, back into an `embassy-rp` firmware. The counter climbed and the
+   magic word was never disturbed, so the bootrom's use of `SCRATCH4`–`SCRATCH7`
+   really does leave the bottom four alone.
+2. **`WATCHDOG.REASON` reads `0x1`** — TIMER — so a boot can tell that the last
+   one was killed rather than ended.
+3. **A hang is caught.** No fault, no exception, no handler: an infinite loop
+   that simply stops feeding. This is the failure mode that cost exp156 its
+   first round and produced nothing but darkness.
+4. **USB re-enumerated cleanly on every one of five reboots**, and printed over
+   CDC each time.
+5. **The hard stop works.** After the stop the board was still `running`, still
+   enumerated as `1209:0001`, and **still entered BOOTSEL from the 1200-baud
+   touch with nobody near the button** — so a reboot harness does not cost you
+   the ability to reflash.
+
+`embassy-rp` 0.10 has all of it in the HAL — `Watchdog::start`, `feed`,
+`trigger_reset`, `set_scratch`, `get_scratch`. Only `REASON` needs the PAC.
+(exp143's note that "embassy-rp keeps its watchdog PAC private and its own
+driver only starts and feeds one" was true when it was written and is not true
+now. An aged claim, recorded rather than repaired, per the rule on aged
+captures.)
+
+**And the spike broke one of this repository's own rules, which is worth more
+than the five facts.** After the stop it blinked and said nothing, so a reader
+attaching late saw silence — the exact failure exp156 spent a round on. A
+harness whose whole purpose is reporting must **keep reporting after it gives
+up**, and that is now a requirement rather than a discovery waiting to happen.
+
+## What is still not verified
+
+The mechanism is measured. The harness built on it is not:
+
+- That a **HardFault** handler can hand over to the watchdog as reliably as a
+  hang does. The spike tested a hang; exp156's later rounds were faults.
+- That a firmware can **skip the step that killed it** and go on to the next
+  candidate without the skip logic itself becoming the thing that breaks.
+- That a page can **follow a board across reboots** — the spike was read with
+  `yi26`, and WebUSB has to re-acquire a device that disappears.
+- That any of it **survives contact with a phone**, which is the host this whole
   track exists for.
 
-**None of it may be relied on until an experiment measures it.** Writing a
+**None of that may be relied on until an experiment measures it.** Writing a
 harness for board-less development and then trusting it without a board would be
 the same defect the signing road was filed against: a mechanism whose label
 claims more than anyone has watched it do.
@@ -252,13 +306,13 @@ The order that follows from the arithmetic:
    wasted round immediately, and exp156 has the capture already.
 2. **Lever 3 next.** It is a change to walkthroughs and to what gets asked for.
    Also free.
-3. **Levers 1 and 2 as one experiment, with a board attached.** The claim to
-   measure is narrow and testable: *a firmware can record where it died, be
-   rebooted by the watchdog, and report it after coming back* — and then,
-   *it can skip what killed it and go on to the next candidate*. That is a
-   two-measurement claim of exactly the shape exp156 ended up with, and it
-   should be built the same way: the control is the boot that survives, not
-   only the boot that dies.
+3. **Levers 1 and 2 as one experiment, with a board attached.** The mechanism
+   is measured; what is left is the harness. The claim is narrow and testable:
+   *a firmware can record where it died, be rebooted by the watchdog, report it
+   after coming back, and then **skip what killed it and try the next
+   candidate***. That is a two-measurement claim of exactly the shape exp156
+   ended up with, and it should be built the same way: the control is the boot
+   that survives, not only the boot that dies.
 
 ## The checklist, for a firmware meant to be debugged from a cloud session
 
