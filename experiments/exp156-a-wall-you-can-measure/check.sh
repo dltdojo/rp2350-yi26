@@ -91,12 +91,13 @@ fi
 
 # Every ACCESSCTRL write carries the key.
 #
-# Measured on hardware: reads of this block work and an identity write faults,
-# so writes are refused whatever the value — the shape of a register with a
-# write key in its top half. rp-pac models no key, so `modify()` reads a
-# register whose top half is zero and writes zero back, which is precisely the
-# write that gets refused. A helper that cannot forget the key is the only safe
-# shape, and this fails if a raw write_value or modify appears beside it.
+# Measured on hardware, both halves. Without the key, an identity write to
+# ACCESSCTRL.I2C1 takes a bus fault while reads of the same register work; with
+# 0xACCE in bits 31:16 the same write is accepted and reads back. rp-pac models
+# no key, so `modify()` reads a register whose top half is zero and writes zero
+# back, which is precisely the write that faults. A helper that cannot forget
+# the key is the only safe shape, and this fails if a raw write_value or modify
+# appears beside it.
 if grep -nE 'ACCESSCTRL\.[a-z_0-9]+\(\)\.(modify|write)\b' src/main.rs | grep -qv 'force_core_ns'; then
     fail "every ACCESSCTRL write goes through the keyed helper" \
          "a bare modify()/write() on ACCESSCTRL — it will drop the key and fault"
@@ -126,14 +127,41 @@ if ! exp_running 156; then
 fi
 pass "board enumerated as 1209:0001"
 
-# The verdict lands about six seconds in and repeats every ten.
+# The verdict lands about nine seconds in and repeats every ten, and it repeats
+# the three reads with it — so a board that has been running for an hour still
+# reports its own controls, and this does not have to be run within a second of
+# a reflash.
 OUT="$(exp_read_log 20)"
 
-SECURE="$(echo "$OUT" | grep -o 'core 0 (Secure) read [0-9a-fx]*' | tail -1)"
+# Both controls, asserted separately, because the claim needs both and the
+# failure modes are different. Read 1 missing means core 1 never ran at all;
+# read 2 missing means a core demoted by FORCE_CORE_NS could not read something
+# it was permitted to read, which is a finding about the demotion and not about
+# the wall.
+SECURE="$(echo "$OUT" | grep -oE 'read 1 +Secure, +wall open: 0x[0-9a-f]+' | tail -1)"
 if [[ -n "$SECURE" ]]; then
-    pass "the control ran — $SECURE"
+    pass "control 1 ran — ${SECURE#read 1 }"
 else
-    fail "the control ran" "no Secure read reported in 20 s"
+    fail "control 1 ran (core 1, Secure, wall open)" \
+         "no read 1 value in 20 s — core 1 never completed a read, so nothing below is measured"
+fi
+
+OPEN="$(echo "$OUT" | grep -oE 'read 2 +Non-secure, +wall open: 0x[0-9a-f]+' | tail -1)"
+if [[ -n "$OPEN" ]]; then
+    pass "control 2 ran — ${OPEN#read 2 }"
+else
+    fail "control 2 ran (core 1, Non-secure, wall open)" \
+         "no read 2 value in 20 s — a demoted core could not read what it was allowed to, so a refusal below proves nothing"
+fi
+
+# The two controls have to agree. They are the same address read by the same
+# core with only its security state changed, so a different value would mean
+# the address moved under the experiment rather than that the wall works.
+V1="${SECURE##*: }"; V2="${OPEN##*: }"
+if [[ -n "$V1" && "$V1" == "$V2" ]]; then
+    pass "both controls read the same value ($V1)"
+else
+    fail "both controls read the same value" "read 1 gave '$V1', read 2 gave '$V2'"
 fi
 
 if echo "$OUT" | grep -q 'VERDICT:'; then

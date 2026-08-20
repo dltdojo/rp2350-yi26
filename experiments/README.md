@@ -696,7 +696,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp150-a-page-served-by-the-board](./exp150-a-page-served-by-the-board/) | 3 · a person | The board serves its own web page: no WebUSB, no permission dialog, no chooser, any browser — and the question of whether a phone can route to an address it never showed as a network |
 | [exp154-somewhere-to-put-a-key](./exp154-somewhere-to-put-a-key/) | 1 · board | Ask the chip whether it has anywhere to keep a secret — every OTP row, classified, and the rows a signing experiment elsewhere assumed were a key |
 | [exp155-who-else-can-knock](./exp155-who-else-can-knock/) | 3 · a person | **No source.** A record of a firmware that exists only on a board — read off its own log, catalogued so the number is not reused |
-| [exp156-a-wall-you-can-measure](./exp156-a-wall-you-can-measure/) | 1 · board | A boundary that refuses, measured — core 1 forced Non-secure faults on the address core 0 reads, and both halves are watched |
+| [exp156-a-wall-you-can-measure](./exp156-a-wall-you-can-measure/) | 1 · board | A boundary that refuses, measured — one core reads one address three times and only the ACCESSCTRL bits change between the last two |
 
 ## The browser track, finished
 
@@ -1239,17 +1239,26 @@ None of these is interrogated yet — a direction, not a schedule.
   HAL's write functions rather than trusting the author, because OTP is
   permanent and the cost of being wrong is somebody's board. Needs 1.
 - **a wall you can measure** — no cryptography at all.
-  [exp156](./exp156-a-wall-you-can-measure/) is **built, seven flash cycles in,
-  and still unverified** — see its
-  [handover](./exp156-a-wall-you-can-measure/HANDOVER.md), which carries what each
-  round established and what is still unexplained. The finding so far is that
-  **`ACCESSCTRL` is readable and refuses every write**, including writing back
-  the value just read, from a Secure Privileged core. One address, read from two places: core 0 Secure and privileged,
-  core 1 put into Non-secure state by `ACCESSCTRL.FORCE_CORE_NS`, with I2C1
-  denied to Non-secure. **It passes only when both halves happen** — the Secure
-  read returns a value and the Non-secure read faults — because a read that
-  faults could be a broken core and a read that works says nothing about
-  anybody else.
+  [exp156](./exp156-a-wall-you-can-measure/) is **verified on hardware**, eight
+  flash cycles in; its
+  [handover](./exp156-a-wall-you-can-measure/HANDOVER.md) carries what each round
+  established. One core, one address, **three** reads, with core 0 changing
+  exactly one thing between each pair: Secure with the wall open, Non-secure with
+  the wall open, Non-secure with it shut. The first two return `0x44570140` and
+  the third takes a bus fault, so what refuses it can only be ACCESSCTRL.
+
+  It measures `ACCESSCTRL` writes as needing **`0xACCE` in bits 31:16** — without
+  the key a write raises a bus error, which is what six earlier rounds were
+  looking at — and it prints `LOCK` (`0x00000004`, DMA, set by the bootrom) and
+  `I2C1` at power-on (`0x000000fc`), a value that proves `rp-pac`'s field names
+  are right and its doc comments shifted. `FORCE_CORE_NS` demotes a core that is
+  **already running**, and the core keeps running.
+
+  The middle read is the whole lesson. Without it the experiment reported a wall
+  it had not built: I2C1 denies Non-secure at power-on, so the "deny" write wrote
+  the value already there and the refusal would have happened had the firmware
+  never run. **A boundary you did not build is not a boundary you measured** —
+  open it before you shut it.
 
   It is not the SAU, and the reason is the interrogation this section demanded:
   `embassy-rp` mentions SAU, TrustZone and Non-secure in not one file, while

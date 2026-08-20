@@ -1,8 +1,10 @@
-# exp156 handover — read this before changing anything
+# exp156 handover — what eight rounds established
 
-**Status: unverified, and blocked on a board.** Seven flash cycles have happened,
-each one costing somebody a walk to a bench, and the sequence of findings below
-is worth more than the code. **Do not start by rewriting the firmware.**
+**Status: verified on hardware, 2026-08-20.** Every open question this document
+was written to hand over has been answered, and the answers are below with the
+rounds that produced them. The eighth round also found that the seventh round's
+*result* was right for the wrong reason, which is the part worth reading if you
+read nothing else.
 
 ## Read this first, and it is not a formality
 
@@ -12,14 +14,19 @@ walked to a board. Every round that went well started by **reading** — the HAL
 source, the PAC, this repository's own earlier experiments — and cost nothing.
 
 [`docs/debugging-without-a-board.md`](../../docs/debugging-without-a-board.md)
-is the write-up of that, and its first rule is the one to apply here:
+is the write-up of that, and its first rule still applies to whatever comes
+next:
 
 > **Search prior work before forming a hypothesis. Do not change code first.**
 
+The eighth round obeyed it even with a board attached, and it paid immediately:
+the write-key question was settled by finding `ACCESSCTRL_WRITE_PASSWORD` in
+OpenOCD's RP2350 flash driver before a single byte was flashed.
+
 ## What is known, and how it was established
 
-Each line is a measurement on a real Pico 2, reported by somebody counting
-flashes on an LED, on 2026-08-18 and 2026-08-20.
+Rounds 1 to 7 were reported by somebody counting flashes on an LED, on
+2026-08-18 and 2026-08-20. Round 8 had a board on the same machine as the work.
 
 | # | Symptom | What it established |
 | --- | --- | --- |
@@ -28,64 +35,66 @@ flashes on an LED, on 2026-08-18 and 2026-08-20.
 | 3 | 4 blinks, then dark | step 5 was three operations inside one millisecond; the count could not name which |
 | 4 | ·· ·· ·· pattern | core 0 faulted. The fault handler now drives the LED itself, so *dark* and *died* stopped being the same signal |
 | 5 | 5 flashes | it is the `ACCESSCTRL` write |
-| 6 | **7 flashes** | **reads of `ACCESSCTRL` work; an identity write faults.** Writes are refused whatever the value |
-| 7 | keeps blinking, page will not connect | **unresolved — see below** |
+| 6 | 7 flashes | reads of `ACCESSCTRL` work; an identity write faults |
+| 7 | kept blinking, page would not connect | the firmware was fine; `wall.html` had never been run against a board and none of its patterns matched |
+| 8 | **the whole log** | **the key is `0xACCE`, the wall was already there, and two reads were never enough** |
 
-### The finding that matters
+### The findings
 
-> **`ACCESSCTRL` is readable and refuses every write, including writing back the
-> value just read, from a Secure Privileged core.**
+> **`ACCESSCTRL` writes need `0xACCE` in bits 31:16.** Without it, a write —
+> including writing back the value just read, from a Secure Privileged core —
+> raises a bus error. With it, the same write is accepted and reads back.
 
-The register documents itself as *"writable only from a Secure, Privileged
-processor or debugger"*, which is exactly what core 0 is. `rp-pac` models no
-write key: `Access` is a `u32` with fields only in bits 0..7, so `modify()`
-reads a register whose top half is zero and writes zero back there.
+That also explains rounds 5 and 6 exactly. The block's own documentation for
+`LOCK` says writes it will not accept *raise a bus error* rather than being
+dropped, which is why a missing key looked like a broken register.
 
-The current build tests one hypothesis: a **write key `0xACCE` in bits 31:16**.
-It is a hypothesis and is labelled as one in the source. **Check the RP2350
-datasheet before trusting it** — nothing here has read one.
+> **`ACCESSCTRL.I2C1` is `0x000000fc` at power-on** — `nsu=0 nsp=0 su=1 sp=1
+> core0=1 core1=1 dma=1 dbg=1` — and `LOCK` is `0x00000004`, bit 2, DMA, set by
+> the bootrom before this firmware runs.
 
-## The state nobody has explained yet
+`0xfc` is the register's documented default of *"Secure access from any master"*
+exactly, which settles the question the experiment had been working around:
+**`rp-pac`'s field names and bit positions are correct and its doc comments are
+misattached**, not the other way round.
 
-Round 7, with the keyed write: **the LED keeps blinking and `wall.html` cannot
-connect at all.**
+> **A core demoted by `FORCE_CORE_NS` while it is already running keeps
+> running**, and reads what it is still permitted to read.
 
-That is a state none of the earlier rounds produced, and **it has not been
-diagnosed**. What is not known:
+That is old question 4, answered directly rather than inferred.
 
-- **Slow or fast?** Slow (1 Hz) means no verdict and core 1 is stuck. Fast
-  (5 Hz) means `FAULTED` is set and there *is* a verdict to read. Nobody
-  recorded which, and it changes the diagnosis completely.
-- **Did USB enumerate?** A page that cannot connect and a board that never
-  enumerated look identical from the phone. `inspect.html` or `yi26 state`
-  separates them; the chooser now includes `2e8a:000f` so BOOTSEL is
-  distinguishable, but a board enumerating as `1209:0001` and refusing to be
-  claimed is not.
-- **Stale chooser entries?** `docs/debugging-on-a-phone.md` records one board
-  appearing several times with only one live entry, and nothing in the names
-  saying which.
+> **Clearing NSU and NSP makes that same read fault**, with nothing else in the
+> system changed between the two.
 
-**Establish which of those it is before changing a line.** Three of them need no
-rebuild at all.
+### And the finding that was wrong
 
-## What the next agent has that this session did not
+Round 8's first build reported **VERDICT: the wall is there**, and the verdict
+was worthless as written. `0x000000fc` already has NSU and NSP clear, so
+`before & !0b11` wrote the value that was already in the register. The wall was
+the bootrom's. The firmware had denied nothing and taken credit for the refusal.
 
-**A board on the same machine.** That changes the economics completely: the
-whole reason this experiment grew an elaborate LED protocol is that each
-observation cost a human walk. With a board attached:
+The firmware's own log said so — `it did not change. The write was accepted and
+ignored, which is not a wall` — and the verdict line above it disagreed. **When
+two lines of your own output disagree, the one reporting a measurement wins.**
 
-- `yi26 log --json --seconds 20` gives the whole log, including the two values
-  round 5 and 6 produced and nobody has yet read: **`LOCK` and the power-on
-  value of `ACCESSCTRL.I2C1`**.
-- Those two values settle a question this experiment has been working around
-  since it was written: `rp-pac`'s doc comments for `Access` are **shifted by
-  one field** — `su` carries NSP's sentence, `core1` carries CORE0's. Either the
-  names are right and the docs misattached, or the docs are right and the fields
-  misnamed. **A power-on value distinguishes them**, and every bit written so
-  far was written without that being settled.
-- `./check.sh` runs the board-dependent half.
-- The twenty-second wait before the first write exists only so a human could
-  open a page in time. **Delete it** once a log can be read directly.
+The fix is a third read, in the middle: open the wall, take a Non-secure read
+that *works*, then shut it. See the README.
+
+## What was fixed in round 8, beyond the firmware
+
+- **`usb-log` drops findings, silently.** The outgoing queue is sixteen lines
+  deep, drops the newest when full, and nothing drains it until a host asserts
+  DTR. A reader who arrived eight seconds late lost the three lines the run
+  existed to produce. Fixed here by logging the heartbeat every tenth beat and
+  by **putting every finding in the block that repeats every ten seconds**. The
+  underlying crate behaviour is unchanged and will bite the next experiment that
+  logs a fact once.
+- **Log lines are truncated at 96 bytes**, prefix included, and the VERDICT line
+  was over it — so the headline finding was cut off mid-sentence in every
+  capture. Every line in this firmware is now inside the budget.
+- **`wall.html` had never been run against a board.** All of its patterns were
+  written from what the log was expected to say and none of them matched. They
+  are now checked against a real capture.
 
 ## Do not undo these, they were each paid for
 
@@ -102,31 +111,23 @@ observation cost a human walk. With a board attached:
    software undo. Reading it is fine and the guard was narrowed to allow that.
 6. **The fault handler blinks the rung number**, and checks `CPUID` so only
    core 0's death is announced — core 1 faulting is the thing being attempted.
+7. **Both controls are asserted separately, and they must agree.** `check.sh`
+   fails if read 1 or read 2 is missing, and fails if they returned different
+   values. A check that can only see its controls when the experiment passes is
+   the defect [exp140](../exp140-a-checksum-that-passes/) is named after, and
+   the firmware prints all three reads on every branch so that this one can.
 
-## Open questions, in the order worth asking
+## What is left
 
-1. **Is `0xACCE` the key?** Datasheet first. If not, what is refusing the write?
-2. **What are `LOCK` and `I2C1`'s power-on values?** Already produced by the
-   firmware; nobody has read them.
-3. **Does the PAC's field naming match the silicon?** Answered by (2).
-4. **Can a core already executing be demoted by `FORCE_CORE_NS`?** Once core 1
-   is Non-secure every instruction fetch is a Non-secure access, including the
-   fetch of its own fault handler. A core that cannot execute anything is a
-   different outcome from a core refused one address, and only the flash count
-   separates them.
-5. **Is ACCESSCTRL even the right wall for the signing road?** It gates bus
-   requests; the SAU partitions the address space. This experiment chose
-   ACCESSCTRL because `embassy-rp` has no SAU support and because it puts the
-   fault on a core that is not holding USB. If ACCESSCTRL turns out to be
-   unwritable for a reason that does not go away, that choice is worth
-   revisiting rather than forcing.
-
-## What this experiment still has to prove
-
-Unchanged since it was written, and none of the seven rounds has reached it:
-
-> **This address is readable from one place and not from another, and both
-> halves were watched.**
-
-A read that faults could be a broken core. A read that works says nothing about
-anybody else. **Only both, on the same address, in the same run.**
+- **What kind of fault it is.** The handler catches HardFault and never reads
+  `CFSR`, so *BusFault escalated* versus anything else is still unmeasured.
+- **Reads only.** Nothing here tries a Non-secure write, a DMA transfer, or the
+  debugger against the same wall.
+- **Nothing is locked.** `LOCK` is deliberately never written, so every
+  configuration this experiment makes is one power cycle from ordinary. An
+  experiment that wants a wall to survive its own firmware has to face that
+  register, and it cannot be undone by software.
+- **There is still no key and no cryptography.** I2C1's hardware ID register is
+  not a secret. What was shown is that an address can be made unreachable from
+  one core — not that something valuable kept behind it would be safe. That is
+  the next experiment.

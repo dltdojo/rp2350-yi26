@@ -15,12 +15,18 @@ half, and does it with a value nobody would want.
 
 ## The claim, and it is deliberately small
 
-> **This address is readable from one place and not from another, and both
-> halves were watched.**
+> **This firmware made an address unreadable from a place it had just been read
+> from, and every step of that was watched.**
 
-The control is not decoration. A read that faults could be a broken core; a read
-that works says nothing about anybody else. **The experiment passes only when
-both happen**, which is the difference between a boundary and one failed access.
+The controls are not decoration. A read that faults could be a broken core. A
+read that works from somewhere else says nothing about anybody. And a read that
+faults at an address which was *already* denied says nothing about the firmware
+that claims to have denied it.
+
+So the experiment passes only when **three** reads land, taken by one core at one
+address, with core 0 changing exactly one thing between each pair. It took eight
+rounds to arrive at that number, and the first version to run on hardware got a
+true result for a wrong reason — the story is below, in the order it happened.
 
 ## How the wall is built, and why not the way the road said
 
@@ -44,14 +50,20 @@ Three reasons, because the choice is not obvious:
    is still talking**.
 
 ```text
-  core 0  Secure, privileged        core 1  Non-secure (FORCE_CORE_NS)
-  -----------------------------     -----------------------------------
+  core 0  Secure, privileged           core 1  the core being measured
+  ---------------------------------    ------------------------------------
   owns USB, prints everything
-  denies I2C1 to Non-secure   --->
-  reads I2C1                        reads I2C1
-    -> a value                        -> BusFault -> HardFault
-  reports both                      handler records it and parks
+                                       read 1  Secure,     open -> a value
+  opens I2C1 to Non-secure    ---->
+  FORCE_CORE_NS.CORE1         ---->
+                                       read 2  Non-secure, open -> a value
+  shuts I2C1 to Non-secure    ---->
+                                       read 3  Non-secure, SHUT -> BusFault
+  reports all three                    handler records it and parks
 ```
+
+**One core, one address, one thing changed at a time.** Read 1 to read 2 changes
+only the security state. Read 2 to read 3 changes only the ACCESSCTRL bits.
 
 The peripheral is **I2C1**, chosen because nothing in this firmware uses it.
 Denying Non-secure access to SRAM or XIP would take core 1's own stack and code
@@ -60,10 +72,18 @@ log.
 
 ## How to see the result
 
+```sh
+yi26 log --json --seconds 20      # the whole thing, from a terminal
+./check.sh                        # exit 0, and it prints the verdict
+```
+
 **[`wall.html`](./wall.html)** — Chrome or Edge, press Connect, pick the board.
-On Android: Files app → *Open with* → Chrome. It shows the two reads side by
-side and will only say *the wall is there* when both arrived and disagreed in
-the right direction.
+On Android: Files app → *Open with* → Chrome. It shows all three reads side by
+side and will only say *the wall is there* when **both controls** arrived and
+the third read was refused.
+
+The summary repeats every ten seconds and carries every value the run
+established, so arriving late costs you the narrative and none of the findings.
 
 The LED is the fallback when no page is open: **slow** while waiting for a
 verdict, **fast** once there is one. It is not the result.
@@ -198,13 +218,18 @@ the number it flashes is the step that did not come back:
 | 1 | taking I2C1 out of reset |
 | 2 | core 0's baseline read |
 | 3 | `spawn_core1` |
-| 4 | checking core 1's first read |
+| 4 | checking core 1's Secure read |
 | 5 | **reading** `ACCESSCTRL.LOCK` |
 | 6 | **reading** `ACCESSCTRL.I2C1` |
 | 7 | writing I2C1 back **unchanged** |
-| 8 | writing it with NSU/NSP cleared — the wall |
+| 8 | **opening** the wall — NSU/NSP set |
 | 9 | `FORCE_CORE_NS.CORE1` |
-| 10 | releasing core 1 |
+| 10 | releasing core 1 for read two |
+| 11 | **shutting** the wall — NSU/NSP cleared |
+| 12 | releasing core 1 for read three |
+
+(Rungs 8 to 12 are the eighth round's shape; before it, rung 8 was the only
+write and there was no read two. The table is what the handler blinks today.)
 
 **A pattern that means "died" is worth much less than one that means "died
 here".** The first version of this handler was the former, and it cost a round
@@ -280,12 +305,18 @@ before it, where the board could only say that something, somewhere, had gone.
 ### Twenty seconds to read what already worked
 
 Rungs five and six produce the two values this run was for, and rung seven is
-the thing that killed the last one. So there is a **twenty-second wait between
+the thing that killed the last one. So there was a **twenty-second wait between
 them**: time to open the page and read `LOCK` and the power-on `I2C1` before
 anything risks the log again.
 
 Capturing what already succeeded costs twenty seconds. Losing it costs a flash
 cycle, and somebody's walk to a bench.
+
+**The wait is gone now**, and what replaced it is better than either. A board on
+the machine makes `yi26 log` instant, so nobody has to be given time to open a
+page — and the values are reprinted in the block that repeats every ten seconds,
+so they cannot be missed by arriving late. A pause that protects a finding is a
+worse instrument than a finding that repeats.
 
 ### What the rebuild buys, whatever happens
 
@@ -312,52 +343,263 @@ simply succeeds — and the log says that this build cannot tell that apart from
 ACCESSCTRL failing to refuse, which is two findings in one outcome and worth
 admitting rather than papering over.
 
-## Handed over, unverified
+That was the last build written without a board, and it is the one that ran.
+Two reads were not enough, for a reason nothing above had spotted — everything
+from here is what the bench said.
 
-Seven flash cycles, each costing somebody a walk to a bench, and this is
-blocked on a board rather than on an idea.
-**[`HANDOVER.md`](./HANDOVER.md)** is what the next person needs: what each
-round established, the one finding that is solid, the state nobody has explained
-yet, and the six decisions that were paid for and should not be undone.
+### Eighth round: a board on the same machine, and the key was real
 
-The method those rounds produced is written up separately, because it outlived
-this experiment: [`docs/debugging-without-a-board.md`](../../docs/debugging-without-a-board.md).
+2026-08-20, and this is the round where the economics changed. The board is
+attached to the machine doing the work, so an observation costs a second instead
+of somebody's walk to a bench. The first thing that bought was not a fix — it
+was **reading the log that six rounds had been unable to read**.
+
+`0xACCE` in bits 31:16 is the key. Step seven — the identity write that faulted
+in round six — is accepted, and the register reads back what was written. The
+hypothesis held, and the mechanism it implies is exactly what `rp-pac`'s own
+prose for `LOCK` says about this block: writes it will not accept **raise a bus
+error** rather than being quietly dropped. That is why a missing key looked like
+a broken register instead of a no-op, and it is the whole of rounds five and six.
+
+Everything the earlier rounds had produced and nobody had read:
+
+```text
+ACCESSCTRL.LOCK          0x00000004   bit 2, DMA — the bootrom set it, not us
+ACCESSCTRL.I2C1          0x000000fc   nsu=0 nsp=0 su=1 sp=1 core0=1 core1=1 dma=1 dbg=1
+I2C1 hardware ID         0x44570140   what an unrestricted read returns
+```
+
+`0x000000fc` settles the question this experiment had been working around since
+it was written. `rp-pac`'s doc comments for `Access` are shifted by one field —
+`su` carries NSP's sentence, `core1` carries CORE0's — so either the names were
+wrong or the prose was. The register documents its default as *"Secure access
+from any master"*, and `nsu=0 nsp=0 su=1 sp=1 core0=1 core1=1 dma=1 dbg=1` is
+that default exactly. **The names and bit positions are right; the doc comments
+are misattached.** Every bit this experiment had written before that was written
+without knowing which.
+
+### And the wall was already there
+
+`0x000000fc` has NSU and NSP **clear**. The write this experiment called "the
+wall" was `before & !0b11` — and the firmware said so itself, in the line it had
+been carrying for two rounds against exactly this possibility:
+
+```text
+step 5d ok: I2C1 access is now 0x000000fc (was 0x000000fc).
+  it did not change. The write was accepted and ignored, which is not a wall.
+```
+
+Then core 1 was demoted, read the address, and took a bus fault — and the build
+printed **VERDICT: the wall is there**.
+
+It was not wrong about the fault. It was wrong about whose wall it was. I2C1
+denies Non-secure access at power-on, before this firmware runs at all; the
+refusal would have happened had the experiment never been written. What the run
+demonstrated was that the *bootrom's* configuration works.
+
+> **A boundary you did not build is not a boundary you measured.** This is the
+> defect the whole signing road was filed against, arriving from a direction
+> nobody was watching. The prior work this experiment exists to correct claimed
+> a key was protected by pointing at a function it had never gated. This build
+> claimed a wall by pointing at one it had never raised.
+
+And there was a second flaw underneath, which the first would have hidden
+forever: reads 1 and 3 differ in **two** things at once — the security state and
+(nominally) the ACCESSCTRL bits. So *ACCESSCTRL refused the read* and *a core
+demoted while it was running cannot execute at all* produce the identical
+outcome. That is [open question 4 of the handover](./HANDOVER.md), and the build
+that was supposed to answer it could not.
+
+### The fix is a third read, and it goes in the middle
+
+One core, one address, three reads, and core 0 changes exactly one thing between
+each pair:
+
+| | state | wall | expected |
+| --- | --- | --- | --- |
+| read 1 | Secure | open | works — is this core alive at all? |
+| read 2 | **Non-secure** | open | works — can a demoted core still read? |
+| read 3 | Non-secure | **shut** | faults — and only ACCESSCTRL changed |
+
+Read 2 is the one that was missing, and it does two jobs. It makes the firmware
+**open** the wall before shutting it, so the value that refuses read 3 is one
+this experiment wrote. And it answers the demotion question directly: a core
+demoted by `FORCE_CORE_NS` while it is already running **still executes and
+still reads** — `0x44570140`, the same value it read while Secure.
+
+Read 3 is last because a faulted core 1 parks in the handler forever, so
+anything after it would never happen.
+
+That is the whole result:
+
+```text
+  read 1  Secure,     wall open: 0x44570140
+  read 2  Non-secure, wall open: 0x44570140
+  read 3  Non-secure, wall shut: bus fault at pc 0x1000088a
+```
+
+### The instrument ate the finding
+
+The first successful run lost three lines, silently, and they were the three the
+run existed to produce: the power-on value of `ACCESSCTRL.I2C1` and its bit
+breakdown. They came back only when the log was read from the moment of boot.
+
+`usb-log`'s outgoing queue is **sixteen lines deep**, it drops the newest when
+full, and **nothing drains it until a host asserts DTR**. This firmware logged a
+heartbeat every second and announced twelve ladder steps in six, so the queue
+was full before anybody could open the port. Six rounds of building an
+instrument that could survive a dead core, and it was defeated by a reader who
+arrived eight seconds late.
+
+Two fixes, and the second is the general one:
+
+- the heartbeat logs every tenth beat, not every beat;
+- **every finding is in the block that repeats.** `LOCK`, the power-on value,
+  the opened and shut values, and all three reads are reprinted every ten
+  seconds. Only the narrative is allowed to scroll away.
+
+AGENTS.md already lists *the fact printed once that nobody sees* among the
+mistakes this repository has paid for. It was paid for again here, by the
+experiment whose entire subject is being able to see what a board did.
+
+### The page had never been run against a board
+
+`wall.html` looked for `core 0 (Secure) read` and `core 1 (Non-secure) faulted
+at pc`. **No build of this firmware has ever printed either string.** Every one
+of the page's patterns was written from what the log was expected to say, and
+the page would have sat on *waiting* forever — indistinguishable, on a phone,
+from a board that never spoke.
+
+It now matches a real capture, and the patterns are checked against one rather
+than against the source they were written from.
+
+## The eight rounds, and what each one cost
+
+**[`HANDOVER.md`](./HANDOVER.md)** is the record: what each round established,
+which open questions the eighth round closed, and the decisions that were paid
+for and should not be undone.
+
+Seven of those rounds happened with no board on the machine, and the method they
+produced is written up separately because it outlived this experiment:
+[`docs/debugging-without-a-board.md`](../../docs/debugging-without-a-board.md).
+The eighth had a board attached and took under an hour. That gap is the
+argument for the document.
 
 ## Expected output
 
-**Not captured yet — this experiment has not run on a board.**
+Pasted from a real run, `yi26 log --seconds 24` opened as the board came back
+from a reflash. Pico 2, Ubuntu, 2026-08-20.
 
-The [rule](../README.md#nothing-is-pushed-unverified) is that this section is a
-paste of a real run, never written from what the code should do. The build half
-is verified: it compiles, converts to a 45,056-byte UF2, and the family ID is
-`e48bff59`.
+```console
+$ yi26 log --seconds 24
+[      37 ms] exp156 up. No cryptography here, only whether an address refuses.
+[    3037 ms] step 1: taking I2C1 out of reset. One still in reset faults when read.
+[    3037 ms] step 1 ok.
+[    3037 ms] step 2: reading I2C1 from core 0, while no wall exists yet.
+[    3037 ms] step 2 ok: 0x44570140. What an unrestricted read looks like.
+[    3037 ms] step 3: launching core 1, still Secure.
+[    3037 ms] step 3 ok: spawn_core1 returned; core 1 answered its handshake.
+[    4037 ms] step 4 ok: core 1 read 0x44570140 while Secure. Same core, no wall yet.
+[    4037 ms] step 5: reading accessctrl.LOCK — is this block readable at all?
+[    4537 ms] step 5 ok: LOCK = 0x00000004. Bit 2 is DMA, set by the bootrom.
+[    4537 ms] step 6: reading accessctrl.I2C1 — its power-on value.
+[    5037 ms] step 6 ok: I2C1 access = 0x000000fc at power-on.
+[    5037 ms]   bits: nsu=0 nsp=0 su=1 sp=1 core0=1 core1=1 dma=1 dbg=1
+[    5037 ms]   Non-secure is ALREADY denied. We must OPEN the wall to prove we shut it.
+[    5037 ms] step 7: identity write, with 0xacce0000 in the top half.
+[    5537 ms] step 7 ok: a keyed write is accepted. Without the key it faulted.
+[    5538 ms] step 8: OPENING the wall - setting NSU and NSP, so Non-secure may read.
+[    6038 ms] step 8 ok: I2C1 access = 0x000000ff (was 0x000000fc).
+[    6038 ms] step 9: FORCE_CORE_NS.CORE1 - demoting a core that is already running.
+[    6538 ms] step 9 ok.
+[    6538 ms] step 10: read two - Non-secure, wall OPEN. This one must work.
+[    7538 ms] step 10 ok: read two = 0x44570140. A demoted core still executes and reads.
+[    7538 ms] step 11: SHUTTING the wall - clearing NSU and NSP. Nothing else changes.
+[    8038 ms] step 11 ok: I2C1 access = 0x000000fc (was 0x000000ff).
+[    8038 ms] step 12: read three - Non-secure, wall SHUT. This one must fault.
+[    9538 ms]   LOCK = 0x00000004, I2C1 at power-on = 0x000000fc
+[    9538 ms]   I2C1 opened to 0x000000ff, then shut to 0x000000fc
+[    9538 ms]   read 1  Secure,     wall open: 0x44570140
+[    9538 ms]   read 2  Non-secure, wall open: 0x44570140
+[    9538 ms]   read 3  Non-secure, wall shut: bus fault at pc 0x1000088a
+[    9538 ms] VERDICT: the wall is there. Only ACCESSCTRL changed between reads 2 and 3.
+[   19538 ms]   LOCK = 0x00000004, I2C1 at power-on = 0x000000fc
+[   19538 ms]   I2C1 opened to 0x000000ff, then shut to 0x000000fc
+[   19538 ms]   read 1  Secure,     wall open: 0x44570140
+[   19538 ms]   read 2  Non-secure, wall open: 0x44570140
+[   19538 ms]   read 3  Non-secure, wall shut: bus fault at pc 0x1000088a
+[   19538 ms] VERDICT: the wall is there. Only ACCESSCTRL changed between reads 2 and 3.
+```
 
-## What is not verified here
+`./check.sh` on the same board:
 
-- **Everything the board does.** No run, no capture, no verdict.
-- **Whether `spawn_core1` and `FORCE_CORE_NS` compose.** Core 1 is launched
-  through the ROM's protocol and then expected to be Non-secure. If the launch
-  itself needs Secure access to something now denied it, core 1 dies before
-  reaching the read — which is why it records a step number before each move
-  and why `verdict_task` reports *which* step it stopped at rather than only
-  whether it faulted.
-- **Whether the fault arrives as a HardFault at all.** A Non-secure access to a
-  denied peripheral could surface as a BusFault escalated to HardFault, and the
-  handler here catches HardFault. If a run reports no fault and no value, that
-  is the first thing to look at.
+```console
+PASS  toolchain present (cargo, elf2flash)
+PASS  firmware compiles (152420 byte ELF)
+PASS  converts to UF2 (52736 bytes)
+PASS  UF2 family ID is e48bff59 (rp2350-arm-s)
+PASS  the firmware never writes ACCESSCTRL.LOCK
+PASS  the target address comes from the PAC
+PASS  the target peripheral is taken out of reset before it is read
+PASS  every ACCESSCTRL write goes through the keyed helper
+PASS  nothing that can hang runs before USB
+PASS  board enumerated as 1209:0001
+PASS  control 1 ran —  Secure,     wall open: 0x44570140
+PASS  control 2 ran —  Non-secure, wall open: 0x44570140
+PASS  both controls read the same value (0x44570140)
+PASS  a verdict was reached
+      VERDICT: the wall is there. Only ACCESSCTRL changed between reads 2 and 3.
+```
+
+## What is verified, and what is not
+
+Verified on one Pico 2, on Ubuntu, and nowhere else:
+
+- **`ACCESSCTRL` writes need `0xACCE` in bits 31:16.** Without it a write faults;
+  with it the same write is accepted and reads back.
+- **`ACCESSCTRL.I2C1` is `0x000000fc` at power-on**, and `LOCK` is `0x00000004`.
+  The PAC's field names and positions are right; its doc comments are shifted.
+- **A core demoted by `FORCE_CORE_NS` while it is already running keeps
+  running**, and reads what it is permitted to read.
+- **Clearing NSU and NSP makes that same read fault**, with nothing else in the
+  system changed.
+
+Not verified, and worth saying:
+
+- **Whether the fault is a BusFault escalated to HardFault, or something else.**
+  The handler catches HardFault and the fault arrives there, which is all this
+  build knows. It has never read `CFSR` to find out what kind it was.
+- **That the wall holds against anything but a read.** Nothing here tries a
+  write from Non-secure, a DMA transfer, or the debugger.
+- **That any of this survives `LOCK`.** This experiment deliberately never
+  writes it, so every configuration here is one power cycle from ordinary.
+- **Anything about a key.** There is still no cryptography in this experiment,
+  and I2C1's hardware ID register is not a secret. What has been shown is that
+  an address can be made unreachable from one core, not that a key kept behind
+  it would be safe.
 
 ## The ideas to take away
 
-1. **A boundary is two measurements.** The half everybody publishes is the one
-   that refuses. The half that makes it mean something is the one that works,
-   from the other side, on the same address in the same run.
+1. **A boundary is three measurements, not two.** Two is the version everybody
+   publishes: it works here, it refuses there. But those two differ in more than
+   one thing, and the reader cannot see which one did it. The third measurement
+   is the one that changes *only the thing under test* — here, the same core in
+   the same security state reading the same address with only the ACCESSCTRL
+   bits different between them.
 
-2. **Put the fault where it can be reported.** A single-core version of this
+2. **A boundary you did not build is not a boundary you measured.** This
+   experiment denied Non-secure access to a peripheral that already denied it,
+   watched a Non-secure read fault, and reported a wall. Everything it printed
+   was true. The conclusion was still somebody else's. **Open it before you shut
+   it** — a control that costs one register write is the difference between
+   measuring a mechanism and photographing a default.
+
+3. **Put the fault where it can be reported.** A single-core version of this
    experiment goes silent at exactly the moment it succeeds. Choosing the
    mechanism that faults on a core which is not holding the USB stack is a
    design decision worth more than the code it saved.
 
-3. **The chip's own gate came before the architecture's.** The obvious route was
+4. **The chip's own gate came before the architecture's.** The obvious route was
    the SAU, because that is what TrustZone articles describe. Asking what this
    part actually offers found ACCESSCTRL, which is more specific, already
    modelled by the PAC, and answers the question with less hand-written

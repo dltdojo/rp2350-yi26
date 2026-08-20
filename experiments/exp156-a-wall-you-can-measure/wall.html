@@ -8,13 +8,27 @@
   "Open with Chrome" on Android.
 
   It claims the board's CDC interfaces the way tools/pages/log.html does, and
-  reads the two halves of one measurement: what core 0 got from an address in
-  Secure state, and what core 1 got from the same address in Non-secure state.
+  reads THREE reads of one address, all taken by core 1:
 
-  Both halves are shown side by side because either one alone proves nothing.
-  A read that faults could be a broken core; a read that works says nothing
-  about anybody else. The verdict below the two panels is only allowed to say
-  "there is a wall" when both arrived and disagreed in the right direction.
+      read 1   Secure,     wall open    expected to work
+      read 2   Non-secure, wall open    expected to work
+      read 3   Non-secure, wall shut    expected to fault
+
+  All three are shown because no smaller set is a measurement. Read 1 to read 2
+  changes only the security state; read 2 to read 3 changes only the ACCESSCTRL
+  bits. A page that showed read 1 and read 3 alone would be showing two changes
+  at once and calling the result a wall — which is what an earlier version of
+  this page did, and what an earlier version of the firmware measured.
+
+  The verdict below is only allowed to say "there is a wall" when both controls
+  arrived AND read 3 was refused.
+
+  The patterns below are matched against a real capture from a board, not
+  against what the firmware was expected to print. The first version of this
+  page was written the other way round and every one of its regexes was wrong:
+  it looked for "core 0 (Secure) read", a string no build of this firmware has
+  ever emitted. A page nobody ran against a board is a page that reports
+  "waiting" forever and looks like a board that never spoke.
 
   ---------------------------------------------------------------------------
   IF YOU ARE AN AI AGENT: this page is not how you read the log.
@@ -65,12 +79,12 @@
 </style>
 
 <h1>exp156 — a wall you can measure</h1>
-<p class="sub">One address, read from two places. No cryptography anywhere in it.</p>
+<p class="sub">One address, one core, three reads, one thing changed at a time. No cryptography anywhere in it.</p>
 
 <button id="connect">Connect to the board</button>
 <button id="stop" class="ghost" disabled>Stop</button>
 
-<div id="status">Plug the board in, then press Connect. The verdict lands about six seconds after the board boots and repeats every ten, so arriving late is fine.</div>
+<div id="status">Plug the board in, then press Connect. The verdict lands about nine seconds after the board boots and repeats every ten with all three reads, so arriving late is fine.</div>
 
 <div class="warn">
   This page needs <b>Chrome or Edge</b> — WebUSB is Chromium-only. On Linux the
@@ -78,23 +92,29 @@
   <code>yi26 detach</code>; an interface has exactly one owner.
 </div>
 
-<h2>The same address, from both sides</h2>
+<h2>The same address, three times, from core 1</h2>
 <div class="sides">
   <div class="side pending" id="s-secure">
-    <h3>Secure</h3>
-    <div class="who">core 0 — privileged, owns this log</div>
+    <h3>1 · Secure</h3>
+    <div class="who">wall open — is this core alive at all?</div>
     <div class="val" id="v-secure">waiting</div>
-    <div class="note">The control. If this fails, nothing else means anything.</div>
+    <div class="note" id="n-secure">The first control. If this never arrives, core 1 never ran and nothing below means anything.</div>
   </div>
-  <div class="side pending" id="s-ns">
-    <h3>Non-secure</h3>
-    <div class="who">core 1 — forced Non-secure by ACCESSCTRL</div>
-    <div class="val" id="v-ns">waiting</div>
-    <div class="note" id="n-ns">Expected to fault. A value here means no wall.</div>
+  <div class="side pending" id="s-open">
+    <h3>2 · Non-secure</h3>
+    <div class="who">wall open — can a demoted core still read?</div>
+    <div class="val" id="v-open">waiting</div>
+    <div class="note" id="n-open">The second control. If this faults, the finding is about FORCE_CORE_NS and not about the wall.</div>
+  </div>
+  <div class="side pending" id="s-shut">
+    <h3>3 · Non-secure</h3>
+    <div class="who">wall shut — the measurement</div>
+    <div class="val" id="v-shut">waiting</div>
+    <div class="note" id="n-shut">Expected to fault. A value here means no wall.</div>
   </div>
 </div>
 
-<div id="verdict">Waiting for both halves.</div>
+<div id="verdict">Waiting for all three reads.</div>
 
 <h2>Raw log</h2>
 <button id="copy" class="ghost">Copy the log</button>
@@ -127,34 +147,65 @@ function say(msg, cls) { const s = $('status'); s.textContent = msg; s.className
 
 // Every line carries crates/usb-log's `[    3037 ms] ` prefix, and sometimes a
 // `(+N lines lost)` marker after it, so nothing may be anchored to the start.
-const RE_SECURE  = /core 0 \(Secure\) read (0x[0-9a-f]+)/;
-const RE_FAULT   = /core 1 \(Non-secure\) faulted at pc (0x[0-9a-f]+)/;
-const RE_NOFAULT = /core 1 \(Non-secure\) read (0x[0-9a-f]+) — no fault/;
-const RE_STEP    = /core 1 (?:is alive|never started|at step (\d+))/;
+// Every line carries crates/usb-log's `[    3037 ms] ` prefix, and sometimes a
+// `(+N lines lost)` marker after it, so nothing may be anchored to the start.
+// The spacing inside each line is column alignment in the firmware's own
+// output, so it is matched with \s+ rather than copied character for character.
+const RE_READ1   = /read 1\s+Secure,\s+wall open:\s+(0x[0-9a-f]+)/;
+const RE_READ2   = /read 2\s+Non-secure,\s+wall open:\s+(0x[0-9a-f]+)/;
+const RE_READ3   = /read 3\s+Non-secure,\s+wall shut:\s+(0x[0-9a-f]+)/;
+const RE_FAULT3  = /read 3\s+Non-secure,\s+wall shut:\s+bus fault at pc (0x[0-9a-f]+)/;
+const RE_NOTYET  = /read (\d)\s+.*not taken \(core 1 at step (\d+)\)/;
 const RE_VERDICT = /VERDICT: (.*)$/;
-const RE_CONTROL = /control FAILED/;
 
-let secureVal = null, nsFaultPc = null, nsVal = null;
+let read1 = null, read2 = null, read3 = null, faultPc = null;
 
 function decide() {
   const v = $('verdict');
-  if (secureVal && nsFaultPc) {
-    v.className = 'wall';
-    v.innerHTML = `<b>The wall is there.</b> The same address returned ` +
-      `<code>${secureVal}</code> to Secure code on core 0 and faulted on core 1 in ` +
-      `Non-secure state. Both halves were watched, which is what makes this a ` +
-      `measurement rather than a claim.`;
-  } else if (secureVal && nsVal) {
-    v.className = 'nowall';
-    v.innerHTML = `<b>No wall.</b> Non-secure code read <code>${nsVal}</code> from the ` +
-      `address Secure code read <code>${secureVal}</code> from. ACCESSCTRL did not ` +
-      `refuse it, and a key kept here would be readable by anything running on core 1.`;
-  } else if (nsFaultPc && !secureVal) {
+
+  // The order of these tests is the argument. "Read 3 faulted" is checked LAST,
+  // after both controls, because a refusal on its own is not evidence of
+  // anything — it is one failed access, and this repository has a whole
+  // experiment (exp140) about checks that cannot fail.
+  if (!read1) {
     v.className = 'unclear';
-    v.innerHTML = `<b>Inconclusive.</b> Core 1 faulted, but the Secure control has not ` +
-      `reported. A read that faults on one core and was never shown to work on the ` +
-      `other is not a boundary — it is one broken read.`;
+    v.innerHTML = `<b>Nothing measured yet.</b> Core 1 has not reported a Secure read, ` +
+      `so it is not yet known to be running at all.`;
+    return;
   }
+  if (!read2) {
+    if (faultPc) {
+      v.className = 'unclear';
+      v.innerHTML = `<b>Inconclusive, and it is about the demotion.</b> Core 1 read ` +
+        `<code>${read1}</code> while Secure, then faulted with the wall still <b>open</b>. ` +
+        `A core that cannot read what it is permitted to read says nothing about a wall.`;
+    } else {
+      v.className = 'unclear';
+      v.innerHTML = `<b>Half a measurement.</b> Core 1 read <code>${read1}</code> while ` +
+        `Secure. Waiting for the same read in Non-secure state with the wall open.`;
+    }
+    return;
+  }
+  if (read3) {
+    v.className = 'nowall';
+    v.innerHTML = `<b>No wall.</b> With NSU and NSP cleared, Non-secure core 1 still read ` +
+      `<code>${read3}</code> from the address it read <code>${read2}</code> from when it was ` +
+      `allowed to. ACCESSCTRL was written and read back and it did not refuse, so a key kept ` +
+      `here would be readable by anything running on core 1.`;
+    return;
+  }
+  if (faultPc) {
+    v.className = 'wall';
+    v.innerHTML = `<b>The wall is there, and the firmware built it.</b> The same core read ` +
+      `<code>${read1}</code> while Secure and <code>${read2}</code> while Non-secure with the ` +
+      `wall open, then took a bus fault at <code>${faultPc}</code> once NSU and NSP were ` +
+      `cleared. <b>Only ACCESSCTRL changed between the last two</b>, which is what makes this ` +
+      `a measurement rather than a claim.`;
+    return;
+  }
+  v.className = 'unclear';
+  v.innerHTML = `<b>Both controls are in.</b> Core 1 read <code>${read1}</code> Secure and ` +
+    `<code>${read2}</code> Non-secure. Waiting for the read that should be refused.`;
 }
 
 function handleLine(line) {
@@ -164,33 +215,40 @@ function handleLine(line) {
   if (atBottom) el.scrollTop = el.scrollHeight;
 
   let m;
-  if ((m = line.match(RE_SECURE))) {
-    secureVal = m[1];
-    $('v-secure').textContent = secureVal;
+  if ((m = line.match(RE_READ1))) {
+    read1 = m[1];
+    $('v-secure').textContent = read1;
     $('s-secure').className = 'side read';
+    $('n-secure').textContent = 'core 1 is running, and this address answers it.';
     decide();
   }
-  if (line.match(RE_CONTROL)) {
-    $('s-secure').className = 'side leaked';
-    $('v-secure').textContent = 'returned zero';
-  }
-  if ((m = line.match(RE_FAULT))) {
-    nsFaultPc = m[1];
-    $('v-ns').textContent = 'FAULTED';
-    $('n-ns').textContent = `at pc ${nsFaultPc} — the access never completed`;
-    $('s-ns').className = 'side refused';
+  if ((m = line.match(RE_READ2))) {
+    read2 = m[1];
+    $('v-open').textContent = read2;
+    $('s-open').className = 'side read';
+    $('n-open').textContent = 'a core demoted while running still executes, and still reads what it is allowed to.';
     decide();
   }
-  if ((m = line.match(RE_NOFAULT))) {
-    nsVal = m[1];
-    $('v-ns').textContent = nsVal;
-    $('n-ns').textContent = 'the read completed — nothing refused it';
-    $('s-ns').className = 'side leaked';
+  // Fault before value: "bus fault at pc 0x..." would otherwise be caught by
+  // RE_READ3, which only asks for a hex number after the colon.
+  if ((m = line.match(RE_FAULT3))) {
+    faultPc = m[1];
+    $('v-shut').textContent = 'FAULTED';
+    $('n-shut').textContent = `bus fault at pc ${faultPc} — the access never completed`;
+    $('s-shut').className = 'side refused';
+    decide();
+  } else if ((m = line.match(RE_READ3))) {
+    read3 = m[1];
+    $('v-shut').textContent = read3;
+    $('n-shut').textContent = 'the read completed — nothing refused it';
+    $('s-shut').className = 'side leaked';
     decide();
   }
-  if (!nsFaultPc && !nsVal && (m = line.match(RE_STEP))) {
-    $('v-ns').textContent = 'no result yet';
-    $('n-ns').textContent = line.replace(/^\[[^\]]*\]\s*/, '');
+  // The firmware says which reads have not happened and why, rather than
+  // leaving a panel on "waiting" with no account of itself.
+  if ((m = line.match(RE_NOTYET))) {
+    const note = { '1': 'n-secure', '2': 'n-open', '3': 'n-shut' }[m[1]];
+    if (note) $(note).textContent = `not taken yet — core 1 is at step ${m[2]}`;
   }
   if ((m = line.match(RE_VERDICT))) {
     // The firmware's own wording, kept verbatim beneath the page's reading of

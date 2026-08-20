@@ -43,25 +43,40 @@
 //! # The shape
 //!
 //! ```text
-//!   core 0  Secure, privileged        core 1  Non-secure (FORCE_CORE_NS)
-//!   -----------------------------     -----------------------------------
+//!   core 0  Secure, privileged           core 1  the core being measured
+//!   ---------------------------------    ------------------------------------
 //!   owns USB, prints everything
-//!   denies I2C1 to Non-secure   --->
-//!   reads I2C1                        reads I2C1
-//!     -> a value                        -> BusFault -> HardFault
-//!   reports both                      handler sets a flag and parks
+//!                                        read 1  Secure,     open -> a value
+//!   opens I2C1 to Non-secure    ---->
+//!   FORCE_CORE_NS.CORE1         ---->
+//!                                        read 2  Non-secure, open -> a value
+//!   shuts I2C1 to Non-secure    ---->
+//!                                        read 3  Non-secure, SHUT -> BusFault
+//!   reports all three                    handler records it and parks
 //! ```
 //!
-//! **The experiment passes only if both halves happen.** A Non-secure read that
-//! faults, on its own, could be a broken core. A Secure read that works, on its
-//! own, proves nothing about anybody else. The control is not decoration here;
-//! it is half the measurement.
+//! **One core, one address, one thing changed at a time.** Read 1 to read 2
+//! changes only the security state, so it says a demoted core still executes.
+//! Read 2 to read 3 changes only the ACCESSCTRL bits, so what refuses read 3
+//! can only be ACCESSCTRL.
+//!
+//! An earlier build took reads 1 and 3 alone and called the difference a wall.
+//! It was wrong twice over. It changed two things at once, so "ACCESSCTRL
+//! refused it" and "a Non-secure core cannot run" were the same outcome. And
+//! `ACCESSCTRL.I2C1` reads `0x0000_00fc` at power-on, which **already** denies
+//! Non-secure — so the firmware's "deny" write changed nothing and the fault
+//! would have happened had this experiment never run. It had photographed a
+//! wall the bootrom left standing and put its own name on it.
+//!
+//! Opening the wall before shutting it is what turned that into a measurement.
 //!
 //! # What it does not touch
 //!
 //! Nothing is locked. `ACCESSCTRL.LOCK` makes a configuration permanent until
 //! reset and this never writes it, so a board that ends up in a state you did
-//! not want is one power cycle from being ordinary again.
+//! not want is one power cycle from being ordinary again. It is *read*, and it
+//! comes back `0x0000_0004` — bit 2, DMA, locked out of ACCESSCTRL by the
+//! bootrom before this firmware ever ran.
 //!
 //! The peripheral is **I2C1**, chosen because nothing in this firmware uses it.
 //! Denying Non-secure access to SRAM or to XIP would take core 1's own stack
@@ -112,18 +127,48 @@ fn target() -> *const u32 {
 /// Not progress for its own sake. Core 1 is about to be denied something on
 /// purpose, and the whole question is *where* it stops — so it says where it
 /// got to before each step rather than after, and core 0 reports the last
-/// number it saw. A run that ends at 2 is a wall; one that ends at 0 is a core
-/// that never started, and those look identical from the outside otherwise.
+/// number it saw. A run that ends at 0 is a core that never started, and that
+/// looked identical to a core that was refused until this counter existed.
+///
+/// Core 1 reads the same address **three** times, and the middle one is why
+/// this build exists. The first run of this experiment on hardware measured a
+/// Secure read that worked and a Non-secure read that faulted, and called that
+/// a wall — but the power-on value of `ACCESSCTRL.I2C1` turned out to be
+/// `0xfc`, which already denied Non-secure. The firmware had written nothing;
+/// it had photographed a wall the bootrom left standing. Worse, one run cannot
+/// tell *ACCESSCTRL refused the read* apart from *a demoted core cannot execute
+/// at all*, and those are different findings.
+///
+/// So the middle read is taken Non-secure with the wall deliberately **open**.
+/// It succeeds or the rest means nothing.
 const STEP_NONE: u32 = 0;
 const STEP_ALIVE: u32 = 1;
-const STEP_FIRST_READ: u32 = 2;
-const STEP_ABOUT_TO_READ: u32 = 3;
-const STEP_READ_RETURNED: u32 = 4;
+const STEP_SECURE_READ: u32 = 2;
+const STEP_ABOUT_TO_READ_OPEN: u32 = 3;
+const STEP_OPEN_READ: u32 = 4;
+const STEP_ABOUT_TO_READ_SHUT: u32 = 5;
+const STEP_SHUT_READ: u32 = 6;
+
+/// What core 0 found in ACCESSCTRL, kept so the repeating summary can say it.
+///
+/// The ladder prints these once, six seconds in. `usb-log`'s outgoing queue is
+/// sixteen lines deep and nothing drains it until a host asserts DTR, so a
+/// reader who plugs in late gets `(+12 lines lost)` and none of them — and the
+/// power-on value of `ACCESSCTRL.I2C1` is not a step, it is a **finding**.
+/// AGENTS.md lists "the fact printed once that nobody sees" among the mistakes
+/// this repository has already paid for. So every finding goes in the block
+/// that repeats, and only the narrative is allowed to scroll away.
+static SAW_LOCK: AtomicU32 = AtomicU32::new(0);
+static SAW_BEFORE: AtomicU32 = AtomicU32::new(0);
+static SAW_OPENED: AtomicU32 = AtomicU32::new(0);
+static SAW_SHUT: AtomicU32 = AtomicU32::new(0);
 
 static CORE1_STEP: AtomicU32 = AtomicU32::new(STEP_NONE);
-static CORE1_FIRST: AtomicU32 = AtomicU32::new(0);
-static CORE1_VALUE: AtomicU32 = AtomicU32::new(0);
-static GO_AHEAD: AtomicBool = AtomicBool::new(false);
+static CORE1_SECURE: AtomicU32 = AtomicU32::new(0);
+static CORE1_OPEN: AtomicU32 = AtomicU32::new(0);
+static CORE1_SHUT: AtomicU32 = AtomicU32::new(0);
+static GO_OPEN: AtomicBool = AtomicBool::new(false);
+static GO_SHUT: AtomicBool = AtomicBool::new(false);
 
 /// Which rung the ladder is on, for the fault handler to blink.
 ///
@@ -190,32 +235,56 @@ unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
 
 /// What core 1 does.
 ///
-/// Two reads of the same address, and core 0 decides what is between them. The
-/// first happens while core 1 is still Secure and is expected to work — it is
-/// how a silent core 1 is told apart from a core 1 that ran and was refused.
-/// Then it waits to be let go, and reads again.
+/// **Three reads of one address**, with core 0 changing exactly one thing
+/// between each pair, and that is the whole design:
+///
+/// ```text
+///   read 1   Secure,     wall open    -> works   is this core alive at all?
+///   read 2   Non-secure, wall open    -> works   can a demoted core execute?
+///   read 3   Non-secure, wall shut    -> faults  ACCESSCTRL, and only ACCESSCTRL
+/// ```
+///
+/// Read 1 to read 2 changes only the *security state*. Read 2 to read 3 changes
+/// only the *ACCESSCTRL bits*. A version with just reads 1 and 3 changes both at
+/// once and cannot say which did it — and that is not a hypothetical: the first
+/// hardware run of this experiment did exactly that, and its "the wall is
+/// there" could equally have meant "a Non-secure core cannot run".
+///
+/// Read 3 is last on purpose. It is the one expected to fault, and a faulted
+/// core 1 parks in the handler forever, so anything after it would never
+/// happen.
 fn core1_main() -> ! {
     CORE1_STEP.store(STEP_ALIVE, Ordering::Relaxed);
 
-    // Read one: still Secure. If this is the last step reported, core 1 is
-    // running and something about the *second* read is the finding. If even
-    // this never lands, core 1 never got going and nothing has been measured.
-    let first = unsafe { core::ptr::read_volatile(target()) };
-    CORE1_FIRST.store(first, Ordering::Relaxed);
-    CORE1_STEP.store(STEP_FIRST_READ, Ordering::Relaxed);
+    // Read one: Secure, nothing denied. If even this never lands, core 1 never
+    // got going and nothing below has been measured.
+    let secure = unsafe { core::ptr::read_volatile(target()) };
+    CORE1_SECURE.store(secure, Ordering::Relaxed);
+    CORE1_STEP.store(STEP_SECURE_READ, Ordering::Relaxed);
 
-    // Wait for core 0 to raise the wall and demote this core.
-    while !GO_AHEAD.load(Ordering::Relaxed) {
+    // Wait for core 0 to open the wall and demote this core.
+    while !GO_OPEN.load(Ordering::Relaxed) {
         cortex_m::asm::nop();
     }
+    CORE1_STEP.store(STEP_ABOUT_TO_READ_OPEN, Ordering::Relaxed);
 
-    CORE1_STEP.store(STEP_ABOUT_TO_READ, Ordering::Relaxed);
+    // Read two: Non-secure, and permitted. This is the control that the first
+    // hardware run did not have. If it faults, the finding is about
+    // FORCE_CORE_NS and not about the wall at all.
+    let open = unsafe { core::ptr::read_volatile(target()) };
+    CORE1_OPEN.store(open, Ordering::Relaxed);
+    CORE1_STEP.store(STEP_OPEN_READ, Ordering::Relaxed);
 
-    // Read two: the one the wall exists to refuse.
-    let v = unsafe { core::ptr::read_volatile(target()) };
+    // Wait for core 0 to shut the wall. Nothing else changes.
+    while !GO_SHUT.load(Ordering::Relaxed) {
+        cortex_m::asm::nop();
+    }
+    CORE1_STEP.store(STEP_ABOUT_TO_READ_SHUT, Ordering::Relaxed);
 
-    CORE1_VALUE.store(v, Ordering::Relaxed);
-    CORE1_STEP.store(STEP_READ_RETURNED, Ordering::Relaxed);
+    // Read three: the one the wall exists to refuse.
+    let shut = unsafe { core::ptr::read_volatile(target()) };
+    CORE1_SHUT.store(shut, Ordering::Relaxed);
+    CORE1_STEP.store(STEP_SHUT_READ, Ordering::Relaxed);
 
     loop {
         cortex_m::asm::wfe();
@@ -257,22 +326,20 @@ fn bring_i2c1_out_of_reset() {
     }
 }
 
-/// The 16-bit key an ACCESSCTRL write is believed to need, in bits 31:16.
+/// The 16-bit key every ACCESSCTRL write needs, in bits 31:16.
 ///
-/// **A hypothesis under test, not a fact.** What is measured is narrower and
-/// certain: on this part, reading `ACCESSCTRL.LOCK` works, reading
-/// `ACCESSCTRL.I2C1` works, and **writing that same value straight back
-/// faults** — rungs five and six passed and seven did not. So the block is
-/// reachable and it is *writes* that are refused, whatever the value.
+/// **Measured, no longer a hypothesis.** Six rounds of this experiment saw an
+/// identity write to `ACCESSCTRL.I2C1` — writing back the value just read, from
+/// a Secure Privileged core — take a bus fault, while reads of the same
+/// register worked. `rp-pac` models no key: `Access` is a `u32` with fields
+/// only in bits 0..7, so `modify()` reads a register whose top half is zero and
+/// writes zero back there, which is exactly the write that was refused.
 ///
-/// A write key in the top half is the ordinary reason a peripheral behaves that
-/// way, and `0xACCE` is the obvious candidate for a block called ACCESSCTRL.
-/// `rp-pac` models no such thing — `Access` is a `u32` with fields only in bits
-/// 0..7 — so `modify()` reads a register whose top half is zero and writes zero
-/// back there, which is exactly the shape of a write that gets refused.
-///
-/// If this is wrong, rung seven faults again and one candidate is eliminated
-/// with certainty, which is worth a flash cycle either way.
+/// With `0xACCE` in the top half the same write is accepted, on hardware, and
+/// the register reads back what was written. That also explains the shape of
+/// the earlier failure precisely: the block's own documentation says writes it
+/// does not accept *raise a bus error* rather than being quietly dropped, which
+/// is why a wrong key looked like a broken register instead of a no-op.
 const ACCESSCTRL_KEY: u32 = 0xACCE_0000;
 
 /// Every ACCESSCTRL write in this firmware goes through here.
@@ -283,13 +350,35 @@ fn accessctrl_write(reg: embassy_rp::pac::common::Reg<embassy_rp::pac::accessctr
     reg.write_value(embassy_rp::pac::accessctrl::regs::Access(ACCESSCTRL_KEY | (bits & 0xFFFF)));
 }
 
+/// The two bits that are the wall: NSU (bit 0) and NSP (bit 1).
+///
+/// Everything else in the register is left exactly as the hardware had it. The
+/// PAC's doc comments for `Access` are shifted by one field — `su` carries
+/// NSP's sentence, `core1` carries CORE0's — so this code goes by bit position
+/// and not by prose: NSU 0, NSP 1, SU 2, SP 3, CORE0 4, CORE1 5, DMA 6, DBG 7.
+///
+/// **The silicon settled which of the two readings was right.** I2C1 reads
+/// `0x0000_00fc` at power-on: `nsu=0 nsp=0 su=1 sp=1 core0=1 core1=1 dma=1
+/// dbg=1`, which is the register's documented default of "Secure access from
+/// any master" exactly. The field *names and positions* are correct and it is
+/// the doc comments that are misattached.
+const NON_SECURE_BITS: u32 = 0b11;
+
+/// Open the wall: let Non-secure code reach the peripheral.
+///
+/// This is the step the first hardware run did not have, and without it the
+/// experiment cannot support its own claim. `0xfc` at power-on **already** had
+/// NSU and NSP clear, so the "deny" write changed nothing and the Non-secure
+/// read would have faulted whether this firmware ran or not. A wall you did not
+/// build is not a wall you measured.
+fn allow_non_secure(before: u32) {
+    accessctrl_write(embassy_rp::pac::ACCESSCTRL.i2c1(), before | NON_SECURE_BITS);
+}
+
+/// Shut it again. One register write, and nothing else in the system changes
+/// between core 1's second read and its third.
 fn deny_non_secure(before: u32) {
-    // Clear NSU (bit 0) and NSP (bit 1); leave everything else as the hardware
-    // had it. Reading first and clearing two bits is safer than composing a
-    // value out of field setters whose names this PAC documents one field out
-    // of step — and the power-on value is now something this experiment has
-    // actually read rather than assumed.
-    accessctrl_write(embassy_rp::pac::ACCESSCTRL.i2c1(), before & !0b11);
+    accessctrl_write(embassy_rp::pac::ACCESSCTRL.i2c1(), before & !NON_SECURE_BITS);
 }
 
 /// Demote core 1, as a separate step and **after** it is already running.
@@ -333,147 +422,182 @@ async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
     // flash cycle and answers which rung broke — which is the only thing worth
     // buying when each attempt needs somebody at a bench.
     LADDER.store(1, Ordering::Relaxed);
-    log!("step 1: taking I2C1 out of reset. A peripheral still in reset faults when read.");
+    log!("step 1: taking I2C1 out of reset. One still in reset faults when read.");
     bring_i2c1_out_of_reset();
     log!("step 1 ok.");
 
     LADDER.store(2, Ordering::Relaxed);
     log!("step 2: reading I2C1 from core 0, while no wall exists yet.");
     let baseline = unsafe { core::ptr::read_volatile(target()) };
-    log!("step 2 ok: {:#010x}. That is what an unrestricted read looks like.", baseline);
+    log!("step 2 ok: {:#010x}. What an unrestricted read looks like.", baseline);
 
     LADDER.store(3, Ordering::Relaxed);
     log!("step 3: launching core 1, still Secure.");
     #[allow(static_mut_refs)]
     let stack = unsafe { &mut CORE1_STACK };
     spawn_core1(core1, stack, core1_main);
-    log!("step 3 ok: spawn_core1 returned, so core 1 answered its launch handshake.");
+    log!("step 3 ok: spawn_core1 returned; core 1 answered its handshake.");
 
     LADDER.store(4, Ordering::Relaxed);
     Timer::after(Duration::from_secs(1)).await;
-    if CORE1_STEP.load(Ordering::Relaxed) >= STEP_FIRST_READ {
+    if CORE1_STEP.load(Ordering::Relaxed) >= STEP_SECURE_READ {
         log!(
-            "step 4 ok: core 1 read {:#010x} while Secure. Same address, same core, no wall.",
-            CORE1_FIRST.load(Ordering::Relaxed)
+            "step 4 ok: core 1 read {:#010x} while Secure. Same core, no wall yet.",
+            CORE1_SECURE.load(Ordering::Relaxed)
         );
     } else {
         log!("step 4 PROBLEM: core 1 never completed a read. Nothing below is measured.");
     }
 
     // From here on **core 0 never touches that address again**, and that is the
-    // point rather than tidiness. The bit semantics come from a PAC whose own
-    // documentation is shifted by one field; if they are wrong, the read that
-    // pays for it must not be the one holding USB. Core 1's first read is the
-    // control — the same core and the same address, with only its security
-    // state changed between the two.
+    // point rather than tidiness. If the bits are wrong, the read that pays for
+    // it must not be the one holding USB. Core 1's own earlier reads are the
+    // controls — the same core and the same address, with exactly one thing
+    // changed before each.
     //
-    // Step 5 used to do three things in one go, and a board that died in it
-    // could only say "four blinks". Three things inside one millisecond are
-    // three things the only working instrument cannot tell apart, so they are
-    // spread two seconds apart: **the blink count now names which one**, with
-    // no log, no page and no host.
-    //
-    //   ~4 blinks then dark   the ACCESSCTRL write itself
-    //   ~6 blinks then dark   demoting core 1
-    //   ~8 blinks then dark   core 1's Non-secure read taking the system with it
-    //   keeps blinking        nothing killed core 0; read the log for the verdict
-    //
-    // Splitting a step that already failed, rather than guessing which third of
-    // it failed, is the cheapest question this experiment can ask — and each
-    // attempt costs somebody a walk to the bench.
-    // Rung 5 was one rung and it turned out to be four things. The board
-    // reported *five flashes* — the ACCESSCTRL write — so the write is split
-    // into read, identity-write, and real-write, each two seconds apart, each
-    // logged. One flash cycle now separates "cannot read this block at all"
-    // from "cannot write it" from "cannot write this value".
-    //
-    // The reads are not only bisection. The register's own documentation says
-    // it "Defaults to Secure access from any master", so its power-on value is
-    // a fact this experiment can print — and printing it settles, from the
-    // hardware rather than from prose, which of two readings of the field
-    // layout is right. `rp-pac`'s doc comments for this register are shifted by
-    // one field, so `su` carries NSP's sentence and `core1` carries CORE0's.
-    // Either the names are right and the docs are misattached, or the docs are
-    // right and the fields are misnamed, and a default value distinguishes them.
+    // The steps used to be two seconds apart, because for six rounds the only
+    // instrument was somebody counting blinks before the board went dark. The
+    // fault handler now blinks the rung number itself, so the spacing no longer
+    // carries information and is down to half a second — enough that the log
+    // orders unambiguously, and no longer a wait anybody sits through.
     LADDER.store(5, Ordering::Relaxed);
-    log!("step 5a: READING accessctrl.LOCK. No write yet — this only asks whether the block is readable.");
-    Timer::after(Duration::from_secs(2)).await;
+    log!("step 5: reading accessctrl.LOCK — is this block readable at all?");
+    Timer::after(Duration::from_millis(500)).await;
     let lock = embassy_rp::pac::ACCESSCTRL.lock().read().0;
-    log!("step 5a ok: LOCK = {:#010x}.", lock);
+    SAW_LOCK.store(lock, Ordering::Relaxed);
+    log!("step 5 ok: LOCK = {:#010x}. Bit 2 is DMA, set by the bootrom.", lock);
 
     LADDER.store(6, Ordering::Relaxed);
-    log!("step 5b: READING accessctrl.I2C1.");
-    Timer::after(Duration::from_secs(2)).await;
+    log!("step 6: reading accessctrl.I2C1 — its power-on value.");
+    Timer::after(Duration::from_millis(500)).await;
     let before = embassy_rp::pac::ACCESSCTRL.i2c1().read().0;
-    log!("step 5b ok: I2C1 access = {:#010x} at power-on.", before);
+    SAW_BEFORE.store(before, Ordering::Relaxed);
+    log!("step 6 ok: I2C1 access = {:#010x} at power-on.", before);
     log!(
         "  bits: nsu={} nsp={} su={} sp={} core0={} core1={} dma={} dbg={}",
         before & 1, (before >> 1) & 1, (before >> 2) & 1, (before >> 3) & 1,
         (before >> 4) & 1, (before >> 5) & 1, (before >> 6) & 1, (before >> 7) & 1
     );
-
-    // Twenty seconds, on purpose. The two values above are the finding of this
-    // run whatever happens next, and the next thing tried is the thing that
-    // killed the last run — so there is time to open the page and read them
-    // before anything risks the log again. Capturing what already succeeded
-    // costs twenty seconds; losing it costs a flash cycle.
-    log!("waiting 20 s before touching a write, so the two values above can be read.");
-    Timer::after(Duration::from_secs(20)).await;
+    if before & NON_SECURE_BITS == 0 {
+        log!("  Non-secure is ALREADY denied. We must OPEN the wall to prove we shut it.");
+    }
 
     LADDER.store(7, Ordering::Relaxed);
-    log!("step 5c: identity write, this time with {:#010x} in the top half.", ACCESSCTRL_KEY);
-    Timer::after(Duration::from_secs(2)).await;
+    log!("step 7: identity write, with {:#010x} in the top half.", ACCESSCTRL_KEY);
+    Timer::after(Duration::from_millis(500)).await;
     accessctrl_write(embassy_rp::pac::ACCESSCTRL.i2c1(), before);
-    log!("step 5c ok: a keyed write is accepted. The key is real.");
+    log!("step 7 ok: a keyed write is accepted. Without the key it faulted.");
 
+    // Opening the wall is the step that turns a photograph into a measurement.
     LADDER.store(8, Ordering::Relaxed);
-    log!("step 5d: writing it again with NSU and NSP cleared — the wall itself.");
-    Timer::after(Duration::from_secs(2)).await;
-    deny_non_secure(before);
-    let after = embassy_rp::pac::ACCESSCTRL.i2c1().read().0;
-    log!("step 5d ok: I2C1 access is now {:#010x} (was {:#010x}).", after, before);
-    if after == before {
-        log!("  it did not change. The write was accepted and ignored, which is not a wall.");
+    log!("step 8: OPENING the wall - setting NSU and NSP, so Non-secure may read.");
+    Timer::after(Duration::from_millis(500)).await;
+    allow_non_secure(before);
+    let opened = embassy_rp::pac::ACCESSCTRL.i2c1().read().0;
+    SAW_OPENED.store(opened, Ordering::Relaxed);
+    log!("step 8 ok: I2C1 access = {:#010x} (was {:#010x}).", opened, before);
+    if opened == before {
+        log!("  it did not change, so nothing below measures ACCESSCTRL.");
     }
 
     LADDER.store(9, Ordering::Relaxed);
-    log!("step 5e: setting FORCE_CORE_NS.CORE1 — demoting a core that is already running.");
-    Timer::after(Duration::from_secs(2)).await;
+    log!("step 9: FORCE_CORE_NS.CORE1 - demoting a core that is already running.");
+    Timer::after(Duration::from_millis(500)).await;
     demote_core1();
-    log!("step 5e ok.");
+    log!("step 9 ok.");
 
     LADDER.store(10, Ordering::Relaxed);
-    log!("step 5f: releasing core 1 to take its second read.");
-    Timer::after(Duration::from_secs(2)).await;
-    GO_AHEAD.store(true, Ordering::Relaxed);
-    log!("step 5f ok. Core 0 will not touch that address again.");
+    log!("step 10: read two - Non-secure, wall OPEN. This one must work.");
+    Timer::after(Duration::from_millis(500)).await;
+    GO_OPEN.store(true, Ordering::Relaxed);
+    Timer::after(Duration::from_millis(500)).await;
 
-    Timer::after(Duration::from_secs(2)).await;
+    let open_read_worked = CORE1_STEP.load(Ordering::Relaxed) >= STEP_OPEN_READ
+        && !FAULTED.load(Ordering::Relaxed);
+    if open_read_worked {
+        log!(
+            "step 10 ok: read two = {:#010x}. A demoted core still executes and reads.",
+            CORE1_OPEN.load(Ordering::Relaxed)
+        );
+    } else {
+        log!("step 10 PROBLEM: no Non-secure read completed with the wall open.");
+        log!("  A finding about FORCE_CORE_NS, not the wall. Nothing below is a wall.");
+    }
+
+    if open_read_worked {
+        LADDER.store(11, Ordering::Relaxed);
+        log!("step 11: SHUTTING the wall - clearing NSU and NSP. Nothing else changes.");
+        Timer::after(Duration::from_millis(500)).await;
+        deny_non_secure(before);
+        let shut = embassy_rp::pac::ACCESSCTRL.i2c1().read().0;
+        SAW_SHUT.store(shut, Ordering::Relaxed);
+        log!("step 11 ok: I2C1 access = {:#010x} (was {:#010x}).", shut, opened);
+
+        LADDER.store(12, Ordering::Relaxed);
+        log!("step 12: read three - Non-secure, wall SHUT. This one must fault.");
+        Timer::after(Duration::from_millis(500)).await;
+        GO_SHUT.store(true, Ordering::Relaxed);
+    }
+
+    Timer::after(Duration::from_secs(1)).await;
 
     loop {
         let step = CORE1_STEP.load(Ordering::Relaxed);
         let faulted = FAULTED.load(Ordering::Relaxed);
         let pc = FAULT_PC.load(Ordering::Relaxed);
-        let first = CORE1_FIRST.load(Ordering::Relaxed);
+        let secure = CORE1_SECURE.load(Ordering::Relaxed);
+        let open = CORE1_OPEN.load(Ordering::Relaxed);
+
+        // The three reads, printed every time and whatever the outcome.
+        //
+        // They used to be printed only inside the branch where the experiment
+        // passed, which made them decoration: a control you can only see when
+        // the thing succeeded is not a control, and `check.sh` grepping for one
+        // is a check that cannot fail. [exp140](../exp140-a-checksum-that-passes/)
+        // is this repository's name for that mistake.
+        log!(
+            "  LOCK = {:#010x}, I2C1 at power-on = {:#010x}",
+            SAW_LOCK.load(Ordering::Relaxed), SAW_BEFORE.load(Ordering::Relaxed)
+        );
+        log!(
+            "  I2C1 opened to {:#010x}, then shut to {:#010x}",
+            SAW_OPENED.load(Ordering::Relaxed), SAW_SHUT.load(Ordering::Relaxed)
+        );
+        if step >= STEP_SECURE_READ {
+            log!("  read 1  Secure,     wall open: {:#010x}", secure);
+        } else {
+            log!("  read 1  Secure,     wall open: not taken (core 1 at step {})", step);
+        }
+        if step >= STEP_OPEN_READ {
+            log!("  read 2  Non-secure, wall open: {:#010x}", open);
+        } else {
+            log!("  read 2  Non-secure, wall open: not taken (core 1 at step {})", step);
+        }
+        if step >= STEP_SHUT_READ {
+            log!("  read 3  Non-secure, wall shut: {:#010x}", CORE1_SHUT.load(Ordering::Relaxed));
+        } else if faulted && step == STEP_ABOUT_TO_READ_SHUT {
+            log!("  read 3  Non-secure, wall shut: bus fault at pc {:#010x}", pc);
+        } else {
+            log!("  read 3  Non-secure, wall shut: not taken (core 1 at step {})", step);
+        }
 
         match (step, faulted) {
-            (STEP_ABOUT_TO_READ, true) => {
-                log!("core 1 faulted at pc {:#010x} on the second read.", pc);
-                log!(
-                    "VERDICT: the wall is there. {:#010x} while Secure, refused while Non-secure, same address, same core.",
-                    first
-                );
+            // The whole experiment, in one shape: three reads, one core, one
+            // address, one thing changed at a time.
+            (STEP_ABOUT_TO_READ_SHUT, true) => {
+                log!("VERDICT: the wall is there. Only ACCESSCTRL changed between reads 2 and 3.");
             }
-            (STEP_READ_RETURNED, _) => {
-                log!(
-                    "core 1 read {:#010x} the second time as well — no fault.",
-                    CORE1_VALUE.load(Ordering::Relaxed)
-                );
-                log!("VERDICT: NO WALL. Either ACCESSCTRL did not refuse, or demoting a running core does not work.");
-                log!("  Those two are different findings and this build cannot separate them.");
+            (STEP_SHUT_READ, _) => {
+                log!("VERDICT: NO WALL. ACCESSCTRL was written, read back, and did not refuse.");
             }
-            (STEP_FIRST_READ, false) => {
-                log!("core 1 has not taken the second read. Still waiting.");
+            (STEP_ABOUT_TO_READ_OPEN, true) => {
+                log!("VERDICT: inconclusive, and about FORCE_CORE_NS, not the wall. See read 2.");
+            }
+            (STEP_OPEN_READ, false) => {
+                log!("core 1 has not taken read three yet. Still waiting, no verdict.");
+            }
+            (STEP_SECURE_READ, false) => {
+                log!("core 1 has not taken read two yet. Still waiting, no verdict.");
             }
             (STEP_NONE, _) | (STEP_ALIVE, false) => {
                 log!("core 1 stopped at step {} without reading. Nothing was measured.", step);
@@ -535,15 +659,25 @@ async fn main(spawner: Spawner) {
     spawner.spawn(reboot_task(control, receiver).unwrap());
     spawner.spawn(log_task(sender).unwrap());
 
-    log!("exp156 up. No cryptography here — only whether an address refuses.");
+    log!("exp156 up. No cryptography here, only whether an address refuses.");
     spawner.spawn(verdict_task(p.CORE1).unwrap());
 
     // Slow while waiting, fast once there is a verdict — the same one bit
     // exp154 put on the LED, for a reader with no page open.
+    //
+    // The heartbeat is logged every tenth beat and not every one, and that is a
+    // bug fix rather than tidying. `usb-log`'s outgoing queue is sixteen lines
+    // deep, it drops the newest when full, and nothing drains it until a host
+    // asserts DTR — so a firmware that logs once a second has filled the queue
+    // before anybody has opened the port. The first successful run of this
+    // experiment lost exactly three lines that way, and they were the three the
+    // run existed to produce: the power-on value of `ACCESSCTRL.I2C1` and its
+    // bit breakdown. **The instrument ate the finding**, and it did it silently,
+    // to the only lines nobody could reconstruct.
     let mut beat: u32 = 0;
     loop {
         let decided = FAULTED.load(Ordering::Relaxed)
-            || CORE1_STEP.load(Ordering::Relaxed) == STEP_READ_RETURNED;
+            || CORE1_STEP.load(Ordering::Relaxed) == STEP_SHUT_READ;
         let (on, off) = if decided { (100, 100) } else { (50, 950) };
 
         led.set_high();
@@ -551,7 +685,9 @@ async fn main(spawner: Spawner) {
         led.set_low();
         if !decided {
             beat += 1;
-            log!("heartbeat #{}", beat);
+            if beat % 10 == 0 {
+                log!("heartbeat #{}", beat);
+            }
         }
         Timer::after(Duration::from_millis(off)).await;
     }
