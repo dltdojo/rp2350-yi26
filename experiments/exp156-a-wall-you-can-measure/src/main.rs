@@ -197,6 +197,28 @@ fn core1_main() -> ! {
 /// Clearing NSU and NSP is the whole wall. SP stays set, which is what keeps
 /// core 0's own read working — and that read is the control, so removing it
 /// would remove the measurement rather than tightening it.
+/// Take I2C1 out of reset, and wait until the hardware agrees it is out.
+///
+/// This is the line whose absence killed the first two builds, and it killed
+/// them in the least readable way available. Peripherals on this chip come up
+/// **held in reset**, and reading a register of one that is still in reset is a
+/// bus fault — so the very first rung of the ladder, `read I2C1 from core 0
+/// before any wall exists`, faulted on core 0, which is the core holding USB.
+/// The board blinked three times (the three-second wait for enumeration) and
+/// then went dark and silent, which reads exactly like a firmware that never
+/// started.
+///
+/// The experiment's own README warned about putting a fault on the core that
+/// does the talking. It was written about core 1, and then core 0 was handed a
+/// read that could fault.
+fn bring_i2c1_out_of_reset() {
+    let r = embassy_rp::pac::RESETS;
+    r.reset().modify(|w| w.set_i2c1(false));
+    while !r.reset_done().read().i2c1() {
+        cortex_m::asm::nop();
+    }
+}
+
 fn deny_non_secure() {
     embassy_rp::pac::ACCESSCTRL.i2c1().modify(|w| {
         w.set_nsu(false);
@@ -254,42 +276,42 @@ async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
     // names the thing that did not come back. A ladder like this costs one
     // flash cycle and answers which rung broke — which is the only thing worth
     // buying when each attempt needs somebody at a bench.
-    log!("step 1: reading I2C1 from core 0, before any wall exists.");
+    log!("step 1: taking I2C1 out of reset. A peripheral still in reset faults when read.");
+    bring_i2c1_out_of_reset();
+    log!("step 1 ok.");
+
+    log!("step 2: reading I2C1 from core 0, while no wall exists yet.");
     let baseline = unsafe { core::ptr::read_volatile(target()) };
-    log!("step 1 ok: {:#010x}. That is what an unrestricted read looks like.", baseline);
+    log!("step 2 ok: {:#010x}. That is what an unrestricted read looks like.", baseline);
 
-    log!("step 2: denying I2C1 to Non-secure in ACCESSCTRL.");
-    deny_non_secure();
-    log!("step 2 ok.");
-
-    log!("step 3: reading it again from core 0, which is Secure and should be unaffected.");
-    let after = unsafe { core::ptr::read_volatile(target()) };
-    if after == baseline {
-        log!("step 3 ok: {:#010x}, unchanged. The control holds.", after);
-    } else {
-        log!("step 3 PROBLEM: {:#010x} — the wall moved core 0 too. Nothing below is a security result.", after);
-    }
-
-    log!("step 4: launching core 1, still Secure. This is where the first build hung.");
+    log!("step 3: launching core 1, still Secure.");
     #[allow(static_mut_refs)]
     let stack = unsafe { &mut CORE1_STACK };
     spawn_core1(core1, stack, core1_main);
-    log!("step 4 ok: spawn_core1 returned, so core 1 answered its launch handshake.");
+    log!("step 3 ok: spawn_core1 returned, so core 1 answered its launch handshake.");
 
-    // Core 1's own first read, taken while it is still Secure.
     Timer::after(Duration::from_secs(1)).await;
     if CORE1_STEP.load(Ordering::Relaxed) >= STEP_FIRST_READ {
         log!(
-            "step 5 ok: core 1 read {:#010x} while Secure. It is running and it can reach the address.",
+            "step 4 ok: core 1 read {:#010x} while Secure. Same address, same core, no wall.",
             CORE1_FIRST.load(Ordering::Relaxed)
         );
     } else {
-        log!("step 5 PROBLEM: core 1 never completed a read. Everything after this is unmeasured.");
+        log!("step 4 PROBLEM: core 1 never completed a read. Nothing below is measured.");
     }
 
-    log!("step 6: demoting core 1 to Non-secure, and letting it read again.");
+    // From here on **core 0 never touches that address again**, and that is the
+    // point rather than tidiness. The bit semantics come from a PAC whose own
+    // documentation is shifted by one field; if they are wrong, the read that
+    // pays for it must not be the one holding USB. Core 1's first read is the
+    // control — the same core and the same address, with only its security
+    // state changed between the two — which is a better control than core 0
+    // reading twice ever was.
+    log!("step 5: denying I2C1 to Non-secure, then demoting core 1.");
+    deny_non_secure();
     demote_core1();
     GO_AHEAD.store(true, Ordering::Relaxed);
+    log!("step 5 ok. Core 1 is reading again now; core 0 will not touch that address.");
 
     Timer::after(Duration::from_secs(2)).await;
 

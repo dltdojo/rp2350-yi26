@@ -70,6 +70,20 @@ else
     pass "the target address comes from the PAC"
 fi
 
+# The target peripheral is taken out of reset before it is read.
+#
+# Two builds died on this. Peripherals come up held in reset on this chip, and
+# reading one that still is faults — so the ladder's first read faulted on
+# core 0, the core holding USB, and the board went dark three seconds in with
+# nothing said. A peripheral this experiment does not otherwise use is exactly
+# the kind that nobody remembers to un-reset.
+if grep -q 'reset_done()' src/main.rs; then
+    pass "the target peripheral is taken out of reset before it is read"
+else
+    fail "the target peripheral is taken out of reset before it is read" \
+         "no reset_done() wait in src/main.rs — a peripheral in reset faults when read"
+fi
+
 # Nothing that can hang may run before USB is initialised.
 #
 # The first build of this experiment configured ACCESSCTRL and called

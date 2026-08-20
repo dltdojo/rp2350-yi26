@@ -101,6 +101,32 @@ Both are now structural rather than remembered. Everything risky lives in
 greps `main()` and fails if any of it moves back — a guard that was checked by
 moving one call back and watching it fire.
 
+### And then it blinked three times and stopped
+
+Second flash, 2026-08-20: the LED blinks about three times and goes dark, and
+nothing enumerates. Three blinks is three seconds, and three seconds is the
+`Timer::after` at the top of `verdict_task` — so the firmware boots fine and
+dies on the ladder's **first rung**.
+
+That rung reads I2C1 from core 0. **Peripherals on this chip come up held in
+reset, and reading a register of one still in reset is a bus fault.** I2C1 was
+chosen precisely because nothing here uses it, which is exactly the kind of
+peripheral nobody remembers to un-reset.
+
+And the fault landed on **core 0**, the core holding USB — so the log died with
+it and the board looked like a firmware that never started. This experiment's
+own README argued for putting the fault on a core that is not doing the
+talking, and then core 0 was handed a read that could fault.
+
+Both are fixed and both are guarded. `bring_i2c1_out_of_reset()` waits for
+`RESET_DONE`, and `check.sh` fails if that wait disappears. And **core 0 never
+touches the address again after the wall goes up**: the control is now core 1's
+own first read, taken while it is still Secure — the same core and the same
+address with only its security state changed between the two, which is a better
+control than core 0 reading twice ever was. If the ACCESSCTRL bits are wrong —
+and they come from a PAC whose documentation is shifted by one field — the read
+that pays for it is not the one holding USB.
+
 ### What the rebuild buys, whatever happens
 
 It is a **ladder**: every step announces itself before it runs, so the last line
@@ -109,12 +135,12 @@ a bench, so one attempt should answer *which rung broke* rather than *whether it
 worked*.
 
 ```text
-step 1  read I2C1 from core 0, no wall yet          -> what unrestricted looks like
-step 2  deny I2C1 to Non-secure in ACCESSCTRL
-step 3  read it again from core 0                   -> the control: Secure is unaffected
-step 4  launch core 1, still Secure                 -> where the first build hung
-step 5  core 1 reads while Secure                   -> it is running and can reach the address
-step 6  demote core 1, let it read again            -> the measurement
+step 1  take I2C1 out of reset                     -> what the second build died on
+step 2  read it from core 0, no wall yet            -> what unrestricted looks like
+step 3  launch core 1, still Secure                 -> what the first build hung on
+step 4  core 1 reads while Secure                   -> the control, on the core being tested
+step 5  deny to Non-secure, demote core 1, read     -> the measurement
+        core 0 never touches that address again
 ```
 
 Core 1 now reads **twice**, and the first read is what separates *a core that
