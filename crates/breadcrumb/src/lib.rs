@@ -307,6 +307,17 @@ pub fn step(n: u8) {
     wd.scratch1().write_value(pack(boot, n));
 }
 
+/// The per-step outcomes as they stand **right now**.
+///
+/// [`Note`] is a snapshot taken at boot, so a report built from it is stale the
+/// moment this boot marks anything — and a run whose last act is to mark a step
+/// will report that step as never attempted. Measured, in exp159's first run,
+/// where the final line said *not reached* about the candidate it had just
+/// finished.
+pub fn steps_now() -> u32 {
+    pac::WATCHDOG.scratch2().read()
+}
+
 /// Record what became of a step that **survived**, with the firmware's own
 /// meaning: [`SURVIVED_A`] or [`SURVIVED_B`].
 ///

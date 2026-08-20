@@ -80,6 +80,7 @@ Per experiment:
 | exp156 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp157 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp158 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp159 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
 | exp150 | Same as exp149, plus **a browser — any browser**, which is the point. This is the first experiment here whose page needs no WebUSB, no permission dialog and no Chromium. Whether the browser can reach the board is a property of the host's routing, not of this firmware. |
@@ -437,7 +438,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp156–exp158 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp156–exp159 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp155 |
 
@@ -701,6 +702,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp156-a-wall-you-can-measure](./exp156-a-wall-you-can-measure/) | 1 · board | A boundary that refuses, measured — one core reads one address three times and only the ACCESSCTRL bits change between the last two |
 | [exp157-a-note-for-the-next-boot](./exp157-a-note-for-the-next-boot/) | 1 · board | A firmware killed by a hang and by a fault comes back both times able to say which step it died in and which kind of death it was |
 | [exp158-four-keys-and-one-flash](./exp158-four-keys-and-one-flash/) | 1 · board | Four candidate ACCESSCTRL write keys in a single flash — the board faults on the wrong ones, steps over each death, and re-derives in fifty seconds what cost exp156 three bench trips |
+| [exp159-a-key-that-was-never-in-flash](./exp159-a-key-that-was-never-in-flash/) | 1 · board | A P-256 key generated on the board into an SRAM bank Non-secure code cannot read, used to sign a challenge it could not have known at build time, verified off the board |
 
 ## The browser track, finished
 
@@ -1271,8 +1273,32 @@ None of these is interrogated yet — a direction, not a schedule.
   faults is not the core holding USB. The hand-written `SG` veneer is still
   coming; it belongs to the experiment with code on both sides of the line, not
   to the one measuring whether the line is there. Needs 1.
-- **the signature is not the hard part** — ECDSA P-256 behind that wall. Sign a
-  hash in Secure, return 64 bytes, and let something else check them.
+- **the signature is not the hard part** — ECDSA P-256 behind that wall.
+  [exp159](./exp159-a-key-that-was-never-in-flash/) is **verified on hardware**,
+  and it is the first experiment here designed as a matrix from the start: four
+  measurements, one per boot, one flash, about fifty seconds.
+
+  The key is generated on the board from the TRNG into **SRAM bank 8** — one of
+  the RP2350's two 4 KB banks, which `ACCESSCTRL` gates separately from the main
+  512 KB, so denying it to Non-secure code does not take core 1's own stack away.
+  Secure reads it; Non-secure reads it while the bank is open; Non-secure
+  **faults** once it is shut; and with it still shut, Non-secure asks over a
+  shared-memory mailbox and gets 64 bytes back. One signature takes **61 ms**,
+  and the code costs **20,248 bytes of `.text`**.
+
+  **The key is never in flash, and that is the finding rather than a detail.**
+  `XIP_MAIN` defaults to fully open access, so a key compiled into the source
+  would be readable by exactly the code the wall exists to stop — the defect this
+  road was filed against, arriving from a new direction. `check.sh` greps for a
+  key literal and fails if one appears.
+
+  The signature is verified **off the board** by a different implementation, and
+  the verifier flips a bit and requires the check to fail before reporting that
+  it passed.
+
+  It also retires a planned piece of work: with the boundary between two cores
+  there is no secure-gateway veneer to hand-write and no SAU to program, because
+  there is no call across a security state to gate.
 - **the same wall, a much larger signature** — swap the crate for ML-DSA-65 and
   measure. A 3,309-byte signature and a 1,952-byte public key against 64 and 64
   is not a detail; [exp147](./exp147-two-firmwares-one-phone/) needs a firmware
