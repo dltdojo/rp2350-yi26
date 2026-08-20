@@ -77,6 +77,55 @@ for that call rather than trusting this paragraph.
 
 **It writes no OTP, and burns no fuse.** Nothing on this road does, yet.
 
+## The first build went silent, and why
+
+Flashed on 2026-08-20: no LED, no USB device to choose in the browser. Not one
+byte of evidence — which is the outcome this repository spends the most effort
+making impossible, and it was designed in.
+
+Two causes, both found by reading rather than by another flash cycle:
+
+**`spawn_core1` blocks.** It is not fire-and-forget. It hands core 1 a launch
+sequence over the FIFO and waits on `fifo_read()` for each reply, with a
+`fails > 16` escape that fires only on a *wrong* answer and never on silence. A
+core 1 that cannot execute its own launch — because it has just been made
+Non-secure, and the ROM, stack and FIFO it needs are not open to Non-secure —
+never answers, so core 0 waits forever.
+
+**And it was waiting before USB existed.** The first build did the ACCESSCTRL
+write and `spawn_core1` in `main()`, three lines above `Driver::new`. So the
+board hung at the one moment it had no way to say so.
+
+Both are now structural rather than remembered. Everything risky lives in
+`verdict_task`, which cannot start until the USB stack is up, and `check.sh`
+greps `main()` and fails if any of it moves back — a guard that was checked by
+moving one call back and watching it fire.
+
+### What the rebuild buys, whatever happens
+
+It is a **ladder**: every step announces itself before it runs, so the last line
+in the log names the thing that did not come back. Each flash needs somebody at
+a bench, so one attempt should answer *which rung broke* rather than *whether it
+worked*.
+
+```text
+step 1  read I2C1 from core 0, no wall yet          -> what unrestricted looks like
+step 2  deny I2C1 to Non-secure in ACCESSCTRL
+step 3  read it again from core 0                   -> the control: Secure is unaffected
+step 4  launch core 1, still Secure                 -> where the first build hung
+step 5  core 1 reads while Secure                   -> it is running and can reach the address
+step 6  demote core 1, let it read again            -> the measurement
+```
+
+Core 1 now reads **twice**, and the first read is what separates *a core that
+was refused* from *a core that never ran*. Those looked identical before.
+
+**Demoting a core that is already running is now a question, not an
+assumption.** If `FORCE_CORE_NS` only takes effect at launch, the second read
+simply succeeds — and the log says that this build cannot tell that apart from
+ACCESSCTRL failing to refuse, which is two findings in one outcome and worth
+admitting rather than papering over.
+
 ## Expected output
 
 **Not captured yet — this experiment has not run on a board.**

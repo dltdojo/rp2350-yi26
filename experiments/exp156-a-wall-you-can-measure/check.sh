@@ -70,6 +70,22 @@ else
     pass "the target address comes from the PAC"
 fi
 
+# Nothing that can hang may run before USB is initialised.
+#
+# The first build of this experiment configured ACCESSCTRL and called
+# spawn_core1 in main(), three lines before Driver::new — and spawn_core1
+# blocks on fifo_read() waiting for a core 1 that could not answer. The board
+# went silent with no way to say why, which is the one outcome this repository
+# spends effort making impossible. The risky steps live in verdict_task now,
+# which cannot start until the USB stack is up, so this asserts main() is clean.
+MAIN_BODY="$(sed -n '/^async fn main(/,$p' src/main.rs)"
+if grep -qE 'spawn_core1\(|deny_non_secure\(\)|demote_core1\(\)' <<< "$MAIN_BODY"; then
+    fail "nothing that can hang runs before USB" \
+         "main() calls spawn_core1 or the ACCESSCTRL writes — they belong in verdict_task, after enumeration"
+else
+    pass "nothing that can hang runs before USB"
+fi
+
 if ! exp_running 156; then
     echo "SKIP  board is not running exp156 — flash it with ./run.sh (not an error)"
     exit "$FAILED"

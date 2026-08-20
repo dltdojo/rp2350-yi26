@@ -116,11 +116,14 @@ fn target() -> *const u32 {
 /// that never started, and those look identical from the outside otherwise.
 const STEP_NONE: u32 = 0;
 const STEP_ALIVE: u32 = 1;
-const STEP_ABOUT_TO_READ: u32 = 2;
-const STEP_READ_RETURNED: u32 = 3;
+const STEP_FIRST_READ: u32 = 2;
+const STEP_ABOUT_TO_READ: u32 = 3;
+const STEP_READ_RETURNED: u32 = 4;
 
 static CORE1_STEP: AtomicU32 = AtomicU32::new(STEP_NONE);
+static CORE1_FIRST: AtomicU32 = AtomicU32::new(0);
 static CORE1_VALUE: AtomicU32 = AtomicU32::new(0);
+static GO_AHEAD: AtomicBool = AtomicBool::new(false);
 static FAULTED: AtomicBool = AtomicBool::new(false);
 static FAULT_PC: AtomicU32 = AtomicU32::new(0);
 
@@ -147,24 +150,32 @@ unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
     }
 }
 
-/// What core 1 does, in Non-secure state.
+/// What core 1 does.
 ///
-/// Reads the one address, and is expected not to come back from it.
+/// Two reads of the same address, and core 0 decides what is between them. The
+/// first happens while core 1 is still Secure and is expected to work — it is
+/// how a silent core 1 is told apart from a core 1 that ran and was refused.
+/// Then it waits to be let go, and reads again.
 fn core1_main() -> ! {
     CORE1_STEP.store(STEP_ALIVE, Ordering::Relaxed);
 
-    // A moment, so core 0's report cannot be a race: it should be able to
-    // observe "alive" separately from whatever happens next.
-    cortex_m::asm::delay(150_000_000);
+    // Read one: still Secure. If this is the last step reported, core 1 is
+    // running and something about the *second* read is the finding. If even
+    // this never lands, core 1 never got going and nothing has been measured.
+    let first = unsafe { core::ptr::read_volatile(target()) };
+    CORE1_FIRST.store(first, Ordering::Relaxed);
+    CORE1_STEP.store(STEP_FIRST_READ, Ordering::Relaxed);
+
+    // Wait for core 0 to raise the wall and demote this core.
+    while !GO_AHEAD.load(Ordering::Relaxed) {
+        cortex_m::asm::nop();
+    }
 
     CORE1_STEP.store(STEP_ABOUT_TO_READ, Ordering::Relaxed);
 
-    // The read the wall exists to refuse. `read_volatile` because the whole
-    // point is that the access happens — an optimiser entitled to drop it
-    // would turn this experiment into one that proves nothing quietly.
+    // Read two: the one the wall exists to refuse.
     let v = unsafe { core::ptr::read_volatile(target()) };
 
-    // Only reached if the wall is not there.
     CORE1_VALUE.store(v, Ordering::Relaxed);
     CORE1_STEP.store(STEP_READ_RETURNED, Ordering::Relaxed);
 
@@ -186,10 +197,8 @@ fn core1_main() -> ! {
 /// Clearing NSU and NSP is the whole wall. SP stays set, which is what keeps
 /// core 0's own read working — and that read is the control, so removing it
 /// would remove the measurement rather than tightening it.
-fn build_the_wall() {
-    let ac = embassy_rp::pac::ACCESSCTRL;
-
-    ac.i2c1().modify(|w| {
+fn deny_non_secure() {
+    embassy_rp::pac::ACCESSCTRL.i2c1().modify(|w| {
         w.set_nsu(false);
         w.set_nsp(false);
         w.set_su(true);
@@ -197,11 +206,25 @@ fn build_the_wall() {
         w.set_core0(true);
         w.set_core1(true);
     });
+}
 
-    // Core 1 comes up Non-secure from here on. Core 0 is unaffected: there is
-    // no bit in this register for it, which is the chip declining to offer a
-    // way to lock its own boot core out.
-    ac.force_core_ns().modify(|w| w.set_core1(true));
+/// Demote core 1, as a separate step and **after** it is already running.
+///
+/// The first version of this experiment did it before `spawn_core1`, and the
+/// board went completely silent — no USB, nothing. `spawn_core1` is not
+/// fire-and-forget: it hands core 1 a launch sequence over the FIFO and then
+/// **blocks on `fifo_read()` waiting for each reply**, with a `fails > 16`
+/// escape that only fires on a *wrong* answer and never on silence. A core 1
+/// that cannot execute its own launch — because it is Non-secure and the ROM,
+/// the stack and the FIFO it needs are not open to Non-secure — never answers,
+/// so core 0 waits forever, and it was waiting three lines before USB was
+/// initialised.
+///
+/// Whether demoting a core that is already running works at all is now the
+/// question rather than an assumption. If it does not, the second read simply
+/// succeeds and this experiment says so.
+fn demote_core1() {
+    embassy_rp::pac::ACCESSCTRL.force_core_ns().modify(|w| w.set_core1(true));
 }
 
 #[embassy_executor::task]
@@ -223,63 +246,90 @@ async fn log_task(sender: Sender<'static, usb_reboot::UsbDriver>) -> ! {
 }
 
 #[embassy_executor::task]
-async fn verdict_task() -> ! {
-    // Let USB enumerate before anything else happens. exp113 paid for this
-    // lesson and exp154 inherited it: the first moments after boot are the one
-    // window where a busy or crashed executor cannot be recovered over USB.
+async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::CORE1>) -> ! {
+    // Let USB enumerate before anything else happens.
     Timer::after(Duration::from_secs(3)).await;
 
-    log!("the wall: I2C1 denied to Non-secure, core 1 forced Non-secure.");
+    // Every step announces itself *before* it runs, so the last line in the log
+    // names the thing that did not come back. A ladder like this costs one
+    // flash cycle and answers which rung broke — which is the only thing worth
+    // buying when each attempt needs somebody at a bench.
+    log!("step 1: reading I2C1 from core 0, before any wall exists.");
+    let baseline = unsafe { core::ptr::read_volatile(target()) };
+    log!("step 1 ok: {:#010x}. That is what an unrestricted read looks like.", baseline);
 
-    // -- the control, first --------------------------------------------------
-    //
-    // Core 0 is Secure and privileged, and SP is set, so this must work. If it
-    // does not, the experiment is over before it starts and says so: a wall
-    // that blocks everybody is not a wall, it is a broken peripheral.
-    let secure_read = unsafe { core::ptr::read_volatile(target()) };
-    log!("core 0 (Secure) read {:#010x} from I2C1 IC_COMP_TYPE.", secure_read);
-    if secure_read == 0 {
-        log!("control FAILED: the Secure read returned zero. Nothing below means anything.");
+    log!("step 2: denying I2C1 to Non-secure in ACCESSCTRL.");
+    deny_non_secure();
+    log!("step 2 ok.");
+
+    log!("step 3: reading it again from core 0, which is Secure and should be unaffected.");
+    let after = unsafe { core::ptr::read_volatile(target()) };
+    if after == baseline {
+        log!("step 3 ok: {:#010x}, unchanged. The control holds.", after);
+    } else {
+        log!("step 3 PROBLEM: {:#010x} — the wall moved core 0 too. Nothing below is a security result.", after);
     }
 
-    // -- and then what happened on the other side ----------------------------
-    Timer::after(Duration::from_secs(3)).await;
+    log!("step 4: launching core 1, still Secure. This is where the first build hung.");
+    #[allow(static_mut_refs)]
+    let stack = unsafe { &mut CORE1_STACK };
+    spawn_core1(core1, stack, core1_main);
+    log!("step 4 ok: spawn_core1 returned, so core 1 answered its launch handshake.");
+
+    // Core 1's own first read, taken while it is still Secure.
+    Timer::after(Duration::from_secs(1)).await;
+    if CORE1_STEP.load(Ordering::Relaxed) >= STEP_FIRST_READ {
+        log!(
+            "step 5 ok: core 1 read {:#010x} while Secure. It is running and it can reach the address.",
+            CORE1_FIRST.load(Ordering::Relaxed)
+        );
+    } else {
+        log!("step 5 PROBLEM: core 1 never completed a read. Everything after this is unmeasured.");
+    }
+
+    log!("step 6: demoting core 1 to Non-secure, and letting it read again.");
+    demote_core1();
+    GO_AHEAD.store(true, Ordering::Relaxed);
+
+    Timer::after(Duration::from_secs(2)).await;
 
     loop {
         let step = CORE1_STEP.load(Ordering::Relaxed);
         let faulted = FAULTED.load(Ordering::Relaxed);
         let pc = FAULT_PC.load(Ordering::Relaxed);
+        let first = CORE1_FIRST.load(Ordering::Relaxed);
 
         match (step, faulted) {
             (STEP_ABOUT_TO_READ, true) => {
-                log!("core 1 (Non-secure) faulted at pc {:#010x} on that same address.", pc);
-                log!("VERDICT: the wall is there. Readable from Secure, refused from Non-secure.");
+                log!("core 1 faulted at pc {:#010x} on the second read.", pc);
+                log!(
+                    "VERDICT: the wall is there. {:#010x} while Secure, refused while Non-secure, same address, same core.",
+                    first
+                );
             }
             (STEP_READ_RETURNED, _) => {
                 log!(
-                    "core 1 (Non-secure) read {:#010x} — no fault.",
+                    "core 1 read {:#010x} the second time as well — no fault.",
                     CORE1_VALUE.load(Ordering::Relaxed)
                 );
-                log!("VERDICT: NO WALL. Non-secure read the same address Secure did.");
+                log!("VERDICT: NO WALL. Either ACCESSCTRL did not refuse, or demoting a running core does not work.");
+                log!("  Those two are different findings and this build cannot separate them.");
             }
-            (STEP_ALIVE, false) => {
-                log!("core 1 is alive and has not reached the read. Still waiting.");
+            (STEP_FIRST_READ, false) => {
+                log!("core 1 has not taken the second read. Still waiting.");
             }
-            (STEP_NONE, _) => {
-                log!("core 1 never started. Nothing was measured — this is not a wall.");
+            (STEP_NONE, _) | (STEP_ALIVE, false) => {
+                log!("core 1 stopped at step {} without reading. Nothing was measured.", step);
             }
             (_, true) => {
-                log!("a fault at pc {:#010x}, but core 1 was at step {} — not the read.", pc, step);
-                log!("VERDICT: inconclusive. That fault is a bug in this experiment.");
+                log!("a fault at pc {:#010x}, but core 1 was at step {}.", pc, step);
+                log!("VERDICT: inconclusive — that fault is not the read.");
             }
             _ => {
                 log!("core 1 at step {}, no fault. Inconclusive.", step);
             }
         }
 
-        // Repeating, because exp154 measured what printing once costs: 73 lines
-        // went into a ring nobody was draining and a phone that attached later
-        // saw a verdict box with nothing in it.
         Timer::after(Duration::from_secs(10)).await;
     }
 }
@@ -289,13 +339,12 @@ async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
     let mut led = Output::new(p.PIN_25, Level::Low);
 
-    // Before core 1 exists, because it decides what core 1 will be.
-    build_the_wall();
-
-    #[allow(static_mut_refs)]
-    let stack = unsafe { &mut CORE1_STACK };
-    spawn_core1(p.CORE1, stack, core1_main);
-
+    // USB first, and everything that could go wrong after it.
+    //
+    // The first version of this experiment did the opposite — wall, core 1,
+    // then USB — and the board went silent with no way to say why. Nothing
+    // that can hang may run before the thing that reports. `verdict_task`
+    // owns the rest of the sequence and speaks between every step.
     let driver = Driver::new(p.USB, Irqs);
 
     let mut config = UsbConfig::new(0x1209, 0x0001);
@@ -330,7 +379,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(log_task(sender).unwrap());
 
     log!("exp156 up. No cryptography here — only whether an address refuses.");
-    spawner.spawn(verdict_task().unwrap());
+    spawner.spawn(verdict_task(p.CORE1).unwrap());
 
     // Slow while waiting, fast once there is a verdict — the same one bit
     // exp154 put on the LED, for a reader with no page open.
