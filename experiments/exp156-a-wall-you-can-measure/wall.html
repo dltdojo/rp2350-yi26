@@ -87,9 +87,27 @@
 <div id="status">Plug the board in, then press Connect. The verdict lands about nine seconds after the board boots and repeats every ten with all three reads, so arriving late is fine.</div>
 
 <div class="warn">
-  This page needs <b>Chrome or Edge</b> — WebUSB is Chromium-only. On Linux the
-  kernel's <code>cdc_acm</code> driver owns these interfaces until you run
-  <code>yi26 detach</code>; an interface has exactly one owner.
+  This page needs <b>Chrome or Edge</b> — WebUSB is Chromium-only.
+  <br><br>
+  <b>On Linux there are two gates and they fail differently.</b> Run both, in
+  this order, before pressing Connect:
+  <br><br>
+  <b>1. <code>yi26 udev --install</code></b> — the board's device node is
+  root-only until a rule says otherwise, so Connect fails with
+  <b>“Access denied”</b> the moment it opens the device, before any interface is
+  involved. One rule, your password once. <code>yi26 udev</code> on its own
+  checks it, by opening the device exactly the way this page does.
+  <br><br>
+  <b>2. <code>yi26 detach</code></b> — the kernel's <code>cdc_acm</code> driver
+  owns these interfaces, which is what <code>/dev/ttyACM0</code> is, and an
+  interface has exactly one owner. Without this, Connect gets past opening and
+  fails at <i>claiming</i> instead. It needs the rule from step 1, so running it
+  first fails with the same “permission denied”.
+  <br><br>
+  <code>yi26 attach</code> gives them back; so does replugging, or flashing
+  anything. While detached there is no serial port, so <code>yi26 log</code> and
+  every terminal program stop seeing the board — this page is the instrument
+  then.
 </div>
 
 <h2>The same address, three times, from core 1</h2>
@@ -282,7 +300,29 @@ function findCdc(dev) {
 
 async function start(dev) {
   device = dev;
-  await device.open();
+
+  // open() and claimInterface() are two different gates, and telling somebody
+  // to fix the second when the first is what stopped them costs a whole
+  // exchange — the failure docs/debugging-on-a-phone.md is written against.
+  //
+  // On Linux /dev/bus/usb/... is root-only by default, so this throws
+  // SecurityError "Access denied" before any interface is touched. The warning
+  // box on this page used to name `yi26 detach` and nothing else, which is
+  // exactly the wrong advice here: detaching goes through the same device node
+  // and fails with the same permission error, so following it produces a second
+  // confusing message and no progress.
+  try {
+    await device.open();
+  } catch (e) {
+    throw new Error(
+      `cannot OPEN the device, which happens before any interface is claimed — so ` +
+      `this is not cdc_acm and "yi26 detach" will not fix it (it needs the same ` +
+      `access and fails the same way). On Linux the device node is root-only until ` +
+      `a udev rule grants it. Fix: run "yi26 udev --install", then "yi26 detach", ` +
+      `then Connect again. "yi26 udev" checks it without changing anything. ` +
+      `[${e.name}: ${e.message}]`);
+  }
+
   if (device.configuration === null) await device.selectConfiguration(1);
 
   // Did you pick the bootrom rather than a running firmware?

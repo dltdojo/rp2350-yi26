@@ -82,6 +82,31 @@ On Android: Files app → *Open with* → Chrome. It shows all three reads side 
 side and will only say *the wall is there* when **both controls** arrived and
 the third read was refused.
 
+On **Linux** the page needs two things done first, in this order, and they are
+two different gates that fail differently:
+
+```sh
+yi26 udev --install     # 1. without it, Connect fails with "Access denied"
+yi26 detach             # 2. without it, Connect fails at claiming instead
+# ... open wall.html, press Connect ...
+yi26 attach             # give the port back when you are done
+```
+
+**`yi26 udev --install` comes first and is not optional.** The board's device
+node is root-only until a rule says otherwise, so Chrome fails the moment it
+opens the device — before any interface is involved. `yi26 detach` cannot help
+with that and is the wrong thing to reach for: it goes through the same node and
+fails with the same permission error. `yi26 udev` on its own reports the state
+without changing anything, and it checks by opening the device exactly the way
+the browser does, because a rule that exists but does not work sends you looking
+in the wrong place.
+
+`yi26 doctor --json` reports this as a `no-raw-usb-access` problem with the fix
+attached, which is the quickest way to find out whether it is the thing stopping
+you. While detached there is no `/dev/ttyACM0`, so `yi26 log` stops working and
+the page is the only instrument — that is the trade, and it is why `yi26 attach`
+is in the list.
+
 The summary repeats every ten seconds and carries every value the run
 established, so arriving late costs you the narrative and none of the findings.
 
