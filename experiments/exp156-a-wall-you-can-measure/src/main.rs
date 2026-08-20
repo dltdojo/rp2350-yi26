@@ -145,8 +145,36 @@ static mut CORE1_STACK: Stack<4096> = Stack::new();
 unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
     FAULT_PC.store(ef.pc(), Ordering::Relaxed);
     FAULTED.store(true, Ordering::Relaxed);
+
+    let sio = embassy_rp::pac::SIO;
+
+    // Core 1 faulting is what this experiment is trying to cause, and core 0 is
+    // still running to report it. Park quietly and let it.
+    if sio.cpuid().read() != 0 {
+        loop {
+            cortex_m::asm::wfe();
+        }
+    }
+
+    // Core 0 faulting is the case that has cost three flash cycles, because it
+    // takes the executor, the log, the page and the heartbeat with it — and a
+    // board that stops blinking looks exactly like a board that never started.
+    //
+    // So the handler drives the LED itself: bit-banged through SIO, with no
+    // HAL, no executor and no interrupts, because those are precisely the
+    // things that are no longer trustworthy here. Two quick flashes and a long
+    // gap, which is not a rate anything else in this firmware produces —
+    // **dark means never started, this pattern means died, and they were the
+    // same signal until now.**
+    let bit: u32 = 1 << 25;
     loop {
-        cortex_m::asm::wfe();
+        for _ in 0..2 {
+            sio.gpio_out(0).value().modify(|v| *v |= bit);
+            cortex_m::asm::delay(9_000_000);
+            sio.gpio_out(0).value().modify(|v| *v &= !bit);
+            cortex_m::asm::delay(9_000_000);
+        }
+        cortex_m::asm::delay(90_000_000);
     }
 }
 

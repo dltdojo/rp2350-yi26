@@ -163,6 +163,36 @@ the fetch of its own fault handler. If XIP is not open to Non-secure, core 1
 cannot execute anything, which is a different outcome from being refused one
 address, and only the ~6-versus-~8 distinction above can tell them apart.
 
+### Dark and dead were the same signal, and now they are not
+
+Three rounds were spent on a board that "stopped blinking", which could mean
+the firmware never started or that it started and died. **The LED could not
+tell those apart**, and every diagnosis had to work around that.
+
+Embassy's executor drives every task **from a single stack** on one core — the
+top-level README says so, and it is the reason the framework fits a
+microcontroller at all: no per-task stacks, no preemption, concurrency known at
+compile time. The consequence is the part that bit: a fault or a blocking call
+in any task takes every other task on that core with it, including the
+heartbeat that was the only instrument.
+
+So the `HardFault` handler now drives the LED itself — bit-banged through SIO,
+with no HAL, no executor and no interrupts, because those are exactly what is
+no longer trustworthy at that point. **Two quick flashes and a long gap**, a
+rate nothing else in this firmware produces.
+
+| LED | Means |
+| --- | --- |
+| dark | the firmware never started |
+| slow, 1 Hz | running, no verdict yet — the blink count says which rung |
+| fast, 5 Hz | there is a verdict; read it on the page |
+| **·· ·· ·· (two, pause)** | **core 0 faulted** — the executor is gone, this handler is all that is left |
+
+The handler checks `SIO.CPUID` first: core 1 faulting is what this experiment is
+*trying* to cause and core 0 is still there to report it, so core 1 parks
+quietly. Only core 0's death needs announcing, because only core 0's death is
+otherwise silent.
+
 ### What the rebuild buys, whatever happens
 
 It is a **ladder**: every step announces itself before it runs, so the last line
