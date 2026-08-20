@@ -305,13 +305,36 @@ async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
     // documentation is shifted by one field; if they are wrong, the read that
     // pays for it must not be the one holding USB. Core 1's first read is the
     // control — the same core and the same address, with only its security
-    // state changed between the two — which is a better control than core 0
-    // reading twice ever was.
-    log!("step 5: denying I2C1 to Non-secure, then demoting core 1.");
+    // state changed between the two.
+    //
+    // Step 5 used to do three things in one go, and a board that died in it
+    // could only say "four blinks". Three things inside one millisecond are
+    // three things the only working instrument cannot tell apart, so they are
+    // spread two seconds apart: **the blink count now names which one**, with
+    // no log, no page and no host.
+    //
+    //   ~4 blinks then dark   the ACCESSCTRL write itself
+    //   ~6 blinks then dark   demoting core 1
+    //   ~8 blinks then dark   core 1's Non-secure read taking the system with it
+    //   keeps blinking        nothing killed core 0; read the log for the verdict
+    //
+    // Splitting a step that already failed, rather than guessing which third of
+    // it failed, is the cheapest question this experiment can ask — and each
+    // attempt costs somebody a walk to the bench.
+    log!("step 5a: writing ACCESSCTRL to deny I2C1 to Non-secure.");
+    Timer::after(Duration::from_secs(2)).await;
     deny_non_secure();
+    log!("step 5a ok.");
+
+    log!("step 5b: setting FORCE_CORE_NS.CORE1 — demoting a core that is already running.");
+    Timer::after(Duration::from_secs(2)).await;
     demote_core1();
+    log!("step 5b ok.");
+
+    log!("step 5c: releasing core 1 to take its second read.");
+    Timer::after(Duration::from_secs(2)).await;
     GO_AHEAD.store(true, Ordering::Relaxed);
-    log!("step 5 ok. Core 1 is reading again now; core 0 will not touch that address.");
+    log!("step 5c ok. Core 0 will not touch that address again.");
 
     Timer::after(Duration::from_secs(2)).await;
 

@@ -127,6 +127,42 @@ control than core 0 reading twice ever was. If the ACCESSCTRL bits are wrong —
 and they come from a PAC whose documentation is shifted by one field — the read
 that pays for it is not the one holding USB.
 
+### Four blinks: the step that does three things at once
+
+Third flash, 2026-08-20: **four blinks, then dark.** One more than last time,
+which is one more second, which is the ladder getting one rung further — and
+then stopping in step 5.
+
+Step 5 did three things: write ACCESSCTRL, set `FORCE_CORE_NS.CORE1`, release
+core 1 to read. All three inside a millisecond, so *four blinks* names all three
+equally. The executor here is single-threaded, so a fault on core 0 stops the
+heartbeat as well as the log, and the log is what died first.
+
+**Three things inside one millisecond are three things the only working
+instrument cannot tell apart.** So they are now two seconds apart, and the
+blink count says which:
+
+```text
+~4 blinks then dark    the ACCESSCTRL write itself
+~6 blinks then dark    demoting core 1
+~8 blinks then dark    core 1's Non-secure read taking the system with it
+keeps blinking         nothing killed core 0 — read the log for the verdict
+```
+
+That is a readout with no log, no page, no host and no toolchain, and it is the
+third time this experiment has been debugged entirely through it.
+
+**Splitting a step that already failed beats guessing which third of it failed.**
+Each attempt costs somebody a walk to a bench, so the question a build asks
+should be the narrowest one that still separates the candidates.
+
+What is *not* known, and is worth saying before the next run: whether demoting a
+core that is already executing from XIP can work at all. Once core 1 is
+Non-secure, every instruction fetch it makes is a Non-secure access — including
+the fetch of its own fault handler. If XIP is not open to Non-secure, core 1
+cannot execute anything, which is a different outcome from being refused one
+address, and only the ~6-versus-~8 distinction above can tell them apart.
+
 ### What the rebuild buys, whatever happens
 
 It is a **ladder**: every step announces itself before it runs, so the last line
