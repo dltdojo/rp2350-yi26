@@ -72,46 +72,136 @@ log.
 
 ## How to see the result
 
+From a checkout, with a board attached:
+
 ```sh
 yi26 log --json --seconds 20      # the whole thing, from a terminal
 ./check.sh                        # exit 0, and it prints the verdict
 ```
 
-**[`wall.html`](./wall.html)** — Chrome or Edge, press Connect, pick the board.
-On Android: Files app → *Open with* → Chrome. It shows all three reads side by
-side and will only say *the wall is there* when **both controls** arrived and
-the third read was refused.
-
-On **Linux** the page needs two things done first, in this order, and they are
-two different gates that fail differently:
-
-```sh
-yi26 udev --install     # 1. without it, Connect fails with "Access denied"
-yi26 detach             # 2. without it, Connect fails at claiming instead
-# ... open wall.html, press Connect ...
-yi26 attach             # give the port back when you are done
-```
-
-**`yi26 udev --install` comes first and is not optional.** The board's device
-node is root-only until a rule says otherwise, so Chrome fails the moment it
-opens the device — before any interface is involved. `yi26 detach` cannot help
-with that and is the wrong thing to reach for: it goes through the same node and
-fails with the same permission error. `yi26 udev` on its own reports the state
-without changing anything, and it checks by opening the device exactly the way
-the browser does, because a rule that exists but does not work sends you looking
-in the wrong place.
-
-`yi26 doctor --json` reports this as a `no-raw-usb-access` problem with the fix
-attached, which is the quickest way to find out whether it is the thing stopping
-you. While detached there is no `/dev/ttyACM0`, so `yi26 log` stops working and
-the page is the only instrument — that is the trade, and it is why `yi26 attach`
-is in the list.
+**[`wall.html`](./wall.html)** shows the same thing to somebody with a browser
+and nothing else, which is what the page is for. On **Linux** it needs two
+commands run first and the order is not negotiable —
+[**Do this, in order**](#do-this-in-order) below is the whole procedure, and it
+is the copy that ships in the zip.
 
 The summary repeats every ten seconds and carries every value the run
 established, so arriving late costs you the narrative and none of the findings.
 
 The LED is the fallback when no page is open: **slow** while waiting for a
 verdict, **fast** once there is one. It is not the result.
+
+## Do this, in order
+
+Everything here works from a `.zip` built by `pack.sh` alone — no checkout, no
+compiler, and `yi26` only on Linux. `pack.sh` lifts this section verbatim into
+that zip, so there is one copy of the procedure and it is this one.
+
+WHAT YOU NEED
+  * A Raspberry Pi Pico 2 (RP2350A) and a USB data cable.
+  * **A phone is enough.** Android with Chrome, and the board in its only port.
+    A desktop with Chrome or Edge works the same way.
+  * **On Linux only, two commands and a checkout to run them from.** They are
+    two different gates, they fail at different moments, and the order is
+    forced. A phone needs neither, which is the shortest description of why the
+    browser track exists.
+
+        yi26 udev --install    without it, Connect fails with "Access denied"
+        yi26 detach            without it, Connect fails at claiming instead
+
+    The first writes one udev rule and asks for your password once. The board's
+    device node is root-only until it exists, so Chrome fails the instant it
+    *opens* the device — before any interface is involved. **`yi26 detach` will
+    not fix that**, and reaching for it is the mistake `wall.html` itself used to
+    recommend, in its own warning box, until a run on Chrome under Ubuntu proved
+    it wrong: detaching goes through the same node and fails with the same
+    permission error. The second frees the interfaces from the kernel's
+    `cdc_acm` driver, which is what `/dev/ttyACM0` is, because an interface has
+    exactly one owner. `yi26 attach` gives them back, and so does replugging.
+
+1. UNPACK IT. On a phone: the Files app will do it in place.
+
+       unzip exp156-a-wall-you-can-measure.zip
+       cd exp156-a-wall-you-can-measure
+
+2. PUT THE FIRMWARE ON THE BOARD. **[HUMAN STEP]** Hold the BOOTSEL button
+   down, plug the board in, then let go. A drive called `RP2350` appears, and
+   you copy the firmware onto it.
+
+       cp firmware/exp156-a-wall-you-can-measure.uf2 /media/$USER/RP2350/
+
+   On a phone, do the copy in the Files app instead — or skip the button
+   entirely if the board is already running exp105 or later: open
+   `pages/bootsel.html`, then `pages/pflash.html`, and give it the `.uf2`. Do
+   those two without a pause; a board left waiting in BOOTSEL may not still be
+   waiting when you come back.
+
+   **The drive vanishing as the copy finishes is success**, not an error. Some
+   file managers report it as one.
+
+3. WATCH THE LED FOR TEN SECONDS. It is not the result, but it is how you tell
+   a board that is working from one that is not before opening anything.
+
+       slow, about 1 Hz         running, no verdict yet
+       fast, about 5 Hz         there is a verdict — go and read it
+       dark                     the firmware never started
+       N flashes, long pause    core 0 died on rung N, and this is all that is
+                                left of the instrument
+
+   It should blink slowly for about nine seconds and then go fast. **The last
+   line is the one to report if you see it**: a repeating group of flashes means
+   the core holding USB took a fault, the count says which step, and no page
+   will connect because there is nothing left to connect to.
+
+4. OPEN THE RESULT.
+
+       pages/wall.html
+
+   On Android: Files app, tap the file, *Open with* → Chrome. On a desktop,
+   double-click it. On Linux run the two commands above first. Press
+   **Connect**, and pick the board from the chooser Chrome puts up. That
+   permission dialog is the one thing on this list nobody can automate for you.
+
+   The page shows one address read three times by one core, and what changed
+   between them:
+
+       1 · Secure,     wall open     expected: a value
+       2 · Non-secure, wall open     expected: the same value
+       3 · Non-secure, wall shut     expected: FAULTED
+
+   **All three panels have to fill in.** The first two are the controls and they
+   are not decoration — a refusal on its own is one failed access, and a
+   refusal at an address that was already denied says nothing about the firmware
+   claiming to have denied it. Read 1 to read 2 changes only the security state.
+   Read 2 to read 3 changes only the ACCESSCTRL bits. That is why the third one
+   means anything.
+
+   The verdict underneath is only allowed to say *the wall is there* when both
+   controls arrived and the third read was refused.
+
+5. IF THE PAGE SHOWS NOTHING. The summary repeats every ten seconds and carries
+   every value the run produced, so arriving late is fine — wait fifteen seconds
+   before concluding anything. If it is still empty, `pages/log.html` reads the
+   same serial stream with no parsing in the way, and whatever it shows is the
+   thing to report.
+
+   A `(+N lines lost)` marker is not a fault. It means nobody was draining the
+   log for a while — a backgrounded browser tab does it — and the firmware is
+   telling you rather than pretending. Nothing is lost that matters: every
+   finding is in the block that repeats.
+
+WHAT THIS DOES NOT DO
+  It never writes `ACCESSCTRL.LOCK`. That register makes a configuration
+  survive until reset with no way for software to undo it, so a board left in a
+  state you did not want is one power cycle from ordinary again. `check.sh`
+  greps the source for that write rather than asking you to believe this
+  paragraph.
+
+  It writes no OTP and burns no fuse, and there is no cryptography in it at
+  all. The address it protects is I2C1's hardware ID register, which is not a
+  secret and is not worth protecting — that is the point. What is being shown
+  is that an address can be made unreachable, not that a key kept there would
+  be safe.
 
 ## What this does not do
 
