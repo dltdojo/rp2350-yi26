@@ -122,7 +122,21 @@
 <p class="meta">The page reads; it never writes to the board, and it never sends 1200 baud — which would reboot it into the bootloader.</p>
 
 <script>
-const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+// Two entries, and the second is the lesson.
+//
+// A page that filters only for the application firmware shows an EMPTY chooser
+// when the board is in BOOTSEL — and an empty chooser is indistinguishable
+// from a broken page. docs/debugging-on-a-phone.md records exactly this
+// happening to exp146's step 0, on a page that was working perfectly, and says
+// what to do: "Check what your identifying tool can actually see before making
+// it step 0." exp117's troubleshooting table carries the row too — *the picker
+// lists nothing / the board is already in BOOTSEL / it is 2e8a:000f now*.
+//
+// So the bootrom is in the filter, not because this page can talk to it, but
+// so it can SAY that is what you picked. Being told is the whole difference.
+const APP     = { vendorId: 0x1209, productId: 0x0001 };
+const BOOTROM = { vendorId: 0x2e8a, productId: 0x000f };
+const FILTERS = [APP, BOOTROM];
 
 // CDC class requests, from the USB CDC specification.
 const SET_LINE_CODING        = 0x20;
@@ -291,6 +305,15 @@ async function start(dev) {
   await device.open();
   if (device.configuration === null) await device.selectConfiguration(1);
 
+  // Did you pick the bootrom rather than a running firmware?
+  if (device.vendorId === BOOTROM.vendorId && device.productId === BOOTROM.productId) {
+    await stop();
+    say('That is the board in BOOTSEL (2e8a:000f), not a running firmware — there is no log ' +
+        'on it to read. Either unplug and replug it without holding the button, so it boots ' +
+        'what is already in flash, or write the firmware first with pflash.html.', 'bad');
+    return;
+  }
+
   const { control, data, endpointIn } = findCdc(device);
   if (control === null || data === null || endpointIn === null) {
     throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
@@ -380,7 +403,16 @@ $('connect').addEventListener('click', async () => {
     const dev = await navigator.usb.requestDevice({ filters: FILTERS });
     await start(dev);
   } catch (e) {
-    say(e.message, 'bad');
+    // "No device selected" is Chrome saying the chooser closed with nothing
+    // picked, and that one message covers several situations — so name them.
+    const msg = /No device selected/i.test(e.message)
+      ? 'The chooser closed with nothing picked. Three things it usually is: the list was empty ' +
+        'because the board is not enumerating at all (check the LED — dark means the firmware is ' +
+        'not running); the board slept in BOOTSEL and reset itself, which leaves dead entries ' +
+        'behind; or one board appears several times and only the live entry makes Android ask ' +
+        'for USB permission, with nothing in the names to say which. Replug and try again.'
+      : e.message;
+    say(msg, 'bad');
     $('connect').disabled = false;
     $('stop').disabled = true;
   }
