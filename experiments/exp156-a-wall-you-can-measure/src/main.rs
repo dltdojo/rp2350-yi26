@@ -257,34 +257,52 @@ fn bring_i2c1_out_of_reset() {
     }
 }
 
-fn deny_non_secure() {
-    embassy_rp::pac::ACCESSCTRL.i2c1().modify(|w| {
-        w.set_nsu(false);
-        w.set_nsp(false);
-        w.set_su(true);
-        w.set_sp(true);
-        w.set_core0(true);
-        w.set_core1(true);
-    });
+/// The 16-bit key an ACCESSCTRL write is believed to need, in bits 31:16.
+///
+/// **A hypothesis under test, not a fact.** What is measured is narrower and
+/// certain: on this part, reading `ACCESSCTRL.LOCK` works, reading
+/// `ACCESSCTRL.I2C1` works, and **writing that same value straight back
+/// faults** — rungs five and six passed and seven did not. So the block is
+/// reachable and it is *writes* that are refused, whatever the value.
+///
+/// A write key in the top half is the ordinary reason a peripheral behaves that
+/// way, and `0xACCE` is the obvious candidate for a block called ACCESSCTRL.
+/// `rp-pac` models no such thing — `Access` is a `u32` with fields only in bits
+/// 0..7 — so `modify()` reads a register whose top half is zero and writes zero
+/// back there, which is exactly the shape of a write that gets refused.
+///
+/// If this is wrong, rung seven faults again and one candidate is eliminated
+/// with certainty, which is worth a flash cycle either way.
+const ACCESSCTRL_KEY: u32 = 0xACCE_0000;
+
+/// Every ACCESSCTRL write in this firmware goes through here.
+///
+/// Not tidiness: `modify()` is a read-modify-write and would drop the key on the
+/// floor every time, so a helper that cannot forget it is the only safe shape.
+fn accessctrl_write(reg: embassy_rp::pac::common::Reg<embassy_rp::pac::accessctrl::regs::Access, embassy_rp::pac::common::RW>, bits: u32) {
+    reg.write_value(embassy_rp::pac::accessctrl::regs::Access(ACCESSCTRL_KEY | (bits & 0xFFFF)));
+}
+
+fn deny_non_secure(before: u32) {
+    // Clear NSU (bit 0) and NSP (bit 1); leave everything else as the hardware
+    // had it. Reading first and clearing two bits is safer than composing a
+    // value out of field setters whose names this PAC documents one field out
+    // of step — and the power-on value is now something this experiment has
+    // actually read rather than assumed.
+    accessctrl_write(embassy_rp::pac::ACCESSCTRL.i2c1(), before & !0b11);
 }
 
 /// Demote core 1, as a separate step and **after** it is already running.
 ///
-/// The first version of this experiment did it before `spawn_core1`, and the
-/// board went completely silent — no USB, nothing. `spawn_core1` is not
-/// fire-and-forget: it hands core 1 a launch sequence over the FIFO and then
-/// **blocks on `fifo_read()` waiting for each reply**, with a `fails > 16`
-/// escape that only fires on a *wrong* answer and never on silence. A core 1
-/// that cannot execute its own launch — because it is Non-secure and the ROM,
-/// the stack and the FIFO it needs are not open to Non-secure — never answers,
-/// so core 0 waits forever, and it was waiting three lines before USB was
-/// initialised.
-///
-/// Whether demoting a core that is already running works at all is now the
-/// question rather than an assumption. If it does not, the second read simply
-/// succeeds and this experiment says so.
+/// Whether demoting a core that is already executing works at all is a question
+/// this experiment asks rather than assumes. If it does not, core 1's second
+/// read simply succeeds and the log says so.
 fn demote_core1() {
-    embassy_rp::pac::ACCESSCTRL.force_core_ns().modify(|w| w.set_core1(true));
+    let r = embassy_rp::pac::ACCESSCTRL.force_core_ns();
+    let cur = r.read().0;
+    r.write_value(embassy_rp::pac::accessctrl::regs::ForceCoreNs(
+        ACCESSCTRL_KEY | ((cur | 0b10) & 0xFFFF),
+    ));
 }
 
 #[embassy_executor::task]
@@ -394,16 +412,24 @@ async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
         (before >> 4) & 1, (before >> 5) & 1, (before >> 6) & 1, (before >> 7) & 1
     );
 
+    // Twenty seconds, on purpose. The two values above are the finding of this
+    // run whatever happens next, and the next thing tried is the thing that
+    // killed the last run — so there is time to open the page and read them
+    // before anything risks the log again. Capturing what already succeeded
+    // costs twenty seconds; losing it costs a flash cycle.
+    log!("waiting 20 s before touching a write, so the two values above can be read.");
+    Timer::after(Duration::from_secs(20)).await;
+
     LADDER.store(7, Ordering::Relaxed);
-    log!("step 5c: writing that value straight back, unchanged. If a write faults at all, it faults here.");
+    log!("step 5c: identity write, this time with {:#010x} in the top half.", ACCESSCTRL_KEY);
     Timer::after(Duration::from_secs(2)).await;
-    embassy_rp::pac::ACCESSCTRL.i2c1().write_value(embassy_rp::pac::accessctrl::regs::Access(before));
-    log!("step 5c ok: an identity write is accepted.");
+    accessctrl_write(embassy_rp::pac::ACCESSCTRL.i2c1(), before);
+    log!("step 5c ok: a keyed write is accepted. The key is real.");
 
     LADDER.store(8, Ordering::Relaxed);
     log!("step 5d: writing it again with NSU and NSP cleared — the wall itself.");
     Timer::after(Duration::from_secs(2)).await;
-    deny_non_secure();
+    deny_non_secure(before);
     let after = embassy_rp::pac::ACCESSCTRL.i2c1().read().0;
     log!("step 5d ok: I2C1 access is now {:#010x} (was {:#010x}).", after, before);
     if after == before {

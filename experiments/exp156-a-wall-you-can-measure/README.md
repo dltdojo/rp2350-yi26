@@ -248,6 +248,45 @@ are right and the fields are misnamed. **A default value tells them apart**, and
 until now this experiment has been writing bits it could not confirm the meaning
 of.
 
+### Seven flashes: reads work, and every write is refused
+
+Fifth flash, 2026-08-20. Rungs five and six — reading `ACCESSCTRL.LOCK` and
+reading `ACCESSCTRL.I2C1` — **passed**. Rung seven, writing that same value
+straight back, **faulted**.
+
+That is a clean split and it is a real finding:
+
+> **The block is reachable. Reads work. Writes are refused, whatever the value.**
+
+Not the wall bits, not this particular value — *any* write. A register whose own
+documentation says it is "writable only from a Secure, Privileged processor",
+refusing a Secure, Privileged processor writing back exactly what it just read.
+
+The ordinary reason a peripheral behaves that way is a **write key** in the top
+half of the word, and `rp-pac` models none — `Access` is a `u32` with fields
+only in bits 0..7, so `modify()` reads a register whose top half is zero and
+writes zero back there. That is exactly the write that gets refused.
+
+So the next run tries `0xACCE` in bits 31:16, through a helper every ACCESSCTRL
+write must go through, because `modify()` is a read-modify-write and would drop
+the key every time. `check.sh` fails if a bare `write`/`modify` appears beside
+it.
+
+**This is a hypothesis, and it is stated as one.** If it is wrong, rung seven
+faults again and one candidate is eliminated with certainty — which is worth a
+flash cycle either way, and is a much better position than the four rounds
+before it, where the board could only say that something, somewhere, had gone.
+
+### Twenty seconds to read what already worked
+
+Rungs five and six produce the two values this run was for, and rung seven is
+the thing that killed the last one. So there is a **twenty-second wait between
+them**: time to open the page and read `LOCK` and the power-on `I2C1` before
+anything risks the log again.
+
+Capturing what already succeeded costs twenty seconds. Losing it costs a flash
+cycle, and somebody's walk to a bench.
+
 ### What the rebuild buys, whatever happens
 
 It is a **ladder**: every step announces itself before it runs, so the last line

@@ -89,6 +89,21 @@ else
          "no reset_done() wait in src/main.rs — a peripheral in reset faults when read"
 fi
 
+# Every ACCESSCTRL write carries the key.
+#
+# Measured on hardware: reads of this block work and an identity write faults,
+# so writes are refused whatever the value — the shape of a register with a
+# write key in its top half. rp-pac models no key, so `modify()` reads a
+# register whose top half is zero and writes zero back, which is precisely the
+# write that gets refused. A helper that cannot forget the key is the only safe
+# shape, and this fails if a raw write_value or modify appears beside it.
+if grep -nE 'ACCESSCTRL\.[a-z_0-9]+\(\)\.(modify|write)\b' src/main.rs | grep -qv 'force_core_ns'; then
+    fail "every ACCESSCTRL write goes through the keyed helper" \
+         "a bare modify()/write() on ACCESSCTRL — it will drop the key and fault"
+else
+    pass "every ACCESSCTRL write goes through the keyed helper"
+fi
+
 # Nothing that can hang may run before USB is initialised.
 #
 # The first build of this experiment configured ACCESSCTRL and called
