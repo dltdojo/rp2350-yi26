@@ -1239,8 +1239,12 @@ None of these is interrogated yet — a direction, not a schedule.
   HAL's write functions rather than trusting the author, because OTP is
   permanent and the cost of being wrong is somebody's board. Needs 1.
 - **a wall you can measure** — no cryptography at all.
-  [exp156](./exp156-a-wall-you-can-measure/) is **built and not yet verified on
-  hardware.** One address, read from two places: core 0 Secure and privileged,
+  [exp156](./exp156-a-wall-you-can-measure/) is **built, seven flash cycles in,
+  and still unverified** — see its
+  [handover](./exp156-a-wall-you-can-measure/HANDOVER.md), which carries what each
+  round established and what is still unexplained. The finding so far is that
+  **`ACCESSCTRL` is readable and refuses every write**, including writing back
+  the value just read, from a Secure Privileged core. One address, read from two places: core 0 Secure and privileged,
   core 1 put into Non-secure state by `ACCESSCTRL.FORCE_CORE_NS`, with I2C1
   denied to Non-secure. **It passes only when both halves happen** — the Secure
   read returns a value and the Non-secure read faults — because a read that

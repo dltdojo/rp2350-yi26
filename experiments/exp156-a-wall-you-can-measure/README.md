@@ -312,6 +312,17 @@ simply succeeds — and the log says that this build cannot tell that apart from
 ACCESSCTRL failing to refuse, which is two findings in one outcome and worth
 admitting rather than papering over.
 
+## Handed over, unverified
+
+Seven flash cycles, each costing somebody a walk to a bench, and this is
+blocked on a board rather than on an idea.
+**[`HANDOVER.md`](./HANDOVER.md)** is what the next person needs: what each
+round established, the one finding that is solid, the state nobody has explained
+yet, and the six decisions that were paid for and should not be undone.
+
+The method those rounds produced is written up separately, because it outlived
+this experiment: [`docs/debugging-without-a-board.md`](../../docs/debugging-without-a-board.md).
+
 ## Expected output
 
 **Not captured yet — this experiment has not run on a board.**

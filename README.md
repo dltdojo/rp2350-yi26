@@ -63,6 +63,14 @@ administrator rights. [`docs/platforms.md`](./docs/platforms.md) lays out that
 split experiment by experiment, and says which parts have been verified here
 and which have not.
 
+Developing from a machine with **no board attached**, with somebody else
+flashing what you send? That loop is different enough to have its own rules —
+an observation costs a walk to a bench, so a build has to answer a question
+whatever the outcome, and when firmware fails the LED is the only channel left.
+[`docs/debugging-without-a-board.md`](./docs/debugging-without-a-board.md) is
+what seven flash cycles of it taught, starting with: **search prior work before
+forming a hypothesis, and prove the LED works before you need it.**
+
 No computer at all — a phone, a board, and nothing else? The thing that builds
 the `.uf2` can be a cloud AI session you describe the change to in sentences,
 and the phone flashes what comes back with
