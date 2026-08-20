@@ -199,9 +199,12 @@ the number it flashes is the step that did not come back:
 | 2 | core 0's baseline read |
 | 3 | `spawn_core1` |
 | 4 | checking core 1's first read |
-| 5 | the ACCESSCTRL write (`step 5a`) |
-| 6 | `FORCE_CORE_NS.CORE1` (`step 5b`) |
-| 7 | releasing core 1 (`step 5c`) |
+| 5 | **reading** `ACCESSCTRL.LOCK` |
+| 6 | **reading** `ACCESSCTRL.I2C1` |
+| 7 | writing I2C1 back **unchanged** |
+| 8 | writing it with NSU/NSP cleared — the wall |
+| 9 | `FORCE_CORE_NS.CORE1` |
+| 10 | releasing core 1 |
 
 **A pattern that means "died" is worth much less than one that means "died
 here".** The first version of this handler was the former, and it cost a round
@@ -211,6 +214,39 @@ The handler checks `SIO.CPUID` first: core 1 faulting is what this experiment is
 *trying* to cause and core 0 is still there to report it, so core 1 parks
 quietly. Only core 0's death needs announcing, because only core 0's death is
 otherwise silent.
+
+### Five flashes: the ACCESSCTRL write
+
+Fourth flash, 2026-08-20: **five flashes, long pause, repeating.** Rung 5 — the
+`ACCESSCTRL` write. Core 0 faults writing a register whose own documentation
+says it is "writable only from a Secure, Privileged processor", which is exactly
+what core 0 is.
+
+That is surprising enough to be worth not guessing at. `rp-pac` models no
+password for this block, the offsets are ordinary (LOCK at `0x00`, I2C1 at
+`0x88`), and nothing in RESETS gates it.
+
+So rung 5 becomes four rungs, and the first two **only read**:
+
+```text
+5   read ACCESSCTRL.LOCK          is this block readable at all?
+6   read ACCESSCTRL.I2C1          and its power-on value
+7   write I2C1 back unchanged     does ANY write fault?
+8   write it with NSU/NSP cleared does THIS write fault?
+```
+
+One flash cycle separates *cannot reach the block*, *cannot write it*, and
+*cannot write this value*.
+
+**The reads earn their place twice over.** The register's documentation says it
+"Defaults to Secure access from any master", so its power-on value is a fact
+this experiment can print — and printing it settles, from silicon rather than
+prose, which reading of the field layout is correct. `rp-pac`'s doc comments
+here are shifted by one field: `su` carries NSP's sentence, `core1` carries
+CORE0's. Either the names are right and the docs are misattached, or the docs
+are right and the fields are misnamed. **A default value tells them apart**, and
+until now this experiment has been writing bits it could not confirm the meaning
+of.
 
 ### What the rebuild buys, whatever happens
 

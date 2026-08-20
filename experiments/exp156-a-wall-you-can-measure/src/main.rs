@@ -176,7 +176,7 @@ unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
     // **dark means never started, this pattern means died, and they were the
     // same signal until now.**
     let bit: u32 = 1 << 25;
-    let n = LADDER.load(Ordering::Relaxed).max(1).min(9);
+    let n = LADDER.load(Ordering::Relaxed).max(1).min(12);
     loop {
         for _ in 0..n {
             sio.gpio_out(0).value().modify(|v| *v |= bit);
@@ -363,23 +363,64 @@ async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
     // Splitting a step that already failed, rather than guessing which third of
     // it failed, is the cheapest question this experiment can ask — and each
     // attempt costs somebody a walk to the bench.
+    // Rung 5 was one rung and it turned out to be four things. The board
+    // reported *five flashes* — the ACCESSCTRL write — so the write is split
+    // into read, identity-write, and real-write, each two seconds apart, each
+    // logged. One flash cycle now separates "cannot read this block at all"
+    // from "cannot write it" from "cannot write this value".
+    //
+    // The reads are not only bisection. The register's own documentation says
+    // it "Defaults to Secure access from any master", so its power-on value is
+    // a fact this experiment can print — and printing it settles, from the
+    // hardware rather than from prose, which of two readings of the field
+    // layout is right. `rp-pac`'s doc comments for this register are shifted by
+    // one field, so `su` carries NSP's sentence and `core1` carries CORE0's.
+    // Either the names are right and the docs are misattached, or the docs are
+    // right and the fields are misnamed, and a default value distinguishes them.
     LADDER.store(5, Ordering::Relaxed);
-    log!("step 5a: writing ACCESSCTRL to deny I2C1 to Non-secure.");
+    log!("step 5a: READING accessctrl.LOCK. No write yet — this only asks whether the block is readable.");
     Timer::after(Duration::from_secs(2)).await;
-    deny_non_secure();
-    log!("step 5a ok.");
+    let lock = embassy_rp::pac::ACCESSCTRL.lock().read().0;
+    log!("step 5a ok: LOCK = {:#010x}.", lock);
 
     LADDER.store(6, Ordering::Relaxed);
-    log!("step 5b: setting FORCE_CORE_NS.CORE1 — demoting a core that is already running.");
+    log!("step 5b: READING accessctrl.I2C1.");
     Timer::after(Duration::from_secs(2)).await;
-    demote_core1();
-    log!("step 5b ok.");
+    let before = embassy_rp::pac::ACCESSCTRL.i2c1().read().0;
+    log!("step 5b ok: I2C1 access = {:#010x} at power-on.", before);
+    log!(
+        "  bits: nsu={} nsp={} su={} sp={} core0={} core1={} dma={} dbg={}",
+        before & 1, (before >> 1) & 1, (before >> 2) & 1, (before >> 3) & 1,
+        (before >> 4) & 1, (before >> 5) & 1, (before >> 6) & 1, (before >> 7) & 1
+    );
 
     LADDER.store(7, Ordering::Relaxed);
-    log!("step 5c: releasing core 1 to take its second read.");
+    log!("step 5c: writing that value straight back, unchanged. If a write faults at all, it faults here.");
+    Timer::after(Duration::from_secs(2)).await;
+    embassy_rp::pac::ACCESSCTRL.i2c1().write_value(embassy_rp::pac::accessctrl::regs::Access(before));
+    log!("step 5c ok: an identity write is accepted.");
+
+    LADDER.store(8, Ordering::Relaxed);
+    log!("step 5d: writing it again with NSU and NSP cleared — the wall itself.");
+    Timer::after(Duration::from_secs(2)).await;
+    deny_non_secure();
+    let after = embassy_rp::pac::ACCESSCTRL.i2c1().read().0;
+    log!("step 5d ok: I2C1 access is now {:#010x} (was {:#010x}).", after, before);
+    if after == before {
+        log!("  it did not change. The write was accepted and ignored, which is not a wall.");
+    }
+
+    LADDER.store(9, Ordering::Relaxed);
+    log!("step 5e: setting FORCE_CORE_NS.CORE1 — demoting a core that is already running.");
+    Timer::after(Duration::from_secs(2)).await;
+    demote_core1();
+    log!("step 5e ok.");
+
+    LADDER.store(10, Ordering::Relaxed);
+    log!("step 5f: releasing core 1 to take its second read.");
     Timer::after(Duration::from_secs(2)).await;
     GO_AHEAD.store(true, Ordering::Relaxed);
-    log!("step 5c ok. Core 0 will not touch that address again.");
+    log!("step 5f ok. Core 0 will not touch that address again.");
 
     Timer::after(Duration::from_secs(2)).await;
 
