@@ -55,10 +55,15 @@ FAMILY="$(od -An -tx4 -j28 -N4 "$UF2" | tr -d ' ')"
 # ACCESSCTRL.LOCK makes a configuration survive until reset and cannot be
 # undone by software. This experiment is meant to be re-runnable and reversible
 # by a power cycle, so the absence of that call is checked rather than intended.
-if grep -qE '\.lock\(\)' src/main.rs; then
-    fail "the firmware never locks ACCESSCTRL" "src/main.rs calls .lock()"
+# Writing it, not naming it. The first version of this guard grepped for
+# `.lock()` at all, and then failed the moment the experiment started *reading*
+# LOCK to find out what the bootrom had left there — which is exactly the kind
+# of question this experiment exists to ask. A guard that forbids looking at a
+# register is not protecting anything; what must never happen is the write.
+if grep -qE '\.lock\(\)\.(write|modify)' src/main.rs; then
+    fail "the firmware never writes ACCESSCTRL.LOCK" "src/main.rs writes it — that survives until reset with no software undo"
 else
-    pass "the firmware never locks ACCESSCTRL"
+    pass "the firmware never writes ACCESSCTRL.LOCK"
 fi
 
 # The target address is taken from the PAC. A hardcoded one is how the first
