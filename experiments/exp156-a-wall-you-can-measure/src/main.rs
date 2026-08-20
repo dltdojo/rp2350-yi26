@@ -124,6 +124,15 @@ static CORE1_STEP: AtomicU32 = AtomicU32::new(STEP_NONE);
 static CORE1_FIRST: AtomicU32 = AtomicU32::new(0);
 static CORE1_VALUE: AtomicU32 = AtomicU32::new(0);
 static GO_AHEAD: AtomicBool = AtomicBool::new(false);
+
+/// Which rung the ladder is on, for the fault handler to blink.
+///
+/// The handler already proved that a dead core 0 can announce itself. What it
+/// could not say was *where*, so the count had to come from somebody watching
+/// a clock — and a pattern that means "died" is worth much less than one that
+/// means "died here". This is written before each step, never after, so the
+/// number blinked is the step that did not come back.
+static LADDER: AtomicU32 = AtomicU32::new(0);
 static FAULTED: AtomicBool = AtomicBool::new(false);
 static FAULT_PC: AtomicU32 = AtomicU32::new(0);
 
@@ -167,14 +176,15 @@ unsafe fn HardFault(ef: &ExceptionFrame) -> ! {
     // **dark means never started, this pattern means died, and they were the
     // same signal until now.**
     let bit: u32 = 1 << 25;
+    let n = LADDER.load(Ordering::Relaxed).max(1).min(9);
     loop {
-        for _ in 0..2 {
+        for _ in 0..n {
             sio.gpio_out(0).value().modify(|v| *v |= bit);
-            cortex_m::asm::delay(9_000_000);
+            cortex_m::asm::delay(15_000_000);
             sio.gpio_out(0).value().modify(|v| *v &= !bit);
-            cortex_m::asm::delay(9_000_000);
+            cortex_m::asm::delay(15_000_000);
         }
-        cortex_m::asm::delay(90_000_000);
+        cortex_m::asm::delay(150_000_000);
     }
 }
 
@@ -304,20 +314,24 @@ async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
     // names the thing that did not come back. A ladder like this costs one
     // flash cycle and answers which rung broke — which is the only thing worth
     // buying when each attempt needs somebody at a bench.
+    LADDER.store(1, Ordering::Relaxed);
     log!("step 1: taking I2C1 out of reset. A peripheral still in reset faults when read.");
     bring_i2c1_out_of_reset();
     log!("step 1 ok.");
 
+    LADDER.store(2, Ordering::Relaxed);
     log!("step 2: reading I2C1 from core 0, while no wall exists yet.");
     let baseline = unsafe { core::ptr::read_volatile(target()) };
     log!("step 2 ok: {:#010x}. That is what an unrestricted read looks like.", baseline);
 
+    LADDER.store(3, Ordering::Relaxed);
     log!("step 3: launching core 1, still Secure.");
     #[allow(static_mut_refs)]
     let stack = unsafe { &mut CORE1_STACK };
     spawn_core1(core1, stack, core1_main);
     log!("step 3 ok: spawn_core1 returned, so core 1 answered its launch handshake.");
 
+    LADDER.store(4, Ordering::Relaxed);
     Timer::after(Duration::from_secs(1)).await;
     if CORE1_STEP.load(Ordering::Relaxed) >= STEP_FIRST_READ {
         log!(
@@ -349,16 +363,19 @@ async fn verdict_task(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
     // Splitting a step that already failed, rather than guessing which third of
     // it failed, is the cheapest question this experiment can ask — and each
     // attempt costs somebody a walk to the bench.
+    LADDER.store(5, Ordering::Relaxed);
     log!("step 5a: writing ACCESSCTRL to deny I2C1 to Non-secure.");
     Timer::after(Duration::from_secs(2)).await;
     deny_non_secure();
     log!("step 5a ok.");
 
+    LADDER.store(6, Ordering::Relaxed);
     log!("step 5b: setting FORCE_CORE_NS.CORE1 — demoting a core that is already running.");
     Timer::after(Duration::from_secs(2)).await;
     demote_core1();
     log!("step 5b ok.");
 
+    LADDER.store(7, Ordering::Relaxed);
     log!("step 5c: releasing core 1 to take its second read.");
     Timer::after(Duration::from_secs(2)).await;
     GO_AHEAD.store(true, Ordering::Relaxed);

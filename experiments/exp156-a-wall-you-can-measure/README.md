@@ -186,7 +186,26 @@ rate nothing else in this firmware produces.
 | dark | the firmware never started |
 | slow, 1 Hz | running, no verdict yet — the blink count says which rung |
 | fast, 5 Hz | there is a verdict; read it on the page |
-| **·· ·· ·· (two, pause)** | **core 0 faulted** — the executor is gone, this handler is all that is left |
+| **N flashes, long pause, repeat** | **core 0 faulted on rung N** — the executor is gone, this handler is all that is left |
+
+A fixed pattern told us *that* core 0 died. It did not say *where*, so the
+answer still had to come from somebody watching a clock. So the handler blinks
+the rung instead, from a counter written **before** each step and never after —
+the number it flashes is the step that did not come back:
+
+| Flashes | Died in |
+| --- | --- |
+| 1 | taking I2C1 out of reset |
+| 2 | core 0's baseline read |
+| 3 | `spawn_core1` |
+| 4 | checking core 1's first read |
+| 5 | the ACCESSCTRL write (`step 5a`) |
+| 6 | `FORCE_CORE_NS.CORE1` (`step 5b`) |
+| 7 | releasing core 1 (`step 5c`) |
+
+**A pattern that means "died" is worth much less than one that means "died
+here".** The first version of this handler was the former, and it cost a round
+to find that out.
 
 The handler checks `SIO.CPUID` first: core 1 faulting is what this experiment is
 *trying* to cause and core 0 is still there to report it, so core 1 parks
