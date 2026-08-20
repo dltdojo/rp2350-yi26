@@ -100,6 +100,25 @@ const FAULT_BIT: u8 = 0x80;
 /// step 0 is a firmware whose first step is invisible.
 const NO_STEP: u32 = 0;
 
+/// How many steps [`Note::outcome`] can carry. Two bits each, in `SCRATCH2`.
+pub const STEPS: u8 = 16;
+
+/// A step nobody has attempted yet. Zero on purpose: an untouched register reads
+/// as "nothing has been tried", which is the safe reading.
+pub const NOT_ATTEMPTED: u8 = 0;
+
+/// A step that was in progress when the boot ended. **Written by the crate**,
+/// never by the caller: it is the outcome nobody is alive to report.
+pub const DIED: u8 = 1;
+
+/// The two codes a firmware may define for itself, for steps that survived.
+///
+/// "It came back" is rarely the whole answer. A write that is silently ignored
+/// and a write that takes effect both survive, and telling them apart is usually
+/// the actual question — so a step that lives says which of the two it was.
+pub const SURVIVED_A: u8 = 2;
+pub const SURVIVED_B: u8 = 3;
+
 /// How the previous boot ended.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Cause {
@@ -127,9 +146,31 @@ pub struct Note {
     ///
     /// Read it with [`Note::ended`] rather than by hand.
     pub history: [u8; HISTORY],
+    /// Two bits per step. Read it with [`Note::outcome`].
+    pub steps: u32,
 }
 
 impl Note {
+    /// What became of step `n`, counting from 1: [`NOT_ATTEMPTED`], [`DIED`], or
+    /// whichever of [`SURVIVED_A`] / [`SURVIVED_B`] the firmware marked.
+    pub fn outcome(&self, n: u8) -> u8 {
+        if n == 0 || n > STEPS {
+            return NOT_ATTEMPTED;
+        }
+        ((self.steps >> (2 * (n - 1) as u32)) & 0b11) as u8
+    }
+
+    /// The lowest-numbered step nobody has tried yet, or `None` when the matrix
+    /// is exhausted.
+    ///
+    /// **A step that died counts as tried.** That is the whole of lever two: a
+    /// boot that comes back after a death does not retry the thing that killed
+    /// it — it steps over it and attempts the next candidate, so one flash walks
+    /// a list that a human would otherwise walk one bench trip at a time.
+    pub fn next_unattempted(&self, count: u8) -> Option<u8> {
+        (1..=count.min(STEPS)).find(|&n| self.outcome(n) == NOT_ATTEMPTED)
+    }
+
     /// How boot `n` ended, counting from 1. `None` once `n` is beyond what has
     /// **finished** or beyond what sixteen bytes can hold.
     ///
@@ -191,26 +232,38 @@ pub fn read() -> Note {
     wd.scratch0().write_value(0);
 
     if !ours {
-        wd.scratch1().write_value(1);
-        wd.scratch2().write_value(NO_STEP);
+        wd.scratch1().write_value(pack(1, 0));
+        wd.scratch2().write_value(0);
         wd.scratch3().write_value(0);
-        return Note { boot: 1, cause: Cause::Fresh, step: 0, history: [0; HISTORY] };
+        return Note { boot: 1, cause: Cause::Fresh, step: 0, history: [0; HISTORY], steps: 0 };
     }
 
-    let previous = wd.scratch1().read();
+    let (previous, step) = unpack(wd.scratch1().read());
     let boot = previous.saturating_add(1);
+    let mut steps = wd.scratch2().read();
 
-    // SCRATCH2 still holds whatever step the previous boot was inside when it
-    // stopped, because it is written before each step and cleared only by
-    // `finished`.
-    let step = wd.scratch2().read();
-    let (cause, step) = if step == NO_STEP {
+    // SCRATCH1's low byte still holds whatever step the previous boot was inside
+    // when it stopped, because it is written before each step and cleared only
+    // by `finished`.
+    let (cause, step) = if step == NO_STEP as u8 {
         (Cause::Completed, 0)
     } else if forced {
-        (Cause::Fault, step as u8)
+        (Cause::Fault, step)
     } else {
-        (Cause::Hang, step as u8)
+        (Cause::Hang, step)
     };
+
+    // A step that was in progress at the death is marked DIED here — by the
+    // crate, because there was nobody alive to mark it. This is what makes
+    // `next_unattempted` step over it instead of walking into it again, and a
+    // harness that retried the thing that killed it would never finish.
+    if step != 0 && step <= STEPS {
+        let shift = 2 * (step - 1) as u32;
+        if (steps >> shift) & 0b11 == NOT_ATTEMPTED as u32 {
+            steps = (steps & !(0b11 << shift)) | ((DIED as u32) << shift);
+        }
+    }
+    wd.scratch2().write_value(steps);
 
     // Fold it into the history, in the previous boot's slot.
     let mut history = wd.scratch3().read().to_le_bytes();
@@ -222,11 +275,23 @@ pub fn read() -> Note {
         };
     }
 
-    wd.scratch1().write_value(boot);
-    wd.scratch2().write_value(NO_STEP);
+    wd.scratch1().write_value(pack(boot, 0));
     wd.scratch3().write_value(u32::from_le_bytes(history));
 
-    Note { boot, cause, step, history }
+    Note { boot, cause, step, history, steps }
+}
+
+/// `SCRATCH1` carries two things, because four words have to hold five.
+///
+/// The boot counter needs a handful of bits and the step in progress needs a
+/// byte, so they share a word and `SCRATCH2` is freed for the per-step outcomes
+/// that lever two runs on.
+fn pack(boot: u32, step: u8) -> u32 {
+    (boot << 8) | step as u32
+}
+
+fn unpack(v: u32) -> (u32, u8) {
+    (v >> 8, (v & 0xff) as u8)
 }
 
 /// Say which step is about to run.
@@ -237,7 +302,26 @@ pub fn read() -> Note {
 ///
 /// Steps count from 1. Step 0 means "between steps" and is not reportable.
 pub fn step(n: u8) {
-    pac::WATCHDOG.scratch2().write_value(n as u32);
+    let wd = pac::WATCHDOG;
+    let (boot, _) = unpack(wd.scratch1().read());
+    wd.scratch1().write_value(pack(boot, n));
+}
+
+/// Record what became of a step that **survived**, with the firmware's own
+/// meaning: [`SURVIVED_A`] or [`SURVIVED_B`].
+///
+/// A step that dies is marked by [`read`] on the way back up. A step that lives
+/// has to say so, or the next boot cannot tell "already tried, and it worked"
+/// from "not tried yet" and will attempt it again forever.
+pub fn mark(n: u8, outcome: u8) {
+    if n == 0 || n > STEPS {
+        return;
+    }
+    let wd = pac::WATCHDOG;
+    let shift = 2 * (n - 1) as u32;
+    let v = wd.scratch2().read();
+    wd.scratch2()
+        .write_value((v & !(0b11 << shift)) | (((outcome as u32) & 0b11) << shift));
 }
 
 /// Say that the sequence finished without dying.
@@ -246,7 +330,9 @@ pub fn step(n: u8) {
 /// step it ran last, and a report that cannot say "nothing went wrong" is a
 /// report whose failures mean nothing.
 pub fn finished() {
-    pac::WATCHDOG.scratch2().write_value(NO_STEP);
+    let wd = pac::WATCHDOG;
+    let (boot, _) = unpack(wd.scratch1().read());
+    wd.scratch1().write_value(pack(boot, NO_STEP as u8));
 }
 
 /// Start the watchdog. From here a hang is a reboot.

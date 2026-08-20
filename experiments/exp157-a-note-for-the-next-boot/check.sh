@@ -113,10 +113,15 @@ pass "board enumerated as 1209:0001"
 #
 # So it polls for the settled state instead of guessing at a delay, and gives up
 # after a bounded time rather than hanging a non-interactive run.
+# The sleep is not padding. While the board is rebooting there is no port, so
+# `exp_read_log` returns an error immediately instead of taking its window —
+# so a bare retry loop spins twelve times in two seconds and concludes the
+# firmware is broken. It did, on a board that was working perfectly.
 OUT=""
-for _ in $(seq 12); do
-    OUT="$(exp_read_log 12 2>/dev/null)"
+for _ in $(seq 20); do
+    OUT="$(exp_read_log 10 2>/dev/null)"
     grep -q 'STOP after' <<< "$OUT" && break
+    sleep 3
 done
 
 # The two controls. Without a boot that finished, "it says where it died" cannot

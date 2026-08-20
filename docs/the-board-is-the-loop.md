@@ -11,13 +11,14 @@ constant, and the finding that mattered — that the wall was already there — 
 visible in the firmware's own output the first time it ran. Seven rounds went
 somewhere else, and where they went is measurable.
 
-**Lever 1 is built and verified**:
-[exp157](../experiments/exp157-a-note-for-the-next-boot/) is a firmware that
-kills itself with a hang and with a fault and comes back both times able to name
-the step and the kind, and
+**Levers 1 and 2 are built and verified.**
+[exp157](../experiments/exp157-a-note-for-the-next-boot/) kills itself with a
+hang and with a fault and comes back both times able to name the step and the
+kind. [exp158](../experiments/exp158-four-keys-and-one-flash/) then walks a
+four-candidate matrix by itself, dying on three of them, and re-derives in
+**fifty seconds and one flash** what cost exp156 three bench trips.
 [`crates/breadcrumb`](../crates/breadcrumb/src/lib.rs) is the reusable half —
-another experiment adopts it by adding a dependency. **Lever 2 is not built.**
-This document says where it stops being evidence.
+another experiment adopts it by adding a dependency.
 
 Getting lever 1 onto a board cost **two recoveries with the BOOTSEL button**,
 and neither was caused by the thing being built. What that cost bought is in
@@ -153,6 +154,24 @@ boot 4   nothing left to try; report everything
 
 The human flashes once, waits, and reads one page. **Three rounds become one,
 and the loop that used to contain a person now contains only the board.**
+
+That is [exp158](../experiments/exp158-four-keys-and-one-flash/), and it was
+pointed at exp156's own key question on purpose. An instrument's first reading
+should be one you can check — aim it at the unknown straight away and you have
+two unknowns and no way to separate them. Four candidates, three of which kill
+the board, and the one the earlier experiment measured comes back accepted:
+
+```console
+  key 0x0000  DIED - the write faulted
+  key 0x5afe  DIED - the write faulted
+  key 0xacce  ACCEPTED - the register changed
+  key 0xdead  DIED - the write faulted
+  1 of 4 keys accepted.
+```
+
+The crate marks a died step **before** handing the list back, so the next boot
+steps over it. A harness that retried the candidate that had just faulted would
+never finish, and that is one line of the difference.
 
 Two safety properties are not optional:
 
@@ -323,9 +342,6 @@ That last one is the honest limit of lever 1, and it should be stated plainly:
 
 ## What is still not verified
 
-- That a firmware can **skip the step that killed it** and go on to the next
-  candidate without the skip logic itself becoming the thing that breaks. That is
-  lever 2, and it is what would collapse exp156's rounds five, six and seven.
 - That a page can **follow a board across reboots** — exp157 was read with
   `yi26`, and WebUSB has to re-acquire a device that disappears five times.
 - That any of it **survives contact with a phone**, which is the host this whole
@@ -363,10 +379,10 @@ The order that follows from the arithmetic:
    the same way exp156 ended up: two of its five boots complete normally, and
    they are there so the two that die mean something.
 
-   **Lever 2 is next**, and it is the one that turns three bench trips into one:
-   the board skips the step that killed it and tries the next candidate, so a
-   single flash answers a hypothesis matrix. Build it while a board is on the
-   desk, for the same reason as before.
+   **Lever 2 is done too** — [exp158](../experiments/exp158-four-keys-and-one-flash/),
+   which turns exp156's rounds five, six and seven into one flash. What is left
+   is not another lever: it is using them. The next experiment on the signing
+   road should be the first one written this way from the start.
 
 ## The checklist, for a firmware meant to be debugged from a cloud session
 
