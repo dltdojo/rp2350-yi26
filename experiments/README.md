@@ -78,6 +78,7 @@ Per experiment:
 | exp154 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp155 | `cdc+ncm+msc` | `log+frames+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp156 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp157 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
 | exp150 | Same as exp149, plus **a browser — any browser**, which is the point. This is the first experiment here whose page needs no WebUSB, no permission dialog and no Chromium. Whether the browser can reach the board is a property of the host's routing, not of this firmware. |
@@ -435,7 +436,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp156 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp156, exp157 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp155 |
 
@@ -697,6 +698,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp154-somewhere-to-put-a-key](./exp154-somewhere-to-put-a-key/) | 1 · board | Ask the chip whether it has anywhere to keep a secret — every OTP row, classified, and the rows a signing experiment elsewhere assumed were a key |
 | [exp155-who-else-can-knock](./exp155-who-else-can-knock/) | 3 · a person | **No source.** A record of a firmware that exists only on a board — read off its own log, catalogued so the number is not reused |
 | [exp156-a-wall-you-can-measure](./exp156-a-wall-you-can-measure/) | 1 · board | A boundary that refuses, measured — one core reads one address three times and only the ACCESSCTRL bits change between the last two |
+| [exp157-a-note-for-the-next-boot](./exp157-a-note-for-the-next-boot/) | 1 · board | A firmware killed by a hang and by a fault comes back both times able to say which step it died in and which kind of death it was |
 
 ## The browser track, finished
 

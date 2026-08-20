@@ -1,0 +1,11 @@
+[package]
+name = "breadcrumb"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Record where an RP2350 firmware died, let the watchdog reboot it, and report it on the way back up"
+
+[dependencies]
+embassy-rp = { version = "0.10.0", default-features = false }
+
+[workspace]

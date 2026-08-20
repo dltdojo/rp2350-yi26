@@ -11,9 +11,18 @@ constant, and the finding that mattered — that the wall was already there — 
 visible in the firmware's own output the first time it ran. Seven rounds went
 somewhere else, and where they went is measurable.
 
-**The mechanism levers 1 and 2 rest on has now been measured**, on a Pico 2, on
-2026-08-20 — see [Measured](#measured-2026-08-20) below. The harness built on it
-has not. This document says where it stops being evidence.
+**Lever 1 is built and verified**:
+[exp157](../experiments/exp157-a-note-for-the-next-boot/) is a firmware that
+kills itself with a hang and with a fault and comes back both times able to name
+the step and the kind, and
+[`crates/breadcrumb`](../crates/breadcrumb/src/lib.rs) is the reusable half —
+another experiment adopts it by adding a dependency. **Lever 2 is not built.**
+This document says where it stops being evidence.
+
+Getting lever 1 onto a board cost **two recoveries with the BOOTSEL button**,
+and neither was caused by the thing being built. What that cost bought is in
+[What building it taught](#what-building-it-taught), and it is worth more than
+the harness.
 
 ---
 
@@ -269,18 +278,60 @@ attaching late saw silence — the exact failure exp156 spent a round on. A
 harness whose whole purpose is reporting must **keep reporting after it gives
 up**, and that is now a requirement rather than a discovery waiting to happen.
 
+## What building it taught
+
+Two boards were recovered by hand getting exp157 to run, and **neither failure
+was in the mechanism**. The mistakes are the useful part.
+
+**A product string one character too long bricked it twice.** `embassy-usb`
+builds string descriptors into the USB control buffer and asserts
+`pos + 2 < buf.len()` per UTF-16 unit, so with a 64-byte buffer the limit is
+**30 characters, not 31**. At 31 it panics *inside enumeration*, and with
+`panic_halt` the executor stops: descriptors half-served, `urbnum` frozen, no
+log, no LED, no reboot. Indistinguishable from a bricked board.
+
+It is a `const` assertion now — a build failure, checked by putting the long name
+back and watching the build refuse — and a sweep found none of the other 38
+experiments that set a product string over the limit, with one exactly on it.
+**That is lever 4 in one line: the check that costs nothing catches the failure
+that costs a bench trip.**
+
+**A symptom was explained that had never been observed.** An elaborate theory
+about `PSM.WDSEL` bit layouts was built to explain what happened "after boot 5",
+on a firmware that had never printed a single line. Both builds died before
+boot 1. *Check that the observation exists before explaining it.*
+
+**A measurement was overridden by a deduction.** The spike had armed the watchdog
+with `embassy-rp`'s reset mask and been reset by it five times, coming back
+healthy each time. Reading the register layout afterwards said that mask cannot
+be right for RP2350 — so it was changed, unmeasured, in the same commit as a real
+fix. It was never the problem. **An unmeasured change shipped beside a real fix
+is an unmeasured change that gets believed.** The measured value is back and the
+reasoning is recorded as an open question.
+
+**And exp156's own rule was broken by the experiment written to extend it.**
+*Bring the LED up before anything that can hang.* exp157 blinked only after its
+storm, so *never started* and *died during enumeration* were one signal — which
+is exactly where both bench trips went.
+
+That last one is the honest limit of lever 1, and it should be stated plainly:
+
+> **The breadcrumb is reported over USB, so a death before USB is up leaves only
+> the LED.** This mechanism shortens the loop for everything that happens after
+> enumeration. It does nothing for what happens before it, and there the older
+> document's Rule 2 is still the whole of the instrument.
+
 ## What is still not verified
 
-The mechanism is measured. The harness built on it is not:
-
-- That a **HardFault** handler can hand over to the watchdog as reliably as a
-  hang does. The spike tested a hang; exp156's later rounds were faults.
 - That a firmware can **skip the step that killed it** and go on to the next
-  candidate without the skip logic itself becoming the thing that breaks.
-- That a page can **follow a board across reboots** — the spike was read with
-  `yi26`, and WebUSB has to re-acquire a device that disappears.
+  candidate without the skip logic itself becoming the thing that breaks. That is
+  lever 2, and it is what would collapse exp156's rounds five, six and seven.
+- That a page can **follow a board across reboots** — exp157 was read with
+  `yi26`, and WebUSB has to re-acquire a device that disappears five times.
 - That any of it **survives contact with a phone**, which is the host this whole
   track exists for.
+- **Which `PSM.WDSEL` mask is correct for RP2350.** The measured one is in use;
+  the reasoning that says it should not work sits next to it.
 
 **None of that may be relied on until an experiment measures it.** Writing a
 harness for board-less development and then trusting it without a board would be
@@ -306,13 +357,16 @@ The order that follows from the arithmetic:
    wasted round immediately, and exp156 has the capture already.
 2. **Lever 3 next.** It is a change to walkthroughs and to what gets asked for.
    Also free.
-3. **Levers 1 and 2 as one experiment, with a board attached.** The mechanism
-   is measured; what is left is the harness. The claim is narrow and testable:
-   *a firmware can record where it died, be rebooted by the watchdog, report it
-   after coming back, and then **skip what killed it and try the next
-   candidate***. That is a two-measurement claim of exactly the shape exp156
-   ended up with, and it should be built the same way: the control is the boot
-   that survives, not only the boot that dies.
+3. ~~**Levers 1 and 2 as one experiment, with a board attached.**~~ **Lever 1 is
+   done** — [exp157](../experiments/exp157-a-note-for-the-next-boot/), and the
+   reusable half is [`crates/breadcrumb`](../crates/breadcrumb/). It was built
+   the same way exp156 ended up: two of its five boots complete normally, and
+   they are there so the two that die mean something.
+
+   **Lever 2 is next**, and it is the one that turns three bench trips into one:
+   the board skips the step that killed it and tries the next candidate, so a
+   single flash answers a hypothesis matrix. Build it while a board is on the
+   desk, for the same reason as before.
 
 ## The checklist, for a firmware meant to be debugged from a cloud session
 

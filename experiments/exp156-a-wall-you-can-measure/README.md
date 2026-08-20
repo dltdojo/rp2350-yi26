@@ -679,6 +679,20 @@ Verified on one Pico 2, on Ubuntu, and nowhere else:
 - **Clearing NSU and NSP makes that same read fault**, with nothing else in the
   system changed.
 
+**One claim above has since been undermined, and is recorded rather than
+repaired.** This experiment's round-two diagnosis was *a peripheral still held in
+reset faults when read*, and step 1 exists to take I2C1 out of reset.
+[exp157](../exp157-a-note-for-the-next-boot/) then tried to use that as a
+deliberate fault generator and **it did not fault** — because
+`embassy_rp::init()` ends `clocks::init()` with
+`reset::unreset_wait(ALL_PERIPHERALS)`, so every peripheral is already out of
+reset before any of this code runs. `bring_i2c1_out_of_reset()` is a no-op, and
+`check.sh` guards a no-op.
+
+Every measurement on this page still stands — the values, the fault, the verdict.
+What no longer stands is the *explanation* of round two: whatever killed that
+build, it was not I2C1 being in reset, and it is not established.
+
 Not verified, and worth saying:
 
 - **Whether the fault is a BusFault escalated to HardFault, or something else.**
