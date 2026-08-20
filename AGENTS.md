@@ -53,6 +53,11 @@ what seven flash cycles of ignoring them cost:
    nobody sees. Changing code first means going looking for confirmation instead
    of for the answer, at one attempt per human trip.
 
+   And when a track of work is going to be several rounds long,
+   [`docs/the-board-is-the-loop.md`](./docs/the-board-is-the-loop.md) is the
+   arithmetic on why exp156 took seven of them and what to build so the next one
+   takes two. Two of its levers need no hardware and no new firmware.
+
 2. **The LED is the debug channel, so design it before you need it.** When
    firmware fails, USB is gone, the log is gone and the page cannot connect.
    Bring the LED up before anything that can hang, make a fault handler drive it

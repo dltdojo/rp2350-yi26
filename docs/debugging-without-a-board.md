@@ -161,6 +161,24 @@ it out before anything else is tried.** exp156 produced two register values on
 round five and nobody has read them yet, because round six went on to attempt
 the thing that killed the log.
 
+## And then ask why it was seven rounds
+
+Everything above is about surviving the slow loop. It does not ask whether the
+loop has to be that long, and exp156's own record says it did not: **two of its
+seven rounds produced a fact about the subject.** Two went on making the
+experiment run at all, two on making the instrument able to say *where*, and one
+was lost to an ambiguous observation.
+
+[`the-board-is-the-loop.md`](./the-board-is-the-loop.md) does that arithmetic and
+proposes what to build instead — a trace that survives the death that produced
+it, a board that reboots past its own failures and tries the next candidate
+itself, and a bench visit that returns a file rather than an impression. It is a
+design and it is labelled as one: none of it is measured yet.
+
+It also disagrees with Rule 2 above, gently and on purpose. The LED is the only
+channel *because a fatal fault destroys every other one*, and that is a property
+of how the firmware was written rather than a law of the chip.
+
 ## When to stop and hand over
 
 exp156 stopped after seven rounds, and stopping was right. The signal is not
