@@ -1,6 +1,6 @@
 //! exp155 — who else can knock.
 //!
-//! [exp154](../../exp154-one-port-four-doors/) put four doors on one port and
+//! [exp161](../../exp161-one-port-four-doors/) put four doors on one port and
 //! every one of them read something. This one adds a door that **changes the
 //! board**, which is the first time in this repository that a network request
 //! moves a pin — and the whole experiment is about what that costs, measured
@@ -38,7 +38,7 @@
 //!
 //! The LED is the instrument this whole road is read with on a phone
 //! ([`docs/debugging-on-a-phone.md`](../../../docs/debugging-on-a-phone.md)),
-//! and exp154 refused to spend it. This experiment spends it deliberately, and
+//! and exp161 refused to spend it. This experiment spends it deliberately, and
 //! only after the two states that carry information have stopped carrying it:
 //! **dark = no link** and **slow = still asking** belong to the firmware until
 //! there is an address, because until then they are the only thing anybody can
@@ -52,7 +52,7 @@
 //!
 //! [`http-route`](../../../crates/http-route/) gains exactly one capability —
 //! find one named header — plus `OPTIONS` and the `/led/...` table. No bodies,
-//! no `Content-Length`, no header table. exp154 named the gap it was leaving
+//! no `Content-Length`, no header table. exp161 named the gap it was leaving
 //! (nothing about *who* is asking) and this is the smallest thing that closes
 //! it.
 //!
@@ -890,7 +890,7 @@ async fn http_task(
     tx: &'static mut [u8],
     page: &'static mut [u8],
 ) -> ! {
-    // Bigger than exp154's 512, because this experiment reads headers and a
+    // Bigger than exp161's 512, because this experiment reads headers and a
     // browser sends four to six hundred bytes of them. Still small enough that
     // filling it is itself an answer.
     let mut req = [0u8; 1536];
@@ -914,7 +914,7 @@ async fn http_task(
         // Read until the request line **and its headers** are whole, the buffer
         // is full, or the peer stops talking.
         //
-        // exp154 stopped at the line. This one cannot: the difference between
+        // exp161 stopped at the line. This one cannot: the difference between
         // "the page I served asked" and "some other page asked" is a header, so
         // a request whose header block has not arrived is not a request yet.
         // Getting that wrong in the other direction is the expensive mistake —
@@ -1049,7 +1049,7 @@ async fn http_task(
                         let want = wanted_bytes(r.query);
                         let mut bytes = [0u8; TRNG_MAX];
 
-                        // The two numbers exp154 exists to produce, kept apart:
+                        // The two numbers exp161 exists to produce, kept apart:
                         // how long the queue was, and how long the work took.
                         let asked = Instant::now();
                         let mut guard = RNG.lock().await;
@@ -1489,7 +1489,7 @@ async fn main(spawner: Spawner) {
 
     // **The LED is handed over, and only after there is an address.**
     //
-    // Before that it goes on meaning what exp148 through exp154 made it mean —
+    // Before that it goes on meaning what exp148 through exp153 and exp161 made it mean —
     // dark for no link, slow for still asking — because those are the two
     // states somebody is watching when nothing else can tell them anything, and
     // a page that could take them away would be taking away the instrument at
@@ -2016,7 +2016,7 @@ async fn storage_task(
 /// through from a `content://` page: a `fetch` and an `<iframe>` are both
 /// refused as mixed content, and a navigation is not.
 ///
-/// This is exp152's mechanism, unchanged, and it is here for a reason exp154
+/// This is exp152's mechanism, unchanged, and it is here for a reason exp161
 /// could do without: **a page that controls the board is no use to somebody who
 /// cannot find the board.** Without a drive, the address lives only in the CDC
 /// log, and reading that on a phone needs WebUSB — Chromium only, which is the

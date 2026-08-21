@@ -1,5 +1,5 @@
 [package]
-name = "exp154-one-port-four-doors"
+name = "exp161-one-port-four-doors"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"

@@ -61,7 +61,7 @@
 //! # Headers came one experiment later, and that is the point
 //!
 //! The first version of this crate read the request *line* and stopped, because
-//! every route in [exp154](../../../experiments/exp154-one-port-four-doors/)
+//! every route in [exp161](../../../experiments/exp161-one-port-four-doors/)
 //! only read things, and it said what was therefore missing: any check on
 //! *who* was asking.
 //!
@@ -410,7 +410,7 @@ pub const MAX_HEADERS: usize = 1024;
 ///
 /// # Why this is separate from [`parse`], and arrived one experiment later
 ///
-/// exp154 read the request line and stopped, and said so in as many words:
+/// exp161 read the request line and stopped, and said so in as many words:
 /// no headers, and therefore no `Host:` validation. That was the right size for
 /// an experiment where every route read something.
 ///

@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 9 of 9 executed on a phone, 4 marked HUMAN STEP
 host: Android (Pixel 9a), Chrome, Ethernet tethering — Pico 2 (non-W)
-hash: dfca18363fd32ffe
+hash: c48d8ec4b280f16b
 
 The zip built by `pack.sh` was unpacked **on the phone** and its `FLASH.txt`
 was followed from step 1 to step 9 of the phone route, with nothing read from
@@ -76,3 +76,18 @@ and the order are unchanged; what changed is what two screens *show*:
 Neither can change whether a step succeeds. Both are worth thirty seconds of
 somebody's phone the next time one is in front of this board, and if the reflow
 is not enough, that is a finding and this section is where it goes.
+
+## Re-stamped 2026-08-21, and the firmware is provably untouched
+
+A sibling experiment was renumbered from exp154 to exp161, and this
+experiment's prose and comments followed it: eight comment lines in
+`src/main.rs`, one `check.sh` message, and two README sections. The content
+hash covers every file in the directory, so it moved.
+
+**The firmware did not.** Every changed line in `src/main.rs` is a comment, and
+that was checked rather than assumed: the pre-rename source and the post-rename
+source were each built and converted, and both `.uf2` files hash to
+`7774d4db2de96f1b903d96c083e4bd8e29acc9d41603a2d2597e4365a7aed9db`. The zip a
+Pixel 9a walked on 2026-08-06 carries the same bytes this directory builds
+today, so the walk is not re-opened by the rename. Re-stamped without
+re-walking, and the identical hash is why.

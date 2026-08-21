@@ -66,7 +66,7 @@ crate_test ../../crates/fat12 "crates/fat12 passes its own tests"
 # ---- the drive, which is how anybody without a toolchain finds the page -----
 #
 # A page that controls the board is no use to somebody who cannot find the
-# board. exp154 could do without this; a phone cannot, because the address
+# board. exp161 could do without this; a phone cannot, because the address
 # otherwise lives only in the CDC log and reading that needs WebUSB.
 if grep -q 'OPEN    HTM' "$SRC" && grep -q 'ADDRESS TXT' "$SRC"; then
     pass "the drive carries a link to tap and the address as plain text"
@@ -99,7 +99,7 @@ fi
 
 # ---- the one capability the parser grew, and its edges ---------------------
 if grep -q 'pub fn headers' "$ROUTESRC"; then
-    pass "the parser can find a named header — the whole of what exp154 was missing"
+    pass "the parser can find a named header — the whole of what exp161 was missing"
 else
     fail "headers() exists" "without it nothing can tell one caller from another"
 fi

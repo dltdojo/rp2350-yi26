@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp154 quick check — non-interactive verdict.
+# exp161 quick check — non-interactive verdict.
 #
 # PRESENCE 1: **and that is new on this road.** exp148 through exp153 all end
 # in something only a person can see — a blink, a phone's browser, a drive
@@ -30,8 +30,8 @@ USB_RUNS_ON="own"
 usb_check
 
 TARGET=thumbv8m.main-none-eabihf
-ELF=target/$TARGET/release/exp154-one-port-four-doors
-UF2=target/exp154.uf2
+ELF=target/$TARGET/release/exp161-one-port-four-doors
+UF2=target/exp161.uf2
 SRC=src/main.rs
 ROUTESRC=../../crates/http-route/src/lib.rs
 
@@ -219,8 +219,8 @@ fi
 
 # ---- the board half --------------------------------------------------------
 PRODUCT="$(yi26 port --json 2>/dev/null | sed -n 's/.*"product":"\([^"]*\)".*/\1/p')"
-if [[ "$PRODUCT" != *"exp154"* ]]; then
-    echo "SKIP  no board running exp154 (enumerated as: ${PRODUCT:-nothing})"
+if [[ "$PRODUCT" != *"exp161"* ]]; then
+    echo "SKIP  no board running exp161 (enumerated as: ${PRODUCT:-nothing})"
     exit "$FAILED"
 fi
 echo "NOTE  enumerated as: $PRODUCT"

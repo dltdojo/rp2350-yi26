@@ -1,6 +1,6 @@
 # exp155-who-else-can-knock — the first request that changes something
 
-[exp154](../exp154-one-port-four-doors/) put four doors on one port and every
+[exp161](../exp161-one-port-four-doors/) put four doors on one port and every
 one of them read something. It said why it stopped there:
 
 > The moment one of them writes, the question stops being *which path* and
@@ -24,7 +24,7 @@ browser and the instrument is the board**.
 
 ## And a drive, because a page nobody can find controls nothing
 
-[exp154](../exp154-one-port-four-doors/) could do without one. This experiment
+[exp161](../exp161-one-port-four-doors/) could do without one. This experiment
 cannot, and the reason is the whole point of the road: **its audience is
 somebody holding a phone.** Three things this repository measured make the
 address undiscoverable there otherwise —
@@ -201,7 +201,7 @@ gets no such header at all.
 
 The LED is what this whole road is read with on a phone, where there is no log
 and nothing to install
-([`docs/debugging-on-a-phone.md`](../../docs/debugging-on-a-phone.md)). exp154
+([`docs/debugging-on-a-phone.md`](../../docs/debugging-on-a-phone.md)). exp161
 refused to spend it. This experiment spends it, on one condition:
 
 **The handover does not start until the board has an address.** Until then,
@@ -393,6 +393,14 @@ yi26 log --seconds 30             # it prints the address, and keeps printing it
 `./check.sh`, captured on Ubuntu against a real Pico 2 with Chrome present and
 the board's own drive mounted, 2026-08-06.
 
+The half that needs no board was **re-run on 2026-08-21**, after a sibling
+experiment was renumbered from exp154 to exp161 and this experiment's comments
+followed it. It came back identical, including the 182784-byte image, except
+for the one line that names the sibling. Nothing but comments changed in
+`src/main.rs`, and the two builds were compared rather than assumed: both
+`.uf2` files hash to `7774d4db2de96f1b903d96c083e4bd8e29acc9d41603a2d2597e4365a7aed9db`.
+So the board half below still describes the image this source builds.
+
 ```console
 PASS  toolchain present (cargo, elf2flash)
 PASS  builds (182784 byte .uf2)
@@ -407,7 +415,7 @@ PASS  the address is in the contents, not squeezed into an 8.3 name
 PASS  the volume is laid down exactly once — there is no second version
 PASS  a page that fills its buffer says so — silence is what hid exp153's truncation
 PASS  the interface count is stated as five, which is what lsusb says
-PASS  the parser can find a named header — the whole of what exp154 was missing
+PASS  the parser can find a named header — the whole of what exp161 was missing
 PASS  an unfinished header block is never read as an empty one
 PASS  the worker waits for the whole header block before deciding anything
 PASS  a header value that could forge a log line is not a value
@@ -526,3 +534,57 @@ thing started.
 - **Whether another browser agrees.** These are Chrome's CORS and Private
   Network Access rules. They are the same everywhere Chromium is; Firefox and
   Safari have not been tried here.
+
+## This directory was an obituary for twelve days, and what that is worth
+
+Between 2026-08-06 and 2026-08-21 this experiment existed on `main` as a
+**record, not an experiment** — a README that opened "there is no source here,
+and there is unlikely ever to be." It was not wrong to write. The session that
+built this firmware ended on 2026-08-06 with the work committed locally and
+never pushed, under a rule that said nothing reaches GitHub unverified. From
+`main`, a board on the bench answering to `exp155 who else can knock` was a
+firmware with no source anywhere anyone could see.
+
+It was found by accident: [exp154](../exp154-somewhere-to-put-a-key/)'s page
+connected to this board while looking for something else, and said which
+firmware was answering. Everything the record contained was then read off six
+lines of this firmware's own log:
+
+```text
+exp155 up. The LED can now be set over HTTP, and the log says by whom.
+  asking for an address — whoever is on the other end is the server here.
+  port 80: / /log /status /trng, plus /led/<on|off|slow|fast|auto>.
+  /led is open to anybody who can route here; /control/led needs a header and my o...
+  and answering to yi26.local, so nobody has to know the number.
+  LED until an address arrives: dark=no link, slow=still asking. After that it...
+```
+
+Read against the source now sitting beside it, those six lines were **right
+about every claim they made**: the stack, both doors, the header condition, the
+mDNS name, and the two LED meanings that hold until an address arrives. The
+record's one real error was inherited, not invented — it listed this firmware's
+USB layer as `log+frames+files`, missing `scsi`, because a log line cannot say
+what a mass-storage endpoint is carrying underneath.
+
+Two things survive the subject turning up alive.
+
+**A firmware that prints what it is can be catalogued without its source.** Six
+lines were enough because somebody wrote those six lines to be read by a
+stranger. That is the whole argument for the log this repository keeps
+insisting on, made by a case nobody designed.
+
+**And the record was the sharpest argument for changing the push rule**, which
+is why the rule now says `main` rather than GitHub: a branch held back for
+being unverified is not safer if the machine holding it goes away. This one
+did not go away — it was a desktop, not a container — but the rule was rewritten
+on the assumption that it had, and the rewrite stands on its own merits.
+
+One detail in those six lines is worth measuring rather than assuming. The
+first `...` falls after 82 characters, which is exactly where the 96-byte
+`usb-log` limit puts it once a `[  140567 ms] ` prefix is counted — so that cut
+is the firmware's, not the record author's, and it is the same silent
+truncation [the phone found](#what-the-phone-found-that-ubuntu-could-not) and
+this experiment then fixed. The second `...` falls after 78, which no single
+prefix width explains alongside the first, so at least one of the two was
+shortened by hand. The board the record was read from was running a build from
+before that fix; the lines above it in this README are the shortened ones.

@@ -1,4 +1,4 @@
-//! exp154 — one port, four doors.
+//! exp161 — one port, four doors.
 //!
 //! Every experiment on this road so far has served **one thing**.
 //! [exp150](../../exp150-a-page-served-by-the-board/) served a status page and
@@ -951,8 +951,8 @@ async fn main(spawner: Spawner) {
 
     let mut config = UsbConfig::new(0x1209, 0x0001);
     config.manufacturer = Some("rp2350-yi26");
-    config.product = Some("exp154 one port four doors");
-    config.serial_number = Some("154");
+    config.product = Some("exp161 one port four doors");
+    config.serial_number = Some("161");
     config.device_class = 0xef;
     config.device_sub_class = 0x02;
     config.device_protocol = 0x01;
@@ -1073,7 +1073,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(mdns_task(stack).unwrap());
     spawner.spawn(report_task(stack).unwrap());
 
-    log!("exp154 up. One port, four paths: / /log /status /trng.");
+    log!("exp161 up. One port, four paths: / /log /status /trng.");
 
         // The client role cannot print its address here: it does not have one yet,
     // and will not for a few hundred milliseconds. The reporter prints it once

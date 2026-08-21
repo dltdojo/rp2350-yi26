@@ -1,4 +1,4 @@
-# exp154-one-port-four-doors — a URL starts meaning something
+# exp161-one-port-four-doors — a URL starts meaning something
 
 [exp150](../exp150-a-page-served-by-the-board/) served a page over the USB
 link and read the request only to throw it away.
@@ -172,14 +172,14 @@ the one sharing.
 ```sh
 cargo build --release
 elf2flash convert -b rp2350 \
-    target/thumbv8m.main-none-eabihf/release/exp154-one-port-four-doors \
-    target/exp154.uf2
-yi26 flash target/exp154.uf2
+    target/thumbv8m.main-none-eabihf/release/exp161-one-port-four-doors \
+    target/exp161.uf2
+yi26 flash target/exp161.uf2
 
 # the interface is named after the experiment
-nmcli connection add type ethernet ifname enx022600000154 \
-      con-name yi26-exp154 ipv4.method shared
-nmcli connection up yi26-exp154
+nmcli connection add type ethernet ifname enx022600000161 \
+      con-name yi26-exp161 ipv4.method shared
+nmcli connection up yi26-exp161
 
 yi26 log --seconds 30        # it prints the address, and keeps printing it
 ./check.sh
@@ -187,7 +187,7 @@ yi26 log --seconds 30        # it prints the address, and keeps printing it
 
 `ipv4.method shared` is the whole of it: NetworkManager runs the DHCP server
 and the masquerade, and **it needs no `sudo`**. Put it back with
-`nmcli connection delete yi26-exp154`.
+`nmcli connection delete yi26-exp161`.
 
 The address takes about 23 seconds to arrive on this host, and the board says
 so while it waits. It then **pins itself** to `.250` on whatever subnet it was
@@ -216,11 +216,18 @@ exp155's.
 
 ## Expected output
 
-`./check.sh`, captured on Ubuntu against a real Pico 2, 2026-08-06:
+This experiment was renumbered from **exp154** on 2026-08-21, when the branch it
+was written on met a different exp154 already on `main`. Three strings changed —
+the USB product string, the USB serial, and the first log line — and that moved
+the image from 149504 bytes to 150016, one flash page more. So the capture is in
+two halves, and they are not from the same day.
+
+**The half that needs no board**, re-run after the rename, on Ubuntu,
+2026-08-21:
 
 ```console
 PASS  toolchain present (cargo, elf2flash)
-PASS  builds (149504 byte .uf2)
+PASS  builds (150016 byte .uf2)
 PASS  linked at 0x10000000 — an ordinary image
 PASS  carries the 1200-baud reboot watcher — the next flash is hands-free
 PASS  crates/http-route passes its own tests
@@ -249,7 +256,19 @@ PASS  no script in any page — they are for whatever browser somebody has
 PASS  log text is escaped before it becomes HTML
 PASS  every page carries the same four links — a door is no use unnamed
 PASS  the board asks for its address — exp150 measured that the other way is unreachable
-NOTE  enumerated as: exp154 one port four doors
+SKIP  no board running exp161 (enumerated as: exp154 somewhere to put a key)
+```
+
+That `SKIP` is the check doing its job: a board was attached, and it was
+running a different experiment, so the board half declined to report rather
+than reporting about the wrong firmware.
+
+**The half that needs a board**, captured on Ubuntu against a real Pico 2 on
+2026-08-06, *before* the rename — the numbers are this firmware's, and the one
+line carrying the old name is left as it was read rather than edited to match:
+
+```console
+NOTE  enumerated as: exp154 one port four doors      <- read before the rename
 PASS  the board has an address and says so — http://10.42.0.250
 PASS  four paths answered at once: 200 200 200 200
 PASS  /status is JSON and carries a count per door — "served":{"index":4,"log":4,"status":10,"trng":13,"refused":4}
@@ -259,6 +278,12 @@ NOTE  /status while the TRNG was busy: 0.003463s
 NOTE  what no script here can do: nothing. This is the first experiment on
       the network road whose whole claim a shell can check.
 ```
+
+**This half has not been re-run since the rename.** Reflashing the board with
+the renumbered image and running `./check.sh` again is what closes it; nothing
+in the measurement above depends on the three strings that changed, which is a
+reason to expect the same answer and not a reason to write it down as though it
+had been seen.
 
 ## What this experiment does not answer
 

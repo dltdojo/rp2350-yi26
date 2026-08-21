@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 10 of 10 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W), NetworkManager
-hash: 61c99a29a672b2f1
+hash: 17b4031afa99e3fc
 
 The zip built by `pack.sh` was unpacked into an empty directory and its
 `FLASH.txt` was followed from step 1 to step 10, with nothing read from the
@@ -59,3 +59,13 @@ covers every `.rs` in the directory, so it moved anyway, which is the mechanism
 working rather than failing. Re-stamped without re-walking, and this paragraph
 is why. A re-walk would be the honest answer to any change that could alter what
 a reader does or sees; this one cannot.
+
+## Re-stamped again 2026-08-21, and nothing moved twice
+
+The re-stamp above was computed under this machine's locale. `content_hash`
+sorts the file list with the machine's `sort`, which orders by collation rules,
+so a record written under `en_US.UTF-8` reads STALE under `C` — this is the
+mistake [`docs/pack-verification.md`](../../docs/pack-verification.md) describes
+finding across twenty-four records at once. The sort is now pinned to `LC_ALL=C`
+and this record is stamped against that definition. **The walk still stands and
+the comment above is still the only thing that ever changed here.**

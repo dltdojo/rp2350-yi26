@@ -75,7 +75,7 @@ Per experiment:
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
 | exp155 | Same as exp152 in hardware — it carries the **drive** too, because its audience is somebody holding a phone and that is the only way an address gets there tappable. Five USB interfaces. Its second half needs a **browser**, and any browser will do — the measurement is what a browser does with a cross-origin request, and the instrument is the board's own `/status`, so nobody has to watch the LED. Verified with headless Chrome on Ubuntu; the answers are Chrome's CORS and Private Network Access policy, which is the same everywhere Chromium is and may differ elsewhere. |
-| exp154 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
+| exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
@@ -434,9 +434,9 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp155, exp156–exp160 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
-| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp155 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
 somebody to a bench for no reason:
@@ -561,7 +561,6 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp151 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 | exp152 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp153 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
-| exp154 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 | exp154 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp155 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp156 | `cdc` | `log` | `cdc_acm` | `own` |
@@ -569,6 +568,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp158 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp159 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp160 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp161 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 
 ### Reading the columns
 
@@ -697,19 +697,18 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp147-two-firmwares-one-phone](./exp147-two-firmwares-one-phone/) | 3 · a person | The whole A/B arc arranged so a phone can run it and an LED reports the answer — fast blink or slow, and two different ways to make it change |
 | [exp148-a-wire-with-no-address](./exp148-a-wire-with-no-address/) | 3 · a person | A CDC-NCM link and a DHCP client, kept apart: the firmware can see a host driver claim it, and can see that having a wire is not having an address |
 | [exp149-the-board-hands-out-the-address](./exp149-the-board-hands-out-the-address/) | 3 · a person | The board answers DHCP itself — four packets, hand-rolled — so a phone gets an address with nothing to configure, because a phone has no setting to configure |
-| [exp155-who-else-can-knock](./exp155-who-else-can-knock/) | 1 · board | The first route here that changes the board because somebody asked over a network — and a measurement of who else could have asked, which turns out to be any page in the same browser |
-| [exp154-one-port-four-doors](./exp154-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
 | [exp153-out-through-the-phone](./exp153-out-through-the-phone/) | 3 · a person | The board reaches the internet through the phone it is plugged into — refuting this repository's own written claim that a phone cannot NAT — and is redirected off the plain web to a protocol it cannot speak |
 | [exp152-the-volume-that-waits](./exp152-the-volume-that-waits/) | 3 · a person | The board carries a drive that does not exist until it knows its own address — verified on a phone: plug in, turn on tethering, tap two things, and the log is there |
 | [exp151-the-log-in-any-browser](./exp151-the-log-in-any-browser/) | 3 · a person | The board serves its own log over HTTP — verified rendering in Chrome on a phone — and answers to a name that phone will not ask it for |
 | [exp150-a-page-served-by-the-board](./exp150-a-page-served-by-the-board/) | 3 · a person | The board serves its own web page: no WebUSB, no permission dialog, no chooser, any browser — and the question of whether a phone can route to an address it never showed as a network |
 | [exp154-somewhere-to-put-a-key](./exp154-somewhere-to-put-a-key/) | 1 · board | Ask the chip whether it has anywhere to keep a secret — every OTP row, classified, and the rows a signing experiment elsewhere assumed were a key |
-| [exp155-who-else-can-knock](./exp155-who-else-can-knock/) | 3 · a person | **No source.** A record of a firmware that exists only on a board — read off its own log, catalogued so the number is not reused |
+| [exp155-who-else-can-knock](./exp155-who-else-can-knock/) | 1 · board | The first route here that changes the board because somebody asked over a network — and a measurement of who else could have asked, which turns out to be any page in the same browser |
 | [exp156-a-wall-you-can-measure](./exp156-a-wall-you-can-measure/) | 1 · board | A boundary that refuses, measured — one core reads one address three times and only the ACCESSCTRL bits change between the last two |
 | [exp157-a-note-for-the-next-boot](./exp157-a-note-for-the-next-boot/) | 1 · board | A firmware killed by a hang and by a fault comes back both times able to say which step it died in and which kind of death it was |
 | [exp158-four-keys-and-one-flash](./exp158-four-keys-and-one-flash/) | 1 · board | Four candidate ACCESSCTRL write keys in a single flash — the board faults on the wrong ones, steps over each death, and re-derives in fifty seconds what cost exp156 three bench trips |
 | [exp159-a-key-that-was-never-in-flash](./exp159-a-key-that-was-never-in-flash/) | 1 · board | A P-256 key generated on the board into an SRAM bank Non-secure code cannot read, used to sign a challenge it could not have known at build time, verified off the board |
 | [exp160-a-secret-too-big-to-hide](./exp160-a-secret-too-big-to-hide/) | 1 · board | The same wall with an ML-DSA-65 key behind it: the wall still refuses every read, and Non-secure code reads the key anyway out of the 369 KB of open stack one post-quantum signature leaves behind |
+| [exp161-one-port-four-doors](./exp161-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
 
 ## The browser track, finished
 
@@ -1171,7 +1170,7 @@ exp147 was built against, so nothing had to move to start.
   teaching here it should be taught as CORS, on its own terms, and given a
   reason that is not a detour around something that turned out to be open.
 
-- **[exp154](./exp154-one-port-four-doors/) — a URL starts meaning something.**
+- **[exp161](./exp161-one-port-four-doors/) — a URL starts meaning something.**
   **Done, verified 2026-08-06.** exp150 and exp151 both read the request line
   and threw it away, and both wrote down that the parser belonged in the
   experiment where a path selects something. Four doors on one port — `/`,
@@ -1228,7 +1227,7 @@ exp147 was built against, so nothing had to move to start.
   is never read as an empty one**, because that bug would let a cross-origin
   write through on a slow link, and only sometimes.
 
-  It carries exp152's **drive** as well, which exp154 did without: a page that
+  It carries exp152's **drive** as well, which exp161 did without: a page that
   controls the board is no use to somebody who cannot find the board, and on a
   phone the address is otherwise unreachable — the name does not resolve, the
   address bar searches for what you type, and a `content://` page may not fetch
