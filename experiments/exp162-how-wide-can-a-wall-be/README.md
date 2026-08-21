@@ -362,9 +362,19 @@ PASS  the readings imply the board's verdict, derived off the board
 
 ## Next
 
-The remedy exp160 asked for, with its premise changed. Wiping the working region
-after signing is still worth measuring — and it is now the *only* available
-answer for a secret larger than 4 KB, rather than one of two. The open questions
-it leaves are still open, and one of them is sharper for this: **if no region of
-the main SRAM can be protected, what exactly is bank 8 good for**, given a
-65,696-byte object cannot fit in its 4 KB either.
+**Done: [exp163](../exp163-how-long-is-a-secret-in-the-open/)**, and it took
+both halves of what this section asked for.
+
+The remedy works and is cheap: **3,392 µs to wipe 508,520 bytes, 2.3% of the
+signature it follows**, after which a Non-secure core reading the whole 512 KB
+in a loop sees nothing and a byte-granular sweep finds nothing. It also measured
+the window this experiment implied but could not see: across one 147 ms
+signature the key was **continuously readable** by that core — 32 sightings in
+passes 64 to 79 of a signature that spanned 63 to 79. The wall is not narrow in
+space only. While the key is in use there is no wall at all.
+
+And the question this section sharpened — *what is bank 8 good for, if
+65,696 bytes fit in neither 64 KB nor 4 KB* — has a number now. A 32-byte seed
+fits, and expanding it back into a key costs **85,916 µs of a 136,175 µs
+signature: 63% of the work, on every signature.** That is what bank 8 is good
+for, and that is its price.

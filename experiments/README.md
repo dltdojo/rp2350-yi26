@@ -76,6 +76,7 @@ Per experiment:
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
 | exp155 | Same as exp152 in hardware — it carries the **drive** too, because its audience is somebody holding a phone and that is the only way an address gets there tappable. Five USB interfaces. Its second half needs a **browser**, and any browser will do — the measurement is what a browser does with a cross-origin request, and the instrument is the board's own `/status`, so nobody has to watch the LED. Verified with headless Chrome on Ubuntu; the answers are Chrome's CORS and Private Network Access policy, which is the same everywhere Chromium is and may differ elsewhere. |
 | exp162 | Same as exp159 and exp160 — `cdc`, one log, nobody in the room. No cryptography at all, so nothing here needs a crate that a future toolchain might drop. |
+| exp163 | Same as exp159, exp160 and exp162 — `cdc`, one log, nobody in the room. **RP2350 only**: bank 8, bank 9, `ACCESSCTRL` and `FORCE_CORE_NS` are all this chip's. Needs the TRNG for the seed, and the same `ml-dsa` build as exp160 on purpose, because it measures what that one leaves behind. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -435,7 +436,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -571,6 +572,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp160 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp161 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 | exp162 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp163 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -712,6 +714,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp160-a-secret-too-big-to-hide](./exp160-a-secret-too-big-to-hide/) | 1 · board | The same wall with an ML-DSA-65 key behind it: the wall still refuses every read, and Non-secure code reads the key anyway out of the 369 KB of open stack one post-quantum signature leaves behind |
 | [exp161-one-port-four-doors](./exp161-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
 | [exp162-how-wide-can-a-wall-be](./exp162-how-wide-can-a-wall-be/) | 1 · board | Fifteen reads by a demoted core say where the eight SRAM banks actually are: `SRAM[n]` does not gate the *n*th 64 KB block, it gates one word in every four of a 256 KB half — so the longest region ACCESSCTRL can deny is four bytes |
+| [exp163-how-long-is-a-secret-in-the-open](./exp163-how-long-is-a-secret-in-the-open/) | 1 · board | A Non-secure core reads the whole 512 KB over and over while a Secure core signs: it sees the ML-DSA seed 32 times inside one 147 ms signature, nothing at all after a 3.4 ms wipe, and costs the signature it is watching 8.2% |
 
 ## The browser track, finished
 
@@ -1298,7 +1301,7 @@ hand-built FAT12, exp123 and exp124 hand-rolled Bulk-Only Transport and SCSI,
 exp149 hand-rolled DHCP. [exp103](./exp103-embassy-blink/) has been promising
 since the beginning that a later experiment opens its one box of magic by hand.
 
-#### Five experiments, and the cryptography is not the last of them
+#### Six experiments, and the cryptography is not the last of them
 
 None of these is interrogated yet — a direction, not a schedule.
 
@@ -1436,6 +1439,41 @@ None of these is interrogated yet — a direction, not a schedule.
   table of five precomputed patterns, found the chip outside all five, and
   printed `NO ARRANGEMENT FITS` instead of rounding to the nearest. The readings
   were right the whole time; the table could not express the answer. Needs 1.
+
+- **how long the key is in the open, and what closing that costs** — the only
+  answer exp162 left standing.
+  [exp163](./exp163-how-long-is-a-secret-in-the-open/) is **verified on
+  hardware**, seven candidates in one flash, and it does not ask the signing
+  program to sweep its own memory afterwards. **A second core, demoted to
+  Non-secure, reads all 512 KB in a loop** — about 9.7 ms a pass — from before
+  the signature starts until after the wipe ends.
+
+  The window is not a slice of the signature; it **is** the signature. Across
+  one 147 ms signing the key was readable in the watcher's passes 64 to 79 of a
+  signature that spanned 63 to 79, and with nothing wiping it, 167 more times
+  over the next 800 ms. Everything exp159 and exp160 built is true, and true
+  only **between** signatures.
+
+  The remedy is real and cheap: **3,392 µs for 508,520 bytes, 2.3% of the
+  signature**, after which the watcher sees nothing and a byte-granular sweep of
+  every address in the main SRAM finds nothing. Wiping only `sign_once`'s own
+  240,160-byte frame is **enough for the seed**, even though the signature
+  drives the stack 423,164 bytes deep — exp160's second open question, answered,
+  and answered only about the 32-byte seed.
+
+  What is expensive is the design exp162 forced. Keeping only the seed behind
+  the wall means expanding it every time, and that is **85,916 µs of a
+  136,175 µs signature: 63% of the work**. The cleanup is not the price. The
+  rebuilding is.
+
+  Two things it cost to get there are worth carrying forward. `SIGNATURE` and
+  `PUBLIC_KEY` are written by the signing function and read by nobody, so LLVM
+  removed them and **five candidates spent a whole round measuring a signature
+  that was never computed** — `.bss` came out 517 bytes smaller than the two
+  statics together, and `check.sh` now reads both sizes out of the ELF on every
+  run. And because ML-DSA is rejection-sampled, four measurements of the same
+  thing differed by 148 ms until the message was fixed; with it fixed they
+  differ by 33 µs, which is what made an 11 ms effect visible at all. Needs 1.
 
 #### The channel, and why the framing decision comes with it
 

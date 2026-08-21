@@ -466,27 +466,31 @@ spends a bench trip discovering that the parser has never seen real output.
 
 ## Next
 
-**Done: [exp162](../exp162-how-wide-can-a-wall-be/)**, for the third of the
-three questions below — and it changes the other two rather than just crossing
-itself off.
+**Done, both of them.**
 
-`ACCESSCTRL.SRAM[n]` does not gate the *n*th 64 KB block. Banks 0–3 are
-word-interleaved across the lower 256 KB and banks 4–7 across the upper 256 KB,
-so the longest run of consecutive addresses one register can deny is **four
-bytes**. There is no >64 KB secret region, and there is no 64 KB one either.
-**This chip cannot hide an ML-DSA-65 private key while it is in use**, which is
-the finding this section asked for in advance and got.
+[exp162](../exp162-how-wide-can-a-wall-be/) answered the third question below
+and changed the other two: `ACCESSCTRL.SRAM[n]` does not gate the *n*th 64 KB
+block. Banks 0–3 are word-interleaved across the lower 256 KB and banks 4–7
+across the upper, so **the longest run of consecutive addresses one register can
+deny is four bytes**. There is no >64 KB secret region, and no 64 KB one either.
+**This chip cannot hide an ML-DSA-65 private key while it is in use.**
 
-So what remains is the remedy, with its premise narrowed: wipe the working
-region after signing and measure the price in milliseconds; and find out whether
-wiping the frame is enough or whether secret material survives somewhere the
-sweep does not reach. It is no longer one of two available answers. It is the
-only one, because the wall cannot be made wide enough — and
-[C2a](#c2a--the-dependency-does-offer-to-clean-up-and-it-does-not-help) has
-already measured that the crate's own `zeroize` feature is not it either.
+[exp163](../exp163-how-long-is-a-secret-in-the-open/) then took the remedy —
+the only answer left — and measured it with a second core, demoted to
+Non-secure, reading the whole 512 KB in a loop while the first one signed:
 
-One question exp162 sharpened rather than settled: **if no part of the main SRAM
-can be protected, what is bank 8 for**, given that a 65,696-byte object does not
-fit in its 4 KB any more than it fits in 64 KB. A 32-byte seed does. Whether
-anything can be *done* with a seed without expanding it is the question the
-remedy experiment has to open with.
+- **The window is the whole signature.** 32 sightings inside one 147 ms
+  signature, and 167 more afterwards when nothing wiped it. Candidate 5's
+  finding here was two copies in the dead frame; exp163 found the same two, from
+  a different core, by a different method.
+- **Wiping works, and costs 2.3%.** 3,392 µs for 508,520 bytes, after which two
+  instruments at two granularities both find nothing.
+- **Wiping only the frame is enough** — for the seed. `sign_once`'s own frame is
+  240,160 bytes and the signature drives the stack 423,164 bytes deep, and every
+  copy of the seed is inside the frame. That is this section's second question,
+  answered, with the caveat that only the 32-byte seed was searched for.
+- **The price of keeping only the seed behind the wall** is 85,916 µs of
+  expansion on every signature — **63%** of the work — which is a much larger
+  number than the cleanup that
+  [C2a](#c2a--the-dependency-does-offer-to-clean-up-and-it-does-not-help)
+  was arguing about.

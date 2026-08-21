@@ -1,0 +1,204 @@
+[    3037 ms] exp163 up, boot #1. The matrix so far:
+[    3037 ms]   1 Non-secure reads bank 8, DENIED - not reached
+[    3062 ms]   2 Non-secure reads the clock, DENIED - not reached
+[    3087 ms]   3 the watcher runs, nothing signs - not reached
+[    3112 ms]   4 the watcher watches one signature - not reached
+[    3137 ms]   5 the same, and the region is wiped - not reached
+[    3162 ms]   6 only the signing frame is wiped - not reached
+[    3187 ms]   7 the price, with nobody watching - not reached
+[    3212 ms] bank 9 cleared: mailbox and seven empty result records.
+[    3213 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3425 ms] new ML-DSA-65 seed from the TRNG, into bank 8; the buffer was wiped.
+[    3425 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3425 ms] message (fixed, public): "exp163: the same message, always"
+[    3425 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8425 ms] candidate 1 Non-secure reads bank 8, DENIED
+[    8425 ms]   bank 8 SHUT; TIMER0 left at its power-on default.
+[    9435 ms]   core 1: done=false faulted=true read=0x00000000
+[    9435 ms] candidate 1 -> as expected
+[    3074 ms] exp163 up, boot #2. The matrix so far:
+[    3075 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3100 ms]   2 Non-secure reads the clock, DENIED - not reached
+[    3125 ms]   3 the watcher runs, nothing signs - not reached
+[    3150 ms]   4 the watcher watches one signature - not reached
+[    3175 ms]   5 the same, and the region is wiped - not reached
+[    3200 ms]   6 only the signing frame is wiped - not reached
+[    3225 ms]   7 the price, with nobody watching - not reached
+[    3250 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3250 ms] bank 8 still holds this run's seed: it survived the reboot.
+[    3250 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3250 ms] message (fixed, public): "exp163: the same message, always"
+[    3250 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8250 ms] candidate 2 Non-secure reads the clock, DENIED
+[    8250 ms]   bank 8 open; ACCESSCTRL.TIMER0 reads 0x000000fc, untouched.
+[    9260 ms]   core 1: done=false faulted=true read=0x00000000
+[    9260 ms] candidate 2 -> as expected
+[    3074 ms] exp163 up, boot #3. The matrix so far:
+[    3074 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3099 ms]   2 Non-secure reads the clock, DENIED - as expected
+[    3125 ms]   3 the watcher runs, nothing signs - not reached
+[    3150 ms]   4 the watcher watches one signature - not reached
+[    3175 ms]   5 the same, and the region is wiped - not reached
+[    3200 ms]   6 only the signing frame is wiped - not reached
+[    3225 ms]   7 the price, with nobody watching - not reached
+[    3250 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3250 ms] bank 8 still holds this run's seed: it survived the reboot.
+[    3250 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3250 ms] message (fixed, public): "exp163: the same message, always"
+[    3250 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8250 ms] candidate 3 the watcher runs, nothing signs
+[    8250 ms]   bank 8 SHUT. wiping 0x20002bb0..0x2007ee18 for hygiene.
+[    8253 ms]   wiped in 3394 us. sweeping all 512 KB.
+[    8292 ms]   inherited copies still in SRAM: 0 (first 0x00000000)
+[    8295 ms]   painted; needle published to bank 9. starting the watcher.
+[    8905 ms]   watcher up: 62 passes, 0 sightings with nothing signing.
+[   10115 ms]   signed in 0 us, 0 bytes deep; watcher saw it 0 times.
+[   10974 ms]   wiped in 0 us; afterwards the watcher saw it 0 times.
+[   10974 ms]   the byte-granular sweep of all 512 KB found 0 (first 0x00000000).
+[   10974 ms] candidate 3 -> as expected
+[    3074 ms] exp163 up, boot #4. The matrix so far:
+[    3074 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3099 ms]   2 Non-secure reads the clock, DENIED - as expected
+[    3125 ms]   3 the watcher runs, nothing signs - as expected
+[    3150 ms]   4 the watcher watches one signature - not reached
+[    3175 ms]   5 the same, and the region is wiped - not reached
+[    3200 ms]   6 only the signing frame is wiped - not reached
+[    3225 ms]   7 the price, with nobody watching - not reached
+[    3250 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3250 ms] bank 8 still holds this run's seed: it survived the reboot.
+[    3250 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3250 ms] message (fixed, public): "exp163: the same message, always"
+[    3250 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8250 ms] candidate 4 the watcher watches one signature
+[    8250 ms]   bank 8 SHUT. wiping 0x20002bb0..0x2007ee18 for hygiene.
+[    8253 ms]   wiped in 3393 us. sweeping all 512 KB.
+[    8292 ms]   inherited copies still in SRAM: 0 (first 0x00000000)
+[    8295 ms]   painted; needle published to bank 9. starting the watcher.
+[    8905 ms]   watcher up: 62 passes, 0 sightings with nothing signing.
+[    9063 ms]   SGHD f3173e8a1cb23f351299310ca767fba0e0dde012dceefc6cc04f364c5a04f861
+[    9088 ms]   PKHD d3ce89dd95a7ae6e023dafcead8877a4e3b09d0452f193b66eca5f0284952901
+[    9114 ms]   signed in 147374 us, 423164 bytes deep; watcher saw it 32 times.
+[    9114 ms]   first at 0x20044498, passes 64..79 of sign 63..79.
+[    9973 ms]   wiped in 0 us; afterwards the watcher saw it 167 times.
+[    9973 ms]   the byte-granular sweep of all 512 KB found 2 (first 0x20044498).
+[    9973 ms] candidate 4 -> as expected
+[    3074 ms] exp163 up, boot #5. The matrix so far:
+[    3074 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3100 ms]   2 Non-secure reads the clock, DENIED - as expected
+[    3125 ms]   3 the watcher runs, nothing signs - as expected
+[    3150 ms]   4 the watcher watches one signature - as expected
+[    3175 ms]   5 the same, and the region is wiped - not reached
+[    3200 ms]   6 only the signing frame is wiped - not reached
+[    3225 ms]   7 the price, with nobody watching - not reached
+[    3250 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3250 ms] bank 8 still holds this run's seed: it survived the reboot.
+[    3250 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3250 ms] message (fixed, public): "exp163: the same message, always"
+[    3250 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8250 ms] candidate 5 the same, and the region is wiped
+[    8250 ms]   bank 8 SHUT. wiping 0x20002bb0..0x2007ee18 for hygiene.
+[    8253 ms]   wiped in 3394 us. sweeping all 512 KB.
+[    8292 ms]   inherited copies still in SRAM: 0 (first 0x00000000)
+[    8295 ms]   painted; needle published to bank 9. starting the watcher.
+[    8905 ms]   watcher up: 62 passes, 0 sightings with nothing signing.
+[    9063 ms]   SGHD f3173e8a1cb23f351299310ca767fba0e0dde012dceefc6cc04f364c5a04f861
+[    9088 ms]   PKHD d3ce89dd95a7ae6e023dafcead8877a4e3b09d0452f193b66eca5f0284952901
+[    9114 ms]   signed in 147407 us, 423164 bytes deep; watcher saw it 32 times.
+[    9114 ms]   first at 0x20044498, passes 64..79 of sign 63..79.
+[    9971 ms]   wiped in 3392 us; afterwards the watcher saw it 0 times.
+[    9971 ms]   the byte-granular sweep of all 512 KB found 0 (first 0x00000000).
+[    9971 ms] candidate 5 -> as expected
+[    3074 ms] exp163 up, boot #6. The matrix so far:
+[    3074 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3100 ms]   2 Non-secure reads the clock, DENIED - as expected
+[    3125 ms]   3 the watcher runs, nothing signs - as expected
+[    3150 ms]   4 the watcher watches one signature - as expected
+[    3175 ms]   5 the same, and the region is wiped - as expected
+[    3200 ms]   6 only the signing frame is wiped - not reached
+[    3225 ms]   7 the price, with nobody watching - not reached
+[    3250 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3250 ms] bank 8 still holds this run's seed: it survived the reboot.
+[    3250 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3250 ms] message (fixed, public): "exp163: the same message, always"
+[    3250 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8250 ms] candidate 6 only the signing frame is wiped
+[    8250 ms]   bank 8 SHUT. wiping 0x20002bb0..0x2007ee18 for hygiene.
+[    8253 ms]   wiped in 3393 us. sweeping all 512 KB.
+[    8292 ms]   inherited copies still in SRAM: 0 (first 0x00000000)
+[    8295 ms]   painted; needle published to bank 9. starting the watcher.
+[    8905 ms]   watcher up: 62 passes, 0 sightings with nothing signing.
+[    9063 ms]   SGHD f3173e8a1cb23f351299310ca767fba0e0dde012dceefc6cc04f364c5a04f861
+[    9088 ms]   PKHD d3ce89dd95a7ae6e023dafcead8877a4e3b09d0452f193b66eca5f0284952901
+[    9114 ms]   signed in 147404 us, 423164 bytes deep; watcher saw it 32 times.
+[    9114 ms]   first at 0x20044498, passes 64..79 of sign 63..78.
+[    9114 ms]   sign_once's own frame measured 240160 bytes; wiping exactly that.
+[    9975 ms]   wiped in 1603 us; afterwards the watcher saw it 0 times.
+[    9975 ms]   the byte-granular sweep of all 512 KB found 0 (first 0x00000000).
+[    9975 ms] candidate 6 -> as expected
+[    3074 ms] exp163 up, boot #7. The matrix so far:
+[    3074 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3100 ms]   2 Non-secure reads the clock, DENIED - as expected
+[    3125 ms]   3 the watcher runs, nothing signs - as expected
+[    3150 ms]   4 the watcher watches one signature - as expected
+[    3175 ms]   5 the same, and the region is wiped - as expected
+[    3200 ms]   6 only the signing frame is wiped - as expected
+[    3225 ms]   7 the price, with nobody watching - not reached
+[    3250 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3250 ms] bank 8 still holds this run's seed: it survived the reboot.
+[    3250 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3250 ms] message (fixed, public): "exp163: the same message, always"
+[    3250 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8250 ms] candidate 7 the price, with nobody watching
+[    8250 ms]   bank 8 SHUT. wiping 0x20002bb0..0x2007ee18 for hygiene.
+[    8253 ms]   wiped in 3393 us. sweeping all 512 KB.
+[    8292 ms]   inherited copies still in SRAM: 0 (first 0x00000000)
+[    8517 ms]   SGHD f3173e8a1cb23f351299310ca767fba0e0dde012dceefc6cc04f364c5a04f861
+[    8543 ms]   PKHD d3ce89dd95a7ae6e023dafcead8877a4e3b09d0452f193b66eca5f0284952901
+[    8611 ms]   expand 85916 us, sign 136175 us, wipe 3392 us.
+[    8611 ms]   stack went 423164 bytes deep; copies left afterwards: 0
+[    8611 ms] candidate 7 -> as expected
+[    3074 ms] exp163 up, boot #8. The matrix so far:
+[    3074 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3100 ms]   2 Non-secure reads the clock, DENIED - as expected
+[    3125 ms]   3 the watcher runs, nothing signs - as expected
+[    3150 ms]   4 the watcher watches one signature - as expected
+[    3175 ms]   5 the same, and the region is wiped - as expected
+[    3200 ms]   6 only the signing frame is wiped - as expected
+[    3225 ms]   7 the price, with nobody watching - as expected
+[    3250 ms] inherited FORCE_CORE_NS=0x00000000 SRAM8=0x000000ff; both reset.
+[    3250 ms] bank 8 still holds this run's seed: it survived the reboot.
+[    3250 ms] region: 0x20002bb0..0x2007ee18, 508520 bytes.
+[    3250 ms] message (fixed, public): "exp163: the same message, always"
+[    3250 ms] exp163 done after 8 boots. Nothing armed; still reflashable.
+[    3250 ms]   1 Non-secure reads bank 8, DENIED - as expected
+[    3275 ms]   2 Non-secure reads the clock, DENIED - as expected
+[    3300 ms]   3 the watcher runs, nothing signs - as expected
+[    3325 ms]   4 the watcher watches one signature - as expected
+[    3350 ms]   5 the same, and the region is wiped - as expected
+[    3375 ms]   6 only the signing frame is wiped - as expected
+[    3400 ms]   7 the price, with nobody watching - as expected
+[    3425 ms] the numbers, out of bank 9:
+[    3425 ms]   1 stale=0 quiet=0 during=0 after=0 sweep=0
+[    3450 ms]       passes=0 seen 0..0 of sign 0..0
+[    3475 ms]       sign=0 us wipe=0 us expand=0 us depth=0 B
+[    3500 ms]   2 stale=0 quiet=0 during=0 after=0 sweep=0
+[    3525 ms]       passes=0 seen 0..0 of sign 0..0
+[    3550 ms]       sign=0 us wipe=0 us expand=0 us depth=0 B
+[    3575 ms]   3 stale=0 quiet=0 during=0 after=0 sweep=0
+[    3601 ms]       passes=272 seen 0..0 of sign 0..0
+[    3626 ms]       sign=0 us wipe=0 us expand=0 us depth=0 B
+[    3651 ms]   4 stale=0 quiet=0 during=32 after=167 sweep=2
+[    3676 ms]       passes=168 seen 64..79 of sign 63..79
+[    3701 ms]       sign=147374 us wipe=0 us expand=0 us depth=423164 B
+[    3726 ms]   5 stale=0 quiet=0 during=32 after=0 sweep=0
+[    3751 ms]       passes=168 seen 64..79 of sign 63..79
+[    3776 ms]       sign=147407 us wipe=3392 us expand=0 us depth=423164 B
+[    3801 ms]   6 stale=0 quiet=0 during=32 after=0 sweep=0
+[    3826 ms]       passes=168 seen 64..79 of sign 63..78
+[    3851 ms]       sign=147404 us wipe=1603 us expand=0 us depth=423164 B
+[    3876 ms]   7 stale=0 quiet=0 during=0 after=0 sweep=0
+[    3901 ms]       passes=0 seen 0..0 of sign 0..0
+[    3926 ms]       sign=136175 us wipe=3392 us expand=85916 us depth=423164 B
+[    3976 ms] VERDICT: a Non-secure core saw the key 32 times while it was in use,
+[    4001 ms]   and 0 times after the wipe; the 512 KB sweep then found 0.
+[    4026 ms]   wiping only the 240160-byte frame leaves 0 copies behind.
