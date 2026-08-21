@@ -384,6 +384,25 @@ The order that follows from the arithmetic:
    is not another lever: it is using them. The next experiment on the signing
    road should be the first one written this way from the start.
 
+   **[exp159](../experiments/exp159-a-key-that-was-never-in-flash/) was, and
+   [exp160](../experiments/exp160-a-secret-too-big-to-hide/) is what lever 4 buys
+   once it is habit.** exp160's central claim — that signing an ML-DSA-65
+   message leaves copies of the private seed in ordinary memory — was
+   **established on a laptop in about a minute**, by signing and then sweeping
+   the frame the call had just left. The whole candidate that finding justifies
+   would not have been written if the answer had come back the other way, and
+   nobody would have known which without a bench trip. Its `verify.py` was also
+   replayed against a synthetic 173-line capture in the board's exact format
+   before the board was ever flashed, which is where its chunk-index handling was
+   fixed.
+
+   And it found the other edge of the same rule. `check.sh` proves `verify.py`
+   can fail by corrupting one hex digit of a recorded capture — by overwriting it
+   with `f`. In the capture that got checked in, the digit was already `f`. **The
+   check that exists to prove a check can fail had become a check that cannot
+   fail**, and it only surfaced when a machine with a new enough library reached
+   that line. A replay is only worth what its own failure case is worth.
+
 ## The checklist, for a firmware meant to be debugged from a cloud session
 
 - [ ] **The previous run's trace is printed before anything risky runs.**

@@ -81,6 +81,7 @@ Per experiment:
 | exp157 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp158 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp159 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp160 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp152 | Same as exp151, plus a **mass-storage** function — six USB interfaces, the most complex composite here. The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
 | exp151 | Same as exp150, and the first experiment here a **non-Chromium** browser can be part of — reading the log needs no WebUSB. Finding the board still does, which is the half that is missing. |
 | exp150 | Same as exp149, plus **a browser — any browser**, which is the point. This is the first experiment here whose page needs no WebUSB, no permission dialog and no Chromium. Whether the browser can reach the board is a property of the host's routing, not of this firmware. |
@@ -438,7 +439,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp156–exp159 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp156–exp160 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp155 |
 
@@ -703,6 +704,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp157-a-note-for-the-next-boot](./exp157-a-note-for-the-next-boot/) | 1 · board | A firmware killed by a hang and by a fault comes back both times able to say which step it died in and which kind of death it was |
 | [exp158-four-keys-and-one-flash](./exp158-four-keys-and-one-flash/) | 1 · board | Four candidate ACCESSCTRL write keys in a single flash — the board faults on the wrong ones, steps over each death, and re-derives in fifty seconds what cost exp156 three bench trips |
 | [exp159-a-key-that-was-never-in-flash](./exp159-a-key-that-was-never-in-flash/) | 1 · board | A P-256 key generated on the board into an SRAM bank Non-secure code cannot read, used to sign a challenge it could not have known at build time, verified off the board |
+| [exp160-a-secret-too-big-to-hide](./exp160-a-secret-too-big-to-hide/) | 1 · board | The same wall with an ML-DSA-65 key behind it: the wall still refuses every read, and Non-secure code reads the key anyway out of the 369 KB of open stack one post-quantum signature leaves behind |
 
 ## The browser track, finished
 
@@ -1299,12 +1301,34 @@ None of these is interrogated yet — a direction, not a schedule.
   It also retires a planned piece of work: with the boundary between two cores
   there is no secure-gateway veneer to hand-write and no SAU to program, because
   there is no call across a security state to gate.
-- **the same wall, a much larger signature** — swap the crate for ML-DSA-65 and
-  measure. A 3,309-byte signature and a 1,952-byte public key against 64 and 64
-  is not a detail; [exp147](./exp147-two-firmwares-one-phone/) needs a firmware
-  to fit a 64 KiB A/B slot and [exp148](./exp148-a-wire-with-no-address/)
-  measured a TCP/IP stack costing 17,408 bytes with 25 KiB still spare. **Does
-  a post-quantum signature still fit the update road?** A "no" is a finding.
+- **the same wall, a much larger signature** — ML-DSA-65 behind exp159's wall.
+  [exp160](./exp160-a-secret-too-big-to-hide/) is **verified on hardware**, five
+  candidates in one flash, and it answers the question this section asked in a
+  direction nobody was facing.
+
+  **The code was never the problem.** ML-DSA-65's signing path costs **16,380
+  bytes of `.text`** against P-256's **20,356** on an identical empty baseline —
+  the post-quantum signature is the *smaller* code, and the whole firmware's UF2
+  came out smaller than exp159's. What the swap costs is RAM.
+
+  **And the wall does not survive it.** exp159's boundary still refuses every
+  Non-secure read of bank 8 — candidates 2 and 3 prove that in the same run —
+  and Non-secure code reads the private key anyway, out of the **369,456 bytes
+  of ordinary open stack** one signature leaves behind. The key at rest is a
+  32-byte seed that fits bank 8 with room to spare; in use it is a **65,696-byte
+  object, 160 bytes larger than the biggest thing `ACCESSCTRL` can gate**. Two
+  intact copies of the seed were found in the swept region, and a demoted core 1
+  read them back.
+
+  That is the defect this road was filed against, reached for the third time and
+  the first time from inside a dependency: **candidate 4 — the exp159 headline,
+  ported — passes.** An experiment that stopped there would have shipped a
+  hollow success.
+
+  It also measures what a 3,309-byte signature costs everything it touches: the
+  proof is 173 log lines where exp159's was five, and signing time varies **3.9×
+  across five board measurements** because ML-DSA's loop is rejection-sampled —
+  confirmed at 21.5× over 300 host signatures. Needs 1.
 
 #### The channel, and why the framing decision comes with it
 

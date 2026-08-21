@@ -296,8 +296,20 @@ the result without a toolchain.
 
 ## Next
 
-**The same wall, a much larger signature.** Swap `p256` for ML-DSA-65 and
-measure: 3,309 bytes of signature and 1,952 of public key against 64 and 64, and
-20,248 bytes of code to compare against. [exp147](../exp147-two-firmwares-one-phone/)
-needs a firmware to fit a 64 KiB A/B slot. **Does a post-quantum signature still
-fit the update road?** A "no" is a finding.
+**Done: [exp160](../exp160-a-secret-too-big-to-hide/).** The same wall, ML-DSA-65
+behind it — and the answer went the other way from the one this section
+expected. The post-quantum signing code is *smaller* (16,380 bytes of `.text`
+against P-256's 20,356 on the same baseline), so code size was never the
+question.
+
+**The wall does not survive the swap.** It still refuses every Non-secure read of
+bank 8, and Non-secure code reads the key anyway: one ML-DSA-65 signature spreads
+369,456 bytes of working state across ordinary open SRAM and leaves two intact
+copies of the seed in it. exp160's candidate 4 is this experiment's headline,
+ported unchanged, and it **passes** — which is exactly why it is not the last
+candidate.
+
+The idea to take away above says *a boundary is only as good as the worst place
+the secret lives*, and it was written about flash. exp160 is the same sentence
+about the stack, with the copy put there by a dependency rather than by an
+author.
