@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W)
-hash: 66f6cbdf4383f2f4
+hash: f34c363d67d2cf2c
 
 Unpacked into an empty directory, `FLASH.txt` followed. Three firmware images,
 each flashed, each left unread for twenty seconds, each then read.

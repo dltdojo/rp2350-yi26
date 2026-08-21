@@ -1,0 +1,437 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp156 — a wall you can measure</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp156-a-wall-you-can-measure — one file, no dependencies, no build step,
+  no server. Open it directly: double-click on a desktop, Files app ->
+  "Open with Chrome" on Android.
+
+  It claims the board's CDC interfaces the way tools/pages/log.html does, and
+  reads THREE reads of one address, all taken by core 1:
+
+      read 1   Secure,     wall open    expected to work
+      read 2   Non-secure, wall open    expected to work
+      read 3   Non-secure, wall shut    expected to fault
+
+  All three are shown because no smaller set is a measurement. Read 1 to read 2
+  changes only the security state; read 2 to read 3 changes only the ACCESSCTRL
+  bits. A page that showed read 1 and read 3 alone would be showing two changes
+  at once and calling the result a wall — which is what an earlier version of
+  this page did, and what an earlier version of the firmware measured.
+
+  The verdict below is only allowed to say "there is a wall" when both controls
+  arrived AND read 3 was refused.
+
+  The patterns below are matched against a real capture from a board, not
+  against what the firmware was expected to print. The first version of this
+  page was written the other way round and every one of its regexes was wrong:
+  it looked for "core 0 (Secure) read", a string no build of this firmware has
+  ever emitted. A page nobody ran against a board is a page that reports
+  "waiting" forever and looks like a board that never spoke.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log.
+      yi26 log --json --seconds 20
+  is. See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd;
+          --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333;
+            --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 52rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1rem; margin: 1.6rem 0 .5rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  .sides { display: flex; flex-wrap: wrap; gap: .7rem; margin: 1rem 0; }
+  .side { flex: 1 1 13rem; border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; }
+  .side h3 { margin: 0 0 .1rem; font-size: .95rem; }
+  .side .who { font-size: 12.5px; color: var(--dim); margin-bottom: .7rem; }
+  .side .val { font-family: ui-monospace, monospace; font-size: 1.2rem; word-break: break-all; }
+  .side .note { font-size: 12.5px; color: var(--dim); margin-top: .4rem; }
+  .side.read { border-color: var(--ok); }
+  .side.refused { border-color: var(--ok); }
+  .side.leaked { border-color: var(--bad); }
+  .side.pending .val { color: var(--dim); font-size: 1rem; }
+  #verdict { margin: 1rem 0; padding: .9rem 1rem; border-left: 3px solid var(--line); }
+  #verdict.wall { border-color: var(--ok); }
+  #verdict.nowall { border-color: var(--bad); }
+  #verdict.unclear { border-color: var(--warn); }
+  #verdict b { font-size: 1.05rem; }
+  #log { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .8rem;
+         border-radius: 6px; height: 16rem; overflow-y: auto; font-family: ui-monospace, monospace;
+         font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .warn { border-left: 3px solid var(--warn); padding: .6rem .9rem; margin: 1rem 0; font-size: 13.5px; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .6rem; }
+  code { font-size: .92em; }
+</style>
+
+<h1>exp156 — a wall you can measure</h1>
+<p class="sub">One address, one core, three reads, one thing changed at a time. No cryptography anywhere in it.</p>
+
+<button id="connect">Connect to the board</button>
+<button id="stop" class="ghost" disabled>Stop</button>
+
+<div id="status">Plug the board in, then press Connect. The verdict lands about nine seconds after the board boots and repeats every ten with all three reads, so arriving late is fine.</div>
+
+<div class="warn">
+  This page needs <b>Chrome or Edge</b> — WebUSB is Chromium-only.
+  <br><br>
+  <b>On Linux there are two gates and they fail differently.</b> Run both, in
+  this order, before pressing Connect:
+  <br><br>
+  <b>1. <code>yi26 udev --install</code></b> — the board's device node is
+  root-only until a rule says otherwise, so Connect fails with
+  <b>“Access denied”</b> the moment it opens the device, before any interface is
+  involved. One rule, your password once. <code>yi26 udev</code> on its own
+  checks it, by opening the device exactly the way this page does.
+  <br><br>
+  <b>2. <code>yi26 detach</code></b> — the kernel's <code>cdc_acm</code> driver
+  owns these interfaces, which is what <code>/dev/ttyACM0</code> is, and an
+  interface has exactly one owner. Without this, Connect gets past opening and
+  fails at <i>claiming</i> instead. It needs the rule from step 1, so running it
+  first fails with the same “permission denied”.
+  <br><br>
+  <code>yi26 attach</code> gives them back; so does replugging, or flashing
+  anything. While detached there is no serial port, so <code>yi26 log</code> and
+  every terminal program stop seeing the board — this page is the instrument
+  then.
+</div>
+
+<h2>The same address, three times, from core 1</h2>
+<div class="sides">
+  <div class="side pending" id="s-secure">
+    <h3>1 · Secure</h3>
+    <div class="who">wall open — is this core alive at all?</div>
+    <div class="val" id="v-secure">waiting</div>
+    <div class="note" id="n-secure">The first control. If this never arrives, core 1 never ran and nothing below means anything.</div>
+  </div>
+  <div class="side pending" id="s-open">
+    <h3>2 · Non-secure</h3>
+    <div class="who">wall open — can a demoted core still read?</div>
+    <div class="val" id="v-open">waiting</div>
+    <div class="note" id="n-open">The second control. If this faults, the finding is about FORCE_CORE_NS and not about the wall.</div>
+  </div>
+  <div class="side pending" id="s-shut">
+    <h3>3 · Non-secure</h3>
+    <div class="who">wall shut — the measurement</div>
+    <div class="val" id="v-shut">waiting</div>
+    <div class="note" id="n-shut">Expected to fault. A value here means no wall.</div>
+  </div>
+</div>
+
+<div id="verdict">Waiting for all three reads.</div>
+
+<h2>Raw log</h2>
+<button id="copy" class="ghost">Copy the log</button>
+<div id="log"></div>
+<p class="meta">The page reads; it never writes to the board, and it never sends 1200 baud — which would reboot it into the bootloader.</p>
+
+<script>
+// Two entries, and the second is the lesson.
+//
+// A page that filters only for the application firmware shows an EMPTY chooser
+// when the board is in BOOTSEL — and an empty chooser is indistinguishable
+// from a broken page. docs/debugging-on-a-phone.md records exactly this
+// happening to exp146's step 0, on a page that was working perfectly, and says
+// what to do: "Check what your identifying tool can actually see before making
+// it step 0." exp117's troubleshooting table carries the row too — *the picker
+// lists nothing / the board is already in BOOTSEL / it is 2e8a:000f now*.
+//
+// So the bootrom is in the filter, not because this page can talk to it, but
+// so it can SAY that is what you picked. Being told is the whole difference.
+const APP     = { vendorId: 0x1209, productId: 0x0001 };
+const BOOTROM = { vendorId: 0x2e8a, productId: 0x000f };
+const FILTERS = [APP, BOOTROM];
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+const BAUD = 115200;
+
+let device = null, streaming = false, carry = '';
+const $ = (id) => document.getElementById(id);
+function say(msg, cls) { const s = $('status'); s.textContent = msg; s.className = cls || ''; }
+
+// Every line carries crates/usb-log's `[    3037 ms] ` prefix, and sometimes a
+// `(+N lines lost)` marker after it, so nothing may be anchored to the start.
+// Every line carries crates/usb-log's `[    3037 ms] ` prefix, and sometimes a
+// `(+N lines lost)` marker after it, so nothing may be anchored to the start.
+// The spacing inside each line is column alignment in the firmware's own
+// output, so it is matched with \s+ rather than copied character for character.
+const RE_READ1   = /read 1\s+Secure,\s+wall open:\s+(0x[0-9a-f]+)/;
+const RE_READ2   = /read 2\s+Non-secure,\s+wall open:\s+(0x[0-9a-f]+)/;
+const RE_READ3   = /read 3\s+Non-secure,\s+wall shut:\s+(0x[0-9a-f]+)/;
+const RE_FAULT3  = /read 3\s+Non-secure,\s+wall shut:\s+bus fault at pc (0x[0-9a-f]+)/;
+const RE_NOTYET  = /read (\d)\s+.*not taken \(core 1 at step (\d+)\)/;
+const RE_VERDICT = /VERDICT: (.*)$/;
+
+let read1 = null, read2 = null, read3 = null, faultPc = null;
+
+function decide() {
+  const v = $('verdict');
+
+  // The order of these tests is the argument. "Read 3 faulted" is checked LAST,
+  // after both controls, because a refusal on its own is not evidence of
+  // anything — it is one failed access, and this repository has a whole
+  // experiment (exp140) about checks that cannot fail.
+  if (!read1) {
+    v.className = 'unclear';
+    v.innerHTML = `<b>Nothing measured yet.</b> Core 1 has not reported a Secure read, ` +
+      `so it is not yet known to be running at all.`;
+    return;
+  }
+  if (!read2) {
+    if (faultPc) {
+      v.className = 'unclear';
+      v.innerHTML = `<b>Inconclusive, and it is about the demotion.</b> Core 1 read ` +
+        `<code>${read1}</code> while Secure, then faulted with the wall still <b>open</b>. ` +
+        `A core that cannot read what it is permitted to read says nothing about a wall.`;
+    } else {
+      v.className = 'unclear';
+      v.innerHTML = `<b>Half a measurement.</b> Core 1 read <code>${read1}</code> while ` +
+        `Secure. Waiting for the same read in Non-secure state with the wall open.`;
+    }
+    return;
+  }
+  if (read3) {
+    v.className = 'nowall';
+    v.innerHTML = `<b>No wall.</b> With NSU and NSP cleared, Non-secure core 1 still read ` +
+      `<code>${read3}</code> from the address it read <code>${read2}</code> from when it was ` +
+      `allowed to. ACCESSCTRL was written and read back and it did not refuse, so a key kept ` +
+      `here would be readable by anything running on core 1.`;
+    return;
+  }
+  if (faultPc) {
+    v.className = 'wall';
+    v.innerHTML = `<b>The wall is there, and the firmware built it.</b> The same core read ` +
+      `<code>${read1}</code> while Secure and <code>${read2}</code> while Non-secure with the ` +
+      `wall open, then took a bus fault at <code>${faultPc}</code> once NSU and NSP were ` +
+      `cleared. <b>Only ACCESSCTRL changed between the last two</b>, which is what makes this ` +
+      `a measurement rather than a claim.`;
+    return;
+  }
+  v.className = 'unclear';
+  v.innerHTML = `<b>Both controls are in.</b> Core 1 read <code>${read1}</code> Secure and ` +
+    `<code>${read2}</code> Non-secure. Waiting for the read that should be refused.`;
+}
+
+function handleLine(line) {
+  const el = $('log');
+  const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+  el.textContent += line + '\n';
+  if (atBottom) el.scrollTop = el.scrollHeight;
+
+  let m;
+  if ((m = line.match(RE_READ1))) {
+    read1 = m[1];
+    $('v-secure').textContent = read1;
+    $('s-secure').className = 'side read';
+    $('n-secure').textContent = 'core 1 is running, and this address answers it.';
+    decide();
+  }
+  if ((m = line.match(RE_READ2))) {
+    read2 = m[1];
+    $('v-open').textContent = read2;
+    $('s-open').className = 'side read';
+    $('n-open').textContent = 'a core demoted while running still executes, and still reads what it is allowed to.';
+    decide();
+  }
+  // Fault before value: "bus fault at pc 0x..." would otherwise be caught by
+  // RE_READ3, which only asks for a hex number after the colon.
+  if ((m = line.match(RE_FAULT3))) {
+    faultPc = m[1];
+    $('v-shut').textContent = 'FAULTED';
+    $('n-shut').textContent = `bus fault at pc ${faultPc} — the access never completed`;
+    $('s-shut').className = 'side refused';
+    decide();
+  } else if ((m = line.match(RE_READ3))) {
+    read3 = m[1];
+    $('v-shut').textContent = read3;
+    $('n-shut').textContent = 'the read completed — nothing refused it';
+    $('s-shut').className = 'side leaked';
+    decide();
+  }
+  // The firmware says which reads have not happened and why, rather than
+  // leaving a panel on "waiting" with no account of itself.
+  if ((m = line.match(RE_NOTYET))) {
+    const note = { '1': 'n-secure', '2': 'n-open', '3': 'n-shut' }[m[1]];
+    if (note) $(note).textContent = `not taken yet — core 1 is at step ${m[2]}`;
+  }
+  if ((m = line.match(RE_VERDICT))) {
+    // The firmware's own wording, kept verbatim beneath the page's reading of
+    // it. If the two ever disagree, the board is right.
+    $('verdict').title = m[1];
+  }
+}
+
+function feed(text) {
+  carry += text;
+  const parts = carry.split('\n');
+  carry = parts.pop();
+  for (const p of parts) handleLine(p.replace(/\r$/, ''));
+}
+
+// -- WebUSB, the same sequence tools/pages/log.html performs ----------------
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function start(dev) {
+  device = dev;
+
+  // open() and claimInterface() are two different gates, and telling somebody
+  // to fix the second when the first is what stopped them costs a whole
+  // exchange — the failure docs/debugging-on-a-phone.md is written against.
+  //
+  // On Linux /dev/bus/usb/... is root-only by default, so this throws
+  // SecurityError "Access denied" before any interface is touched. The warning
+  // box on this page used to name `yi26 detach` and nothing else, which is
+  // exactly the wrong advice here: detaching goes through the same device node
+  // and fails with the same permission error, so following it produces a second
+  // confusing message and no progress.
+  try {
+    await device.open();
+  } catch (e) {
+    throw new Error(
+      `cannot OPEN the device, which happens before any interface is claimed — so ` +
+      `this is not cdc_acm and "yi26 detach" will not fix it (it needs the same ` +
+      `access and fails the same way). On Linux the device node is root-only until ` +
+      `a udev rule grants it. Fix: run "yi26 udev --install", then "yi26 detach", ` +
+      `then Connect again. "yi26 udev" checks it without changing anything. ` +
+      `[${e.name}: ${e.message}]`);
+  }
+
+  if (device.configuration === null) await device.selectConfiguration(1);
+
+  // Did you pick the bootrom rather than a running firmware?
+  if (device.vendorId === BOOTROM.vendorId && device.productId === BOOTROM.productId) {
+    await stop();
+    say('That is the board in BOOTSEL (2e8a:000f), not a running firmware — there is no log ' +
+        'on it to read. Either unplug and replug it without holding the button, so it boots ' +
+        'what is already in flash, or write the firmware first with pflash.html.', 'bad');
+    return;
+  }
+
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null) {
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  }
+
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(
+      `cannot claim the interfaces — something else owns them, and an interface has ` +
+      `exactly one owner. The kernel's cdc_acm driver (fix: "yi26 detach"), or another ` +
+      `tab of this page (fix: close it). "yi26 doctor" says which. [${e.name}: ${e.message}]`);
+  }
+
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true);
+  coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control },
+    coding.buffer);
+  // Not optional: crates/usb-log waits for DTR before writing a byte.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  $('connect').disabled = true;
+  $('stop').disabled = false;
+
+  // Which firmware is actually on the board. exp154 shipped without this and a
+  // reader spent a round concluding an experiment had failed when a different
+  // one was running.
+  const serial = device.serialNumber || '(none)';
+  if (serial !== '156') {
+    say(`This board is NOT running exp156. It reports itself as "${device.productName}", ` +
+        `serial ${serial} — exp156 reports serial 156. Flash ` +
+        `firmware/exp156-a-wall-you-can-measure.uf2 and connect again.`, 'bad');
+    $('verdict').className = 'unclear';
+    $('verdict').innerHTML = '<b>Nothing is being measured.</b> The board is running other firmware — see above.';
+  } else {
+    say(`Streaming from ${device.productName} — interfaces ${control} and ${data}, endpoint ${endpointIn} IN. ` +
+        `The verdict repeats every ten seconds.`, 'ok');
+  }
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try { r = await device.transferIn(endpointIn, 64); }
+    catch (e) { if (streaming) say(`transfer stopped: ${e.message}`, 'bad'); break; }
+    if (r.data && r.data.byteLength) feed(dec.decode(r.data));
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('connect').disabled = false;
+  $('stop').disabled = true;
+  try { if (device) await device.close(); } catch (_) { /* already gone */ }
+  device = null;
+  say('Stopped.');
+}
+
+// content:// is not a secure context, so navigator.clipboard is absent exactly
+// where this button matters most — on a phone. execCommand still works there.
+async function copyLog() {
+  const text = $('log').textContent;
+  if (!text.trim()) { say('Nothing to copy yet.', 'bad'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.split('\n').length - 1} lines.`, 'ok');
+    return;
+  } catch (_) { /* fall through */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  ta.remove();
+  say(ok ? `Copied ${text.split('\n').length - 1} lines.`
+         : 'Could not copy. Long-press inside the log box and use Select all instead.',
+      ok ? 'ok' : 'bad');
+}
+
+$('connect').addEventListener('click', async () => {
+  if (!navigator.usb) { say('This browser has no WebUSB. Chrome or Edge.', 'bad'); return; }
+  try { await start(await navigator.usb.requestDevice({ filters: FILTERS })); }
+  catch (e) {
+    // "No device selected" is Chrome saying the chooser closed with nothing
+    // picked, and that one message covers several situations — so name them.
+    const msg = /No device selected/i.test(e.message)
+      ? 'The chooser closed with nothing picked. Three things it usually is: the list was empty ' +
+        'because the board is not enumerating at all (check the LED — dark means the firmware is ' +
+        'not running); the board slept in BOOTSEL and reset itself, which leaves dead entries ' +
+        'behind; or one board appears several times and only the live entry makes Android ask ' +
+        'for USB permission, with nothing in the names to say which. Replug and try again.'
+      : e.message;
+    say(msg, 'bad'); $('connect').disabled = false; $('stop').disabled = true; }
+});
+$('stop').addEventListener('click', stop);
+$('copy').addEventListener('click', copyLog);
+</script>

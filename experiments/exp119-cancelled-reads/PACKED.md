@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W)
-hash: 1cb2b3a46ea117ef
+hash: 429082df970dc4e2
 
 Unpacked into an empty directory, `FLASH.txt` followed, including pasting the
 Python flood tool straight out of it.

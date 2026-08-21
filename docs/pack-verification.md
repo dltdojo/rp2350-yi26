@@ -24,9 +24,8 @@ than saying nothing.
 
 ## Where it got to
 
-**25 of 52 verified**, on 2026-08-06. Twenty-four on Ubuntu against a Pico 2
-(non-W); **exp155 on a phone**, against the other board — the first zip here
-followed on the machine these zips are actually for.
+**Walked on 2026-08-06**, on Ubuntu against a Pico 2 (non-W) — except the last,
+**exp155 on a phone**, against the other board:
 
 ```
 exp102 exp105 exp107 exp108 exp109 exp110 exp111 exp112 exp113 exp114
@@ -38,8 +37,33 @@ exp155's is the one to read if you are carrying this on: it found two defects
 no desktop run could have found, and its `PACKED.md` says which two screens
 changed *after* the walk and are therefore confirmed on Ubuntu only.
 
-Run `./pack.sh --status` for the current answer; the list above is what one day
-produced and it is not maintained by hand.
+Run `./pack.sh --status` for the current answer. How many there are of each
+kind is not written down here: the total moves every time an experiment is
+added, and a fraction in a sentence is a thing somebody has to remember to
+revise. The list above is what one day produced and it is not maintained by
+hand either.
+
+### Those records were re-stamped, and nothing they describe moved
+
+On 2026-08-18 every one of them read `STALE` on a machine that was not the one
+they were written on. Nothing had changed. `content_hash` sorted the file list
+with the machine's `sort`, which orders by the locale's collation rules, so the
+same unchanged files came out in a different order under `en_US.UTF-8` than
+under `C` and hashed differently. Records written on a machine with a locale
+read as stale on a machine without one — all of them at once, which looks
+exactly like the experiments having moved, and telling those two apart is the
+entire job of this record.
+
+The sort is now pinned to `LC_ALL=C`, and the twenty-four were re-stamped
+against the corrected definition. **The walks stand**: each of them was still
+done, once, by somebody following the zip. Only the binding was recomputed —
+which is a thing worth doing only because it can be shown that the content was
+identical, and it could be, by hashing it under the old locale and watching it
+match the record it was accused of having outgrown.
+
+exp155's record was written on 2026-08-06 and did not take part in that
+re-stamp, because the branch it was written on had not been merged yet. It is
+stamped against the `LC_ALL=C` definition here.
 
 ## What is left, in the order to do it
 

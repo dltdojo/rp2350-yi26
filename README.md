@@ -9,7 +9,8 @@ for the on-chip peripherals worth putting *through* that USB link. Rust +
 Embassy is the only stack used here: no C/C++ Pico SDK, no TinyUSB, and no
 blocking HAL.
 
-> **Status:** thirty-five experiments in — board bring-up, the chip's own
+> **Status:** see the [experiments index](./experiments/README.md) for the
+> current count — board bring-up, the chip's own
 > sensors and entropy source, composite USB devices that carry a log, a
 > keyboard, a vendor interface and a filesystem at once, and a board that
 > serves the browser pages used to debug it — and nothing is published here
@@ -61,6 +62,23 @@ own drags it onto the board's boot drive — no toolchain, no drivers, no
 administrator rights. [`docs/platforms.md`](./docs/platforms.md) lays out that
 split experiment by experiment, and says which parts have been verified here
 and which have not.
+
+Developing from a machine with **no board attached**, with somebody else
+flashing what you send? That loop is different enough to have its own rules —
+an observation costs a walk to a bench, so a build has to answer a question
+whatever the outcome, and when firmware fails the LED is the only channel left.
+[`docs/debugging-without-a-board.md`](./docs/debugging-without-a-board.md) is
+what seven flash cycles of it taught, starting with: **search prior work before
+forming a hypothesis, and prove the LED works before you need it.**
+
+No computer at all — a phone, a board, and nothing else? The thing that builds
+the `.uf2` can be a cloud AI session you describe the change to in sentences,
+and the phone flashes what comes back with
+[`pflash.html`](./tools/pages/pflash.html).
+[`docs/building-without-a-computer.md`](./docs/building-without-a-computer.md)
+is that loop, what it was measured to cost, and the limit that does not go
+away: **the agent does the part that needs a toolchain, you do the part that
+needs a room.**
 
 ## Hardware
 

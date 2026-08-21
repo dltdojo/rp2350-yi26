@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 5 of 5 executed, 1 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W)
-hash: a9f5f9ad4c214b67
+hash: fa3f9091abbbd0dc
 
 Unpacked into an empty directory, `FLASH.txt` followed.
 

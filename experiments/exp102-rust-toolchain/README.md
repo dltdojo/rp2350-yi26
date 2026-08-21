@@ -190,6 +190,7 @@ PASS  smoke crate cross-compiles for thumbv8m.main-none-eabihf
 | --- | --- | --- |
 | `rustc: command not found` right after installing | current shell predates the install | `source ~/.cargo/env` or open a new terminal |
 | `cargo install elf2flash` fails with `linker 'cc' not found` | no C toolchain | `sudo apt install build-essential` |
+| `cargo install elf2flash` fails building `libudev-sys` | no libudev headers — elf2flash links against libudev to find the board | `sudo apt update && sudo apt install libudev-dev pkg-config` (the `update` matters: a stale package index 404s on the download) |
 | `can't find crate for 'core'` when building | target not installed | `rustup target add thumbv8m.main-none-eabihf` |
 | smoke build works but is instant / "nothing happened" | that's success — libraries build quietly | `./check.sh` for the explicit verdict |
 

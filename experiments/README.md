@@ -146,17 +146,29 @@ PASS/FAIL accounting, and the platform guard above — live in one place,
 cannot drift apart; it also means experiments assume a full checkout of this
 repository, not a copied-out directory.
 
-Every experiment directory contains the same two scripts, always with these
-names:
+Every experiment directory contains `check.sh`, and most contain `run.sh`
+beside it — always with these names:
 
 - **`run.sh`** — the interactive walkthrough. It guides you through every
   manual step (button presses, replugging), runs each command visibly, and
   explains the output. Use it the first time through.
 - **`check.sh`** — the quick verdict. Non-interactive, no prompts, exit code
-  0/1. Use it to re-verify a setup you already understand.
+  0/1. Use it to re-verify a setup you already understand. This is the one
+  every experiment has: the newest ones ship the verdict first and the
+  walkthrough later, and [`docs-check.sh`](./docs-check.sh) lists which are
+  still waiting for theirs.
 
 Repository-wide, alongside `lib.sh`:
 
+- **[`docs-check.sh`](./docs-check.sh)** — the guard for facts that belong to
+  no single experiment. `presence_check` and `usb_check` keep each experiment's
+  own declarations honest and fire only inside the experiment being run, so
+  every number that is a *sum over experiments* went unwatched — and every one
+  of them drifted, while not a single per-experiment declaration did. This
+  counts them from the tree instead: index rows both ways, the presence
+  distribution, and all of the `PRESENCE` and USB declarations at once. It
+  needs no board and no toolchain, so there is no excuse to skip it, and CI
+  runs it on every push.
 - **[`audit.sh`](./audit.sh)** — disclosure report. Prints the
   security-relevant choices baked into each firmware, with the evidence for
   each and the risk it carries, so you can decide whether they suit you.
@@ -171,8 +183,9 @@ Repository-wide, alongside `lib.sh`:
   `## Do this, in order` is lifted into the zip verbatim as the standalone
   walkthrough — every step, every command, and what each should print, for
   somebody who has only the zip. Markdown links are flattened on the way out.
-  exp151 and exp152 have one; the rest are a gap the zip names out loud. It refuses on a non-zero exit, so a zip is
-  evidence rather than a hope. Which zips have had their own steps followed,
+  The experiments that have one ship a walkthrough somebody can follow with
+  the zip and nothing else; the ones that do not are a gap the zip names out
+  loud. It refuses on a non-zero exit, so a zip is evidence rather than a hope. Which zips have had their own steps followed,
   what is left and in what order, and the hazards to keep off an unattended
   run are in [`docs/pack-verification.md`](../docs/pack-verification.md).
   It carries **no buildable source** and says so:
@@ -315,10 +328,30 @@ from required to optional.
 
 One rule governs what reaches GitHub:
 
-> **Nothing is pushed until it has been verified on real hardware.**
+> **Nothing reaches `main` until it has been verified on real hardware.**
 
-Work in progress is committed locally as often as is useful, but a push means
-someone plugged a board in and watched it work. The `Expected output` section
+Work in progress is committed locally as often as is useful, and a push to
+`main` means someone plugged a board in and watched it work.
+
+That sentence used to say *nothing is pushed*, full stop, and it was rewritten
+on 2026-08-18 for a reason worth stating rather than quietly absorbing.
+Development here increasingly happens in a cloud session whose container is
+reclaimed without notice, so "committed locally" stopped meaning *kept* — a
+day's work can exist only inside a machine that is about to be deleted. Holding
+an unverified branch hostage to a bench visit does not make the claim any
+truer; it just risks losing the code that would have been checked.
+
+So unverified work may reach a **branch**, under two conditions that are not
+negotiable, because they are the whole reason the rule exists:
+
+- **The commit message says so plainly**, in the subject line where nobody has
+  to go looking. `NOT YET VERIFIED ON HARDWARE` is the wording used.
+- **`Expected output` stays empty.** A section that says *not captured yet* is
+  honest. One filled in from what the code should do is the exact failure this
+  rule was written against, and moving the push does not license it.
+
+`main` is unchanged: a board ran it, somebody watched, and the capture is in
+the file. The `Expected output` section
 of each experiment is that verification, pasted in — never hand-written,
 never predicted from what the code "should" do.
 
@@ -401,9 +434,9 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp155 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154, exp155, exp156–exp160 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
-| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp155 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
 somebody to a bench for no reason:
@@ -529,7 +562,13 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp152 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp153 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
 | exp154 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
+| exp154 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp155 | `cdc+ncm+msc` | `log+frames+scsi+files` | `cdc_acm+cdc_ncm+usb-storage` | `own` |
+| exp156 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp157 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp158 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp159 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp160 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -562,7 +601,7 @@ is the one host this repository's browser track was built for. exp115 works
 through that decision.
 
 **Runs on** — whose firmware this runs against, and it is a separate column
-because **six experiments here have no `src/` at all**. The difference between
+because **a good many experiments here have no `src/` at all**. The difference between
 them matters: exp116 works against any firmware in this repository, while
 exp120 works against **exp118 and nothing else**, because exp118 is the only
 one that reads the OUT endpoint. Flash the wrong one and the page fails for no
@@ -664,6 +703,13 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp152-the-volume-that-waits](./exp152-the-volume-that-waits/) | 3 · a person | The board carries a drive that does not exist until it knows its own address — verified on a phone: plug in, turn on tethering, tap two things, and the log is there |
 | [exp151-the-log-in-any-browser](./exp151-the-log-in-any-browser/) | 3 · a person | The board serves its own log over HTTP — verified rendering in Chrome on a phone — and answers to a name that phone will not ask it for |
 | [exp150-a-page-served-by-the-board](./exp150-a-page-served-by-the-board/) | 3 · a person | The board serves its own web page: no WebUSB, no permission dialog, no chooser, any browser — and the question of whether a phone can route to an address it never showed as a network |
+| [exp154-somewhere-to-put-a-key](./exp154-somewhere-to-put-a-key/) | 1 · board | Ask the chip whether it has anywhere to keep a secret — every OTP row, classified, and the rows a signing experiment elsewhere assumed were a key |
+| [exp155-who-else-can-knock](./exp155-who-else-can-knock/) | 3 · a person | **No source.** A record of a firmware that exists only on a board — read off its own log, catalogued so the number is not reused |
+| [exp156-a-wall-you-can-measure](./exp156-a-wall-you-can-measure/) | 1 · board | A boundary that refuses, measured — one core reads one address three times and only the ACCESSCTRL bits change between the last two |
+| [exp157-a-note-for-the-next-boot](./exp157-a-note-for-the-next-boot/) | 1 · board | A firmware killed by a hang and by a fault comes back both times able to say which step it died in and which kind of death it was |
+| [exp158-four-keys-and-one-flash](./exp158-four-keys-and-one-flash/) | 1 · board | Four candidate ACCESSCTRL write keys in a single flash — the board faults on the wrong ones, steps over each death, and re-derives in fifty seconds what cost exp156 three bench trips |
+| [exp159-a-key-that-was-never-in-flash](./exp159-a-key-that-was-never-in-flash/) | 1 · board | A P-256 key generated on the board into an SRAM bank Non-secure code cannot read, used to sign a challenge it could not have known at build time, verified off the board |
+| [exp160-a-secret-too-big-to-hide](./exp160-a-secret-too-big-to-hide/) | 1 · board | The same wall with an ML-DSA-65 key behind it: the wall still refuses every read, and Non-secure code reads the key anyway out of the 369 KB of open stack one post-quantum signature leaves behind |
 
 ## The browser track, finished
 
@@ -1012,8 +1058,8 @@ exp147 was built against, so nothing had to move to start.
   socket in it — 14 host-side tests. **Working on Ubuntu**: the four packets
   complete in 2 ms and the host ends up with `192.168.7.2/24` and a route to
   that subnet *and nothing else*, which is the evidence for the decision not to
-  offer a router option. Not yet finished: the ten-boot reliability run, a
-  README, and `check.sh`.
+  offer a router option. **Done, verified 2026-08-05** — the ten-boot run came
+  back `Ack=1 addr=1` on all ten, and the README and `check.sh` are written.
 
   **On a Pixel 9a, 2026-08-05 — and the result is three things that do not
   obviously belong together:**
@@ -1198,3 +1244,210 @@ exp147 was built against, so nothing had to move to start.
 Not on this road: TLS, and two boards talking to each other. The first is a
 different curriculum and a much larger binary; the second is something this
 repository cannot do, because its two boards are never on the same bench.
+
+### The signing road
+
+The update road answered **can an update brick this board**. It said at the
+outset that *whose firmware will it accept* was a separate group, and this is
+it. [exp140](./exp140-a-checksum-that-passes/) is already its first experiment
+without having been filed as one: a CRC forged to any value by four bytes, and
+the same attack failing on a hash, is the argument for why anything here needs
+a signature at all.
+
+This road starts from prior work rather than from an idea — two experiments
+built elsewhere, `exp107-trustzone-ecdsa` and `exp108-trustzone-mldsa`, which
+sign a hash inside what they call the Secure World and return it to a CLI. They
+were read before anything below was derived, and reading them decided the shape
+of the road.
+
+**They are one experiment, not two.** Their sources differ by the package name
+and one dependency line: `p256` becomes `ml-dsa`. Everything else — the OTP
+read, the gateway, the CLI, the fallback key — is identical. So the crypto is a
+variable, and the thing worth building is whatever holds still while it changes.
+
+**And the boundary they demonstrate is not enforced.** There is no SAU
+programming anywhere in either of them. The only TrustZone in the source is
+`extern "cmse-nonsecure-entry"` on one function, which makes the compiler emit
+a secure-gateway veneer; it does not put the core into Non-Secure state. The
+"Non-Secure World" is other functions in the same image, running Secure, and
+nothing is prevented. Their own README half-says so — *"if memory-partitioning
+or TrustZone is inactive, this key does NOT have hardware-level access
+restrictions"*. What they prove is that a function can be **called**. The claim
+they are named for is that a key cannot be **read**, and that claim is untested.
+
+That is the same defect [exp140](./exp140-a-checksum-that-passes/) is about
+from the other side: a check that cannot fail has not passed. So the wall comes
+first here, and the cryptography comes last.
+
+Two more things reading them turned up. Their OTP access is hand-rolled —
+`read_volatile(0x40130000 + row * 8)`, assuming 8-byte row spacing and assuming
+rows `0xE80`–`0xE8F` hold a device key — while
+[exp113](./exp113-enumerable-seed/) already reads OTP through
+`embassy_rp::otp::read_ecc_word`. Two routes that do not agree, and exp113's
+own comment says which rows carry what is *"a question for the datasheet and
+the board in front of you"*. It gets asked here, not assumed. And they need
+nightly: `extern "cmse-nonsecure-entry"` is still `E0658` on stable 1.97.1,
+measured 2026-08-18.
+
+**Nightly is not on the table**, so the secure gateway is hand-written — a
+`global_asm!` veneer ending in `SG`, which is stable, and SAU programming, which
+is register writes. This is the house style rather than a workaround: exp125
+hand-built FAT12, exp123 and exp124 hand-rolled Bulk-Only Transport and SCSI,
+exp149 hand-rolled DHCP. [exp103](./exp103-embassy-blink/) has been promising
+since the beginning that a later experiment opens its one box of magic by hand.
+
+#### Four experiments, and the cryptography is the last of them
+
+None of these is interrogated yet — a direction, not a schedule.
+
+- **what the chip will say about its own secrets** — the exp138 of this road.
+  **Done, verified 2026-08-18.**
+  [exp154](./exp154-somewhere-to-put-a-key/) sweeps all 4096 OTP rows through
+  the HAL and prints what each one says, read on a phone through a page that
+  draws the result as a map. On a stock Pico 2: **23 programmed, 4073 blank,
+  and not one row refused a read.**
+
+  So the answer is the opposite of exp138's, and it is worth having asked. The
+  A/B machinery turned out to be in the chip already; the boundary this road
+  needs is not. OTP here is a place to *store* a key, not a place that *hides*
+  one — every row handed its contents to ordinary firmware with no privilege of
+  any kind. Whatever conceals a key on this part has to be built, which is the
+  next experiment.
+
+  It also settles what the prior work was reading: rows `0xE80`–`0xE8F` are
+  blank, so a firmware that takes an ECDSA key from them and falls back to a
+  compiled-in test key falls back **every time, on every board**.
+
+  Read-only throughout — nothing programs a fuse, and `check.sh` greps for the
+  HAL's write functions rather than trusting the author, because OTP is
+  permanent and the cost of being wrong is somebody's board. Needs 1.
+- **a wall you can measure** — no cryptography at all.
+  [exp156](./exp156-a-wall-you-can-measure/) is **verified on hardware**, eight
+  flash cycles in; its
+  [handover](./exp156-a-wall-you-can-measure/HANDOVER.md) carries what each round
+  established. One core, one address, **three** reads, with core 0 changing
+  exactly one thing between each pair: Secure with the wall open, Non-secure with
+  the wall open, Non-secure with it shut. The first two return `0x44570140` and
+  the third takes a bus fault, so what refuses it can only be ACCESSCTRL.
+
+  It measures `ACCESSCTRL` writes as needing **`0xACCE` in bits 31:16** — without
+  the key a write raises a bus error, which is what six earlier rounds were
+  looking at — and it prints `LOCK` (`0x00000004`, DMA, set by the bootrom) and
+  `I2C1` at power-on (`0x000000fc`), a value that proves `rp-pac`'s field names
+  are right and its doc comments shifted. `FORCE_CORE_NS` demotes a core that is
+  **already running**, and the core keeps running.
+
+  The middle read is the whole lesson. Without it the experiment reported a wall
+  it had not built: I2C1 denies Non-secure at power-on, so the "deny" write wrote
+  the value already there and the refusal would have happened had the firmware
+  never run. **A boundary you did not build is not a boundary you measured** —
+  open it before you shut it.
+
+  It is not the SAU, and the reason is the interrogation this section demanded:
+  `embassy-rp` mentions SAU, TrustZone and Non-secure in not one file, while
+  `rp-pac` models ACCESSCTRL in full. ACCESSCTRL also settles the open question
+  about the fault taking the log with it — it does not, because the core that
+  faults is not the core holding USB. The hand-written `SG` veneer is still
+  coming; it belongs to the experiment with code on both sides of the line, not
+  to the one measuring whether the line is there. Needs 1.
+- **the signature is not the hard part** — ECDSA P-256 behind that wall.
+  [exp159](./exp159-a-key-that-was-never-in-flash/) is **verified on hardware**,
+  and it is the first experiment here designed as a matrix from the start: four
+  measurements, one per boot, one flash, about fifty seconds.
+
+  The key is generated on the board from the TRNG into **SRAM bank 8** — one of
+  the RP2350's two 4 KB banks, which `ACCESSCTRL` gates separately from the main
+  512 KB, so denying it to Non-secure code does not take core 1's own stack away.
+  Secure reads it; Non-secure reads it while the bank is open; Non-secure
+  **faults** once it is shut; and with it still shut, Non-secure asks over a
+  shared-memory mailbox and gets 64 bytes back. One signature takes **61 ms**,
+  and the code costs **20,248 bytes of `.text`**.
+
+  **The key is never in flash, and that is the finding rather than a detail.**
+  `XIP_MAIN` defaults to fully open access, so a key compiled into the source
+  would be readable by exactly the code the wall exists to stop — the defect this
+  road was filed against, arriving from a new direction. `check.sh` greps for a
+  key literal and fails if one appears.
+
+  The signature is verified **off the board** by a different implementation, and
+  the verifier flips a bit and requires the check to fail before reporting that
+  it passed.
+
+  It also retires a planned piece of work: with the boundary between two cores
+  there is no secure-gateway veneer to hand-write and no SAU to program, because
+  there is no call across a security state to gate.
+- **the same wall, a much larger signature** — ML-DSA-65 behind exp159's wall.
+  [exp160](./exp160-a-secret-too-big-to-hide/) is **verified on hardware**, five
+  candidates in one flash, and it answers the question this section asked in a
+  direction nobody was facing.
+
+  **The code was never the problem.** ML-DSA-65's signing path costs **16,380
+  bytes of `.text`** against P-256's **20,356** on an identical empty baseline —
+  the post-quantum signature is the *smaller* code, and the whole firmware's UF2
+  came out smaller than exp159's. What the swap costs is RAM.
+
+  **And the wall does not survive it.** exp159's boundary still refuses every
+  Non-secure read of bank 8 — candidates 2 and 3 prove that in the same run —
+  and Non-secure code reads the private key anyway, out of the **369,456 bytes
+  of ordinary open stack** one signature leaves behind. The key at rest is a
+  32-byte seed that fits bank 8 with room to spare; in use it is a **65,696-byte
+  object, 160 bytes larger than the biggest thing `ACCESSCTRL` can gate**. Two
+  intact copies of the seed were found in the swept region, and a demoted core 1
+  read them back.
+
+  That is the defect this road was filed against, reached for the third time and
+  the first time from inside a dependency: **candidate 4 — the exp159 headline,
+  ported — passes.** An experiment that stopped there would have shipped a
+  hollow success.
+
+  It also measures what a 3,309-byte signature costs everything it touches: the
+  proof is 173 log lines where exp159's was five, and signing time varies **3.9×
+  across five board measurements** because ML-DSA's loop is rejection-sampled —
+  confirmed at 21.5× over 300 host signatures. Needs 1.
+
+#### The channel, and why the framing decision comes with it
+
+Every one of these should be readable from a phone, and the mechanism is not in
+doubt: twelve experiments here already ship their own page, and
+[exp116](./exp116-webusb-cdc-log/) proved WebUSB claims a CDC-ACM interface
+directly. **CDC, two-way, with the page served off the board's own volume** —
+[exp118](./exp118-one-receiver-two-jobs/)'s shape for the firmware,
+[exp131](./exp131-the-volume-is-the-app-drawer/)'s for delivery, so there is
+nothing to download before the phone can look.
+
+The network road's HTTP route reaches any browser rather than Chromium only,
+which is better, and costs Ethernet tethering turned on by hand plus everything
+[exp148](./exp148-a-wire-with-no-address/) found waiting behind it. That is a
+fair trade for a finished appliance and a bad one for a teaching sequence.
+
+What that channel forces is a framing decision, and it is not neutral here.
+A 3,309-byte signature is roughly fifty-two 64-byte packets, so the boundary
+has to come from the bytes — and [exp136](./exp136-joining-halfway/) measured
+what the two candidates do to a reader that joins halfway. Length-prefix loses
+fewer messages **and invents three**; COBS invents nothing by construction and
+drops one per boundary it cannot find. On this road that asymmetry stops being
+a trade: an invented frame carrying a signature is a signature-shaped thing
+that fails to verify, and a reader will blame the cryptography for what the
+framing did. **COBS**, and the reason written down where somebody can disagree
+with it.
+
+#### Questions this road has not answered, and must not assume
+
+- **Does `embassy-rp` do anything with SAU or TrustZone at all?** Asked before
+  anything is planned around it, not after.
+- **Which OTP rows are actually available for a key on an unprogrammed part**,
+  and does the RP2350's row spacing match either of the two routes above?
+- **Can a phone check the signature it was just handed?** A browser's WebCrypto
+  does ECDSA P-256, so the classical half may verify with nothing installed. The
+  post-quantum half is the interesting question, and the answer belongs in the
+  experiment rather than in this paragraph.
+- **What does the fault in the wall experiment do to the log?** A HardFault
+  takes USB with it, and a firmware that proves its point by going silent has
+  proved nothing a reader can tell from a crash —
+  [exp134](./exp134-the-log-nobody-reads/) is the record of how many ways
+  silence reads. The wall has to catch its own fault and say what it caught.
+
+Not on this road: programming a fuse, and a key this repository asks anybody to
+trust. Every key here is a test key, printed in its own README, and the
+experiment that would burn a real one into OTP is a different document with a
+different warning on it.

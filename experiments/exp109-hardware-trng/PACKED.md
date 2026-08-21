@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 2 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W)
-hash: ec1dd86cea7c38d8
+hash: 736ff1aee9974d29
 
 Unpacked into an empty directory, `FLASH.txt` followed, nothing read from the
 repository. Two firmware images, and comparing them is the experiment.

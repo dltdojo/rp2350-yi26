@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 7 of 7 executed, 2 marked HUMAN STEP
 host: Ubuntu, Pico 2 (non-W), NetworkManager
-hash: b4d0ebfe5592e0eb
+hash: 6628762791996e71
 
 The zip built by `pack.sh` was unpacked into an empty directory and its
 `FLASH.txt` was followed from step 1 to step 7, with nothing read from the

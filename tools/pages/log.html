@@ -70,7 +70,18 @@
 <div class="meta" id="meta"></div>
 
 <div class="warn">
-  <b>On Linux, run <code>yi26 detach</code> first.</b> The kernel's
+  <b>On Linux, run <code>yi26 udev --install</code> first, then
+  <code>yi26 detach</code>.</b> They are two different gates and they fail
+  differently, so the order matters and so does knowing which one stopped you.
+  <br><br>
+  Without the udev rule the board's device node is root-only, and Connect fails
+  with <b>“Access denied”</b> the instant it opens the device — before any
+  interface is involved, and before <code>yi26 detach</code> could have helped.
+  Detaching goes through that same node, so it fails with the same permission
+  error until the rule is in place. <code>yi26 udev</code> on its own checks it
+  by opening the device the way this page does.
+  <br><br>
+  Then the second gate. The kernel's
   <code>cdc_acm</code> driver owns these interfaces — that is what
   <code>/dev/ttyACM0</code> is — and an interface has exactly one owner.
   Chrome's WebUSB does not take it away for you, so claiming fails until
@@ -271,7 +282,22 @@ function findCdc(dev) {
 
 async function start(dev) {
   device = dev;
-  await device.open();
+  // open() and claimInterface() are two different gates, and the message below
+  // exists because naming the wrong one costs an exchange. On Linux the device
+  // node is root-only until a udev rule grants access, so this throws
+  // SecurityError "Access denied" before any interface is touched — and
+  // "yi26 detach" is the wrong advice for it, since detaching needs that same
+  // access and fails identically.
+  try {
+    await device.open();
+  } catch (e) {
+    throw new Error(
+      `cannot OPEN the device, which happens before any interface is claimed — so ` +
+      `this is not cdc_acm and "yi26 detach" will not fix it. On Linux the device ` +
+      `node is root-only until a udev rule grants it. Fix: "yi26 udev --install", ` +
+      `then "yi26 detach", then connect again. "yi26 udev" checks it without ` +
+      `changing anything. [${e.name}: ${e.message}]`);
+  }
   if (device.configuration === null) await device.selectConfiguration(1);
 
   const { control, data, endpointIn } = findCdc(device);

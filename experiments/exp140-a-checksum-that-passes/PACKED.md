@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 4 of 4 executed, 0 marked HUMAN STEP
 host: Ubuntu, no board at any point
-hash: cdac97942dffb681
+hash: 459c92b820bf2403
 
 The zip was unpacked into an empty directory and its `FLASH.txt` followed. This
 is the second of two experiments here that never touch a board, and the only

@@ -1,0 +1,453 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp154 — what the chip will say about its own secrets</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp154-somewhere-to-put-a-key — one file, no dependencies, no build step,
+  no server. Open it directly: double-click on a desktop, Files app ->
+  "Open with Chrome" on Android.
+
+  It claims the board's CDC interfaces exactly the way tools/pages/log.html
+  does — the two control transfers a CDC host performs by hand — and then
+  reads the survey the firmware prints and draws it.
+
+  Why a page rather than the log viewer that already exists: the answer this
+  experiment produces is a map of 4096 rows, and a map read as 4096 lines of
+  text is not read at all. The grid below is the same information arranged so
+  that "is there anywhere on this part the core cannot read" is a thing you
+  can see rather than a thing you count.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log.
+
+      yi26 log --json --seconds 20
+
+  is. This exists so a *person* can see the result on a machine with no
+  toolchain — a phone, with the board in its only USB port. See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --warn:#b06000; --acc:#1a5fb4;
+          --prog:#1a5fb4; --blank:#c9c9c9; --refused:#c0392b; --unknown:#f0f0f0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --warn:#e0a458; --acc:#78aeed;
+            --prog:#78aeed; --blank:#3a3a3a; --refused:#f07470; --unknown:#242424; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 52rem; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1rem; margin: 1.6rem 0 .5rem; }
+  p.sub { color: var(--dim); margin: 0 0 1.2rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: 1rem 0; padding: .7rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  #grid { display: grid; grid-template-columns: repeat(64, 1fr); gap: 1px;
+          margin: .8rem 0; max-width: 100%; }
+  #grid div { aspect-ratio: 1; background: var(--unknown); border-radius: 1px; }
+  #grid div.programmed { background: var(--prog); }
+  #grid div.blank      { background: var(--blank); }
+  #grid div.REFUSED    { background: var(--refused); }
+  .key { display: flex; flex-wrap: wrap; gap: .3rem 1.1rem; font-size: 13px; color: var(--dim); }
+  .key span::before { content: ''; display: inline-block; width: .7rem; height: .7rem;
+                      border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+  .key .p::before { background: var(--prog); }
+  .key .b::before { background: var(--blank); }
+  .key .r::before { background: var(--refused); }
+  .key .u::before { background: var(--unknown); border: 1px solid var(--line); }
+  .tiles { display: flex; flex-wrap: wrap; gap: .6rem; margin: .8rem 0; }
+  .tile { flex: 1 1 7rem; border: 1px solid var(--line); border-radius: 6px; padding: .6rem .8rem; }
+  .tile b { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 12.5px; color: var(--dim); }
+  #verdict { margin: 1rem 0; padding: .8rem .9rem; border-left: 3px solid var(--line); }
+  #verdict.ok  { border-color: var(--ok); }
+  #verdict.bad { border-color: var(--warn); }
+  table { border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 12.5px; }
+  td { padding: .12rem .7rem .12rem 0; }
+  #log { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .8rem;
+         border-radius: 6px; height: 14rem; overflow-y: auto; font-family: ui-monospace, monospace;
+         font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .warn { border-left: 3px solid var(--warn); padding: .6rem .9rem; margin: 1rem 0; font-size: 13.5px; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .6rem; }
+  code { font-size: .92em; }
+</style>
+
+<h1>exp154 — somewhere to put a key</h1>
+<p class="sub">Every OTP row on this chip, asked and drawn. Nothing here writes.</p>
+
+<button id="connect">Connect to the board</button>
+<button id="stop" class="ghost" disabled>Stop</button>
+
+<div id="status">Plug the board in, then press Connect. The survey starts about three seconds after the board boots and repeats its summary every ten seconds, so it does not matter if you arrive late.</div>
+
+<div class="warn">
+  This page needs <b>Chrome or Edge</b> — WebUSB is Chromium-only. On Linux the
+  kernel's <code>cdc_acm</code> driver owns these interfaces until you run
+  <code>yi26 detach</code>; an interface has exactly one owner.
+</div>
+
+<h2>The map</h2>
+<p class="sub">4096 rows, 64 per line, row 0x000 top-left. The question is whether any of it is red.</p>
+<div id="grid"></div>
+<div class="key">
+  <span class="p">programmed</span>
+  <span class="b">blank</span>
+  <span class="r">REFUSED — the hardware declined</span>
+  <span class="u">not reported yet</span>
+</div>
+
+<div class="tiles">
+  <div class="tile"><b id="t-prog">—</b><span>programmed</span></div>
+  <div class="tile"><b id="t-blank">—</b><span>blank</span></div>
+  <div class="tile"><b id="t-ref">—</b><span>refused</span></div>
+  <div class="tile"><b id="t-cov">—</b><span>rows reported</span></div>
+</div>
+
+<div id="verdict">Waiting for the survey.</div>
+
+<h2>The rows somebody else called a key</h2>
+<p class="sub">Prior work outside this repository reads an ECDSA private key from rows 0xE80–0xE8F. This is what is actually in them.</p>
+<table id="keyrows"><tr><td class="meta">not reported yet</td></tr></table>
+
+<h2>Identity rows</h2>
+<p class="sub">Rows 0–3, the ones exp113 folds into a public chip identity.</p>
+<table id="idrows"><tr><td class="meta">not reported yet</td></tr></table>
+
+<h2>Raw log</h2>
+<button id="copy" class="ghost">Copy the log</button>
+<div id="log"></div>
+<p class="meta">The page reads; it never writes to the board, and it never sends 1200 baud — which would reboot it into the bootloader.</p>
+
+<script>
+// Two entries, and the second is the lesson.
+//
+// A page that filters only for the application firmware shows an EMPTY chooser
+// when the board is in BOOTSEL — and an empty chooser is indistinguishable
+// from a broken page. docs/debugging-on-a-phone.md records exactly this
+// happening to exp146's step 0, on a page that was working perfectly, and says
+// what to do: "Check what your identifying tool can actually see before making
+// it step 0." exp117's troubleshooting table carries the row too — *the picker
+// lists nothing / the board is already in BOOTSEL / it is 2e8a:000f now*.
+//
+// So the bootrom is in the filter, not because this page can talk to it, but
+// so it can SAY that is what you picked. Being told is the whole difference.
+const APP     = { vendorId: 0x1209, productId: 0x0001 };
+const BOOTROM = { vendorId: 0x2e8a, productId: 0x000f };
+const FILTERS = [APP, BOOTROM];
+
+// CDC class requests, from the USB CDC specification.
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+
+// Nominal for CDC-ACM. Never 1200: `crates/usb-reboot` watches for exactly
+// that and reboots into BOOTSEL, which would end the survey mid-sweep.
+const BAUD = 115200;
+
+const TOTAL_ROWS = 4096;
+
+let device = null, streaming = false, carry = '';
+const $ = (id) => document.getElementById(id);
+
+// -- the grid ---------------------------------------------------------------
+const cells = [];
+{
+  const g = $('grid');
+  for (let i = 0; i < TOTAL_ROWS; i++) {
+    const d = document.createElement('div');
+    d.title = 'row 0x' + i.toString(16).padStart(3, '0');
+    g.appendChild(d);
+    cells.push(d);
+  }
+}
+
+let reported = 0;
+function paint(from, to, klass) {
+  for (let i = from; i <= to && i < TOTAL_ROWS; i++) {
+    if (!cells[i].className) reported++;
+    cells[i].className = klass;
+  }
+  $('t-cov').textContent = reported;
+}
+
+function say(msg, cls) { const s = $('status'); s.textContent = msg; s.className = cls || ''; }
+
+function append(line) {
+  const el = $('log');
+  const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+  el.textContent += line + '\n';
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+
+// -- reading the firmware's own words ---------------------------------------
+//
+// Every line arrives with `crates/usb-log`'s prefix on it — `[    3037 ms] `,
+// and sometimes `(+47 lines lost)` after that when the ring dropped some. So
+// none of these patterns may be anchored to the start of a line; the first
+// draft anchored the row pattern and matched nothing at all.
+//
+// The firmware prints runs, not rows: `rows 0000-003f (  64): programmed`.
+// That is the same information and about four hundred times less of it, which
+// is why the sweep is written that way rather than printing 4096 lines.
+const RE_RUN     = /rows ([0-9a-f]{4})-([0-9a-f]{4})\s*\(\s*\d+\):\s*(programmed|blank|REFUSED)/;
+const RE_TOTALS  = /totals:\s*(\d+) programmed,\s*(\d+) blank,\s*(\d+) refused/;
+const RE_SURVEY  = /survey:\s*(\d+) programmed,\s*(\d+) blank,\s*(\d+) refused/;
+const RE_ROW     = /(?:^|\s)row ([0-9a-f]{4}) = (REFUSED|[0-9a-f]{4})\s*$/;
+
+// The same two tables, as one repeating line each.
+//
+// The per-row detail is printed once, and on a real run 73 lines of it were
+// lost to the log ring before a phone attached — leaving this page with the
+// verdict and both tables empty. So the firmware repeats them compactly and
+// these read that form. Both shapes are accepted: whichever arrives first wins,
+// and a reader who attached early is not made to wait ten seconds for a table
+// they already had.
+const RE_IDENT   = /survey: identity rows 0000-0003 = ((?:[0-9a-f]{4}\s*){4})/;
+const RE_KEYS    = /survey: rows ([0-9a-f]{4})-[0-9a-f]{4} = ((?:[0-9a-f]{4}\s*){16})/;
+
+const keyRows = new Map(), idRows = new Map();
+
+function renderRows(map, tableId) {
+  const t = $(tableId);
+  if (map.size === 0) return;
+  t.innerHTML = '';
+  for (const [row, val] of [...map.entries()].sort()) {
+    const tr = document.createElement('tr');
+    const a = document.createElement('td'), b = document.createElement('td');
+    a.textContent = 'row ' + row;
+    b.textContent = val;
+    if (val === 'REFUSED') b.style.color = 'var(--bad)';
+    else if (val === '0000') b.style.color = 'var(--dim)';
+    tr.append(a, b); t.appendChild(tr);
+  }
+}
+
+function setTotals(p, b, r) {
+  $('t-prog').textContent = p;
+  $('t-blank').textContent = b;
+  $('t-ref').textContent = r;
+  const v = $('verdict');
+  if (r > 0) {
+    v.className = 'ok';
+    v.innerHTML = `<b>${r} rows refused a read.</b> Something on this part is already ` +
+      `beyond this core's reach, before any boundary was built. Which rows, and what set ` +
+      `the lock, is the thread to pull next.`;
+  } else {
+    v.className = 'bad';
+    v.innerHTML = `<b>No row refused a read.</b> That is a finding, not a failure: on this ` +
+      `part OTP is a place to <i>store</i> a key, not a place that <i>hides</i> one from the ` +
+      `core reading it. The boundary the signing road needs has to come from somewhere else — ` +
+      `which is what the next experiment goes and builds.`;
+  }
+}
+
+function handleLine(line) {
+  append(line);
+
+  let m;
+  if ((m = line.match(RE_RUN))) {
+    paint(parseInt(m[1], 16), parseInt(m[2], 16), m[3]);
+    return;
+  }
+  if ((m = line.match(RE_TOTALS)) || (m = line.match(RE_SURVEY))) {
+    setTotals(+m[1], +m[2], +m[3]);
+    return;
+  }
+  if ((m = line.match(RE_IDENT))) {
+    m[1].trim().split(/\s+/).forEach((v, i) => idRows.set(i.toString(16).padStart(4, '0'), v));
+    renderRows(idRows, 'idrows');
+    return;
+  }
+  if ((m = line.match(RE_KEYS))) {
+    const first = parseInt(m[1], 16);
+    m[2].trim().split(/\s+/).forEach((v, i) => keyRows.set((first + i).toString(16).padStart(4, '0'), v));
+    renderRows(keyRows, 'keyrows');
+    return;
+  }
+  if ((m = line.match(RE_ROW))) {
+    const row = parseInt(m[1], 16);
+    // Rows 0-3 are exp113's identity; 0xE80 upward are the ones the prior
+    // work called a key. Both are printed as `row NNNN = VVVV` and told apart
+    // by where they are, not by a marker the firmware would have to add.
+    (row < 0x10 ? idRows : keyRows).set(m[1], m[2]);
+    renderRows(idRows, 'idrows');
+    renderRows(keyRows, 'keyrows');
+  }
+}
+
+function feed(text) {
+  carry += text;
+  const parts = carry.split('\n');
+  carry = parts.pop();
+  for (const p of parts) handleLine(p.replace(/\r$/, ''));
+}
+
+// -- WebUSB, the same sequence tools/pages/log.html performs ----------------
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function start(dev) {
+  device = dev;
+  await device.open();
+  if (device.configuration === null) await device.selectConfiguration(1);
+
+  // Did you pick the bootrom rather than a running firmware?
+  if (device.vendorId === BOOTROM.vendorId && device.productId === BOOTROM.productId) {
+    await stop();
+    say('That is the board in BOOTSEL (2e8a:000f), not a running firmware — there is no log ' +
+        'on it to read. Either unplug and replug it without holding the button, so it boots ' +
+        'what is already in flash, or write the firmware first with pflash.html.', 'bad');
+    return;
+  }
+
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null) {
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  }
+
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(
+      `cannot claim the interfaces — something else owns them, and an interface has ` +
+      `exactly one owner. Two things it could be: the kernel's cdc_acm driver ` +
+      `(fix: run "yi26 detach"), or another program that claimed them first — most ` +
+      `often another tab of this page (fix: close it). "yi26 doctor" says which. ` +
+      `[${e.name}: ${e.message}]`);
+  }
+
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true);
+  coding.setUint8(4, 0);   // 1 stop bit
+  coding.setUint8(5, 0);   // no parity
+  coding.setUint8(6, 8);   // 8 data bits
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control },
+    coding.buffer);
+
+  // Not optional. `crates/usb-log` waits for DTR before it writes a byte, so
+  // without this the page connects and then receives nothing, forever.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  $('connect').disabled = true;
+  $('stop').disabled = false;
+
+  // Which firmware is actually on the board.
+  //
+  // Every firmware here puts its experiment number in the USB serial number —
+  // it is what `exp_running` in lib.sh matches on — so the page can tell, and
+  // it costs one comparison to stop a reader concluding that this experiment
+  // failed when what happened is that a different experiment is running.
+  //
+  // This was written after a session where the map stayed empty and every
+  // field read "not reported yet", because the board was running something
+  // else entirely. The page had that fact, in device.productName, and said it
+  // in a sentence nobody had a reason to read closely.
+  const serial = device.serialNumber || '(none)';
+  if (serial !== '154') {
+    say(`This board is NOT running exp154. It reports itself as "${device.productName}", ` +
+        `serial ${serial} — exp154 reports serial 154. The log below is that firmware's, ` +
+        `and the map will stay empty because nothing is sending a survey. Flash ` +
+        `firmware/exp154-somewhere-to-put-a-key.uf2 and connect again.`, 'bad');
+    $('verdict').className = 'bad';
+    $('verdict').innerHTML = '<b>No survey is being sent.</b> The board is running other firmware — see the message above.';
+  } else {
+    say(`Streaming from ${device.productName} — interfaces ${control} and ${data}, endpoint ${endpointIn} IN. ` +
+        `If the board booted a while ago the detailed runs have already gone by; the summary repeats every ten seconds.`, 'ok');
+  }
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try {
+      r = await device.transferIn(endpointIn, 64);
+    } catch (e) {
+      if (streaming) say(`transfer stopped: ${e.message}`, 'bad');
+      break;
+    }
+    if (r.data && r.data.byteLength) feed(dec.decode(r.data));
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('connect').disabled = false;
+  $('stop').disabled = true;
+  try {
+    if (device) { await device.close(); }
+  } catch (_) { /* closing a device that is already gone is not an error worth showing */ }
+  device = null;
+  say('Stopped.');
+}
+
+$('connect').addEventListener('click', async () => {
+  if (!navigator.usb) { say('This browser has no WebUSB. Chrome or Edge.', 'bad'); return; }
+  try {
+    const dev = await navigator.usb.requestDevice({ filters: FILTERS });
+    await start(dev);
+  } catch (e) {
+    // "No device selected" is Chrome saying the chooser closed with nothing
+    // picked, and that one message covers several situations — so name them.
+    const msg = /No device selected/i.test(e.message)
+      ? 'The chooser closed with nothing picked. Three things it usually is: the list was empty ' +
+        'because the board is not enumerating at all (check the LED — dark means the firmware is ' +
+        'not running); the board slept in BOOTSEL and reset itself, which leaves dead entries ' +
+        'behind; or one board appears several times and only the live entry makes Android ask ' +
+        'for USB permission, with nothing in the names to say which. Replug and try again.'
+      : e.message;
+    say(msg, 'bad');
+    $('connect').disabled = false;
+    $('stop').disabled = true;
+  }
+});
+// Copying, because reading a log on a phone means scrolling a small box and
+// selecting inside it, and reporting one means getting all of it out. The
+// button copies everything received, not what happens to be on screen.
+//
+// Two mechanisms, and the second is not a fallback for old browsers. This page
+// is opened from a file manager on Android, which gives it a `content://`
+// origin — and that is **not a secure context**, so `navigator.clipboard` is
+// simply absent exactly where this button matters most. `execCommand('copy')`
+// still works there.
+async function copyLog() {
+  const text = $('log').textContent;
+  if (!text.trim()) { say('Nothing to copy yet.', 'bad'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.split('\n').length - 1} lines.`, 'ok');
+    return;
+  } catch (_) { /* content:// is not a secure context — fall through */ }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  ta.remove();
+  say(ok ? `Copied ${text.split('\n').length - 1} lines.`
+         : 'Could not copy. Long-press inside the log box and use Select all instead.',
+      ok ? 'ok' : 'bad');
+}
+
+$('copy').addEventListener('click', copyLog);
+$('stop').addEventListener('click', stop);
+</script>

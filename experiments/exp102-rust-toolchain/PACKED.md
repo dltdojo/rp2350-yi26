@@ -3,7 +3,7 @@
 verified: 2026-08-06
 steps: 6 of 6 executed, 0 marked HUMAN STEP
 host: Ubuntu, no board at any point
-hash: 3c8796d81a49de9a
+hash: 36eee99f75642a5c
 
 The zip was unpacked into an empty directory and its `FLASH.txt` followed from
 step 1 to step 6. This is the only experiment here whose walkthrough is about

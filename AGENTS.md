@@ -38,6 +38,33 @@ and it produces a picture where a JSON document was available. Development here
 is agent-driven and non-interactive by default; every step that needs a person
 in the room is a step that stops overnight.
 
+## No board attached? Search before you change anything
+
+Developing firmware from a machine with no board on it means every observation
+costs somebody a walk to a bench. Two rules follow, and
+[`docs/debugging-without-a-board.md`](./docs/debugging-without-a-board.md) is
+what seven flash cycles of ignoring them cost:
+
+1. **When something breaks, search prior work before forming a hypothesis.**
+   Not after. A `grep` over `docs/` and `experiments/*/README.md`, and a read of
+   the source of the function you are calling, cost nothing and have already
+   answered most of it — this repository has written down the empty device
+   chooser, the blocking call in an async task, and the fact printed once that
+   nobody sees. Changing code first means going looking for confirmation instead
+   of for the answer, at one attempt per human trip.
+
+   And when a track of work is going to be several rounds long,
+   [`docs/the-board-is-the-loop.md`](./docs/the-board-is-the-loop.md) is the
+   arithmetic on why exp156 took seven of them and what to build so the next one
+   takes two. Two of its levers need no hardware and no new firmware.
+
+2. **The LED is the debug channel, so design it before you need it.** When
+   firmware fails, USB is gone, the log is gone and the page cannot connect.
+   Bring the LED up before anything that can hang, make a fault handler drive it
+   by hand so *dark* and *died* are different signals, and make the pattern
+   carry a step number — a pattern that means "died" is worth much less than one
+   that means "died at step five".
+
 ## Ask before touching the user's screen or browser
 
 Verifying a browser experiment means opening a page and looking at it. Ask

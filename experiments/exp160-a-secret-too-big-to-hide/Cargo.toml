@@ -1,0 +1,40 @@
+[package]
+name = "exp160-a-secret-too-big-to-hide"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The same wall as exp159, an ML-DSA-65 key behind it, and the copy the wall could not cover"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info", "unstable-pac"] }
+embassy-usb = "0.6.0"
+static_cell = "2.1.1"
+
+# default-features = false drops `alloc`, `getrandom` and `pkcs8`. There is no
+# heap here, and signing needs no RNG: ML-DSA's deterministic mode is FIPS-204
+# Algorithm 2 with rnd = 0, so the only randomness in this experiment is the
+# TRNG that makes the seed.
+ml-dsa = { version = "0.1.1", default-features = false }
+hybrid-array = { version = "0.4", default-features = false }
+
+usb-log = { path = "../../crates/usb-log" }
+usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+breadcrumb = { path = "../../crates/breadcrumb" }
+
+[features]
+default = ["auto-reboot"]
+auto-reboot = ["usb-reboot/auto-reboot"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]
