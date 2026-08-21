@@ -130,6 +130,22 @@ grep -q 'const _: () = assert!' src/main.rs \
     && pass "the product string is bounded at build time" \
     || fail "the product string is bounded at build time" "no const assertion in src/main.rs"
 
+# Added 2026-08-21 with the C2a correction to the README.
+#
+# The README now states that this build has the crate's `zeroize` feature OFF,
+# and that turning it ON does not remove the copy candidate 5 finds. The first
+# half is a property of this Cargo.toml and is asserted here so the paragraph
+# cannot go stale behind a dependency bump; the second half is a host
+# measurement and is recorded in the README rather than pretended to be
+# something a board can check.
+if grep -q 'ml-dsa = { version = "0.1.1", default-features = false }' Cargo.toml \
+   && ! grep -q 'zeroize' Cargo.toml; then
+    pass "the ml-dsa zeroize feature is off, and the README says so and why"
+else
+    fail "the ml-dsa zeroize feature is off" \
+         "Cargo.toml changed — C2a in the README is now describing a different build"
+fi
+
 LED_LINE="$(grep -n 'spawner.spawn(heartbeat' src/main.rs | head -1 | cut -d: -f1)"
 USB_LINE="$(grep -n 'let driver = Driver::new' src/main.rs | head -1 | cut -d: -f1)"
 if [[ -n "$LED_LINE" && -n "$USB_LINE" && "$LED_LINE" -lt "$USB_LINE" ]]; then

@@ -63,6 +63,7 @@ design**, and two of them changed what the experiment is *about*.
 | the private key **is a 32-byte seed**, and `sign_deterministic` needs no RNG at all | read `signing.rs`, ran it | the seed fits bank 8 with 4,064 bytes to spare — so the obvious design *looks* fine |
 | `SigningKey<MlDsa65>` is **65,696 bytes** in memory | `size_of` | ← **160 bytes larger than one 64 KB SRAM bank.** There is no single thing on this chip that ACCESSCTRL could wrap around it |
 | after the `SigningKey` is dropped, **copies of the seed are still in the dead stack frame** | wrote it on a host, signed, then swept the frame it had just left | ← candidate 5 exists, and it is a measurement rather than a hunch |
+| the crate's `zeroize` feature exists, is **off by default**, and turning it on **does not remove that copy** | built both ways on a host and swept | ← added 2026-08-21; see [C2a](#c2a--the-dependency-does-offer-to-clean-up-and-it-does-not-help) |
 | python-`cryptography` 50 verifies a raw ML-DSA-65 key and signature from this crate, and rejects a flipped bit | ran it | exp159's off-board method carries over — at `cryptography >= 46` |
 
 The fifth one is the one worth stopping on. It was established **on a host, with
@@ -110,7 +111,39 @@ core 1's own stack is in.
 > exp159's idea to take away was *a boundary is only as good as the worst place
 > the secret lives*, and it was written about flash — somewhere the author might
 > put a key. Here the worst place is not somewhere anybody put it. **It is
-> somewhere the library put it**, for a few milliseconds, and never cleaned up.
+> somewhere the library put it**, for a few milliseconds, and did not take back.
+
+#### C2a · The dependency does offer to clean up, and it does not help
+
+**Corrected 2026-08-21, after this experiment was verified.** The paragraph
+above used to end *"and never cleaned up"*, which invites one question from
+anybody who knows RustCrypto, and this README had no answer to it: **did you
+turn `zeroize` on?**
+
+The facts, all read or measured on a host:
+
+- `ml-dsa` 0.1.1 **has** a `zeroize` feature. `SigningKey` and
+  `ExpandedSigningKey` both implement `Drop`, and both zero their key material
+  in it (`signing.rs:222`, `signing.rs:644`).
+- It is **not in `default`** — that is `alloc`, `getrandom`, `pkcs8`. So it is
+  off unless it is asked for, and this experiment builds with
+  `default-features = false` and does not ask. Every `Drop` above compiled to
+  nothing.
+- **Turning it on does not remove the copy.** Built both ways on a host and
+  swept the frame the signature had just left: with the feature off the seed is
+  still there 79,175 bytes down; with it on it is still there 85,671 bytes down.
+  Deeper, and still there.
+
+So the finding stands and its explanation does not. `Drop` zeroes the fields of
+the object being dropped; what candidate 5 reads is not that object, it is
+scratch left in a dead stack frame by the arithmetic on the way there, and there
+is nothing for a destructor to be attached to. **The remedy that looks like one
+line is one line, and it is not a remedy.**
+
+That matters more than the correction does: an experiment whose fix is a feature
+flag is a footnote, and this one is not. See
+[exp162](../exp162-how-wide-can-a-wall-be/) for the other half of the same
+question.
 
 So candidate 5 goes looking. And the sweep is an observation rather than a
 coincidence because the region is **painted with `0xC5` before the signature is
@@ -382,14 +415,23 @@ spends a bench trip discovering that the parser has never seen real output.
 1. **Ask where the secret is while it is being used, not only where it is
    kept.** exp159 asked where else the key exists and found flash. exp160 asked
    the same question one layer down and found the stack — put there by a
-   dependency, in a region no register covers, and left there afterwards. *A
-   boundary drawn around storage says nothing about computation.*
+   dependency, in a region no register covers, and not taken back. **Its own
+   `zeroize` feature does not take it back either**, because a destructor zeroes
+   an object and this is scratch that no object owns. *A boundary drawn around
+   storage says nothing about computation, and neither does a destructor.*
 
 2. **The granularity of your protection is a hard limit on what you can
    protect.** 65,696 bytes against a 65,536-byte bank is not a tuning problem. A
    mechanism that gates memory in fixed blocks cannot hide something bigger than
    one block, and it is worth finding that number out **before** choosing the
    algorithm rather than after building the wall.
+
+   **And find the number out by measuring it.** The 65,536 here was assumed —
+   eight registers, eight banks, 512 KB, so a bank is 64 KB of adjacent
+   addresses. [exp162](../exp162-how-wide-can-a-wall-be/) measured it and it is
+   false: `SRAM[0]` gates every fourth word of the lower 256 KB, so the longest
+   run of consecutive addresses one register can deny is **four bytes**. The
+   lesson survives the correction and the arithmetic does not.
 
 3. **The experiment whose finding is a leaked key must not be the thing that
    publishes it.** The first version printed all thirty-two bytes core 1 had
@@ -424,11 +466,27 @@ spends a bench trip discovering that the parser has never seen real output.
 
 ## Next
 
-**The remedy, and what it costs.** Everything above is a defect report. The
-open questions it leaves are one experiment: wipe the working region after
-signing and measure the price in milliseconds; find out whether wiping the frame
-is enough or whether secret material survives somewhere the sweep does not
-reach; and settle whether banks 0–7 map to the address range in a way that would
-let a >64 KB secret region exist at all. **If the answer to the last one is no,
-then this chip cannot hide an ML-DSA private key in use**, and that is a finding
-the road should record before anything is built on the assumption that it can.
+**Done: [exp162](../exp162-how-wide-can-a-wall-be/)**, for the third of the
+three questions below — and it changes the other two rather than just crossing
+itself off.
+
+`ACCESSCTRL.SRAM[n]` does not gate the *n*th 64 KB block. Banks 0–3 are
+word-interleaved across the lower 256 KB and banks 4–7 across the upper 256 KB,
+so the longest run of consecutive addresses one register can deny is **four
+bytes**. There is no >64 KB secret region, and there is no 64 KB one either.
+**This chip cannot hide an ML-DSA-65 private key while it is in use**, which is
+the finding this section asked for in advance and got.
+
+So what remains is the remedy, with its premise narrowed: wipe the working
+region after signing and measure the price in milliseconds; and find out whether
+wiping the frame is enough or whether secret material survives somewhere the
+sweep does not reach. It is no longer one of two available answers. It is the
+only one, because the wall cannot be made wide enough — and
+[C2a](#c2a--the-dependency-does-offer-to-clean-up-and-it-does-not-help) has
+already measured that the crate's own `zeroize` feature is not it either.
+
+One question exp162 sharpened rather than settled: **if no part of the main SRAM
+can be protected, what is bank 8 for**, given that a 65,696-byte object does not
+fit in its 4 KB any more than it fits in 64 KB. A 32-byte seed does. Whether
+anything can be *done* with a seed without expanding it is the question the
+remedy experiment has to open with.

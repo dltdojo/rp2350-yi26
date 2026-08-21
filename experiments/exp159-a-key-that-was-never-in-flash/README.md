@@ -61,6 +61,14 @@ It also disposes of a question nobody here has answered — whether banks 0–7 
 striped across the main address range. **It stops mattering**, because those
 banks are never touched.
 
+> **They are striped, measured 2026-08-21 by
+> [exp162](../exp162-how-wide-can-a-wall-be/).** Banks 0–3 go round the lower
+> 256 KB four bytes at a time and banks 4–7 round the upper 256 KB, so one
+> register denies four consecutive bytes and no more. Setting the question aside
+> was the right call and the reasoning above understates what it bought: bank 8
+> is not a convenient choice among nine, it is one of the only two banks on this
+> part that gate a contiguous region at all.
+
 #### C2 · A key compiled into the firmware makes the whole thing hollow
 
 This is the one worth stopping on.

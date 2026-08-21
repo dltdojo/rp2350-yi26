@@ -26,6 +26,7 @@
 //! | `SigningKey<MlDsa65>` is **65,696 bytes** in memory | `size_of` | ← **160 bytes larger than one 64 KB SRAM bank**, which is the biggest thing ACCESSCTRL can gate |
 //! | one signature's stack frame is **188,116 bytes** in this build (277,308 in a bare spike) | read the prologue with `llvm-objdump` | ← a third of the chip's RAM, all of it in the open region, and enough that the exact figure has to be measured rather than quoted |
 //! | after the `SigningKey` is dropped, **copies of the seed remain in the dead frame** | ran it on a host and swept the frame | ← candidate 5 exists, and it is not built on a guess |
+//! | the crate's `zeroize` feature is **off by default** and turning it on does **not** remove that copy | built both ways on a host and swept | ← added 2026-08-21. `Drop` zeroes an object; this is scratch no object owns. See C2a in the README |
 //!
 //! # Three contradictions
 //!

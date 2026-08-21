@@ -75,6 +75,7 @@ Per experiment:
 | exp147 | Any RP2350 board **with an LED you can see** (change the pin), and a Chromium browser — a phone's is the point. **RP2350 only** — the whole A/B machinery is the ROM's. The board ends up with a partition table, so from then on `pflash.html` is how it is reflashed. |
 | exp149 | Same as exp148, and the same caveat with the sides swapped: the board is now the DHCP server, so what a given host does with an offer is that host's business. Ubuntu takes it; a Pixel 9a takes it and still lists no network. |
 | exp155 | Same as exp152 in hardware — it carries the **drive** too, because its audience is somebody holding a phone and that is the only way an address gets there tappable. Five USB interfaces. Its second half needs a **browser**, and any browser will do — the measurement is what a browser does with a cross-origin request, and the instrument is the board's own `/status`, so nobody has to watch the LED. Verified with headless Chrome on Ubuntu; the answers are Chrome's CORS and Private Network Access policy, which is the same everywhere Chromium is and may differ elsewhere. |
+| exp162 | Same as exp159 and exp160 — `cdc`, one log, nobody in the room. No cryptography at all, so nothing here needs a crate that a future toolchain might drop. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -434,7 +435,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -569,6 +570,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp159 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp160 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp161 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
+| exp162 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -709,6 +711,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp159-a-key-that-was-never-in-flash](./exp159-a-key-that-was-never-in-flash/) | 1 · board | A P-256 key generated on the board into an SRAM bank Non-secure code cannot read, used to sign a challenge it could not have known at build time, verified off the board |
 | [exp160-a-secret-too-big-to-hide](./exp160-a-secret-too-big-to-hide/) | 1 · board | The same wall with an ML-DSA-65 key behind it: the wall still refuses every read, and Non-secure code reads the key anyway out of the 369 KB of open stack one post-quantum signature leaves behind |
 | [exp161-one-port-four-doors](./exp161-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
+| [exp162-how-wide-can-a-wall-be](./exp162-how-wide-can-a-wall-be/) | 1 · board | Fifteen reads by a demoted core say where the eight SRAM banks actually are: `SRAM[n]` does not gate the *n*th 64 KB block, it gates one word in every four of a 256 KB half — so the longest region ACCESSCTRL can deny is four bytes |
 
 ## The browser track, finished
 
@@ -1295,7 +1298,7 @@ hand-built FAT12, exp123 and exp124 hand-rolled Bulk-Only Transport and SCSI,
 exp149 hand-rolled DHCP. [exp103](./exp103-embassy-blink/) has been promising
 since the beginning that a later experiment opens its one box of magic by hand.
 
-#### Four experiments, and the cryptography is the last of them
+#### Five experiments, and the cryptography is not the last of them
 
 None of these is interrogated yet — a direction, not a schedule.
 
@@ -1403,6 +1406,36 @@ None of these is interrogated yet — a direction, not a schedule.
   proof is 173 log lines where exp159's was five, and signing time varies **3.9×
   across five board measurements** because ML-DSA's loop is rejection-sampled —
   confirmed at 21.5× over 300 host signatures. Needs 1.
+
+- **where the eight banks actually are** — the question exp160 ended on.
+  [exp162](./exp162-how-wide-can-a-wall-be/) is **verified on hardware**,
+  fifteen candidates in one flash, no cryptography at all, and it is a **no**.
+
+  `ACCESSCTRL.SRAM[n]` does not gate the *n*th 64 KB block. Banks 0–3 are
+  word-interleaved across the lower 256 KB and banks 4–7 across the upper
+  256 KB, so **the longest run of consecutive addresses one register can deny to
+  Non-secure code is four bytes**. Shutting `SRAM[0]` takes four bytes out of
+  every sixteen across half the SRAM — out of `.data`, out of `.bss`, out of the
+  stack of whatever is running Non-secure — and no combination of the eight
+  produces a contiguous protected region of any size.
+
+  So exp160's second idea to take away is right in its sentence and wrong in its
+  number: the limit is not 64 KB and a 65,696-byte signing key is not a near
+  miss. **This chip cannot hide an ML-DSA-65 private key while it is in use**,
+  and that is now recorded rather than assumed.
+
+  It also says what exp159 was actually standing on. Bank 8 was chosen for a
+  convenience — "core 1's stack stays in the main region" — and it was the only
+  thing that could have worked: the two 4 KB banks are the only ones not
+  interleaved. This run demonstrates it in passing, because core 1's own stack
+  and the mailbox live in bank 8 and keep working through the candidate that
+  denies all eight of the others.
+
+  Twelve of the fifteen candidates carry **no expected outcome**, and that paid
+  for itself on the first flash: an earlier round matched its readings against a
+  table of five precomputed patterns, found the chip outside all five, and
+  printed `NO ARRANGEMENT FITS` instead of rounding to the nearest. The readings
+  were right the whole time; the table could not express the answer. Needs 1.
 
 #### The channel, and why the framing decision comes with it
 

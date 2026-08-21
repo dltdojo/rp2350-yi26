@@ -1,0 +1,30 @@
+[    3450 ms] exp162 done after 16 boots. Nothing armed; still reflashable.
+[    3450 ms]   1 nothing shut, read 0x20000000 - allowed (as expected)
+[    3475 ms]   2 bank 0 SHUT, read 0x20000000 - DENIED (as expected)
+[    3500 ms]   3 bank 0 SHUT, read 0x20010000 - DENIED (measured)
+[    3525 ms]   4 bank 0 SHUT, read 0x20000004 - allowed (measured)
+[    3550 ms]   5 bank 0 SHUT, read 0x20000008 - allowed (measured)
+[    3575 ms]   6 bank 0 SHUT, read 0x20000010 - DENIED (measured)
+[    3600 ms]   7 bank 0 SHUT, read 0x20000020 - DENIED (measured)
+[    3625 ms]   8 bank 1 SHUT, read 0x20000004 - DENIED (measured)
+[    3650 ms]   9 bank 2 SHUT, read 0x20000008 - DENIED (measured)
+[    3675 ms]   10 bank 3 SHUT, read 0x2000000c - DENIED (measured)
+[    3700 ms]   11 bank 4 SHUT, read 0x20000000 - allowed (measured)
+[    3725 ms]   12 bank 0 SHUT, read 0x20040000 - allowed (measured)
+[    3750 ms]   13 bank 4 SHUT, read 0x20040000 - DENIED (measured)
+[    3776 ms]   14 bank 2 SHUT, read 0x20000040 - allowed (measured)
+[    3801 ms]   15 all eight SHUT, read 0x2007fffc - DENIED (as expected)
+[    3826 ms] VERDICT: exactly one arrangement predicts all fifteen readings.
+[    3851 ms]   banks 0-7 are two halves, 4-way, 4-byte grain.
+[    3876 ms]   The longest run of addresses one register gates is 4 bytes.
+[    3901 ms]   So one register does NOT gate one 64 KB block: it gates one 4-byte
+[    3926 ms]   piece in every 4, scattered from one end of its half to the other.
+[    3951 ms]   Shutting it takes 4 bytes out of every 16 across 256 KB, including out
+[    3976 ms]   of the stack of whatever is running Non-secure.
+[    4001 ms]   THE ANSWER exp160 ASKED FOR IS NO, and it is worse than exp160 feared:
+[    4026 ms]   the limit is not 64 KB, it is 4 bytes. Not one contiguous byte more than
+[    4051 ms]   that can be denied to Non-secure code anywhere in the main 512 KB, so a
+[    4076 ms]   65,696-byte ML-DSA-65 signing key cannot go behind ACCESSCTRL at all.
+[    4101 ms]   What exp159's keystore stands on is bank 8, which is none of these eight:
+[    4126 ms]   core 1's stack and this mailbox are in it and they survived candidate 15,
+[    4151 ms]   with all eight shut. That is the only kind of place a secret can live.
