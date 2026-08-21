@@ -217,13 +217,15 @@ exp155's.
 ## Expected output
 
 This experiment was renumbered from **exp154** on 2026-08-21, when the branch it
-was written on met a different exp154 already on `main`. Three strings changed —
-the USB product string, the USB serial, and the first log line — and that moved
-the image from 149504 bytes to 150016, one flash page more. So the capture is in
-two halves, and they are not from the same day.
+was written on met a different exp154 already on `main`. Four things carry the
+number and all four moved: the USB product string, the USB serial, the first log
+line, and the two MAC addresses — which is how the host names the interface, so
+`enx022600000154` became `enx022600000161`. The last of those was found by
+flashing and looking, not by reading: the board came up as exp161 and brought up
+an interface still called `...154`.
 
-**The half that needs no board**, re-run after the rename, on Ubuntu,
-2026-08-21:
+`./check.sh`, captured on Ubuntu against a real Pico 2, 2026-08-21, on the
+renumbered image:
 
 ```console
 PASS  toolchain present (cargo, elf2flash)
@@ -256,34 +258,28 @@ PASS  no script in any page — they are for whatever browser somebody has
 PASS  log text is escaped before it becomes HTML
 PASS  every page carries the same four links — a door is no use unnamed
 PASS  the board asks for its address — exp150 measured that the other way is unreachable
-SKIP  no board running exp161 (enumerated as: exp154 somewhere to put a key)
-```
-
-That `SKIP` is the check doing its job: a board was attached, and it was
-running a different experiment, so the board half declined to report rather
-than reporting about the wrong firmware.
-
-**The half that needs a board**, captured on Ubuntu against a real Pico 2 on
-2026-08-06, *before* the rename — the numbers are this firmware's, and the one
-line carrying the old name is left as it was read rather than edited to match:
-
-```console
-NOTE  enumerated as: exp154 one port four doors      <- read before the rename
+NOTE  enumerated as: exp161 one port four doors
 PASS  the board has an address and says so — http://10.42.0.250
 PASS  four paths answered at once: 200 200 200 200
-PASS  /status is JSON and carries a count per door — "served":{"index":4,"log":4,"status":10,"trng":13,"refused":4}
-PASS  a lone /trng?n=1024: sampling took 231095 us; waiting for the one TRNG took 9 us
+PASS  /status is JSON and carries a count per door — "served":{"index":1,"log":1,"status":2,"trng":1,"refused":0}
+PASS  a lone /trng?n=1024: sampling took 228948 us; waiting for the one TRNG took 5 us
 PASS  two at once both completed — one waited for the other, and neither failed
-NOTE  /status while the TRNG was busy: 0.003463s
+NOTE  /status while the TRNG was busy: 0.003013s
 NOTE  what no script here can do: nothing. This is the first experiment on
       the network road whose whole claim a shell can check.
 ```
 
-**This half has not been re-run since the rename.** Reflashing the board with
-the renumbered image and running `./check.sh` again is what closes it; nothing
-in the measurement above depends on the three strings that changed, which is a
-reason to expect the same answer and not a reason to write it down as though it
-had been seen.
+The image is 150016 bytes here and was 149504 when this was exp154. Three
+strings and two MAC constants moved it by one flash page, which is worth
+knowing before assuming a rename is free.
+
+The `served` counts are lower than the 2026-08-06 run under the old number —
+`{"index":4,"log":4,"status":10,"trng":13,"refused":4}` then, `{"index":1,...}`
+now — because that board had been poked at by hand first and this one was
+flashed minutes earlier. The counts are a tally of what this board has answered
+since boot, not a property of the firmware, which is exactly what the `/status`
+door is for. The TRNG numbers reproduced: 228948 us of sampling against 231095,
+and a 5 us wait against 9 us, on the same one peripheral.
 
 ## What this experiment does not answer
 
