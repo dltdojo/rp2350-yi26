@@ -1,0 +1,175 @@
+[    3037 ms] exp164 up, boot #1. The matrix so far:
+[    3037 ms]   1 the SAU is implemented and Secure code can read it - not reached
+[    3062 ms]   2 embassy_rp::init() changes nothing in it - not reached
+[    3087 ms]   3 the map, address by address - not reached
+[    3112 ms]   4 shutting a bank moves nothing the SAU can see - not reached
+[    3137 ms]   5 what a bus-demoted core sees of the Secure SAU - not reached
+[    3162 ms]   6 demoted before core 1 ever started - not reached
+[    3187 ms] SAU at entry:      CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3188 ms] SAU after init:    CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3188 ms] so: 8 regions, enabled=true, allns=false
+[    3188 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8188 ms] candidate 1 the SAU is implemented and Secure code can read it
+[    8188 ms]   reading 0xe000edd0; cortex-m publishes SAU::PTR = 0xe000edd0 - same
+[    8188 ms]   SAU_TYPE = 0x00000008, SREGION = 8
+[    8188 ms]   r0 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    8213 ms]   r1 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    8238 ms]   r2 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    8263 ms]   r3 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    8288 ms]   r4 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    8313 ms]   r5 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    8338 ms]   r6 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    8363 ms]   r7 RBAR=0x000046a0 RLAR=0x00007fe1 -> 0x0046a0..0x007fff en=1 nsc=0
+[    8388 ms] candidate 1 -> as expected
+[    3074 ms] exp164 up, boot #2. The matrix so far:
+[    3074 ms]   1 the SAU is implemented and Secure code can read it - as expected
+[    3100 ms]   2 embassy_rp::init() changes nothing in it - not reached
+[    3125 ms]   3 the map, address by address - not reached
+[    3150 ms]   4 shutting a bank moves nothing the SAU can see - not reached
+[    3175 ms]   5 what a bus-demoted core sees of the Secure SAU - not reached
+[    3200 ms]   6 demoted before core 1 ever started - not reached
+[    3225 ms] SAU at entry:      CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] SAU after init:    CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] so: 8 regions, enabled=true, allns=false
+[    3225 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8225 ms] candidate 2 embassy_rp::init() changes nothing in it
+[    8225 ms]   four registers, before and after embassy_rp::init(): identical
+[    8225 ms] candidate 2 -> as expected
+[    3074 ms] exp164 up, boot #3. The matrix so far:
+[    3075 ms]   1 the SAU is implemented and Secure code can read it - as expected
+[    3100 ms]   2 embassy_rp::init() changes nothing in it - as expected
+[    3125 ms]   3 the map, address by address - not reached
+[    3150 ms]   4 shutting a bank moves nothing the SAU can see - not reached
+[    3175 ms]   5 what a bus-demoted core sees of the Secure SAU - not reached
+[    3200 ms]   6 demoted before core 1 ever started - not reached
+[    3225 ms] SAU at entry:      CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] SAU after init:    CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] so: 8 regions, enabled=true, allns=false
+[    3225 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8225 ms] candidate 3 the map, address by address
+[    8225 ms]   0x00000000 bootrom, base          S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8250 ms]   0x00004680 bootrom, below r7      S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8275 ms]   0x00005000 bootrom, inside r7     S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8300 ms]   0x00008000 bootrom, above r7      S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8325 ms]   0x10000000 XIP flash              S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8350 ms]   0x11000000 XIP flash +0x01000000  S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8375 ms]   0x20000000 SRAM bank 0            S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8400 ms]   0x20040000 SRAM upper half        S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8426 ms]   0x2007fffc SRAM top word          S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8451 ms]   0x20080000 SRAM bank 8            S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8476 ms]   0x20081000 SRAM bank 9            S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8501 ms]   0x30000000 SRAM +0x10000000       S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8526 ms]   0x40060000 ACCESSCTRL             S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8551 ms]   0x400b0000 TIMER0                 S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8576 ms]   0x50100000 USB DPRAM              S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8601 ms]   0xd0000000 SIO                    S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8626 ms]   0xd0020000 SIO_NS                 S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8651 ms]   0xe000e000 SCS                    S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    8676 ms]   18 of 18 addresses asked with TT; none of them was accessed.
+[    8676 ms] candidate 3 -> as expected
+[    3074 ms] exp164 up, boot #4. The matrix so far:
+[    3074 ms]   1 the SAU is implemented and Secure code can read it - as expected
+[    3100 ms]   2 embassy_rp::init() changes nothing in it - as expected
+[    3125 ms]   3 the map, address by address - as expected
+[    3150 ms]   4 shutting a bank moves nothing the SAU can see - not reached
+[    3175 ms]   5 what a bus-demoted core sees of the Secure SAU - not reached
+[    3200 ms]   6 demoted before core 1 ever started - not reached
+[    3225 ms] SAU at entry:      CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] SAU after init:    CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] so: 8 regions, enabled=true, allns=false
+[    3225 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8225 ms] candidate 4 shutting a bank moves nothing the SAU can see
+[    8225 ms]   bank 8, ACCESSCTRL open:  S=true nsr=false sau=None
+[    8225 ms]   bank 8, ACCESSCTRL SHUT:  S=true nsr=false sau=None
+[    8225 ms]   the TT answer is unchanged. The two walls are separate mechanisms.
+[    8225 ms] candidate 4 -> as expected
+[    3074 ms] exp164 up, boot #5. The matrix so far:
+[    3074 ms]   1 the SAU is implemented and Secure code can read it - as expected
+[    3099 ms]   2 embassy_rp::init() changes nothing in it - as expected
+[    3125 ms]   3 the map, address by address - as expected
+[    3150 ms]   4 shutting a bank moves nothing the SAU can see - as expected
+[    3175 ms]   5 what a bus-demoted core sees of the Secure SAU - not reached
+[    3200 ms]   6 demoted before core 1 ever started - not reached
+[    3225 ms] SAU at entry:      CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] SAU after init:    CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] so: 8 regions, enabled=true, allns=false
+[    3225 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8225 ms] candidate 5 what a bus-demoted core sees of the Secure SAU
+[    8225 ms]   bank 8 SHUT. FORCE_CORE_NS set after core 1 starts.
+[    9235 ms]   core 1: up=true read_done=true faulted=true finished=false
+[    9235 ms]   SAU_TYPE  core 0 0x00000008   core 1 0x00000008
+[    9235 ms]   SAU_CTRL  core 0 0x00000001   core 1 0x00000001
+[    9235 ms]   TT of 0x20000000  core 0 0x004c0000   core 1 0x004c0000
+[    9235 ms]   core 1 got the Secure answer to every question. It is not
+[    9235 ms]   in Non-secure state; only its bus traffic is marked.
+[    9235 ms] candidate 5 -> as expected
+[    3074 ms] exp164 up, boot #6. The matrix so far:
+[    3074 ms]   1 the SAU is implemented and Secure code can read it - as expected
+[    3100 ms]   2 embassy_rp::init() changes nothing in it - as expected
+[    3125 ms]   3 the map, address by address - as expected
+[    3150 ms]   4 shutting a bank moves nothing the SAU can see - as expected
+[    3175 ms]   5 what a bus-demoted core sees of the Secure SAU - as expected
+[    3200 ms]   6 demoted before core 1 ever started - not reached
+[    3225 ms] SAU at entry:      CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] SAU after init:    CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] so: 8 regions, enabled=true, allns=false
+[    3225 ms] reflash window: 5 s, nothing armed. `yi26 bootsel` works now.
+[    8225 ms] candidate 6 demoted before core 1 ever started
+[    8225 ms]   bank 8 SHUT. FORCE_CORE_NS set BEFORE core 1 starts.
+[    8225 ms]   calling spawn_core1 now. If this is the last line, it did not return.
+[    3074 ms] exp164 up, boot #7. The matrix so far:
+[    3074 ms]   1 the SAU is implemented and Secure code can read it - as expected
+[    3100 ms]   2 embassy_rp::init() changes nothing in it - as expected
+[    3125 ms]   3 the map, address by address - as expected
+[    3150 ms]   4 shutting a bank moves nothing the SAU can see - as expected
+[    3175 ms]   5 what a bus-demoted core sees of the Secure SAU - as expected
+[    3200 ms]   6 demoted before core 1 ever started - as expected: the launch never returned
+[    3225 ms] SAU at entry:      CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] SAU after init:    CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3225 ms] so: 8 regions, enabled=true, allns=false
+[    3225 ms] exp164 done after 7 boots. Nothing armed; still reflashable.
+[    3225 ms]   1 the SAU is implemented and Secure code can read it - as expected
+[    3250 ms]   2 embassy_rp::init() changes nothing in it - as expected
+[    3275 ms]   3 the map, address by address - as expected
+[    3300 ms]   4 shutting a bank moves nothing the SAU can see - as expected
+[    3325 ms]   5 what a bus-demoted core sees of the Secure SAU - as expected
+[    3350 ms]   6 demoted before core 1 ever started - as expected: the launch never returned
+[    3375 ms] SAU: CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3400 ms]   r0 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3425 ms]   r1 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3450 ms]   r2 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3475 ms]   r3 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3501 ms]   r4 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3526 ms]   r5 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3551 ms]   r6 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3576 ms]   r7 RBAR=0x000046a0 RLAR=0x00007fe1 -> 0x0046a0..0x007fff en=1 nsc=0
+[    3601 ms] the map, asked again with TT:
+[    3626 ms]   0x00000000 bootrom, base          S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3651 ms]   0x00004680 bootrom, below r7      S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3676 ms]   0x00005000 bootrom, inside r7     S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3701 ms]   0x00008000 bootrom, above r7      S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3726 ms]   0x10000000 XIP flash              S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3751 ms]   0x11000000 XIP flash +0x01000000  S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3776 ms]   0x20000000 SRAM bank 0            S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3801 ms]   0x20040000 SRAM upper half        S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3826 ms]   0x2007fffc SRAM top word          S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3851 ms]   0x20080000 SRAM bank 8            S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3876 ms]   0x20081000 SRAM bank 9            S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3901 ms]   0x30000000 SRAM +0x10000000       S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3926 ms]   0x40060000 ACCESSCTRL             S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3952 ms]   0x400b0000 TIMER0                 S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    3977 ms]   0x50100000 USB DPRAM              S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    4002 ms]   0xd0000000 SIO                    S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    4027 ms]   0xd0020000 SIO_NS                 S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    4052 ms]   0xe000e000 SCS                    S=yes nsr=no  nsrw=no  idau=-1 sau=-1
+[    4077 ms] VERDICT: SAU enabled=true, allns=false, 1 of 8 regions enabled.
+[    4102 ms]   main SRAM: Secure=true ns-readable=false SAU region None IDAU None
+[    4127 ms]   demoted after : read=1 fault=1 TYPE=0x00000008
+[    4152 ms]             TT core1=0x004c0000 core0=0x004c0000
+[    4177 ms]   demoted before: read=0 fault=0 TYPE=0x00000000
+[    4202 ms]             TT core1=0x00000000 core0=0x00000000
+[    4227 ms]   a core ACCESSCTRL refuses is a core the SAU still answers.
+[    4252 ms]   FORCE_CORE_NS marks the bus, not the core: Non-secure to
+[    4277 ms]   ACCESSCTRL, Secure to the architecture.
+[    4302 ms]   and there is no other ordering: setting it before the launch
+[    4327 ms]   leaves spawn_core1 waiting on a FIFO that never answers.

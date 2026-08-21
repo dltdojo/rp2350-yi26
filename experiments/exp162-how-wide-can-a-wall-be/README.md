@@ -6,6 +6,17 @@ paragraph: *settle whether banks 0–7 map to the address range in a way that
 would let a >64 KB secret region exist at all.* exp160 also wrote down what a
 "no" would mean, before it knew the answer:
 
+> **A correction, from [exp164](../exp164-the-wall-nobody-read/).** Where this
+> experiment says "Non-secure core", it means Non-secure **to ACCESSCTRL**.
+> exp164 read the SAU and found that a core demoted with
+> `ACCESSCTRL.FORCE_CORE_NS` still reads the Secure System Control Space and
+> still gets `S=1` from the `TT` instruction: the register marks the core's bus
+> traffic, not its architectural security state. Every measurement below stands
+> exactly as written — the wall refuses, and it refuses for the reason given.
+> What changes is that this is a **bus-level access filter**, not Armv8-M state
+> separation, and a reader after a TrustZone lesson should know which one they
+> are looking at.
+
 > **If the answer to the last one is no, then this chip cannot hide an ML-DSA
 > private key in use**, and that is a finding the road should record before
 > anything is built on the assumption that it can.

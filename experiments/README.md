@@ -77,6 +77,7 @@ Per experiment:
 | exp155 | Same as exp152 in hardware — it carries the **drive** too, because its audience is somebody holding a phone and that is the only way an address gets there tappable. Five USB interfaces. Its second half needs a **browser**, and any browser will do — the measurement is what a browser does with a cross-origin request, and the instrument is the board's own `/status`, so nobody has to watch the LED. Verified with headless Chrome on Ubuntu; the answers are Chrome's CORS and Private Network Access policy, which is the same everywhere Chromium is and may differ elsewhere. |
 | exp162 | Same as exp159 and exp160 — `cdc`, one log, nobody in the room. No cryptography at all, so nothing here needs a crate that a future toolchain might drop. |
 | exp163 | Same as exp159, exp160 and exp162 — `cdc`, one log, nobody in the room. **RP2350 only**: bank 8, bank 9, `ACCESSCTRL` and `FORCE_CORE_NS` are all this chip's. Needs the TRNG for the seed, and the same `ml-dsa` build as exp160 on purpose, because it measures what that one leaves behind. |
+| exp164 | Same as exp163 — `cdc`, one log, nobody in the room, no cryptography. **Armv8-M**, not RP2350: the SAU and the `TT` instruction family are the architecture's, reached through `cortex-m` on stable. The `FORCE_CORE_NS` half is RP2350's. It reads the SAU and never configures it. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -436,7 +437,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -573,6 +574,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp161 | `cdc+ncm` | `log+frames` | `cdc_acm+cdc_ncm` | `own` |
 | exp162 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp163 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp164 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -715,6 +717,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp161-one-port-four-doors](./exp161-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
 | [exp162-how-wide-can-a-wall-be](./exp162-how-wide-can-a-wall-be/) | 1 · board | Fifteen reads by a demoted core say where the eight SRAM banks actually are: `SRAM[n]` does not gate the *n*th 64 KB block, it gates one word in every four of a 256 KB half — so the longest region ACCESSCTRL can deny is four bytes |
 | [exp163-how-long-is-a-secret-in-the-open](./exp163-how-long-is-a-secret-in-the-open/) | 1 · board | A Non-secure core reads the whole 512 KB over and over while a Secure core signs: it sees the ML-DSA seed 32 times inside one 147 ms signature, nothing at all after a 3.4 ms wipe, and costs the signature it is watching 8.2% |
+| [exp164-the-wall-nobody-read](./exp164-the-wall-nobody-read/) | 1 · board | The SAU, under six experiments that never looked at it: enabled, eight regions, **all eight disabled**, so the whole address space defaults Secure — and the core `FORCE_CORE_NS` demotes reads the Secure SAU exactly as core 0 does. It is Non-secure to ACCESSCTRL and Secure to the architecture |
 
 ## The browser track, finished
 
@@ -1301,7 +1304,7 @@ hand-built FAT12, exp123 and exp124 hand-rolled Bulk-Only Transport and SCSI,
 exp149 hand-rolled DHCP. [exp103](./exp103-embassy-blink/) has been promising
 since the beginning that a later experiment opens its one box of magic by hand.
 
-#### Six experiments, and the cryptography is not the last of them
+#### Seven experiments, and the cryptography is not the last of them
 
 None of these is interrogated yet — a direction, not a schedule.
 
@@ -1474,6 +1477,37 @@ None of these is interrogated yet — a direction, not a schedule.
   run. And because ML-DSA is rejection-sampled, four measurements of the same
   thing differed by 148 ms until the message was fixed; with it fixed they
   differ by 33 µs, which is what made an 11 ms effect visible at all. Needs 1.
+
+- **what the SAU was already saying** — the first question in
+  [Questions this road has not answered](#questions-this-road-has-not-answered-and-must-not-assume),
+  asked at last. [exp164](./exp164-the-wall-nobody-read/) is **verified on
+  hardware**, six candidates in one flash, nothing written, no cryptography —
+  and it corrects a word the five experiments above have been using.
+
+  The SAU is **enabled** on this part, has **eight regions, one of them
+  enabled** (region 7, `0x46a0..0x7fff`, the upper bootrom), and
+  `embassy_rp::init()` moves none of it. Eighteen addresses asked with the `TT`
+  instruction — flash, every SRAM bank, `ACCESSCTRL`, `TIMER0`, the USB DPRAM,
+  `SIO`, `SIO_NS`, the SCS — come back **Secure, and none of them
+  Non-secure-readable**.
+
+  Which raises the question those five experiments never asked, and answers it.
+  A core demoted with `ACCESSCTRL.FORCE_CORE_NS` **reads the Secure System
+  Control Space and gets core 0's values**, and its `TT` response is core 0's
+  response bit for bit, `S` bit included — and then faults on a bank ACCESSCTRL
+  has shut, which is the control that says the demotion was real.
+  **`FORCE_CORE_NS` marks the bus, not the core.** This road's "Non-secure core"
+  is Non-secure to a bus filter and Secure to the architecture; every
+  measurement stands and the label needed narrowing, which is now written into
+  all five.
+
+  There is no other ordering to hide in: setting the register *before* core 1
+  starts leaves `spawn_core1` blocked on a SIO FIFO that never answers, and the
+  watchdog ends the boot. One question is deliberately left open — an address
+  inside the one enabled SAU region is reported Secure and attributed to no
+  region — because settling it needs the Armv8-M reference manual, and
+  `verify.py` prints it as `OPEN` rather than deriving a rule it cannot check.
+  Needs 1.
 
 #### The channel, and why the framing decision comes with it
 

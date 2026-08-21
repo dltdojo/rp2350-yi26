@@ -5,6 +5,17 @@ the one the road asked for in one line: *swap the crate for ML-DSA-65 and
 measure*. **Does a post-quantum signature still fit the update road? A "no" is a
 finding.**
 
+> **A correction, from [exp164](../exp164-the-wall-nobody-read/).** Where this
+> experiment says "Non-secure core", it means Non-secure **to ACCESSCTRL**.
+> exp164 read the SAU and found that a core demoted with
+> `ACCESSCTRL.FORCE_CORE_NS` still reads the Secure System Control Space and
+> still gets `S=1` from the `TT` instruction: the register marks the core's bus
+> traffic, not its architectural security state. Every measurement below stands
+> exactly as written — the wall refuses, and it refuses for the reason given.
+> What changes is that this is a **bus-level access filter**, not Armv8-M state
+> separation, and a reader after a TrustZone lesson should know which one they
+> are looking at.
+
 It is not a no, and it is not a yes. Code size was never the problem, and the
 thing that does not fit is the one nobody had listed.
 

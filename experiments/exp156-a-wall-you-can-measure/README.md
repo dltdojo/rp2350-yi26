@@ -6,6 +6,17 @@ had somewhere to keep a secret, and the answer was clean: **no**. Not one of
 [signing road](../README.md#the-signing-road) needs has to be built, and this
 builds the smallest one that can be shown to work.
 
+> **A correction, from [exp164](../exp164-the-wall-nobody-read/).** Where this
+> experiment says "Non-secure core", it means Non-secure **to ACCESSCTRL**.
+> exp164 read the SAU and found that a core demoted with
+> `ACCESSCTRL.FORCE_CORE_NS` still reads the Secure System Control Space and
+> still gets `S=1` from the `TT` instruction: the register marks the core's bus
+> traffic, not its architectural security state. Every measurement below stands
+> exactly as written — the wall refuses, and it refuses for the reason given.
+> What changes is that this is a **bus-level access filter**, not Armv8-M state
+> separation, and a reader after a TrustZone lesson should know which one they
+> are looking at.
+
 **There is no cryptography in it at all.** That is the point. Prior work outside
 this repository named a function `tfm_secure_ecdsa_sign`, gave it the
 secure-gateway ABI, and never programmed a security boundary anywhere — so what
