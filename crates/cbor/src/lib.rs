@@ -404,3 +404,337 @@ mod tests {
         assert_eq!(out, [0xa1, 0x01, 0x82, 0x61, 0x61, 0x61, 0x62]);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Reading
+// ---------------------------------------------------------------------------
+
+/// One CBOR item, borrowed from the buffer it was read out of.
+///
+/// There is no owned variant and no allocation: a reader on a device with 520
+/// KB of SRAM that copies every string it is handed is a reader an attacker
+/// sizes.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Item<'a> {
+    Uint(u64),
+    /// A negative integer. CBOR stores `-1 - n`, so the range is
+    /// `-1 ..= -2^64`; this narrows to `i64` and refuses what will not fit,
+    /// because COSE's labels are small and a value that needs more is a value
+    /// this subset should not silently truncate.
+    Nint(i64),
+    Bytes(&'a [u8]),
+    Text(&'a str),
+    /// The header of an array. Its items follow and are read individually.
+    Array(u64),
+    /// The header of a map. Its pairs follow, key then value.
+    Map(u64),
+    Bool(bool),
+}
+
+/// What went wrong reading. Every one of these is a byte sequence some other
+/// CBOR reader would accept, which is exactly why they are named separately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadError {
+    /// The buffer ended in the middle of an item — including when a length
+    /// field promised more bytes than the message contains. **This is the one
+    /// that matters**: a reader that trusts a length reads past its buffer, and
+    /// the length came from whoever sent the message.
+    Truncated,
+    /// Valid CBOR that CTAP2 does not accept: an over-long integer encoding, an
+    /// indefinite length, or map keys out of order.
+    NotCanonical,
+    /// A major type or simple value this subset does not implement. Refused
+    /// rather than skipped, because skipping something unrecognised is how a
+    /// parser disagrees with the thing that wrote it.
+    Unsupported,
+    /// Nesting past [`MAX_DEPTH`]. A limit rather than a stack overflow.
+    TooDeep,
+    /// A text string that is not UTF-8.
+    BadText,
+}
+
+/// A cursor over CBOR that **refuses everything non-canonical** and never reads
+/// past the buffer it was given.
+pub struct Reader<'a> {
+    buf: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Reader<'a> {
+    pub fn new(buf: &'a [u8]) -> Self {
+        Self { buf, at: 0 }
+    }
+
+    /// How many bytes have been consumed. A caller that has read everything it
+    /// wanted checks this against the message length: trailing bytes after a
+    /// complete structure are a message two implementations disagree about.
+    pub fn position(&self) -> usize {
+        self.at
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.at >= self.buf.len()
+    }
+
+    fn take(&mut self, n: usize) -> Result<&'a [u8], ReadError> {
+        // The whole of the bounds check, in one place, and every path goes
+        // through it. `checked_add` because `at + n` on a length from the wire
+        // is where an overflow turns a refusal into a read.
+        let end = self.at.checked_add(n).ok_or(ReadError::Truncated)?;
+        if end > self.buf.len() {
+            return Err(ReadError::Truncated);
+        }
+        let out = &self.buf[self.at..end];
+        self.at = end;
+        Ok(out)
+    }
+
+    fn head(&mut self) -> Result<(u8, u64), ReadError> {
+        let ib = self.take(1)?[0];
+        let (mt, ai) = (ib >> 5, ib & 0x1f);
+        let arg = match ai {
+            0..=23 => ai as u64,
+            24 => {
+                let v = self.take(1)?[0] as u64;
+                if v < 24 {
+                    return Err(ReadError::NotCanonical);
+                }
+                v
+            }
+            25 => {
+                let b = self.take(2)?;
+                let v = u16::from_be_bytes([b[0], b[1]]) as u64;
+                if v <= 0xff {
+                    return Err(ReadError::NotCanonical);
+                }
+                v
+            }
+            26 => {
+                let b = self.take(4)?;
+                let v = u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as u64;
+                if v <= 0xffff {
+                    return Err(ReadError::NotCanonical);
+                }
+                v
+            }
+            27 => {
+                let b = self.take(8)?;
+                let v = u64::from_be_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]);
+                if v <= 0xffff_ffff {
+                    return Err(ReadError::NotCanonical);
+                }
+                v
+            }
+            31 => return Err(ReadError::NotCanonical), // indefinite length
+            _ => return Err(ReadError::Unsupported),
+        };
+        Ok((mt, arg))
+    }
+
+    /// Read the next item.
+    pub fn next(&mut self) -> Result<Item<'a>, ReadError> {
+        let (mt, arg) = self.head()?;
+        Ok(match mt {
+            0 => Item::Uint(arg),
+            1 => {
+                // CBOR stores -1 - n. Anything that will not fit an i64 is
+                // refused rather than wrapped.
+                let n = i64::try_from(arg).map_err(|_| ReadError::Unsupported)?;
+                Item::Nint(-1 - n)
+            }
+            2 => Item::Bytes(self.take(arg as usize)?),
+            3 => {
+                let b = self.take(arg as usize)?;
+                Item::Text(core::str::from_utf8(b).map_err(|_| ReadError::BadText)?)
+            }
+            4 => Item::Array(arg),
+            5 => Item::Map(arg),
+            7 => match arg {
+                20 => Item::Bool(false),
+                21 => Item::Bool(true),
+                _ => return Err(ReadError::Unsupported),
+            },
+            _ => return Err(ReadError::Unsupported),
+        })
+    }
+
+    /// Step over the next item, whatever it is, including a whole container.
+    ///
+    /// Depth-limited rather than recursive without a bound: a map nested a
+    /// thousand deep is a message somebody built, and a stack overflow is not
+    /// a refusal.
+    pub fn skip(&mut self) -> Result<(), ReadError> {
+        self.skip_at(0)
+    }
+
+    fn skip_at(&mut self, depth: usize) -> Result<(), ReadError> {
+        if depth > MAX_DEPTH {
+            return Err(ReadError::TooDeep);
+        }
+        match self.next()? {
+            Item::Array(n) => {
+                for _ in 0..n {
+                    self.skip_at(depth + 1)?;
+                }
+            }
+            Item::Map(n) => {
+                // Keys are checked for order here too, because a map somebody
+                // skipped past is still a map that has to be canonical for the
+                // message to be.
+                let mut last: Option<u64> = None;
+                for _ in 0..n {
+                    match self.next()? {
+                        Item::Uint(k) => {
+                            if let Some(prev) = last {
+                                if k <= prev {
+                                    return Err(ReadError::NotCanonical);
+                                }
+                            }
+                            last = Some(k);
+                        }
+                        // Text keys sort after integer ones and among
+                        // themselves by length then bytes. This subset does not
+                        // need them, and guessing at the rule would be worse
+                        // than refusing.
+                        Item::Text(_) => {}
+                        _ => return Err(ReadError::NotCanonical),
+                    }
+                    self.skip_at(depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Read a map header and check it is one. The shape almost every CTAP2
+    /// request starts with.
+    pub fn map_header(&mut self) -> Result<u64, ReadError> {
+        match self.next()? {
+            Item::Map(n) => Ok(n),
+            _ => Err(ReadError::Unsupported),
+        }
+    }
+}
+
+#[cfg(test)]
+mod read_tests {
+    use super::*;
+
+    fn r(hex: &str) -> alloc::vec::Vec<u8> {
+        (0..hex.len()).step_by(2).map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap()).collect()
+    }
+    extern crate alloc;
+
+    #[test]
+    fn reads_what_the_writer_wrote() {
+        let mut buf = [0u8; 128];
+        let mut w = Writer::new(&mut buf);
+        w.map(2);
+        w.key(1);
+        w.text("hello");
+        w.key(2);
+        w.bytes(&[9, 8, 7]);
+        w.end();
+        let out = w.finish().unwrap();
+
+        let mut rd = Reader::new(out);
+        assert_eq!(rd.next(), Ok(Item::Map(2)));
+        assert_eq!(rd.next(), Ok(Item::Uint(1)));
+        assert_eq!(rd.next(), Ok(Item::Text("hello")));
+        assert_eq!(rd.next(), Ok(Item::Uint(2)));
+        assert_eq!(rd.next(), Ok(Item::Bytes(&[9, 8, 7])));
+        assert!(rd.is_empty());
+    }
+
+    #[test]
+    fn negative_integers_decode_the_way_cose_needs() {
+        // ES256 is alg -7, which is major type 1 with argument 6.
+        for (hex, want) in [("26", -7i64), ("20", -1), ("3863", -100)] {
+            let bytes = r(hex);
+            assert_eq!(Reader::new(&bytes).next(), Ok(Item::Nint(want)), "{hex}");
+        }
+    }
+
+    #[test]
+    fn a_length_longer_than_the_buffer_is_refused_and_not_read() {
+        // **The one that matters.** A byte string that says it is 200 bytes in
+        // a four-byte message. A reader that trusts the length reads 196 bytes
+        // of whatever is next in memory.
+        for hex in ["58c8010203", "5b7fffffffffffffff", "79ffff41"] {
+            let bytes = r(hex);
+            assert_eq!(Reader::new(&bytes).next(), Err(ReadError::Truncated), "{hex}");
+        }
+    }
+
+    #[test]
+    fn a_header_cut_in_half_is_refused() {
+        for hex in ["58", "19ff", ""] {
+            let bytes = r(hex);
+            assert_eq!(Reader::new(&bytes).next(), Err(ReadError::Truncated), "{hex}");
+        }
+    }
+
+    #[test]
+    fn non_canonical_integers_are_refused_rather_than_normalised() {
+        // 23 in two bytes, 255 in three, 65535 in five: all legal CBOR, none
+        // of it canonical.
+        for hex in ["1817", "1900ff", "1a0000ffff"] {
+            let bytes = r(hex);
+            assert_eq!(Reader::new(&bytes).next(), Err(ReadError::NotCanonical), "{hex}");
+        }
+    }
+
+    #[test]
+    fn indefinite_lengths_are_refused() {
+        for hex in ["9f", "bf", "5f"] {
+            let bytes = r(hex);
+            assert_eq!(Reader::new(&bytes).next(), Err(ReadError::NotCanonical), "{hex}");
+        }
+    }
+
+    #[test]
+    fn skip_steps_over_a_whole_container() {
+        // {1: [1,2,3], 2: 9} — skipping the array must land on key 2.
+        let bytes = r("a201830102030209");
+        let mut rd = Reader::new(&bytes);
+        assert_eq!(rd.next(), Ok(Item::Map(2)));
+        assert_eq!(rd.next(), Ok(Item::Uint(1)));
+        rd.skip().unwrap();
+        assert_eq!(rd.next(), Ok(Item::Uint(2)));
+        assert_eq!(rd.next(), Ok(Item::Uint(9)));
+    }
+
+    #[test]
+    fn skipping_a_map_still_checks_its_keys() {
+        // {1: {3:0, 1:0}} — the inner keys descend, and skipping must not
+        // launder that.
+        let bytes = r("a101a2030001000000");
+        let mut rd = Reader::new(&bytes);
+        assert_eq!(rd.next(), Ok(Item::Map(1)));
+        assert_eq!(rd.next(), Ok(Item::Uint(1)));
+        assert_eq!(rd.skip(), Err(ReadError::NotCanonical));
+    }
+
+    #[test]
+    fn a_container_that_promised_more_than_it_holds_is_truncated_not_short() {
+        // An array of three with two items. `skip` must say so rather than
+        // stopping early and letting a caller read the next message's bytes as
+        // the third item.
+        let bytes = r("830102");
+        assert_eq!(Reader::new(&bytes).skip(), Err(ReadError::Truncated));
+    }
+
+    #[test]
+    fn nesting_has_a_limit_and_it_is_a_refusal() {
+        // Six nested arrays, one deeper than MAX_DEPTH allows.
+        let deep = r("8181818181810100");
+        assert_eq!(Reader::new(&deep).skip(), Err(ReadError::TooDeep));
+    }
+
+    #[test]
+    fn text_that_is_not_utf8_is_refused() {
+        let bytes = r("62fffe");
+        assert_eq!(Reader::new(&bytes).next(), Err(ReadError::BadText));
+    }
+}

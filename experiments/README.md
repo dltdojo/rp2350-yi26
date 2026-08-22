@@ -83,6 +83,7 @@ Per experiment:
 | exp167 | Any RP2350 board, and it puts one into an A/B partition state. The aperture map it prints is `partimg`'s layout on this bootrom: `ATRANS0` is sixteen sectors from sector 1, and a different table gives a different window and the same lesson. The host half needs Python's `cryptography`. |
 | exp168 | Any RP2350 board. Needs `libfido2`'s `fido2-token` on the host, and — measured rather than assumed — **no udev rule of this repository's own**: the host's own rules recognise the FIDO usage page and grant access. One host tested: Linux with `hidraw`. |
 | exp169 | Same as exp168. Builds twice from one source — `EXP169_CLAIM=none` and `=fido2` — and `check.sh` drives both, because the comparison is the experiment. `crates/cbor`'s tests need no board at all. |
+| exp170 | Same as exp168. `crates/cbor`'s twenty tests need no board at all, and eleven of them are about input nobody well-behaved sends. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -442,7 +443,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -585,6 +586,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp167 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp168 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp169 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp170 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -733,6 +735,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp167-the-image-that-never-runs](./exp167-the-image-that-never-runs/) | 1 · board | exp166's gate joined to exp143's rollback: slot A refuses to hand the board over without a signature it trusts, and slot B — provisional — never buys, so the ROM takes it back. Two failures, two mechanisms, neither detecting anything. And the finding that decides the design: **a running image gets one 64 KiB QMI aperture onto its own partition**, and the apertures that would reach the other slot are sized to zero |
 | [exp168-a-security-key-that-knows-nothing](./exp168-a-security-key-that-knows-nothing/) | 1 · board | **Not a security key**: no cryptography at all. A hand-written 34-byte FIDO report descriptor, and the host's own tooling lists it **without root and without a rule of ours**. Twelve CTAPHID cases: a 1024-byte echo in eighteen packets, six error codes the specification names, and one case that must draw **silence** |
 | [exp169-what-it-says-it-can-do](./exp169-what-it-says-it-can-do/) | 1 · board | `authenticatorGetInfo`, in canonical CBOR a host parses. Two builds: one claims `FIDO_2_0` and a tool that believes it gets `FIDO_ERR_INTERNAL`; **one claims no version at all, and `libfido2` accepts that** — the honest option turned out to exist. [`crates/cbor`](../crates/cbor/) refuses to emit non-canonical bytes rather than merely permitting canonical ones |
+| [exp170-a-map-somebody-else-wrote](./exp170-a-map-somebody-else-wrote/) | 1 · board | exp169 wrote a CBOR map; this one **reads** one, and it comes from the other end of the cable. A `makeCredential` request is read in full and refused with **understood-and-denied** rather than do-not-know-this-command, and six malformed ones — including a byte string whose length runs past the message — draw three other statuses. Still no cryptography |
 
 ## The browser track, finished
 
@@ -1989,8 +1992,31 @@ None of these is interrogated yet — a direction, not a schedule.
   builds are driven, because one half of a comparison is not a comparison, and
   `check.sh` fails if a plain `cargo build` ever ships the overclaim. Needs 1.
 
-- **something to register** — `authenticatorMakeCredential`, ES256, self
-  attestation, user presence on the BOOTSEL button
+- **a map somebody else wrote** — reading a `makeCredential` request, and
+  nothing else. [exp170](./exp170-a-map-somebody-else-wrote/) is **verified on
+  hardware**, and it exists because `makeCredential` is six things and exactly
+  one of them can be got wrong by somebody else's bytes: **a CTAP2 authenticator
+  parses input an attacker chose, and the lengths in CBOR are part of that
+  input.**
+
+  `crates/cbor` gains a bounds-checked, canonical-only, allocation-free reader
+  whose every length goes through one `checked_add`; `check.sh` fails if it ever
+  grows a second way to index its buffer. Eleven of its twenty tests are about
+  input nobody well-behaved sends.
+
+  On the board a well-formed request is read in full — `rp.id`, user handle,
+  client data hash, `alg = -7` — and refused with **`CTAP2_ERR_OPERATION_DENIED`
+  rather than `CTAP1_ERR_INVALID_COMMAND`**: understood and denied, not
+  do-not-know-this-command, which is the difference exp169 could not express.
+  A device that refused without reading would send the same byte, so the board
+  reports what it parsed and `verify.py` requires that report to be there.
+
+  It refuses three shapes that are **valid CBOR** and not canonical, and says
+  what that costs: whether a real browser sends something this strict reader
+  rejects is untested and is written down rather than assumed away. Needs 1.
+
+- **something to register** — `authenticatorMakeCredential`'s other five parts:
+  ES256, self attestation, user presence on the BOOTSEL button
   ([exp106](./exp106-bootsel-button/)), and the credential's private key
   **wrapped into the credential ID** rather than stored. That last choice is
   what makes the next item the road's hinge, and it is the point where a browser
