@@ -81,6 +81,7 @@ Per experiment:
 | exp165 | Same as exp164, and the first experiment here that **configures** the SAU rather than reading it. Any RP2350 board; the region it writes covers SRAM bank 9, which every RP2350 has. Two of its four probes come back overruled, and one of those is the bootrom — whose layout is this bootrom revision's, so another part may draw that line elsewhere. |
 | exp166 | Any RP2350 board. Verification needs only a public key, so nothing here depends on the SRAM banks, `ACCESSCTRL` or the SAU, and none of exp160–exp165's limits apply. The host half needs Python's `cryptography`. The bytes signed are inside the board's own image, so it works whatever that image is. |
 | exp167 | Any RP2350 board, and it puts one into an A/B partition state. The aperture map it prints is `partimg`'s layout on this bootrom: `ATRANS0` is sixteen sectors from sector 1, and a different table gives a different window and the same lesson. The host half needs Python's `cryptography`. |
+| exp168 | Any RP2350 board. Needs `libfido2`'s `fido2-token` on the host, and — measured rather than assumed — **no udev rule of this repository's own**: the host's own rules recognise the FIDO usage page and grant access. One host tested: Linux with `hidraw`. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -440,7 +441,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -581,6 +582,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp165 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp166 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp167 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp168 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -727,6 +729,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp165-who-gets-the-last-word](./exp165-who-gets-the-last-word/) | 1 · board | The first SAU region this repository writes, used as an instrument. Marked Non-secure it is **honoured and named** in SRAM and **silently overruled** in the bootrom and at `SIO_NS` — which is where exp164's open question was hiding. A Non-secure-Callable region is describable here, so exp156's unbuilt veneer has somewhere to live |
 | [exp166-whose-firmware-will-it-accept](./exp166-whose-firmware-will-it-accept/) | 1 · board | The first board here that **checks** a signature instead of producing one — the road's own question, eight experiments after it was asked. P-256 over a region of the board's own flash chosen at random after the firmware was built: accepted when the trusted key signed it, refused when a bit is flipped, when another key signed it, and when a valid signature **names a different region**. Verifying costs **97.7 ms** against exp159's 61 ms to sign |
 | [exp167-the-image-that-never-runs](./exp167-the-image-that-never-runs/) | 1 · board | exp166's gate joined to exp143's rollback: slot A refuses to hand the board over without a signature it trusts, and slot B — provisional — never buys, so the ROM takes it back. Two failures, two mechanisms, neither detecting anything. And the finding that decides the design: **a running image gets one 64 KiB QMI aperture onto its own partition**, and the apertures that would reach the other slot are sized to zero |
+| [exp168-a-security-key-that-knows-nothing](./exp168-a-security-key-that-knows-nothing/) | 1 · board | **Not a security key**: no cryptography at all. A hand-written 34-byte FIDO report descriptor, and the host's own tooling lists it **without root and without a rule of ours**. Twelve CTAPHID cases: a 1024-byte echo in eighteen packets, six error codes the specification names, and one case that must draw **silence** |
 
 ## The browser track, finished
 
@@ -1930,6 +1933,25 @@ None of these is interrogated yet — a direction, not a schedule.
 
 - **a security key that knows nothing** — HID with the FIDO usage page,
   `CTAPHID_INIT` and `CTAPHID_PING`, and **no cryptography whatsoever**.
+  [exp168](./exp168-a-security-key-that-knows-nothing/) is **verified on
+  hardware**: twelve cases, a 1024-byte echo in eighteen packets, six error
+  codes the specification names, and one case that must draw silence.
+
+  **The open question below came out "no", and better than the guess.** No udev
+  rule of this repository's own is needed: the host's own rules recognise the
+  FIDO usage page and grant the logged-in user access, so the hand-written
+  `0x06 0xD0 0xF1` is what earns it. And `fido2-token -I` does not fail on a
+  device with no CBOR — it reads the capability byte and prints
+  `caps: 0x08 (nowink, nocbor, nomsg)`, which is the device saying it knows
+  nothing in the protocol's own words. The interrogation had predicted a failure
+  and that how it failed would be the finding; leaving it ungraded is what let
+  the run say otherwise.
+
+  Its own cost is worth carrying: **the log's pacing made a legal message
+  fail.** A paced line per packet meant a 1024-byte `PING` took 1.08 s to
+  reassemble against a 750 ms deadline, and the device returned
+  `ERR_MSG_TIMEOUT` for a message that was entirely correct. The subject was
+  fine and the instrument was slower than it. Needs 1.
 
   Its real subject is not enumeration. A CTAPHID report is 64 bytes: an
   initialisation packet carries `CID(4) + CMD(1) + BCNT(2)` and **57 bytes of

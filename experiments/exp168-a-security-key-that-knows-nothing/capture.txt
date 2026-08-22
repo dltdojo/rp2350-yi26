@@ -1,0 +1,130 @@
+>>> host: flashing, so the board's log starts at its own first line
+>>> host: fido2-token -L, which finds authenticators by usage page and nothing else
+    /dev/hidraw4: vendor=0x1209, product=0x0001 (rp2350-yi26 exp168 a security key that knows nothing)
+>>> host: case init
+    {"case": "init", "device": "/dev/hidraw4", "reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_sha_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 8}}
+>>> host: case ping 8
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 8, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 8, "packets": 1, "data_head": "030a11181f262d34", "data_sha_len": 8}, "echo_matches": true}
+>>> host: case ping 57
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000003", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 57}, "echo_matches": true}
+>>> host: case ping 58
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 58, "sent_packets": 2, "reply": {"cid": "00000004", "cmd": 1, "len": 58, "packets": 2, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 58}, "echo_matches": true}
+>>> host: case ping 200
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 200, "sent_packets": 4, "reply": {"cid": "00000005", "cmd": 1, "len": 200, "packets": 4, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 200}, "echo_matches": true}
+>>> host: case ping 1024
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000006", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 1024}, "echo_matches": true}
+>>> host: case ping 2000
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 2000, "sent_packets": 34, "reply": {"cid": "00000007", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}}
+>>> host: case bad-seq
+    {"case": "bad-seq", "device": "/dev/hidraw4", "reply": {"cid": "00000008", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}}
+>>> host: case busy
+    {"case": "busy", "device": "/dev/hidraw4", "cid_a": "00000009", "cid_b": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}}
+>>> host: case truncated
+    {"case": "truncated", "device": "/dev/hidraw4", "cid": "0000000b", "reply": {"cid": "0000000b", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}}
+>>> host: case unknown
+    {"case": "unknown", "device": "/dev/hidraw4", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}}
+>>> host: case stray-cont
+    {"case": "stray-cont", "device": "/dev/hidraw4", "reply": null, "silence_expected": true}
+>>> host: fido2-token -I, which needs a CBOR command this device does not have
+    proto: 0x02
+    major: 0x00
+    minor: 0x01
+    build: 0x00
+    caps: 0x08 (nowink, nocbor, nomsg)
+>>> board: what it said while all of that happened
+    [    3037 ms] exp168 a security key that knows nothing
+    [    3097 ms]   NOT a security key: no cryptography, no credential, no secret.
+    [    3157 ms]   FIDO report descriptor: 34 bytes, hand-written, usage page 0xF1D0
+    [    3217 ms]   06d0f10901a1010920150026ff00750895
+    [    3277 ms]   4081020921150026ff00750895409102c0
+    [    3337 ms]   init packet carries 57 payload bytes, cont carries 59
+    [    3398 ms]   commands: INIT and PING. Everything else -> ERR_INVALID_CMD.
+    [    3458 ms]   max message 1024 bytes; longer -> ERR_INVALID_LEN.
+    [    3518 ms]   a transaction expires after 750 ms.
+    [    3578 ms] listening on the FIDO interface.
+    [    4940 ms] in  cid ffffffff INIT bcnt 8
+    [    5000 ms]   INIT: nonce 0102030405060708 -> cid 00000001
+    [    5144 ms] in  cid ffffffff INIT bcnt 8
+    [    5204 ms]   INIT: nonce 0102030405060708 -> cid 00000002
+    [    5272 ms] in  cid 00000002 PING bcnt 8
+    [    5332 ms]   PING: echoed 8 bytes in 1 packets
+    [    5416 ms] in  cid ffffffff INIT bcnt 8
+    [    5476 ms]   INIT: nonce 0102030405060708 -> cid 00000003
+    [    5544 ms] in  cid 00000003 PING bcnt 57
+    [    5604 ms]   PING: echoed 57 bytes in 1 packets
+    [    5684 ms] in  cid ffffffff INIT bcnt 8
+    [    5744 ms]   INIT: nonce 0102030405060708 -> cid 00000004
+    [    5812 ms] in  cid 00000004 PING bcnt 58
+    [    5872 ms]   assembled 58 bytes in 0 ms
+    [    5936 ms]   PING: echoed 58 bytes in 2 packets
+    [    6020 ms] in  cid ffffffff INIT bcnt 8
+    [    6080 ms]   INIT: nonce 0102030405060708 -> cid 00000005
+    [    6148 ms] in  cid 00000005 PING bcnt 200
+    [    6216 ms]   assembled 200 bytes in 7 ms
+    [    6288 ms]   PING: echoed 200 bytes in 4 packets
+    [    6368 ms] in  cid ffffffff INIT bcnt 8
+    [    6428 ms]   INIT: nonce 0102030405060708 -> cid 00000006
+    [    6496 ms] in  cid 00000006 PING bcnt 1024
+    [    6620 ms]   assembled 1024 bytes in 63 ms
+    [    6748 ms]   PING: echoed 1024 bytes in 18 packets
+    [    6836 ms] in  cid ffffffff INIT bcnt 8
+    [    6896 ms]   INIT: nonce 0102030405060708 -> cid 00000007
+    [    6964 ms] in  cid 00000007 PING bcnt 2000
+    [    7024 ms]   ERROR 0x03 to cid 00000007
+    [    7084 ms]   ignored: a continuation packet with no transaction
+    [    7144 ms]   ignored: a continuation packet with no transaction
+    [    7204 ms]   ignored: a continuation packet with no transaction
+    [    7264 ms]   ignored: a continuation packet with no transaction
+    [    7324 ms]   ignored: a continuation packet with no transaction
+    [    7384 ms]   ignored: a continuation packet with no transaction
+    [    7444 ms]   ignored: a continuation packet with no transaction
+    [    7504 ms]   ignored: a continuation packet with no transaction
+    [    7564 ms]   ignored: a continuation packet with no transaction
+    [    7624 ms]   ignored: a continuation packet with no transaction
+    [    7684 ms]   ignored: a continuation packet with no transaction
+    [    7744 ms]   ignored: a continuation packet with no transaction
+    [    7804 ms]   ignored: a continuation packet with no transaction
+    [    7864 ms]   ignored: a continuation packet with no transaction
+    [    7924 ms]   ignored: a continuation packet with no transaction
+    [    7984 ms]   ignored: a continuation packet with no transaction
+    [    8044 ms]   ignored: a continuation packet with no transaction
+    [    8104 ms]   ignored: a continuation packet with no transaction
+    [    8165 ms]   ignored: a continuation packet with no transaction
+    [    8225 ms]   ignored: a continuation packet with no transaction
+    [    8285 ms]   ignored: a continuation packet with no transaction
+    [    8345 ms]   ignored: a continuation packet with no transaction
+    [    8405 ms]   ignored: a continuation packet with no transaction
+    [    8465 ms]   ignored: a continuation packet with no transaction
+    [    8525 ms]   ignored: a continuation packet with no transaction
+    [    8585 ms]   ignored: a continuation packet with no transaction
+    [    8645 ms]   ignored: a continuation packet with no transaction
+    [    8705 ms]   ignored: a continuation packet with no transaction
+    [    8765 ms]   ignored: a continuation packet with no transaction
+    [    8825 ms]   ignored: a continuation packet with no transaction
+    [    8885 ms]   ignored: a continuation packet with no transaction
+    [    8945 ms]   ignored: a continuation packet with no transaction
+    [    9005 ms]   ignored: a continuation packet with no transaction
+    [    9065 ms] in  cid ffffffff INIT bcnt 8
+    [    9125 ms]   INIT: nonce 0102030405060708 -> cid 00000008
+    [    9192 ms] in  cid 00000008 PING bcnt 200
+    [    9252 ms]   ERROR 0x04 to cid 00000008
+    [    9396 ms] in  cid ffffffff INIT bcnt 8
+    [    9456 ms]   INIT: nonce 0102030405060708 -> cid 00000009
+    [    9524 ms] in  cid ffffffff INIT bcnt 8
+    [    9584 ms]   INIT: nonce 1111111111111111 -> cid 0000000a
+    [    9652 ms] in  cid 00000009 PING bcnt 200
+    [    9712 ms] in  cid 0000000a PING bcnt 8
+    [    9772 ms]   ERROR 0x06 to cid 0000000a
+    [    9920 ms] in  cid ffffffff INIT bcnt 8
+    [    9980 ms]   INIT: nonce 0102030405060708 -> cid 0000000b
+    [   10048 ms] in  cid 0000000b PING bcnt 200
+    [   10858 ms]   cid 0000000b timed out with 0/0 bytes
+    [   11000 ms] in  cid ffffffff INIT bcnt 8
+    [   11060 ms]   INIT: nonce 0102030405060708 -> cid 0000000c
+    [   11128 ms] in  cid 0000000c CBOR bcnt 1
+    [   11188 ms]   CBOR is not implemented here: ERR_INVALID_CMD
+    [   11336 ms] in  cid ffffffff INIT bcnt 8
+    [   11396 ms]   INIT: nonce 0102030405060708 -> cid 0000000d
+    [   11464 ms]   ignored: a continuation packet with no transaction
+    [   12352 ms] in  cid ffffffff INIT bcnt 8
+    [   12412 ms]   INIT: nonce 60de257a6a0624ce -> cid 0000000e
