@@ -337,6 +337,14 @@ PASS  the readings imply the board's verdict, derived off the board
   and the mailbox demonstrably live outside all eight — that is candidate 15 —
   but nothing here distinguishes `SRAM[8]` from `SRAM[9]` for the addresses they
   occupy, because the probe that would do it kills the core doing the probing.
+- **The SAU was not tried, and nobody here had read it yet.** Everything above
+  measures `ACCESSCTRL`'s granularity. The Armv8-M unit that actually attributes
+  memory went unexamined until [exp164](../exp164-the-wall-nobody-read/), and
+  [exp165](../exp165-who-gets-the-last-word/) later found its regions are
+  32-byte-aligned and any length — no four-byte floor. That does not overturn
+  anything here; it means **"the longest run one register can deny" is a fact
+  about this register**, and the same question asked of the SAU is open. exp165
+  did not probe the main 512 KB either, so it is open in the place that matters.
 - **`ACCESSCTRL.LOCK` is deliberately never written**, so every configuration
   here is one power cycle from ordinary — which also means **none of it survives
   a reset on its own**.

@@ -484,7 +484,23 @@ and changed the other two: `ACCESSCTRL.SRAM[n]` does not gate the *n*th 64 KB
 block. Banks 0–3 are word-interleaved across the lower 256 KB and banks 4–7
 across the upper, so **the longest run of consecutive addresses one register can
 deny is four bytes**. There is no >64 KB secret region, and no 64 KB one either.
-**This chip cannot hide an ML-DSA-65 private key while it is in use.**
+**ACCESSCTRL cannot hide an ML-DSA-65 private key while it is in use.**
+
+> **A correction, from [exp165](../exp165-who-gets-the-last-word/).** This
+> sentence said *this chip* until 2026-08-22, and the evidence under it is about
+> **ACCESSCTRL**. When exp162 measured the four-byte granularity, nobody in this
+> repository had read the SAU — [exp164](../exp164-the-wall-nobody-read/) was
+> two experiments away. exp165 then wrote a region and found that SAU regions
+> are **32-byte aligned and any length**, which is exactly the property
+> ACCESSCTRL lacks, and that one is honoured in SRAM banks 8 and 9.
+>
+> That does **not** make the wider claim false, and it is not evidence that a
+> 65,696-byte secret region is possible. exp165 deliberately never probed the
+> main 512 KB, because that is where its own stack and statics live, and an SAU
+> region refuses only Non-secure code — which needs the whole veneer subsystem
+> that ACCESSCTRL's `FORCE_CORE_NS` does without. **The SAU is not a cheaper
+> wall; it is a wider wall behind a much larger door, and nobody has opened it.**
+> What changes here is the scope of a sentence, not a measurement.
 
 [exp163](../exp163-how-long-is-a-secret-in-the-open/) then took the remedy —
 the only answer left — and measured it with a second core, demoted to

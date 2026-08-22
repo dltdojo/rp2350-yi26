@@ -79,6 +79,7 @@ Per experiment:
 | exp163 | Same as exp159, exp160 and exp162 — `cdc`, one log, nobody in the room. **RP2350 only**: bank 8, bank 9, `ACCESSCTRL` and `FORCE_CORE_NS` are all this chip's. Needs the TRNG for the seed, and the same `ml-dsa` build as exp160 on purpose, because it measures what that one leaves behind. |
 | exp164 | Same as exp163 — `cdc`, one log, nobody in the room, no cryptography. **Armv8-M**, not RP2350: the SAU and the `TT` instruction family are the architecture's, reached through `cortex-m` on stable. The `FORCE_CORE_NS` half is RP2350's. It reads the SAU and never configures it. |
 | exp165 | Same as exp164, and the first experiment here that **configures** the SAU rather than reading it. Any RP2350 board; the region it writes covers SRAM bank 9, which every RP2350 has. Two of its four probes come back overruled, and one of those is the bootrom — whose layout is this bootrom revision's, so another part may draw that line elsewhere. |
+| exp166 | Any RP2350 board. Verification needs only a public key, so nothing here depends on the SRAM banks, `ACCESSCTRL` or the SAU, and none of exp160–exp165's limits apply. The host half needs Python's `cryptography`. The bytes signed are inside the board's own image, so it works whatever that image is. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -438,7 +439,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -577,6 +578,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp163 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp164 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp165 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp166 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -721,6 +723,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp163-how-long-is-a-secret-in-the-open](./exp163-how-long-is-a-secret-in-the-open/) | 1 · board | A Non-secure core reads the whole 512 KB over and over while a Secure core signs: it sees the ML-DSA seed 32 times inside one 147 ms signature, nothing at all after a 3.4 ms wipe, and costs the signature it is watching 8.2% |
 | [exp164-the-wall-nobody-read](./exp164-the-wall-nobody-read/) | 1 · board | The SAU, under six experiments that never looked at it: enabled, eight regions, **one of them enabled** — region 7, the upper bootrom — so everything else defaults Secure, and the core `FORCE_CORE_NS` demotes reads the Secure SAU exactly as core 0 does. It is Non-secure to ACCESSCTRL and Secure to the architecture |
 | [exp165-who-gets-the-last-word](./exp165-who-gets-the-last-word/) | 1 · board | The first SAU region this repository writes, used as an instrument. Marked Non-secure it is **honoured and named** in SRAM and **silently overruled** in the bootrom and at `SIO_NS` — which is where exp164's open question was hiding. A Non-secure-Callable region is describable here, so exp156's unbuilt veneer has somewhere to live |
+| [exp166-whose-firmware-will-it-accept](./exp166-whose-firmware-will-it-accept/) | 1 · board | The first board here that **checks** a signature instead of producing one — the road's own question, eight experiments after it was asked. P-256 over a region of the board's own flash chosen at random after the firmware was built: accepted when the trusted key signed it, refused when a bit is flipped, when another key signed it, and when a valid signature **names a different region**. Verifying costs **97.7 ms** against exp159's 61 ms to sign |
 
 ## The browser track, finished
 
@@ -1456,8 +1459,13 @@ None of these is interrogated yet — a direction, not a schedule.
 
   So exp160's second idea to take away is right in its sentence and wrong in its
   number: the limit is not 64 KB and a 65,696-byte signing key is not a near
-  miss. **This chip cannot hide an ML-DSA-65 private key while it is in use**,
-  and that is now recorded rather than assumed.
+  miss. **ACCESSCTRL cannot hide an ML-DSA-65 private key while it is in use**,
+  and that is now recorded rather than assumed. That sentence said *this chip*
+  until [exp165](./exp165-who-gets-the-last-word/) narrowed it: exp162 ran
+  before anybody here had read the SAU, and SAU regions turn out to be
+  32-byte-aligned and any length. Whether that buys anything is untested — an
+  SAU region refuses only Non-secure code, and exp165 never probed the main
+  512 KB.
 
   It also says what exp159 was actually standing on. Bank 8 was chosen for a
   convenience — "core 1's stack stays in the main region" — and it was the only
@@ -1576,6 +1584,45 @@ None of these is interrogated yet — a direction, not a schedule.
 
   Nothing here executes, accesses, or enters Non-secure state, so **nothing was
   refused** — every line is what the SAU *says*. Needs 1.
+
+- **whose firmware will it accept** — the question this road is named after,
+  asked at last. [exp166](./exp166-whose-firmware-will-it-accept/) is **verified
+  on hardware**, six requests over CDC, and it is the **first board in this
+  repository to check a signature rather than produce one**.
+
+  Eight experiments went past that. exp159 and exp160 both sign and send the
+  result to a host to be verified, which is the right control for a signing
+  experiment and leaves this untouched — and the reason nobody noticed is worth
+  more than the code: **signing needs a secret and verifying needs only
+  integrity.** A verifier holds a *public* key. So exp162's four-byte
+  granularity, exp163's 63% rebuild cost and exp164's correction are all real
+  and **none of them applies here**, and this experiment sits back at the update
+  road's difficulty with no SAU, no `ACCESSCTRL` and no second core.
+
+  The host picks a random offset and length into the board's own flash *after*
+  the firmware was built — exp159's bar pointed the other way — signs those
+  bytes, and sends 64 bytes of P-256 over COBS. The board prints the SHA-256 of
+  what it read **before** its verdict and whether or not the answer is yes,
+  because a verifier that reports only pass or fail can be trusted and cannot be
+  checked; `verify.py` requires that digest to equal the host's.
+
+  Four ways of getting it wrong are refused, and **`wrong-region` is the one
+  worth arguing about**: a *valid* signature by the trusted key, over a
+  different region than the frame names. An implementation that asks "is this
+  signed by my key" passes it; only one that asks "over **these bytes**"
+  refuses. Nothing else in the matrix catches the difference.
+
+  **Verifying costs 97.7 ms against exp159's 61 ms to sign** — 1.6×, the right
+  way round for ECDSA and the opposite of the intuition that the side with no
+  secret is the cheap side. Hashing 11.6 KB of XIP costs 6.4 ms beside it.
+
+  Its ceiling is stated in its first section rather than its last: **the trusted
+  key is 65 bytes of ordinary flash and anybody who can write flash can replace
+  it.** The firmware reads `ACCESSCTRL.XIP_MAIN` (`0x000000ff`, open to every
+  master) and `check.sh` **finds the key inside the built `.uf2` by byte
+  search** and prints the offset. That is exp140's lesson one layer up: the gap
+  is no longer between reliability and authenticity but between checking a
+  signature and being unable to not check it. Needs 1.
 
 #### The channel, and why the framing decision comes with it
 

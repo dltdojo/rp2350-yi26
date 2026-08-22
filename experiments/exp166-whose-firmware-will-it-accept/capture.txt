@@ -1,0 +1,50 @@
+[    3037 ms] exp166 whose firmware will it accept
+[    3077 ms]   send COBS frames: [cmd=1][offset:4 LE][len:4 LE][sig:64] = 73 bytes
+[    3117 ms]   trusted key lives at 0x1000af04, 65 bytes
+[    3157 ms]   key = 0461788817a141903fb9ac46ab03fbde47181262ad410b690988a0b9d167cecd
+[    3197 ms]         eeed2d1f96defb9c8443fe1d569ef559a6c4bacb8c359a10579b120a63f09aadb0
+[    3237 ms]   ACCESSCTRL.XIP_MAIN = 0x000000ff
+[    3278 ms]   the key is in flash that register leaves open to every master - anybody who can
+[    3318 ms]   write flash can choose whose firmware this board accepts.
+[    3358 ms]   This check can be flashed over. Closing that needs a fuse.
+[    3398 ms] listening.
+>>> host: mode=good expect=ACCEPTED named=0x269e+11635 sha256=0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[    9956 ms] --- request #1: 73 byte frame, 1 discarded
+[    9996 ms]   region: offset=0x269e len=11635 (0x1000269e..0x10005411)
+[   10141 ms]   sha256 = 0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   10181 ms]   hashed in 6404 us, verified in 97705 us
+[   10221 ms]   ACCEPTED: signed by the key this board trusts
+[   10261 ms]   totals: 1 asked, 1 accepted, 0 refused, 0 malformed
+>>> host: mode=flip-sig expect=REFUSED named=0x269e+11635 sha256=0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   13182 ms] --- request #2: 73 byte frame, 1 discarded
+[   13222 ms]   region: offset=0x269e len=11635 (0x1000269e..0x10005411)
+[   13366 ms]   sha256 = 0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   13407 ms]   hashed in 6412 us, verified in 97615 us
+[   13447 ms]   REFUSED (cryptography): the signature is not this key's, over these bytes
+[   13487 ms]   totals: 2 asked, 1 accepted, 1 refused, 0 malformed
+>>> host: mode=wrong-key expect=REFUSED named=0x269e+11635 sha256=0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   16403 ms] --- request #3: 73 byte frame, 1 discarded
+[   16443 ms]   region: offset=0x269e len=11635 (0x1000269e..0x10005411)
+[   16587 ms]   sha256 = 0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   16627 ms]   hashed in 6404 us, verified in 97710 us
+[   16667 ms]   REFUSED (cryptography): the signature is not this key's, over these bytes
+[   16707 ms]   totals: 3 asked, 1 accepted, 2 refused, 0 malformed
+>>> host: mode=wrong-region expect=REFUSED named=0x5351+13961 sha256=5af14fa8200f4b7703caa0e02c943e0f0fef2d2f7007475fa719986628671f22
+[   19624 ms] --- request #4: 73 byte frame, 1 discarded
+[   19664 ms]   region: offset=0x5351 len=13961 (0x10005351..0x100089da)
+[   19810 ms]   sha256 = 5af14fa8200f4b7703caa0e02c943e0f0fef2d2f7007475fa719986628671f22
+[   19850 ms]   hashed in 7527 us, verified in 98387 us
+[   19890 ms]   REFUSED (cryptography): the signature is not this key's, over these bytes
+[   19930 ms]   totals: 4 asked, 1 accepted, 3 refused, 0 malformed
+>>> host: mode=truncated expect=REFUSED named=0x269e+11635 sha256=0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   22845 ms] --- request #5: 53 byte frame, 1 discarded
+[   22885 ms]   region: offset=0x269e len=11635 (0x1000269e..0x10005411)
+[   22925 ms]   REFUSED (plumbing): the frame is 53 bytes, not 73
+[   22965 ms]   totals: 5 asked, 1 accepted, 3 refused, 1 malformed
+>>> host: mode=good expect=ACCEPTED named=0x269e+11635 sha256=0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   26114 ms] --- request #6: 73 byte frame, 1 discarded
+[   26154 ms]   region: offset=0x269e len=11635 (0x1000269e..0x10005411)
+[   26299 ms]   sha256 = 0db2af7df8e173f5b03e5fa836720e9b81c7e54d2aff3b0c4e594f54a6098f8f
+[   26339 ms]   hashed in 6414 us, verified in 97702 us
+[   26379 ms]   ACCEPTED: signed by the key this board trusts
+[   26419 ms]   totals: 6 asked, 2 accepted, 3 refused, 1 malformed
