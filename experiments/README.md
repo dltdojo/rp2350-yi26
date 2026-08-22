@@ -80,6 +80,7 @@ Per experiment:
 | exp164 | Same as exp163 — `cdc`, one log, nobody in the room, no cryptography. **Armv8-M**, not RP2350: the SAU and the `TT` instruction family are the architecture's, reached through `cortex-m` on stable. The `FORCE_CORE_NS` half is RP2350's. It reads the SAU and never configures it. |
 | exp165 | Same as exp164, and the first experiment here that **configures** the SAU rather than reading it. Any RP2350 board; the region it writes covers SRAM bank 9, which every RP2350 has. Two of its four probes come back overruled, and one of those is the bootrom — whose layout is this bootrom revision's, so another part may draw that line elsewhere. |
 | exp166 | Any RP2350 board. Verification needs only a public key, so nothing here depends on the SRAM banks, `ACCESSCTRL` or the SAU, and none of exp160–exp165's limits apply. The host half needs Python's `cryptography`. The bytes signed are inside the board's own image, so it works whatever that image is. |
+| exp167 | Any RP2350 board, and it puts one into an A/B partition state. The aperture map it prints is `partimg`'s layout on this bootrom: `ATRANS0` is sixteen sectors from sector 1, and a different table gives a different window and the same lesson. The host half needs Python's `cryptography`. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -439,7 +440,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -579,6 +580,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp164 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp165 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp166 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp167 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -724,6 +726,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp164-the-wall-nobody-read](./exp164-the-wall-nobody-read/) | 1 · board | The SAU, under six experiments that never looked at it: enabled, eight regions, **one of them enabled** — region 7, the upper bootrom — so everything else defaults Secure, and the core `FORCE_CORE_NS` demotes reads the Secure SAU exactly as core 0 does. It is Non-secure to ACCESSCTRL and Secure to the architecture |
 | [exp165-who-gets-the-last-word](./exp165-who-gets-the-last-word/) | 1 · board | The first SAU region this repository writes, used as an instrument. Marked Non-secure it is **honoured and named** in SRAM and **silently overruled** in the bootrom and at `SIO_NS` — which is where exp164's open question was hiding. A Non-secure-Callable region is describable here, so exp156's unbuilt veneer has somewhere to live |
 | [exp166-whose-firmware-will-it-accept](./exp166-whose-firmware-will-it-accept/) | 1 · board | The first board here that **checks** a signature instead of producing one — the road's own question, eight experiments after it was asked. P-256 over a region of the board's own flash chosen at random after the firmware was built: accepted when the trusted key signed it, refused when a bit is flipped, when another key signed it, and when a valid signature **names a different region**. Verifying costs **97.7 ms** against exp159's 61 ms to sign |
+| [exp167-the-image-that-never-runs](./exp167-the-image-that-never-runs/) | 1 · board | exp166's gate joined to exp143's rollback: slot A refuses to hand the board over without a signature it trusts, and slot B — provisional — never buys, so the ROM takes it back. Two failures, two mechanisms, neither detecting anything. And the finding that decides the design: **a running image gets one 64 KiB QMI aperture onto its own partition**, and the apertures that would reach the other slot are sized to zero |
 
 ## The browser track, finished
 
@@ -1555,6 +1558,48 @@ None of these is interrogated yet — a direction, not a schedule.
   search** and prints the offset. That is exp140's lesson one layer up: the gap
   is no longer between reliability and authenticity but between checking a
   signature and being unable to not check it. Needs 1.
+
+- **the image that never runs** — exp166's gate joined to
+  [exp143](./exp143-the-image-that-is-never-bought/)'s rollback.
+  [exp167](./exp167-the-image-that-never-runs/) is **verified on hardware**, and
+  it is the first experiment here where a board decides whether to *start*
+  another firmware.
+
+  **"Verify, then buy" is the wrong shape**, and finding out why was the first
+  thing the interrogation produced: the obvious reading has the new image check
+  its own signature before calling `explicit_buy`, and whoever supplies the
+  image supplies that check. So the verification lives in the image that is
+  **already running**, and the experiment becomes two independent gates —
+  wrong signer, **slot B never runs**; right signer and a broken image, slot B
+  runs, never buys, and the ROM takes the board back. Neither gate detects
+  anything, which is why they compose.
+
+  Then it found the thing that decides the design, and it had been in front of
+  five experiments. `partimg` puts slot B at flash offset `0x11000` and exp143
+  passes exactly that address to `reboot(FLASH_UPDATE, …)` — **but exp143 hands
+  it to the ROM and never reads it.** Slot A read it, and the board stopped: USB
+  stayed enumerated, an open port with DTR asserted produced zero bytes in
+  fifteen seconds, closing it hung, and the 1200-baud touch could not get in. A
+  hand on BOOTSEL was the only way back — **the first this road has needed since
+  exp156**.
+
+  The cause is one sentence in a register description: a read past a QMI
+  aperture's `SIZE` is a **bus error**, which is a HardFault, which stops the
+  core, which answers no control requests. So the apertures are now printed on
+  every boot: **`ATRANS0` is a 64 KiB window onto slot A's own partition, and
+  `ATRANS1`–`ATRANS3`, which cover slot B, are sized to zero.** The ROM gives a
+  running image its own partition and closes the rest. `ATRANS4`–`ATRANS7` map a
+  second chip select this board does not have — the same address gives different
+  bytes on different boots, which no flash read does.
+
+  What the wedge bought is the guard: `addressable()` reads the aperture that
+  would answer an address and does the arithmetic **before** anything is
+  dereferenced, so slot B's real address is now refused in a sentence by a board
+  that is still talking. `check.sh` fails if a raw slice appears above that
+  check or if the guard is given a hard-coded limit.
+
+  So **slot A cannot verify slot B where it lies**, and the next experiment is
+  the update path a field device actually has: verify in RAM, then write. Needs 1.
 
 #### The channel, and why the framing decision comes with it
 

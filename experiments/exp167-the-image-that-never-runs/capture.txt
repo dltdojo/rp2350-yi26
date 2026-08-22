@@ -1,0 +1,69 @@
+>>> host: flashing the A/B pair and reading slot A's boot
+[      37 ms] exp167 up. slot A v1.0, permanent.
+[    3038 ms] I am slot A, version 1.0.
+[    3118 ms] IMAGE_TYPE in flash = 0x10210142 — TBYB clear (permanent)
+[    3118 ms] watchdog as the ROM left it: enable=true, time=0 us, load=0 us
+[    3198 ms] WATCHDOG.REASON.TIMER = 1 (a watchdog reset started this boot; the ROM's
+[    3198 ms]   own reboot uses the watchdog too, so this alone proves nothing about a trial)
+[    3278 ms] get_partition_table_info(PT_INFO) -> 4
+[    3358 ms] get_b_partition(0) -> 1 (1 = there is a B side to try)
+[    3438 ms]   ATRANS0: base=0x1 size=0x10 -> phys 0x001000..0x011000, 64 KiB
+[    3518 ms]   ATRANS1: base=0x11 size=0x0 -> phys 0x011000..0x011000, 0 KiB
+[    3598 ms]   ATRANS2: base=0x11 size=0x0 -> phys 0x011000..0x011000, 0 KiB
+[    3678 ms]   ATRANS3: base=0x11 size=0x0 -> phys 0x011000..0x011000, 0 KiB
+[    3758 ms]   ATRANS4: base=0x0 size=0x400 -> phys 0x000000..0x400000, 4096 KiB
+[    3838 ms]   ATRANS5: base=0x400 size=0x400 -> phys 0x400000..0x800000, 4096 KiB
+[    3918 ms]   ATRANS6: base=0x800 size=0x400 -> phys 0x800000..0xc00000, 4096 KiB
+[    3998 ms]   ATRANS7: base=0xc00 size=0x400 -> phys 0xc00000..0x1000000, 4096 KiB
+[    4079 ms]   a read past an aperture's SIZE is a bus error, not a wrong answer.
+[    4161 ms]   aperture 0, first sector   0x0000000 READ  a0b4ff790604035f28866a69
+[    4244 ms]   aperture 0, last sector    0x000f000 READ  f47a8ec3e9aff2318d896942
+[    4324 ms]   one sector past aperture 0 0x0010000 REFUSED: the region leaves the window this ...
+[    4404 ms]   slot B, where it lives     0x0011000 REFUSED: the region leaves the window this ...
+[    4486 ms]   the same, via aperture 4   0x1011000 READ  f9105a633895eb3cf01fb76e
+[    4566 ms]   slot B is at flash offset 0x11000, and nothing here can read it.
+[    4646 ms] the trusted key is 65 bytes at 0x1000bbfc.
+[    4726 ms] waiting for a signature over slot B. There is no timeout: an image
+[    4807 ms] nobody signed is an image that never runs.
+
+>>> host: mode=wrong-key expect=REFUSED trial=false virtual=0x6000 len=0x7000 physical=0x7000 sha256=1954ffcb42137978fd27457f11e90cc23cf3dc3fc9708f6abb5ccb40bb6b92e9
+[   11926 ms] --- request #1: 73 byte frame
+[   12006 ms]   region: offset=0x6000 len=28672 (0x10006000..)
+[   12208 ms]   sha256 = 1954ffcb42137978fd27457f11e90cc23cf3dc3fc9708f6abb5ccb40bb6b92e9
+[   12288 ms]   REFUSED (cryptography): the signature is not this key's, over these bytes
+[   12368 ms]   no trial. Slot B will not run.
+
+>>> host: mode=unreadable expect=REFUSED trial=false virtual=0x11000 len=0x1000 physical=0x11000 sha256=ad1709c12945013a68cfc09113f54cc35245291b2c5149bbafd913d1e0b36f69
+[   15075 ms] --- request #2: 73 byte frame
+[   15155 ms]   region: offset=0x11000 len=4096 (0x10011000..)
+[   15235 ms]   REFUSED (plumbing): the region leaves the window this image reads
+[   15315 ms]   no trial. Slot B will not run.
+
+>>> host: mode=truncated expect=REFUSED trial=false virtual=0x6000 len=0x7000 physical=0x7000 sha256=1954ffcb42137978fd27457f11e90cc23cf3dc3fc9708f6abb5ccb40bb6b92e9
+[   18233 ms] --- request #3: 53 byte frame
+[   18313 ms]   region: offset=0x6000 len=28672 (0x10006000..)
+[   18393 ms]   REFUSED (plumbing): the frame is 53 bytes, not 73
+[   18473 ms]   no trial. Slot B will not run.
+
+>>> host: mode=good expect=ACCEPTED trial=true virtual=0x6000 len=0x7000 physical=0x7000 sha256=1954ffcb42137978fd27457f11e90cc23cf3dc3fc9708f6abb5ccb40bb6b92e9
+[   21376 ms] --- request #4: 73 byte frame
+[   21456 ms]   region: offset=0x6000 len=28672 (0x10006000..)
+[   21658 ms]   sha256 = 1954ffcb42137978fd27457f11e90cc23cf3dc3fc9708f6abb5ccb40bb6b92e9
+[   21738 ms]   ACCEPTED: slot B is signed by the key this image trusts
+[   21818 ms]   starting the trial.
+[   21858 ms] reboot(FLASH_UPDATE, update_base=0x10011000) — see you on the other side
+
+>>> host: slot B is on trial now. It never buys, so the ROM takes the board back.
+[      75 ms] exp167 up. slot B v2.0, provisional (TBYB).
+[    3075 ms] I am slot B, version 2.0.
+[    3155 ms] IMAGE_TYPE in flash = 0x90210142 — TBYB set (provisional)
+[    3155 ms] watchdog as the ROM left it: enable=true, time=16775256 us, load=0 us
+[    3235 ms] WATCHDOG.REASON.TIMER = 1 (a watchdog reset started this boot; the ROM's
+[    3235 ms]   own reboot uses the watchdog too, so this alone proves nothing about a trial)
+[    3315 ms] this is a trial boot, and the clock above is the trial. Deciding in 6 s.
+[    9315 ms] watchdog now: enable=true, time=7459209 us (9316047 us gone since boot)
+[    9315 ms] not buying. Nothing is wrong with me — I simply never call it.
+[    9315 ms] From here the ROM takes the board back to the other slot.
+[   14316 ms] idle: slot B v2.0 — IMAGE_TYPE 0x90210142, TBYB set (unbought)
+
+>>> host: and the board is back on: exp167 slot A

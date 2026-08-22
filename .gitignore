@@ -22,3 +22,4 @@ target
 
 # Zips built by experiments/pack.sh — artifacts, not sources
 dist
+__pycache__/
