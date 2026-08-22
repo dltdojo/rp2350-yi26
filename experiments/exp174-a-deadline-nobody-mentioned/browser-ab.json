@@ -1,0 +1,51 @@
+{
+  "what": "exp174: the same source, the same board, the same browser, one flag",
+  "browser": "Google Chrome 151.0.7922.108 on Ubuntu",
+  "origin": "http://localhost:8174",
+  "arms": [
+    {
+      "board": {
+        "log": "board-C.log",
+        "arm": "silent",
+        "hold_ms": 25000,
+        "window_ms": 35000,
+        "pressed_at_ms": 2323,
+        "answered_at_ms": 25013,
+        "keepalives": 0,
+        "trng_us": 10909,
+        "credential_made": true
+      },
+      "browser": {
+        "step": "create",
+        "ok": false,
+        "ms": 116275,
+        "error": "NotAllowedError",
+        "message": "The operation either timed out or was not allowed. See: https://www.w3.org/TR/webauthn-2/#sctn-privacy-considerations-client."
+      }
+    },
+    {
+      "board": {
+        "log": "board-D.log",
+        "arm": "keepalive",
+        "hold_ms": 25000,
+        "window_ms": 35000,
+        "pressed_at_ms": 4367,
+        "answered_at_ms": 25005,
+        "keepalives": 249,
+        "trng_us": 10482,
+        "credential_made": true
+      },
+      "browser": {
+        "step": "create",
+        "ok": true,
+        "ms": 26240,
+        "id": "_PRYEXn7oX4OAc3cLiFe7KbcKyPh_XF_k3IzHztskB4WuL_ky_HyAXluTei8ZhWr",
+        "rawId": "_PRYEXn7oX4OAc3cLiFe7KbcKyPh_XF_k3IzHztskB4WuL_ky_HyAXluTei8ZhWr",
+        "type": "public-key",
+        "transports": [],
+        "attestationObject": "o2NmbXRmcGFja2VkZ2F0dFN0bXSiY2FsZyZjc2lnWEYwRAIgc6lWahm0sKj1qzevQDgJlxJZ6GpfsPA8XA8U2e0z-AYCIDwaTxgNxMwM16T0Sa4awiU77pggDJW17fmBEncwcTA2aGF1dGhEYXRhWLRJlg3liA6MaHQ0Fw9kdmBbj-SuuaKGMseZXPO6gx2XY0EAAAAAAAAAAAAAAAAAAAAAAAAAAAAw_PRYEXn7oX4OAc3cLiFe7KbcKyPh_XF_k3IzHztskB4WuL_ky_HyAXluTei8ZhWrpQECAyYgASFYIAMMBzHK6bcriigpuSiWXLW-LU3wVE927YoICTN2K_QWIlggFbjRf-7Oyi4mv2llF1irdPfDoCydf8msqWUoQwYojSo",
+        "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiYmpjUHU1WldVcEtGa2FILU5VcmxpeXN0RkJHak5vZnp3ampES3BkaXBpayIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODE3NCIsImNyb3NzT3JpZ2luIjpmYWxzZX0"
+      }
+    }
+  ]
+}

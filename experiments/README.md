@@ -87,6 +87,7 @@ Per experiment:
 | exp171 | Same as exp168, and the first on this road with cryptography. Builds twice — `EXP171_UP=none` runs unattended, `EXP171_UP=button` needs a finger once. Holding BOOTSEL down before the request is easier than catching the ten-second window and works identically. |
 | exp172 | Same as exp171, and the same two builds. Each `ga-` case registers a fresh credential first, so the round trip is a round trip rather than a replay of something recorded earlier. |
 | exp173 | Same as exp171, and driven by `libfido2`'s own `fido2-cred` and `fido2-assert` rather than by a client written here. Two transcripts, and the pair is the experiment: one build asks nobody, one is pressed. |
+| exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -447,7 +448,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -593,6 +594,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp171 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp172 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp173 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp174 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -745,6 +747,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp171-a-credential-nobody-asked-for](./exp171-a-credential-nobody-asked-for/) | 2 · a moment | A real WebAuthn credential: P-256, self-attested, verified off the board by a different library with a bit flipped first. The private key is **derived and never stored** — 44.5 ms to derive, 53.8 ms to sign. User presence is two builds because **the bit that says a person was there is the device's own word and nothing checks it** |
 | [exp172-the-same-key-twice](./exp172-the-same-key-twice/) | 2 · a moment | `getAssertion`: the board re-derives a private key **it never stored** from a credential ID handed back to it, and the assertion verifies against the public key registration gave out. A forged tag, a credential from another relying party, and one with no tag at all are all refused **before anything is derived** |
 | [exp173-a-client-that-is-not-ours](./exp173-a-client-that-is-not-ours/) | 2 · a moment | `libfido2` drives the board end to end — its CBOR, not ours — and makes, verifies and uses a credential. **`FIDO_2_0` is earned rather than claimed.** The one thing it refused for five experiments turns out to be `UP=0`, not the cryptography: press the button and the same signature verifies |
+| [exp174-a-deadline-nobody-mentioned](./exp174-a-deadline-nobody-mentioned/) | 2 · a moment | A browser registers and logs in with this board, unchanged — and then **gives up on it**. Two findings: this firmware had been taking 11–21 s to make a credential because of [exp109](./exp109-hardware-trng/)'s constant, which every check called correct; and a silent device has about twenty seconds before Chrome stops listening, which one `CTAPHID_KEEPALIVE` packet per 100 ms pushes past |
 
 ## The browser track, finished
 
@@ -2085,6 +2088,50 @@ None of these is interrogated yet — a direction, not a schedule.
   bare string costs, and the commands it names now exist. `getInfo` also grows an
   options map whose `up` follows the build, because a capability a build does not
   have is one it must not announce. Needs 2.
+
+- **a deadline nobody mentioned** — a browser, which is the first client on
+  this road that does not wait as long as it is told.
+  [exp174](./exp174-a-deadline-nobody-mentioned/) is **verified on hardware**,
+  and what it set out to measure is not what it found. exp173's firmware,
+  unchanged, registered and logged in against Chrome on the first attempt, on a
+  page served from `http://localhost` and on `webauthn.io`. **Nothing was
+  missing.** What the browser did was give up, sometimes, on a device that was
+  working.
+
+  **The first finding is this repository's own.** Since exp171 every credential
+  here has taken eleven to twenty-one seconds to make, and derive plus sign
+  account for a tenth of a second of it. The rest was one untimed statement:
+  thirty-two bytes out of the TRNG at `embassy-rp`'s default `sample_count` of
+  25. [exp109](./exp109-hardware-trng/) measured that years of experiments ago
+  and wrote down that *something which always works but sometimes takes half a
+  minute is harder to find than something that breaks*. exp171, exp172, exp173
+  and exp174's own first builds all used the default; every credential they made
+  was correct, every signature verified, and every `check.sh` was green. **What
+  found it was somebody else's client, and it was not looking.** At exp109's
+  number the same fill takes 10.5 ms.
+
+  The second is about the protocol, and it is an A/B with one variable. The
+  board's own clock decides when the answer leaves, so both arms answer at the
+  same moment and differ only in whether `CTAPHID_KEEPALIVE` goes out while it
+  waits:
+
+  ```text
+    silent,    answered at 25013 ms,   0 keepalives  ->  NotAllowedError
+    keepalive, answered at 25005 ms, 249 keepalives  ->  accepted
+  ```
+
+  Both boards built a correct credential with the user-presence bit set. Only
+  one still had somebody listening. Below the ceiling the packet changes
+  nothing — nine seconds of pure silence was accepted by the same browser — so
+  **it is not what makes this work, it is what makes it keep working when a
+  person is slow.** `CTAPHID_CANCEL` arrives from the same place and exp173 was
+  answering `ERR_INVALID_CMD` to it while continuing to sign.
+
+  **And the instrument had to be rebuilt twice.** The first two attempts asked a
+  person to count to nine and a half, and then to hold a button for half a
+  minute; both put the measurement's precision inside a human reflex. The press
+  is now latched at any moment in the window and the answer leaves on the
+  board's clock, so the person only has to press. Needs 2.
 
 - **where the wrapping key comes from** — the [identity road](#the-identity-road)
   arriving. Until it does, this road uses a compiled-in test key and says what

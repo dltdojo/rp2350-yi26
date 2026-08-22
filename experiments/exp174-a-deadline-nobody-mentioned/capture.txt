@@ -1,0 +1,175 @@
+>>> host: building the three firmwares
+>>> host: flashing button + keepalive
+>>> host: case keepalive (keepalive): counting what arrives while it waits
+    {"case": "keepalive", "device": "/dev/hidraw4", "watched_s": 2.0, "keepalives_seen": 16, "other_packets": [], "keepalives_per_s": 8.0}
+>>> host: case cancel (keepalive): withdraw the request mid-wait
+    {"case": "cancel", "device": "/dev/hidraw4", "stale_packets_discarded": 1, "watched_s": 1.0, "keepalives_seen": 6, "other_packets": [], "keepalives_per_s": 6.0, "reply": {"cid": "00000002", "cmd": 16, "len": 1, "packets": 1, "data_head": "2d", "data_sha_len": 1}, "status": 45, "status_is_keepalive_cancel": true}
+>>> host: the board's own account, keepalive
+    [    3037 ms] exp174 a deadline nobody mentioned
+    [    3097 ms]   a security key with one test secret, and it says so on every line.
+    [    3157 ms]   FIDO report descriptor: 34 bytes, hand-written, usage page 0xF1D0
+    [    3217 ms]   06d0f10901a1010920150026ff00750895
+    [    3277 ms]   4081020921150026ff00750895409102c0
+    [    3338 ms]   init packet carries 57 payload bytes, cont carries 59
+    [    3398 ms]   commands: INIT, PING, CBOR. Everything else -> ERR_INVALID_CMD.
+    [    3458 ms]   while waiting for a person: KEEPALIVE every 100 ms, and CANCEL is heard
+    [    3518 ms]   a held button is not answered before 0 ms, and the window is 10000 ms
+    [    3578 ms]   CTAP2: getInfo, makeCredential, getAssertion. ES256, self-attested.
+    [    3638 ms]   user presence: button (UP bit is never set without asking)
+    [    3698 ms]   device secret is a compiled-in TEST key, 32 bytes at 0x10010bf8
+    [    3758 ms]   versions: none claimed (1 entries)
+    [    3818 ms]   getInfo body is 44 bytes: a40181684649444f5f325f30035000000000000000000000000000...
+    [    3878 ms]   max message 1024 bytes; longer -> ERR_INVALID_LEN.
+    [    3938 ms]   a transaction expires after 750 ms.
+    [    3998 ms] listening on the FIDO interface.
+    [    7935 ms] in  cid ffffffff INIT bcnt 8
+    [    7995 ms]   INIT: nonce 0102030405060708 -> cid 00000001
+    [    8063 ms] in  cid 00000001 CBOR bcnt 114
+    [    8123 ms]   assembled 114 bytes in 0 ms
+    [    8183 ms]   makeCredential, and it parsed:
+    [    8243 ms]     rp.id      = "example.test"
+    [    8304 ms]     user.id    = 4 bytes
+    [    8364 ms]     clientData = 0001020304050607 (32 bytes)
+    [    8424 ms]     alg        = -7  (ES256)
+    [    8484 ms]   waiting for BOOTSEL. KEEPALIVE every 100 ms while this runs.
+    [   22187 ms]   nobody pressed anything; the window closed at 13643 ms, 18 keepalives sent
+    [   22307 ms] in  cid ffffffff INIT bcnt 8
+    [   22367 ms]   INIT: nonce 0102030405060708 -> cid 00000002
+    [   22435 ms] in  cid 00000002 CBOR bcnt 114
+    [   22495 ms]   assembled 114 bytes in 0 ms
+    [   22556 ms]   makeCredential, and it parsed:
+    [   22616 ms]     rp.id      = "example.test"
+    [   22676 ms]     user.id    = 4 bytes
+    [   22736 ms]     clientData = 0001020304050607 (32 bytes)
+    [   22796 ms]     alg        = -7  (ES256)
+    [   22856 ms]   waiting for BOOTSEL. KEEPALIVE every 100 ms while this runs.
+    [   23523 ms]   the client cancelled at 607 ms, 6 keepalives sent
+>>> host: flashing button + silent
+>>> host: case keepalive (silent): counting what arrives while it waits
+    {"case": "keepalive", "device": "/dev/hidraw4", "watched_s": 2.0, "keepalives_seen": 0, "other_packets": [], "keepalives_per_s": 0.0}
+>>> host: case cancel (silent): withdraw the request mid-wait
+    {"case": "cancel", "device": "/dev/hidraw4", "watched_s": 1.0, "keepalives_seen": 0, "other_packets": [], "keepalives_per_s": 0.0, "reply": {"cid": "00000002", "cmd": 16, "len": 1, "packets": 1, "data_head": "2d", "data_sha_len": 1}, "status": 45, "status_is_keepalive_cancel": true}
+>>> host: the board's own account, silent
+    [    3037 ms] exp174 a deadline nobody mentioned
+    [    3097 ms]   a security key with one test secret, and it says so on every line.
+    [    3157 ms]   FIDO report descriptor: 34 bytes, hand-written, usage page 0xF1D0
+    [    3217 ms]   06d0f10901a1010920150026ff00750895
+    [    3277 ms]   4081020921150026ff00750895409102c0
+    [    3338 ms]   init packet carries 57 payload bytes, cont carries 59
+    [    3398 ms]   commands: INIT, PING, CBOR. Everything else -> ERR_INVALID_CMD.
+    [    3458 ms]   while waiting for a person: silence (exp173's behaviour), and CANCEL is heard
+    [    3518 ms]   a held button is not answered before 0 ms, and the window is 10000 ms
+    [    3578 ms]   CTAP2: getInfo, makeCredential, getAssertion. ES256, self-attested.
+    [    3638 ms]   user presence: button (UP bit is never set without asking)
+    [    3698 ms]   device secret is a compiled-in TEST key, 32 bytes at 0x10010bb0
+    [    3758 ms]   versions: none claimed (1 entries)
+    [    3818 ms]   getInfo body is 44 bytes: a40181684649444f5f325f30035000000000000000000000000000...
+    [    3878 ms]   max message 1024 bytes; longer -> ERR_INVALID_LEN.
+    [    3938 ms]   a transaction expires after 750 ms.
+    [    3998 ms] listening on the FIDO interface.
+    [    7936 ms] in  cid ffffffff INIT bcnt 8
+    [    7996 ms]   INIT: nonce 0102030405060708 -> cid 00000001
+    [    8063 ms] in  cid 00000001 CBOR bcnt 114
+    [    8124 ms]   assembled 114 bytes in 0 ms
+    [    8184 ms]   makeCredential, and it parsed:
+    [    8244 ms]     rp.id      = "example.test"
+    [    8304 ms]     user.id    = 4 bytes
+    [    8364 ms]     clientData = 0001020304050607 (32 bytes)
+    [    8424 ms]     alg        = -7  (ES256)
+    [    8484 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
+    [   18558 ms]   nobody pressed anything; the window closed at 10013 ms, 0 keepalives sent
+    [   22224 ms] in  cid ffffffff INIT bcnt 8
+    [   22284 ms]   INIT: nonce 0102030405060708 -> cid 00000002
+    [   22352 ms] in  cid 00000002 CBOR bcnt 114
+    [   22412 ms]   assembled 114 bytes in 0 ms
+    [   22472 ms]   makeCredential, and it parsed:
+    [   22532 ms]     rp.id      = "example.test"
+    [   22592 ms]     user.id    = 4 bytes
+    [   22652 ms]     clientData = 0001020304050607 (32 bytes)
+    [   22712 ms]     alg        = -7  (ES256)
+    [   22772 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
+    [   23364 ms]   the client cancelled at 531 ms, 0 keepalives sent
+>>> host: flashing the unattended build, to time the TRNG
+>>> host: 32 bytes of TRNG, five times
+    [    8776 ms]   32 bytes of TRNG took 10670 us
+    [    9944 ms]   32 bytes of TRNG took 10723 us
+    [   11832 ms]   32 bytes of TRNG took 10923 us
+    [   13004 ms]   32 bytes of TRNG took 10283 us
+    [   14172 ms]   32 bytes of TRNG took 10416 us
+
+>>> host: ./ab.sh — the browser half. Chrome 151.0.7922.108 on Ubuntu,
+>>>       page served from http://localhost:8174 by serve.py
+
+>>> host: arm one — keepalive=off, floor 25000 ms, window 35000 ms
+[   59944 ms] in  cid ffffffff INIT bcnt 8
+[   60004 ms]   INIT: nonce 590df8e321e171f9 -> cid 00000001
+[   60072 ms] in  cid 00000001 CBOR bcnt 1
+[   60132 ms]   getInfo: 44 bytes of canonical CBOR
+[   60200 ms] in  cid 00000001 CBOR bcnt 151
+[   60264 ms]   assembled 151 bytes in 3 ms
+[   60324 ms]   makeCredential, and it parsed:
+[   60385 ms]     rp.id      = "localhost"
+[   60445 ms]     user.id    = 16 bytes
+[   60505 ms]     clientData = 7c2dd8d1810b3043 (32 bytes)
+[   60565 ms]     alg        = -7  (ES256)
+[   60625 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
+[   85698 ms]   pressed at 2323 ms, answered at 25013 ms, 0 keepalives sent
+[   85869 ms]   32 bytes of TRNG took 10909 us
+[   85929 ms]   credential made: authData 180 B (COSE key 77 B), response 277 B
+[   85989 ms]   derive 44563 us, sign 53854 us, UP bit 1
+[   86049 ms]   the private key is not stored; it was derived and is gone.
+    the page: create ok=false after 116275 ms — NotAllowedError
+    (the dialog never closed on its own; it was cancelled)
+
+>>> host: arm two — the same source, the same floor, keepalive=on
+[   44556 ms] in  cid ffffffff INIT bcnt 8
+[   44617 ms]   INIT: nonce cf612865478d660d -> cid 00000001
+[   44684 ms] in  cid 00000001 CBOR bcnt 1
+[   44745 ms]   getInfo: 44 bytes of canonical CBOR
+[   44812 ms] in  cid 00000001 CBOR bcnt 151
+[   44876 ms]   assembled 151 bytes in 3 ms
+[   44937 ms]   makeCredential, and it parsed:
+[   44997 ms]     rp.id      = "localhost"
+[   45057 ms]     user.id    = 16 bytes
+[   45117 ms]     clientData = 008e01d2e51c0730 (32 bytes)
+[   45177 ms]     alg        = -7  (ES256)
+[   45237 ms]   waiting for BOOTSEL. KEEPALIVE every 100 ms while this runs.
+[   70303 ms]   pressed at 4367 ms, answered at 25005 ms, 249 keepalives sent
+[   70473 ms]   32 bytes of TRNG took 10482 us
+[   70533 ms]   credential made: authData 180 B (COSE key 77 B), response 275 B
+[   70593 ms]   derive 44568 us, sign 53881 us, UP bit 1
+[   70653 ms]   the private key is not stored; it was derived and is gone.
+[  520520 ms] in  cid ffffffff INIT bcnt 8
+[  520580 ms]   INIT: nonce 20fa570cda71d857 -> cid 00000002
+[  520648 ms] in  cid 00000002 CBOR bcnt 1
+[  520708 ms]   getInfo: 44 bytes of canonical CBOR
+    the page: create ok=true after 26240 ms
+
+>>> host: python3 verify.py
+    exp174 — the two arms
+      ok   the file holds both arms  — found: keepalive, silent
+    
+    the two arms differ by one thing
+      ok   both answered on the same floor  — 25000 ms and 25000 ms
+      ok   the silent arm sent no keepalives  — 0
+      ok   the keepalive arm sent some  — 249
+      ok   and answered within half a second of each other  — 25013 ms and 25005 ms
+    
+    both boards did the work; only one client was still there
+      ok   the silent arm built a credential too  — it was not a refusal
+      ok   so did the keepalive arm
+    
+    the implication, in both directions
+      ok   silent past the ceiling -> the browser refused  — NotAllowedError
+      ok   keepalive past the ceiling -> the browser accepted  — 26240 ms
+    
+    and the credential the browser accepted, checked again here
+      ok   the attestation object is in the file
+      ok   fmt is packed  — packed
+      ok   the rpIdHash is this origin's  — localhost
+      ok   the user-presence bit is set  — flags 0x41
+      ok   attested credential data is present  — flags 0x41
+      ok   the self attestation verifies  — 70 byte signature
+      ok   and one flipped bit breaks it
+    
+    every check passed

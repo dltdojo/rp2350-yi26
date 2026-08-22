@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0
+
+     exp174's relying party. It is deliberately the smallest one that is real:
+     a challenge, a credential, and an assertion, with every option a browser
+     might disagree about exposed as a control rather than hidden in a default.
+
+     It posts every result back to serve.py. That is the point of it. A
+     browser's answer would otherwise have to be read off a screen, and this
+     repository's rule is that a finding lives in a file somebody else can
+     re-check — which verify.py then does, redoing the cryptography from these
+     same bytes.
+-->
+<meta charset="utf-8">
+<title>exp174 probe — a browser talking to the board</title>
+<style>
+ body { font: 15px/1.5 monospace; max-width: 60em; margin: 2em auto; padding: 0 1em; }
+ button { font: inherit; padding: .6em 1.2em; margin-right: .5em; }
+ pre { background: #f4f4f4; padding: 1em; overflow-x: auto; white-space: pre-wrap; }
+ .n { color: #666; }
+</style>
+<h1>exp174 probe</h1>
+<p class="n">origin <b id="origin"></b> — the only non-https origin a browser
+lets call WebAuthn. Every result here is also posted back to the server, so the
+transcript is a file and not a screenshot.</p>
+
+<p>
+  <label>attestation
+    <select id="att">
+      <option value="none" selected>none</option>
+      <option value="direct">direct</option>
+    </select>
+  </label>
+  <label>residentKey
+    <select id="rk">
+      <option value="discouraged" selected>discouraged</option>
+      <option value="preferred">preferred</option>
+      <option value="required">required</option>
+    </select>
+  </label>
+  <label>userVerification
+    <select id="uv">
+      <option value="discouraged" selected>discouraged</option>
+      <option value="preferred">preferred</option>
+      <option value="required">required</option>
+    </select>
+  </label>
+</p>
+<p>
+  <button id="reg">register</button>
+  <button id="log">login</button>
+  <button id="clr">clear</button>
+</p>
+<pre id="out">ready.</pre>
+
+<script>
+const $ = id => document.getElementById(id);
+$("origin").textContent = location.origin;
+const b64 = b => btoa(String.fromCharCode(...new Uint8Array(b)))
+  .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const rand = n => crypto.getRandomValues(new Uint8Array(n));
+let saved = null;   // the credential id from the last successful register
+
+function say(o) {
+  $("out").textContent += "\n" + JSON.stringify(o, null, 2);
+  navigator.sendBeacon("/transcript", new Blob([JSON.stringify(o)],
+    {type: "application/json"}));
+}
+
+async function timed(what, fn) {
+  const t0 = performance.now();
+  try {
+    const r = await fn();
+    say({step: what, ok: true, ms: Math.round(performance.now() - t0), ...r});
+  } catch (e) {
+    // The name is the finding. A browser reduces every authenticator refusal
+    // to a handful of DOMException names, and which one it picks is what this
+    // experiment is here to record.
+    say({step: what, ok: false, ms: Math.round(performance.now() - t0),
+         error: e.name, message: String(e.message)});
+  }
+}
+
+$("reg").onclick = () => timed("create", async () => {
+  const c = await navigator.credentials.create({publicKey: {
+    challenge: rand(32),
+    rp: {name: "exp174 probe"},
+    user: {id: rand(16), name: "somebody", displayName: "somebody"},
+    pubKeyCredParams: [{type: "public-key", alg: -7}],
+    timeout: 60000,
+    attestation: $("att").value,
+    authenticatorSelection: {
+      authenticatorAttachment: "cross-platform",
+      residentKey: $("rk").value,
+      userVerification: $("uv").value,
+    },
+    excludeCredentials: [],
+  }});
+  saved = c.rawId;
+  return {
+    id: c.id,
+    rawId: b64(c.rawId),
+    type: c.type,
+    transports: c.response.getTransports ? c.response.getTransports() : null,
+    attestationObject: b64(c.response.attestationObject),
+    clientDataJSON: b64(c.response.clientDataJSON),
+  };
+});
+
+$("log").onclick = () => timed("get", async () => {
+  if (!saved) throw new Error("register first — nothing to sign with");
+  const a = await navigator.credentials.get({publicKey: {
+    challenge: rand(32),
+    rpId: location.hostname,
+    allowCredentials: [{type: "public-key", id: saved, transports: ["usb"]}],
+    userVerification: $("uv").value,
+    timeout: 60000,
+  }});
+  return {
+    id: a.id,
+    authenticatorData: b64(a.response.authenticatorData),
+    clientDataJSON: b64(a.response.clientDataJSON),
+    signature: b64(a.response.signature),
+    userHandle: a.response.userHandle ? b64(a.response.userHandle) : null,
+  };
+});
+
+$("clr").onclick = () => { $("out").textContent = "ready."; };
+</script>

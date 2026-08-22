@@ -59,7 +59,17 @@ Measured on a real Pico 2, asking for 64 bits each time:
 | **1000** (used here) | 5.0 – 6.3 ms, every time |
 
 Those are three consecutive fills in the first row, not a worst case dug out
-of a long run. Build with `--features upstream-default` and watch it happen.
+of a long run.
+
+> **This was walked into again, sixty-five experiments later.**
+> [exp174](../exp174-a-deadline-nobody-mentioned/) found exp171, exp172 and
+> exp173 all building their TRNG with `Config::default()`, and measured 32
+> bytes at 15.4 s, 21.4 s and 6.9 s. Every credential those experiments made
+> was correct and every signature verified, so none of their checks could see
+> it — the paragraph below said exactly why, and it was still not enough.
+> **What found it was a browser giving up.** exp174's `check.sh` now asserts
+> this constant, which is a check that only exists because the warning alone
+> did not work. Build with `--features upstream-default` and watch it happen.
 
 Two things about that row are worth saying plainly. It is **not a hang and not
 a crash** — the firmware is fine, the heartbeat never misses a beat, and every

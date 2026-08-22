@@ -1,0 +1,8 @@
+# Cargo configuration for this crate only. Identical to exp103's — see the
+# comments there for why each line exists.
+
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[target.thumbv8m.main-none-eabihf]
+rustflags = ["-C", "link-arg=-Tlink.x"]
