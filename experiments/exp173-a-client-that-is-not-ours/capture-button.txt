@@ -1,0 +1,34 @@
+>>> host: fido2-token -I, which is libfido2 reading what the device says it can do
+    proto: 0x02
+    major: 0x00
+    minor: 0x01
+    build: 0x00
+    caps: 0x0c (nowink, cbor, nomsg)
+    version strings: FIDO_2_0
+    aaguid: 00000000000000000000000000000000
+    options: nork, up
+    fwversion: 0x0
+    maxmsgsiz: 1024
+    maxcredcntlst: 0
+    maxcredlen: 0
+    maxlargeblob: 0
+    pin retries: undefined
+    pin change required: false
+    uv retries: undefined
+>>> host: fido2-cred -M: libfido2 makes a credential
+    made a credential, 6 lines out
+    fmt=packed authData=180B (cbor header 58b4)
+    flags=0x41 UP=True UV=False AT=True ED=False
+    rpIdHash matches example.test: True
+    aaguid all zero: True  credential id: 48B
+>>> host: fido2-cred -V: libfido2 verifies the self attestation it was just handed
+    verified, and wrote the public key out
+>>> host: fido2-assert -G: libfido2 asks for an assertion with that credential
+    got an assertion
+    authData=37B (cbor header 5825)
+    flags=0x01 UP=True UV=False AT=False ED=False
+    signCount=0
+>>> host: and the same assertion checked against the key this repository extracted
+    credential echoed: True
+    signature verifies against the registered key: True
+    a flipped bit is rejected: True

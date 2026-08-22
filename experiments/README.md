@@ -86,6 +86,7 @@ Per experiment:
 | exp170 | Same as exp168. `crates/cbor`'s twenty tests need no board at all, and eleven of them are about input nobody well-behaved sends. |
 | exp171 | Same as exp168, and the first on this road with cryptography. Builds twice — `EXP171_UP=none` runs unattended, `EXP171_UP=button` needs a finger once. Holding BOOTSEL down before the request is easier than catching the ten-second window and works identically. |
 | exp172 | Same as exp171, and the same two builds. Each `ga-` case registers a fresh credential first, so the round trip is a round trip rather than a replay of something recorded earlier. |
+| exp173 | Same as exp171, and driven by `libfido2`'s own `fido2-cred` and `fido2-assert` rather than by a client written here. Two transcripts, and the pair is the experiment: one build asks nobody, one is pressed. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -446,7 +447,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -591,6 +592,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp170 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp171 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp172 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp173 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -742,6 +744,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp170-a-map-somebody-else-wrote](./exp170-a-map-somebody-else-wrote/) | 1 · board | exp169 wrote a CBOR map; this one **reads** one, and it comes from the other end of the cable. A `makeCredential` request is read in full and refused with **understood-and-denied** rather than do-not-know-this-command, and six malformed ones — including a byte string whose length runs past the message — draw three other statuses. Still no cryptography |
 | [exp171-a-credential-nobody-asked-for](./exp171-a-credential-nobody-asked-for/) | 2 · a moment | A real WebAuthn credential: P-256, self-attested, verified off the board by a different library with a bit flipped first. The private key is **derived and never stored** — 44.5 ms to derive, 53.8 ms to sign. User presence is two builds because **the bit that says a person was there is the device's own word and nothing checks it** |
 | [exp172-the-same-key-twice](./exp172-the-same-key-twice/) | 2 · a moment | `getAssertion`: the board re-derives a private key **it never stored** from a credential ID handed back to it, and the assertion verifies against the public key registration gave out. A forged tag, a credential from another relying party, and one with no tag at all are all refused **before anything is derived** |
+| [exp173-a-client-that-is-not-ours](./exp173-a-client-that-is-not-ours/) | 2 · a moment | `libfido2` drives the board end to end — its CBOR, not ours — and makes, verifies and uses a credential. **`FIDO_2_0` is earned rather than claimed.** The one thing it refused for five experiments turns out to be `UP=0`, not the cryptography: press the button and the same signature verifies |
 
 ## The browser track, finished
 
@@ -2064,6 +2067,24 @@ None of these is interrogated yet — a direction, not a schedule.
   reads the loop out of the source and fails if a `return` appears in it. Not
   exploitable at 100 ms an assertion, almost certainly — and the fix is one
   character, so the argument never has to be made. Needs 2.
+
+- **a client that is not ours** — `libfido2` driving the board instead of a
+  client written here. [exp173](./exp173-a-client-that-is-not-ours/) is
+  **verified on hardware**: `fido2-cred` makes a credential, **verifies the self
+  attestation**, `fido2-assert` uses it, and the assertion verifies against the
+  key the credential handed over.
+
+  **And it names the refusal five experiments walked past.** `fido2-cred -V` had
+  been returning `FIDO_ERR_INVALID_PARAM`, which reads as "your attestation is
+  malformed" and meant "your user was not present" — the same firmware, the same
+  client, one press of BOOTSEL, and it verifies. The signature was always valid.
+  `verify.py`'s core is that implication in both directions, so a transcript
+  showing `UP=0` accepted or `UP=1` refused fails.
+
+  `FIDO_2_0` is **earned** here rather than claimed: exp169 measured what the
+  bare string costs, and the commands it names now exist. `getInfo` also grows an
+  options map whose `up` follows the build, because a capability a build does not
+  have is one it must not announce. Needs 2.
 
 - **where the wrapping key comes from** — the [identity road](#the-identity-road)
   arriving. Until it does, this road uses a compiled-in test key and says what
