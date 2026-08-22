@@ -209,6 +209,17 @@ that link something worth carrying — the temperature sensor in
 feeding the later transport experiments. The test is whether it makes the
 USB work mean more, not whether it is a peripheral.
 
+Some questions take more than one experiment to answer, and the answer then
+belongs in one place rather than spread across six READMEs:
+
+- [`docs/can-this-chip-keep-a-secret.md`](./docs/can-this-chip-keep-a-secret.md)
+  — eight experiments asking whether an RP2350 can hold a private key its own
+  firmware cannot read, and the answer **with its scope attached**. Short
+  version: yes for a small key, no for a post-quantum one while it is in use,
+  and the mitigation that works is measured rather than recommended. It ends on
+  the mistake worth carrying, which is that the road those experiments belong to
+  was named after a question none of them was asking.
+
 ## Toolchain
 
 ```sh

@@ -205,8 +205,21 @@ import json, sys
 d = json.load(sys.stdin)
 print(">>> host: mode=%s expect=%s named=%#x+%d sha256=%s"
       % (d["mode"], d["expect"], d["named_offset"], d["named_len"], d["named_sha256"]))' <<< "$J")"
+
+    # **One retry, and it is announced.** Opening and closing the CDC port six
+    # times in a row occasionally loses a frame in transport — measured at
+    # roughly one request in twenty-four, and the board's own counter says which
+    # it was, because a frame it never received is one it never counted. A lost
+    # frame is not a verification result and must not be graded as one; a silent
+    # retry would be worse still, because a check that hides a flake reports a
+    # link as steadier than it is. So it retries once and says so out loud.
+    REPLY="$(yi26 send "$ESC" 2>&1 | grep -vE 'listening:')"
+    if ! grep -q -- '--- request #' <<< "$REPLY"; then
+        echo "NOTE  '$MODE' drew no reply — the frame was lost in transport, retrying once"
+        REPLY="$(yi26 send "$ESC" 2>&1 | grep -vE 'listening:')"
+    fi
     LIVE+="$HOSTLINE"$'\n'
-    LIVE+="$(yi26 send "$ESC" 2>&1 | grep -vE 'listening:')"$'\n'
+    LIVE+="$REPLY"$'\n'
 done
 
 EXCHANGES="$(grep -c -- '--- request #' <<< "$LIVE")"

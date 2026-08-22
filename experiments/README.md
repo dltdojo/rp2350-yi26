@@ -1046,7 +1046,7 @@ exp147 was built against, so nothing had to move to start.
   with no address was never a candidate to become the default network, so
   nothing was at stake. exp149 is where that becomes a real question.
 
-  The firmware got onto that board with [`pflash.html`](../../tools/pages/pflash.html),
+  The firmware got onto that board with [`pflash.html`](../tools/pages/pflash.html),
   writing **straight over exp147's partition table** with no erase step in front
   of it. PICOBOOT clears every sector it is about to write and the table lives in
   the first of them. Which is the other half of exp144: the ROM's own *drive*
@@ -1261,26 +1261,28 @@ repository cannot do, because its two boards are never on the same bench.
 
 ### The signing road
 
-> **This road is steeper than the ones above it, and the step is not where it
-> looks.** Everything up to exp163 is register writes and bus behaviour:
-> `ACCESSCTRL` is Raspberry Pi's own peripheral, `rp-pac` models it in full, and
-> nothing outside this repository is needed to read what it does. exp164 is the
-> first experiment here about **Armv8-M architecture** — security states, the
-> SAU, the IDAU, and the rule that a core's security state comes from the memory
-> its instructions were fetched from rather than from any bit you can write.
-> That is a different subject with its own manual, and this repository does not
-> have a copy; exp164 leaves a question open for exactly that reason, and says
-> so rather than deriving a rule it cannot check.
+> **Where this road ends, and what it is worth stopping for.** Everything here
+> is register writes, flash and bus behaviour: `rp-pac` models `ACCESSCTRL` in
+> full, `p256` and `sha2` build on stable, and nothing outside this repository
+> is needed to read what any of it does. The Armv8-M material that
+> [exp164](./exp164-the-wall-nobody-read/) and
+> [exp165](./exp165-who-gets-the-last-word/) opened has moved to
+> [the attribution road](#the-attribution-road), because it is a different
+> subject at a different difficulty and **nothing here is waiting on it**.
 >
-> **Where to stop, if you are working through the index in order.** exp163 is
-> the end of the story this road set out to tell — *can this part hide a signing
-> key while it is being used?* The answer is no, and exp156, exp159, exp160,
-> exp162 and exp163 are how it was measured. Read exp164 even if you stop there,
-> because it costs one flash of read-only register dumps and it corrects the
-> word the five before it use. What would come after exp164 — a
-> Non-secure-Callable region, a hand-written `SG` veneer, banked stack pointers
-> and a second vector table — is a subsystem rather than an experiment, and
-> nothing above depends on it.
+> The road's two halves answer two different questions, and only one of them
+> was hard:
+>
+> - **Can this part keep a signing key?** exp154, exp156, exp159, exp160,
+>   exp162 and exp163 answer that, and the answer with its scope attached is
+>   [`docs/can-this-chip-keep-a-secret.md`](../docs/can-this-chip-keep-a-secret.md)
+>   — one document rather than six READMEs. Short version: **yes for a small
+>   key, no for a post-quantum one in use**, and P-256 with a wipe is a
+>   complete answer that is built and verified here.
+> - **Whose firmware will it accept?** The question this road is named after,
+>   and [exp166](./exp166-whose-firmware-will-it-accept/) is the first
+>   experiment to ask it. **It needed none of the first half**, because signing
+>   needs a secret and verifying needs only integrity.
 >
 > This is a different axis from the **Needs** column, which measures how much of
 > a *person* an experiment costs and says nothing about what you have to know
@@ -1515,76 +1517,6 @@ None of these is interrogated yet — a direction, not a schedule.
   thing differed by 148 ms until the message was fixed; with it fixed they
   differ by 33 µs, which is what made an 11 ms effect visible at all. Needs 1.
 
-- **what the SAU was already saying** — the first question in
-  [Questions this road has not answered](#questions-this-road-has-not-answered-and-must-not-assume),
-  asked at last. [exp164](./exp164-the-wall-nobody-read/) is **verified on
-  hardware**, six candidates in one flash, nothing written, no cryptography —
-  and it corrects a word the five experiments above have been using.
-
-  The SAU is **enabled** on this part, has **eight regions, one of them
-  enabled** (region 7, `0x46a0..0x7fff`, the upper bootrom), and
-  `embassy_rp::init()` moves none of it. Eighteen addresses asked with the `TT`
-  instruction — flash, every SRAM bank, `ACCESSCTRL`, `TIMER0`, the USB DPRAM,
-  `SIO`, `SIO_NS`, the SCS — come back **Secure, and none of them
-  Non-secure-readable**.
-
-  Which raises the question those five experiments never asked, and answers it.
-  A core demoted with `ACCESSCTRL.FORCE_CORE_NS` **reads the Secure System
-  Control Space and gets core 0's values**, and its `TT` response is core 0's
-  response bit for bit, `S` bit included — and then faults on a bank ACCESSCTRL
-  has shut, which is the control that says the demotion was real.
-  **`FORCE_CORE_NS` marks the bus, not the core.** This road's "Non-secure core"
-  is Non-secure to a bus filter and Secure to the architecture; every
-  measurement stands and the label needed narrowing, which is now written into
-  all five.
-
-  There is no other ordering to hide in: setting the register *before* core 1
-  starts leaves `spawn_core1` blocked on a SIO FIFO that never answers, and the
-  watchdog ends the boot. One question is deliberately left open — an address
-  inside the one enabled SAU region is reported Secure and attributed to no
-  region — because settling it needs the Armv8-M reference manual, and
-  `verify.py` prints it as `OPEN` rather than deriving a rule it cannot check.
-  Needs 1.
-
-- **who gets the last word** — exp164's open question, narrowed by writing a
-  region instead of reading one. [exp165](./exp165-who-gets-the-last-word/) is
-  **verified on hardware**, eight candidates in a single boot, and it is the
-  first time this repository has ever **configured** the SAU rather than
-  described it.
-
-  A Non-secure region over SRAM bank 9 is **honoured and reported**: bank 9 goes
-  from `S=yes nsr=no sau=-1` to `S=no nsr=yes sau=1`, nothing else on the
-  eighteen-address map moves, and switching the region off puts it back. So the
-  reporting path works — and exp164's region 7, enabled and covering
-  `0x00005000` and still reported Secure with no region named, is **not** a
-  reporting quirk.
-
-  **The same region, over the bootrom and over `SIO_NS`, changes nothing at
-  all.** Two of four probed ranges honour the SAU's word and two overrule it in
-  silence, which is the first evidence on this road that a second attribution
-  unit exists. It is *not* named here: `cortex-m`'s own documentation lists an
-  architectural exemption as a separate reason for the same silence, and telling
-  the IDAU from an exemption needs the manual exp164 did not have either.
-  **What died is the third hypothesis, and that is what an experiment is for.**
-
-  It also hands exp156's unkept promise somewhere to stand. Marked
-  Non-secure-Callable, the same range answers `S=yes nsr=no sau=1` — a third
-  attribution, distinct from both, and describable on this part. The chip has no
-  NSC region by default; it can have one.
-
-  Two things it cost are worth carrying. The first run **left the region enabled
-  at the end of candidate 2**, so every later "baseline" was measured through a
-  map the firmware had already changed and the verdict came out backwards —
-  reporting a wall that worked as a wall that did nothing. Candidate 5's
-  put-it-back control is what caught it, and handing the map back is now graded
-  rather than assumed. And the report **repeats every fifteen seconds carrying
-  the three readings it rests on**, because the first `check.sh` hung waiting
-  for a verdict that had already scrolled past: a single-boot experiment that
-  prints once is unreadable to everyone who was not there at second eight.
-
-  Nothing here executes, accesses, or enters Non-secure state, so **nothing was
-  refused** — every line is what the SAU *says*. Needs 1.
-
 - **whose firmware will it accept** — the question this road is named after,
   asked at last. [exp166](./exp166-whose-firmware-will-it-accept/) is **verified
   on hardware**, six requests over CDC, and it is the **first board in this
@@ -1670,3 +1602,146 @@ Not on this road: programming a fuse, and a key this repository asks anybody to
 trust. Every key here is a test key, printed in its own README, and the
 experiment that would burn a real one into OTP is a different document with a
 different warning on it.
+
+### The attribution road
+
+**This road exists because two of its experiments were on the wrong one.**
+
+Five experiments on the [signing road](#the-signing-road) built a security story
+on `ACCESSCTRL`, which is Raspberry Pi's own bus filter, and described it with a
+word that belongs to Arm. [exp164](./exp164-the-wall-nobody-read/) read the
+**SAU** — the unit the Armv8-M architecture actually attributes memory with —
+and found that a core demoted by `ACCESSCTRL` is Non-secure to the bus and
+**Secure to the architecture**. Every measurement those five took still stands;
+the label needed narrowing, and narrowing it opened a subject none of them was
+about.
+
+That subject is what this road is: **who decides what a memory address is, and
+what it takes to make that decision refuse something.**
+
+> **This is the advanced road, and the difficulty is real.** Everything on the
+> signing road is register writes and bus behaviour: `rp-pac` models
+> `ACCESSCTRL` in full and nothing outside this repository is needed to read
+> what it does. Everything here is **Armv8-M architecture** — security states,
+> the SAU, the IDAU, and the rule that a core's security state comes from the
+> memory its instructions were fetched from rather than from any bit you can
+> write. That is a different subject with its own reference manual, and this
+> repository does not have a copy: both experiments below leave a question open
+> for exactly that reason and say so rather than deriving a rule they cannot
+> check.
+>
+> **Nothing the signing road needs is on this road.** It is here because the
+> mechanism is interesting and because five experiments were describing it
+> wrongly, not because anything is waiting on it. A reader working through the
+> index in order can skip the whole thing and lose nothing.
+
+- **what the SAU was already saying** — the question the
+  [signing road](#the-signing-road) listed among the ones it must not assume,
+  and then assumed for five experiments. [exp164](./exp164-the-wall-nobody-read/) is **verified on
+  hardware**, six candidates in one flash, nothing written, no cryptography —
+  and it corrects a word the five experiments above have been using.
+
+  The SAU is **enabled** on this part, has **eight regions, one of them
+  enabled** (region 7, `0x46a0..0x7fff`, the upper bootrom), and
+  `embassy_rp::init()` moves none of it. Eighteen addresses asked with the `TT`
+  instruction — flash, every SRAM bank, `ACCESSCTRL`, `TIMER0`, the USB DPRAM,
+  `SIO`, `SIO_NS`, the SCS — come back **Secure, and none of them
+  Non-secure-readable**.
+
+  Which raises the question those five experiments never asked, and answers it.
+  A core demoted with `ACCESSCTRL.FORCE_CORE_NS` **reads the Secure System
+  Control Space and gets core 0's values**, and its `TT` response is core 0's
+  response bit for bit, `S` bit included — and then faults on a bank ACCESSCTRL
+  has shut, which is the control that says the demotion was real.
+  **`FORCE_CORE_NS` marks the bus, not the core.** This road's "Non-secure core"
+  is Non-secure to a bus filter and Secure to the architecture; every
+  measurement stands and the label needed narrowing, which is now written into
+  all five.
+
+  There is no other ordering to hide in: setting the register *before* core 1
+  starts leaves `spawn_core1` blocked on a SIO FIFO that never answers, and the
+  watchdog ends the boot. One question is deliberately left open — an address
+  inside the one enabled SAU region is reported Secure and attributed to no
+  region — because settling it needs the Armv8-M reference manual, and
+  `verify.py` prints it as `OPEN` rather than deriving a rule it cannot check.
+  Needs 1.
+
+- **who gets the last word** — exp164's open question, narrowed by writing a
+  region instead of reading one. [exp165](./exp165-who-gets-the-last-word/) is
+  **verified on hardware**, eight candidates in a single boot, and it is the
+  first time this repository has ever **configured** the SAU rather than
+  described it.
+
+  A Non-secure region over SRAM bank 9 is **honoured and reported**: bank 9 goes
+  from `S=yes nsr=no sau=-1` to `S=no nsr=yes sau=1`, nothing else on the
+  eighteen-address map moves, and switching the region off puts it back. So the
+  reporting path works — and exp164's region 7, enabled and covering
+  `0x00005000` and still reported Secure with no region named, is **not** a
+  reporting quirk.
+
+  **The same region, over the bootrom and over `SIO_NS`, changes nothing at
+  all.** Two of four probed ranges honour the SAU's word and two overrule it in
+  silence, which is the first evidence on this road that a second attribution
+  unit exists. It is *not* named here: `cortex-m`'s own documentation lists an
+  architectural exemption as a separate reason for the same silence, and telling
+  the IDAU from an exemption needs the manual exp164 did not have either.
+  **What died is the third hypothesis, and that is what an experiment is for.**
+
+  It also hands exp156's unkept promise somewhere to stand. Marked
+  Non-secure-Callable, the same range answers `S=yes nsr=no sau=1` — a third
+  attribution, distinct from both, and describable on this part. The chip has no
+  NSC region by default; it can have one.
+
+  Two things it cost are worth carrying. The first run **left the region enabled
+  at the end of candidate 2**, so every later "baseline" was measured through a
+  map the firmware had already changed and the verdict came out backwards —
+  reporting a wall that worked as a wall that did nothing. Candidate 5's
+  put-it-back control is what caught it, and handing the map back is now graded
+  rather than assumed. And the report **repeats every fifteen seconds carrying
+  the three readings it rests on**, because the first `check.sh` hung waiting
+  for a verdict that had already scrolled past: a single-boot experiment that
+  prints once is unreadable to everyone who was not there at second eight.
+
+  Nothing here executes, accesses, or enters Non-secure state, so **nothing was
+  refused** — every line is what the SAU *says*. Needs 1.
+
+#### What is left, and the two halves are not the same size
+
+**The cheap half: finish the map.** [exp165](./exp165-who-gets-the-last-word/)
+probed four ranges and found the boundary exists — two honoured, two overruled
+in silence. They were chosen for being safe, not for covering anything. A sweep
+that walks the address space at region granularity, writing a region and
+withdrawing it immediately, would say **where** the SAU stops being the last
+word. One flash, nothing refused, nothing that can go dark, and it is the only
+way to find out whether the IDAU is what overrules — or whether those addresses
+are architecturally exempt, which `cortex-m`'s own documentation lists as a
+separate reason for the same silence.
+
+**The expensive half: make it refuse something.** Everything measured so far is
+what the SAU *says*. Getting it to *refuse* needs Non-secure code, and that
+needs a Non-secure-Callable region, a hand-written `global_asm!` `SG` veneer, a
+linker section to put it in, `MSP_NS`, a second vector table and a `BXNS`. It is
+a subsystem rather than an experiment. exp165 removed one excuse — an NSC region
+is describable on this part — and left every other one standing.
+
+That is also [exp156](./exp156-a-wall-you-can-measure/)'s unkept promise, made
+when nobody had read the SAU and the veneer looked like one more file.
+
+#### Questions this road has not answered, and must not assume
+
+- **What overrules an enabled SAU region in the bootrom and at `SIO_NS`?** The
+  IDAU is one candidate and an architectural exemption is another, and telling
+  them apart needs the Armv8-M Architecture Reference Manual. `verify.py` prints
+  it as `OPEN` rather than guessing, and so does this list.
+- **Is an SAU region honoured over the main 512 KB?** exp165 deliberately never
+  probed it, because that is where its own stack and statics live. This is the
+  one that matters: it is the difference between "a wider wall exists" and "a
+  wider wall exists somewhere useless".
+- **What does `ACCESSCTRL` look like to a genuinely Non-secure core?** Every
+  reading on either road was taken by a core the architecture considered Secure.
+- **Does the debugger see any of this?** `ACCESSCTRL` has a `DBG` bit that no
+  experiment here has touched, and the SAU is not a debug boundary at all.
+
+Not on this road: anything the signing road needs. If a measurement here turns
+out to change one of its conclusions, the correction goes in that experiment's
+README, the way [exp165](./exp165-who-gets-the-last-word/)'s already did.

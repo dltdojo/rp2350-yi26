@@ -204,6 +204,15 @@ board — the pattern [exp164](../exp164-the-wall-nobody-read/) named.
   in both cases and catches more: a request counted twice, or one lost between
   two lines of the same log.
 
+One thing that is not a mistake and is worth writing down: **opening and closing
+the CDC port six times in a row loses a frame about once in twenty-four
+requests.** The board's own counter says which — a frame it never received is
+one it never counted — so a lost frame is distinguishable from a board that
+ignored a request, and it is not a verification result. `check.sh` retries once
+and **prints a `NOTE` when it does**, because a check that hides a flake reports
+a link as steadier than it is. [exp119](../exp119-cancelled-reads/) and
+[exp136](../exp136-joining-halfway/) are what this loop is made of.
+
 ## What this does not do
 
 **It does not install anything.** `ACCEPTED` is a verdict printed, not a slot

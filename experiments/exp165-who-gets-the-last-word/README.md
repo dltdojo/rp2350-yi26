@@ -9,7 +9,7 @@ possible answers to two.
 the bootrom and at `SIO_NS`.** Two of four probed ranges take the SAU's word;
 two do not, and nothing in the log says which unit refused them.
 
-The eighth experiment on the [signing road](../README.md#the-signing-road).
+The second experiment on the [attribution road](../README.md#the-attribution-road).
 Nothing here executes, accesses, or enters Non-secure state.
 
 ## The question this inherits
@@ -62,8 +62,8 @@ is not a boundary you measured.* An attribution nothing tries to violate has
 been read, not tested. A refusal needs Non-secure code, which needs an NSC
 region, a hand-written `SG` veneer, banked stack pointers and a second vector
 table — a subsystem rather than an experiment, and
-[the signing road's difficulty note](../README.md#the-signing-road) is where
-that line is drawn.
+[the attribution road](../README.md#the-attribution-road) is where that line is
+drawn.
 
 ## The safety argument, and it is the whole design
 
@@ -368,7 +368,7 @@ still nothing refused, still nothing that can go dark.
 **The expensive one is the veneer**, and it now has one fewer excuse: an NSC
 region is describable here. What it still needs is a `global_asm!` `SG` stub, a
 linker section to put it in, `MSP_NS`, a second vector table and a `BXNS` — the
-subsystem the [signing road's difficulty note](../README.md#the-signing-road)
-draws its line in front of. It is the only way anything on this road will ever
+subsystem the [attribution road](../README.md#the-attribution-road) draws its
+line in front of. It is the only way anything on this road will ever
 show the SAU **refusing** rather than saying, and it should be entered with that
 sentence written down first.

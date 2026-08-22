@@ -5,7 +5,9 @@ Pi's own bus filter. None of them ever looked at the **SAU**, which is what the
 Armv8-M architecture means by TrustZone. This one reads it, and the reading
 corrects a word those six have been using.
 
-The seventh experiment on the [signing road](../README.md#the-signing-road).
+The first experiment on the [attribution road](../README.md#the-attribution-road),
+and the seventh built for the [signing road](../README.md#the-signing-road) before
+reading the SAU turned out to be a different subject.
 Nothing here is cryptography, and nothing here writes anything.
 
 ## What it is for
