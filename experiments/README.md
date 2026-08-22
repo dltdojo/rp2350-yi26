@@ -1790,3 +1790,209 @@ when nobody had read the SAU and the veneer looked like one more file.
 Not on this road: anything the signing road needs. If a measurement here turns
 out to change one of its conclusions, the correction goes in that experiment's
 README, the way [exp165](./exp165-who-gets-the-last-word/)'s already did.
+
+### The identity road
+
+Every road above that needed a secret asked the same question in a different
+place, and the answers are collected in
+[`docs/can-this-chip-keep-a-secret.md`](../docs/can-this-chip-keep-a-secret.md).
+This road asks the one that document ends without: **where does a board's own
+secret come from?**
+
+Three answers are already measured, and all three are "not from here":
+
+- **OTP stores; it does not hide.** [exp154](./exp154-somewhere-to-put-a-key/)
+  read all 4096 rows through the HAL on a stock Pico 2 and **not one refused**.
+- **A TRNG key dies at reset.** [exp159](./exp159-a-key-that-was-never-in-flash/)
+  generates a P-256 key on the board and never puts it in flash, which is the
+  finding — and it is a different key on every boot.
+- **A compiled-in key is readable, and identical on every board.** `XIP_MAIN`
+  defaults fully open; [exp166](./exp166-whose-firmware-will-it-accept/) finds
+  its own trusted key inside its `.uf2` with a byte search.
+
+So this part has no key that is **the same every boot and written nowhere**, and
+that is exactly what a device identity is. A physically unclonable function is
+the fourth answer nobody here has tried, and it has two shapes on this chip.
+
+**One thing has to be said before either of them: a PUF changes where a key
+comes from, not whether it can be hidden while in use.**
+[exp163](./exp163-how-long-is-a-secret-in-the-open/) applies to a PUF-derived
+key exactly as it applies to a TRNG one. This road is about *provenance*, and
+nothing on it weakens or replaces what the signing road measured.
+
+None of these is interrogated yet — a direction, not a schedule.
+
+- **what survives a reset** — the cheapest experiment on this road, and the one
+  with a prior negative result to overturn or confirm. Earlier work on this
+  chip measured a **`0.00%` uniformity** over a 4 KB window of "uninitialised"
+  SRAM: the RP2350 clears it before user code runs, so the classic SRAM PUF does
+  not exist here out of the box. That work then wrote down an exception it never
+  tested — *unless a custom, non-initialised memory section is reserved in the
+  linker configuration* — and this is that test.
+
+  Both answers are worth having. If a `.noinit`-style section survives, this
+  chip has an SRAM PUF after all and the rest of the road follows. If the
+  bootrom clears it too, **the RP2350 has no SRAM PUF**, which is a clean result
+  this repository can point at instead of the folklore.
+
+  The instruments already exist: [exp138](./exp138-what-the-rom-already-knows/)
+  for asking the ROM rather than assuming, [exp157](./exp157-a-note-for-the-next-boot/)
+  for what survives a reset at all, and
+  [`crates/entropy-health`](../crates/entropy-health/) for saying whether what
+  survives is worth anything.
+
+- **the silicon or the room** — the question a ring-oscillator PUF has to answer
+  before it is anything. Earlier work measured an RO-PUF across three boards and
+  found a **14% spread** in the low-power oscillator (28.00, 32.00 and 28.00 kHz)
+  and 13% in the ring oscillator's base frequency, and read that as device
+  uniqueness.
+
+  **Ring and low-power oscillators also drift with temperature and voltage**,
+  and three boards measured once each cannot separate the two. This repository
+  has the instrument that can: [exp108](./exp108-adc-temperature/) is the chip's
+  own temperature sensor.
+
+  So the experiment is a comparison, not a measurement: **one board cold against
+  the same board warm, against two boards at the same reported temperature.** If
+  a board's own signature moves further with temperature than two boards differ,
+  the PUF is measuring the room.
+
+  Its honest limit is in this repository's own logistics: its
+  [two boards are never on the same bench](../docs/debugging-on-a-phone.md), so
+  "the same temperature" has to be aligned by what each chip reports about
+  itself, and **n = 2** where the prior work had three.
+
+- **a key that is written nowhere** — only if one of the two above says yes.
+  A device secret that is the same every boot, derived rather than stored, and
+  the honest paragraph attached to it before any of the arithmetic: it is
+  readable while it is in use, and
+  [exp163](./exp163-how-long-is-a-secret-in-the-open/) says for how long.
+
+#### Questions this road has not answered, and must not assume
+
+- **Does anything at all survive the bootrom's clear?** Everything else here
+  waits on that, and it is one flash to find out.
+- **How stable is stable?** A PUF is useless without error correction, and how
+  much is needed is a property of the noise, not of the idea. The prior work's
+  stability figures were **simulated on a host**, not measured on silicon, and
+  nothing may be carried over from them.
+- **Is a two-board comparison worth anything?** Inter-device uniqueness with
+  `n = 2` is an anecdote. Say so in the experiment rather than in a footnote.
+- **What does the temperature sensor's own drift do to the comparison?**
+  exp108 measures a sensor, and a sensor has a spec.
+
+Not on this road: burning a fuse, and any suggestion that a key derived here is
+fit to trust. Every key this repository produces is a test key.
+
+### The authenticator road
+
+The signing road asked whether a board can hold a signing key and
+[exp166](./exp166-whose-firmware-will-it-accept/) asked whose firmware it will
+accept. This road asks the question a person can hold in their hand: **can this
+board be a security key?** — a USB device a browser will register and log in
+with, on a real website, with nothing installed.
+
+It is the first road here whose end product is an *appliance* rather than a
+measurement, and that changes what it has to be careful about.
+
+> **The failure mode is the opposite of every other road's.** A CDC device that
+> is half-built still enumerates and still says something. A security key either
+> satisfies the browser or produces *"An unknown error occurred"*. There is no
+> middle, and this repository's whole method is that each experiment proves one
+> thing **observably**.
+>
+> So the sequence below is built around that: **the first two experiments carry
+> no cryptography and no secret at all**, and are checked with the host's own
+> FIDO tooling and a hand-written client rather than with a browser. The browser
+> arrives only when there is something for it to accept.
+
+**Prior work on this chip settles the feasibility and one trap.** A Rust and
+Embassy authenticator on an RP2350 registered and authenticated against
+`webauthn.io` in desktop Chrome, using an existing CTAP2 library rather than a
+hand-written engine. The same firmware then failed on Android with nothing but
+*"An unknown error occurred while talking to the credential manager"*, and the
+cause was two extra fields in a `clientPIN` response: they serialise into CBOR
+keys `0x03` and `0x04`, which CTAP 2.1 defines as `pinRetries` and
+`powerCycleState`, and **Google Play Services type-checks the response where
+desktop Chrome ignores it.** It was found by reading the firmware's own log on
+the phone — which is what [the browser track](#the-browser-track-finished) is
+for, and the reason the CDC log stays on this road's device.
+
+Two things follow, and both shape the sequence:
+
+1. **Scope is the defence.** No `clientPIN`, no resident credentials, no
+   extensions — the minimum a browser needs to register and log in. That is also
+   where the trap above lives, so cutting it removes a whole class of failure.
+2. **The log is not optional.** A composite device that is a security key *and*
+   reports on itself is the only way anybody debugs the strict half.
+
+None of these is interrogated yet — a direction, not a schedule.
+
+- **a security key that knows nothing** — HID with the FIDO usage page,
+  `CTAPHID_INIT` and `CTAPHID_PING`, and **no cryptography whatsoever**.
+
+  Its real subject is not enumeration. A CTAPHID report is 64 bytes: an
+  initialisation packet carries `CID(4) + CMD(1) + BCNT(2)` and **57 bytes of
+  payload**, and everything after it arrives in continuation packets of
+  `CID(4) + SEQ(1) + 59`. So a message longer than 57 bytes is
+  [exp128](./exp128-reassemble-by-hand/)'s subject — at a layer where the
+  specification says what the right answer is, which means the failures can be
+  graded: a sequence number out of order, a second channel interrupting a
+  transaction, a `BCNT` that promises more than arrives.
+
+  Three facts already checked: `fido2-token` and `fido2-cred` are the host's own
+  tools and need nothing installed; `embassy-usb`'s HID `Config` takes a **raw
+  report descriptor**, so the FIDO one can be written by hand where
+  [exp121](./exp121-composite-hid/) generated a keyboard's; and `/dev/hidraw*`
+  is `root:root`, so this needs a udev rule beside the one
+  [exp115](./exp115-webusb-enumerate/) already installs.
+
+  **It is not a security key and must say so in its first paragraph.**
+  `fido2-token -I` will fail on it — and *how* it fails is the finding, because
+  a transport error and a CTAP error are different sentences.
+
+- **one CBOR map** — `authenticatorGetInfo`, and nothing else. `fido2-token -I`
+  prints what the device says it can do. Still no cryptography, still no secret,
+  still no browser. A CBOR encoder is exactly the shape of
+  [`crates/fat12`](../crates/fat12/) and [`crates/dhcp`](../crates/dhcp/): host
+  tests for the bytes, and the board for the claim.
+
+- **something to register** — `authenticatorMakeCredential`, ES256, self
+  attestation, user presence on the BOOTSEL button
+  ([exp106](./exp106-bootsel-button/)), and the credential's private key
+  **wrapped into the credential ID** rather than stored. That last choice is
+  what makes the next item the road's hinge, and it is the point where a browser
+  first accepts something.
+
+- **something to log in with** — `authenticatorGetAssertion`. One more command,
+  and the appliance exists.
+
+- **where the wrapping key comes from** — the [identity road](#the-identity-road)
+  arriving. Until it does, this road uses a compiled-in test key and says what
+  that costs, the way every other experiment here does.
+
+- **the strict client** — Android, and the finding above reproduced rather than
+  quoted. This is the one that needs a phone and the browser track's whole
+  apparatus.
+
+#### Questions this road has not answered, and must not assume
+
+- **Does `fido2-token -L` need the udev rule, or does libfido2 enumerate another
+  way?** This decides the first experiment's **Needs** level, so it is a
+  candidate rather than an assumption.
+- **How much of CTAP2 will a browser accept?** "No PIN, no resident keys" is a
+  plan, not a measurement, and the first browser that refuses it says so.
+- **Is a hand-written CTAP2 engine the right call past the second experiment?**
+  This repository hand-rolled FAT12, SCSI, Bulk-Only Transport and DHCP, and
+  [exp103](./exp103-embassy-blink/) has been promising since the beginning that a
+  later experiment opens its box of magic by hand. **CTAP2 is larger than any of
+  those.** The first two are hand-written because they are exp128's subject; the
+  decision for the rest belongs to the experiment that reaches it, with a size
+  measured rather than guessed.
+- **What does a security key do to the rest of the composite device?** exp121
+  changed descriptors and called it a different kind of risk. This changes them
+  again, next to a CDC interface that has to keep working.
+
+Not on this road: attestation anybody should trust, a certificate, and any
+suggestion that this is a security key to use. It is a security key to
+understand.
