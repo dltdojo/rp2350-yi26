@@ -1,0 +1,195 @@
+>>> host: flashing the honest build (EXP169_CLAIM=none), so the log starts at its own first line
+>>> host: fido2-token -L
+    /dev/hidraw4: vendor=0x1209, product=0x0001 (rp2350-yi26 exp169 what it says it can do)
+>>> host: case init
+    {"case": "init", "device": "/dev/hidraw4", "reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_sha_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 12}}
+>>> host: case ping 8
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 8, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 8, "packets": 1, "data_head": "030a11181f262d34", "data_sha_len": 8}, "echo_matches": true}
+>>> host: case ping 57
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000003", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 57}, "echo_matches": true}
+>>> host: case ping 58
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 58, "sent_packets": 2, "reply": {"cid": "00000004", "cmd": 1, "len": 58, "packets": 2, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 58}, "echo_matches": true}
+>>> host: case ping 200
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 200, "sent_packets": 4, "reply": {"cid": "00000005", "cmd": 1, "len": 200, "packets": 4, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 200}, "echo_matches": true}
+>>> host: case ping 1024
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000006", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 1024}, "echo_matches": true}
+>>> host: case ping 2000
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 2000, "sent_packets": 34, "reply": {"cid": "00000007", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}}
+>>> host: case bad-seq
+    {"case": "bad-seq", "device": "/dev/hidraw4", "reply": {"cid": "00000008", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}}
+>>> host: case busy
+    {"case": "busy", "device": "/dev/hidraw4", "cid_a": "00000009", "cid_b": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}}
+>>> host: case truncated
+    {"case": "truncated", "device": "/dev/hidraw4", "cid": "0000000b", "reply": {"cid": "0000000b", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}}
+>>> host: case unknown
+    {"case": "unknown", "device": "/dev/hidraw4", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}}
+>>> host: case stray-cont
+    {"case": "stray-cont", "device": "/dev/hidraw4", "reply": null, "silence_expected": true}
+>>> host: case getinfo
+    {"case": "getinfo", "device": "/dev/hidraw4", "reply": {"cid": "0000000e", "cmd": 16, "len": 26, "packets": 1, "data_head": "00a30180035000000000000000000000", "data_sha_len": 26}, "status": 0, "status_name": "CTAP2_OK", "cbor": "a3018003500000000000000000000000000000000005190400"}
+>>> host: case getinfo-params
+    {"case": "getinfo-params", "device": "/dev/hidraw4", "reply": {"cid": "0000000f", "cmd": 16, "len": 1, "packets": 1, "data_head": "03", "data_sha_len": 1}, "status": 3, "status_name": "CTAP1_ERR_INVALID_LENGTH", "cbor": ""}
+>>> host: case makecred
+    {"case": "makecred", "device": "/dev/hidraw4", "reply": {"cid": "00000010", "cmd": 16, "len": 1, "packets": 1, "data_head": "01", "data_sha_len": 1}, "status": 1, "status_name": "CTAP1_ERR_INVALID_COMMAND", "cbor": ""}
+>>> host: case ctap-unknown
+    {"case": "ctap-unknown", "device": "/dev/hidraw4", "reply": {"cid": "00000011", "cmd": 16, "len": 1, "packets": 1, "data_head": "01", "data_sha_len": 1}, "status": 1, "status_name": "CTAP1_ERR_INVALID_COMMAND", "cbor": ""}
+>>> host: fido2-token -I on the build that claims nothing
+    proto: 0x02
+    major: 0x00
+    minor: 0x01
+    build: 0x00
+    caps: 0x0c (nowink, cbor, nomsg)
+    aaguid: 00000000000000000000000000000000
+    fwversion: 0x0
+    maxmsgsiz: 1024
+    maxcredcntlst: 0
+    maxcredlen: 0
+    maxlargeblob: 0
+    pin retries: undefined
+    pin change required: false
+    uv retries: undefined
+>>> board: what it said while all of that happened
+    [    3037 ms] exp169 what it says it can do
+    [    3097 ms]   NOT a security key: no cryptography, no credential, no secret.
+    [    3157 ms]   FIDO report descriptor: 34 bytes, hand-written, usage page 0xF1D0
+    [    3217 ms]   06d0f10901a1010920150026ff00750895
+    [    3277 ms]   4081020921150026ff00750895409102c0
+    [    3337 ms]   init packet carries 57 payload bytes, cont carries 59
+    [    3397 ms]   commands: INIT, PING, CBOR. Everything else -> ERR_INVALID_CMD.
+    [    3458 ms]   CTAP2: getInfo only. makeCredential and getAssertion are refused.
+    [    3518 ms]   versions claim = "none" (0 entries)
+    [    3578 ms]   getInfo body is 25 bytes: a3018003500000000000000000000000000000000005190400
+    [    3638 ms]   max message 1024 bytes; longer -> ERR_INVALID_LEN.
+    [    3698 ms]   a transaction expires after 750 ms.
+    [    3758 ms] listening on the FIDO interface.
+    [    4937 ms] in  cid ffffffff INIT bcnt 8
+    [    4997 ms]   INIT: nonce 0102030405060708 -> cid 00000001
+    [    5145 ms] in  cid ffffffff INIT bcnt 8
+    [    5205 ms]   INIT: nonce 0102030405060708 -> cid 00000002
+    [    5273 ms] in  cid 00000002 PING bcnt 8
+    [    5333 ms]   PING: echoed 8 bytes in 1 packets
+    [    5409 ms] in  cid ffffffff INIT bcnt 8
+    [    5469 ms]   INIT: nonce 0102030405060708 -> cid 00000003
+    [    5537 ms] in  cid 00000003 PING bcnt 57
+    [    5597 ms]   PING: echoed 57 bytes in 1 packets
+    [    5685 ms] in  cid ffffffff INIT bcnt 8
+    [    5745 ms]   INIT: nonce 0102030405060708 -> cid 00000004
+    [    5813 ms] in  cid 00000004 PING bcnt 58
+    [    5873 ms]   assembled 58 bytes in 0 ms
+    [    5937 ms]   PING: echoed 58 bytes in 2 packets
+    [    6025 ms] in  cid ffffffff INIT bcnt 8
+    [    6085 ms]   INIT: nonce 0102030405060708 -> cid 00000005
+    [    6153 ms] in  cid 00000005 PING bcnt 200
+    [    6221 ms]   assembled 200 bytes in 7 ms
+    [    6293 ms]   PING: echoed 200 bytes in 4 packets
+    [    6381 ms] in  cid ffffffff INIT bcnt 8
+    [    6441 ms]   INIT: nonce 0102030405060708 -> cid 00000006
+    [    6509 ms] in  cid 00000006 PING bcnt 1024
+    [    6633 ms]   assembled 1024 bytes in 63 ms
+    [    6761 ms]   PING: echoed 1024 bytes in 18 packets
+    [    6845 ms] in  cid ffffffff INIT bcnt 8
+    [    6905 ms]   INIT: nonce 0102030405060708 -> cid 00000007
+    [    6973 ms] in  cid 00000007 PING bcnt 2000
+    [    7033 ms]   ERROR 0x03 to cid 00000007
+    [    7093 ms]   ignored: a continuation packet with no transaction
+    [    7153 ms]   ignored: a continuation packet with no transaction
+    [    7213 ms]   ignored: a continuation packet with no transaction
+    [    7273 ms]   ignored: a continuation packet with no transaction
+    [    7333 ms]   ignored: a continuation packet with no transaction
+    [    7394 ms]   ignored: a continuation packet with no transaction
+    [    7454 ms]   ignored: a continuation packet with no transaction
+    [    7514 ms]   ignored: a continuation packet with no transaction
+    [    7574 ms]   ignored: a continuation packet with no transaction
+    [    7634 ms]   ignored: a continuation packet with no transaction
+    [    7694 ms]   ignored: a continuation packet with no transaction
+    [    7754 ms]   ignored: a continuation packet with no transaction
+    [    7814 ms]   ignored: a continuation packet with no transaction
+    [    7874 ms]   ignored: a continuation packet with no transaction
+    [    7934 ms]   ignored: a continuation packet with no transaction
+    [    7994 ms]   ignored: a continuation packet with no transaction
+    [    8054 ms]   ignored: a continuation packet with no transaction
+    [    8114 ms]   ignored: a continuation packet with no transaction
+    [    8174 ms]   ignored: a continuation packet with no transaction
+    [    8234 ms]   ignored: a continuation packet with no transaction
+    [    8294 ms]   ignored: a continuation packet with no transaction
+    [    8354 ms]   ignored: a continuation packet with no transaction
+    [    8414 ms]   ignored: a continuation packet with no transaction
+    [    8474 ms]   ignored: a continuation packet with no transaction
+    [    8534 ms]   ignored: a continuation packet with no transaction
+    [    8594 ms]   ignored: a continuation packet with no transaction
+    [    8654 ms]   ignored: a continuation packet with no transaction
+    [    8715 ms]   ignored: a continuation packet with no transaction
+    [    8775 ms]   ignored: a continuation packet with no transaction
+    [    8835 ms]   ignored: a continuation packet with no transaction
+    [    8895 ms]   ignored: a continuation packet with no transaction
+    [    8955 ms]   ignored: a continuation packet with no transaction
+    [    9015 ms]   ignored: a continuation packet with no transaction
+    [    9075 ms] in  cid ffffffff INIT bcnt 8
+    [    9135 ms]   INIT: nonce 0102030405060708 -> cid 00000008
+    [    9201 ms] in  cid 00000008 PING bcnt 200
+    [    9261 ms]   ERROR 0x04 to cid 00000008
+    [    9413 ms] in  cid ffffffff INIT bcnt 8
+    [    9473 ms]   INIT: nonce 0102030405060708 -> cid 00000009
+    [    9541 ms] in  cid ffffffff INIT bcnt 8
+    [    9601 ms]   INIT: nonce 1111111111111111 -> cid 0000000a
+    [    9669 ms] in  cid 00000009 PING bcnt 200
+    [    9729 ms] in  cid 0000000a PING bcnt 8
+    [    9789 ms]   ERROR 0x06 to cid 0000000a
+    [    9933 ms] in  cid ffffffff INIT bcnt 8
+    [    9993 ms]   INIT: nonce 0102030405060708 -> cid 0000000b
+    [   10061 ms] in  cid 0000000b PING bcnt 200
+    [   10871 ms]   cid 0000000b timed out with 0/0 bytes
+    [   11013 ms] in  cid ffffffff INIT bcnt 8
+    [   11073 ms]   INIT: nonce 0102030405060708 -> cid 0000000c
+    [   11141 ms] in  cid 0000000c MSG bcnt 4
+    [   11201 ms]   MSG is not implemented here: ERR_INVALID_CMD
+    [   11349 ms] in  cid ffffffff INIT bcnt 8
+    [   11409 ms]   INIT: nonce 0102030405060708 -> cid 0000000d
+    [   11477 ms]   ignored: a continuation packet with no transaction
+    [   12361 ms] in  cid ffffffff INIT bcnt 8
+    [   12421 ms]   INIT: nonce 0102030405060708 -> cid 0000000e
+    [   12489 ms] in  cid 0000000e CBOR bcnt 1
+    [   12549 ms]   getInfo: 25 bytes of canonical CBOR
+    [   12689 ms] in  cid ffffffff INIT bcnt 8
+    [   12749 ms]   INIT: nonce 0102030405060708 -> cid 0000000f
+    [   12817 ms] in  cid 0000000f CBOR bcnt 2
+    [   12877 ms]   getInfo takes no parameters; 1 arrived
+    [   13021 ms] in  cid ffffffff INIT bcnt 8
+    [   13081 ms]   INIT: nonce 0102030405060708 -> cid 00000010
+    [   13149 ms] in  cid 00000010 CBOR bcnt 1
+    [   13209 ms]   CTAP2 0x01 is not implemented: this is not a security key
+    [   13357 ms] in  cid ffffffff INIT bcnt 8
+    [   13417 ms]   INIT: nonce 0102030405060708 -> cid 00000011
+    [   13485 ms] in  cid 00000011 CBOR bcnt 1
+    [   13545 ms]   CTAP2 command 0xee is unknown here
+    [   13753 ms] in  cid ffffffff INIT bcnt 8
+    [   13813 ms]   INIT: nonce 32fb30498456f9db -> cid 00000012
+    [   13881 ms] in  cid 00000012 CBOR bcnt 1
+    [   13941 ms]   getInfo: 25 bytes of canonical CBOR
+    [   14009 ms] in  cid 00000012 CBOR bcnt 1
+    [   14069 ms]   getInfo: 25 bytes of canonical CBOR
+    [   14137 ms] in  cid 00000012 CBOR bcnt 6
+    [   14197 ms]   CTAP2 command 0x06 is unknown here
+    [   14265 ms] in  cid 00000012 CBOR bcnt 6
+    [   14325 ms]   CTAP2 command 0x06 is unknown here
+    [   14393 ms] in  cid 00000012 CBOR bcnt 6
+    [   14453 ms]   CTAP2 command 0x40 is unknown here
+>>> host: now the build that claims FIDO_2_0, which is not true of it
+>>> host: fido2-token -I on the build that claims a version
+    proto: 0x02
+    major: 0x00
+    minor: 0x01
+    build: 0x00
+    caps: 0x0c (nowink, cbor, nomsg)
+    version strings: FIDO_2_0
+    aaguid: 00000000000000000000000000000000
+    fwversion: 0x0
+    maxmsgsiz: 1024
+    maxcredcntlst: 0
+    maxcredlen: 0
+    maxlargeblob: 0
+    pin retries: undefined
+    pin change required: false
+    uv retries: undefined
+>>> host: and a tool that believes the claim and acts on it
+    fido2-token: fido_credman_get_dev_metadata: FIDO_ERR_INTERNAL

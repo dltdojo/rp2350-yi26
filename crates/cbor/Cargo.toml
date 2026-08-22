@@ -1,0 +1,11 @@
+[package]
+name = "cbor"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A canonical CBOR writer for the subset CTAP2 needs, and a refusal for everything that would make it non-canonical"
+
+# No dependencies, no allocator, and no reader. The caller owns the buffer,
+# which is what lets `cargo test` check every byte of a response on the machine
+# you are reading this on rather than on a board.
+[dependencies]

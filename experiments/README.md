@@ -82,6 +82,7 @@ Per experiment:
 | exp166 | Any RP2350 board. Verification needs only a public key, so nothing here depends on the SRAM banks, `ACCESSCTRL` or the SAU, and none of exp160–exp165's limits apply. The host half needs Python's `cryptography`. The bytes signed are inside the board's own image, so it works whatever that image is. |
 | exp167 | Any RP2350 board, and it puts one into an A/B partition state. The aperture map it prints is `partimg`'s layout on this bootrom: `ATRANS0` is sixteen sectors from sector 1, and a different table gives a different window and the same lesson. The host half needs Python's `cryptography`. |
 | exp168 | Any RP2350 board. Needs `libfido2`'s `fido2-token` on the host, and — measured rather than assumed — **no udev rule of this repository's own**: the host's own rules recognise the FIDO usage page and grant access. One host tested: Linux with `hidraw`. |
+| exp169 | Same as exp168. Builds twice from one source — `EXP169_CLAIM=none` and `=fido2` — and `check.sh` drives both, because the comparison is the experiment. `crates/cbor`'s tests need no board at all. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -441,7 +442,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -583,6 +584,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp166 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp167 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp168 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp169 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -730,6 +732,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp166-whose-firmware-will-it-accept](./exp166-whose-firmware-will-it-accept/) | 1 · board | The first board here that **checks** a signature instead of producing one — the road's own question, eight experiments after it was asked. P-256 over a region of the board's own flash chosen at random after the firmware was built: accepted when the trusted key signed it, refused when a bit is flipped, when another key signed it, and when a valid signature **names a different region**. Verifying costs **97.7 ms** against exp159's 61 ms to sign |
 | [exp167-the-image-that-never-runs](./exp167-the-image-that-never-runs/) | 1 · board | exp166's gate joined to exp143's rollback: slot A refuses to hand the board over without a signature it trusts, and slot B — provisional — never buys, so the ROM takes it back. Two failures, two mechanisms, neither detecting anything. And the finding that decides the design: **a running image gets one 64 KiB QMI aperture onto its own partition**, and the apertures that would reach the other slot are sized to zero |
 | [exp168-a-security-key-that-knows-nothing](./exp168-a-security-key-that-knows-nothing/) | 1 · board | **Not a security key**: no cryptography at all. A hand-written 34-byte FIDO report descriptor, and the host's own tooling lists it **without root and without a rule of ours**. Twelve CTAPHID cases: a 1024-byte echo in eighteen packets, six error codes the specification names, and one case that must draw **silence** |
+| [exp169-what-it-says-it-can-do](./exp169-what-it-says-it-can-do/) | 1 · board | `authenticatorGetInfo`, in canonical CBOR a host parses. Two builds: one claims `FIDO_2_0` and a tool that believes it gets `FIDO_ERR_INTERNAL`; **one claims no version at all, and `libfido2` accepts that** — the honest option turned out to exist. [`crates/cbor`](../crates/cbor/) refuses to emit non-canonical bytes rather than merely permitting canonical ones |
 
 ## The browser track, finished
 
@@ -1973,11 +1976,18 @@ None of these is interrogated yet — a direction, not a schedule.
   `fido2-token -I` will fail on it — and *how* it fails is the finding, because
   a transport error and a CTAP error are different sentences.
 
-- **one CBOR map** — `authenticatorGetInfo`, and nothing else. `fido2-token -I`
-  prints what the device says it can do. Still no cryptography, still no secret,
-  still no browser. A CBOR encoder is exactly the shape of
-  [`crates/fat12`](../crates/fat12/) and [`crates/dhcp`](../crates/dhcp/): host
-  tests for the bytes, and the board for the claim.
+- **one CBOR map** — `authenticatorGetInfo`, and nothing else.
+  [exp169](./exp169-what-it-says-it-can-do/) is **verified on hardware**:
+  sixteen cases, and [`crates/cbor`](../crates/cbor/) refuses to emit
+  non-canonical bytes rather than merely permitting canonical ones.
+
+  **Its question was whether a device can be honest about supporting part of a
+  version, and the answer is yes.** `versions: []` is accepted by `libfido2`,
+  which still reports the AAGUID, the maximum message size and the capabilities;
+  the build that claims `FIDO_2_0` instead gets a tool to `FIDO_ERR_INTERNAL` —
+  the desktop cousin of the Android message this road is built around. Both
+  builds are driven, because one half of a comparison is not a comparison, and
+  `check.sh` fails if a plain `cargo build` ever ships the overclaim. Needs 1.
 
 - **something to register** — `authenticatorMakeCredential`, ES256, self
   attestation, user presence on the BOOTSEL button
