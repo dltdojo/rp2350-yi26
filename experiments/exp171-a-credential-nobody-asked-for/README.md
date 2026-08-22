@@ -8,7 +8,7 @@ anywhere**.
 The fourth experiment on the
 [authenticator road](../README.md#the-authenticator-road).
 
-> **Verified on hardware, 2026-08-22.** A `makeCredential` request produces a
+> **Verified on hardware, 2026-08-22, both builds.** A `makeCredential` request produces a
 > 276-byte response whose signature is checked off the board by a different
 > elliptic-curve library, with a bit flipped and the check required to fail
 > first. **Deriving the key costs 44.5 ms and signing costs 53.8 ms.** The
@@ -128,11 +128,6 @@ these are in the same family rather than new numbers.
 
 ## What is not verified here
 
-- **Nobody has pressed the button.** The `button` build's *waiting* is verified
-  — it waits, times out after 10,011 ms, and returns
-  `CTAP2_ERR_OPERATION_DENIED` — but the branch where a press is seen has not
-  been exercised, because it needs a finger. It is named here rather than
-  implied by the rest.
 - **`sign_count` is always zero.** A counter that survives a reset is a counter
   that is stored, and this device stores nothing. A relying party that enforces
   monotonicity will notice; that is a limit, not a bug.
@@ -195,13 +190,31 @@ transcript is [`capture.txt`](./capture.txt).
     [   21584 ms]   the private key is not stored; it was derived and is gone.
 ```
 
-The `button` build, with nobody pressing anything:
+The `button` build, **with somebody pressing** — the whole of
+[`capture-button.txt`](./capture-button.txt):
+
+```console
+[   93696 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
+[   93756 ms]   pressed after 0 ms
+[   96882 ms]   credential made: authData 180 B (COSE key 77 B), response 275 B
+[   96942 ms]   derive 44543 us, sign 53835 us, UP bit 1
+```
+
+`flags` comes back `0x41` — `AT | UP` — and the relying party's own check reads
+`"user_present": true` beside `"signature_valid": true`.
+
+And with **nobody** pressing, which is the same build and the other answer:
 
 ```console
 [    7439 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
 [   17511 ms]   nobody pressed anything after 10011 ms
 status: CTAP2_ERR_OPERATION_DENIED
 ```
+
+**`pressed after 0 ms` is worth reading twice.** The button was held down before
+the request arrived, so the firmware saw it on its first poll. The ten seconds
+is a *timeout*, not a reaction window, and a device that made you catch a
+ten-second gap would be a worse one to use.
 
 `./check.sh` on the same board:
 
@@ -228,7 +241,8 @@ PASS  the UP bit is 0 in the build that asks nobody: no client will take this
 1. **The bit that says a person was there is the device's own word, and nothing
    checks it.** Which is exactly why a device that sets it without asking is
    telling the only lie this road must not tell — and why user presence is two
-   builds here rather than one line.
+   builds here rather than one line. Both are on the board: `0x40` with nobody
+   asked, `0x41` with a finger on the button.
 2. **A key that is derived is a key that cannot be stolen at rest**, and is
    exactly as exposed in use as any other. exp163 measured that, and a
    derivation scheme does not change it.

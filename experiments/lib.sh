@@ -241,9 +241,19 @@ usb_check() {
     # by one letter, and a firmware that builds both declares `cdc+ncm`. The
     # substring test below is safe either way — "cdc" is not a substring of
     # "ncm" — but the pair is worth reading together.
-    for f in cdc:CdcAcmClass::new ncm:CdcNcmClass::new hid:HidWriter::new msc:CLASS_MSC vendor:CLASS_VENDOR; do
+    # Patterns rather than fixed strings, and the reason is `hid`: exp121 builds
+    # a keyboard with `HidWriter`, and exp168 onwards build a FIDO interface with
+    # `HidReaderWriter`, which does not contain the other as a substring. A
+    # firmware that reads as well as writes was declaring `hid` truthfully and
+    # being told it did not build one.
+    #
+    # That went unnoticed for four experiments because the check above returns
+    # early when the USB channel table has no row yet — so during development,
+    # when the row is the last thing added, this half never ran. The order is
+    # the bug's hiding place, not the token.
+    for f in cdc:CdcAcmClass::new ncm:CdcNcmClass::new 'hid:Hid(ReaderWriter|Writer)' msc:CLASS_MSC vendor:CLASS_VENDOR; do
         want="${f%%:*}"; have="${f#*:}"
-        if grep -qF "$have" "$src"; then
+        if grep -qE "$have" "$src"; then
             [[ "$USB_IFACE" == *"$want"* ]] || bad="$bad [source builds $want, USB_IFACE does not say so]"
         else
             [[ "$USB_IFACE" != *"$want"* ]] || bad="$bad [USB_IFACE claims $want, source does not build it]"

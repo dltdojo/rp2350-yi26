@@ -24,7 +24,11 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 require_supported_platform
 
-PRESENCE=1   # the host's own FIDO tooling drives it; nothing needs a person
+# Everything below runs unattended, and that is not the same as the claim being
+# checkable unattended: the `EXP171_UP=button` build's press is a person, once,
+# and this script can only check that somebody did it. exp127 is the same shape
+# — seventeen checks pass and none of them can see whether the LED lit.
+PRESENCE=2
 presence_check
 
 USB_IFACE="cdc+hid"
@@ -265,6 +269,25 @@ if [[ -f capture.txt ]]; then
     done
 else
     fail "a recorded transcript is checked in" "capture.txt is missing; verify.py is unreplayed"
+fi
+
+# The one thing this script cannot do is press a button, so it checks that
+# somebody did. `capture-button.txt` is the `EXP171_UP=button` build with a
+# finger on BOOTSEL, and it is the only evidence that the branch where a press
+# is *seen* has ever run.
+if [[ -f capture-button.txt ]]; then
+    if grep -q '"user_present": true' capture-button.txt \
+       && grep -q '"signature_valid": true' capture-button.txt \
+       && grep -qE 'pressed after [0-9]+ ms' capture-button.txt; then
+        pass "a press is on record: UP=1 with a signature that verifies"
+    else
+        fail "a press is on record" "capture-button.txt does not show UP=1 and a valid signature"
+    fi
+    grep -q '"user_present": false' capture-button.txt \
+        && fail "the recorded press really was a press" "UP is 0 in the button transcript" \
+        || pass "the recorded press really was a press"
+else
+    fail "a press is on record" "capture-button.txt is missing; the button branch is unexercised"
 fi
 
 if ! yi26 state 2>/dev/null | grep -qE 'running|bootsel'; then

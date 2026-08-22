@@ -1,0 +1,9 @@
+>>> host: the EXP171_UP=button build, with BOOTSEL held down
+>>> host: case mc-good
+    {"case": "mc-good", "device": "/dev/hidraw4", "request_bytes": 114, "reply": {"cid": "00000002", "cmd": 16, "len": 276, "packets": 5, "data_head": "00a301667061636b65640258b49b263f", "data_sha_len": 276}, "status": 0, "status_name": "CTAP2_OK", "response_bytes": 275, "credential": {"fmt": "packed", "trailing": 0, "rp_id_hash_matches": true, "flags": 65, "user_present": true, "user_verified": false, "attested_data": true, "sign_count": 0, "aaguid_all_zero": true, "credential_id_len": 48, "cose_kty": 2, "cose_alg": -7, "cose_crv": 1, "coordinate_bytes": [32, 32], "att_alg": -7, "att_has_x5c": false, "signature_valid": true, "tamper_rejected": true}}
+>>> board: what it said while that happened
+    [  133569 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
+    [  133629 ms]   pressed after 0 ms
+    [  136225 ms]   credential made: authData 180 B (COSE key 77 B), response 275 B
+    [  136285 ms]   derive 44533 us, sign 53834 us, UP bit 1
+    [  136345 ms]   the private key is not stored; it was derived and is gone.
