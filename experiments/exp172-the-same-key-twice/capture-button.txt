@@ -1,0 +1,14 @@
+>>> host: the EXP172_UP=button build, with BOOTSEL held down
+>>> host: case ga-roundtrip
+    {"case": "ga-roundtrip", "device": "/dev/hidraw4", "registered_credential_id": "cccc6a6c6de6ccba2db3495a552d95b06aa168c66352e5e14c6ad9389385aa2a31299c4da2f657524e954c4dcee5b1fa", "asked_rp": "example.test", "reply": {"cid": "00000002", "cmd": 16, "len": 188, "packets": 4, "data_head": "00a301a26269645830cccc6a6c6de6cc", "data_sha_len": 188}, "status": 0, "status_name": "CTAP2_OK", "assertion": {"trailing": 0, "credential_id_echoed": true, "credential_type": "public-key", "auth_data_len": 37, "flags": 1, "user_present": true, "attested_data": false, "rp_id_hash_matches": true, "sign_count": 0, "signature_valid": true, "tamper_rejected": true}}
+>>> board: what it said while that happened
+    [ 3485104 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
+    [ 3485164 ms]   pressed after 0 ms
+    [ 3489327 ms]   credential made: authData 180 B (COSE key 77 B), response 277 B
+    [ 3489387 ms]   derive 44460 us, sign 53786 us, UP bit 1
+    [ 3489844 ms]     credential 48 bytes: ours, for this relying party
+    [ 3489904 ms]   waiting for BOOTSEL. Nothing is sent while this runs.
+    [ 3489964 ms]   pressed after 0 ms
+    [ 3490123 ms]   assertion: authData 37 B (no attested data), response 187 B
+    [ 3490183 ms]   derive 44448 us, sign 53685 us, UP bit 1
+    [ 3490243 ms]   the same key as at registration, and it was never kept.
