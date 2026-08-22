@@ -50,12 +50,18 @@ pub enum Error {
 }
 
 const MT_UINT: u8 = 0 << 5;
+const MT_NINT: u8 = 1 << 5;
 const MT_BYTES: u8 = 2 << 5;
 const MT_TEXT: u8 = 3 << 5;
 const MT_ARRAY: u8 = 4 << 5;
 const MT_MAP: u8 = 5 << 5;
 const SIMPLE_FALSE: u8 = 0xf4;
 const SIMPLE_TRUE: u8 = 0xf5;
+
+/// The longest map key this writer will hold for comparison. Long enough for
+/// COSE's text keys; a key longer than this is refused rather than compared
+/// against a truncated copy of itself.
+const MAX_KEY_LEN: usize = 24;
 
 /// One open container: how many items it promised and how many it has had.
 #[derive(Clone, Copy)]
@@ -64,8 +70,23 @@ struct Open {
     /// Maps count a key and a value as one item, and hold the last key so the
     /// next one can be checked against it.
     is_map: bool,
-    last_key: Option<u64>,
+    /// **The last key as it was encoded, not as a number.** Canonical CBOR
+    /// orders keys by their encoded bytes — shorter first, then bytewise — and
+    /// COSE mixes positive integers, negative integers and text in one map. `1`
+    /// encodes as `0x01`, `-1` as `0x20` and `"alg"` as `0x63 61 6c 67`, so the
+    /// order is 1, 3, -1, -2, -3, "alg", "sig", and comparing the *numbers*
+    /// would get that wrong in two different directions.
+    last_key: Option<([u8; MAX_KEY_LEN], usize)>,
     expecting_value: bool,
+}
+
+/// Canonical order between two encoded keys: shorter first, then bytewise.
+fn key_follows(prev: &[u8], next: &[u8]) -> bool {
+    match next.len().cmp(&prev.len()) {
+        core::cmp::Ordering::Less => false,
+        core::cmp::Ordering::Greater => true,
+        core::cmp::Ordering::Equal => next > prev,
+    }
 }
 
 /// Writes canonical CBOR into a caller-supplied buffer.
@@ -211,22 +232,58 @@ impl<'a> Writer<'a> {
         self
     }
 
-    /// An unsigned-integer map key, checked against the one before it.
-    ///
-    /// CTAP2's map keys are small unsigned integers, so "sorted" is numeric
-    /// order and this check is exact. A crate that accepted a key out of order
-    /// would produce bytes that are valid CBOR, are not canonical CBOR, and
-    /// fail somewhere a long way from here.
-    pub fn key(&mut self, k: u64) -> &mut Self {
+    /// Encode a key into a scratch buffer so it can be compared before it is
+    /// written. The one place the three kinds of key meet.
+    fn encode_key(mt: u8, arg: u64, text: Option<&str>, out: &mut [u8; MAX_KEY_LEN]) -> usize {
+        let mut n = 0usize;
+        let mut put = |b: u8, n: &mut usize| {
+            if *n < MAX_KEY_LEN {
+                out[*n] = b;
+            }
+            *n += 1;
+        };
+        match arg {
+            0..=23 => put(mt | arg as u8, &mut n),
+            24..=0xff => {
+                put(mt | 24, &mut n);
+                put(arg as u8, &mut n);
+            }
+            0x100..=0xffff => {
+                put(mt | 25, &mut n);
+                put((arg >> 8) as u8, &mut n);
+                put(arg as u8, &mut n);
+            }
+            _ => {
+                put(mt | 26, &mut n);
+                for s in [24, 16, 8, 0] {
+                    put((arg >> s) as u8, &mut n);
+                }
+            }
+        }
+        if let Some(t) = text {
+            for b in t.as_bytes() {
+                put(*b, &mut n);
+            }
+        }
+        n
+    }
+
+    fn key_common(&mut self, mt: u8, arg: u64, text: Option<&str>) -> &mut Self {
         if self.depth == 0 {
             self.fail(Error::WrongItemCount);
+            return self;
+        }
+        let mut enc = [0u8; MAX_KEY_LEN];
+        let len = Self::encode_key(mt, arg, text, &mut enc);
+        if len > MAX_KEY_LEN {
+            self.fail(Error::OutOfSpace);
             return self;
         }
         let top = self.depth - 1;
         match self.stack[top].as_ref() {
             Some(o) if o.is_map => {
-                if let Some(last) = o.last_key {
-                    if k <= last {
+                if let Some((prev, plen)) = o.last_key {
+                    if !key_follows(&prev[..plen], &enc[..len]) {
                         self.fail(Error::KeyOutOfOrder);
                         return self;
                     }
@@ -239,15 +296,50 @@ impl<'a> Writer<'a> {
         }
         self.item();
         if let Some(o) = self.stack[top].as_mut() {
-            o.last_key = Some(k);
+            o.last_key = Some((enc, len));
         }
-        self.head(MT_UINT, k);
+        for b in &enc[..len] {
+            self.raw(*b);
+        }
         self
+    }
+
+    /// An unsigned-integer map key, checked against the one before it.
+    pub fn key(&mut self, k: u64) -> &mut Self {
+        self.key_common(MT_UINT, k, None)
+    }
+
+    /// A negative-integer map key. COSE labels its curve and coordinates with
+    /// these, and they sort **after** every positive one because `0x20` is
+    /// bigger than `0x01`.
+    pub fn key_nint(&mut self, k: i64) -> &mut Self {
+        if k >= 0 {
+            self.fail(Error::KeyOutOfOrder);
+            return self;
+        }
+        self.key_common(MT_NINT, (-1 - k) as u64, None)
+    }
+
+    /// A text map key. CTAP2's attestation statement uses these, and they sort
+    /// after every integer one.
+    pub fn key_text(&mut self, k: &str) -> &mut Self {
+        self.key_common(MT_TEXT, k.len() as u64, Some(k))
     }
 
     pub fn uint(&mut self, v: u64) -> &mut Self {
         self.item();
         self.head(MT_UINT, v);
+        self
+    }
+
+    /// A negative integer. CBOR stores `-1 - n`.
+    pub fn nint(&mut self, v: i64) -> &mut Self {
+        if v >= 0 {
+            self.fail(Error::KeyOutOfOrder);
+            return self;
+        }
+        self.item();
+        self.head(MT_NINT, (-1 - v) as u64);
         self
     }
 
@@ -387,6 +479,97 @@ mod tests {
         let mut w = Writer::new(&mut buf);
         w.text("far too long for two bytes");
         assert_eq!(w.finish(), Err(Error::OutOfSpace));
+    }
+
+    #[test]
+    fn cose_key_order_is_by_encoded_bytes_not_by_number() {
+        // A COSE_Key for ES256: kty, alg, crv, x, y. The labels are 1, 3, -1,
+        // -2, -3, and comparing them as numbers would put -3 first. Canonical
+        // CBOR compares the encodings — 0x01, 0x03, 0x20, 0x21, 0x22 — so the
+        // order is the one below, and it is the order a relying party's own
+        // library will expect.
+        let out = enc(|w| {
+            w.map(5);
+            w.key(1);
+            w.uint(2);
+            w.key(3);
+            w.nint(-7);
+            w.key_nint(-1);
+            w.uint(1);
+            w.key_nint(-2);
+            w.bytes(&[0xaa; 2]);
+            w.key_nint(-3);
+            w.bytes(&[0xbb; 2]);
+            w.end();
+        })
+        .unwrap();
+        assert_eq!(
+            out,
+            [0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21, 0x42, 0xaa, 0xaa, 0x22, 0x42, 0xbb, 0xbb]
+        );
+    }
+
+    #[test]
+    fn a_negative_key_before_a_positive_one_is_refused() {
+        let e = enc(|w| {
+            w.map(2);
+            w.key_nint(-1);
+            w.uint(0);
+            w.key(1); // 0x01 does not follow 0x20
+            w.uint(0);
+            w.end();
+        });
+        assert_eq!(e, Err(Error::KeyOutOfOrder));
+    }
+
+    #[test]
+    fn text_keys_sort_after_integers_and_by_length_then_bytes() {
+        let out = enc(|w| {
+            w.map(2);
+            w.key_text("alg");
+            w.nint(-7);
+            w.key_text("sig");
+            w.bytes(&[1]);
+            w.end();
+        })
+        .unwrap();
+        assert_eq!(out, [0xa2, 0x63, b'a', b'l', b'g', 0x26, 0x63, b's', b'i', b'g', 0x41, 0x01]);
+
+        // "sig" before "alg" is the same length and the wrong way round.
+        assert_eq!(
+            enc(|w| {
+                w.map(2);
+                w.key_text("sig");
+                w.uint(0);
+                w.key_text("alg");
+                w.uint(0);
+                w.end();
+            }),
+            Err(Error::KeyOutOfOrder)
+        );
+        // A shorter key after a longer one, which sorts before it.
+        assert_eq!(
+            enc(|w| {
+                w.map(2);
+                w.key_text("alpha");
+                w.uint(0);
+                w.key_text("sig");
+                w.uint(0);
+                w.end();
+            }),
+            Err(Error::KeyOutOfOrder)
+        );
+    }
+
+    #[test]
+    fn negative_integers_round_trip_through_the_reader() {
+        for v in [-1i64, -7, -100, -257, -65536] {
+            let out = enc(|w| {
+                w.nint(v);
+            })
+            .unwrap();
+            assert_eq!(Reader::new(&out).next(), Ok(Item::Nint(v)), "{v}");
+        }
     }
 
     #[test]

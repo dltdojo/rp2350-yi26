@@ -1,0 +1,244 @@
+>>> host: flashing, so the board's log starts at its own first line
+>>> host: fido2-token -L
+    /dev/hidraw4: vendor=0x1209, product=0x0001 (rp2350-yi26 exp171 a credential nobody asked for)
+>>> host: case init
+    {"case": "init", "device": "/dev/hidraw4", "reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_sha_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 12}}
+>>> host: case ping 58
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 58, "sent_packets": 2, "reply": {"cid": "00000002", "cmd": 1, "len": 58, "packets": 2, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 58}, "echo_matches": true}
+>>> host: case ping 1024
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_sha_len": 1024}, "echo_matches": true}
+>>> host: case ping 2000
+    {"case": "ping", "device": "/dev/hidraw4", "sent_bytes": 2000, "sent_packets": 34, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}}
+>>> host: case bad-seq
+    {"case": "bad-seq", "device": "/dev/hidraw4", "reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}}
+>>> host: case busy
+    {"case": "busy", "device": "/dev/hidraw4", "cid_a": "00000006", "cid_b": "00000007", "reply": {"cid": "00000007", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}}
+>>> host: case truncated
+    {"case": "truncated", "device": "/dev/hidraw4", "cid": "00000008", "reply": {"cid": "00000008", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}}
+>>> host: case unknown
+    {"case": "unknown", "device": "/dev/hidraw4", "reply": {"cid": "00000009", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}}
+>>> host: case stray-cont
+    {"case": "stray-cont", "device": "/dev/hidraw4", "reply": null, "silence_expected": true}
+>>> host: case getinfo
+    {"case": "getinfo", "device": "/dev/hidraw4", "reply": {"cid": "0000000b", "cmd": 16, "len": 26, "packets": 1, "data_head": "00a30180035000000000000000000000", "data_sha_len": 26}, "status": 0, "status_name": "CTAP2_OK", "cbor": "a3018003500000000000000000000000000000000005190400"}
+>>> host: case getinfo-params
+    {"case": "getinfo-params", "device": "/dev/hidraw4", "reply": {"cid": "0000000c", "cmd": 16, "len": 1, "packets": 1, "data_head": "03", "data_sha_len": 1}, "status": 3, "status_name": "CTAP1_ERR_INVALID_LENGTH", "cbor": ""}
+>>> host: case ctap-unknown
+    {"case": "ctap-unknown", "device": "/dev/hidraw4", "reply": {"cid": "0000000d", "cmd": 16, "len": 1, "packets": 1, "data_head": "01", "data_sha_len": 1}, "status": 1, "status_name": "CTAP1_ERR_INVALID_COMMAND", "cbor": ""}
+>>> host: case mc-good
+    {"case": "mc-good", "device": "/dev/hidraw4", "request_bytes": 114, "reply": {"cid": "0000000e", "cmd": 16, "len": 278, "packets": 5, "data_head": "00a301667061636b65640258b49b263f", "data_sha_len": 278}, "status": 0, "status_name": "CTAP2_OK", "response_bytes": 277, "credential": {"fmt": "packed", "trailing": 0, "rp_id_hash_matches": true, "flags": 64, "user_present": false, "user_verified": false, "attested_data": true, "sign_count": 0, "aaguid_all_zero": true, "credential_id_len": 48, "cose_kty": 2, "cose_alg": -7, "cose_crv": 1, "coordinate_bytes": [32, 32], "att_alg": -7, "att_has_x5c": false, "signature_valid": true, "tamper_rejected": true}}
+>>> host: case mc-lying-length
+    {"case": "mc-lying-length", "device": "/dev/hidraw4", "request_bytes": 114, "reply": {"cid": "0000000f", "cmd": 16, "len": 1, "packets": 1, "data_head": "12", "data_sha_len": 1}, "status": 18, "status_name": "CTAP2_ERR_INVALID_CBOR", "response_bytes": 0, "cbor": ""}
+>>> host: case mc-noncanonical
+    {"case": "mc-noncanonical", "device": "/dev/hidraw4", "request_bytes": 115, "reply": {"cid": "00000010", "cmd": 16, "len": 1, "packets": 1, "data_head": "12", "data_sha_len": 1}, "status": 18, "status_name": "CTAP2_ERR_INVALID_CBOR", "response_bytes": 0, "cbor": ""}
+>>> host: case mc-trailing
+    {"case": "mc-trailing", "device": "/dev/hidraw4", "request_bytes": 115, "reply": {"cid": "00000011", "cmd": 16, "len": 1, "packets": 1, "data_head": "12", "data_sha_len": 1}, "status": 18, "status_name": "CTAP2_ERR_INVALID_CBOR", "response_bytes": 0, "cbor": ""}
+>>> host: case mc-missing-cdh
+    {"case": "mc-missing-cdh", "device": "/dev/hidraw4", "request_bytes": 79, "reply": {"cid": "00000012", "cmd": 16, "len": 1, "packets": 1, "data_head": "14", "data_sha_len": 1}, "status": 20, "status_name": "CTAP2_ERR_MISSING_PARAMETER", "response_bytes": 0, "cbor": ""}
+>>> host: case mc-missing-params
+    {"case": "mc-missing-params", "device": "/dev/hidraw4", "request_bytes": 90, "reply": {"cid": "00000013", "cmd": 16, "len": 1, "packets": 1, "data_head": "14", "data_sha_len": 1}, "status": 20, "status_name": "CTAP2_ERR_MISSING_PARAMETER", "response_bytes": 0, "cbor": ""}
+>>> host: case mc-no-es256
+    {"case": "mc-no-es256", "device": "/dev/hidraw4", "request_bytes": 116, "reply": {"cid": "00000014", "cmd": 16, "len": 1, "packets": 1, "data_head": "26", "data_sha_len": 1}, "status": 38, "status_name": "CTAP2_ERR_UNSUPPORTED_ALGORITHM", "response_bytes": 0, "cbor": ""}
+>>> host: case mc-many-algs
+    {"case": "mc-many-algs", "device": "/dev/hidraw4", "request_bytes": 323, "reply": {"cid": "00000015", "cmd": 16, "len": 277, "packets": 5, "data_head": "00a301667061636b65640258b49b263f", "data_sha_len": 277}, "status": 0, "status_name": "CTAP2_OK", "response_bytes": 276, "credential": {"fmt": "packed", "trailing": 0, "rp_id_hash_matches": true, "flags": 64, "user_present": false, "user_verified": false, "attested_data": true, "sign_count": 0, "aaguid_all_zero": true, "credential_id_len": 48, "cose_kty": 2, "cose_alg": -7, "cose_crv": 1, "coordinate_bytes": [32, 32], "att_alg": -7, "att_has_x5c": false, "signature_valid": true, "tamper_rejected": true}}
+>>> host: fido2-token -I
+    proto: 0x02
+    major: 0x00
+    minor: 0x01
+    build: 0x00
+    caps: 0x0c (nowink, cbor, nomsg)
+    aaguid: 00000000000000000000000000000000
+    fwversion: 0x0
+    maxmsgsiz: 1024
+    maxcredcntlst: 0
+    maxcredlen: 0
+    maxlargeblob: 0
+    pin retries: undefined
+    pin change required: false
+    uv retries: undefined
+>>> board: what it said while all of that happened
+    [    3037 ms] exp171 a credential nobody asked for
+    [    3097 ms]   NOT a security key: no cryptography, no credential, no secret.
+    [    3157 ms]   FIDO report descriptor: 34 bytes, hand-written, usage page 0xF1D0
+    [    3217 ms]   06d0f10901a1010920150026ff00750895
+    [    3277 ms]   4081020921150026ff00750895409102c0
+    [    3338 ms]   init packet carries 57 payload bytes, cont carries 59
+    [    3398 ms]   commands: INIT, PING, CBOR. Everything else -> ERR_INVALID_CMD.
+    [    3458 ms]   CTAP2: getInfo and makeCredential. ES256, self-attested.
+    [    3518 ms]   user presence: none (UP bit is never set without asking)
+    [    3578 ms]   device secret is a compiled-in TEST key, 32 bytes at 0x1000fa50
+    [    3638 ms]   versions: none claimed (0 entries)
+    [    3698 ms]   getInfo body is 25 bytes: a3018003500000000000000000000000000000000005190400
+    [    3758 ms]   max message 1024 bytes; longer -> ERR_INVALID_LEN.
+    [    3818 ms]   a transaction expires after 750 ms.
+    [    3878 ms] listening on the FIDO interface.
+    [    6947 ms] in  cid ffffffff INIT bcnt 8
+    [    7007 ms]   INIT: nonce 0102030405060708 -> cid 00000001
+    [    7155 ms] in  cid ffffffff INIT bcnt 8
+    [    7215 ms]   INIT: nonce 0102030405060708 -> cid 00000002
+    [    7283 ms] in  cid 00000002 PING bcnt 58
+    [    7343 ms]   assembled 58 bytes in 0 ms
+    [    7407 ms]   PING: echoed 58 bytes in 2 packets
+    [    7499 ms] in  cid ffffffff INIT bcnt 8
+    [    7559 ms]   INIT: nonce 0102030405060708 -> cid 00000003
+    [    7627 ms] in  cid 00000003 PING bcnt 1024
+    [    7751 ms]   assembled 1024 bytes in 63 ms
+    [    7879 ms]   PING: echoed 1024 bytes in 18 packets
+    [    7967 ms] in  cid ffffffff INIT bcnt 8
+    [    8027 ms]   INIT: nonce 0102030405060708 -> cid 00000004
+    [    8095 ms] in  cid 00000004 PING bcnt 2000
+    [    8155 ms]   ERROR 0x03 to cid 00000004
+    [    8215 ms]   ignored: a continuation packet with no transaction
+    [    8275 ms]   ignored: a continuation packet with no transaction
+    [    8335 ms]   ignored: a continuation packet with no transaction
+    [    8395 ms]   ignored: a continuation packet with no transaction
+    [    8455 ms]   ignored: a continuation packet with no transaction
+    [    8515 ms]   ignored: a continuation packet with no transaction
+    [    8575 ms]   ignored: a continuation packet with no transaction
+    [    8635 ms]   ignored: a continuation packet with no transaction
+    [    8695 ms]   ignored: a continuation packet with no transaction
+    [    8756 ms]   ignored: a continuation packet with no transaction
+    [    8816 ms]   ignored: a continuation packet with no transaction
+    [    8876 ms]   ignored: a continuation packet with no transaction
+    [    8936 ms]   ignored: a continuation packet with no transaction
+    [    8996 ms]   ignored: a continuation packet with no transaction
+    [    9056 ms]   ignored: a continuation packet with no transaction
+    [    9116 ms]   ignored: a continuation packet with no transaction
+    [    9176 ms]   ignored: a continuation packet with no transaction
+    [    9236 ms]   ignored: a continuation packet with no transaction
+    [    9296 ms]   ignored: a continuation packet with no transaction
+    [    9356 ms]   ignored: a continuation packet with no transaction
+    [    9416 ms]   ignored: a continuation packet with no transaction
+    [    9476 ms]   ignored: a continuation packet with no transaction
+    [    9536 ms]   ignored: a continuation packet with no transaction
+    [    9596 ms]   ignored: a continuation packet with no transaction
+    [    9657 ms]   ignored: a continuation packet with no transaction
+    [    9717 ms]   ignored: a continuation packet with no transaction
+    [    9777 ms]   ignored: a continuation packet with no transaction
+    [    9837 ms]   ignored: a continuation packet with no transaction
+    [    9897 ms]   ignored: a continuation packet with no transaction
+    [    9957 ms]   ignored: a continuation packet with no transaction
+    [   10017 ms]   ignored: a continuation packet with no transaction
+    [   10077 ms]   ignored: a continuation packet with no transaction
+    [   10137 ms]   ignored: a continuation packet with no transaction
+    [   10197 ms] in  cid ffffffff INIT bcnt 8
+    [   10257 ms]   INIT: nonce 0102030405060708 -> cid 00000005
+    [   10323 ms] in  cid 00000005 PING bcnt 200
+    [   10383 ms]   ERROR 0x04 to cid 00000005
+    [   10531 ms] in  cid ffffffff INIT bcnt 8
+    [   10591 ms]   INIT: nonce 0102030405060708 -> cid 00000006
+    [   10659 ms] in  cid ffffffff INIT bcnt 8
+    [   10719 ms]   INIT: nonce 1111111111111111 -> cid 00000007
+    [   10787 ms] in  cid 00000006 PING bcnt 200
+    [   10847 ms] in  cid 00000007 PING bcnt 8
+    [   10907 ms]   ERROR 0x06 to cid 00000007
+    [   11063 ms] in  cid ffffffff INIT bcnt 8
+    [   11123 ms]   INIT: nonce 0102030405060708 -> cid 00000008
+    [   11191 ms] in  cid 00000008 PING bcnt 200
+    [   12001 ms]   cid 00000008 timed out with 0/0 bytes
+    [   12143 ms] in  cid ffffffff INIT bcnt 8
+    [   12203 ms]   INIT: nonce 0102030405060708 -> cid 00000009
+    [   12271 ms] in  cid 00000009 MSG bcnt 4
+    [   12331 ms]   MSG is not implemented here: ERR_INVALID_CMD
+    [   12479 ms] in  cid ffffffff INIT bcnt 8
+    [   12539 ms]   INIT: nonce 0102030405060708 -> cid 0000000a
+    [   12607 ms]   ignored: a continuation packet with no transaction
+    [   13491 ms] in  cid ffffffff INIT bcnt 8
+    [   13551 ms]   INIT: nonce 0102030405060708 -> cid 0000000b
+    [   13619 ms] in  cid 0000000b CBOR bcnt 1
+    [   13679 ms]   getInfo: 25 bytes of canonical CBOR
+    [   13823 ms] in  cid ffffffff INIT bcnt 8
+    [   13883 ms]   INIT: nonce 0102030405060708 -> cid 0000000c
+    [   13951 ms] in  cid 0000000c CBOR bcnt 2
+    [   14011 ms]   getInfo takes no parameters; 1 arrived
+    [   14155 ms] in  cid ffffffff INIT bcnt 8
+    [   14215 ms]   INIT: nonce 0102030405060708 -> cid 0000000d
+    [   14283 ms] in  cid 0000000d CBOR bcnt 1
+    [   14343 ms]   CTAP2 command 0xee is unknown here
+    [   14487 ms] in  cid ffffffff INIT bcnt 8
+    [   14547 ms]   INIT: nonce 0102030405060708 -> cid 0000000e
+    [   14615 ms] in  cid 0000000e CBOR bcnt 114
+    [   14675 ms]   assembled 114 bytes in 0 ms
+    [   14735 ms]   makeCredential, and it parsed:
+    [   14795 ms]     rp.id      = "example.test"
+    [   14855 ms]     user.id    = 4 bytes
+    [   14915 ms]     clientData = 0001020304050607 (32 bytes)
+    [   14975 ms]     alg        = -7  (ES256)
+    [   15036 ms]   nobody is asked in this build: the UP bit will be 0.
+    [   15609 ms]   credential made: authData 180 B (COSE key 77 B), response 277 B
+    [   15669 ms]   derive 44529 us, sign 53769 us, UP bit 0
+    [   15729 ms]   the private key is not stored; it was derived and is gone.
+    [   16695 ms] in  cid ffffffff INIT bcnt 8
+    [   16755 ms]   INIT: nonce 0102030405060708 -> cid 0000000f
+    [   16823 ms] in  cid 0000000f CBOR bcnt 114
+    [   16883 ms]   assembled 114 bytes in 0 ms
+    [   16943 ms]   makeCredential refused: a length that runs past the message
+    [   17003 ms]   status 0x12, and nothing was read past the buffer.
+    [   17151 ms] in  cid ffffffff INIT bcnt 8
+    [   17211 ms]   INIT: nonce 0102030405060708 -> cid 00000010
+    [   17279 ms] in  cid 00000010 CBOR bcnt 115
+    [   17339 ms]   assembled 115 bytes in 0 ms
+    [   17399 ms]   makeCredential refused: valid CBOR that is not canonical
+    [   17459 ms]   status 0x12, and nothing was read past the buffer.
+    [   17607 ms] in  cid ffffffff INIT bcnt 8
+    [   17667 ms]   INIT: nonce 0102030405060708 -> cid 00000011
+    [   17735 ms] in  cid 00000011 CBOR bcnt 115
+    [   17795 ms]   assembled 115 bytes in 0 ms
+    [   17855 ms]   makeCredential refused: trailing bytes after the map
+    [   17915 ms]   status 0x12, and nothing was read past the buffer.
+    [   18063 ms] in  cid ffffffff INIT bcnt 8
+    [   18123 ms]   INIT: nonce 0102030405060708 -> cid 00000012
+    [   18191 ms] in  cid 00000012 CBOR bcnt 79
+    [   18251 ms]   assembled 79 bytes in 0 ms
+    [   18311 ms]   makeCredential refused: a field this command requires was missing
+    [   18371 ms]   status 0x14, and nothing was read past the buffer.
+    [   18519 ms] in  cid ffffffff INIT bcnt 8
+    [   18579 ms]   INIT: nonce 0102030405060708 -> cid 00000013
+    [   18647 ms] in  cid 00000013 CBOR bcnt 90
+    [   18707 ms]   assembled 90 bytes in 0 ms
+    [   18767 ms]   makeCredential refused: a field this command requires was missing
+    [   18827 ms]   status 0x14, and nothing was read past the buffer.
+    [   18971 ms] in  cid ffffffff INIT bcnt 8
+    [   19031 ms]   INIT: nonce 0102030405060708 -> cid 00000014
+    [   19099 ms] in  cid 00000014 CBOR bcnt 116
+    [   19159 ms]   assembled 116 bytes in 0 ms
+    [   19219 ms]   makeCredential, and it parsed:
+    [   19279 ms]     rp.id      = "example.test"
+    [   19339 ms]     user.id    = 4 bytes
+    [   19399 ms]     clientData = 0001020304050607 (32 bytes)
+    [   19460 ms]     alg        = -257
+    [   19520 ms]   ES256 was not offered; nothing here could be used.
+    [   19667 ms] in  cid ffffffff INIT bcnt 8
+    [   19727 ms]   INIT: nonce 0102030405060708 -> cid 00000015
+    [   19795 ms] in  cid 00000015 CBOR bcnt 323
+    [   19871 ms]   assembled 323 bytes in 15 ms
+    [   19931 ms]   makeCredential, and it parsed:
+    [   19991 ms]     rp.id      = "example.test"
+    [   20051 ms]     user.id    = 4 bytes
+    [   20111 ms]     clientData = 0001020304050607 (32 bytes)
+    [   20171 ms]     alg        = -7  (ES256)
+    [   20231 ms]     alg        = -35
+    [   20292 ms]     alg        = -36
+    [   20352 ms]     alg        = -257
+    [   20412 ms]     alg        = -258
+    [   20472 ms]     alg        = -259
+    [   20532 ms]     alg        = -37
+    [   20592 ms]     alg        = -38
+    [   20652 ms]     (more algorithms were offered than this device records)
+    [   20712 ms]   nobody is asked in this build: the UP bit will be 0.
+    [   20891 ms]   credential made: authData 180 B (COSE key 77 B), response 276 B
+    [   20951 ms]   derive 44521 us, sign 53800 us, UP bit 0
+    [   21011 ms]   the private key is not stored; it was derived and is gone.
+    [   21251 ms] in  cid ffffffff INIT bcnt 8
+    [   21311 ms]   INIT: nonce 5498c3e2cc97f512 -> cid 00000016
+    [   21379 ms] in  cid 00000016 CBOR bcnt 1
+    [   21439 ms]   getInfo: 25 bytes of canonical CBOR
+    [   21507 ms] in  cid 00000016 CBOR bcnt 1
+    [   21567 ms]   getInfo: 25 bytes of canonical CBOR
+    [   21635 ms] in  cid 00000016 CBOR bcnt 6
+    [   21695 ms]   CTAP2 command 0x06 is unknown here
+    [   21763 ms] in  cid 00000016 CBOR bcnt 6
+    [   21823 ms]   CTAP2 command 0x06 is unknown here
+    [   21891 ms] in  cid 00000016 CBOR bcnt 6
+    [   21951 ms]   CTAP2 command 0x40 is unknown here
+    [   23878 ms] idle: 112 packets in, 41 messages, 15 errors
