@@ -1,0 +1,119 @@
+[    3038 ms] exp165 who gets the last word
+[    3098 ms]   the first SAU region this repo writes, used to ask who overrules it
+[    3158 ms]   nothing here executes, accesses, or enters Non-secure state
+[    3218 ms] candidate 1 the board still answers as exp164 recorded
+[    3278 ms]   SAU at 0xe000edd0; cortex-m says SAU::PTR=0xe000edd0 - same
+[    3338 ms]   CTRL=0x00000001 TYPE=0x00000008 SFSR=0x00000000 SFAR=0xe000ede8
+[    3398 ms]   8 regions, enabled=true, allns=false
+[    3458 ms]   r0 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3518 ms]   r1 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3578 ms]   r2 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3638 ms]   r3 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3698 ms]   r4 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3758 ms]   r5 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3818 ms]   r6 RBAR=0x00000000 RLAR=0x00000000 -> 0x000000..0x00001f en=0 nsc=0
+[    3878 ms]   r7 RBAR=0x000046a0 RLAR=0x00007fe1 -> 0x0046a0..0x007fff en=1 nsc=0
+[    3938 ms]   bootrom, base          0x00000000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    3999 ms]   bootrom, probe range   0x00001000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4059 ms]   bootrom, below r7      0x00004680 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4119 ms]   bootrom, inside r7     0x00005000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4179 ms]   bootrom, above r7      0x00008000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4239 ms]   XIP flash              0x10000000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4299 ms]   XIP flash +0x01000000  0x11000000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4359 ms]   SRAM bank 0            0x20000000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4419 ms]   SRAM upper half        0x20040000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4479 ms]   SRAM top word          0x2007fffc S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4539 ms]   SRAM bank 8            0x20080000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4599 ms]   SRAM bank 9            0x20081000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4659 ms]   SRAM +0x10000000       0x30000000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4719 ms]   ACCESSCTRL             0x40060000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4780 ms]   TIMER0                 0x400b0000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4840 ms]   USB DPRAM              0x50100000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4900 ms]   SIO                    0xd0000000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    4960 ms]   SIO_NS                 0xd0020000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    5020 ms]   all 18 Secure and not NS-readable: yes; 1 region(s) enabled
+[    5080 ms] candidate 1 -> as expected
+[    5140 ms] candidate 2 our region reads back as written, and leaves no trace
+[    5200 ms]   r1 RBAR=0x20081000 RLAR=0x20081fe1 -> 0x20081000..0x20081fff en=1 nsc=0
+[    5260 ms]   asked for 0x20081000..0x20081fff NonSecure
+[    5320 ms]   region switched off; map handed back: yes
+[    5380 ms] candidate 2 -> as expected
+[    5440 ms] candidate 3 what TT says once our word is on the map
+[    5500 ms]   bank 9, region off     0x20081000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    5560 ms]   bank 9, ours NS        0x20081000 S=no  nsr=yes sau=1 idau=-1 raw=0x003e0100
+[    5620 ms]   the TT answer MOVED when our region went on
+[    5680 ms] candidate 3 -> measured, ungraded
+[    5740 ms] candidate 4 our region moved nothing else
+[    5800 ms]   0 of 17 other addresses moved while ours was on
+[    5860 ms] candidate 4 -> as expected
+[    5921 ms] candidate 5 switching it off puts the map back
+[    5981 ms]   bank 9, ours NS        0x20081000 S=no  nsr=yes sau=1 idau=-1 raw=0x003e0100
+[    6041 ms]   bank 9, ours off       0x20081000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    6101 ms]   back to candidate 1's answer: yes
+[    6161 ms] candidate 5 -> as expected
+[    6221 ms] candidate 6 the same range, marked Non-secure-Callable
+[    6281 ms]   RLAR=0x20081fe3 en=1 nsc=1
+[    6341 ms]   bank 9, ours NSC       0x20081000 S=yes nsr=no  sau=1 idau=-1 raw=0x004e0100
+[    6401 ms]   NSC vs NS: different (0x004e0100 vs 0x003e0100)
+[    6461 ms] candidate 6 -> measured, ungraded
+[    6521 ms] candidate 7 our region moved nothing ACCESSCTRL can see
+[    6581 ms]   ACCESSCTRL.SRAM[9] pre=0x000000ff ours-NS=0x000000ff post=0x000000ff
+[    6641 ms]   the bus filter held still when the SAU map changed
+[    6701 ms] candidate 7 -> as expected
+[    6761 ms] candidate 8 four ranges: where is our word honoured
+[    6821 ms]   SRAM bank 9       0x20081000 S yes->no  nsr yes sau=1 MOVED back=ok
+[    6881 ms]   SRAM bank 8       0x20080000 S yes->no  nsr yes sau=1 MOVED back=ok
+[    6941 ms]   bootrom below r7  0x00001000 S yes->yes nsr no  sau=-1 unmoved back=ok
+[    7001 ms]   SIO_NS alias      0xd0020000 S yes->yes nsr no  sau=-1 unmoved back=ok
+[    7061 ms]   2 of 4 ranges moved; 2 named our region
+[    7121 ms] candidate 8 -> measured, ungraded
+[    7182 ms] exp165 done. Nothing armed; still reflashable.
+[    7242 ms]   1 the board still answers as exp164 recorded - as expected
+[    7302 ms]   2 our region reads back as written, and leaves no trace - as expected
+[    7362 ms]   3 what TT says once our word is on the map - measured, ungraded
+[    7422 ms]   4 our region moved nothing else - as expected
+[    7482 ms]   5 switching it off puts the map back - as expected
+[    7542 ms]   6 the same range, marked Non-secure-Callable - measured, ungraded
+[    7602 ms]   7 our region moved nothing ACCESSCTRL can see - as expected
+[    7662 ms]   8 four ranges: where is our word honoured - measured, ungraded
+[    7722 ms]   our region r1 left RBAR=0x00000000 RLAR=0x00000000 en=0
+[    7782 ms]   SFSR before=0x00000000 after=0x00000000 - no SecureFault recorded
+[    7842 ms]   region 7 (the bootrom's) was never written here
+[    7902 ms]   bank 9, region off     0x20081000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[    7962 ms]   bank 9, ours NS        0x20081000 S=no  nsr=yes sau=1 idau=-1 raw=0x003e0100
+[    8022 ms]   bank 9, ours NSC       0x20081000 S=yes nsr=no  sau=1 idau=-1 raw=0x004e0100
+[    8082 ms] VERDICT:
+[    8142 ms]   the SAU's word is honoured AND reported: TT named region 1.
+[    8202 ms]   so exp164's region 7 reads sau=-1 for a reason belonging to
+[    8262 ms]   that address, not to the reporting path. Something else has
+[    8322 ms]   the last word in the bootrom, and this is the first sight of it.
+[    8382 ms]   bank 9: S yes->no , ns-readable no ->yes
+[    8442 ms]   NSC is distinguishable from NS in the TT response
+[    8502 ms]   2 of 4 probed ranges honoured our word; 2 named ours
+[    8562 ms]   NOT MEASURED: nothing was refused. This firmware never entered
+[    8622 ms]   Non-secure state, so every line above is what the SAU SAYS.
+[   23682 ms] exp165 done. Nothing armed; still reflashable.
+[   23743 ms]   1 the board still answers as exp164 recorded - as expected
+[   23803 ms]   2 our region reads back as written, and leaves no trace - as expected
+[   23863 ms]   3 what TT says once our word is on the map - measured, ungraded
+[   23923 ms]   4 our region moved nothing else - as expected
+[   23983 ms]   5 switching it off puts the map back - as expected
+[   24043 ms]   6 the same range, marked Non-secure-Callable - measured, ungraded
+[   24103 ms]   7 our region moved nothing ACCESSCTRL can see - as expected
+[   24163 ms]   8 four ranges: where is our word honoured - measured, ungraded
+[   24223 ms]   our region r1 left RBAR=0x00000000 RLAR=0x00000000 en=0
+[   24283 ms]   SFSR before=0x00000000 after=0x00000000 - no SecureFault recorded
+[   24343 ms]   region 7 (the bootrom's) was never written here
+[   24403 ms]   bank 9, region off     0x20081000 S=yes nsr=no  sau=-1 idau=-1 raw=0x004c0000
+[   24463 ms]   bank 9, ours NS        0x20081000 S=no  nsr=yes sau=1 idau=-1 raw=0x003e0100
+[   24523 ms]   bank 9, ours NSC       0x20081000 S=yes nsr=no  sau=1 idau=-1 raw=0x004e0100
+[   24583 ms] VERDICT:
+[   24643 ms]   the SAU's word is honoured AND reported: TT named region 1.
+[   24703 ms]   so exp164's region 7 reads sau=-1 for a reason belonging to
+[   24763 ms]   that address, not to the reporting path. Something else has
+[   24823 ms]   the last word in the bootrom, and this is the first sight of it.
+[   24883 ms]   bank 9: S yes->no , ns-readable no ->yes
+[   24943 ms]   NSC is distinguishable from NS in the TT response
+[   25003 ms]   2 of 4 probed ranges honoured our word; 2 named ours
+[   25063 ms]   NOT MEASURED: nothing was refused. This firmware never entered
+[   25123 ms]   Non-secure state, so every line above is what the SAU SAYS.

@@ -78,6 +78,7 @@ Per experiment:
 | exp162 | Same as exp159 and exp160 — `cdc`, one log, nobody in the room. No cryptography at all, so nothing here needs a crate that a future toolchain might drop. |
 | exp163 | Same as exp159, exp160 and exp162 — `cdc`, one log, nobody in the room. **RP2350 only**: bank 8, bank 9, `ACCESSCTRL` and `FORCE_CORE_NS` are all this chip's. Needs the TRNG for the seed, and the same `ml-dsa` build as exp160 on purpose, because it measures what that one leaves behind. |
 | exp164 | Same as exp163 — `cdc`, one log, nobody in the room, no cryptography. **Armv8-M**, not RP2350: the SAU and the `TT` instruction family are the architecture's, reached through `cortex-m` on stable. The `FORCE_CORE_NS` half is RP2350's. It reads the SAU and never configures it. |
+| exp165 | Same as exp164, and the first experiment here that **configures** the SAU rather than reading it. Any RP2350 board; the region it writes covers SRAM bank 9, which every RP2350 has. Two of its four probes come back overruled, and one of those is the bootrom — whose layout is this bootrom revision's, so another part may draw that line elsewhere. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -437,7 +438,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -575,6 +576,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp162 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp163 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp164 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp165 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -717,7 +719,8 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp161-one-port-four-doors](./exp161-one-port-four-doors/) | 1 · board | One HTTP port carries four services — index, log, status and hardware random bytes — and the thing that runs out is not the URL space but the one TRNG behind it |
 | [exp162-how-wide-can-a-wall-be](./exp162-how-wide-can-a-wall-be/) | 1 · board | Fifteen reads by a demoted core say where the eight SRAM banks actually are: `SRAM[n]` does not gate the *n*th 64 KB block, it gates one word in every four of a 256 KB half — so the longest region ACCESSCTRL can deny is four bytes |
 | [exp163-how-long-is-a-secret-in-the-open](./exp163-how-long-is-a-secret-in-the-open/) | 1 · board | A Non-secure core reads the whole 512 KB over and over while a Secure core signs: it sees the ML-DSA seed 32 times inside one 147 ms signature, nothing at all after a 3.4 ms wipe, and costs the signature it is watching 8.2% |
-| [exp164-the-wall-nobody-read](./exp164-the-wall-nobody-read/) | 1 · board | The SAU, under six experiments that never looked at it: enabled, eight regions, **all eight disabled**, so the whole address space defaults Secure — and the core `FORCE_CORE_NS` demotes reads the Secure SAU exactly as core 0 does. It is Non-secure to ACCESSCTRL and Secure to the architecture |
+| [exp164-the-wall-nobody-read](./exp164-the-wall-nobody-read/) | 1 · board | The SAU, under six experiments that never looked at it: enabled, eight regions, **one of them enabled** — region 7, the upper bootrom — so everything else defaults Secure, and the core `FORCE_CORE_NS` demotes reads the Secure SAU exactly as core 0 does. It is Non-secure to ACCESSCTRL and Secure to the architecture |
+| [exp165-who-gets-the-last-word](./exp165-who-gets-the-last-word/) | 1 · board | The first SAU region this repository writes, used as an instrument. Marked Non-secure it is **honoured and named** in SRAM and **silently overruled** in the bootrom and at `SIO_NS` — which is where exp164's open question was hiding. A Non-secure-Callable region is describable here, so exp156's unbuilt veneer has somewhere to live |
 
 ## The browser track, finished
 
@@ -1255,6 +1258,32 @@ repository cannot do, because its two boards are never on the same bench.
 
 ### The signing road
 
+> **This road is steeper than the ones above it, and the step is not where it
+> looks.** Everything up to exp163 is register writes and bus behaviour:
+> `ACCESSCTRL` is Raspberry Pi's own peripheral, `rp-pac` models it in full, and
+> nothing outside this repository is needed to read what it does. exp164 is the
+> first experiment here about **Armv8-M architecture** — security states, the
+> SAU, the IDAU, and the rule that a core's security state comes from the memory
+> its instructions were fetched from rather than from any bit you can write.
+> That is a different subject with its own manual, and this repository does not
+> have a copy; exp164 leaves a question open for exactly that reason, and says
+> so rather than deriving a rule it cannot check.
+>
+> **Where to stop, if you are working through the index in order.** exp163 is
+> the end of the story this road set out to tell — *can this part hide a signing
+> key while it is being used?* The answer is no, and exp156, exp159, exp160,
+> exp162 and exp163 are how it was measured. Read exp164 even if you stop there,
+> because it costs one flash of read-only register dumps and it corrects the
+> word the five before it use. What would come after exp164 — a
+> Non-secure-Callable region, a hand-written `SG` veneer, banked stack pointers
+> and a second vector table — is a subsystem rather than an experiment, and
+> nothing above depends on it.
+>
+> This is a different axis from the **Needs** column, which measures how much of
+> a *person* an experiment costs and says nothing about what you have to know
+> first. Every experiment on this road is Needs 1.
+
+
 The update road answered **can an update brick this board**. It said at the
 outset that *whose firmware will it accept* was a separate group, and this is
 it. [exp140](./exp140-a-checksum-that-passes/) is already its first experiment
@@ -1508,6 +1537,45 @@ None of these is interrogated yet — a direction, not a schedule.
   region — because settling it needs the Armv8-M reference manual, and
   `verify.py` prints it as `OPEN` rather than deriving a rule it cannot check.
   Needs 1.
+
+- **who gets the last word** — exp164's open question, narrowed by writing a
+  region instead of reading one. [exp165](./exp165-who-gets-the-last-word/) is
+  **verified on hardware**, eight candidates in a single boot, and it is the
+  first time this repository has ever **configured** the SAU rather than
+  described it.
+
+  A Non-secure region over SRAM bank 9 is **honoured and reported**: bank 9 goes
+  from `S=yes nsr=no sau=-1` to `S=no nsr=yes sau=1`, nothing else on the
+  eighteen-address map moves, and switching the region off puts it back. So the
+  reporting path works — and exp164's region 7, enabled and covering
+  `0x00005000` and still reported Secure with no region named, is **not** a
+  reporting quirk.
+
+  **The same region, over the bootrom and over `SIO_NS`, changes nothing at
+  all.** Two of four probed ranges honour the SAU's word and two overrule it in
+  silence, which is the first evidence on this road that a second attribution
+  unit exists. It is *not* named here: `cortex-m`'s own documentation lists an
+  architectural exemption as a separate reason for the same silence, and telling
+  the IDAU from an exemption needs the manual exp164 did not have either.
+  **What died is the third hypothesis, and that is what an experiment is for.**
+
+  It also hands exp156's unkept promise somewhere to stand. Marked
+  Non-secure-Callable, the same range answers `S=yes nsr=no sau=1` — a third
+  attribution, distinct from both, and describable on this part. The chip has no
+  NSC region by default; it can have one.
+
+  Two things it cost are worth carrying. The first run **left the region enabled
+  at the end of candidate 2**, so every later "baseline" was measured through a
+  map the firmware had already changed and the verdict came out backwards —
+  reporting a wall that worked as a wall that did nothing. Candidate 5's
+  put-it-back control is what caught it, and handing the map back is now graded
+  rather than assumed. And the report **repeats every fifteen seconds carrying
+  the three readings it rests on**, because the first `check.sh` hung waiting
+  for a verdict that had already scrolled past: a single-boot experiment that
+  prints once is unreadable to everyone who was not there at second eight.
+
+  Nothing here executes, accesses, or enters Non-secure state, so **nothing was
+  refused** — every line is what the SAU *says*. Needs 1.
 
 #### The channel, and why the framing decision comes with it
 
