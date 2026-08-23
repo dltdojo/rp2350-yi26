@@ -90,6 +90,7 @@ Per experiment:
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
 | exp176 | **No board, for the comparison** — it runs `fido2-token -I` and one registration against exp174 and a commercial FIDO2 key, on the host. Needs python3 and libfido2-tools. The commercial key's attestation half needs that key plus its PIN and a touch. No firmware of its own. |
+| exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
 | exp180 | Any RP2350 board, and the same hand on the same cable: the temperature half needs the board to start cool, which only unplugging it arranges. `cdc`, one log, no browser. **RP2350 only** — the FC0 source numbers, `FREQ_RANGE` and the temperature sensor's constants are all this chip's, and the RP2040 numbers the counter's sources differently. |
 | exp179 | Any RP2350 board, and a **hand on the USB cable** for the half that matters: the cold-boot reading needs power to actually go away, which no software here can arrange. `cdc`, one log, and no browser. The addresses are this chip's — 512 KB of main SRAM plus banks 8 and 9 — so a part with a different SRAM map needs the constants changed. |
 | exp177 | Any RP2350 board **you are willing to reflash**, and a Pico 2 for the release used here. Needs `fido2-token`, `fido2-cred`, python3, and the network once for `./setup.sh`. No firmware of its own: it measures a third party's released binary, and the board has to be flashed back afterwards by hand. |
@@ -462,7 +463,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -674,6 +675,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp178 | `none` | `none` | `none` | `none` |
 | exp179 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp180 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp181 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -833,6 +835,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp178-the-shape-of-the-contract](./exp178-the-shape-of-the-contract/) | 0 · none | OpenSK's `opensk` library pulled in behind its `Env` trait: **25 methods against a trait that demands 43**, linking for the board's target on stable, and every obligation left over is something this repository already built. The engine costs **121,184 bytes of flash** — 1.6× exp174's whole firmware — and closes **all ten** of exp176's code differences. The one exp176 called certification it does not touch |
 | [exp179-what-survives-a-reset](./exp179-what-survives-a-reset/) | 2 · a moment | **The RP2350 does not clear SRAM on power-on.** Three 4 KB windows read 50.5%, 51.2% and 51.0% one-bits after the cable came out and went back in, and not one of 130 blocks across the whole 520 KB is zero. What *does* clear it is the flashing path — 127 of 130 blocks zero on the boot after `yi26 flash` — which is where the `0.00%` this road was built on came from. The identity road's gate, open |
 | [exp180-the-silicon-or-the-room](./exp180-the-silicon-or-the-room/) | 2 · a moment | A ring oscillator's frequency was read as device uniqueness at a 13.34% spread. Temperature moves it **1.00% over twenty degrees** — real, measured at −0.050%/°C across a 6.94 °C cold start, and thirteen times too small to explain that. **One register field moves it 65.7%.** Also: the 14.28% LPOSC spread in the same work is one count of a frequency counter, shown by measuring the same board at two window lengths |
+| [exp181-a-key-that-is-written-nowhere](./exp181-a-key-that-is-written-nowhere/) | 2 · a moment | A 256-bit key that is in no image and in no flash: the helper data is `K ⊕ w`, and `w` only exists inside a powered chip. Enrolled on one power cycle, reconstructed on the next — **all 256 bits back, with 494 of 7,936 cells changed**, a 6.22% error rate a 31-fold repetition code carried with 1.93 flips per bit against 16 needed to break one. **Closes exp175's gap**: the image cannot carry this secret |
 
 ## The browser track, finished
 
@@ -1926,7 +1929,8 @@ comes from, not whether it can be hidden while in use.**
 key exactly as it applies to a TRNG one. This road is about *provenance*, and
 nothing on it weakens or replaces what the signing road measured.
 
-The first two are now built. The third is a direction, not a schedule.
+All three are now built, which was not the expected outcome: this road was
+written on the premise that the RP2350 clears its SRAM, and it does not.
 
 - **what survives a reset** — [exp179](./exp179-what-survives-a-reset/) is
   **verified on hardware**, and it answers the opposite way from the direction
@@ -1999,11 +2003,34 @@ The first two are now built. The third is a direction, not a schedule.
   whether an RO-PUF *can* work here — the earlier work's own roadmap proposes
   pairwise comparison and enrolment data, both designed to survive exactly this.
 
-- **a key that is written nowhere** — only if one of the two above says yes.
-  A device secret that is the same every boot, derived rather than stored, and
-  the honest paragraph attached to it before any of the arithmetic: it is
-  readable while it is in use, and
-  [exp163](./exp163-how-long-is-a-secret-in-the-open/) says for how long.
+- **a key that is written nowhere** — [exp181](./exp181-a-key-that-is-written-nowhere/)
+  is **verified on hardware**, and it is what exp179 was the gate for.
+
+  **A 256-bit key that is in no image and in no flash.** The helper data is
+  `H = K ⊕ w`, a code-offset fuzzy commitment over SRAM bank 8, with each key
+  bit spread across 31 cells and reconstruction by majority vote. Enrolled on
+  one power cycle at 51.1% one-bits, reconstructed on the next at 50.7%, and
+  **all 256 bits came back**. 494 of 7,936 cells had changed — a **6.22% error
+  rate** — against 16 flips needed to break a single key bit, so the code was
+  nowhere near its limit: 1.93 flips per bit on average.
+
+  **It closes [exp175](./exp175-the-secret-is-the-file/)'s gap.** That
+  experiment forged a working assertion from a `.uf2` because the key was a pure
+  function of a compiled-in constant. Dump this board's flash and you get one
+  half of an XOR whose other half only exists inside a powered chip.
+
+  Two guards, both handed over by exp179 and both checked in as transcripts
+  rather than intentions: enrolment **refuses** on a window outside 40–60%,
+  because the flashing path zeroes SRAM and enrolling there would store
+  `H = K ⊕ 0 = K`; and a reconstruction after a reset that kept its power is
+  printed as **not evidence**, because SRAM survives one of those and the result
+  would be circular.
+
+  What it does not show is **uniqueness**, which needs the second board — a PUF
+  that is stable but not unique is a chip reliably reconstructing somebody
+  else's key, and nothing here rules that out. Nor does it hide the key while it
+  is in use: [exp163](./exp163-how-long-is-a-secret-in-the-open/) applies
+  unchanged. Needs 2, and the action is pulling a cable twice.
 
 #### Questions this road has not answered, and must not assume
 

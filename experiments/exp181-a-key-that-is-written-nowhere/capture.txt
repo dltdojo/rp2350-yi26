@@ -1,0 +1,33 @@
+PASS  python3 present
+PASS  firmware compiles (213800 byte ELF)
+PASS  the firmware says the key is not printed, in the log itself
+PASS  exactly one thing is written to flash, and it is the record
+PASS  and there is only one such write in the whole firmware
+PASS  the SRAM window is never written to flash — storing it would be storing the key
+PASS  enrolment refuses a window outside the power-on band (exp179's 0.00% trap)
+PASS  a reconstruction after a warm reset is labelled as not evidence (exp179 again)
+PASS  the TRNG uses exp109's sample count, not the driver's default
+      ruling on capture-refused.txt
+PASS  the transcript reports what bank 8 held
+PASS  it refused on a window reading 0.0% — which is a cleared one, not a power-on one
+PASS  and it names the experiment that measured why the window is cleared
+PASS  even a refusal says the key is not printed and not stored
+      This transcript is the guard firing. There is no key in it, which is the point.
+      ruling on capture-reconstructed.txt
+PASS  the transcript reports what bank 8 held
+PASS  bank 8 came up at 50.7% one-bits — a power-on reading, not a cleared one
+PASS  the record says what it was enrolled at
+PASS  and that was 51.1%, within a few points of this boot — the same kind of reading, not a different kind
+PASS  the boot began from no power — exp179 measured that a reset which keeps it leaves the window untouched, so anything else here would be circular
+PASS  the key came back
+PASS  every one of the 256 key bits reconstructed, which is what makes the error count below exact
+PASS  the transcript reports how many cells changed
+      494 of 7936 cells changed: a 6.22% error rate, 1.93 flips per key bit of 31, and 16 needed to break one
+      so P(a key bit fails) = 6.18e-12, P(the key fails) = 1.58e-09
+PASS  the code had margin: about one reconstruction in 632 million would fail **at this error rate**, which is one measurement of it
+PASS  and the error rate is 6.22%, well inside what a 31-fold repetition can carry
+PASS  the key is not in the transcript, and the firmware says so
+PASS  a board is running exp181 — pull the cable and it does the whole thing again
+PASS  the README names exp179, which is what unlocked this
+PASS  the README names exp175, whose gap this closes
+PASS  and exp163, which says what this does not fix

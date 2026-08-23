@@ -1,0 +1,20 @@
+# exp181 — the boot straight after `yi26 flash`, and the enrolment that did not
+# happen. Captured 2026-08-23.
+#
+# exp179 measured that the flashing path zeroes SRAM. So on this boot bank 8
+# reads 0.0%, and enrolling here would have produced H = K XOR 0 = K — the key
+# sitting in flash in plain sight, which is exp175's failure reinvented.
+#
+# The refusal is the guard working, and it is checked in as evidence that it
+# does rather than as a note saying it should.
+
+[   32539 ms] exp181 a key that is written nowhere
+[   32539 ms]   boot #1, a power-on or a flash — nothing before it
+[   32539 ms]   bank 8 now: 0.0% one-bits — cleared, so this board was just flashed (exp179)
+[   32539 ms]   REFUSED to enrol: the window is not a power-on reading
+[   32539 ms]   the key itself is not printed, and is not stored anywhere
+[   47539 ms] exp181 a key that is written nowhere
+[   47539 ms]   boot #1, a power-on or a flash — nothing before it
+[   47539 ms]   bank 8 now: 0.0% one-bits — cleared, so this board was just flashed (exp179)
+[   47539 ms]   REFUSED to enrol: the window is not a power-on reading
+[   47539 ms]   the key itself is not printed, and is not stored anywhere

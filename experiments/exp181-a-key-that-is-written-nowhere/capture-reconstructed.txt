@@ -1,0 +1,20 @@
+# exp181 — the reconstruction, on the second power cycle. Captured 2026-08-23.
+#
+# The board was unplugged and plugged back in twice: once to enrol, once to
+# reconstruct. Neither needed a wait for it to cool — what is needed is that the
+# power actually went, not that the board got cold.
+#
+# `boot #1, a power-on` is breadcrumb saying this boot began from nothing, which
+# is what makes the reading below evidence: exp179 measured that a reset which
+# keeps the power leaves SRAM untouched, and a reconstruction after one of those
+# would succeed with zero errors and prove nothing.
+
+[   77503 ms]   the key itself is not printed, and is not stored anywhere
+[   92503 ms] exp181 a key that is written nowhere
+[   92503 ms]   boot #1, a power-on or a flash — nothing before it
+[   92503 ms]   bank 8 now: 50.7% one-bits
+[   92503 ms]   the key came back
+[   92503 ms]     enrolled at 51.1% one-bits
+[   92503 ms]     494 of 7936 cells changed since enrolment — 6.2% of them
+[   92503 ms]     every one of the 256 key bits reconstructed — and the count above is exact o...
+[   92504 ms]   the key itself is not printed, and is not stored anywhere
