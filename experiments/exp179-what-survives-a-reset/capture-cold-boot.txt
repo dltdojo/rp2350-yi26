@@ -1,0 +1,30 @@
+# exp179 — the board after the USB cable was pulled out and put back.
+# No reflash, no BOOTSEL: the firmware was already in flash and simply started
+# again with power that had actually been away. Captured 2026-08-23 by reading
+# the log across the three boots the firmware takes on its own.
+#
+# Boot #1 is the measurement. Boots #2 and #3 are the controls: they follow a
+# watchdog reset, which never removes power, and they show the marker again.
+
+[    2500 ms] boot #1, previous boot fresh — a flash or a power-on, with no note before it
+[    2500 ms]   .uninit probe sits at 0x200012a8
+[    2500 ms]   .uninit (ours): 16564 of 32768 one-bits (50.5%)
+[    2500 ms]     SOMETHING ELSE — neither zero nor ours
+[    2500 ms]   0x2007c000 (the earlier window): 16790 of 32768 one-bits (51.2%)
+[    2500 ms]     SOMETHING ELSE — neither zero nor ours
+[    2500 ms]   0x20080000 (bank 8): 16717 of 32768 one-bits (51.0%)
+[    2500 ms]     SOMETHING ELSE — neither zero nor ours
+[    2500 ms]   zero map: 0 of 130 4 KB blocks are entirely zero
+[    2575 ms] boot #2, previous boot completed
+[    2575 ms]   .uninit probe sits at 0x200012a8
+[    2575 ms]   .uninit (ours): 24576 of 32768 one-bits (75.0%)
+[    2575 ms]     OUR MARKER — it survived, nothing cleared it
+[    2575 ms]   0x2007c000 (the earlier window): 16790 of 32768 one-bits (51.2%)
+[    2576 ms]     SOMETHING ELSE — neither zero nor ours
+[    2576 ms]   0x20080000 (bank 8): 24576 of 32768 one-bits (75.0%)
+[    2576 ms]     OUR MARKER — it survived, nothing cleared it
+[    2576 ms]   zero map: 0 of 130 4 KB blocks are entirely zero
+[    2575 ms] boot #3, previous boot completed
+[    2575 ms]   .uninit probe sits at 0x200012a8
+[    2575 ms]   .uninit (ours): 24576 of 32768 one-bits (75.0%)
+[    2575 ms]     OUR MARKER — it survived, nothing cleared it

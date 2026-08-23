@@ -1,0 +1,35 @@
+PASS  python3 present
+PASS  toolchain present (cargo, elf2flash)
+PASS  firmware compiles (212820 byte ELF)
+PASS  it reads the earlier work's exact window, so the numbers are comparable
+PASS  and bank 8, which is outside everything the linker placed
+PASS  and a probe in .uninit, the section cortex-m-rt does not initialise
+PASS  0x2007c000 is read and never written — it is the running stack's own region
+PASS  the marker is 75% one-bits, so it cannot be misread as healthy SRAM noise
+PASS  it maps all of SRAM in 4 KB blocks, not only the three named windows
+PASS  the source says what happened to the pre_init design
+PASS  capture-after-flash.txt is checked in
+PASS  capture-cold-boot.txt is checked in
+PASS  capture-after-flash.txt carries at least two boots (found 5)
+PASS  the first boot in it is boot #1
+PASS  boot #1 reports all three windows
+PASS  .uninit (ours): zero one-bits on the boot straight after flashing
+PASS  0x2007c000 (the earlier window): zero one-bits on the boot straight after flashing
+PASS  0x20080000 (bank 8): zero one-bits on the boot straight after flashing
+PASS  127 of 130 4 KB blocks are entirely zero — the flashing path clears SRAM wholesale, which is the reading the earlier work took
+PASS  after a watchdog reset the marker is still in .uninit and in bank 8 — so a reset that keeps the power clears nothing
+PASS  and 0x2007c000 stays zero, because nothing writes there — not because anything clears it a second time
+PASS  capture-cold-boot.txt carries at least two boots (found 3)
+PASS  the first boot in it is boot #1
+PASS  boot #1 reports all three windows
+PASS  .uninit (ours): 50.5% one-bits, inside the 45–55% band the earlier work's own criteria call healthy
+PASS  .uninit (ours) is neither zeroed nor our marker — which is what a real power cycle has to look like
+PASS  0x2007c000 (the earlier window): 51.2% one-bits, inside the 45–55% band the earlier work's own criteria call healthy
+PASS  0x2007c000 (the earlier window) is neither zeroed nor our marker — which is what a real power cycle has to look like
+PASS  0x20080000 (bank 8): 51.0% one-bits, inside the 45–55% band the earlier work's own criteria call healthy
+PASS  0x20080000 (bank 8) is neither zeroed nor our marker — which is what a real power cycle has to look like
+PASS  not one of the 130 4 KB blocks is entirely zero after power returned
+PASS  and the warm boots after it do show the marker — the control that says the firmware can see one when it is there
+PASS  a board is running exp179 — yi26 log reads it, and pulling the cable re-runs the cold half
+PASS  the README says which road this opens
+PASS  the README carries both numbers — the one measured here and the one it explains

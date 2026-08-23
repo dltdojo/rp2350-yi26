@@ -90,6 +90,7 @@ Per experiment:
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
 | exp176 | **No board, for the comparison** — it runs `fido2-token -I` and one registration against exp174 and a commercial FIDO2 key, on the host. Needs python3 and libfido2-tools. The commercial key's attestation half needs that key plus its PIN and a touch. No firmware of its own. |
+| exp179 | Any RP2350 board, and a **hand on the USB cable** for the half that matters: the cold-boot reading needs power to actually go away, which no software here can arrange. `cdc`, one log, and no browser. The addresses are this chip's — 512 KB of main SRAM plus banks 8 and 9 — so a part with a different SRAM map needs the constants changed. |
 | exp177 | Any RP2350 board **you are willing to reflash**, and a Pico 2 for the release used here. Needs `fido2-token`, `fido2-cred`, python3, and the network once for `./setup.sh`. No firmware of its own: it measures a third party's released binary, and the board has to be flashed back afterwards by hand. |
 | exp178 | **No board at all**, and no USB anywhere in it. Needs `cargo`, the `thumbv8m.main-none-eabihf` target, python3, and the network once for `./setup.sh`. Builds an image for the board's target and never flashes it; the engine half runs in a host process. No firmware of its own that anybody should run. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
@@ -460,7 +461,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -670,6 +671,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp176 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp177 | `hid+hid+ccid+vendor` | `ctaphid+keystrokes+commands` | `hid` | `third-party` |
 | exp178 | `none` | `none` | `none` | `none` |
+| exp179 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -827,6 +829,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp176-the-same-question-of-two-devices](./exp176-the-same-question-of-two-devices/) | 2 · a moment | `fido2-token -I` and one registration, asked of the board and a Yubico key. Ten of fourteen differences are code the board could write; one — a real attestation identity — is the gap exp175 proved this chip cannot honestly close. Measures the distance to a commercial key instead of asserting it |
 | [exp177-the-same-chip-somebody-elses-decisions](./exp177-the-same-chip-somebody-elses-decisions/) | 2 · a moment | pico-fido, a different team's firmware, on the same Pico 2. **Nine of exp176's ten** code differences turn out to be written — the tenth is `eddsa`, and it took the device's own COSE numbers to see that `fido2-token`'s `unknown` was ES512. It claims a **real AAGUID with no certificate behind it**, which splits exp176's uncloseable difference into a half that is code and a half that is not. And it **sets the user-presence bit without waiting for anybody** — 437–501 ms, `fido2-cred -V` verifying it — which is exp171's rule met in the wild |
 | [exp178-the-shape-of-the-contract](./exp178-the-shape-of-the-contract/) | 0 · none | OpenSK's `opensk` library pulled in behind its `Env` trait: **25 methods against a trait that demands 43**, linking for the board's target on stable, and every obligation left over is something this repository already built. The engine costs **121,184 bytes of flash** — 1.6× exp174's whole firmware — and closes **all ten** of exp176's code differences. The one exp176 called certification it does not touch |
+| [exp179-what-survives-a-reset](./exp179-what-survives-a-reset/) | 2 · a moment | **The RP2350 does not clear SRAM on power-on.** Three 4 KB windows read 50.5%, 51.2% and 51.0% one-bits after the cable came out and went back in, and not one of 130 blocks across the whole 520 KB is zero. What *does* clear it is the flashing path — 127 of 130 blocks zero on the boot after `yi26 flash` — which is where the `0.00%` this road was built on came from. The identity road's gate, open |
 
 ## The browser track, finished
 
@@ -1920,26 +1923,41 @@ comes from, not whether it can be hidden while in use.**
 key exactly as it applies to a TRNG one. This road is about *provenance*, and
 nothing on it weakens or replaces what the signing road measured.
 
-None of these is interrogated yet — a direction, not a schedule.
+The first of these is now built; the two after it are a direction, not a
+schedule.
 
-- **what survives a reset** — the cheapest experiment on this road, and the one
-  with a prior negative result to overturn or confirm. Earlier work on this
-  chip measured a **`0.00%` uniformity** over a 4 KB window of "uninitialised"
-  SRAM: the RP2350 clears it before user code runs, so the classic SRAM PUF does
-  not exist here out of the box. That work then wrote down an exception it never
-  tested — *unless a custom, non-initialised memory section is reserved in the
-  linker configuration* — and this is that test.
+- **what survives a reset** — [exp179](./exp179-what-survives-a-reset/) is
+  **verified on hardware**, and it answers the opposite way from the direction
+  this road was written in.
 
-  Both answers are worth having. If a `.noinit`-style section survives, this
-  chip has an SRAM PUF after all and the rest of the road follows. If the
-  bootrom clears it too, **the RP2350 has no SRAM PUF**, which is a clean result
-  this repository can point at instead of the folklore.
+  **The RP2350 does not clear SRAM on power-on.** With the cable pulled out and
+  put back — no reflash — three 4 KB windows read **50.5%, 51.2% and 51.0%
+  one-bits**, and **not one of 130 blocks** across the whole 520 KB is zero.
 
-  The instruments already exist: [exp138](./exp138-what-the-rom-already-knows/)
-  for asking the ROM rather than assuming, [exp157](./exp157-a-note-for-the-next-boot/)
-  for what survives a reset at all, and
-  [`crates/entropy-health`](../crates/entropy-health/) for saying whether what
-  survives is worth anything.
+  This paragraph used to say the opposite, on the strength of earlier work that
+  measured **`0.00%` uniformity** at `0x2007_C000`. That measurement was right
+  and exp179 reproduces it exactly, at the same address — **on the boot straight
+  after a flash**, where 127 of 130 blocks are zero. The clearing belongs to the
+  path that puts firmware on the chip, not to the chip's power-on, and a reading
+  whose conditions were not part of the claim got generalised into this
+  repository's own prose. The correction is exp179's first section.
+
+  Three windows rather than one, because the same all-zero answer is consistent
+  with the bootrom, with `cortex-m-rt` zeroing `.bss`, and with the firmware's
+  own stack — `0x2007_C000` is the last 16 KB of main SRAM, which is where the
+  stack grows down through. And then a map of every 4 KB block, which is what
+  turned a point into a boundary. `#[pre_init]` was the first design and does not
+  compile in an embassy firmware; the reason is worth reading and is in exp179.
+
+  **It is not a PUF yet**, and exp179 says so before it says anything else: one
+  cold boot shows the cells are not cleared and the distribution is plausible.
+  Stability across power cycles and uniqueness across boards are the next two
+  questions, and both cost a person a cable. Needs 2 — the half that matters
+  cannot be caused by software.
+
+  [`crates/entropy-health`](../crates/entropy-health/) is the instrument for
+  whether what survives is worth anything, and nothing has pointed it at this
+  yet.
 
 - **the silicon or the room** — the question a ring-oscillator PUF has to answer
   before it is anything. Earlier work measured an RO-PUF across three boards and

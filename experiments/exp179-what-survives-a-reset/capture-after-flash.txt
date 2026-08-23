@@ -1,0 +1,39 @@
+# exp179 — the board on the boot straight after `yi26 flash`, and the two
+# watchdog resets it takes on its own afterwards. Power was never removed at any
+# point in this transcript. Captured 2026-08-23.
+#
+# Boot #1 is the reading the earlier work took: everything zero. Boots #2 and #3
+# are what a reset that keeps the power looks like — the marker is still there.
+
+[    2537 ms] boot #1, previous boot fresh — a flash or a power-on, with no note before it
+[    2538 ms]   .uninit probe sits at 0x200012a8
+[    2538 ms]   .uninit (ours): 0 of 32768 one-bits (0.0%)
+[    2538 ms]     ALL ZERO — something cleared it
+[    2538 ms]   0x2007c000 (the earlier window): 0 of 32768 one-bits (0.0%)
+[    2538 ms]     ALL ZERO — something cleared it
+[    2538 ms]   0x20080000 (bank 8): 0 of 32768 one-bits (0.0%)
+[    2538 ms]     ALL ZERO — something cleared it
+[    2538 ms]   zero map: 127 of 130 4 KB blocks are entirely zero
+[    2538 ms]     0x20001000..0x2007f000  126 block(s)
+[    2575 ms] boot #2, previous boot completed
+[    2575 ms]   .uninit probe sits at 0x200012a8
+[    2575 ms]   .uninit (ours): 24576 of 32768 one-bits (75.0%)
+[    2575 ms]     OUR MARKER — it survived, nothing cleared it
+[    2575 ms]   0x2007c000 (the earlier window): 0 of 32768 one-bits (0.0%)
+[    2575 ms]     ALL ZERO — something cleared it
+[    2575 ms]   0x20080000 (bank 8): 24576 of 32768 one-bits (75.0%)
+[    2576 ms]     OUR MARKER — it survived, nothing cleared it
+[    2576 ms]   zero map: 124 of 130 4 KB blocks are entirely zero
+[    2576 ms]     0x20003000..0x2007f000  124 block(s)
+[    2575 ms] boot #3, previous boot completed
+[    2575 ms]   .uninit probe sits at 0x200012a8
+[    2575 ms]   .uninit (ours): 24576 of 32768 one-bits (75.0%)
+[    2575 ms]     OUR MARKER — it survived, nothing cleared it
+[    2575 ms]   0x2007c000 (the earlier window): 0 of 32768 one-bits (0.0%)
+[    2575 ms]     ALL ZERO — something cleared it
+[    2575 ms]   0x20080000 (bank 8): 24576 of 32768 one-bits (75.0%)
+[    2576 ms]     OUR MARKER — it survived, nothing cleared it
+[    2576 ms]   zero map: 124 of 130 4 KB blocks are entirely zero
+[    2576 ms]     0x20003000..0x2007f000  124 block(s)
+[    7576 ms] (+1 lines lost) idle: boot #3, nothing further happens
+[   12576 ms] idle: boot #3, nothing further happens
