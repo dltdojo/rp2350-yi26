@@ -1,0 +1,37 @@
+# exp182 — the boot straight after `yi26 flash`, with exp181's enrolment still in
+# flash and the SRAM window it needs wiped by the flashing path itself.
+#
+# A 31-fold repetition code cannot carry a 43% error rate, the hash does not
+# match, and the device refuses rather than signing with whatever the majority
+# vote produced.
+#
+# This is also the operational cost of the whole design, and it is not a defect:
+# a firmware update leaves the board unusable until the power has been away once.
+# Captured 2026-08-23.
+
+[    3640 ms]   user presence: button (UP bit is never set without asking)
+[    3700 ms]   device secret: UNPROVISIONED — the key did NOT come back
+[    3760 ms]     bank 8 came up 0.0% one-bits, which is cleared — this board was just flashed...
+[    3881 ms]     nothing in this image is the key; forge.py has nothing to lift (exp175)
+[   24181 ms]   device secret: UNPROVISIONED — the key did NOT come back
+[   24241 ms]     bank 8 came up 0.0% one-bits; enrolled at 51.1%, 3419 of 7936 cells changed si...
+[   24301 ms]     nothing in this image is the key; forge.py has nothing to lift (exp175)
+
+--- and what libfido2 makes of it ---
+$ fido2-cred -M /dev/hidraw4 < cred.in
+fido2-cred: fido_dev_make_cred: FIDO_ERR_UNKNOWN
+
+# The trade, measured both ways rather than argued:
+#
+#   0x27 CTAP2_ERR_OPERATION_DENIED -> fido2-cred: FIDO_ERR_OPERATION_DENIED
+#        a standard code a client understands — and the same one this firmware
+#        returns when nobody pressed the button. Two facts, one number, which is
+#        exactly what exp173 spent an experiment on.
+#
+#   0xF0 vendor                      -> fido2-cred: FIDO_ERR_UNKNOWN
+#        distinguishable, and opaque. The client is told 'this is not a standard
+#        refusal', and the device says the rest on its LED and in its log.
+#
+# CTAP 2.1 has no status for 'I have no key material yet', so neither is clean.
+# This build takes the second: a number that means ask, over one that means
+# something else.

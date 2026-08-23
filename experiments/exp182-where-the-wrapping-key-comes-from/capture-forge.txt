@@ -1,0 +1,18 @@
+# exp182 — exp175's forgery, pointed at both images. Captured 2026-08-23.
+#
+# Same script, same attack, two firmwares. One of them is an identity you can
+# carry away in a file; the other is not.
+
+$ python3 ../exp175-the-secret-is-the-file/forge.py target/exp182-button.uf2 example.test
+the test-key secret is not in target/exp182-button.uf2 — is this an exp171+ image?
+(exit 1)
+
+$ python3 ../exp175-the-secret-is-the-file/forge.py ../exp174-a-deadline-nobody-mentioned/target/exp174.uf2 example.test
+    "x": "ZfQhMBpqEDyFJiyJN8ZSt5MBAXtQtwQD5KKtClxRWJc",
+    "y": "YpHhx_fl7O7LMhoU7H-cKFMgFDsqmn12hNSQx9eZTF8"
+  },
+  "authenticator_data": "myY_vLWJhTE3sz3cr6W8xUA0ZOrU2nZtD4GTSL-NRywBAAAAAA",
+  "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoieU5hcG1uWTV1c2VrY0ZrM2h5dFdiVFotdGQxa2xCT0pfMmJrdEcxRHFjYyIsIm9yaWdpbiI6Imh0dHBzOi8vZXhhbXBsZS50ZXN0IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+  "signature": "MEUCIGCLFWSDP7kwPLaUPSNmIXPOcUduOxa35H3SxRZ4Yh07AiEApSHfeCMF8IKJ63i5ahNtiEgaqDN4jYugT3wSlinxiy8",
+  "up_bit_claimed": true
+}

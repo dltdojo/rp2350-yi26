@@ -90,6 +90,7 @@ Per experiment:
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
 | exp176 | **No board, for the comparison** — it runs `fido2-token -I` and one registration against exp174 and a commercial FIDO2 key, on the host. Needs python3 and libfido2-tools. The commercial key's attestation half needs that key plus its PIN and a touch. No firmware of its own. |
+| exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
 | exp180 | Any RP2350 board, and the same hand on the same cable: the temperature half needs the board to start cool, which only unplugging it arranges. `cdc`, one log, no browser. **RP2350 only** — the FC0 source numbers, `FREQ_RANGE` and the temperature sensor's constants are all this chip's, and the RP2040 numbers the counter's sources differently. |
 | exp179 | Any RP2350 board, and a **hand on the USB cable** for the half that matters: the cold-boot reading needs power to actually go away, which no software here can arrange. `cdc`, one log, and no browser. The addresses are this chip's — 512 KB of main SRAM plus banks 8 and 9 — so a part with a different SRAM map needs the constants changed. |
@@ -463,7 +464,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -676,6 +677,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp179 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp180 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp181 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp182 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -836,6 +838,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp179-what-survives-a-reset](./exp179-what-survives-a-reset/) | 2 · a moment | **The RP2350 does not clear SRAM on power-on.** Three 4 KB windows read 50.5%, 51.2% and 51.0% one-bits after the cable came out and went back in, and not one of 130 blocks across the whole 520 KB is zero. What *does* clear it is the flashing path — 127 of 130 blocks zero on the boot after `yi26 flash` — which is where the `0.00%` this road was built on came from. The identity road's gate, open |
 | [exp180-the-silicon-or-the-room](./exp180-the-silicon-or-the-room/) | 2 · a moment | A ring oscillator's frequency was read as device uniqueness at a 13.34% spread. Temperature moves it **1.00% over twenty degrees** — real, measured at −0.050%/°C across a 6.94 °C cold start, and thirteen times too small to explain that. **One register field moves it 65.7%.** Also: the 14.28% LPOSC spread in the same work is one count of a frequency counter, shown by measuring the same board at two window lengths |
 | [exp181-a-key-that-is-written-nowhere](./exp181-a-key-that-is-written-nowhere/) | 2 · a moment | A 256-bit key that is in no image and in no flash: the helper data is `K ⊕ w`, and `w` only exists inside a powered chip. Enrolled on one power cycle, reconstructed on the next — **all 256 bits back, with 494 of 7,936 cells changed**, a 6.22% error rate a 31-fold repetition code carried with 1.93 flips per bit against 16 needed to break one. **Closes exp175's gap**: the image cannot carry this secret |
+| [exp182-where-the-wrapping-key-comes-from](./exp182-where-the-wrapping-key-comes-from/) | 2 · a moment | exp174's authenticator with exp181's key instead of a compiled-in constant. A full `fido2-cred`/`fido2-assert` round trip verifies — and **exp175's forgery, unchanged, finds nothing in this image while still minting an assertion from exp174's**. The identity survived two firmware changes because it was never in either firmware |
 
 ## The browser track, finished
 
@@ -2375,10 +2378,35 @@ None of these is interrogated yet — a direction, not a schedule.
   because the device it was written against never emitted one. Needs 0 — the
   first experiment on this road that needs neither a board nor a person.
 
-- **where the wrapping key comes from** — the [identity road](#the-identity-road)
-  arriving, and now with a cost measured rather than asserted: [exp175](./exp175-the-secret-is-the-file/)
-  showed exactly what a compiled-in test key gives away. Until the identity road
-  lands, this road uses that key and says what it costs.
+- **where the wrapping key comes from** —
+  [exp182](./exp182-where-the-wrapping-key-comes-from/) is **verified on
+  hardware**, and it is exp174's authenticator with its compiled-in constant
+  replaced by [exp181](./exp181-a-key-that-is-written-nowhere/)'s key.
+
+  **The test is somebody else's attack failing.**
+  [exp175](./exp175-the-secret-is-the-file/)'s `forge.py`, unchanged, finds
+  nothing in this image — and still mints a working assertion from exp174's,
+  which is the control that says the script itself still works. A full
+  `fido2-cred` / `fido2-assert` round trip verifies on the new one, so the
+  identity is real to somebody else's client while being absent from the file.
+
+  Three things it cost, all of them written down. A board straight from
+  `yi26 flash` **cannot make a credential** — flashing zeroes the SRAM the key
+  comes from, so every firmware update leaves the device unusable until the
+  power has been away once. The refusal needed **its own status code**: the
+  first version answered `CTAP2_ERR_OPERATION_DENIED`, which is also what this
+  firmware says when nobody pressed the button, and exp173 is an entire
+  experiment about one number meaning two things. And the first round trip
+  **timed out because its instructions were printed to a terminal** nobody was
+  sitting at — the board is driven remotely, where a script's stdout and the
+  firmware's log both reach nobody. The LED now has three states, which
+  `AGENTS.md` had asked for before any of this started.
+
+  Not closed by it: uniqueness, which exp181 could not show either, and which
+  for an authenticator is the sharpest version of the caveat — a PUF that is
+  stable but not unique is a device reliably reconstructing somebody else's
+  identity. Nor attestation: the AAGUID is still sixteen zero bytes, which is
+  exp176's one difference that is not code.
 
 - **the strict client** — Android, and the finding above reproduced rather than
   quoted. This is the one that needs a phone and the browser track's whole

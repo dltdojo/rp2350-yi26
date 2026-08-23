@@ -1,0 +1,44 @@
+PASS  python3 present
+PASS  fido2-token present (the host's own tool)
+PASS  firmware compiles (295308 byte ELF)
+PASS  there is no compiled-in device secret left in the source
+PASS  both key-using functions take the secret as an argument, not from a global
+PASS  an unprovisioned board has its own status, not the one that means no press
+PASS  and both credential commands refuse with it (makeCredential, getAssertion)
+PASS  the LED has a state for 'press now' and one for 'power cycle me'
+PASS  and it is set where the presence window opens, not at the call sites
+PASS  enrolment refuses a cleared window (exp179's 0.00% after a flash)
+PASS  exp175's forgery, run live, finds no secret in this image
+      ruling on capture-unprovisioned.txt
+PASS  the transcript says what bank 8 held
+PASS  and how far that was from the enrolment
+PASS  the window read 0.0% — cleared, which is what flashing leaves (exp179)
+PASS  3419 of 7936 cells apart, a 43% error rate no 31-fold repetition can carry
+PASS  so the device refused rather than signing with the majority vote's output
+PASS  and a real client saw the refusal, rather than a credential nobody could check
+PASS  nothing in this transcript claims the key came back
+PASS  and the firmware says, in its own log, that the image carries no key
+      ruling on capture-provisioned.txt
+PASS  the transcript says what bank 8 held
+PASS  and how far that was from the enrolment
+PASS  the window read 51.1% — a power-on reading
+PASS  the key came back
+PASS  482 of 7936 cells had changed, a 6.07% error rate, well inside what the code carries
+PASS  and the enrolment it was measured against was itself a power-on reading (51.1%)
+PASS  nothing in this transcript claims the board is unprovisioned
+PASS  and the firmware says, in its own log, that the image carries no key
+      ruling on capture-roundtrip.txt
+PASS  fido2-cred made a credential
+PASS  fido2-cred verified the self attestation
+PASS  fido2-assert used the credential
+PASS  and the assertion verified against the key the credential handed over
+PASS  nothing in the round trip was refused
+      ruling on capture-forge.txt
+PASS  exp175's forgery finds nothing in this experiment's image
+PASS  and mints a working assertion from exp174's, which is the control that says the attack still works where the secret is in the file
+PASS  including a user-presence bit it simply asserts, with no board present
+SKIP  the board is not running exp182; the checked-in transcripts stand
+PASS  the README names exp175
+PASS  the README names exp179
+PASS  the README names exp181
+PASS  the README names exp163

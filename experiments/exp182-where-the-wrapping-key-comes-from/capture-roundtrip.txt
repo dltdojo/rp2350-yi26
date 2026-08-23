@@ -1,0 +1,9 @@
+>>> host: the device's own account of where its secret came from
+>>> host: fido2-cred -M — HOLD BOOTSEL until it returns
+    made a credential, 6 lines out
+>>> host: fido2-cred -V — libfido2 verifies the self attestation it was handed
+    verified, and wrote the public key out
+>>> host: fido2-assert -G — HOLD BOOTSEL again
+    got an assertion
+>>> host: fido2-assert -V — the assertion against the key the credential handed over
+    VERIFIED — a credential whose private key is in no image and no flash

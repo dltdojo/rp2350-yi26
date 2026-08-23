@@ -1,0 +1,14 @@
+# exp182 — the same board after one power cycle, reconstructing the key that
+# exp181 enrolled. A different firmware, the same identity, because the identity
+# was never in either firmware.
+#
+# The state repeats with every idle report rather than once at boot, so this is
+# what the log says whenever anybody looks. Captured 2026-08-23.
+
+[    3663 ms]   device secret: reconstructed from SRAM — the key came back
+[    3723 ms]     bank 8 came up 51.1% one-bits
+[    3843 ms]     nothing in this image is the key; forge.py has nothing to lift (exp175)
+[   44323 ms] (+7 lines lost)   device secret: reconstructed from SRAM — the key came back
+[   44384 ms]     bank 8 came up 51.1% one-bits; enrolled at 51.1%, 482 of 7936 cells changed si...
+[   44444 ms]     nothing in this image is the key; forge.py has nothing to lift (exp175)
+[   44504 ms] idle: 0 packets in, 0 messages, 0 errors
