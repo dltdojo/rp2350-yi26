@@ -39,6 +39,31 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// UF2 family ID for rp2350-arm-s, at byte offset 28 of every block.
 const RP2350_FAMILY: u32 = 0xE48B_FF59;
 
+/// The flag that makes byte 28 a family ID at all. Without it those four bytes
+/// are a file size, and reading them as a family is reading a number that means
+/// something else.
+const UF2_FLAG_FAMILY_PRESENT: u32 = 0x0000_2000;
+
+const UF2_BLOCK: usize = 512;
+
+/// The families a refusal is worth naming. Not a complete list, and not needed
+/// to be: anything absent is printed as its number.
+const FAMILY_NAMES: &[(u32, &str)] = &[
+    (0xE48B_FF56, "rp2040"),
+    (0xE48B_FF57, "absolute — an address taken literally, not an offset"),
+    (0xE48B_FF58, "data"),
+    (0xE48B_FF59, "rp2350-arm-s"),
+    (0xE48B_FF5A, "rp2350-riscv"),
+    (0xE48B_FF5B, "rp2350-arm-ns"),
+];
+
+fn family_name(id: u32) -> String {
+    match FAMILY_NAMES.iter().find(|(f, _)| *f == id) {
+        Some((_, name)) => format!("{id:08x} ({name})"),
+        None => format!("{id:08x}"),
+    }
+}
+
 const USAGE: &str = "\
 yi26 — host-side helper for the rp2350-yi26 experiments
 
@@ -912,7 +937,7 @@ fn cmd_flash(opts: &Opts, uf2: &Path, force: bool) -> i32 {
         opts,
         &Explanation {
             shell: &[
-                "od -An -tx4 -j28 -N4 firmware.uf2      # family ID must be e48bff59",
+                "od -An -tx4 -j28 -N4 firmware.uf2      # the FIRST block's family; yi26 reads every block's",
                 "stty -F /dev/ttyACM0 115200; sleep 1; stty -F /dev/ttyACM0 1200",
                 "udisksctl mount -b /dev/sdb1",
                 "cp firmware.uf2 /media/you/RP2350/",
@@ -932,8 +957,12 @@ fn cmd_flash(opts: &Opts, uf2: &Path, force: bool) -> i32 {
         Ok(b) => b,
         Err(e) => return fail(opts, "no-file", &format!("cannot read {}: {e}", uf2.display()), "cargo build --release && elf2flash convert -b rp2350 <elf> <uf2>"),
     };
-    if let Err(e) = check_uf2_family(&bytes) {
-        return fail(opts, "wrong-family", &e, "elf2flash convert -b rp2350 <elf> <uf2>");
+    match check_uf2_family(&bytes) {
+        Err(e) => return fail(opts, "wrong-family", &e, "elf2flash convert -b rp2350 <elf> <uf2>"),
+        // A mixed file is not an error, and it is not nothing either: the blocks
+        // that are not firmware are still going to be written somewhere.
+        Ok(Some(note)) => eprintln!("yi26: {note}"),
+        Ok(None) => {}
     }
     // Structural pre-flight: an image linked at the wrong base, or a UF2 with no
     // boot block at offset 0, would flash cleanly and then not come up. Catch it
@@ -1006,19 +1035,87 @@ fn cmd_flash(opts: &Opts, uf2: &Path, force: bool) -> i32 {
     }
 }
 
-fn check_uf2_family(bytes: &[u8]) -> Result<(), String> {
-    if bytes.len() < 32 {
-        return Err("not a UF2 file (too short)".to_string());
+/// Is this file for this chip?
+///
+/// **Every block, not the first one.** This read one family ID — the first
+/// block's — until exp177 handed it a released third-party image whose first
+/// block is 256 bytes of padding in the `absolute` family and whose other 1,744
+/// blocks say `e48bff59`. It refused the file with *"this file is for a
+/// different chip"*, which was both wrong and, worse, a sentence that sends
+/// somebody looking in the wrong place. A UF2 is a sequence of independent
+/// blocks and each carries its own family; a file is for this chip if **any** of
+/// them is.
+///
+/// Returns a note on success when the file is mixed, because a block that is not
+/// firmware is a thing the person flashing it should know is going somewhere.
+fn check_uf2_family(bytes: &[u8]) -> Result<Option<String>, String> {
+    if bytes.len() < UF2_BLOCK {
+        return Err(format!(
+            "not a UF2 file ({} bytes is less than one 512-byte block)",
+            bytes.len()
+        ));
     }
-    let family = u32::from_le_bytes([bytes[28], bytes[29], bytes[30], bytes[31]]);
-    if family == RP2350_FAMILY {
-        Ok(())
-    } else {
-        Err(format!(
-            "UF2 family ID is {family:08x}, expected {RP2350_FAMILY:08x} (rp2350-arm-s) — \
-             this file is for a different chip"
-        ))
+    if bytes.len() % UF2_BLOCK != 0 {
+        return Err(format!(
+            "not a UF2 file ({} bytes is not a whole number of 512-byte blocks)",
+            bytes.len()
+        ));
     }
+
+    let mut census: Vec<(u32, usize)> = Vec::new();
+    let mut ours = 0usize;
+    let mut without_family = 0usize;
+    let total = bytes.len() / UF2_BLOCK;
+
+    for block in bytes.chunks_exact(UF2_BLOCK) {
+        let flags = u32::from_le_bytes([block[8], block[9], block[10], block[11]]);
+        if flags & UF2_FLAG_FAMILY_PRESENT == 0 {
+            without_family += 1;
+            continue;
+        }
+        let family = u32::from_le_bytes([block[28], block[29], block[30], block[31]]);
+        if family == RP2350_FAMILY {
+            ours += 1;
+        }
+        match census.iter_mut().find(|(f, _)| *f == family) {
+            Some(entry) => entry.1 += 1,
+            None => census.push((family, 1)),
+        }
+    }
+
+    if ours > 0 {
+        let foreign: usize = census.iter().filter(|(f, _)| *f != RP2350_FAMILY).map(|(_, n)| n).sum();
+        if foreign == 0 && without_family == 0 {
+            return Ok(None);
+        }
+        let mut note = format!("{ours} of {total} blocks are rp2350-arm-s; the rest: ");
+        let mut parts: Vec<String> = census
+            .iter()
+            .filter(|(f, _)| *f != RP2350_FAMILY)
+            .map(|(f, n)| format!("{n}× {}", family_name(*f)))
+            .collect();
+        if without_family > 0 {
+            parts.push(format!("{without_family}× no family ID"));
+        }
+        note.push_str(&parts.join(", "));
+        return Ok(Some(note));
+    }
+
+    if census.is_empty() {
+        return Err(format!(
+            "no block of this {total}-block UF2 declares a family ID — \
+             expected {RP2350_FAMILY:08x} (rp2350-arm-s)"
+        ));
+    }
+    let found = census
+        .iter()
+        .map(|(f, n)| format!("{n}× {}", family_name(*f)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(format!(
+        "none of this UF2's {total} blocks is family {RP2350_FAMILY:08x} (rp2350-arm-s) — \
+         it holds {found}"
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -1542,19 +1639,91 @@ fn is_executable(p: &Path) -> bool {
 mod tests {
     use super::*;
 
+    /// One 512-byte UF2 block of the given family.
+    fn block(family: u32) -> Vec<u8> {
+        let mut b = vec![0u8; UF2_BLOCK];
+        b[0..4].copy_from_slice(&0x0A32_4655u32.to_le_bytes());
+        b[8..12].copy_from_slice(&UF2_FLAG_FAMILY_PRESENT.to_le_bytes());
+        b[28..32].copy_from_slice(&family.to_le_bytes());
+        b
+    }
+
     #[test]
     fn family_id_gate() {
-        let mut good = vec![0u8; 32];
-        good[28..32].copy_from_slice(&RP2350_FAMILY.to_le_bytes());
-        assert!(check_uf2_family(&good).is_ok());
+        assert!(matches!(check_uf2_family(&block(RP2350_FAMILY)), Ok(None)));
 
         // An RP2040 UF2 — the ROM would ignore it in silence, which looks
         // exactly like a board that failed to boot.
-        let mut rp2040 = vec![0u8; 32];
-        rp2040[28..32].copy_from_slice(&0xe48b_ff56u32.to_le_bytes());
-        assert!(check_uf2_family(&rp2040).is_err());
+        assert!(check_uf2_family(&block(0xe48b_ff56)).is_err());
 
         assert!(check_uf2_family(&[0u8; 4]).is_err());
+        assert!(check_uf2_family(&vec![0u8; UF2_BLOCK + 3]).is_err());
+    }
+
+    /// The bug exp177 found: a released third-party image whose **first** block
+    /// is padding in the `absolute` family and whose remaining blocks are for
+    /// this chip. Reading one family ID refused it, and said the file was for a
+    /// different chip.
+    #[test]
+    fn a_foreign_first_block_does_not_condemn_the_file() {
+        let mut uf2 = block(0xe48b_ff57);
+        for _ in 0..4 {
+            uf2.extend_from_slice(&block(RP2350_FAMILY));
+        }
+        match check_uf2_family(&uf2) {
+            Ok(Some(note)) => {
+                assert!(note.contains("4 of 5"), "{note}");
+                assert!(note.contains("absolute"), "{note}");
+            }
+            other => panic!("expected an accepted-with-note, got {other:?}"),
+        }
+    }
+
+    /// And the refusal still names what it actually found, rather than one
+    /// number from one block.
+    #[test]
+    fn a_refusal_reports_the_census() {
+        let mut uf2 = block(0xe48b_ff56);
+        uf2.extend_from_slice(&block(0xe48b_ff5a));
+        let e = check_uf2_family(&uf2).unwrap_err();
+        assert!(e.contains("2 blocks"), "{e}");
+        assert!(e.contains("rp2040"), "{e}");
+        assert!(e.contains("rp2350-riscv"), "{e}");
+    }
+
+    /// The actual file that found this, when it is on the machine.
+    ///
+    /// exp177 fetches it into a git-ignored directory, so a clean checkout has
+    /// no such file and this returns rather than failing. Where it *is* there,
+    /// it is the only test here that runs on the bytes that caused the bug
+    /// instead of on a reconstruction of them.
+    #[test]
+    fn the_released_image_that_found_this() {
+        let path = std::path::Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../experiments/exp177-the-same-chip-somebody-elses-decisions",
+            "/firmware/pico_fido_pico2-8.0.uf2"
+        ));
+        if !path.exists() {
+            return;
+        }
+        let bytes = std::fs::read(path).unwrap();
+        match check_uf2_family(&bytes) {
+            Ok(Some(note)) => {
+                assert!(note.contains("1744 of 1745"), "{note}");
+                assert!(note.contains("absolute"), "{note}");
+            }
+            other => panic!("the released image should be accepted, with a note; got {other:?}"),
+        }
+    }
+
+    /// Byte 28 is only a family ID when the flag says so; otherwise it is a
+    /// file size, and a file of those is not for this chip by accident.
+    #[test]
+    fn a_block_with_no_family_flag_is_not_read_as_one() {
+        let mut b = vec![0u8; UF2_BLOCK];
+        b[28..32].copy_from_slice(&RP2350_FAMILY.to_le_bytes());  // but no flag
+        assert!(check_uf2_family(&b).is_err());
     }
 
     /// Builds a two-block UF2 whose marker is split across the boundary.

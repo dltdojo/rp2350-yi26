@@ -242,9 +242,13 @@ travel to a board for it to be useful.
 
 Both are one line, and both are what `check.sh` already does:
 
-1. **The family ID is `e48bff59`.** Every UF2 block carries one at byte offset
-   28, and `e48bff59` is RP2350 Arm (secure). A file built for the wrong chip
-   will be copied onto the drive perfectly and do nothing.
+1. **The family ID is `e48bff59`.** A UF2 block carries one at byte offset 28
+   whenever bit `0x2000` of its flags is set, and `e48bff59` is RP2350 Arm
+   (secure). A file built for the wrong chip will be copied onto the drive
+   perfectly and do nothing. Read more than the first block: a legitimate image
+   can mix families — exp177 met a released one whose first block is padding in
+   the `absolute` family — and the question is whether **any** block is this
+   chip's, not what the first one says.
 2. **The size is plausible.** exp103 is under 10 KB. A `.uf2` that is suddenly
    ten times bigger is a different program from the one you asked for.
 
