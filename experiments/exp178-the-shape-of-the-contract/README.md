@@ -224,9 +224,13 @@ mirror image and a smaller claim: a real *authenticator* emits something a
 strict reader **on the host side** rejects. The firmware reader in
 [`crates/cbor`](../../crates/cbor/) is different code and accepts text keys —
 while explicitly declining to check their ordering, in a comment that says so.
-`closes.py`'s reader keeps exp169's strictness and adds the missing rule: text
-keys sort after integer ones, by length and then by bytes. OpenSK's `getInfo`
-passes it.
+This experiment's reader keeps exp169's strictness and adds the missing rule:
+text keys sort after integer ones, by length and then by bytes. OpenSK's
+`getInfo` passes it. It began inside `closes.py` and now lives in
+[`../cbor.py`](../cbor.py), because exp177 met the same limit against a third
+party's firmware on the same day and two copies of a reader written to stop
+copies drifting would have been a poor joke. Nothing before exp177 imports it:
+the four older readers stay as they are.
 
 ## Where this does not go
 

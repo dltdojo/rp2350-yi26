@@ -147,7 +147,11 @@ Two smaller things came out of asking directly:
   keys. exp173's has no major type 7, so the first `true` in an options map
   stops it. Neither device they were written against ever sent either. The
   reader that works is [exp178](../exp178-the-shape-of-the-contract/)'s, written
-  the same day, and it is canonical-only: **pico-fido's `getInfo` is canonical.**
+  the same day and promoted to [`../cbor.py`](../cbor.py) once two experiments
+  needed it. It is canonical-only, so this is a result and not a shrug:
+  **pico-fido's `getInfo` is canonical.** The four older readers are left as
+  they are — each was right about the device it was written for, and editing
+  verified work to make a later convenience true is not a fix.
 - **It sends `CTAPHID_KEEPALIVE` while it thinks** — one packet, `0x3b`, payload
   `0x01` (PROCESSING). [exp174](../exp174-a-deadline-nobody-mentioned/) measured
   what that packet is for on this repository's own board; here it arrives from

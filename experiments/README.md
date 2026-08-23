@@ -186,6 +186,14 @@ Repository-wide, alongside `lib.sh`:
   distribution, and all of the `PRESENCE` and USB declarations at once. It
   needs no board and no toolchain, so there is no excuse to skip it, and CI
   runs it on every push.
+- **[`cbor.py`](./cbor.py)** — a canonical-only CBOR reader, for the
+  experiments **after** exp177. Four experiments carry their own — exp169's,
+  copied into exp170 to exp172, and exp173's — and both lineages refuse a real
+  authenticator's `getInfo`, one over text map keys and one over booleans.
+  Neither was wrong about the device it was written for. The fix went forward
+  rather than back: those four are verified work whose scripts are part of what
+  they demonstrate, so they keep their own copies and nothing before exp177
+  imports this.
 - **[`audit.sh`](./audit.sh)** — disclosure report. Prints the
   security-relevant choices baked into each firmware, with the evidence for
   each and the risk it carries, so you can decide whether they suit you.

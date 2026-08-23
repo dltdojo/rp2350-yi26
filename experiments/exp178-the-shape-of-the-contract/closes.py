@@ -14,100 +14,27 @@ out of `../exp176-the-same-question-of-two-devices/comparison.json`. If exp176's
 categorisation changes, this experiment's result changes with it, and check.sh
 fails rather than quietly disagreeing with the file it cites.
 
-The reader below is this repository's own, from exp169, with one thing added:
-**text map keys, and their ordering**. exp169's refuses them outright — the
-device it was written against never emitted one — and OpenSK's getInfo is full
-of them, because CTAP 2.1 defines `options` and `algorithms` with string keys.
-So the strictness is kept and the gap is filled: text keys sort after integer
-ones, by length and then by bytes, and a response that gets that wrong is
-refused here rather than normalised.
+The CBOR is read with `../cbor.py`, which is exp169's canonical-only reader with
+the two rules it did not need: **text map keys, and their ordering**. exp169's
+refuses them outright — the device it was written against never emitted one —
+and OpenSK's getInfo is full of them, because CTAP 2.1 defines `options` and
+`algorithms` with string keys. That reader started life inside this file and was
+promoted to a shared one when exp177 needed it the same day; the strictness is
+unchanged, and a response that gets the ordering wrong is refused rather than
+normalised.
 """
 
+import importlib.util
 import json
 import os
 import sys
 
-
-class NotCanonical(Exception):
-    """Valid CBOR that CTAP2 will not accept — a different thing from invalid
-    CBOR, and the one a real authenticator could plausibly emit."""
-
-
-def _key_rank(k):
-    """CTAP2's canonical map key order: integers first, then text by length,
-    then text bytewise."""
-    if isinstance(k, int):
-        return (0, k, b"")
-    return (1, len(k), k.encode())
-
-
-def decode(b, at=0, depth=0):
-    if at >= len(b):
-        raise NotCanonical("ran off the end")
-    ib = b[at]
-    mt, ai = ib >> 5, ib & 0x1F
-    at += 1
-    if ai < 24:
-        arg = ai
-    elif ai == 24:
-        arg = b[at]
-        if arg < 24:
-            raise NotCanonical(f"{arg} written in two bytes; it fits in one")
-        at += 1
-    elif ai == 25:
-        arg = int.from_bytes(b[at:at + 2], "big")
-        if arg <= 0xFF:
-            raise NotCanonical(f"{arg} written in three bytes; it fits in fewer")
-        at += 2
-    elif ai == 26:
-        arg = int.from_bytes(b[at:at + 4], "big")
-        if arg <= 0xFFFF:
-            raise NotCanonical(f"{arg} written in five bytes; it fits in fewer")
-        at += 4
-    elif ai == 27:
-        arg = int.from_bytes(b[at:at + 8], "big")
-        if arg <= 0xFFFFFFFF:
-            raise NotCanonical(f"{arg} written in nine bytes; it fits in fewer")
-        at += 8
-    elif ai == 31:
-        raise NotCanonical("an indefinite length, which CTAP2 forbids")
-    else:
-        raise NotCanonical(f"reserved additional information {ai}")
-
-    if mt == 0:
-        return arg, at
-    if mt == 1:
-        return -1 - arg, at
-    if mt == 2:
-        return bytes(b[at:at + arg]), at + arg
-    if mt == 3:
-        return b[at:at + arg].decode(), at + arg
-    if mt == 4:
-        out = []
-        for _ in range(arg):
-            v, at = decode(b, at, depth + 1)
-            out.append(v)
-        return out, at
-    if mt == 5:
-        out, last = {}, None
-        for _ in range(arg):
-            k, at = decode(b, at, depth + 1)
-            if not isinstance(k, (int, str)):
-                raise NotCanonical("a map key that is neither an integer nor text")
-            rank = _key_rank(k)
-            if last is not None and rank <= last:
-                raise NotCanonical(f"map key {k!r} does not follow the one before it")
-            last = rank
-            v, at = decode(b, at, depth + 1)
-            out[k] = v
-        return out, at
-    if mt == 7:
-        if arg == 20:
-            return False, at
-        if arg == 21:
-            return True, at
-        raise NotCanonical(f"simple value {arg}, which this subset does not use")
-    raise NotCanonical(f"major type {mt}, which this subset does not use")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_spec = importlib.util.spec_from_file_location(
+    "yi26_cbor", os.path.join(_HERE, "..", "cbor.py"))
+cbor = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(cbor)
+decode, NotCanonical = cbor.decode, cbor.NotCanonical
 
 
 # getInfo's numbered fields, from CTAP 2.1.

@@ -38,7 +38,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CTAPHID = os.path.join(HERE, "..", "exp173-a-client-that-is-not-ours", "ctaphid.py")
-READER = os.path.join(HERE, "..", "exp178-the-shape-of-the-contract", "closes.py")
+READER = os.path.join(HERE, "..", "cbor.py")
 
 # COSE algorithm identifiers, from the IANA registry. Only the ones a FIDO2
 # authenticator plausibly advertises are named; anything else is reported as a
@@ -87,7 +87,7 @@ def get_info(m, link):
     body = link.last
     if body[0] != 0:
         raise SystemExit("getInfo returned status 0x%02x" % body[0])
-    reader = load("exp178_reader", READER)
+    reader = load("yi26_cbor", READER)
     info, at = reader.decode(body[1:])
     if at != len(body) - 1:
         raise SystemExit("%d bytes left over after the map" % (len(body) - 1 - at))
