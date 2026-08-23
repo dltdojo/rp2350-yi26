@@ -1,0 +1,18 @@
+[package]
+name = "exp178-driver"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Drives OpenSK's CTAP engine on the host, with no board and no USB"
+
+# The same engine as ../stub, and the opposite build: every feature that closes
+# one of exp176's gaps is switched on, because the question here is what this
+# engine can be made to answer, not what a minimal build answers. `std` brings
+# OpenSK's own `TestEnv`, which supplies all six obligations the stub had to
+# write out by hand.
+[dependencies.opensk]
+path = "../upstream/OpenSK/libraries/opensk"
+default-features = false
+features = ["std", "ctap1", "config_command", "software_crypto_ed25519"]
+
+[workspace]

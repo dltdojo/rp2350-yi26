@@ -1,0 +1,47 @@
+PASS  python3 present
+PASS  cargo present
+PASS  the engine is cloned (./setup.sh)
+PASS  the clone is at the commit setup.sh pins (b3b16fb3af12bd8249b9e2a6b4b5869d9036ccda)
+PASS  no upstream file is committed to this repository
+PASS  obligation 1 of 3: upstream's licence travels with its code
+PASS  obligation 2 of 3: this experiment's own files carry the same licence
+PASS  obligation 3 of 3: the README says what is ours and what is theirs
+PASS  the board's target is installed
+PASS  the stub declares stable Rust
+      building both arms of the stub (this is the measurement) ...
+PASS  the stub meets Env and links for the board's target
+PASS  the same crate builds with no engine in it
+      with engine 123404 bytes, without 2220, engine 121184
+PASS  full CTAP 2.1 costs 121184 bytes of flash on this chip
+PASS  every stub answers through black_box, so nothing is folded away
+PASS  the adapter carries a global allocator — the contract requires one
+PASS  all six obligations name the experiment that already implements them
+PASS  the contract's shape is counted from the pinned source
+PASS  the README carries the totals row
+PASS  the README's 43 demanded signatures are what the source says
+PASS  and its 31 free ones
+PASS  and its 18 associated types
+PASS  the adapter is 25 methods and 10 associated types
+PASS  and the README says the same numbers
+      running the engine in this process ...
+PASS  the engine answers CTAPHID in a host process, with no board
+PASS  OpenSK's getInfo is canonical CBOR by this repository's own reader, text map keys and their ordering included
+PASS  U2F_V2: closed — the CTAP1/U2F path, behind upstream's `ctap1` feature
+PASS  FIDO_2_1_PRE: closed — and not the preview string: this engine claims FIDO_2_1
+PASS  credProtect: closed — announced as an extension
+PASS  hmac-secret: closed — announced as an extension
+PASS  rk: closed — announced, and a resident credential was actually made — 260 bytes of attestation object, status 0
+PASS  clientPin: closed — announced; note this is the exact surface the road cut on purpose, and the one that trips Android's strict parser
+PASS  credentialMgmtPreview: closed — announced as `credMgmt`, the full command rather than the preview
+PASS  (no algorithms advertised): closed — field 10 is present with 2 entry/entries
+PASS  eddsa: closed — announced, and an Ed25519 credential was actually made — 428 bytes, status 0
+PASS  pin_protocols=1: closed — field 6 offers 2, 1, in that order
+PASS  max_cred_count_list=8: one of the twenty-one Customization methods
+PASS  max_cred_len=128: not a Customization method: it falls out of how the key store wraps a credential, so a build changes it by changing the format and not by setting a number — this engine reports 241
+PASS  pin_retries=8: one of the twenty-one Customization methods; not in getInfo, because it is answered by clientPIN
+PASS  the AAGUID is still all zeroes: the one difference exp176 called certification is not closed by code
+PASS  every one of exp176's 10 code differences was ruled on
+PASS  all 10 of exp176's code differences are closed by somebody else's engine
+PASS  and the one exp176 called certification is not — no amount of code closes it
+PASS  the README rules on exp176's list rather than a list of its own
+PASS  the README ties the uncloseable gap to exp175

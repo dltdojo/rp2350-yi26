@@ -1,0 +1,192 @@
+{
+  "Rng": {
+    "required": [],
+    "provided": [
+      "gen_uniform_u8x32"
+    ],
+    "gated": [],
+    "types": []
+  },
+  "UserPresence": {
+    "required": [
+      "check_init",
+      "wait_with_timeout",
+      "check_complete"
+    ],
+    "provided": [],
+    "gated": [],
+    "types": []
+  },
+  "Clock": {
+    "required": [
+      "make_timer",
+      "is_elapsed"
+    ],
+    "provided": [],
+    "gated": [
+      "timestamp_us"
+    ],
+    "types": [
+      "Timer"
+    ]
+  },
+  "HidConnection": {
+    "required": [
+      "send",
+      "recv"
+    ],
+    "provided": [],
+    "gated": [],
+    "types": []
+  },
+  "Persist": {
+    "required": [
+      "find",
+      "insert",
+      "remove",
+      "iter"
+    ],
+    "provided": [
+      "init",
+      "credential_bytes",
+      "write_credential_bytes",
+      "remove_credential",
+      "iter_credentials",
+      "free_credential_key",
+      "global_signature_counter",
+      "incr_global_signature_counter",
+      "pin_hash",
+      "set_pin",
+      "pin_fails",
+      "incr_pin_fails",
+      "reset_pin_retries",
+      "min_pin_length",
+      "min_pin_length_rp_ids_bytes",
+      "init_large_blob",
+      "write_large_blob_chunk",
+      "get_large_blob",
+      "commit_large_blob_array",
+      "reset",
+      "has_force_pin_change",
+      "has_always_uv",
+      "get_attestation",
+      "set_attestation",
+      "aaguid",
+      "set_aaguid",
+      "key_store_bytes",
+      "write_key_store_bytes"
+    ],
+    "gated": [
+      "pin_code_point_length",
+      "uv_fails",
+      "incr_uv_fails",
+      "reset_uv_retries",
+      "set_min_pin_length",
+      "set_min_pin_length_rp_ids",
+      "force_pin_change",
+      "enterprise_attestation",
+      "enable_enterprise_attestation",
+      "toggle_always_uv",
+      "template_infos",
+      "store_template_id",
+      "remove_template_id",
+      "get_friendly_name",
+      "store_friendly_name"
+    ],
+    "types": []
+  },
+  "KeyStore": {
+    "required": [
+      "init",
+      "wrap_credential",
+      "unwrap_credential",
+      "cred_random",
+      "encrypt_pin_hash",
+      "decrypt_pin_hash",
+      "reset"
+    ],
+    "provided": [],
+    "gated": [],
+    "types": []
+  },
+  "Customization": {
+    "required": [
+      "allows_pin_protocol_v1",
+      "default_cred_protect",
+      "default_min_pin_length",
+      "default_min_pin_length_rp_ids",
+      "enforce_always_uv",
+      "enterprise_attestation_mode",
+      "is_enterprise_rp_id",
+      "max_msg_size",
+      "max_pin_retries",
+      "use_batch_attestation",
+      "use_signature_counter",
+      "max_cred_blob_length",
+      "max_credential_count_in_list",
+      "max_large_blob_array_size",
+      "max_rp_ids_length",
+      "max_supported_resident_keys"
+    ],
+    "provided": [],
+    "gated": [
+      "enterprise_rp_id_list",
+      "max_uv_attempts_for_internal_retries",
+      "max_uv_retries",
+      "preferred_platform_uv_attempts",
+      "max_template_friendly_name"
+    ],
+    "types": []
+  },
+  "Crypto": {
+    "required": [],
+    "provided": [],
+    "gated": [],
+    "types": [
+      "Aes256",
+      "Ecdh",
+      "Ecdsa",
+      "Ed25519",
+      "Sha256",
+      "Hmac256",
+      "Hkdf256"
+    ]
+  },
+  "Env": {
+    "required": [
+      "rng",
+      "user_presence",
+      "persist",
+      "key_store",
+      "clock",
+      "write",
+      "customization",
+      "hid_connection",
+      "boots_after_soft_reset"
+    ],
+    "provided": [
+      "firmware_version",
+      "process_vendor_command"
+    ],
+    "gated": [
+      "fingerprint"
+    ],
+    "types": [
+      "Rng",
+      "UserPresence",
+      "Persist",
+      "KeyStore",
+      "Write",
+      "Customization",
+      "HidConnection",
+      "Clock",
+      "Crypto",
+      "Fingerprint"
+    ]
+  },
+  "totals": {
+    "required": 43,
+    "provided": 31,
+    "associated_types": 18
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "engine": "opensk",
+  "closed": [
+    {
+      "capability": "U2F_V2",
+      "why": "the CTAP1/U2F path, behind upstream's `ctap1` feature"
+    },
+    {
+      "capability": "FIDO_2_1_PRE",
+      "why": "and not the preview string: this engine claims FIDO_2_1"
+    },
+    {
+      "capability": "credProtect",
+      "why": "announced as an extension"
+    },
+    {
+      "capability": "hmac-secret",
+      "why": "announced as an extension"
+    },
+    {
+      "capability": "rk",
+      "why": "announced, and a resident credential was actually made \u2014 260 bytes of attestation object, status 0"
+    },
+    {
+      "capability": "clientPin",
+      "why": "announced; note this is the exact surface the road cut on purpose, and the one that trips Android's strict parser"
+    },
+    {
+      "capability": "credentialMgmtPreview",
+      "why": "announced as `credMgmt`, the full command rather than the preview"
+    },
+    {
+      "capability": "(no algorithms advertised)",
+      "why": "field 10 is present with 2 entry/entries"
+    },
+    {
+      "capability": "eddsa",
+      "why": "announced, and an Ed25519 credential was actually made \u2014 428 bytes, status 0"
+    },
+    {
+      "capability": "pin_protocols=1",
+      "why": "field 6 offers 2, 1, in that order"
+    }
+  ],
+  "open": [],
+  "policy": [
+    {
+      "capability": "max_cred_count_list=8",
+      "customization": "max_credential_count_in_list",
+      "value_here": null,
+      "note": "one of the twenty-one Customization methods"
+    },
+    {
+      "capability": "max_cred_len=128",
+      "customization": null,
+      "value_here": 241,
+      "note": "not a Customization method: it falls out of how the key store wraps a credential, so a build changes it by changing the format and not by setting a number"
+    },
+    {
+      "capability": "pin_retries=8",
+      "customization": "max_pin_retries",
+      "value_here": null,
+      "note": "one of the twenty-one Customization methods; not in getInfo, because it is answered by clientPIN"
+    }
+  ],
+  "certification": {
+    "capability": "aaguid b92c3f9ac0144056887f140a2501163b",
+    "aaguid_here": "00000000000000000000000000000000",
+    "closed": false,
+    "why": "this build's AAGUID is sixteen zero bytes, exactly like exp174's board. OpenSK offers batch attestation as a mechanism \u2014 a certificate and a key you supply \u2014 and a mechanism is not a certification. exp175's gap is untouched by any amount of somebody else's code."
+  },
+  "counts": {
+    "code_in_exp176": 10,
+    "closed": 10,
+    "open": 0
+  }
+}

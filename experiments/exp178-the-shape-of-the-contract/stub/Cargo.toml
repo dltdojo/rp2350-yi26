@@ -1,0 +1,41 @@
+[package]
+name = "exp178-stub"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A stub Env for OpenSK's CTAP engine, built for the RP2350 and never flashed"
+
+# The engine, as a path dependency into the clone `setup.sh` makes. It is not
+# vendored and not committed: without ./setup.sh this crate does not build, and
+# that is the honest state of a dependency on somebody else's tree.
+[dependencies.opensk]
+optional = true
+path = "../upstream/OpenSK/libraries/opensk"
+default-features = false
+# `software_crypto` is what makes `Crypto` free — fifteen methods, all provided.
+# Nothing else is enabled: no ctap1, no config_command, no fingerprint, no
+# vendor_hid. The measurement is a property of the build, so the build is
+# minimal and says so.
+features = ["software_crypto"]
+
+[dependencies]
+cortex-m = { version = "0.7.7", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7.3"
+panic-halt = "0.2.0"
+rp2350-linker = "0.2.3"
+# The heap. This is the line the experiment is about: `Env` hands back
+# `Vec<u8>` and `Box<dyn Iterator>`, so the contract cannot be met without one.
+embedded-alloc = "0.6.0"
+
+[features]
+# The engine, and the arm that leaves it out. Both are built by check.sh,
+# because one half of a comparison is not a comparison.
+default = ["engine"]
+engine = ["dep:opensk"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]

@@ -90,6 +90,7 @@ Per experiment:
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
 | exp176 | **No board, for the comparison** — it runs `fido2-token -I` and one registration against exp174 and a commercial FIDO2 key, on the host. Needs python3 and libfido2-tools. The commercial key's attestation half needs that key plus its PIN and a touch. No firmware of its own. |
+| exp178 | **No board at all**, and no USB anywhere in it. Needs `cargo`, the `thumbv8m.main-none-eabihf` target, python3, and the network once for `./setup.sh`. Builds an image for the board's target and never flashes it; the engine half runs in a host process. No firmware of its own that anybody should run. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -448,7 +449,7 @@ awake — and because most of these experiments cost nothing.
 
 | | Means | Experiments |
 | --- | --- | --- |
-| **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
+| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
@@ -599,6 +600,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp174 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp175 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp176 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp178 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -754,6 +756,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp174-a-deadline-nobody-mentioned](./exp174-a-deadline-nobody-mentioned/) | 2 · a moment | A browser registers and logs in with this board, unchanged — and then **gives up on it**. Two findings: this firmware had been taking 11–21 s to make a credential because of [exp109](./exp109-hardware-trng/)'s constant, which every check called correct; and a silent device has about twenty seconds before Chrome stops listening, which one `CTAPHID_KEEPALIVE` packet per 100 ms pushes past |
 | [exp175-the-secret-is-the-file](./exp175-the-secret-is-the-file/) | 2 · a moment | The board is not the secret — the `.uf2` is. `forge.py` mints a working WebAuthn assertion from the firmware image alone, no board involved, because exp171's key is a pure function of a compiled-in constant. The first rung that attacks the road's own product, and the argument for the identity road |
 | [exp176-the-same-question-of-two-devices](./exp176-the-same-question-of-two-devices/) | 2 · a moment | `fido2-token -I` and one registration, asked of the board and a Yubico key. Ten of fourteen differences are code the board could write; one — a real attestation identity — is the gap exp175 proved this chip cannot honestly close. Measures the distance to a commercial key instead of asserting it |
+| [exp178-the-shape-of-the-contract](./exp178-the-shape-of-the-contract/) | 0 · none | OpenSK's `opensk` library pulled in behind its `Env` trait: **25 methods against a trait that demands 43**, linking for the board's target on stable, and every obligation left over is something this repository already built. The engine costs **121,184 bytes of flash** — 1.6× exp174's whole firmware — and closes **all ten** of exp176's code differences. The one exp176 called certification it does not touch |
 
 ## The browser track, finished
 
@@ -2170,19 +2173,51 @@ None of these is interrogated yet — a direction, not a schedule.
   and — where a fuse is burned — a master key in OTP that closes exactly exp175's
   demonstration B. This road runs it **without Secure Lock**, records what that
   means, and treats the fuse as the boundary it is. It is the outside-in view of
-  the same gap exp178 looks at from the inside. Not yet built; needs interrogation
-  about flashing third-party firmware over a board that may carry a partition
-  table.
+  the same gap **where the wrapping key comes from** looks at from the inside —
+  and [exp178](./exp178-the-shape-of-the-contract/) has already shown that
+  swapping in somebody else's engine does not move it. Reserved as **exp177**;
+  not yet built, and needs interrogation about flashing third-party firmware over
+  a board that may carry a partition table.
 
-- **the shape of the contract** — pull OpenSK's `opensk` library in behind its
-  `Env` trait and make it *compile* against stubs, nothing more. What the library
-  demands before it will build — a clock, an RNG, a HID link, persistent storage,
-  user presence — is a checklist this repository has met one piece at a time, and
-  the measurement is that OpenSK offers full CTAP 2.1 for an adapter smaller than
-  a hand-written engine that offers three commands. Apache-2.0 both ways, which is
-  what makes the reuse legal; `check.sh` should assert the three obligations that
-  licence imposes. The engine is cloned by a setup script, not vendored, so "this
-  is someone else's tree" stays visible in the layout. Not yet built.
+- **the shape of the contract** — OpenSK's `opensk` library, pulled in behind
+  its `Env` trait. [exp178](./exp178-the-shape-of-the-contract/) is **verified on
+  host** — no board, no USB, nobody in the room — and it answers more than it set
+  out to.
+
+  **Forty-three signatures demanded, twenty-five written.** The adapter is 25
+  methods and 10 associated types, it links for `thumbv8m.main-none-eabihf` on
+  **stable** (prior work on this chip used nightly; the library does not need
+  it), and the difference between demanded and written is three escape hatches:
+  an empty marker trait that hands over the entire key store, a `const` holding
+  upstream's answers to twenty-one policy questions, and one feature that
+  supplies all the cryptography. **What is left is six obligations, and this
+  repository already built every one of them** — exp109's TRNG, exp171's BOOTSEL
+  wait, `embassy-time`, `crates/usb-log`, exp145's flash writes, exp168's
+  CTAPHID. `Persist` is four methods and a key-value store; twenty-eight
+  CTAP-level operations sit on top of them.
+
+  **The engine costs 121,184 bytes of flash**, measured by building the same
+  crate with and without it — 1.6× exp174's *entire* firmware, USB stack and
+  all. It does not fit in exp142's 64 KiB A/B slot, which is a partition table
+  somebody has to change rather than a wall. The first attempt at that number
+  came out at 1,852 bytes because LTO propagated the stubs' constants through the
+  whole engine and deleted it; every stub now answers through `black_box`, and
+  `check.sh` fails if the figure ever collapses again.
+
+  Its second half runs the same engine on the host — OpenSK ships a `TestEnv`,
+  and `Ctap::process_hid_packet` takes the same 64-byte reports exp168 put on a
+  wire — and rules on exp176's list **read out of exp176's own file**. All ten of
+  the differences exp176 called code are closed, two of them by asking rather
+  than reading: a resident credential and an Ed25519 credential are actually
+  made. The three it called policy turn out to be exactly what `Customization`
+  is for. **The one it called certification is not closed** — the AAGUID is
+  sixteen zero bytes, the same as exp174's board — which is exp175's finding
+  arriving from the far side: no amount of somebody else's code closes it.
+
+  It also found something small about this repository: exp169's host-side
+  canonical CBOR reader refuses OpenSK's `getInfo` at the first text map key,
+  because the device it was written against never emitted one. Needs 0 — the
+  first experiment on this road that needs neither a board nor a person.
 
 - **where the wrapping key comes from** — the [identity road](#the-identity-road)
   arriving, and now with a cost measured rather than asserted: [exp175](./exp175-the-secret-is-the-file/)
@@ -2206,7 +2241,11 @@ None of these is interrogated yet — a direction, not a schedule.
   later experiment opens its box of magic by hand. **CTAP2 is larger than any of
   those.** The first two are hand-written because they are exp128's subject; the
   decision for the rest belongs to the experiment that reaches it, with a size
-  measured rather than guessed.
+  measured rather than guessed. **[exp178](./exp178-the-shape-of-the-contract/)
+  measured it**: 121,184 bytes of flash for the engine, an adapter of 25 methods
+  against 43 demanded signatures, and every remaining obligation already built
+  here. That is one side priced. What it is worth against a box this repository
+  opened by hand is still nobody's answer but the experiment that reaches it.
 - **What does a security key do to the rest of the composite device?** exp121
   changed descriptors and called it a different kind of risk. This changes them
   again, next to a CDC interface that has to keep working.
