@@ -510,6 +510,65 @@ PRESENCE=3   # an eye on the LED — check.sh gets the pad, not the light
 below ever disagree, so the table cannot quietly rot into a lie. It says
 nothing when they agree.
 
+### What is on the board, and what to put there
+
+Every firmware here answers the question itself. Each one sets its USB serial
+number to its own experiment number, and `yi26 port --json` reads it back:
+
+```sh
+yi26 port --json     # "serial_number":"174" — this board is running exp174
+```
+
+That string is load-bearing. `exp_running` in [`lib.sh`](./lib.sh) compares
+against it, and **forty-six `check.sh` scripts decide whether to run or to
+`SKIP` on it**. It is also typed by hand, once, in each firmware's
+`src/main.rs`, and it had already drifted: exp174 was derived from exp173's
+source and carried its serial with it, so both said `"173"` and no script here
+could tell them apart. [`docs-check.sh`](./docs-check.sh) now asserts that every
+firmware's serial is its own number and that no two share one. exp103 is the one
+firmware with no serial, because it has no USB at all.
+
+**There is no separate set of "standard" firmwares, and there should not be.**
+The identity is the experiment number, and a parallel namespace would either
+duplicate an experiment's firmware — which is the drift this repository spends
+its effort preventing — or alias one, which is indirection with no new
+capability. A baseline that is not an experiment also has no README teaching it,
+and everything on `main` here is hardware-verified prose as much as it is code.
+
+What is useful is **names for the roles**, pointing at the experiments that
+already fill them:
+
+| role | which experiment | when you want it |
+| --- | --- | --- |
+| `blink` | [exp103](./exp103-embassy-blink/) | the minimum proof of life. No USB at all, so getting off it needs a hand on BOOTSEL |
+| `log` | [exp105](./exp105-usb-reboot/) | the first firmware that reboots itself on the 1200-baud touch — **the precondition for every later "needs nobody"** |
+| `partition-probe` | [exp138](./exp138-what-the-rom-already-knows/) | "does this board carry a partition table?", asked of the ROM. Reads only, writes nothing, needs nobody |
+| `drive` | [exp126](./exp126-self-hosted-viewer/) | the board serving its own files over mass storage |
+| `http` | [exp161](./exp161-one-port-four-doors/) | four paths a `curl` can reach. Needs a host that shares its connection |
+| `fido` | [exp174](./exp174-a-deadline-nobody-mentioned/) | a CTAP2 authenticator a browser will register with |
+
+These are **aliases, not artefacts**. Nothing builds them, nothing versions
+them, and each one is maintained by the experiment it names.
+
+**Which image, when an experiment has several.** The canonical one is
+`target/expNNN.uf2`, from the default build with no environment variables set.
+Anything with a suffix — `exp174-button-keepalive.uf2`, and thirteen others in
+that one directory — is an arm of a comparison, and **never the thing to put
+back**.
+
+**And a firmware is not the whole state.** Flashing one does not undo what an
+earlier one wrote: [exp139](./exp139-a-table-of-one/), [exp143](./exp143-the-image-that-is-never-bought/),
+[exp145](./exp145-a-drive-of-our-own/), [exp147](./exp147-two-firmwares-one-phone/)
+and [exp167](./exp167-the-image-that-never-runs/) leave a partition table or an
+A/B state behind, and a smaller image simply leaves the tail of a larger one in
+flash — [exp177](./exp177-the-same-chip-somebody-elses-decisions/) measured
+roughly 360 KiB of somebody else's firmware still resident after the board was
+put back. `yi26 nuke` erases the first 64 KiB, which is enough for a bad
+partition table and not for that. **Returning to a known state is erase *and*
+flash, and this repository can currently only do the second part cleanly.** Both
+gaps are recorded in [`docs/tool-needs.md`](../docs/tool-needs.md) rather than
+half-solved here.
+
 ## Which layer of USB is this?
 
 By exp122 a single firmware here declared **three** USB functions at once, and

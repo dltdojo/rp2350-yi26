@@ -36,12 +36,21 @@ defect; some are the shape of the subject.
 | [exp177](../experiments/exp177-the-same-chip-somebody-elses-decisions/) | the **raw COSE algorithm identifiers**, because `fido2-token -I` prints an algorithm it cannot name as `unknown` | imported [exp173](../experiments/exp173-a-client-that-is-not-ours/)'s `ctaphid.py` across experiment directories, by path | yes | **build it.** Rule 1 is met four times over; rule 2 stopped applying at exp173, which deliberately handed the client job to somebody else's tool. `fido2-token -I` is lossy in a way that nearly produced a wrong ruling, and the workaround was one experiment reaching into another's scripts |
 | [exp177](../experiments/exp177-the-same-chip-somebody-elses-decisions/), [exp178](../experiments/exp178-the-shape-of-the-contract/) | a CBOR reader that a real authenticator's `getInfo` does not defeat | [`experiments/cbor.py`](../experiments/cbor.py), promoted out of exp178 | yes, but **not** a `yi26` job | **keep in Python.** JSON cannot carry integer map keys, byte strings or negative COSE labels without a convention every caller then undoes; `crates/cbor` is a `no_std` cursor that deliberately skips text-key ordering; both callers are Python. Revisit when a `check.sh` needs CBOR from bash — there is none today |
 
+| [exp177](../experiments/exp177-the-same-chip-somebody-elses-decisions/) | put a named experiment's firmware back on the board without knowing a path | `cd` into the directory, build, and `yi26 flash target/expNNN.uf2` — after choosing among **fourteen** `.uf2` files in that one `target/` | yes | **watching.** One occurrence. `yi26 flash exp174` resolving a number to the canonical image, building it if absent, is the obvious shape; the ledger's rule one says wait for a second experiment to reach for it |
+| [exp177](../experiments/exp177-the-same-chip-somebody-elses-decisions/) | erase what a **larger** firmware left behind, not just the first 64 KiB | nothing — roughly 360 KiB of pico-fido is still in that board's flash, inert and unreferenced | yes | **watching.** `yi26 nuke` takes a fixed 64 KiB, which is what an unbootable partition table needs. A size argument or `--all` is the fix, and one occurrence is a note |
+
 **What the fifth row bought.** `yi26 fido info` is the first command here that
 speaks a protocol to *application* firmware rather than to the bootrom or a
 serial port, and it exists because a pretty-printer's `unknown` is not an
 answer. It does not replace exp168's hand-written client: that client is what
 exp168 *is*, and it stays where it is. Nothing before exp177 uses the command,
 for the same reason nothing before exp177 imports `experiments/cbor.py`.
+
+**Why the last two rows are `watching` and not `build it`.** Both would have
+saved time on the day they happened, and both have one occurrence. The rule
+above was written because a need that happens once is usually a need that
+belongs to the experiment it happened in — and it was used, four rows up, to
+justify building something. It does not get to be a rule in one direction only.
 
 ## How to add a row
 

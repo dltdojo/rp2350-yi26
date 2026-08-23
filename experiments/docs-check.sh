@@ -279,6 +279,50 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 8. Every firmware's USB serial number is its own experiment number, and no
+#    two firmwares share one.
+#
+#    This is how the board answers "which experiment are you". `yi26 port
+#    --json` reports it and `lib.sh`'s `exp_running` compares against it, so
+#    forty-six check.sh scripts decide whether to run or to SKIP on this one
+#    string — and it is typed by hand, once, in each firmware's `src/main.rs`.
+#
+#    It had already drifted. exp174 was derived from exp173's source and
+#    carried its serial with it, so both reported "173" and no script here
+#    could tell the two apart; exp174's own check.sh does not use `exp_running`
+#    at all, which is how that survived. Found while asking a different
+#    question in exp177, not by anything that was looking.
+#
+#    exp103 has no USB at all and therefore no serial, which is why the check
+#    is over the firmwares that declare one rather than over every directory.
+
+serial_wrong=()
+declare -A serial_seen=()
+serial_count=0
+for d in "${DIRS[@]}"; do
+    src="$d/src/main.rs"
+    [[ -f "$src" ]] || continue
+    line="$(grep -m1 'config.serial_number' "$src" 2>/dev/null)" || continue
+    [[ -n "$line" ]] || continue
+    serial="$(sed -n 's/.*Some("\([^"]*\)").*/\1/p' <<< "$line")"
+    want="${d:3:3}"
+    serial_count=$((serial_count + 1))
+    if [[ "$serial" != "$want" ]]; then
+        serial_wrong+=("$d says \"$serial\", not \"$want\"")
+    fi
+    if [[ -n "${serial_seen[$serial]-}" ]]; then
+        serial_wrong+=("$d and ${serial_seen[$serial]} both say \"$serial\"")
+    fi
+    serial_seen[$serial]="$d"
+done
+
+if [[ ${#serial_wrong[@]} -eq 0 ]]; then
+    pass "every firmware's USB serial is its own experiment number ($serial_count)"
+else
+    fail "every firmware's USB serial is its own experiment number" "${serial_wrong[*]}"
+fi
+
+# ---------------------------------------------------------------------------
 # What this deliberately does not do: rewrite anything. A generator that
 # silently fixes a table means nobody ever learns the document was wrong, and
 # the prose *around* a generated block can still contradict it. `pack.sh`

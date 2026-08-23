@@ -1900,7 +1900,13 @@ async fn main(spawner: Spawner) {
     let mut config = UsbConfig::new(0x1209, 0x0001);
     config.manufacturer = Some("rp2350-yi26");
     config.product = Some(PRODUCT);
-    config.serial_number = Some("173");
+    // Its own number. This said "173" until exp177 needed to tell two boards
+    // apart and found it could not: the string was carried over with the source
+    // when exp174 was derived from exp173, and nothing was looking. The USB
+    // serial is how `yi26 port` and `lib.sh`'s `exp_running` answer "which
+    // experiment is on this board", so a duplicate makes two firmwares
+    // indistinguishable to every script here. docs-check.sh now asserts it.
+    config.serial_number = Some("174");
     config.device_class = 0xef;
     config.device_sub_class = 0x02;
     config.device_protocol = 0x01;
