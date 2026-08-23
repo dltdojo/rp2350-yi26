@@ -1,0 +1,26 @@
+{
+  "device": "pico-fido 8.0",
+  "rounds": [
+    {
+      "round": 1,
+      "ms": 493,
+      "up": "True"
+    },
+    {
+      "round": 2,
+      "ms": 448,
+      "up": "True"
+    },
+    {
+      "round": 3,
+      "ms": 445,
+      "up": "True"
+    }
+  ],
+  "nobody_was_asked_to_press": true,
+  "all_succeeded": true,
+  "all_claimed_up": true,
+  "libfido2_verified_an_unpressed_credential": true,
+  "slowest_ms": 493,
+  "note": "A script cannot prove that nobody pressed the button. What it can show is that the device did not wait: a credential returned in about a second, every time, with the user-presence bit set. exp171 made this repository's own builds earn that bit and made check.sh fail if an unattended one ever set it. This is the same question asked of shipping third-party firmware, and the answer is not the same."
+}

@@ -1,0 +1,15 @@
+{
+  "label": "pico-fido",
+  "format": "packed",
+  "authenticator_data_bytes": 267,
+  "authdata_cbor_length_ok": true,
+  "flags": "0x41",
+  "flags_set": [
+    "UP",
+    "AT"
+  ],
+  "aaguid": "89fb94b706c936739b7e30526d968145",
+  "aaguid_is_zero": false,
+  "has_certificate_chain": false,
+  "identity": "self attestation \u2014 the credential vouches only for itself"
+}

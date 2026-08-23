@@ -1,0 +1,35 @@
+{
+  "device": "/dev/hidraw4",
+  "capabilities": "0x05",
+  "keepalives_before_the_answer": 1,
+  "versions": [
+    "U2F_V2",
+    "FIDO_2_0",
+    "FIDO_2_1",
+    "FIDO_2_2",
+    "FIDO_2_3"
+  ],
+  "aaguid": "89fb94b706c936739b7e30526d968145",
+  "algorithms": [
+    {
+      "cose": -7,
+      "name": "ES256",
+      "type": "public-key"
+    },
+    {
+      "cose": -35,
+      "name": "ES384",
+      "type": "public-key"
+    },
+    {
+      "cose": -36,
+      "name": "ES512",
+      "type": "public-key"
+    }
+  ],
+  "max_msg_size": 1024,
+  "pin_protocols": [
+    1,
+    2
+  ]
+}

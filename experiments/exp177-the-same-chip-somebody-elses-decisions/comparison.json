@@ -1,0 +1,131 @@
+{
+  "third_device": "pico-fido 8.0 on the same Pico 2",
+  "closed": [
+    {
+      "capability": "U2F_V2",
+      "why": "in its version list"
+    },
+    {
+      "capability": "FIDO_2_1_PRE",
+      "why": "and past it \u2014 it claims FIDO_2_0, FIDO_2_1, FIDO_2_2, FIDO_2_3"
+    },
+    {
+      "capability": "credProtect",
+      "why": "an extension it announces"
+    },
+    {
+      "capability": "hmac-secret",
+      "why": "an extension it announces"
+    },
+    {
+      "capability": "rk",
+      "why": "resident credentials, on the same 4 MiB of flash"
+    },
+    {
+      "capability": "clientPin",
+      "why": "the option is present (as `noclientPin`: supported, none set)"
+    },
+    {
+      "capability": "credentialMgmtPreview",
+      "why": "as `credMgmt`, the full command rather than the preview"
+    },
+    {
+      "capability": "(no algorithms advertised)",
+      "why": "it advertises ES256, ES384, ES512"
+    },
+    {
+      "capability": "pin_protocols=1",
+      "why": "protocols 1, 2"
+    }
+  ],
+  "open": [
+    {
+      "capability": "eddsa",
+      "why": "it offers ES256, ES384, ES512 \u2014 three ECDSA curves and no Ed25519. `fido2-token -I` prints the third as `unknown`, which is libfido2 not naming COSE -36; asking the device for the numbers is what turns a guess into a ruling"
+    }
+  ],
+  "beyond_the_commercial_key": [
+    {
+      "versions": [
+        "FIDO_2_1",
+        "FIDO_2_2",
+        "FIDO_2_3"
+      ]
+    },
+    {
+      "extensions": [
+        "uvm",
+        "credBlob",
+        "largeBlobKey",
+        "minPinLength",
+        "hmac-secret-mc",
+        "thirdPartyPayment"
+      ]
+    },
+    {
+      "algorithms": [
+        "es384",
+        "es512"
+      ]
+    },
+    {
+      "options": [
+        "alwaysUv",
+        "credMgmt",
+        "authnrCfg",
+        "largeBlobs",
+        "perCredMgmtRO",
+        "pinUvAuthToken",
+        "setMinPINLength",
+        "makeCredUvNotRqd"
+      ]
+    }
+  ],
+  "counts": {
+    "code_in_exp176": 10,
+    "closed": 9,
+    "open": 1
+  },
+  "algorithms_measured": [
+    {
+      "cose": -7,
+      "name": "ES256",
+      "type": "public-key"
+    },
+    {
+      "cose": -35,
+      "name": "ES384",
+      "type": "public-key"
+    },
+    {
+      "cose": -36,
+      "name": "ES512",
+      "type": "public-key"
+    }
+  ],
+  "short_of_the_commercial_key": [
+    {
+      "versions": [
+        "FIDO_2_1_PRE"
+      ]
+    },
+    {
+      "algorithms": [
+        "eddsa"
+      ]
+    },
+    {
+      "options": [
+        "up",
+        "plat",
+        "credentialMgmtPreview"
+      ]
+    }
+  ],
+  "aaguid": {
+    "board": "00000000000000000000000000000000",
+    "pico_fido": "89fb94b706c936739b7e30526d968145",
+    "commercial_key": "b92c3f9ac0144056887f140a2501163b"
+  },
+  "aaguid_note": "An AAGUID is sixteen bytes a firmware asserts about itself, identical on every board that flashes the same image. Claiming one is code \u2014 which is why this is not a counterexample to exp176 calling the difference certification. What exp176 named was the authority behind it and the secret it has to be kept with, and neither is a thing a firmware can assert about itself. Without Secure Lock, which this road does not burn, exp175 applies to this image exactly as it applied to ours."
+}

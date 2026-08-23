@@ -1,0 +1,46 @@
+{
+  "device": "/dev/hidraw4",
+  "raw": "proto: 0x02\nmajor: 0x08\nminor: 0x00\nbuild: 0x00\ncaps: 0x05 (wink, cbor, msg)\nversion strings: U2F_V2, FIDO_2_0, FIDO_2_1, FIDO_2_2, FIDO_2_3\nextension strings: uvm, credBlob, credProtect, hmac-secret, largeBlobKey, minPinLength, hmac-secret-mc, thirdPartyPayment\nalgorithms: es256 (public-key), es384 (public-key), unknown (public-key)\naaguid: 89fb94b706c936739b7e30526d968145\noptions: rk, noalwaysUv, credMgmt, authnrCfg, noclientPin, largeBlobs, perCredMgmtRO, pinUvAuthToken, setMinPINLength, nomakeCredUvNotRqd\nfwversion: 0x800\nmaxmsgsiz: 1024\nmaxcredcntlst: 16\nmaxcredlen: 1024\nmaxlargeblob: 2048\nmaxrpids in minpinlen: 120\nminpinlen: 4\npin protocols: 1, 2\npin retries: 0\npin change required: false\nuv retries: undefined\n",
+  "versions": [
+    "U2F_V2",
+    "FIDO_2_0",
+    "FIDO_2_1",
+    "FIDO_2_2",
+    "FIDO_2_3"
+  ],
+  "extensions": [
+    "uvm",
+    "credBlob",
+    "credProtect",
+    "hmac-secret",
+    "largeBlobKey",
+    "minPinLength",
+    "hmac-secret-mc",
+    "thirdPartyPayment"
+  ],
+  "transports": [],
+  "algorithms": [
+    "es256",
+    "es384",
+    "unknown"
+  ],
+  "options": [
+    "rk",
+    "noalwaysUv",
+    "credMgmt",
+    "authnrCfg",
+    "noclientPin",
+    "largeBlobs",
+    "perCredMgmtRO",
+    "pinUvAuthToken",
+    "setMinPINLength",
+    "nomakeCredUvNotRqd"
+  ],
+  "aaguid": "89fb94b706c936739b7e30526d968145",
+  "max_msg_size": "1024",
+  "max_cred_count_list": "16",
+  "max_cred_len": "1024",
+  "pin_protocols": "1, 2",
+  "pin_retries": "0",
+  "aaguid_is_zero": false
+}

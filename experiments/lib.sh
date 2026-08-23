@@ -169,7 +169,10 @@ presence_check() {
 #
 #   USB_IFACE     what the board declares
 #                 none | bootrom | cdc | cdc+hid | cdc+hid+vendor | cdc+msc |
-#                 cdc+ncm              (join with +)
+#                 cdc+ncm | ccid       (join with +)
+#                 `ccid` arrived with exp177, which runs firmware this
+#                 repository did not write and therefore does not get to
+#                 choose the interface list of. Nothing here builds one.
 #   USB_CARRIES   what actually travels, and there is usually more than one
 #                 none | descriptors | control | log | commands | keystrokes |
 #                 scsi | files | frames          (join with +)
@@ -177,7 +180,12 @@ presence_check() {
 #                 none | bootrom | cdc_acm | usb-storage | hid | libusb |
 #                 webusb | cdc_ncm     (join with +)
 #   USB_RUNS_ON   whose firmware this runs against
-#                 own | any | bootrom | none | expNNN | expNNN+
+#                 own | any | bootrom | none | expNNN | expNNN+ | third-party
+#                 `third-party` is exp177 and nothing else so far: a released
+#                 binary from another project, run on the same board. It is a
+#                 separate token from `none` because the difference between
+#                 "no firmware is involved" and "somebody else's is" is the
+#                 whole subject of that experiment.
 #
 # USB_RUNS_ON is a separate field and not a footnote because a good many
 # experiments here have no `src/` at all, and the difference between them

@@ -1,0 +1,28 @@
+PASS  python3 present
+PASS  fido2-token present (the host's own tool)
+PASS  the README says what licence the measured firmware is under
+PASS  no third-party binary is committed to this repository
+PASS  the image on disk is the one setup.sh pins, by SHA-256
+PASS  preflight.json is checked in
+PASS  the image is for this chip: 1744 blocks of the RP2350 Arm Secure family
+PASS  and it carries one block asking for 0x10ffff00 — 15 MiB into a 4 MiB part
+PASS  there is a boot block at flash offset 0, so it is bootable at all
+PASS  it is 6.8× exp142's 64 KiB A/B slot — it would not fit in one
+PASS  picofido.json is checked in
+PASS  algorithms.json is checked in
+PASS  comparison.json is checked in
+PASS  picofido-attestation.json is checked in
+PASS  presence.json is checked in
+PASS  the comparison re-runs from the checked-in record
+PASS  9 of exp176's 10 code differences were written by another team on this chip; 1 was not
+PASS  the one it did not write is eddsa — it offers three ECDSA curves instead
+PASS  and that ruling came from the device's own COSE identifiers, not from libfido2 printing `unknown`
+PASS  it claims a real AAGUID (89fb94b706c936739b7e30526d968145), in getInfo and in the attestation alike
+PASS  and carries no certificate chain — the claim without the authority, which is exactly the half exp176 called certification
+PASS  the attestation format is packed, as the board's is
+PASS  every credential it made claimed the user-presence bit
+PASS  and the slowest took 493 ms, with nobody asked to press anything
+PASS  a live pico-fido re-probes to the same record
+PASS  the README rules on exp176's list, not one of its own
+PASS  the README ties the identity half to exp175
+PASS  the README ties the presence finding to exp171
