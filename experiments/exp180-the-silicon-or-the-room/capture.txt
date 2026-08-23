@@ -1,0 +1,39 @@
+PASS  python3 present
+PASS  firmware compiles (213776 byte ELF)
+PASS  the FC0 sources are the RP2350's numbers, named rather than written inline
+PASS  every real measurement uses the long window
+PASS  the earlier work's interval is kept only to reproduce its reading (3 mentions)
+PASS  it sweeps FREQ_RANGE, which is the finding that needs no temperature
+PASS  and puts the range back the way it found it
+PASS  the LED has states, so nobody has to count seconds (exp171's lesson)
+PASS  the first reading is taken before the USB stack, which is the only cold moment
+      ruling on capture-self-heating.txt
+PASS  the transcript carries all three usable ROSC ranges
+PASS  one register field moves ROSC by 65.8% (5496.25 to 9111.90 kHz) — more than the 13.34% the earlier work called device uniqueness
+PASS  LPOSC was measured at both intervals
+PASS  at interval 8 it reads 32.00 kHz, an exact multiple of 4 kHz — one count
+PASS  at interval 15 it reads 32.46 kHz, which that window could never produce
+PASS  the crystal reads 12000.00 kHz — the counter is not the thing drifting
+SKIP  no usable temperature sweep here — 1.47 C, against the 5.0 C this instrument needs before a drift would clear its own 0.05% noise. That is what this transcript records, not a gap in it.
+      ruling on capture-finger.txt
+PASS  the transcript carries all three usable ROSC ranges
+PASS  one register field moves ROSC by 65.7% (5497.78 to 9111.28 kHz) — more than the 13.34% the earlier work called device uniqueness
+PASS  LPOSC was measured at both intervals
+PASS  at interval 8 it reads 32.00 kHz, an exact multiple of 4 kHz — one count
+PASS  at interval 15 it reads 32.46 kHz, which that window could never produce
+PASS  the crystal reads 12000.00 kHz — the counter is not the thing drifting
+SKIP  no usable temperature sweep here — 0.02 C, against the 5.0 C this instrument needs before a drift would clear its own 0.05% noise. That is what this transcript records, not a gap in it.
+      ruling on capture-cold-start.txt
+PASS  the transcript carries all three usable ROSC ranges
+PASS  one register field moves ROSC by 65.7% (5506.12 to 9122.87 kHz) — more than the 13.34% the earlier work called device uniqueness
+PASS  LPOSC was measured at both intervals
+PASS  at interval 8 it reads 32.00 kHz, an exact multiple of 4 kHz — one count
+PASS  at interval 15 it reads 32.53 kHz, which that window could never produce
+PASS  the crystal reads 12000.00 kHz — the counter is not the thing drifting
+PASS  a temperature coefficient was computed
+      ROSC moved 0.050% per degree over 6.94 C
+PASS  twenty degrees of that is 1.00%, which is 13 times smaller than the 13.34% called device uniqueness — temperature is real here and does not explain that spread
+PASS  at least the two transcripts that need no temperature are checked in
+PASS  the cold-start transcript is here — the temperature half has a number
+PASS  the README says which road this is on
+PASS  the README carries both numbers — one register field against three boards

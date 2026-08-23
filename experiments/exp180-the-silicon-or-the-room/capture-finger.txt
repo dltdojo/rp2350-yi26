@@ -1,0 +1,68 @@
+[    2537 ms] exp180 the silicon or the room
+[    2537 ms]   one board, heating itself. The earlier work's spread across three boards was 13....
+[    2569 ms]   crystal (the control): 12000.00 kHz
+[    2602 ms]   LPOSC at interval 8: 32.00 kHz — the window holds about eight of its periods
+[    2602 ms]   LPOSC at interval 15: 32.46 kHz — about a thousand
+[    2602 ms]   ROSC at interval 8: 6792.00 kHz — every reading a multiple of 4 kHz, which is ...
+[    2602 ms]   ROSC as this firmware found it: range 0xfa5, freqa 0x0000, freqb 0x0000
+[    2636 ms]     range LOW: 5497.78 kHz
+[    2670 ms]     range MEDIUM: 6790.84 kHz
+[    2704 ms]     range HIGH: 9111.28 kHz
+[    2706 ms] cooling for 45 s — the LED blinks slowly while it does
+[   47739 ms] cold: 41.39 C, ROSC 6788.59 kHz
+[   47771 ms]   cold drive table, base 6788.81 kHz:
+[   47803 ms]     ds0=1 7106.50 kHz  ratio 1.0467
+[   47835 ms]     ds0=2 7125.93 kHz  ratio 1.0496
+[   47868 ms]     ds0=3 7231.78 kHz  ratio 1.0652
+[   47900 ms]     ds0=4 7123.03 kHz  ratio 1.0492
+[   47932 ms]     ds0=5 7225.65 kHz  ratio 1.0643
+[   47964 ms]     ds0=6 7237.59 kHz  ratio 1.0661
+[   47996 ms]     ds0=7 7285.68 kHz  ratio 1.0731
+[   47996 ms] >>> LED SOLID: put a finger on the square chip and hold it there <<<
+[   47996 ms]     it blinks fast when to let go. Nothing here can press anything.
+[   53029 ms]   hold +5s  41.41 C  ROSC 6788.06 kHz  -0.007%
+[   58061 ms]   hold +10s  41.11 C  ROSC 6786.37 kHz  -0.032%
+[   63094 ms]   hold +15s  40.91 C  ROSC 6789.43 kHz  +0.012%
+[   68126 ms]   hold +20s  40.78 C  ROSC 6790.62 kHz  +0.029%
+[   73159 ms]   hold +25s  40.78 C  ROSC 6790.50 kHz  +0.028%
+[   78191 ms]   hold +30s  40.74 C  ROSC 6790.15 kHz  +0.023%
+[   83223 ms]   hold +35s  40.75 C  ROSC 6789.25 kHz  +0.009%
+[   88256 ms]   hold +40s  40.75 C  ROSC 6790.21 kHz  +0.023%
+[   93288 ms]   hold +45s  40.75 C  ROSC 6789.53 kHz  +0.013%
+[   98321 ms]   hold +50s  40.73 C  ROSC 6791.71 kHz  +0.046%
+[  103353 ms]   hold +55s  40.74 C  ROSC 6789.90 kHz  +0.019%
+[  108386 ms]   hold +60s  40.72 C  ROSC 6789.21 kHz  +0.009%
+[  108386 ms] >>> LED BLINKING FAST: take your finger off <<<
+[  113450 ms]   after +5s  40.76 C  ROSC 6790.90 kHz  +0.034%
+[  118483 ms]   after +10s  40.94 C  ROSC 6788.87 kHz  +0.004%
+[  123515 ms]   after +15s  41.09 C  ROSC 6789.12 kHz  +0.007%
+[  128548 ms]   after +20s  41.20 C  ROSC 6788.00 kHz  -0.008%
+[  133580 ms]   after +25s  41.25 C  ROSC 6789.00 kHz  +0.005%
+[  138612 ms]   after +30s  41.34 C  ROSC 6788.81 kHz  +0.003%
+[  143645 ms]   after +35s  41.49 C  ROSC 6789.09 kHz  +0.007%
+[  148677 ms]   after +40s  41.56 C  ROSC 6790.46 kHz  +0.027%
+[  153710 ms]   after +45s  41.62 C  ROSC 6789.71 kHz  +0.016%
+[  158742 ms]   after +50s  41.65 C  ROSC 6787.78 kHz  -0.011%
+[  163775 ms]   after +55s  41.64 C  ROSC 6790.37 kHz  +0.026%
+[  168807 ms]   after +60s  41.67 C  ROSC 6790.09 kHz  +0.022%
+[  168839 ms]   warm drive table, base 6790.56 kHz:
+[  168871 ms]     ds0=1 7107.21 kHz  ratio 1.0466
+[  168904 ms]     ds0=2 7126.65 kHz  ratio 1.0494
+[  168936 ms]     ds0=3 7232.78 kHz  ratio 1.0651
+[  168968 ms]     ds0=4 7124.03 kHz  ratio 1.0491
+[  169000 ms]     ds0=5 7226.40 kHz  ratio 1.0641
+[  169033 ms]     ds0=6 7238.50 kHz  ratio 1.0659
+[  169065 ms]     ds0=7 7286.12 kHz  ratio 1.0729
+[  169097 ms] --- what moved ---
+[  169097 ms]   temperature 41.39 C -> 41.41 C at the peak, a change of 0.02 C
+[  169097 ms]   ROSC -0.007% at the peak, and back to +0.022% after the finger left
+[  169097 ms]   the crystal moved +0.000% — the control that says the counter did not
+[  169097 ms]   so -0.350% per degree, against 13.340% between three boards and 65.8% between tw...
+[  179097 ms] idle: the numbers above are the result
+[  189097 ms] idle: the numbers above are the result
+[  199097 ms] idle: the numbers above are the result
+[  209097 ms] idle: the numbers above are the result
+[  219097 ms] idle: the numbers above are the result
+[  229097 ms] idle: the numbers above are the result
+[  239097 ms] idle: the numbers above are the result
+[  249097 ms] idle: the numbers above are the result

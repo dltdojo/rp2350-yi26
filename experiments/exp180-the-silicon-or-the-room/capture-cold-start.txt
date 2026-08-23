@@ -1,0 +1,49 @@
+# exp180 — the cold start. Captured 2026-08-23.
+#
+# The board was unplugged, left until it had shed most of its heat, and plugged
+# back in. The first reading is taken before the USB stack is built, which is
+# the only moment it is anywhere near the room's temperature; everything after
+# it is the board warming itself back to equilibrium.
+#
+# Assembled from two reads of the same run: the head, which happens in the first
+# three seconds, and the tail, which repeats forever. The middle of the climb
+# was lost to the log's sixteen-line queue with no host attached — which is why
+# the summary now repeats rather than being printed once.
+
+--- the head, read at +35 s ---
+[    2564 ms]   crystal (the control): 12000.00 kHz
+[    2597 ms]   LPOSC at interval 8: 32.00 kHz — the window holds about eight of its periods
+[    2597 ms]   LPOSC at interval 15: 32.53 kHz — about a thousand
+[    2597 ms]   ROSC at interval 8: 6804.00 kHz — every reading a multiple of 4 kHz, which is one count
+[    2597 ms]   ROSC as this firmware found it: range 0xfa5, freqa 0x0000, freqb 0x0000
+[    2631 ms]     range LOW: 5506.12 kHz
+[    2665 ms]     range MEDIUM: 6801.53 kHz
+[    2699 ms]     range HIGH: 9122.87 kHz
+[    2701 ms] at boot: 35.53 C, ROSC 6808.93 kHz — taken before USB came up
+[    2734 ms]   at boot drive table, base 6799.00 kHz:
+[    2766 ms]     ds0=1 7116.81 kHz  ratio 1.0467
+[    2798 ms]     ds0=2 7140.31 kHz  ratio 1.0502
+[    2830 ms]     ds0=3 7245.96 kHz  ratio 1.0657
+[   17992 ms]   +15s  38.36 C (boot 35.53)  ROSC 6795.68 kHz  -0.194%
+[  168315 ms]   +165s  41.90 C (boot 35.53)  ROSC 6790.81 kHz  -0.266%
+[  183348 ms]   +180s  42.07 C (boot 35.53)  ROSC 6786.40 kHz  -0.330%
+
+--- the tail, still repeating minutes later ---
+[  243478 ms]   +240s  42.24 C (boot 35.53)  ROSC 6789.21 kHz  -0.289%
+[  243478 ms]     widest so far: 6.72 C for -0.248%, so -0.036%/C — twenty degrees of that is ...
+[  258511 ms]   +255s  42.12 C (boot 35.53)  ROSC 6789.53 kHz  -0.285%
+[  258511 ms]     widest so far: 6.72 C for -0.248%, so -0.036%/C — twenty degrees of that is ...
+[  273543 ms]   +270s  42.13 C (boot 35.53)  ROSC 6789.21 kHz  -0.289%
+[  273543 ms]     widest so far: 6.72 C for -0.248%, so -0.036%/C — twenty degrees of that is ...
+[  288576 ms]   +285s  42.28 C (boot 35.53)  ROSC 6788.87 kHz  -0.294%
+[  288576 ms]     widest so far: 6.75 C for -0.294%, so -0.043%/C — twenty degrees of that is ...
+[  303608 ms]   +300s  42.47 C (boot 35.53)  ROSC 6785.09 kHz  -0.350%
+[  303608 ms]     widest so far: 6.94 C for -0.350%, so -0.050%/C — twenty degrees of that is ...
+[  318641 ms]   +315s  42.30 C (boot 35.53)  ROSC 6785.90 kHz  -0.338%
+[  318641 ms]     widest so far: 6.94 C for -0.350%, so -0.050%/C — twenty degrees of that is ...
+[  333673 ms]   +330s  42.33 C (boot 35.53)  ROSC 6785.81 kHz  -0.339%
+[  333673 ms]     widest so far: 6.94 C for -0.350%, so -0.050%/C — twenty degrees of that is ...
+[  348706 ms]   +345s  42.34 C (boot 35.53)  ROSC 6785.43 kHz  -0.345%
+[  348706 ms]     widest so far: 6.94 C for -0.350%, so -0.050%/C — twenty degrees of that is ...
+[  363738 ms]   +360s  42.42 C (boot 35.53)  ROSC 6783.59 kHz  -0.372%
+[  363738 ms]     widest so far: 6.94 C for -0.350%, so -0.050%/C — twenty degrees of that is ...

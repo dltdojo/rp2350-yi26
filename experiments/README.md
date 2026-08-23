@@ -90,6 +90,7 @@ Per experiment:
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
 | exp176 | **No board, for the comparison** — it runs `fido2-token -I` and one registration against exp174 and a commercial FIDO2 key, on the host. Needs python3 and libfido2-tools. The commercial key's attestation half needs that key plus its PIN and a touch. No firmware of its own. |
+| exp180 | Any RP2350 board, and the same hand on the same cable: the temperature half needs the board to start cool, which only unplugging it arranges. `cdc`, one log, no browser. **RP2350 only** — the FC0 source numbers, `FREQ_RANGE` and the temperature sensor's constants are all this chip's, and the RP2040 numbers the counter's sources differently. |
 | exp179 | Any RP2350 board, and a **hand on the USB cable** for the half that matters: the cold-boot reading needs power to actually go away, which no software here can arrange. `cdc`, one log, and no browser. The addresses are this chip's — 512 KB of main SRAM plus banks 8 and 9 — so a part with a different SRAM map needs the constants changed. |
 | exp177 | Any RP2350 board **you are willing to reflash**, and a Pico 2 for the release used here. Needs `fido2-token`, `fido2-cred`, python3, and the network once for `./setup.sh`. No firmware of its own: it measures a third party's released binary, and the board has to be flashed back afterwards by hand. |
 | exp178 | **No board at all**, and no USB anywhere in it. Needs `cargo`, the `thumbv8m.main-none-eabihf` target, python3, and the network once for `./setup.sh`. Builds an image for the board's target and never flashes it; the engine half runs in a host process. No firmware of its own that anybody should run. |
@@ -461,7 +462,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -672,6 +673,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp177 | `hid+hid+ccid+vendor` | `ctaphid+keystrokes+commands` | `hid` | `third-party` |
 | exp178 | `none` | `none` | `none` | `none` |
 | exp179 | `cdc` | `log` | `cdc_acm` | `own` |
+| exp180 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -830,6 +832,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp177-the-same-chip-somebody-elses-decisions](./exp177-the-same-chip-somebody-elses-decisions/) | 2 · a moment | pico-fido, a different team's firmware, on the same Pico 2. **Nine of exp176's ten** code differences turn out to be written — the tenth is `eddsa`, and it took the device's own COSE numbers to see that `fido2-token`'s `unknown` was ES512. It claims a **real AAGUID with no certificate behind it**, which splits exp176's uncloseable difference into a half that is code and a half that is not. And it **sets the user-presence bit without waiting for anybody** — 437–501 ms, `fido2-cred -V` verifying it — which is exp171's rule met in the wild |
 | [exp178-the-shape-of-the-contract](./exp178-the-shape-of-the-contract/) | 0 · none | OpenSK's `opensk` library pulled in behind its `Env` trait: **25 methods against a trait that demands 43**, linking for the board's target on stable, and every obligation left over is something this repository already built. The engine costs **121,184 bytes of flash** — 1.6× exp174's whole firmware — and closes **all ten** of exp176's code differences. The one exp176 called certification it does not touch |
 | [exp179-what-survives-a-reset](./exp179-what-survives-a-reset/) | 2 · a moment | **The RP2350 does not clear SRAM on power-on.** Three 4 KB windows read 50.5%, 51.2% and 51.0% one-bits after the cable came out and went back in, and not one of 130 blocks across the whole 520 KB is zero. What *does* clear it is the flashing path — 127 of 130 blocks zero on the boot after `yi26 flash` — which is where the `0.00%` this road was built on came from. The identity road's gate, open |
+| [exp180-the-silicon-or-the-room](./exp180-the-silicon-or-the-room/) | 2 · a moment | A ring oscillator's frequency was read as device uniqueness at a 13.34% spread. Temperature moves it **1.00% over twenty degrees** — real, measured at −0.050%/°C across a 6.94 °C cold start, and thirteen times too small to explain that. **One register field moves it 65.7%.** Also: the 14.28% LPOSC spread in the same work is one count of a frequency counter, shown by measuring the same board at two window lengths |
 
 ## The browser track, finished
 
@@ -1923,8 +1926,7 @@ comes from, not whether it can be hidden while in use.**
 key exactly as it applies to a TRNG one. This road is about *provenance*, and
 nothing on it weakens or replaces what the signing road measured.
 
-The first of these is now built; the two after it are a direction, not a
-schedule.
+The first two are now built. The third is a direction, not a schedule.
 
 - **what survives a reset** — [exp179](./exp179-what-survives-a-reset/) is
   **verified on hardware**, and it answers the opposite way from the direction
@@ -1959,26 +1961,43 @@ schedule.
   whether what survives is worth anything, and nothing has pointed it at this
   yet.
 
-- **the silicon or the room** — the question a ring-oscillator PUF has to answer
-  before it is anything. Earlier work measured an RO-PUF across three boards and
-  found a **14% spread** in the low-power oscillator (28.00, 32.00 and 28.00 kHz)
-  and 13% in the ring oscillator's base frequency, and read that as device
-  uniqueness.
+- **the silicon or the room** — [exp180](./exp180-the-silicon-or-the-room/) is
+  **verified on hardware**, and the answer is *neither, mostly*.
 
-  **Ring and low-power oscillators also drift with temperature and voltage**,
-  and three boards measured once each cannot separate the two. This repository
-  has the instrument that can: [exp108](./exp108-adc-temperature/) is the chip's
-  own temperature sensor.
+  Earlier work measured an RO-PUF across three boards, found a **13.34% spread**
+  in the ring oscillator's base frequency and 14.28% in the low-power
+  oscillator, and read both as device uniqueness. exp180 puts numbers beside
+  them, all from one board:
 
-  So the experiment is a comparison, not a measurement: **one board cold against
-  the same board warm, against two boards at the same reported temperature.** If
-  a board's own signature moves further with temperature than two boards differ,
-  the PUF is measuring the room.
+  | | how much it moves ROSC's base frequency |
+  | --- | ---: |
+  | `FREQ_RANGE`, one field a firmware writes | **65.7%** |
+  | the earlier work's three boards | 13.34% |
+  | 20 °C of temperature | **1.00%** |
+  | the crystal, as the control | 0.000% |
 
-  Its honest limit is in this repository's own logistics: its
-  [two boards are never on the same bench](../docs/debugging-on-a-phone.md), so
-  "the same temperature" has to be aligned by what each chip reports about
-  itself, and **n = 2** where the prior work had three.
+  **Temperature is real and small.** −0.050% per degree, measured over 6.94 °C
+  of a board warming itself from a cold start, with the drift seven times the
+  instrument's own noise. Extrapolated to twenty degrees it is a thirteenth of
+  the spread it was supposed to explain. **What dwarfs both is a configuration
+  choice**, and a fingerprint a register write moves by two thirds is not one
+  until that register is part of the enrolment.
+
+  **And the 14.28% is one count.** At `FC0_INTERVAL = 8` the counter's window
+  holds about eight periods of a 32 kHz clock, so its resolution there is about
+  4 kHz — and 28.00 and 32.00 are adjacent. The same board reads 32.00 kHz at
+  that interval and 32.53 kHz at a longer one, in the same second.
+
+  Three instruments were built before one worked, and the two that failed are
+  checked in: **a board cannot heat itself** past about 1.5 °C, and **a fingertip
+  cools a running die** rather than warming it. What worked was free — the climb
+  from room temperature to equilibrium after an unplug, read before the USB stack
+  is even built. Needs 2, and the one action is pulling a cable.
+
+  Not measured: uniqueness, which needs the second board; voltage, which needs
+  over-volting a board this repository cannot replace; and anything about
+  whether an RO-PUF *can* work here — the earlier work's own roadmap proposes
+  pairwise comparison and enrolment data, both designed to survive exactly this.
 
 - **a key that is written nowhere** — only if one of the two above says yes.
   A device secret that is the same every boot, derived rather than stored, and

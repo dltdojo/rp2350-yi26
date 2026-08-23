@@ -1,0 +1,56 @@
+[    2537 ms] exp180 the silicon or the room
+[    2537 ms]   one board, heating itself. The earlier work's spread across three boards was 13....
+[    2569 ms]   crystal (the control): 12000.00 kHz
+[    2602 ms]   LPOSC at interval 8: 32.00 kHz — the window holds about eight of its periods
+[    2602 ms]   LPOSC at interval 15: 32.46 kHz — about a thousand
+[    2602 ms]   ROSC at interval 8: 6788.00 kHz — every reading a multiple of 4 kHz, which is ...
+[    2602 ms]   ROSC as this firmware found it: range 0xfa5, freqa 0x0000, freqb 0x0000
+[    2636 ms]     range LOW: 5496.25 kHz
+[    2670 ms]     range MEDIUM: 6792.15 kHz
+[    2704 ms]     range HIGH: 9111.90 kHz
+[    2706 ms] cooling for 90 s before the cold reading
+[   92739 ms] cold: 41.15 C, ROSC 6787.09 kHz
+[   92771 ms]   cold drive table, base 6788.03 kHz:
+[   92803 ms]     ds0=1 7104.68 kHz  ratio 1.0466
+[   92835 ms]     ds0=2 7124.34 kHz  ratio 1.0495
+[   92868 ms]     ds0=3 7230.34 kHz  ratio 1.0651
+[   92900 ms]     ds0=4 7121.75 kHz  ratio 1.0491
+[   92932 ms]     ds0=5 7224.12 kHz  ratio 1.0642
+[   92964 ms]     ds0=6 7236.06 kHz  ratio 1.0660
+[   92996 ms]     ds0=7 7284.37 kHz  ratio 1.0731
+[   92996 ms] heating for 180 s, reading every 10 s
+[  103044 ms]   +10s  41.38 C  ROSC 6787.62 kHz  +0.007% from cold
+[  113090 ms]   +20s  41.60 C  ROSC 6788.12 kHz  +0.015% from cold
+[  123136 ms]   +30s  41.65 C  ROSC 6788.09 kHz  +0.014% from cold
+[  133182 ms]   +40s  41.65 C  ROSC 6788.65 kHz  +0.023% from cold
+[  143228 ms]   +50s  41.81 C  ROSC 6786.00 kHz  -0.016% from cold
+[  153274 ms]   +60s  42.08 C  ROSC 6790.68 kHz  +0.052% from cold
+[  163319 ms]   +70s  42.11 C  ROSC 6787.15 kHz  +0.000% from cold
+[  173366 ms]   +80s  42.30 C  ROSC 6787.09 kHz  +0.000% from cold
+[  183412 ms]   +90s  42.42 C  ROSC 6786.59 kHz  -0.007% from cold
+[  193458 ms]   +100s  42.54 C  ROSC 6786.18 kHz  -0.013% from cold
+[  203504 ms]   +110s  42.60 C  ROSC 6786.40 kHz  -0.010% from cold
+[  213550 ms]   +120s  42.58 C  ROSC 6785.34 kHz  -0.025% from cold
+[  223596 ms]   +130s  42.66 C  ROSC 6786.43 kHz  -0.009% from cold
+[  233641 ms]   +140s  42.62 C  ROSC 6784.28 kHz  -0.041% from cold
+[  243687 ms]   +150s  42.57 C  ROSC 6786.37 kHz  -0.010% from cold
+[  253734 ms]   +160s  42.60 C  ROSC 6787.62 kHz  +0.007% from cold
+[  263780 ms]   +170s  42.57 C  ROSC 6786.31 kHz  -0.011% from cold
+[  273827 ms]   +180s  42.62 C  ROSC 6786.09 kHz  -0.014% from cold
+[  273859 ms]   warm drive table, base 6786.53 kHz:
+[  273891 ms]     ds0=1 7102.90 kHz  ratio 1.0466
+[  273923 ms]     ds0=2 7122.56 kHz  ratio 1.0495
+[  273956 ms]     ds0=3 7229.81 kHz  ratio 1.0653
+[  273988 ms]     ds0=4 7121.06 kHz  ratio 1.0492
+[  274020 ms]     ds0=5 7224.59 kHz  ratio 1.0645
+[  274052 ms]     ds0=6 7234.18 kHz  ratio 1.0659
+[  274085 ms]     ds0=7 7283.09 kHz  ratio 1.0731
+[  274117 ms] --- what moved ---
+[  274117 ms]   temperature 41.15 C -> 42.62 C, a change of 1.47 C
+[  274117 ms]   ROSC -0.014% over that, and the crystal +0.000% (the control)
+[  274117 ms]   which is -0.009% per degree, against 13.340% between three boards
+[  284117 ms] idle: the numbers above are the result
+[  294117 ms] idle: the numbers above are the result
+[  304117 ms] idle: the numbers above are the result
+[  314117 ms] idle: the numbers above are the result
+[  324117 ms] idle: the numbers above are the result
