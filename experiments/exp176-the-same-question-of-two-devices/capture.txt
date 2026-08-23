@@ -1,0 +1,59 @@
+>>> host: fido2-token -L — both devices present
+    /dev/hidraw4: vendor=0x1209, product=0x0001 (rp2350-yi26 exp174 a deadline nobody mentioned)
+    /dev/hidraw5: vendor=0x1050, product=0x0120 (Yubico Security Key by Yubico)
+
+>>> host: python3 probe.py, both — getInfo side by side (fields that differ)
+                           board (exp174)           Yubico Security Key
+    versions               FIDO_2_0                 U2F_V2,FIDO_2_0,FIDO_2_1_PRE
+    extensions             -                        credProtect,hmac-secret
+    algorithms             not advertised           es256,eddsa
+    options                nork,noup                rk,up,noplat,clientPin,credentialMgmtPreview
+    aaguid                 0000000000000000...      b92c3f9ac0144056...
+
+>>> host: python3 compare.py — the gap, sorted by kind
+    code          U2F_V2
+    code          FIDO_2_1_PRE
+    code          credProtect
+    code          hmac-secret
+    code          rk
+    code          clientPin
+    code          credentialMgmtPreview
+    code          (no algorithms advertised)
+    code          eddsa
+    code          pin_protocols=1
+    policy        max_cred_count_list=8
+    policy        max_cred_len=128
+    policy        pin_retries=8
+    certification aaguid b92c3f9ac0144056887f140a2501163b
+    ----
+    
+    10 of 14 differences are code the board could write; 1 is certification the chip cannot honestly anchor (see exp175).
+
+>>> host: the attestations, captured through the browser (attestation=direct, a touch)
+    board:          packed | cert: False | self attestation — the credential vouches only for itself
+    commercial key: fido-u2f | cert: True | certs: 1
+
+>>> host: the certificate the key carries and the board cannot
+    subject=C = SE, O = Yubico AB, OU = Authenticator Attestation, CN = Yubico U2F EE Serial 1073904040
+    issuer=CN = Yubico U2F Root CA Serial 457200631
+
+>>> host: ./check.sh
+    PASS  python3 present
+    PASS  fido2-token present (the host's own tool)
+    PASS  board.json is checked in
+    PASS  yubikey.json is checked in
+    PASS  comparison.json is checked in
+    PASS  board-attestation.json is checked in
+    PASS  most of the gap is code the board could write (10 code vs 1 certification/silicon)
+    PASS  at least one difference is certification the chip cannot anchor (the AAGUID)
+    PASS  the AAGUID difference is classified as certification, not code
+    PASS  the board still claims FIDO_2_0 — a real, if minimal, CTAP2 device
+    PASS  the board attests in the packed format
+    PASS  its AAGUID is all zero, which self attestation requires
+    PASS  it carries no certificate chain — it vouches only for itself
+    PASS  the UP=none build set no user-presence bit (flags 0x40)
+    PASS  the commercial key's attestation carries an x5c certificate chain — the board's does not
+    PASS  the certificate names its issuer — a CA the board has no counterpart to
+    PASS  a live board re-probes to the same all-zero AAGUID, FIDO_2_0 device
+    PASS  a live commercial key re-probes to a real, non-zero AAGUID
+    PASS  the README ties the one uncloseable gap to exp175's finding

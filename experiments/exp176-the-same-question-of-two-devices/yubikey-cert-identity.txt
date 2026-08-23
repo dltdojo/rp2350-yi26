@@ -1,0 +1,2 @@
+subject=C = SE, O = Yubico AB, OU = Authenticator Attestation, CN = Yubico U2F EE Serial 1073904040
+issuer=CN = Yubico U2F Root CA Serial 457200631

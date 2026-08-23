@@ -1,0 +1,14 @@
+{
+  "label": "board",
+  "format": "packed",
+  "authenticator_data_bytes": 180,
+  "authdata_cbor_length_ok": true,
+  "flags": "0x40",
+  "flags_set": [
+    "AT"
+  ],
+  "aaguid": "00000000000000000000000000000000",
+  "aaguid_is_zero": true,
+  "has_certificate_chain": false,
+  "identity": "self attestation \u2014 the credential vouches only for itself"
+}

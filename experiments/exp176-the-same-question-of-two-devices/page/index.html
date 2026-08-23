@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0
+
+     exp176's relying party. It registers a credential with whatever
+     authenticator the browser is pointed at — a board or a commercial key —
+     and asks for attestation='direct', so a key that has a certificate chain
+     returns it here exactly as it would to a real website. Every result is
+     posted back to serve.py, so the finding is a file attest.py re-reads, not a
+     screenshot. A person only touches (and, if the key insists, types a PIN in
+     the browser's own dialog). -->
+<meta charset="utf-8">
+<title>exp176 — the same question, asked of two devices</title>
+<style>
+ body { font: 15px/1.5 monospace; max-width: 60em; margin: 2em auto; padding: 0 1em; }
+ button { font: inherit; padding: .6em 1.2em; }
+ input { font: inherit; padding: .3em; }
+ pre { background: #f4f4f4; padding: 1em; white-space: pre-wrap; }
+ .n { color: #666; }
+</style>
+<h1>exp176</h1>
+<p class="n">origin <b id="origin"></b>. Register with each authenticator in
+turn — the board, then your key — and this page posts each attestation to a file
+attest.py reads. attestation = <b>direct</b>, so a certificate chain comes back
+if the device has one.</p>
+<p>
+  label for this registration:
+  <input id="label" value="commercial key" size="20">
+  <button id="reg">register (touch the device)</button>
+</p>
+<pre id="out">ready.</pre>
+<script>
+const $ = id => document.getElementById(id);
+$("origin").textContent = location.origin;
+const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b)))
+  .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const rand = n => crypto.getRandomValues(new Uint8Array(n));
+
+$("reg").onclick = async () => {
+  const label = $("label").value || "device";
+  try {
+    const c = await navigator.credentials.create({publicKey: {
+      challenge: rand(32),
+      rp: {name: "exp176"},
+      user: {id: rand(16), name: "somebody", displayName: "somebody"},
+      pubKeyCredParams: [{type:"public-key",alg:-7},{type:"public-key",alg:-8},
+                         {type:"public-key",alg:-257}],
+      timeout: 120000,
+      attestation: "direct",
+      authenticatorSelection: {authenticatorAttachment: "cross-platform",
+                               residentKey: "discouraged",
+                               userVerification: "discouraged"},
+    }});
+    const rec = {step:"create", ok:true, label,
+      attestationObject: b64u(c.response.attestationObject),
+      clientDataJSON: b64u(c.response.clientDataJSON),
+      transports: c.response.getTransports ? c.response.getTransports() : null};
+    $("out").textContent = label + ": registered\n" + JSON.stringify(rec, null, 2).slice(0, 400) + " …";
+    navigator.sendBeacon("/transcript", new Blob([JSON.stringify(rec)], {type:"application/json"}));
+  } catch (e) {
+    const rec = {step:"create", ok:false, label, error:e.name, message:String(e.message)};
+    $("out").textContent = label + ": " + e.name + " — " + e.message;
+    navigator.sendBeacon("/transcript", new Blob([JSON.stringify(rec)], {type:"application/json"}));
+  }
+};
+</script>

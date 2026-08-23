@@ -1,0 +1,90 @@
+{
+  "board": "/dev/hidraw4",
+  "commercial_key": "/dev/hidraw5",
+  "board_versions": [
+    "FIDO_2_0"
+  ],
+  "key_versions": [
+    "U2F_V2",
+    "FIDO_2_0",
+    "FIDO_2_1_PRE"
+  ],
+  "gap": [
+    {
+      "capability": "U2F_V2",
+      "kind": "code",
+      "note": "the CTAP1/U2F legacy path; exp168's capability byte already says nomsg by choice"
+    },
+    {
+      "capability": "FIDO_2_1_PRE",
+      "kind": "code",
+      "note": "CTAP 2.1 preview commands \u2014 more protocol, all implementable"
+    },
+    {
+      "capability": "credProtect",
+      "kind": "code",
+      "note": "an extension: a policy flag on a credential, pure software"
+    },
+    {
+      "capability": "hmac-secret",
+      "kind": "code",
+      "note": "an extension: HMAC over a per-credential key, pure software"
+    },
+    {
+      "capability": "rk",
+      "kind": "code",
+      "note": "resident credentials need on-device storage, which exp145 already built for other data"
+    },
+    {
+      "capability": "clientPin",
+      "kind": "code",
+      "note": "implementable \u2014 and the exact CTAP 2.1 surface that trips Android's strict parser, which is why the road cut it deliberately"
+    },
+    {
+      "capability": "credentialMgmtPreview",
+      "kind": "code",
+      "note": "management of resident credentials; software, and moot until rk exists"
+    },
+    {
+      "capability": "(no algorithms advertised)",
+      "kind": "code",
+      "note": "the board does not list its algorithms in getInfo; a field it could fill"
+    },
+    {
+      "capability": "eddsa",
+      "kind": "code",
+      "note": "a second signature algorithm; the board offers only ES256 because it wrote only ES256"
+    },
+    {
+      "capability": "pin_protocols=1",
+      "kind": "code",
+      "note": "the wire format for PIN; software, gated on clientPin"
+    },
+    {
+      "capability": "max_cred_count_list=8",
+      "kind": "policy",
+      "note": "a limit that follows from having resident-credential storage at all"
+    },
+    {
+      "capability": "max_cred_len=128",
+      "kind": "policy",
+      "note": "a length limit, meaningful only once credentials are stored"
+    },
+    {
+      "capability": "pin_retries=8",
+      "kind": "policy",
+      "note": "a counter that exists only once a PIN does"
+    },
+    {
+      "capability": "aaguid b92c3f9ac0144056887f140a2501163b",
+      "kind": "certification",
+      "note": "getInfo advertises a real, model-identifying AAGUID; the registration backs it with an x5c certificate from a manufacturer CA. Both need an attestation key that stays secret in a certified device, which exp175 showed this chip cannot keep. (Note: in a fido-u2f attestation the authData AAGUID field is zeroed by spec, so the certificate, not that field, is the real discriminator.)"
+    }
+  ],
+  "counts_by_kind": {
+    "code": 10,
+    "policy": 3,
+    "certification": 1
+  },
+  "total": 14
+}

@@ -1,0 +1,21 @@
+{
+  "device": "/dev/hidraw4",
+  "raw": "proto: 0x02\nmajor: 0x00\nminor: 0x01\nbuild: 0x00\ncaps: 0x0c (nowink, cbor, nomsg)\nversion strings: FIDO_2_0\naaguid: 00000000000000000000000000000000\noptions: nork, noup\nfwversion: 0x0\nmaxmsgsiz: 1024\nmaxcredcntlst: 0\nmaxcredlen: 0\nmaxlargeblob: 0\npin retries: undefined\npin change required: false\nuv retries: undefined\n",
+  "versions": [
+    "FIDO_2_0"
+  ],
+  "extensions": [],
+  "transports": [],
+  "algorithms": [],
+  "options": [
+    "nork",
+    "noup"
+  ],
+  "aaguid": "00000000000000000000000000000000",
+  "max_msg_size": "1024",
+  "max_cred_count_list": "0",
+  "max_cred_len": "0",
+  "pin_protocols": null,
+  "pin_retries": "undefined",
+  "aaguid_is_zero": true
+}

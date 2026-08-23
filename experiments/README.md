@@ -89,6 +89,7 @@ Per experiment:
 | exp173 | Same as exp171, and driven by `libfido2`'s own `fido2-cred` and `fido2-assert` rather than by a client written here. Two transcripts, and the pair is the experiment: one build asks nobody, one is pressed. |
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
+| exp176 | **No board, for the comparison** — it runs `fido2-token -I` and one registration against exp174 and a commercial FIDO2 key, on the host. Needs python3 and libfido2-tools. The commercial key's attestation half needs that key plus its PIN and a touch. No firmware of its own. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -449,7 +450,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -597,6 +598,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp173 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp174 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp175 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp176 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -751,6 +753,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp173-a-client-that-is-not-ours](./exp173-a-client-that-is-not-ours/) | 2 · a moment | `libfido2` drives the board end to end — its CBOR, not ours — and makes, verifies and uses a credential. **`FIDO_2_0` is earned rather than claimed.** The one thing it refused for five experiments turns out to be `UP=0`, not the cryptography: press the button and the same signature verifies |
 | [exp174-a-deadline-nobody-mentioned](./exp174-a-deadline-nobody-mentioned/) | 2 · a moment | A browser registers and logs in with this board, unchanged — and then **gives up on it**. Two findings: this firmware had been taking 11–21 s to make a credential because of [exp109](./exp109-hardware-trng/)'s constant, which every check called correct; and a silent device has about twenty seconds before Chrome stops listening, which one `CTAPHID_KEEPALIVE` packet per 100 ms pushes past |
 | [exp175-the-secret-is-the-file](./exp175-the-secret-is-the-file/) | 2 · a moment | The board is not the secret — the `.uf2` is. `forge.py` mints a working WebAuthn assertion from the firmware image alone, no board involved, because exp171's key is a pure function of a compiled-in constant. The first rung that attacks the road's own product, and the argument for the identity road |
+| [exp176-the-same-question-of-two-devices](./exp176-the-same-question-of-two-devices/) | 2 · a moment | `fido2-token -I` and one registration, asked of the board and a Yubico key. Ten of fourteen differences are code the board could write; one — a real attestation identity — is the gap exp175 proved this chip cannot honestly close. Measures the distance to a commercial key instead of asserting it |
 
 ## The browser track, finished
 
@@ -2150,12 +2153,16 @@ None of these is interrogated yet — a direction, not a schedule.
   Secure Lock, a fuse this project declines on purpose. Needs 2 for the hardware
   demonstrations; the finding itself needs no board.
 
-- **the same question, asked of two devices** — `fido2-token -I` and one
-  `webauthn.io` round trip, pointed at this board and at a **commercial FIDO2
-  key** in turn. The differences are the finding: `clientPin`, `credMgmt`,
-  `hmac-secret`, a real AAGUID, an attestation chain. Not yet built; needs a
-  bought key on this host, and the interrogation before it must not assume which
-  differences are code and which are certification.
+- **the same question, asked of two devices** — [exp176](./exp176-the-same-question-of-two-devices/)
+  is **verified on hardware** against a Yubico Security Key. `fido2-token -I` and
+  one registration each, with every difference sorted by kind: **ten of fourteen
+  are code the board could write** — `rk`, `hmac-secret`, `credProtect`, `eddsa`,
+  `clientPin` and the rest — **one is certification the chip cannot anchor**, the
+  real AAGUID and the attestation certificate behind it. That one is exp175's gap
+  exactly: a secret the image carries is a secret anyone with the image has. The
+  interrogation's warning held — the categorisation is a claim, so it is written
+  field by field in `compare.py` where it can be argued with, and `check.sh`
+  asserts the counts. Needs 2, and only for the key's PIN-gated half.
 
 - **the same chip, somebody else's decisions** — pico-fido, C over the Pico SDK,
   flashed to the same Pico 2. Same silicon, same `fido2-token`, a different

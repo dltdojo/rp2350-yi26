@@ -1,0 +1,20 @@
+{
+  "label": "commercial key",
+  "source": "browser attestationObject",
+  "format": "fido-u2f",
+  "authenticator_data_bytes": 196,
+  "flags": "0x41",
+  "flags_set": [
+    "UP",
+    "AT"
+  ],
+  "aaguid": "00000000000000000000000000000000",
+  "aaguid_is_zero": true,
+  "attStmt_keys": [
+    "sig",
+    "x5c"
+  ],
+  "has_certificate_chain": true,
+  "certificates_in_chain": 1,
+  "identity": "certificate chain \u2014 a manufacturer vouches for the device"
+}
