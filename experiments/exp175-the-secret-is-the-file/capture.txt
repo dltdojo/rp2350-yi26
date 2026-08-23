@@ -1,0 +1,46 @@
+>>> host: ./check.sh — the offline forgery, no board
+
+>>> host: unpack.py — the UF2 is not the image, and a grep proves it
+    $ grep -a 'not a secret. this is a test key' exp174-button.uf2
+    (no output — a block boundary splits the string)
+    image base 0x10000000, 75008 bytes of payload reassembled from UF2 blocks
+    found 'not a secret. this is a test key' at flash address 0x10010bf8
+
+>>> host: forge.py — be the device, from the file alone
+    secret lifted from ../exp174-a-deadline-nobody-mentioned/target/exp174-button.uf2 at 0x10010bf8
+    wrote /tmp/cap-forged.json
+    (a credential id, a derived keypair, and a signed assertion — no board touched)
+
+>>> host: verify.py — checked three ways, everything re-derived from the .uf2
+      ok   the secret is in the firmware image  — 0x10010bf8
+    
+    1 — the device would accept this credential id
+      ok   the credential id is 48 bytes  — 48
+      ok   its tag is HMAC(secret, 'id'..)[..16] — credential_is_ours() says yes  — the board would sign for bytes it never issued
+    
+    2 — the public key is the one the device derives, not the forger's
+      ok   a valid scalar derives from the secret
+      ok   the re-derived public key matches the forged one exactly
+    
+    3 — the assertion is a real signature, presence and all
+      ok   the user-presence bit is set in a signature nobody was present for  — flags 0x01
+      ok   the rpIdHash is this relying party's  — webauthn.io
+      ok   the assertion verifies against the derived key  — 72 byte signature
+      ok   and one flipped bit breaks it
+    
+    every check passed — the file was enough to be the device
+
+>>> host: and exp159's rule — four tampered forgeries, each must be caught
+    signature mutation: rejected
+    tag mutation: rejected
+    pubkey mutation: rejected
+    flags mutation: rejected
+
+>>> host: ./survive.sh — step A on hardware, unattended (EXP174_UP=none, no press)
+    >>> flash exp174 (UP=none) and register a credential
+    >>> registered 7+TNzb3NkPvtqtbmJTHve9BB5lsgyFFB...
+    >>> reflash to exp127 — a different firmware. The key is gone:
+    >>>   no exp174 FIDO device present (correct — it was overwritten)
+    >>> reflash exp174 — the SAME image, and log in with the OLD credential
+    >>> ACCEPTED — the credential survived a full firmware wipe.
+    >>> It was never in the board; it is a function of the image, which was restored.

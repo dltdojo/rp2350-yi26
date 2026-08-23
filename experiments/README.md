@@ -88,6 +88,7 @@ Per experiment:
 | exp172 | Same as exp171, and the same two builds. Each `ga-` case registers a fresh credential first, so the round trip is a round trip rather than a replay of something recorded earlier. |
 | exp173 | Same as exp171, and driven by `libfido2`'s own `fido2-cred` and `fido2-assert` rather than by a client written here. Two transcripts, and the pair is the experiment: one build asks nobody, one is pressed. |
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
+| exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
 | exp161 | Same as exp151 in hardware — `cdc+ncm`, no drive — and the first on this road whose claim needs no phone and no person: four paths and one shared TRNG, all of it visible to `curl`. **RP2350 only**, because `/trng` is the TRNG. Needs a host that shares its connection, which on Ubuntu is one `nmcli` line and no `sudo`. |
 | exp153 | Same as exp152 in hardware, and different in what it depends on: **the host has to share its connection**, not merely hand out an address. On a phone that is Ethernet tethering; on Ubuntu it is `nmcli … ipv4.method shared`, which needs no `sudo`. The measurement is what happens beyond the gateway, so the answer is a property of that host's NAT and its carrier, not of this firmware. Verified on both. |
 | exp152 | Same as exp151, plus a **mass-storage** function — **five** USB interfaces, the most complex composite here (a mass-storage function is one interface with two endpoints; an earlier version of this row counted six). The measurement is what *your* host does with a medium that appears ten seconds after the device: Ubuntu mounts it. |
@@ -448,7 +449,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -595,6 +596,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp172 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp173 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp174 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp175 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -748,6 +750,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp172-the-same-key-twice](./exp172-the-same-key-twice/) | 2 · a moment | `getAssertion`: the board re-derives a private key **it never stored** from a credential ID handed back to it, and the assertion verifies against the public key registration gave out. A forged tag, a credential from another relying party, and one with no tag at all are all refused **before anything is derived** |
 | [exp173-a-client-that-is-not-ours](./exp173-a-client-that-is-not-ours/) | 2 · a moment | `libfido2` drives the board end to end — its CBOR, not ours — and makes, verifies and uses a credential. **`FIDO_2_0` is earned rather than claimed.** The one thing it refused for five experiments turns out to be `UP=0`, not the cryptography: press the button and the same signature verifies |
 | [exp174-a-deadline-nobody-mentioned](./exp174-a-deadline-nobody-mentioned/) | 2 · a moment | A browser registers and logs in with this board, unchanged — and then **gives up on it**. Two findings: this firmware had been taking 11–21 s to make a credential because of [exp109](./exp109-hardware-trng/)'s constant, which every check called correct; and a silent device has about twenty seconds before Chrome stops listening, which one `CTAPHID_KEEPALIVE` packet per 100 ms pushes past |
+| [exp175-the-secret-is-the-file](./exp175-the-secret-is-the-file/) | 2 · a moment | The board is not the secret — the `.uf2` is. `forge.py` mints a working WebAuthn assertion from the firmware image alone, no board involved, because exp171's key is a pure function of a compiled-in constant. The first rung that attacks the road's own product, and the argument for the identity road |
 
 ## The browser track, finished
 
@@ -2133,9 +2136,51 @@ None of these is interrogated yet — a direction, not a schedule.
   is now latched at any moment in the window and the answer leaves on the
   board's clock, so the person only has to press. Needs 2.
 
+- **the secret is the file** — the first rung that attacks the road's own
+  product. [exp175](./exp175-the-secret-is-the-file/) is **verified on host**:
+  `forge.py` mints a working WebAuthn assertion from exp174's `.uf2` alone, no
+  board involved, and `verify.py` confirms it three ways — the signature is
+  real, the device's own `credential_is_ours` would take the credential, and the
+  public key is the one the device derives. exp171's key is a pure function of a
+  compiled-in constant, so there is nothing to extract; possession of the image
+  is possession of the identity. It also corrects two false comforts a student
+  would otherwise keep: a raw `grep` of the `.uf2` misses the secret a block
+  boundary splits, and a reflash does not make old bytes gone. **What would close
+  it is a secret the image cannot carry** — the identity road, or the RP2350's
+  Secure Lock, a fuse this project declines on purpose. Needs 2 for the hardware
+  demonstrations; the finding itself needs no board.
+
+- **the same question, asked of two devices** — `fido2-token -I` and one
+  `webauthn.io` round trip, pointed at this board and at a **commercial FIDO2
+  key** in turn. The differences are the finding: `clientPin`, `credMgmt`,
+  `hmac-secret`, a real AAGUID, an attestation chain. Not yet built; needs a
+  bought key on this host, and the interrogation before it must not assume which
+  differences are code and which are certification.
+
+- **the same chip, somebody else's decisions** — pico-fido, C over the Pico SDK,
+  flashed to the same Pico 2. Same silicon, same `fido2-token`, a different
+  team's answers: full CTAP 2.x, clientPIN, resident credentials, hmac-secret,
+  and — where a fuse is burned — a master key in OTP that closes exactly exp175's
+  demonstration B. This road runs it **without Secure Lock**, records what that
+  means, and treats the fuse as the boundary it is. It is the outside-in view of
+  the same gap exp178 looks at from the inside. Not yet built; needs interrogation
+  about flashing third-party firmware over a board that may carry a partition
+  table.
+
+- **the shape of the contract** — pull OpenSK's `opensk` library in behind its
+  `Env` trait and make it *compile* against stubs, nothing more. What the library
+  demands before it will build — a clock, an RNG, a HID link, persistent storage,
+  user presence — is a checklist this repository has met one piece at a time, and
+  the measurement is that OpenSK offers full CTAP 2.1 for an adapter smaller than
+  a hand-written engine that offers three commands. Apache-2.0 both ways, which is
+  what makes the reuse legal; `check.sh` should assert the three obligations that
+  licence imposes. The engine is cloned by a setup script, not vendored, so "this
+  is someone else's tree" stays visible in the layout. Not yet built.
+
 - **where the wrapping key comes from** — the [identity road](#the-identity-road)
-  arriving. Until it does, this road uses a compiled-in test key and says what
-  that costs, the way every other experiment here does.
+  arriving, and now with a cost measured rather than asserted: [exp175](./exp175-the-secret-is-the-file/)
+  showed exactly what a compiled-in test key gives away. Until the identity road
+  lands, this road uses that key and says what it costs.
 
 - **the strict client** — Android, and the finding above reproduced rather than
   quoted. This is the one that needs a phone and the browser track's whole

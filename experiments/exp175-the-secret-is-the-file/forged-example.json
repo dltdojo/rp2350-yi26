@@ -1,0 +1,14 @@
+{
+  "what": "an assertion forged offline from the firmware image alone",
+  "rp_id": "webauthn.io",
+  "credential_id": "k8f3tGkMhKMb60-IX3AmEBLU_mu0gXnLTUPlNVFngFyvOiuV3Up28PH8JOt-2eag",
+  "nonce": "k8f3tGkMhKMb60-IX3AmEBLU_mu0gXnLTUPlNVFngFw",
+  "public_key": {
+    "x": "8lu-38SL0E4xMW1lAA5zQqEYMjgOYl_hzSmsX4xRRZo",
+    "y": "-10v7DZTLfQ_BY4xDET-gq3P0Bzf73mX-7XxkueClRk"
+  },
+  "authenticator_data": "dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvABAAAAAA",
+  "client_data_json": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiZXlCYlJXNmUzTzg3R2RrX2M1cnB5cWp3SkNsbW9WUjBNaWFLYjM3Z1JfUSIsIm9yaWdpbiI6Imh0dHBzOi8vd2ViYXV0aG4uaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+  "signature": "MEYCIQC0XZCQj74ly6QJCZXiBbCh9_-_Ux5yK5h_Da80QP7URQIhAI4FknGQD_N3SkYxYR00TX_K2tPTYoKjE5dmzik-whKd",
+  "up_bit_claimed": true
+}
