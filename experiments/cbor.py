@@ -31,6 +31,18 @@ accept and normalise is a branch where a device could be quietly wrong.
     cbor = importlib.util.module_from_spec(spec); spec.loader.exec_module(cbor)
     value, at = cbor.decode(body)
 
+**When to stop keeping this here.** It was weighed against a `yi26` subcommand
+and stayed Python for three reasons: JSON cannot carry what the callers need
+from CBOR (integer map keys, byte strings, negative COSE labels) without a
+convention every caller then has to undo; `crates/cbor`'s reader is a streaming
+cursor for `no_std` firmware that deliberately does **not** check text-key
+ordering, which is the one rule this file adds; and both callers are Python
+already, so a subcommand would replace an `import` with a subprocess plus an
+un-mangler. **The trigger to revisit is a single fact: the first `check.sh` that
+needs to assert something about CBOR from bash.** There is none today. When one
+appears, the balance changes and this note is the record of what was weighed, so
+nobody has to derive it again.
+
 `decode` returns `(value, offset)`. A caller that expects to have consumed
 everything must check the offset: bytes left over after the top-level item are
 not an error to this reader, and are usually an error to the caller.

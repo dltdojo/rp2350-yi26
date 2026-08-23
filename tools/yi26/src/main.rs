@@ -27,6 +27,7 @@ mod drive;
 mod picoboot;
 mod logread;
 mod out;
+mod fido;
 mod udev;
 
 use std::path::{Path, PathBuf};
@@ -78,6 +79,7 @@ commands:
   flood             numbered packets at full speed (--packets N, --storm)
   echo <text>       send to a vendor-specific interface and read the reply
   markers <f.uf2>   the yi26-cfg: build markers inside a firmware image
+  fido info [dev]   what a FIDO device says it can do (authenticatorGetInfo)
   bootsel           put the board into BOOTSEL mode (1200-baud touch)
   drive             print the RP2350 boot drive, mounting it if needed
   flash <file.uf2>  bootsel, mount, copy, and wait for the board to come back
@@ -206,6 +208,15 @@ fn run(args: &[String]) -> i32 {
         "echo" => match positional.get(1) {
             Some(text) => cmd_echo(&opts, text, if seconds_given { seconds } else { 3 }),
             None => usage_error("echo needs something to send"),
+        },
+        // The first command here that speaks a protocol to *application*
+        // firmware rather than to the bootrom or a serial port. Two words
+        // because there will be more than one question worth asking over
+        // CTAPHID, and `yi26 fidoinfo` would be a name chosen to avoid a space.
+        "fido" => match positional.get(1).map(String::as_str) {
+            Some("info") => cmd_fido_info(&opts, positional.get(2).map(String::as_str)),
+            Some(other) => usage_error(&format!("unknown fido subcommand: {other}")),
+            None => usage_error("fido needs a subcommand: info"),
         },
         "markers" => match positional.get(1) {
             Some(f) => cmd_markers(&opts, Path::new(f)),
@@ -657,6 +668,191 @@ fn cmd_echo(opts: &Opts, text: &str, seconds: u64) -> i32 {
 
 // ---------------------------------------------------------------------------
 // markers
+
+fn cmd_fido_info(opts: &Opts, device: Option<&str>) -> i32 {
+    out::explain(
+        opts,
+        &Explanation {
+            shell: &["fido2-token -L", "fido2-token -I /dev/hidrawN"],
+            notes: &[
+                "libfido2's own tool answers most of this and needs nothing installed —",
+                "use it. What it does not do is report what it cannot name: an algorithm",
+                "outside its table prints as `unknown`, and exp177 nearly ruled on that",
+                "word instead of on the number underneath it (COSE -36, ES512).",
+                "This prints identifiers, and any getInfo field it does not interpret is",
+                "listed rather than dropped. It also says whether the device's CBOR is",
+                "canonical, which no other tool here reports about a live device.",
+                "It reads only: getInfo changes nothing on the device, needs no PIN and",
+                "asks nobody to touch anything.",
+            ],
+        },
+    );
+
+    let found = fido::find();
+    let path = match (device, found.len()) {
+        (Some(p), _) => p.to_string(),
+        (None, 0) => {
+            return fail(
+                opts,
+                "no-fido",
+                "no FIDO device this user can open is attached",
+                "flash exp168 or later, or plug a security key in — and see exp168 on why no udev rule of ours is needed",
+            )
+        }
+        (None, 1) => found[0].path.clone(),
+        // Deliberately not "pick the first". A board and somebody's security key
+        // look alike to this scan, and exp176 spent a run on an answer that came
+        // from the wrong one of two attached devices.
+        (None, _) => {
+            for f in &found {
+                eprintln!("  {}  {}", f.path, f.name);
+            }
+            return fail(
+                opts,
+                "many-fido",
+                "more than one FIDO device is attached",
+                "name the one you mean: yi26 fido info /dev/hidrawN",
+            );
+        }
+    };
+    let name = found
+        .iter()
+        .find(|f| f.path == path)
+        .map(|f| f.name.clone())
+        .unwrap_or_else(|| "unnamed".to_string());
+
+    let mut link = match fido::Link::open(&path) {
+        Ok(l) => l,
+        Err(e) => return fail(opts, "open-failed", &e, "is it a hidraw node this user can open?"),
+    };
+    let (cid, protocol, caps) = match link.init() {
+        Ok(v) => v,
+        Err(e) => return fail(opts, "init-failed", &e, "unplug and replug the device, then try again"),
+    };
+    let (status, body, keepalives) = match link.cbor(cid, &[fido::AUTHENTICATOR_GET_INFO]) {
+        Ok(v) => v,
+        Err(e) => return fail(opts, "cbor-failed", &e, "the device answered the transport but not the command"),
+    };
+    if status != 0 {
+        return fail(
+            opts,
+            "ctap-error",
+            &format!("authenticatorGetInfo returned CTAP status 0x{status:02x}"),
+            "a device that refuses to describe itself is exp169's subject",
+        );
+    }
+    let info = match fido::parse_get_info(&body) {
+        Ok(i) => i,
+        Err(e) => return fail(opts, "bad-getinfo", &e, "the bytes are in the error; exp170 is about reading them"),
+    };
+
+    if opts.json {
+        println!("{}", fido_json(&path, &name, protocol, caps, keepalives, &info));
+    } else {
+        println!("{path}  {name}");
+        println!("protocol {protocol}, capabilities 0x{caps:02x} ({})",
+                 fido::capability_names(caps).join(", "));
+        println!("versions      {}", info.versions.join(", "));
+        if !info.extensions.is_empty() {
+            println!("extensions    {}", info.extensions.join(", "));
+        }
+        if let Some(a) = &info.aaguid {
+            println!("aaguid        {a}{}", if a.chars().all(|c| c == '0') { "  (all zero — no model identity claimed)" } else { "" });
+        }
+        if !info.algorithms.is_empty() {
+            let algs: Vec<String> = info
+                .algorithms
+                .iter()
+                .map(|(id, name, kind)| {
+                    let named = if name.is_empty() { String::new() } else { format!(" {name}") };
+                    format!("{id}{named} ({kind})")
+                })
+                .collect();
+            println!("algorithms    {}", algs.join(", "));
+        }
+        if !info.options.is_empty() {
+            let opts_s: Vec<String> = info
+                .options
+                .iter()
+                .map(|(k, v)| if *v { k.clone() } else { format!("no{k}") })
+                .collect();
+            println!("options       {}", opts_s.join(", "));
+        }
+        if !info.pin_protocols.is_empty() {
+            println!("pin protocols {}", info.pin_protocols.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", "));
+        }
+        if let Some(v) = info.max_msg_size { println!("max msg size  {v}"); }
+        if let Some(v) = info.max_cred_count_in_list { println!("max creds in list {v}"); }
+        if let Some(v) = info.max_cred_id_length { println!("max cred id len   {v}"); }
+        if let Some(v) = info.firmware_version { println!("firmware      0x{v:x}"); }
+        if !info.other_fields.is_empty() {
+            println!("fields not interpreted here: {}",
+                     info.other_fields.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(", "));
+        }
+        match &info.non_canonical {
+            None => println!("cbor          canonical"),
+            Some(why) => println!("cbor          NOT canonical: {why}"),
+        }
+        if keepalives > 0 {
+            println!("({keepalives} keepalive packet(s) arrived before the answer — exp174)");
+        }
+    }
+    0
+}
+
+fn fido_json(
+    path: &str,
+    name: &str,
+    protocol: u8,
+    caps: u8,
+    keepalives: u32,
+    info: &fido::Info,
+) -> String {
+    let list = |v: &[String]| -> String {
+        format!("[{}]", v.iter().map(|s| out::esc(s)).collect::<Vec<_>>().join(","))
+    };
+    let nums = |v: &[u64]| -> String {
+        format!("[{}]", v.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(","))
+    };
+    let opt_num = |v: Option<u64>| -> String {
+        v.map(|n| n.to_string()).unwrap_or_else(|| "null".to_string())
+    };
+    let algorithms = info
+        .algorithms
+        .iter()
+        .map(|(id, name, kind)| {
+            format!(
+                "{{\"cose\":{id},\"name\":{},\"type\":{}}}",
+                if name.is_empty() { "null".to_string() } else { out::esc(name) },
+                out::esc(kind)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let options = info
+        .options
+        .iter()
+        .map(|(k, v)| format!("{}:{v}", out::esc(k)))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{{\"device\":{},\"name\":{},\"protocol\":{protocol},\"capabilities\":\"0x{caps:02x}\",         \"capability_names\":{},\"keepalives\":{keepalives},\"versions\":{},\"extensions\":{},         \"aaguid\":{},\"options\":{{{options}}},\"max_msg_size\":{},\"pin_protocols\":{},         \"max_cred_count_in_list\":{},\"max_cred_id_length\":{},\"transports\":{},         \"algorithms\":[{algorithms}],\"firmware_version\":{},\"other_fields\":{},         \"non_canonical\":{}}}",
+        out::esc(path),
+        out::esc(name),
+        list(&fido::capability_names(caps).iter().map(|s| s.to_string()).collect::<Vec<_>>()),
+        list(&info.versions),
+        list(&info.extensions),
+        info.aaguid.as_ref().map(|a| out::esc(a)).unwrap_or_else(|| "null".to_string()),
+        opt_num(info.max_msg_size),
+        nums(&info.pin_protocols),
+        opt_num(info.max_cred_count_in_list),
+        opt_num(info.max_cred_id_length),
+        list(&info.transports),
+        opt_num(info.firmware_version),
+        nums(&info.other_fields),
+        info.non_canonical.as_ref().map(|w| out::esc(w)).unwrap_or_else(|| "null".to_string()),
+    )
+}
 
 fn cmd_markers(opts: &Opts, path: &Path) -> i32 {
     out::explain(

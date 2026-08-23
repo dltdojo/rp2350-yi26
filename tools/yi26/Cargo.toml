@@ -19,5 +19,11 @@ nusb = "0.2.5"
 # before choosing this, not assumed.
 serialport = { version = "4.9.0", default-features = false }
 
+# The repository's own canonical CBOR reader, the one the firmware uses. Not a
+# second implementation: `yi26 fido info` walks the shape CTAP 2.1 defines for
+# authenticatorGetInfo, and the bytes underneath it are read by the same cursor
+# exp170 wrote for reading input an attacker chose.
+cbor = { path = "../../crates/cbor" }
+
 [profile.release]
 opt-level = "s"

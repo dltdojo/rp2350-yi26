@@ -31,6 +31,17 @@ defect; some are the shape of the subject.
 |---|---|---|---|---|
 | [exp175](../experiments/exp175-the-secret-is-the-file/) | read a running board's flash, to show the secret is there | [exp141](../experiments/exp141-two-doors-into-the-bootrom/)'s browser PICOBOOT page | **no** — reading flash is the bootrom's, and the reach teaches that | **do not add to `yi26`.** The detour is the finding |
 | [exp175](../experiments/exp175-the-secret-is-the-file/) | reassemble a `.uf2` into its flat image, and search it | `unpack.py`, written in the experiment | yes, but tiny and experiment-specific | **keep local** unless a second experiment needs it, then promote to a shared crate or `yi26 uf2` |
+| [exp169](../experiments/exp169-what-it-says-it-can-do/) – [exp173](../experiments/exp173-a-client-that-is-not-ours/) | speak CTAPHID to the board and read `authenticatorGetInfo` | `ctaphid.py`, hand-written — **and copied into four experiments**, where it then diverged | yes | **the reach was the lesson** up to exp172: hand-writing CTAPHID *is* exp168's subject, and a tool would have deleted it |
+| [exp176](../experiments/exp176-the-same-question-of-two-devices/) | the same, once the client had stopped being the subject | `fido2-token -I`, the host's own tool | yes | fine, until it was not: see the next row |
+| [exp177](../experiments/exp177-the-same-chip-somebody-elses-decisions/) | the **raw COSE algorithm identifiers**, because `fido2-token -I` prints an algorithm it cannot name as `unknown` | imported [exp173](../experiments/exp173-a-client-that-is-not-ours/)'s `ctaphid.py` across experiment directories, by path | yes | **build it.** Rule 1 is met four times over; rule 2 stopped applying at exp173, which deliberately handed the client job to somebody else's tool. `fido2-token -I` is lossy in a way that nearly produced a wrong ruling, and the workaround was one experiment reaching into another's scripts |
+| [exp177](../experiments/exp177-the-same-chip-somebody-elses-decisions/), [exp178](../experiments/exp178-the-shape-of-the-contract/) | a CBOR reader that a real authenticator's `getInfo` does not defeat | [`experiments/cbor.py`](../experiments/cbor.py), promoted out of exp178 | yes, but **not** a `yi26` job | **keep in Python.** JSON cannot carry integer map keys, byte strings or negative COSE labels without a convention every caller then undoes; `crates/cbor` is a `no_std` cursor that deliberately skips text-key ordering; both callers are Python. Revisit when a `check.sh` needs CBOR from bash — there is none today |
+
+**What the fifth row bought.** `yi26 fido info` is the first command here that
+speaks a protocol to *application* firmware rather than to the bootrom or a
+serial port, and it exists because a pretty-printer's `unknown` is not an
+answer. It does not replace exp168's hand-written client: that client is what
+exp168 *is*, and it stays where it is. Nothing before exp177 uses the command,
+for the same reason nothing before exp177 imports `experiments/cbor.py`.
 
 ## How to add a row
 

@@ -104,6 +104,7 @@ for what the firmware is actually doing.
 | `flood` | numbered packets at full speed (`--packets N`, `--storm`) |
 | `echo <text>` | send to a vendor-specific interface and read the reply |
 | `markers <f.uf2>` | the `yi26-cfg:` build markers inside a firmware image |
+| `fido info [dev]` | what a FIDO device says it can do — `authenticatorGetInfo` |
 | `bootsel` | put the board into BOOTSEL mode via the 1200-baud touch |
 | `drive` | the RP2350 boot drive, mounting it if the system has not |
 | `flash <file.uf2>` | the whole cycle: bootsel, mount, copy, wait for it to come back |
@@ -195,6 +196,48 @@ interface, this command takes it without displacing anything: the CDC pair
 stays with the kernel and `/dev/ttyACM0` stays where it is for the whole
 exchange. Compare `detach`, which exp116 needs and which costs the serial port
 for as long as a browser holds the interfaces.
+
+### `fido info`, because `unknown` is not an answer
+
+```sh
+yi26 fido info                 # the one FIDO device attached
+yi26 fido info /dev/hidraw4    # name it when there is more than one
+yi26 fido info --json
+```
+
+`fido2-token -I` is libfido2's own tool, needs nothing installed, and answers
+most of this. **Use it.** This exists for what it does not do.
+
+It prints what it can name. An algorithm outside its table comes out as the word
+`unknown` — and in [exp177](../experiments/exp177-the-same-chip-somebody-elses-decisions/)
+that word was one step from a wrong finding: a third-party authenticator's third
+algorithm read as "probably EdDSA, then". Asking the device for the numbers gave
+COSE `-7`, `-35`, `-36` — three ECDSA curves and no Ed25519, which reversed the
+ruling. So this command reports **identifiers**, names them only when it can,
+and lists any `getInfo` field it does not interpret rather than dropping it.
+
+It also says whether the device's CBOR is **canonical**, which nothing else here
+reports about a live device — and reports rather than refuses, because a
+diagnostic that will not speak to a sloppy device is one you cannot use on the
+day you need it.
+
+Three things it is not:
+
+- **Not a replacement for exp168's client.** Hand-writing CTAPHID is what
+  [exp168](../experiments/exp168-a-security-key-that-knows-nothing/) *is*, and
+  exp169 to exp172 keep their own. This is for the experiments after exp177,
+  where the client had stopped being the subject and one experiment was
+  importing another's script across directories to get at a number.
+- **Not a second CBOR implementation.** It walks the shape CTAP 2.1 defines and
+  reads the bytes underneath with [`crates/cbor`](../crates/cbor/), the same
+  cursor the firmware uses.
+- **Not an operation.** `getInfo` only: no `makeCredential`, no `getAssertion`,
+  no PIN. It changes nothing on the device and asks nobody to touch anything.
+
+It finds devices the way libfido2 does — by report descriptor, `06 D0 F1 09 01`
+— so a board running exp168 or later and a commercial key are found alike. With
+two attached it refuses and lists them rather than picking one, because exp176
+spent a run on an answer that came from the wrong one of two devices.
 
 ### `markers`, because `strings` on a .uf2 lies
 

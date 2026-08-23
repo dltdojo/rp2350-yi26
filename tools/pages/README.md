@@ -77,6 +77,7 @@ is not going to change:
 | `markers` | it decodes a `.uf2` container off the disk |
 | `detach` | it takes an interface away from a kernel driver |
 | `flood --storm` | it writes and toggles RTS from two threads at once |
+| `fido info` | it opens a `/dev/hidraw` node, and these pages have no HID access at all — browsers additionally exclude FIDO devices from WebHID, which is upstream policy this repository has not measured |
 
 | Only a page can | Why the CLI cannot |
 | --- | --- |
@@ -180,5 +181,7 @@ experiments' own `run.sh` scripts are for.
 ## If you are an AI assistant
 
 These pages are not how you talk to a board — `yi26` is, and it can do the
-eight things in the table above that a page cannot. Open one only when the page
+ten things in the table above that a page cannot (an earlier version of this
+sentence said eight, and had not counted `flood --storm`; `fido info` is the
+tenth). Open one only when the page
 itself is what you are verifying. See [`AGENTS.md`](../../AGENTS.md).
