@@ -1,0 +1,16 @@
+{
+  "device": "/dev/hidraw5",
+  "initial_client_pin_is_false": true,
+  "initial_retries": 8,
+  "set_pin_ok": true,
+  "post_client_pin_is_true": true,
+  "bad_pin_status": 49,
+  "bad_pin_decremented_retries": true,
+  "good_pin_status": 0,
+  "good_pin_reset_retries": true,
+  "token_derived_prefix": "c7e660a29dac7960",
+  "make_cred_ok": true,
+  "make_cred_uv_flag_set": true,
+  "get_assert_ok": true,
+  "get_assert_uv_flag_set": true
+}

@@ -90,6 +90,9 @@ Per experiment:
 | exp174 | Same as exp171, plus **a browser** — Chromium or Chrome, on this host. The device half needs nobody: a `button` build waiting for a finger can be watched and cancelled by a client with no person there. The browser half needs one person and two clicks, and `python3 serve.py` for an origin, because WebAuthn will not run on `file://`. The ceiling it measures is this browser's on this host, and is reported rather than depended on. |
 | exp175 | **No board, for the finding itself** — it attacks exp174's `.uf2` on the host, and needs only python3 and python3-cryptography. The two hardware demonstrations in `drive.sh` need a board and some BOOTSEL presses, and the second borrows [exp141](./exp141-two-doors-into-the-bootrom/)'s browser flash-read. No firmware of its own. |
 | exp176 | **No board, for the comparison** — it runs `fido2-token -I` and one registration against exp174 and a commercial FIDO2 key, on the host. Needs python3 and libfido2-tools. The commercial key's attestation half needs that key plus its PIN and a touch. No firmware of its own. |
+| exp184 | Any RP2350 board. `cdc+hid`, and host Python/browser tools. Minimal CTAP 2.1 compatibility responding to clientPIN `getPinRetries` (0x06) and options `clientPin: false`. |
+| exp185 | Any RP2350 board. `cdc+hid`, and host Python tools. CTAP 2.1 PIN Protocol 1: Key Agreement (ECDH P-256), AES-256-CBC encrypted tunnel, and HMAC-SHA256 authentication. |
+| exp186 | Any RP2350 board. `cdc+hid`, and host Python tools. Full CTAP 2.1 PIN State Machine: setPIN (0x03), changePIN (0x04), getPinToken (0x05), 8-retry limit with lockout (0x34), pinUvAuthToken, and FLAG_UV (0x04) in makeCredential/getAssertion. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -465,7 +468,7 @@ awake — and because most of these experiments cost nothing.
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -680,6 +683,9 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp181 | `cdc` | `log` | `cdc_acm` | `own` |
 | exp182 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp183 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp184 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp185 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp186 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -842,6 +848,9 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp181-a-key-that-is-written-nowhere](./exp181-a-key-that-is-written-nowhere/) | 2 · a moment | A 256-bit key that is in no image and in no flash: the helper data is `K ⊕ w`, and `w` only exists inside a powered chip. Enrolled on one power cycle, reconstructed on the next — **all 256 bits back, with 494 of 7,936 cells changed**, a 6.22% error rate a 31-fold repetition code carried with 1.93 flips per bit against 16 needed to break one. **Closes exp175's gap**: the image cannot carry this secret |
 | [exp182-where-the-wrapping-key-comes-from](./exp182-where-the-wrapping-key-comes-from/) | 2 · a moment | exp174's authenticator with exp181's key instead of a compiled-in constant. A full `fido2-cred`/`fido2-assert` round trip verifies — and **exp175's forgery, unchanged, finds nothing in this image while still minting an assertion from exp174's**. The identity survived two firmware changes because it was never in either firmware |
 | [exp183-the-contract-and-the-lock](./exp183-the-contract-and-the-lock/) | 1 · a board | Refactoring monolithic FIDO2 firmware into lightweight, zero-heap Rust Traits across 4 swappable backends (TestKey, Bank 8, PUF, OTP Sim), paired with an inspection pipeline for RP2350 Secure Boot & Secure Lock without burning fuses |
+| [exp184-the-client-that-must-know](./exp184-the-client-that-must-know/) | 2 · a moment | Upgrades the authenticator to CTAP 2.1 minimal compatibility: advertises `FIDO_2_1` and `clientPin: false`, handles `authenticatorClientPIN` (0x06) `getPinRetries` (0x01) with 8 retries, and fixes Firefox/Linux registration aborts on `webauthn.io` |
+| [exp185-a-channel-before-a-secret](./exp185-a-channel-before-a-secret/) | 2 · a moment | Implements CTAP 2.1 PIN Protocol 1: establishes encrypted communication channel via ECDH P-256 key agreement, AES-256-CBC tunnel, and truncated 16-byte HMAC-SHA256 pinAuth verification |
+| [exp186-the-number-behind-the-finger](./exp186-the-number-behind-the-finger/) | 2 · a moment | Implements the complete CTAP 2.1 PIN state machine: `setPIN` (0x03), `changePIN` (0x04), `getPinToken` (0x05) with 8 retries limit and lockout (`0x34`), `pinUvAuthToken` encryption and issuance, and `FLAG_UV` (`0x04`) authentication in `makeCredential`/`getAssertion` |
 
 ## The browser track, finished
 

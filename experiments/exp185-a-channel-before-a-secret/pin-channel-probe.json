@@ -1,0 +1,26 @@
+{
+  "device": "/dev/hidraw5",
+  "versions": [
+    "U2F_V2",
+    "FIDO_2_0",
+    "FIDO_2_1"
+  ],
+  "options": {
+    "rk": false,
+    "up": true,
+    "clientPin": false,
+    "pinUvAuthToken": true,
+    "makeCredUvNotRqd": true
+  },
+  "pin_protocols": [
+    1
+  ],
+  "pin_retries_status": 0,
+  "pin_retries_remaining": 8,
+  "key_agreement_status": 0,
+  "ecdh_shared_secret_prefix": "5c3a39bce748be60",
+  "tunnel_verify_status": 0,
+  "tunnel_verify_ok": true,
+  "bad_auth_status": 50,
+  "bad_auth_rejected": true
+}
