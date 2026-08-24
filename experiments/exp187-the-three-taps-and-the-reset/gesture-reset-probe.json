@@ -1,0 +1,19 @@
+{
+  "device": "/dev/hidraw5",
+  "initial_uv_option_is_true": true,
+  "initial_client_pin_is_false": true,
+  "set_pin_ok": true,
+  "post_set_pin_client_pin_is_true": true,
+  "gesture_uv_token_status": 0,
+  "gesture_uv_token_issued": true,
+  "make_cred_ok": true,
+  "make_cred_uv_flag_set": true,
+  "timely_reset_status": 0,
+  "timely_reset_ok": true,
+  "post_reset_client_pin_is_false": true,
+  "post_reset_retries": 8,
+  "old_credential_invalidated_after_reset": true,
+  "late_reset_status": 48,
+  "late_reset_rejected_with_0x30": true,
+  "pin_retained_after_late_reset": true
+}

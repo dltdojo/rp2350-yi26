@@ -1,0 +1,21 @@
+{
+  "device": "/dev/hidraw5",
+  "rk_option_is_true": true,
+  "cred_mgmt_option_is_true": true,
+  "uv_option_is_true": true,
+  "set_pin_ok": true,
+  "pin_uv_auth_token_derived": true,
+  "initial_metadata_existing_count": 0,
+  "initial_metadata_remaining_count": 16,
+  "passkey_registration_ok": true,
+  "post_registration_existing_count": 1,
+  "post_registration_remaining_count": 15,
+  "one_click_passkey_assertion_ok": true,
+  "one_click_returned_user_alice": true,
+  "one_click_returned_matching_cred_id": true,
+  "enumerate_rps_ok": true,
+  "enumerate_credentials_ok": true,
+  "delete_credential_ok": true,
+  "post_deletion_existing_count": 0,
+  "post_deletion_assertion_rejected_no_creds": true
+}
