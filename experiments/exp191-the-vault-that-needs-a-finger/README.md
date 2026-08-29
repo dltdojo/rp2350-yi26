@@ -5,10 +5,14 @@ thirty-two bytes every time, and only after somebody pressed. This is what the
 key is for: a CLI's credentials that are ciphertext until a board somebody
 pressed hands over the bytes that open them.
 
-> **Not verified on hardware.** The half that needs no board is: a wrong key
-> **raises** rather than producing rubbish, and the token is not findable in the
-> ciphertext. The four presses have not been run. See
-> [Expected output](#expected-output).
+> **Verified on hardware, 2026-08-29.** Pressed, the CLI comes up logged in as
+> the user whose credentials were sealed, and the decrypted copy is wiped on the
+> way out. With the board right there and **nobody pressing**, the wrapper
+> refuses in one line, the CLI never runs, and nothing is decrypted on the way
+> to refusing. A wrong key **raises** rather than opening into rubbish — that
+> half needs no board at all. And the leaky subject was caught: its redirection
+> worked perfectly and its token was still readable in `$HOME/.cache`.
+> See [Expected output](#expected-output).
 
 The second of the two rungs this pair was split into, and the one whose subject
 is a product rather than a measurement.
@@ -113,19 +117,85 @@ behind, which is the point: it is safe to leave lying around.
 
 ## Expected output
 
-Not captured yet — the four presses have not been run. This section stays empty
-until they have, and is filled in from a real transcript rather than from what
-the code should do.
-
-The half that has run, and needs no board:
+`./run.sh`, four presses:
 
 ```text
-PASS  a directory seals
-PASS  the token is not readable in the ciphertext
-PASS  and the right key gets exactly what went in
-PASS  a wrong key fails rather than producing rubbish — GCM's tag, not a policy
-PASS  and leaves nothing behind
+-- sealed --
+vault.bin 10268 bytes
+salt, in the clear: TJdL+JmpSgkEtV1w3T3nWD86FZct9MyNGqt8Sq3cmRY=
+a token anywhere in the vault? 0
+
+-- no key --
+cryptography.exceptions.InvalidTag
+did a wrong key produce a directory? no
+
+-- honest --
+>>> running: MOCKCLI_CONFIG_DIR=/run/user/1000/exp191.DrWTwz ./mock-cli.sh whoami
+[mock-cli] logged in as alice
+[mock-cli] read from /run/user/1000/exp191.DrWTwz/auth.json
+>>> wiped /run/user/1000/exp191.DrWTwz
+
+-- leaky --
+[mock-cli-leaky] wrote credentials to /run/user/1000/exp191.TyRXcw/auth.json
+>>> wiped /run/user/1000/exp191.TyRXcw
+left in $HOME/.cache: yes
+and the token is readable there: 1
+
+-- residue --
+exp191 directories left in the runtime dir: 0
+token findable anywhere under it: 0
 ```
+
+`./nopress.sh`, with the board left alone:
+
+```text
+-- nobody pressed --
+wrapper exit: 1
+no key, so no vault. The board is the whole lock.
+did the CLI run anyway? 0
+decrypted directories left behind: 0
+```
+
+And `verify.py` ruling on the pair — fourteen rules, of which the two that carry
+the weight are that a wrong key **raises**, and that the leak was **caught**:
+
+```text
+PASS  the config directory sealed into a vault
+PASS  and the token is not findable in the ciphertext
+PASS  the salt sits beside it in the clear, which is what a salt is
+PASS  **a wrong key fails rather than producing rubbish** — AES-GCM's tag, not a policy
+PASS  with the board present and nobody pressing, the wrapper refused
+PASS  and it said why, in one line, rather than failing somewhere further down
+PASS  and the CLI never ran at all
+PASS  and nothing was decrypted onto the tmpfs on the way to refusing
+PASS  pressed, the CLI knows itself — the credentials really were the ones sealed
+PASS  and the decrypted copy was wiped on the way out
+PASS  the leaky CLI really did leak, so this arm tests something
+PASS  **and the token is readable in what it left** — the redirection worked perfectly and the secret still escaped
+PASS  no decrypted directory survives the run
+PASS  and the token is nowhere under the runtime directory
+```
+
+## Two things it cost, and the second is a lesson this repository had already paid for
+
+- **An extraction is not finished until something runs it.**
+  [`ctap_client.py`](../ctap_client.py) was lifted out of exp188's probe and
+  reached a board twice with an import left behind — `default_backend`, then
+  `hmac`. Each time it died in **0.3 seconds** while a retry loop above it
+  reported *"window closed — press BOOTSEL"*, and somebody stood at the board
+  pressing a button at a script that was never going to ask. It has a
+  `--selftest` now, thirteen assertions over every pure function in it, and
+  `check.sh` runs it. A retry that cannot tell a missed press from a broken
+  client spends a person's time on the wrong thing, so both scripts now refuse
+  to retry a failure that took under five seconds.
+- **A solid LED means press. Always.** This run had a case that must not be
+  pressed, printed *"DO NOT PRESS for this one"* to a terminal nobody is sitting
+  at, and lit the same LED as the four that must be. A person pressing at every
+  solid light — which is what they were told, correctly — answered it, and the
+  wrapper opened the vault without a finger being the reason. exp189 moved its
+  own no-press case out for exactly this after a key came out twice; **this is
+  the second time**, and the case now lives in [`./nopress.sh`](./nopress.sh),
+  which needs nobody.
 
 ## Next
 

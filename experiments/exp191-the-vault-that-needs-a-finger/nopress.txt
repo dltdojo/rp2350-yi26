@@ -1,0 +1,5 @@
+-- nobody pressed --
+wrapper exit: 1
+no key, so no vault. The board is the whole lock.
+did the CLI run anyway? 0
+decrypted directories left behind: 0

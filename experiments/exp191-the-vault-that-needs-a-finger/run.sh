@@ -19,7 +19,8 @@ say() { printf '>>> %s\n' "$*"; }
 echo "=== exp191 — the vault that needs a finger ==="
 echo
 
-say "four solid-LED windows follow. Press BOOTSEL at every one."
+say "four solid-LED windows follow. Press BOOTSEL at every one of them."
+say "there is no case here that must not be pressed — that one is ./nopress.sh"
 echo
 
 # ---------------------------------------------------------------- seal it
@@ -40,13 +41,14 @@ echo "did a wrong key produce a directory? $([[ -d /tmp/exp191-should-not-exist 
 rm -rf /tmp/exp191-should-not-exist
 echo
 
-# -------------------------------------------- nobody presses, so nothing opens
-say "and with the board right here but nobody pressing — DO NOT PRESS for this one"
-echo "-- nobody pressed --"
-timeout 90 ./wrapper.sh whoami > /tmp/exp191-nopress.out 2>&1
-echo "wrapper exit: $?"
-grep -oE "no key, so no vault.*" /tmp/exp191-nopress.out | head -1
-echo
+# The case that must not be pressed is **not here**, and this is the second
+# time this repository has had to learn it. exp189 moved its own out after a key
+# came out twice; this script kept one anyway, printed "DO NOT PRESS for this
+# one" to a terminal nobody is sitting at, and a person pressing at every solid
+# LED — which is what they were told, correctly — answered it.
+#
+# A solid LED means press. Always. ./nopress.sh is the other half, it needs
+# nobody, and it is meant to be started and walked away from.
 
 # ------------------------------------------------------------- open it
 say "3/4: opening it, with the honest CLI"
@@ -72,4 +74,5 @@ echo "token findable anywhere under it: $(grep -rl 'sealed-' "${XDG_RUNTIME_DIR:
 
 echo
 say "wrote capture.txt"
-python3 verify.py capture.txt
+python3 verify.py capture.txt nopress.txt 2>/dev/null || python3 verify.py capture.txt
+say "now run ./nopress.sh — it needs nobody, and nothing it does should be pressed"

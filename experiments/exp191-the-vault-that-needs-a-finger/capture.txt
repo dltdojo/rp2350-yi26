@@ -1,0 +1,46 @@
+=== exp191 — the vault that needs a finger ===
+
+>>> four solid-LED windows follow. Press BOOTSEL at every one.
+
+>>> 1-2/4: making a credential and sealing the CLI's config
+>>> making a credential. PRESS BOOTSEL when the LED goes solid.
+>>> window 1 closed — press BOOTSEL when the LED goes solid
+>>> credential made
+>>> asking the board for the key. PRESS BOOTSEL again.
+[mock-cli] wrote credentials to /tmp/tmp.kAJLePp9jN/config/auth.json
+sealed 10268 bytes
+>>> sealed. The key is not on this machine.
+-- sealed --
+vault.bin 10268 bytes
+salt, in the clear: TJdL+JmpSgkEtV1w3T3nWD86FZct9MyNGqt8Sq3cmRY=
+a token anywhere in the vault? 0
+0
+
+>>> no board, no key: the cryptography, not a policy
+-- no key --
+cryptography.exceptions.InvalidTag
+did a wrong key produce a directory? no
+
+>>> and with the board right here but nobody pressing — DO NOT PRESS for this one
+-- nobody pressed --
+wrapper exit: 0
+
+>>> 3/4: opening it, with the honest CLI
+-- honest --
+>>> running: MOCKCLI_CONFIG_DIR=/run/user/1000/exp191.DrWTwz ./mock-cli.sh whoami
+[mock-cli] logged in as alice
+[mock-cli] read from /run/user/1000/exp191.DrWTwz/auth.json
+>>> wiped /run/user/1000/exp191.DrWTwz
+
+>>> 4/4: the same, with a CLI that quietly caches in $HOME
+-- leaky --
+>>> running: MOCKCLI_CONFIG_DIR=/run/user/1000/exp191.TyRXcw ./mock-cli-leaky.sh login leaked-on-purpose
+[mock-cli-leaky] wrote credentials to /run/user/1000/exp191.TyRXcw/auth.json
+>>> wiped /run/user/1000/exp191.TyRXcw
+left in $HOME/.cache: yes
+and the token is readable there: 1
+
+>>> what the tmpfs holds now
+-- residue --
+exp191 directories left in the runtime dir: 0
+token findable anywhere under it: 0

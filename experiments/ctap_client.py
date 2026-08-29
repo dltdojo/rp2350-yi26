@@ -30,6 +30,8 @@ authenticator rather than a signature.
 """
 
 import glob
+import hashlib
+import hmac
 import os
 import struct
 import time
@@ -163,12 +165,12 @@ def cbor_encode_cose_key(x, y):
     return bytes(out)
 
 def aes_cbc_encrypt(key, iv, plaintext):
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
     encryptor = cipher.encryptor()
     return encryptor.update(plaintext) + encryptor.finalize()
 
 def aes_cbc_decrypt(key, iv, ciphertext):
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
     decryptor = cipher.decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
 
@@ -296,3 +298,60 @@ def get_assertion_with_hmac_secret(link, cid, rp_id, cred_id, salt, shared, plat
     else:
         return None
     return aes_cbc_decrypt(shared, b"\x00" * 16, enc)
+
+
+def _selftest():
+    """Exercise every pure function here, so a missing import cannot ship.
+
+    This module was extracted out of exp188's probe and reached a board twice
+    with an import left behind — `default_backend`, then `hmac` — each time
+    failing in 0.3 s while a retry loop above it reported "nobody pressed" and
+    asked somebody to press again. **An extraction is not finished until
+    something runs it**, and the transport half cannot be run without a board,
+    so this runs everything else.
+    """
+    ok = True
+
+    def check(good, what):
+        nonlocal ok
+        print(("PASS  " + what) if good else ("FAIL  " + what))
+        ok = ok and good
+
+    key = b"k" * 32
+    zero = b"\x00" * 16
+    check(aes_cbc_decrypt(key, zero, aes_cbc_encrypt(key, zero, b"S" * 32)) == b"S" * 32,
+          "AES-256-CBC round trips at the zero IV protocol 1 uses")
+    check(len(hmac_sha256(key, b"x")) == 32, "HMAC-SHA256 answers 32 bytes")
+    check(hmac_sha256(key, b"x") != hmac_sha256(key, b"y"), "and different data gives a different tag")
+
+    check(cbor_encode_uint(0) == b"\x00" and cbor_encode_uint(23) == b"\x17",
+          "small unsigned integers encode inline")
+    check(cbor_encode_uint(24) == b"\x18\x18", "and 24 takes the one-byte form canonical CBOR requires")
+    check(cbor_encode_bytes(b"ab") == b"\x42ab", "short byte strings encode inline")
+    check(cbor_encode_bytes(b"a" * 32)[:2] == b"\x58\x20", "and 32 bytes take the one-byte length")
+    check(cbor_encode_text("id") == b"\x62id", "text strings encode inline")
+
+    cose = cbor_encode_cose_key(b"x" * 32, b"y" * 32)
+    check(b"\x21\x58\x20" in cose and b"\x22\x58\x20" in cose,
+          "a COSE key carries x at label -2 and y at label -3")
+    check(extract_cose_key(bytes([CTAP2_OK]) + cose) == (b"x" * 32, b"y" * 32),
+          "and reading it back gives the point that went in")
+
+    ext = hmac_secret_extension(key, cose, b"S" * 32)
+    check(ext[0] == 0xa1 and b"hmac-secret" in ext, "the extension is a map of one, named hmac-secret")
+    check(b"\x03\x50" in ext, "and saltAuth is sixteen bytes — protocol 1 truncates the tag")
+    try:
+        hmac_secret_extension(key, cose, b"S" * 31)
+        check(False, "a salt that is not 32 or 64 bytes is refused")
+    except ValueError:
+        check(True, "a salt that is not 32 or 64 bytes is refused")
+
+    return ok
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
+        sys.exit(0 if _selftest() else 1)
+    print("usage: ctap_client.py --selftest", file=sys.stderr)
+    sys.exit(2)

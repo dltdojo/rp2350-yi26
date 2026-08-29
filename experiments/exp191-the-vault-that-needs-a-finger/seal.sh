@@ -11,6 +11,8 @@
 
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
+ERRLOG="$(mktemp)"
+trap 'rm -f "$ERRLOG"' EXIT
 
 # Fixed, and derived from a sentence rather than /dev/urandom, so two runs on
 # two days are comparable — exp189's salts are chosen the same way.
@@ -44,9 +46,24 @@ head -1 "$TMP/ver" > cred.id
 echo ">>> credential made"
 
 echo ">>> asking the board for the key. PRESS BOOTSEL again." >&2
+# Retried only on a **timed-out** window, never on a crash.
+#
+# The first version retried on any failure, and getkey.py was shipped with an
+# import left behind: it died in 0.3 s, three times, while this loop said
+# "window closed — press BOOTSEL" and somebody stood there pressing a button at
+# a script that was never going to ask. A retry that cannot tell a missed press
+# from a broken client spends a person's time on the wrong thing.
 KEY=""
 for try in 1 2 3; do
-    KEY="$(python3 getkey.py "$(cat cred.id)" "$SALT" 2>/dev/null)" && [[ -n "$KEY" ]] && break
+    START=$(date +%s)
+    if KEY="$(python3 getkey.py "$(cat cred.id)" "$SALT" 2> "$ERRLOG")" && [[ -n "$KEY" ]]; then
+        break
+    fi
+    if [[ $(( $(date +%s) - START )) -lt 5 ]]; then
+        echo "getkey.py failed in under five seconds — that is not a missed press:" >&2
+        tail -3 "$ERRLOG" >&2
+        exit 1
+    fi
     echo ">>> window $try closed — press BOOTSEL when the LED goes solid" >&2
 done
 [[ -n "$KEY" ]] || { echo "no key in three windows" >&2; exit 1; }

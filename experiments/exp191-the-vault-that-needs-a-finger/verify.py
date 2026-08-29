@@ -22,7 +22,7 @@ def section(text, name):
     return m.group(1) if m else ""
 
 
-def verify(text):
+def verify(text, nopress_text=None):
     ok = True
 
     def rule(good, yes, no):
@@ -47,14 +47,23 @@ def verify(text):
          "**a wrong key fails rather than producing rubbish** — AES-GCM's tag, not a policy",
          "a wrong key produced a directory: the vault opens into garbage and a caller carries on")
 
-    nopress = section(text, "nobody pressed")
-    m = re.search(r"wrapper exit: (\d+)", nopress)
-    rule(m and m.group(1) != "0",
-         "with the board present and nobody pressing, the wrapper refused",
-         "the wrapper ran the CLI without anybody pressing — the finger is not in the loop")
-    rule("no key, so no vault" in nopress,
-         "and it said why, in one line, rather than failing somewhere further down",
-         "it failed without naming the cause")
+    if nopress_text is None:
+        print("      no nopress.txt — run ./nopress.sh, which needs nobody")
+    else:
+        nopress = section(nopress_text, "nobody pressed")
+        m = re.search(r"wrapper exit: (\d+)", nopress)
+        rule(m and m.group(1) != "0",
+             "with the board present and nobody pressing, the wrapper refused",
+             "the wrapper ran the CLI without anybody pressing — the finger is not in the loop")
+        rule("no key, so no vault" in nopress,
+             "and it said why, in one line, rather than failing somewhere further down",
+             "it failed without naming the cause")
+        rule("did the CLI run anyway? 0" in nopress,
+             "and the CLI never ran at all",
+             "the CLI ran without a key, which means it ran without credentials or with somebody else's")
+        rule("decrypted directories left behind: 0" in nopress,
+             "and nothing was decrypted onto the tmpfs on the way to refusing",
+             "a refusal still left a decrypted directory behind")
 
     honest = section(text, "honest")
     rule("logged in as alice" in honest,
@@ -85,8 +94,13 @@ def verify(text):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("usage: verify.py capture.txt", file=sys.stderr)
+    if len(sys.argv) not in (2, 3):
+        print("usage: verify.py capture.txt [nopress.txt]", file=sys.stderr)
         sys.exit(2)
     with open(sys.argv[1]) as f:
-        sys.exit(0 if verify(f.read()) else 1)
+        cap = f.read()
+    npt = None
+    if len(sys.argv) == 3:
+        with open(sys.argv[2]) as f:
+            npt = f.read()
+    sys.exit(0 if verify(cap, npt) else 1)

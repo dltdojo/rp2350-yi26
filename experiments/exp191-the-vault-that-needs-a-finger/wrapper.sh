@@ -22,6 +22,7 @@
 
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
+ERRLOG="$(mktemp)"
 
 CLI=./mock-cli.sh
 if [[ "${1:-}" == "--cli" ]]; then
@@ -38,15 +39,27 @@ VAULT=vault.bin
 SALT="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["salt"])' "$VAULT.salt")"
 
 echo ">>> asking the board. PRESS BOOTSEL when the LED goes solid." >&2
+# Retried only on a **timed-out** window, never on a crash.
+#
+# The first version retried on any failure, and getkey.py was shipped with an
+# import left behind: it died in 0.3 s, three times, while this loop said
+# "window closed — press BOOTSEL" and somebody stood there pressing a button at
+# a script that was never going to ask. A retry that cannot tell a missed press
+# from a broken client spends a person's time on the wrong thing.
 KEY=""
 for try in 1 2; do
-    KEY="$(python3 getkey.py "$(cat cred.id)" "$SALT" 2>/dev/null)" && [[ -n "$KEY" ]] && break
-    [[ "$try" -eq 1 ]] && echo ">>> window closed — press BOOTSEL when the LED goes solid" >&2
+    START=$(date +%s)
+    if KEY="$(python3 getkey.py "$(cat cred.id)" "$SALT" 2> "$ERRLOG")" && [[ -n "$KEY" ]]; then
+        break
+    fi
+    if [[ $(( $(date +%s) - START )) -lt 5 ]]; then
+        echo "getkey.py failed in under five seconds — that is not a missed press:" >&2
+        tail -3 "$ERRLOG" >&2
+        exit 1
+    fi
+    echo ">>> window $try closed — press BOOTSEL when the LED goes solid" >&2
 done
-[[ -n "$KEY" ]] || {
-    echo "no key, so no vault. The board is the whole lock." >&2
-    exit 1
-}
+[[ -n "$KEY" ]] || { echo "no key, so no vault. The board is the whole lock." >&2; exit 1; }
 
 # tmpfs, and nowhere else. /run/user/UID is one on every systemd host; a plain
 # mktemp in /tmp is a real filesystem on plenty of them, which would put the
@@ -58,7 +71,7 @@ WORK="$(mktemp -d "$RUNTIME/exp191.XXXXXX")"
 # Wiped on **every** exit, not just the clean one. A Ctrl-C that leaves a
 # decrypted credential behind is the failure this whole wrapper is about.
 cleanup() {
-    rm -rf "$WORK"
+    rm -rf "$WORK" "$ERRLOG"
     echo ">>> wiped $WORK" >&2
 }
 trap cleanup EXIT INT TERM

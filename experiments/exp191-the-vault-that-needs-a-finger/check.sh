@@ -32,6 +32,18 @@ usb_check
 command -v python3 > /dev/null && pass "python3 present" \
     || { fail "python3 present" "needed for the client and the vault"; exit 1; }
 
+# The shared client, before anything asks a board to use it.
+#
+# It reached a board twice with an import left behind and died in 0.3 s while a
+# retry loop reported "nobody pressed". An extraction is not finished until
+# something runs it, and the transport half needs a board, so this runs the
+# rest.
+if python3 ../ctap_client.py --selftest > /dev/null 2>&1; then
+    pass "the shared CTAP client passes its own self-test"
+else
+    fail "the shared CTAP client passes its own self-test" "python3 ../ctap_client.py --selftest"
+fi
+
 python3 -c "import cryptography" 2> /dev/null \
     && pass "python3's cryptography is present — the one external dependency, and it is offline" \
     || fail "python3's cryptography" "pip install cryptography"
@@ -101,12 +113,16 @@ grep -q 'trap cleanup EXIT INT TERM' wrapper.sh \
     || fail "the wrapper wipes on every exit" "a Ctrl-C that leaves a credential is the failure"
 
 # ---------------------------------------------------------------------------
-if [[ -f capture.txt ]]; then
-    echo "      ruling on capture.txt"
-    python3 verify.py capture.txt
+# Both halves or neither: one half of a run is not a run, and the half that
+# needs nobody is the one carrying the claim that the finger is in the loop.
+if [[ -f capture.txt && -f nopress.txt ]]; then
+    echo "      ruling on capture.txt and nopress.txt"
+    python3 verify.py capture.txt nopress.txt
     [[ $? -eq 0 ]] || FAILED=1
+elif [[ -f capture.txt || -f nopress.txt ]]; then
+    fail "both transcripts are present or neither is" "run ./run.sh then ./nopress.sh"
 else
-    fail "capture.txt exists" "run ./run.sh — it needs a board and four presses"
+    fail "the transcripts exist" "run ./run.sh (four presses) then ./nopress.sh (nobody)"
 fi
 
 for e in exp163 exp177 exp189; do
