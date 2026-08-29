@@ -22,7 +22,9 @@ require_supported_platform
 # back needs a hand on BOOTSEL, because pico-fido answers no 1200-baud touch of
 # ours. That one action is the level.
 PRESENCE=2
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 # Four interfaces, none of them chosen here: two HID (CTAPHID and a keyboard),
 # a CCID smart-card interface, and a vendor one. On this host only the HID pair

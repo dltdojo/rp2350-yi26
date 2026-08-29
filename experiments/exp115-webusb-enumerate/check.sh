@@ -16,7 +16,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=2   # somebody taps the WebUSB permission dialog; the page does the rest
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc"
 USB_CARRIES="descriptors"

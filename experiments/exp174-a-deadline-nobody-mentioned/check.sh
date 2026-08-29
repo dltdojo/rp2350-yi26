@@ -33,7 +33,9 @@ require_supported_platform
 # and this script can only check that somebody did it. exp127 is the same shape
 # — seventeen checks pass and none of them can see whether the LED lit.
 PRESENCE=2
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc+hid"
 USB_CARRIES="log+ctaphid"

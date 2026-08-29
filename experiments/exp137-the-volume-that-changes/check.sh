@@ -23,7 +23,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=1   # udisksctl scripts the mounting; nobody has to look at anything
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc+msc"
 USB_CARRIES="log+commands+files"

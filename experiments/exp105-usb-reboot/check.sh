@@ -14,7 +14,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=1   # yi26 bootsel and yi26 state settle it, which is the point of it
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc"
 USB_CARRIES="log+control"

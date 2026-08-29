@@ -272,6 +272,76 @@ usb_check() {
     fi
 }
 
+# ---------- is this firmware able to bring itself back? ----------------------
+#
+# [exp190](./exp190-the-board-that-brings-itself-back/) measured what a firmware
+# without `crates/lifeline` costs: four trips to a bench in one round, all three
+# deaths ordinary, and every one unreachable afterwards because nothing was
+# watching. The fix is two lines — and two lines nobody notices is exactly the
+# rule that decays, so it is declared and checked rather than written down.
+#
+# In `check.sh`, one line, beside `PRESENCE`:
+#
+#   LIFELINE=yes                       # begin / keepalive / alive are wired
+#   LIFELINE="no: no firmware of its own"
+#
+# `yes` is verified against the source and cannot be claimed: the three calls
+# have to be there, and `begin` has to come before `embassy_rp::init`, because
+# anything that resets a peripheral first destroys the note the escape reads.
+#
+# `no` needs a reason. Not to make refusing hard — plenty of experiments have no
+# firmware at all — but so the reason is a sentence somebody wrote rather than a
+# field somebody left blank, which is the difference between a decision and an
+# oversight. `docs-check.sh` is where the repo-wide rule lives: from exp191 on,
+# `no` without a reason fails.
+lifeline_check() {
+    local dir src declared
+    dir="$(basename "$PWD")"
+    [[ "$dir" == exp[0-9][0-9][0-9]-* ]] || dir="$(basename "$(dirname "${BASH_SOURCE[1]}")")"
+    declared="${LIFELINE-}"
+
+    if [[ -z "$declared" ]]; then
+        fail "this check.sh declares LIFELINE" "yes, or \"no: why not\" — see lib.sh"
+        return
+    fi
+
+    src="src/main.rs"
+    [[ -f "$src" ]] || src="$(dirname "${BASH_SOURCE[1]}")/src/main.rs"
+
+    if [[ "$declared" == "yes" ]]; then
+        if [[ ! -f "$src" ]]; then
+            fail "LIFELINE=yes but there is no firmware here" "nothing to bring back"
+            return
+        fi
+        # Comment lines excluded throughout: prose about a call is not the call,
+        # and a check fooled by its own documentation is exp190's own recorded
+        # mistake.
+        local line
+        for line in lifeline::begin lifeline::keepalive lifeline::alive; do
+            grep -n "$line" "$src" | grep -qv ':[[:space:]]*//' \
+                || { fail "the firmware calls $line" "LIFELINE=yes is a claim about the source"; return; }
+        done
+        local begin_at init_at
+        begin_at="$(grep -n 'lifeline::begin' "$src" | grep -v ':[[:space:]]*//' | head -1 | cut -d: -f1)"
+        init_at="$(grep -n 'embassy_rp::init' "$src" | grep -v ':[[:space:]]*//' | head -1 | cut -d: -f1)"
+        if [[ -n "$init_at" && "$begin_at" -gt "$init_at" ]]; then
+            fail "lifeline::begin runs before embassy_rp::init" \
+                 "a peripheral reset before it destroys the note the escape reads"
+            return
+        fi
+        # An uncommented dependency line, not a sentence about one. Four checks
+        # in one day were fooled by their own documentation — a comment naming
+        # `0xF1D0`, one naming `embassy_rp::init`, one naming `.init(`, and this.
+        grep -qE '^[[:space:]]*panic-halt[[:space:]]*=' Cargo.toml 2> /dev/null \
+            && { fail "no panic-halt beside lifeline" "two panic handlers, and the silent one wins nothing"; return; }
+        pass "this firmware can bring itself back (lifeline: begin, keepalive, alive)"
+    elif [[ "$declared" == no:* ]]; then
+        pass "no lifeline, and it says why: ${declared#no: }"
+    else
+        fail "LIFELINE is yes or \"no: why not\"" "got: $declared"
+    fi
+}
+
 # ---------- running a crate's own tests from an experiment -------------------
 #
 # `cargo test` must not be run from an experiment's directory. Every experiment

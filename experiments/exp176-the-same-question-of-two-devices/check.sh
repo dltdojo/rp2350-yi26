@@ -25,7 +25,9 @@ require_supported_platform
 
 # getInfo needs nobody; the attestation half needs a PIN and a touch on the key.
 PRESENCE=2
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 # No firmware of its own; the tokens describe exp174, the board it questions.
 USB_IFACE="cdc+hid"

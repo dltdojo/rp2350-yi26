@@ -19,7 +19,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=2   # the browser row needs a person; everything below needs nobody
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc"
 USB_CARRIES="log+commands"

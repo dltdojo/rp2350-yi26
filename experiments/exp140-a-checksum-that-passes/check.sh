@@ -17,7 +17,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=0   # no board is involved at any point — this is pure arithmetic
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 USB_IFACE="none"
 USB_CARRIES="none"

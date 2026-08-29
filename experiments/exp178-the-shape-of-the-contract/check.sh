@@ -22,7 +22,9 @@ require_supported_platform
 
 # No board, no person, nothing to look at: a machine and nothing else.
 PRESENCE=0
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 # No USB anywhere in it — the fourth experiment here with none, after exp102,
 # exp103 and exp140. It is firmware-shaped, in that it builds an image for the

@@ -15,7 +15,9 @@ source "$SCRIPT_DIR/../lib.sh"
 require_supported_platform
 
 PRESENCE=2   # a hand on BOOTSEL while the cable goes in; lsusb and lsblk do the rest
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 USB_IFACE="bootrom"
 USB_CARRIES="descriptors+files"

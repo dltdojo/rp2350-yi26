@@ -16,7 +16,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=3   # the LED is the readout on the host that matters most
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc+ncm"
 USB_CARRIES="log+frames"

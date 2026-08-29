@@ -16,7 +16,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=2   # one permission tap, then the page types and reads the reply
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc"
 USB_CARRIES="log+commands"

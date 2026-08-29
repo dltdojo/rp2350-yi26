@@ -32,7 +32,7 @@ nothing.
 And it is the one extension with a use outside a browser: `hmac-secret` is what
 `systemd-cryptenroll --fido2-device`, `fido2luks` and `age-plugin-fido2-hmac`
 all stand on. Every rung before this produced a login. This one produces a key
-somebody can encrypt a file with, which is what exp190 is for.
+somebody can encrypt a file with, which is what exp191 is for.
 
 ## A signature is not a key, and that changes what can be asserted
 
@@ -219,7 +219,7 @@ bus**, indistinguishable from a bad cable and recoverable only by hand.
 ## The ready-made version, as the control
 
 `age` plus [`age-plugin-fido2-hmac`](https://github.com/olastor/age-plugin-fido2-hmac)
-already does what exp190 is going to build by hand: it encrypts a file to a
+already does what exp191 is going to build by hand: it encrypts a file to a
 FIDO2 authenticator's `hmac-secret` and will not open it without the token.
 
 It is here for [exp178](../exp178-the-shape-of-the-contract/)'s reason. This
@@ -227,7 +227,7 @@ repository hand-rolled FAT12, SCSI, Bulk-Only Transport, DHCP and its own CBOR �
 and exp178 priced OpenSK's engine at 121,184 bytes of flash *before* anybody
 argued about whether to use it. Hand-rolling after measuring the alternative is
 a decision; hand-rolling instead of measuring it is a reflex. So the ready-made
-tool runs first, and exp190 is written knowing what it cost to not use it.
+tool runs first, and exp191 is written knowing what it cost to not use it.
 
 **What it has to show is a stronger sentence than the rest of this experiment
 can produce.** `fido2-assert` printing thirty-two bytes says something came
@@ -258,10 +258,10 @@ observation, and no pin fixes a tool whose behaviour lives on somebody's server.
 on this host — the plugin prints its magic identity with no token attached at
 all — so what follows is read out of `--help` rather than assumed:
 
-| what the tool says | what it means for exp190 |
+| what the tool says | what it means for exp191 |
 |---|---|
 | `-g` generates credentials **interactively** | the control has a prompt sequence, so it costs a person in a way nothing else in exp189 does |
-| `-s` is symmetric, and *"the token must be present for every operation"* | the strict mode. Without it the plugin derives an X25519 keypair, so **encryption does not need the board and only decryption does** — which is the shape exp190's vault actually wants |
+| `-s` is symmetric, and *"the token must be present for every operation"* | the strict mode. Without it the plugin derives an X25519 keypair, so **encryption does not need the board and only decryption does** — which is the shape exp191's vault actually wants |
 | `age -d -j fido2-hmac secret.enc` | decryption with **no identity file at all**, which is one fewer thing for a wrapper to carry |
 | `FIDO2_TOKEN` forces a device path, and its own help warns `/dev/hid*` is ephemeral | naming the board is the plugin's problem too, not just this repository's |
 
@@ -417,7 +417,7 @@ fido2-cred  -M -h -i cred_param  /dev/hidraw5   # hmac-secret at registration
 fido2-assert -G -h -i assert_param /dev/hidraw5 # line 4 in is the salt, the last line out is the key
 ```
 
-exp190 uses this repository's own CTAP client instead, and the reason is written
+exp191 uses this repository's own CTAP client instead, and the reason is written
 there.
 
 ## Expected output
@@ -565,7 +565,7 @@ salt that barely changes the answer is a bug rather than a coincidence.
 
 ## Next
 
-**exp190 — the vault that needs a finger.** The 32 bytes become an AES-256-GCM
+**exp191 — the vault that needs a finger.** The 32 bytes become an AES-256-GCM
 key over a CLI's configuration directory, an environment variable points the CLI
 at a decrypted copy on a tmpfs, and the copy is wiped when it exits. Its subject
 is a mock CLI written here, not a real one: a CLI that authenticates against a

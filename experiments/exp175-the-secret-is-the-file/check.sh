@@ -26,7 +26,9 @@ require_supported_platform
 # The offline core needs nobody; the drive.sh demonstrations need presses and a
 # tap. exp174's level: a person for one action, then software.
 PRESENCE=2
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 # No firmware of its own. The tokens describe the firmware it attacks — exp174's
 # — which is what a board runs during the drive.sh demonstrations; usb_check

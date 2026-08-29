@@ -22,7 +22,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=2   # one WebUSB permission tap, and a person to watch the board come back
+LIFELINE="no: no firmware of its own"
 presence_check
+lifeline_check
 
 USB_IFACE="vendor"
 USB_CARRIES="control"

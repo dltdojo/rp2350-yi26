@@ -14,7 +14,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=1   # the volume mounts, and the layout crate runs under cargo test
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc+msc"
 USB_CARRIES="log+files"

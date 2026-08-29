@@ -481,8 +481,8 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183 |
-| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190 |
+| **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
@@ -519,6 +519,33 @@ yi26 state           # bootsel | running | detached | absent
 A board running exp105 or later is reachable from software, so the only
 presence cost left is the number in the table. A board running exp101–exp104,
 or nothing at all, needs a hand once before any of that applies.
+
+### Can this firmware bring itself back?
+
+One line in `check.sh`, beside `PRESENCE`:
+
+```sh
+LIFELINE=yes                                  # begin / keepalive / alive are wired
+LIFELINE="no: no firmware of its own"
+```
+
+`yes` is **verified against the source** and cannot be claimed: the three calls
+have to be there, `lifeline::begin` has to come before `embassy_rp::init`, and
+`panic-halt` must not be a dependency. `no` needs a reason — not to make
+refusing hard, since plenty of experiments have no firmware at all, but so that
+declining is a sentence somebody wrote rather than a field somebody left blank.
+
+**From exp191 on, a bare `no` fails**, and it fails in
+[`docs-check.sh`](./docs-check.sh) rather than in any one experiment. That is
+deliberate: `lifeline_check` keeps one experiment honest against its own source,
+and cannot see the thing that actually goes wrong — **a new experiment copied
+from an old one inherits the old one's answer**. Every defect
+[`crates/lifeline`](../crates/lifeline/) exists for arrived exactly that way.
+
+Below exp191 the answer is whatever the experiment declared. Those are verified
+work, retrofitting them means re-verifying fourteen firmwares on hardware, and
+the ruling is the one [`cbor.py`](./cbor.py) already records: the fix goes
+forward rather than back.
 
 ### Where it is declared
 
@@ -2506,7 +2533,7 @@ None of these is interrogated yet — a direction, not a schedule.
   this repository hand-rolled FAT12, SCSI, Bulk-Only Transport and DHCP and
   exp178 priced OpenSK before anybody argued about using it. **Hand-rolling
   after measuring the alternative is a decision; hand-rolling instead of
-  measuring it is a reflex**, and exp190 is the thing being decided. A refusal
+  measuring it is a reflex**, and exp191 is the thing being decided. A refusal
   is its finding rather than its failure: this build has no PIN and no resident
   credentials by choice.
 

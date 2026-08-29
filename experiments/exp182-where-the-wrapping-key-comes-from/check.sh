@@ -19,7 +19,9 @@ require_supported_platform
 
 # A power cycle after flashing, then a press per credential operation.
 PRESENCE=2
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc+hid"
 USB_CARRIES="log+ctaphid"

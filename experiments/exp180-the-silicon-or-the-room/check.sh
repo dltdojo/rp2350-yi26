@@ -19,7 +19,9 @@ require_supported_platform
 # One action by a person: the cable out, a wait, the cable in. The board does
 # the rest, including telling anybody watching what it wants via the LED.
 PRESENCE=2
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc"
 USB_CARRIES="log"

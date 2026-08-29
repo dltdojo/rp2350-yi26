@@ -323,6 +323,50 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Every experiment declares whether its firmware can bring itself back, and
+# from exp191 on it has to be able to.
+#
+# `lifeline_check` in lib.sh keeps one experiment's declaration honest against
+# its own source. That is the per-row half, and it cannot see the rule that
+# matters here: **a new experiment copied from an old one inherits the old
+# one's answer.** Every defect crates/lifeline exists for arrived that way —
+# exp189 was a copy of exp188 and inherited its bugs unchanged — so the floor is
+# enforced repo-wide, where adding an experiment cannot avoid it.
+#
+# Below exp191 the answer is whatever the experiment declared: those are
+# verified work, retrofitting them means re-verifying fourteen firmwares on
+# hardware, and the ruling is the one experiments/cbor.py already records — the
+# fix goes forward rather than back. From exp191 on, a firmware that declines
+# has to say why in a sentence somebody wrote.
+FLOOR=191
+missing=(); unreasoned=()
+for d in "${DIRS[@]}"; do
+    chk="$d/check.sh"
+    [[ -f "$chk" ]] || continue
+    n=$((10#${d:3:3}))
+    decl="$(sed -n 's/^LIFELINE=\(.*\)$/\1/p' "$chk" | head -1 | tr -d '"')"
+    if [[ -z "$decl" ]]; then
+        missing+=("$d")
+    elif [[ "$n" -ge "$FLOOR" && "$decl" != "yes" ]]; then
+        # A firmware that has one and declines is a decision; a blank is not.
+        [[ "$decl" == no:*[![:space:]]* ]] || unreasoned+=("$d")
+    fi
+done
+
+if [[ ${#missing[@]} -eq 0 ]]; then
+    pass "every experiment declares whether its firmware can bring itself back (${#DIRS[@]})"
+else
+    fail "every experiment declares LIFELINE" "missing in: ${missing[*]}"
+fi
+
+if [[ ${#unreasoned[@]} -eq 0 ]]; then
+    pass "and from exp$FLOOR on, declining says why"
+else
+    fail "from exp$FLOOR on, declining says why" \
+         "LIFELINE=\"no: <reason>\" — bare in: ${unreasoned[*]}"
+fi
+
+# ---------------------------------------------------------------------------
 # What this deliberately does not do: rewrite anything. A generator that
 # silently fixes a table means nobody ever learns the document was wrong, and
 # the prose *around* a generated block can still contradict it. `pack.sh`

@@ -17,7 +17,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=1
+LIFELINE=yes
 presence_check
+lifeline_check
 
 USB_IFACE="cdc"
 USB_CARRIES="log"

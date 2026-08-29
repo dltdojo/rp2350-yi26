@@ -15,7 +15,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=2   # one browser tap; check.sh reaches everything except the page itself
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc+msc"
 USB_CARRIES="log+commands+files"

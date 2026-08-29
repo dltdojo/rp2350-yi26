@@ -14,7 +14,9 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=3   # an eye on the LED — this firmware has no USB, so nothing else can see it
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="none"
 USB_CARRIES="none"

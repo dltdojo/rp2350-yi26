@@ -19,7 +19,9 @@ require_supported_platform
 # Two cable pulls, seconds apart, and nothing else. The firmware does the rest
 # and reports for as long as it is powered.
 PRESENCE=2
+LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
 presence_check
+lifeline_check
 
 USB_IFACE="cdc"
 USB_CARRIES="log"
