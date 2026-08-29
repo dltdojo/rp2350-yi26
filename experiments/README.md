@@ -96,6 +96,7 @@ Per experiment:
 | exp187 | Any RP2350 board. `cdc+hid`, and host Python tools. CTAP 2.1 Authenticator Reset (0x07 with 10s power-on interlock and master salt rotation) and on-device gesture UV (triple-tap). |
 | exp188 | Any RP2350 board. `cdc+hid`, and host Python tools. Full Passkeys support: CTAP 2.1 Discoverable Credentials (`rk: true`), username-less 1-Click login (empty allowList assertion), and credential management (`credMgmt` 0x0A: metadata, enumerate, delete). |
 | exp189 | Any RP2350 board. `cdc+hid`, and `libfido2`'s own `fido2-cred` and `fido2-assert` on the host — the client is somebody else's on purpose. Split by what it costs a person: `./roundtrip.sh` needs **seven presses of BOOTSEL** and `./nopress.sh` needs **nobody**, which is the whole point of it being a second script. The `bank8` arm is declared and not built. The control needs **the network once** for `./setup.sh`, which pins `age` and `age-plugin-fido2-hmac` by SHA-256 the way exp177 pins pico-fido. |
+| exp190 | Any RP2350 board and **nobody**. `cdc`, one log. It kills itself four ways on purpose and recovers from three of them without a person; the fourth is the control. The only host requirement is `yi26`, and the run leaves the board running rather than in a bootloader. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -702,6 +703,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp187 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp188 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp189 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp190 | `cdc` | `log` | `cdc_acm` | `own` |
 
 ### Reading the columns
 
@@ -870,6 +872,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp187-the-three-taps-and-the-reset](./exp187-the-three-taps-and-the-reset/) | 2 · a moment | CTAP 2.1 Authenticator Reset (`authenticatorReset` 0x07) enforcing the 10-second power-on security interlock (`CTAP2_ERR_NOT_ALLOWED` 0x30 if expired), credential salt rotation, and on-device built-in physical gesture User Verification (triple-tap cadence with `getPinUvAuthTokenUsingUv` 0x06) |
 | [exp188-the-passkey-in-the-pocket](./exp188-the-passkey-in-the-pocket/) | 2 · a moment | Modern Passkeys & CTAP 2.1 Credential Management: on-device resident credential storage for 16 discoverable credentials (`rk: true`), username-less 1-Click assertion returning UserEntity (`getAssertion` with empty `allowList`), and `authenticatorCredentialManagement` (`credMgmt` 0x0A: `getCredsMetadata`, `enumerateRPsBegin`, `enumerateCredentialsBegin`, `deleteCredential`) |
 | [exp189-the-same-salt-twice](./exp189-the-same-salt-twice/) | 2 · a moment | **The same salt, twice, gave the same thirty-two bytes bit for bit** — `hmac-secret`, and the first rung on this road whose product is a key rather than evidence, so every case is a comparison. Found three numbering mistakes nothing had ever exercised, including a canonical-CBOR reader that refused every COSE key a real client sends; and **the LED is the only interface, so the case that must not be pressed had to stop lighting it** |
+| [exp190-the-board-that-brings-itself-back](./exp190-the-board-that-brings-itself-back/) | 1 · board | **A firmware that dies on the way up brings itself back, and when it cannot it hands itself to the ROM bootloader rather than to somebody at a bench.** A fault before USB and a hang with interrupts off each put the board in its own bootloader in **one second**, drive presented; a fault *after* it was up did not, because a board that got up is one a host can still reboot. Four weights, because a net nobody has dropped one on is exp140's mistake |
 
 ## The browser track, finished
 

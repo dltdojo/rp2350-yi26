@@ -20,28 +20,9 @@ use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender,
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, State as HidState};
 use embassy_usb::driver::Driver;
 use embassy_usb::{Builder, Config as UsbConfig, UsbDevice};
-/// A panic that says so before it stops.
-///
-/// This firmware used `panic-halt`, which halts in silence — so a board that
-/// had died and a board that was merely quiet looked identical, and telling
-/// them apart cost a walk to the bench each time. AGENTS.md asks for exactly
-/// this before anything that can hang: make *dark* and *died* different
-/// signals.
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    if let Some(loc) = info.location() {
-        log!("PANIC at {}:{}", loc.file(), loc.line());
-    } else {
-        log!("PANIC, location unknown");
-    }
-    // The log is a ring drained by a task that will never run again, so give
-    // the bytes that are already queued whatever chance the USB stack has.
-    let mut spin = 0u32;
-    loop {
-        spin = spin.wrapping_add(1);
-        cortex_m::asm::nop();
-    }
-}
+// The panic handler, the hard-fault handler and the watchdog belong to
+// `lifeline` now — one component, so that a firmware cannot forget to be
+// reachable. See crates/lifeline for what forgetting cost.
 use rp2350_linker as _;
 use static_cell::StaticCell;
 
@@ -644,14 +625,16 @@ async fn heartbeat() {
     loop {
         Timer::after(Duration::from_secs(2)).await;
         n += 1;
-        breadcrumb::feed(WATCHDOG_US);
         log!("alive {}", n);
     }
 }
 
-/// Three seconds: comfortably longer than anything this firmware does on
-/// purpose, and short enough that a death costs one reset rather than a trip.
-const WATCHDOG_US: u32 = 3_000_000;
+/// The defaults, named once so the heartbeat and the watchdog cannot disagree.
+const LIFELINE: lifeline::Config = lifeline::Config {
+    boot_us: lifeline::DEFAULT_BOOT_US,
+    run_us: lifeline::DEFAULT_RUN_US,
+    escape_after: lifeline::DEFAULT_ESCAPE_AFTER,
+};
 
 /// Where the CTAPHID loop was when it stopped. The numbers are the whole point:
 /// a note that survives says *which* of these did not come back.
@@ -670,10 +653,11 @@ const STEP_HANDLED: u8 = 8;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    // First, before embassy_rp::init and before any peripheral: anything that
-    // resets a peripheral before this runs destroys the only record of why the
-    // last boot ended.
-    let note = breadcrumb::read();
+    // First, before embassy_rp::init and before any peripheral. If the last
+    // three boots died before saying they were reachable, this call does not
+    // return — it hands the board to the ROM bootloader, where a host can
+    // reflash it with nobody touching the button.
+    let boot = lifeline::begin(LIFELINE);
     let p = embassy_rp::init(Default::default());
 
     let driver = RpDriver::new(p.USB, Irqs);
@@ -720,10 +704,18 @@ async fn main(spawner: Spawner) {
     spawner.spawn(log_task(sender).unwrap());
     spawner.spawn(cdc_task(control, receiver).unwrap());
     spawner.spawn(heartbeat().unwrap());
+    spawner.spawn(lifeline::keepalive(LIFELINE).unwrap());
 
     // What the last boot left behind, before anything else is said.
-    log!("boot {}, last ended: {:?} at step {}", note.boot, note.cause, note.step);
-    breadcrumb::arm(WATCHDOG_US);
+    log!(
+        "boot {}, last ended: {:?} at step {} ({} death(s) in a row before it was up)",
+        boot.count, boot.cause, boot.step, boot.deaths
+    );
+
+    // Reachable from here: USB is built and the tasks that serve it are running.
+    // A boot that gets this far never counts towards the escape, however it ends
+    // — a board that came up is one the 1200-baud touch can still reboot.
+    lifeline::alive(LIFELINE);
 
     static PERSIST: StaticCell<MemoryPersistStore> = StaticCell::new();
     let persist = PERSIST.init(MemoryPersistStore::new(1));

@@ -1,0 +1,35 @@
+=== exp190 — the board that brings itself back ===
+
+>>> arm 1/4: never — the control. It gets up and stays up.
+-- never --
+[      37 ms] boot 19, last ended: Completed at step 0 — 0 death(s) in a row before it was up
+[      37 ms]   EXP190_DIE=never, escape after 3 boots that never got up
+state after 10 s: running
+
+>>> arm 2/4: late — dies AFTER saying it is reachable.
+>>>          it must come back, and it must NOT be handed to the bootloader.
+-- late --
+[      74 ms] boot 21, last ended: Completed at step 0 — 0 death(s) in a row before it was up
+[    3074 ms] boot 21, last ended: Completed at step 0 — 0 death(s) in a row before it was up
+[    6074 ms] dying on purpose, AFTER saying I was up — this must not hand the board over
+[    6074 ms] boot 21, last ended: Completed at step 0 — 0 death(s) in a row before it was up
+-- late, after it came back --
+[      74 ms] boot 23, last ended: Completed at step 0 — 0 death(s) in a row before it was up
+[    3074 ms] boot 23, last ended: Completed at step 0 — 0 death(s) in a row before it was up
+state after 30 s: running
+
+>>> arm 3/4: early — dies BEFORE it is reachable, by a fault.
+>>>          nobody touches the board from here.
+-- early --
+reached bootsel after: 1 s
+drive present: yes
+
+>>> arm 4/4: hang — stops without dying, interrupts off.
+-- hang --
+reached bootsel after: 1 s
+drive present: yes
+
+>>> putting the control back
+-- restored --
+[      37 ms] boot 1, last ended: Fresh at step 0 — 0 death(s) in a row before it was up
+final state: running

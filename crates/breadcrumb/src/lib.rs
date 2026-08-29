@@ -100,6 +100,41 @@ const FAULT_BIT: u8 = 0x80;
 /// step 0 is a firmware whose first step is invisible.
 const NO_STEP: u32 = 0;
 
+/// Set in the step byte once [`finished`] has been called, and never cleared by
+/// [`step`].
+///
+/// **A boot that got up cannot un-get-up.** Without this, a firmware that calls
+/// `finished` and then goes on marking its own steps — which is the ordinary
+/// way to use this crate — overwrites the record of having got up, and the next
+/// boot reads an ordinary reflash as a death. [`lifeline`](../../lifeline/)
+/// counts consecutive deaths to decide when a board has stopped coming back, so
+/// that miscount is the difference between a useful escape and a board that
+/// drops into its bootloader because somebody flashed it three times.
+const STEP_STICKY: u8 = 0x80;
+
+/// Two bits of the step byte, for a caller counting boots that failed at
+/// something.
+///
+/// A step is 0..=[`STEPS`], which needs five bits, and [`STEP_STICKY`] takes
+/// the top one. These two are what is left, and they survive a reset exactly as
+/// the rest of this does.
+///
+/// **They exist because the history above cannot do this job.** `history` is
+/// four slots indexed by *absolute boot number*, so from the fifth boot onwards
+/// it stops being written and [`Note::ended`] keeps reporting the first four
+/// boots for ever. That is right for [exp157], which demonstrates a short
+/// deliberate sequence, and useless for a board that has been powered on for a
+/// week. Rather than change what exp157 verified, a caller that needs "how many
+/// in a row, ending now" gets a counter of its own.
+///
+/// [exp157]: ../../experiments/exp157-a-note-for-the-next-boot/
+const STEP_TALLY: u8 = 0x60;
+const STEP_TALLY_SHIFT: u32 = 5;
+
+/// The largest tally these two bits hold. Saturating, not wrapping: a caller
+/// deciding *give up after three* must never see the count roll to zero.
+pub const TALLY_MAX: u8 = 3;
+
 /// How many steps [`Note::outcome`] can carry. Two bits each, in `SCRATCH2`.
 pub const STEPS: u8 = 16;
 
@@ -238,13 +273,22 @@ pub fn read() -> Note {
         return Note { boot: 1, cause: Cause::Fresh, step: 0, history: [0; HISTORY], steps: 0 };
     }
 
-    let (previous, step) = unpack(wd.scratch1().read());
+    let (previous, step_raw) = unpack(wd.scratch1().read());
     let boot = previous.saturating_add(1);
     let mut steps = wd.scratch2().read();
 
     // SCRATCH1's low byte still holds whatever step the previous boot was inside
     // when it stopped, because it is written before each step and cleared only
     // by `finished`.
+    // Three things share this byte and only one of them is the step: the tally
+    // belongs to a caller and outlives boots, and the sticky bit says this boot
+    // got up. Reading the whole byte as a step number turns a successful boot
+    // with a tally of 2 into a death at step 64.
+    let step = if step_raw & STEP_STICKY != 0 {
+        NO_STEP as u8
+    } else {
+        step_raw & !(STEP_STICKY | STEP_TALLY)
+    };
     let (cause, step) = if step == NO_STEP as u8 {
         (Cause::Completed, 0)
     } else if forced {
@@ -275,7 +319,8 @@ pub fn read() -> Note {
         };
     }
 
-    wd.scratch1().write_value(pack(boot, 0));
+    // The tally is the caller's and outlives a boot; the step is not.
+    wd.scratch1().write_value(pack(boot, step_raw & STEP_TALLY));
     wd.scratch3().write_value(u32::from_le_bytes(history));
 
     Note { boot, cause, step, history, steps }
@@ -303,8 +348,27 @@ fn unpack(v: u32) -> (u32, u8) {
 /// Steps count from 1. Step 0 means "between steps" and is not reportable.
 pub fn step(n: u8) {
     let wd = pac::WATCHDOG;
-    let (boot, _) = unpack(wd.scratch1().read());
-    wd.scratch1().write_value(pack(boot, n));
+    let (boot, current) = unpack(wd.scratch1().read());
+    // Ignored once this boot has said it got up. See STEP_STICKY.
+    if current & STEP_STICKY != 0 {
+        return;
+    }
+    wd.scratch1().write_value(pack(boot, (n & !(STEP_STICKY | STEP_TALLY)) | (current & STEP_TALLY)));
+}
+
+/// Read the caller's tally. See [`STEP_TALLY`].
+pub fn tally() -> u8 {
+    let (_, step) = unpack(pac::WATCHDOG.scratch1().read());
+    (step & STEP_TALLY) >> STEP_TALLY_SHIFT
+}
+
+/// Write the caller's tally, saturating at [`TALLY_MAX`].
+pub fn set_tally(n: u8) {
+    let wd = pac::WATCHDOG;
+    let (boot, step) = unpack(wd.scratch1().read());
+    let n = n.min(TALLY_MAX);
+    wd.scratch1()
+        .write_value(pack(boot, (step & !STEP_TALLY) | (n << STEP_TALLY_SHIFT)));
 }
 
 /// The per-step outcomes as they stand **right now**.
@@ -343,7 +407,9 @@ pub fn mark(n: u8, outcome: u8) {
 pub fn finished() {
     let wd = pac::WATCHDOG;
     let (boot, _) = unpack(wd.scratch1().read());
-    wd.scratch1().write_value(pack(boot, NO_STEP as u8));
+    let (_, step) = unpack(wd.scratch1().read());
+    wd.scratch1()
+        .write_value(pack(boot, NO_STEP as u8 | STEP_STICKY | (step & STEP_TALLY)));
 }
 
 /// Start the watchdog. From here a hang is a reboot.

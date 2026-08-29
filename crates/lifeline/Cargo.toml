@@ -1,0 +1,23 @@
+[package]
+name = "lifeline"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Keep an experiment board reachable: arm a watchdog, name a death, and hand a boot loop to the bootrom instead of a person"
+
+# Only the board needs a hardware abstraction. The rule that decides when a
+# board has stopped coming back is arithmetic over four bytes, and keeping it
+# free of these is what lets `cargo test` run it on a host with no board.
+[target.'cfg(target_os = "none")'.dependencies]
+breadcrumb = { path = "../breadcrumb" }
+embassy-rp = { version = "0.10.0", default-features = false }
+embassy-time = { version = "0.5.1" }
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m"] }
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+
+[features]
+default = ["escape"]
+escape = []
+
+[workspace]
