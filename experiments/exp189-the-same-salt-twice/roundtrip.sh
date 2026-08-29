@@ -43,7 +43,16 @@ DEV="$(fido2-token -L 2>/dev/null | grep -i 'same salt' | head -1 | cut -d: -f1)
 # half of this experiment needs credential A, and re-making one costs a press.
 # Git-ignored, and rewritten by every run.
 TMP="work"
+# ./bank8.sh leaves boot 2's banner here, and it is the only copy: the banner is
+# printed once, at boot, and cannot be asked for again. Wiping it would put the
+# `bank8` arm back where it was — no path to a transcript that says which arm it
+# is except one that reflashes and destroys the key.
+ARMFILE=""
+if [[ -f "$TMP/arm.txt" ]]; then
+    ARMFILE="$(mktemp)"; cp "$TMP/arm.txt" "$ARMFILE"
+fi
 rm -rf "$TMP"; mkdir -p "$TMP"
+[[ -z "$ARMFILE" ]] || { cp "$ARMFILE" "$TMP/arm.txt"; rm -f "$ARMFILE"; }
 
 # Start from a known boot, and do it by putting `target/exp189.uf2` back.
 #
@@ -102,6 +111,31 @@ say "the board's own account of which arm this is"
 BANNER="$(yi26 log --seconds 6 2>/dev/null)"
 printf '%s\n' "$BANNER" | grep -Ei "key source|hmac-secret|gates the arithmetic" | sed 's/^/    /' >&2
 KEY_SOURCE="$(printf '%s\n' "$BANNER" | grep -oiE 'key source: *[a-z0-9]+' | tail -1)"
+BANNER_FROM="this run's boot"
+
+# The banner from earlier in **this same boot**, when there is one.
+#
+# The `bank8` arm cannot be flashed into the state it is measured in: flashing
+# zeroes the SRAM the key comes from, so the run that records the banner is the
+# run that has no key, and the boot that has the key is one whose banner has
+# already scrolled past. ./bank8.sh writes that banner down at boot 2 together
+# with the board uptime it was read at; it is good here only while the board's
+# clock is still ahead of that stamp, because a reboot sends the clock backwards
+# and a banner from before a reboot describes a boot that is over.
+if [[ -z "$KEY_SOURCE" && -f "$TMP/arm.txt" ]]; then
+    AT="$(grep -oE 'captured_at_board_ms [0-9]+' "$TMP/arm.txt" | grep -oE '[0-9]+' | tail -1)"
+    NOW="$(printf '%s\n' "$BANNER" | grep -E '^\[ *[0-9]+ ms\] idle:' | grep -oE '^\[ *[0-9]+' | tr -dc '0-9\n' | sort -n | tail -1)"
+    [[ -n "$NOW" ]] || NOW="$(yi26 log --seconds 35 2>/dev/null | grep -E '^\[ *[0-9]+ ms\] idle:' | grep -oE '^\[ *[0-9]+' | tr -dc '0-9\n' | sort -n | tail -1)"
+    if [[ -n "$AT" && -n "$NOW" && "$NOW" -gt "$AT" ]]; then
+        KEY_SOURCE="$(grep -oiE 'key source: *[a-z0-9]+' "$TMP/arm.txt" | tail -1)"
+        BANNER_FROM="work/arm.txt, ${AT} ms into this boot; the board is now at ${NOW} ms"
+        grep -iE 'key source|device secret|bank 8|enrolled at' "$TMP/arm.txt" | sed 's/^/    /' >&2
+        say "banner from $BANNER_FROM"
+    elif [[ -n "$AT" && -n "$NOW" ]]; then
+        echo "work/arm.txt was stamped at ${AT} ms and the board is at ${NOW} ms —" >&2
+        echo "the clock went backwards, so that banner is from a boot that is over." >&2
+    fi
+fi
 if [[ -z "$KEY_SOURCE" ]]; then
     echo "the board did not say which arm it is — refusing to write a transcript that is not evidence" >&2
     exit 1
@@ -202,7 +236,16 @@ if make_cred credA alice; then
     CRED_A_OK=true
 else
     say "credA was not made — nothing below can run. Press when the LED goes solid."
-    say "Re-run ./roundtrip.sh; the salts are fixed, so a fresh run is comparable."
+    # Naming the arm, because the bare form is not the same command.
+    #
+    # This used to say "re-run ./roundtrip.sh", and the bare form flashes the
+    # `constant` image — which zeroes the SRAM the `bank8` key comes from. So
+    # the advice printed after a missed press destroyed the provisioning the
+    # missed press had not even spent, and the next run would need another cable
+    # pull to get back to where the board already was. Recovery advice that
+    # undoes the user'"'"'s state is worse than none.
+    say "Nothing was spent: no flash, no reboot, the board is still keyed."
+    say "Re-run  ./roundtrip.sh $ARM  — the salts are fixed, so it is comparable."
     exit 1
 fi
 make_cred credB bob && CRED_B_OK=true
@@ -235,6 +278,7 @@ cat > roundtrip.json <<JSON
   "salt_one": $(j "$S1"),
   "salt_two": $(j "$S2"),
   "key_source": $(j "$KEY_SOURCE"),
+  "banner_from": $(j "$BANNER_FROM"),
   "cred_a_made": $CRED_A_OK,
   "cred_b_made": $CRED_B_OK,
   "ga_salt1": $(j "$K1"),

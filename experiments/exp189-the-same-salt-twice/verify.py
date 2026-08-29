@@ -68,6 +68,13 @@ def verify(data):
 
     src = data.get("key_source") or "unrecorded"
     print(f"      arm: {src}")
+    # Where that line came from is part of it. The `bank8` arm's banner cannot be
+    # read in the run that measures it — flashing zeroes the key, so the boot
+    # that prints the banner is the boot with no key — and ./bank8.sh saves boot
+    # 2's banner for ./roundtrip.sh keep to use. A transcript that leans on a
+    # saved banner should say so rather than read like a live one.
+    if data.get("banner_from"):
+        print(f"      banner: {data['banner_from']}")
     rule(bool(data.get("key_source")),
          "the transcript says which arm produced it",
          "the transcript does not say which arm produced it — it is not evidence")

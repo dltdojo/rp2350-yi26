@@ -3,12 +3,13 @@
   "rp_id": "example.test",
   "salt_one": "GBhTPDEbbTBOgrXnMPCYW4upi+GgbMAlGuxxihzFFvU=",
   "salt_two": "CNYnxbT/xMNOHhrA72L9RWnc/ZJ6+HbkSfaXPmPB9qA=",
-  "key_source": "key source: constant",
+  "key_source": "key source: bank8",
+  "banner_from": "work/arm.txt, 3004 ms into this boot; the board is now at 243004 ms",
   "cred_a_made": true,
   "cred_b_made": true,
-  "ga_salt1": "z42AQ3fmIGLzJHg2uC3lEiGEsH7g3uTc/MK5foNJsGM=",
-  "ga_salt1_again": "z42AQ3fmIGLzJHg2uC3lEiGEsH7g3uTc/MK5foNJsGM=",
-  "ga_salt2": "abZqaVbZnVOBNhXFzF6s3kw+N1qWx69TkOvO9t2l0xw=",
-  "ga_credB_salt1": "UBOv5BrmkcaavSIkBQL7VnRMXVJzB1nVbeSYtmT0ewc=",
+  "ga_salt1": "UbrvSOLQeSW0Ql5J89wsm86SFfLZcM1Qx5l5MsWubaA=",
+  "ga_salt1_again": "UbrvSOLQeSW0Ql5J89wsm86SFfLZcM1Qx5l5MsWubaA=",
+  "ga_salt2": "+En5vkJ7VG9ZF74R+GZ/+I8ukaeuf3jrlQOmbzkCNRI=",
+  "ga_credB_salt1": "Ut7V9TQFqPTpm5Isyt+D5U7OpVWFtpJX/GBweUm+BoA=",
   "ga_plain_ok": true
 }

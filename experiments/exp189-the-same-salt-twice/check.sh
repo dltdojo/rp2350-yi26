@@ -163,17 +163,35 @@ grep -qx 'work/' .gitignore 2>/dev/null && grep -qx 'bin/' .gitignore 2>/dev/nul
 # `nopress.json` that verify.py refused — a key that came out with nobody
 # meant to be pressing — left check.sh green. The instrument was being tested
 # and the measurement was not.
-if [[ -f roundtrip.json && -f nopress.json ]]; then
-    echo "      ruling on roundtrip.json and nopress.json"
-    if python3 verify.py roundtrip.json nopress.json > /dev/null 2>&1; then
-        pass "the checked-in transcripts pass their own verifier"
-    else
-        fail "the checked-in transcripts pass their own verifier" \
-             "run python3 verify.py roundtrip.json nopress.json to see which rule"
+# Both arms, each as a pair. `roundtrip.json` is whatever ran last; the
+# `-constant` pair is kept under a name of its own because the second arm's run
+# overwrites the first's, and an overwritten measurement is a measurement that
+# is gone. Two arms are the point of this experiment — one of them checked and
+# the other only described in prose is half an experiment.
+for ARM in "" "-constant"; do
+    R="roundtrip${ARM}.json"; N="nopress${ARM}.json"
+    if [[ -f "$R" && -f "$N" ]]; then
+        echo "      ruling on $R and $N"
+        if python3 verify.py "$R" "$N" > /dev/null 2>&1; then
+            pass "$R and $N pass their own verifier"
+        else
+            fail "$R and $N pass their own verifier" \
+                 "run python3 verify.py $R $N to see which rule"
+        fi
+    elif [[ -f "$R" || -f "$N" ]]; then
+        fail "both halves of $R / $N are present or neither is" \
+             "one half of a run is not a run"
     fi
-elif [[ -f roundtrip.json || -f nopress.json ]]; then
-    fail "both transcripts are present or neither is" \
-         "one half of a run is not a run"
+done
+
+# And the two must not be the same arm, or nothing is being compared.
+if [[ -f roundtrip.json && -f roundtrip-constant.json ]]; then
+    A="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["key_source"])' roundtrip.json)"
+    B="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["key_source"])' roundtrip-constant.json)"
+    [[ "$A" != "$B" ]] \
+        && pass "the two checked-in runs are of different arms ($A / $B)" \
+        || fail "the two checked-in runs are of different arms" \
+                "both say $A — the control was overwritten by the subject"
 fi
 
 SRC=src/main.rs

@@ -10,12 +10,20 @@ either opens the file or does not.** That difference is the experiment.
 On the [authenticator road](../README.md#the-authenticator-road), and the first
 rung whose product is not evidence.
 
-> **Verified on hardware, 2026-08-29.** The same salt, twice, minutes apart,
-> gave **the same thirty-two bytes bit for bit**. A different salt moved 125 of
-> 256 bits and a different credential 110; an ordinary assertion with no
-> extension still works; and with the board left alone for four attempts, **no
+> **Verified on hardware, 2026-08-29, on both arms.** The same salt, twice,
+> minutes apart, gave **the same thirty-two bytes bit for bit**. A different
+> salt moved 125 of 256 bits and a different credential 110; an ordinary
+> assertion with no extension still works; and with the board left alone, **no
 > key came out** — `FIDO_ERR_OPERATION_DENIED`, which is not a code the PIN
-> family uses. See [Expected output](#expected-output).
+> family uses.
+>
+> The whole of that then ran again on the [`bank8`
+> arm](#the-second-arm-on-silicon), where the secret is **in no file**: it is
+> reconstructed from SRAM after the power has been away, 516 of 7,936 cells
+> having changed. Same salt, same thirty-two bytes; 135 and 126 on the other
+> two rules; and [exp175](../exp175-the-secret-is-the-file/)'s forgery, which
+> mints a valid assertion from the `constant` image, **finds nothing** in this
+> one. See [Expected output](#expected-output).
 
 ## Why this rung exists at all
 
@@ -374,7 +382,7 @@ instead of dying at the map header.
 Both are still present in exp188. Correcting them there is a change to a
 verified experiment and belongs to a round of its own.
 
-## What the second arm still owes
+## What the second arm cost, and what it owes now
 
 The arithmetic is [`crates/fuzzy-commitment`](../../crates/fuzzy-commitment/) —
 lifted out of exp182's 2,377-line `main.rs` on 2026-08-29 and verified there in
@@ -384,11 +392,12 @@ address, the record at 3 MiB, and the reads that touch them — and both
 experiments share those two numbers, so a record written by either is readable
 by the other.
 
-**What has not run is the arm on silicon.** Its finding is verified and needed no
-board; whether this firmware reconstructs and then produces the same thirty-two
-bytes is a question only a board that has had its power away can answer.
-[`./bank8.sh`](./bank8.sh) is that run in one command, and it **waits for** the
-cable pull rather than asking for it at a moment nobody is standing there.
+**The arm has now run on silicon**, on 2026-08-29: one cable pull, seven
+presses, three unanswered LEDs, and the transcript is `roundtrip.json` /
+`nopress.json` with `key_source: bank8`. The same salt gave the same
+thirty-two bytes bit for bit against a secret that is in no file, and exp175's
+forgery finds nothing in the image it came from. What the arm still owes is
+**uniqueness**, below, which no single board can pay.
 
 Two costs come with the arm and both are exp182's, measured rather than guessed.
 A board straight from `yi26 flash` **can do nothing** until the power has been
@@ -416,7 +425,10 @@ elf2flash convert -b rp2350 target/thumbv8m.main-none-eabihf/release/exp189-the-
 
 EXP189_KEY=bank8 cargo build --release
 elf2flash convert -b rp2350 target/thumbv8m.main-none-eabihf/release/exp189-the-same-salt-twice target/exp189-bank8.uf2
-./bank8.sh         # Needs 2 — one cable pull, and it waits for it
+./bank8.sh         # Needs 2 — one cable pull, and it waits half an hour for it
+./bank8.sh --wait  # the same, without reflashing — for a board already keyed
+./roundtrip.sh keep    # the seven presses on whatever is resident, banner from work/arm.txt
+./nopress.sh 3
 python3 ../exp175-the-secret-is-the-file/forge.py --hmac-secret target/exp189-constant.uf2 example.test
 ```
 
@@ -510,10 +522,16 @@ PASS  the refusal has a code of its own, and it is not one the PIN family uses
 PASS  and it is a code that means a person, rather than a generic denial
 ```
 
-### The second arm, and the one line it is still missing
+### The second arm, on silicon
 
-The `constant` arm is what the transcripts above were taken on. The `bank8` arm
-has been on a board and **half of its run is captured**:
+The `constant` arm is what the first set of transcripts was taken on, and it is
+kept as `roundtrip-constant.json` / `nopress-constant.json` — the second arm's
+run overwrites `roundtrip.json`, and an overwritten measurement is one that is
+gone. `check.sh` rules on both pairs and refuses if they turn out to be the same
+arm, because two arms is the whole point and a control that has been quietly
+replaced by the subject is not a control.
+
+A board straight from a flash cannot do anything:
 
 ```text
 >>> boot 1 — straight from a flash, so the window is zeros and there is no key
@@ -526,40 +544,128 @@ has been on a board and **half of its run is captured**:
 That is the guard working, not a failure: `yi26 flash` zeroes the window the key
 comes from, so 3,419 of 7,936 cells "changed" and the reconstruction is
 nonsense — which the key hash catches. The board then blinks
-two-flashes-then-a-pause, and refuses every keyed operation in 0.095 s with a
-code of its own:
+two-flashes-then-a-pause and refuses every keyed operation in 0.095 s with a
+code of its own (`CTAP2_ERR_NO_SECRET`, 0xE2, seen by libfido2 as
+`FIDO_ERR_UNKNOWN`).
+
+After the cable has been out and back:
 
 ```text
-$ fido2-cred -M -h /dev/hidraw4 < cred.in
-fido2-cred: fido_dev_make_cred: FIDO_ERR_UNKNOWN     # CTAP2_ERR_NO_SECRET, 0xE2
-    refused: this board has no secret to key anything with
-```
-
-And boot 2, after the cable has been out:
-
-```text
+>>> boot 2 — the power has been away, so the key should be back
     key source: bank8 (secret is in the image: false)
     device secret: reconstructed from SRAM — the key came back
-      bank 8 came up 50.7% one-bits
-      enrolled at 51.1%, 534 of 7936 cells changed since
+      bank 8 came up 50.8% one-bits
+      enrolled at 51.1%, 516 of 7936 cells changed since
 ```
 
-**534 of 7,936 is 6.73%**, against exp181's 494 and exp182's 486 on the same
-board — and against 3,419 on the boot straight after a flash, which is what a
-window of zeros scores. The code corrects sixteen of thirty-one per key bit and
-was never near it.
+**516 of 7,936 is 6.50%**, against exp181's 494 and exp182's 486 on the same
+board, and against 3,419 for a window of zeros. The code corrects sixteen of
+thirty-one per key bit and was never near it.
 
-The cheapest proof that the arm is actually keyed needs no press at all, because
-the two refusals take different lengths of time:
+And then the seven presses, on that key:
 
 ```text
-unprovisioned   0.095 s   FIDO_ERR_UNKNOWN            # CTAP2_ERR_NO_SECRET, 0xE2
-provisioned    20.109 s   FIDO_ERR_OPERATION_DENIED   # it waited for a finger
+      arm: key source: bank8
+      banner: work/arm.txt, 3004 ms into this boot; the board is now at 243004 ms
+PASS  two credentials made, self attestation verified, hmac-secret bit signed
+PASS  salt one produced thirty-two bytes, twice
+PASS  the same salt twice gave the same thirty-two bytes, bit for bit
+      salt one vs salt two: 135 of 256 bits differ
+PASS  a different salt gave a different key
+PASS  credential A vs credential B, same salt: 126 of 256 bits differ
+PASS  a different credential gave a different key
+PASS  an assertion with no extension still works, unchanged from exp173
+PASS  3 attempts, which is enough to call a refusal a habit
+PASS  nobody pressed, 3 times, and no key came out
 ```
 
-**What is still not captured is the seven-press round trip on this arm** — the
-same salt twice, against a secret that is in no file. [`./bank8.sh`](./bank8.sh)
-puts the board in the state for it, and `./roundtrip.sh bank8` would run it.
+Against the `constant` arm's 125 and 110, on the same two rules. The arms agree
+on every property of `hmac-secret` and disagree on exactly one thing:
+
+| | `constant` | `bank8` |
+| --- | --- | --- |
+| same salt twice | bit for bit identical | bit for bit identical |
+| salt one vs salt two | 125 / 256 bits differ | 135 / 256 |
+| credential A vs B | 110 / 256 | 126 / 256 |
+| exp175's forgery | **mints a valid assertion** | **finds nothing** |
+| the secret is in the image | yes | no |
+
+Which is the comparison this rung exists to make: the *behaviour* of
+`hmac-secret` does not depend on where the secret came from, and whether it can
+be forged depends on nothing else.
+
+### The arm could not be measured, and why that took three tries to see
+
+The `bank8` arm has a shape no other experiment here has: **it cannot be flashed
+into the state it is measured in.** Flashing zeroes the SRAM the key comes from,
+so the boot that prints the banner is the boot with no key, and the boot with
+the key is one whose banner has already gone past. `roundtrip.sh` refuses to
+write a transcript that cannot say which arm it is — correctly — and its only
+way of getting that line was to reflash. *The one route that recorded the
+evidence was the route that destroyed what it was recording.* That is why this
+arm sat unrun for a day: not a hard measurement, an instrument with no path
+through it.
+
+`bank8.sh` now writes boot 2's banner to `work/arm.txt` with the board uptime it
+was read at, and `roundtrip.sh keep` accepts it **only while the board's clock
+is still ahead of that stamp** — a reboot sends the clock backwards, and a
+banner from before a reboot describes a boot that is over. The transcript
+carries a `banner_from` field so a run that leans on a saved banner does not
+read like one that read it live.
+
+Getting there cost three wrong versions of the same wait, and the third is the
+interesting one:
+
+- **It watched `yi26 state` for `absent`** — and flashing produces `absent`, so
+  it congratulated itself on a cable pull that had not happened and printed a
+  `boot 2` section describing boot 1.
+- **It watched the board's own clock**, correctly, and took the largest
+  timestamp in the window. But `yi26 log` replays the ring from the start of the
+  boot, and on a board up for ten seconds every line in it is stamped
+  `[       0 ms]` — so the largest was **0**, and no later reading is ever less
+  than zero. That run printed `board uptime is 0 ms` and could not have ended.
+- **It watched the `idle:` heartbeat**, which is right, and still could not
+  capture anything. The heartbeat is every 30 s, so a reboot cannot be
+  *confirmed* until 33 s into the new boot — and the banner it exists to read is
+  printed at **3,040 ms**. By the time the clock said "it rebooted", the sentence
+  was thirty seconds gone. This is what the very first run's empty `boot 2`
+  heading actually was, and two versions of clock-reading fixed the wrong half
+  of it.
+
+What it watches now is the **port node disappearing**: the same event, reported
+in under a second, unambiguous here because nothing else in the script touches
+the cable and `--wait` does not flash. The log opens the instant the port comes
+back, with no sleep in between.
+
+### Recovery advice that undoes the user's state is worse than none
+
+Twice in one round, a script ran out of patience and told a person to do
+something that destroyed what they had just paid for.
+
+- **`bank8.sh` said "pull the cable and run `./bank8.sh` again."** Running it
+  again *reflashes*, and flashing is the one thing that zeroes the key. Following
+  that instruction threw away the provisioning the cable pull had just created,
+  and the next run would ask for another one. There is a `--wait` now, which
+  picks up at the cable pull and does not flash.
+- **`roundtrip.sh` said "re-run `./roundtrip.sh`" after a missed press.** The
+  bare form flashes the `constant` image. So the advice printed after a missed
+  press destroyed a `bank8` provisioning that the missed press had not even
+  spent. It names the arm now — `./roundtrip.sh keep` — and says plainly that
+  nothing was lost, so nobody reaches for the cable they do not need to pull.
+
+Both are the same failure as [the LED
+one](#the-led-is-the-only-interface-so-it-may-only-mean-one-thing): a step that
+spends a person without checking it is spending them on the right thing. And
+both were only visible because a person was actually waiting at the board.
+
+Two smaller ones, from the same round. `bank8.sh` gave up after twelve
+thirty-five-second windows — seven minutes — and gave up on somebody who was on
+their way; how long to wait is a question about a person, not about a board, and
+a board that blinks costs nothing to leave blinking. And under `--wait` it kept
+saying "the board is still blinking", which under `--wait` it may not be: the
+script did not put the board in that state and cannot promise a pattern on the
+LED. Naming a signal that is not there sends somebody looking, and what they
+find is a light that means something else.
 
 ### Two ways this experiment wasted somebody's fingers
 
