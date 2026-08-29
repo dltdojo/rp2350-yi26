@@ -9,9 +9,9 @@ Can an RP2350 enforce the CTAP 2.1 Authenticator Reset (`authenticatorReset` 0x0
 
 ## Background & Lineage
 
-- **[exp174](../exp174-the-authenticator-in-the-middle)** verified CTAP 2.0 WebAuthn registration and assertion.
-- **[exp176](../exp176-the-watchful-client)** established CTAPHID keepalive packets during presence polling.
-- **[exp177](../exp177-the-interrupted-handshake)** proved CTAPHID channel timeouts and cancellation semantics.
+- **[exp174](../exp174-a-deadline-nobody-mentioned)** verified CTAP 2.0 WebAuthn registration and assertion.
+- **[exp176](../exp176-the-same-question-of-two-devices)** established CTAPHID keepalive packets during presence polling.
+- **[exp177](../exp177-the-same-chip-somebody-elses-decisions)** proved CTAPHID channel timeouts and cancellation semantics.
 - **[exp184](../exp184-the-client-that-must-know)** exposed `pinUvAuthProtocols: [1]` and handled `getPinRetries` (0x01).
 - **[exp185](../exp185-a-channel-before-a-secret)** implemented PIN Protocol 1 ECDH P-256 key agreement and AES-256-CBC encrypted tunnel.
 - **[exp186](../exp186-the-number-behind-the-finger)** implemented the stateful CTAP 2.1 PIN lifecycle and `pinUvAuthToken` issuance with `FLAG_UV` (`0x04`).

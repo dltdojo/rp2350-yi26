@@ -9,9 +9,9 @@ Can the RP2350 enforce the full CTAP 2.1 PIN lifecycle state machine — initial
 
 ## Background & Lineage
 
-- **[exp174](../exp174-the-authenticator-in-the-middle)** verified CTAP 2.0 WebAuthn registration and assertion.
-- **[exp176](../exp176-the-watchful-client)** established keepalive packets during presence waits.
-- **[exp177](../exp177-the-interrupted-handshake)** proved CTAPHID channel timeouts and cancellation semantics.
+- **[exp174](../exp174-a-deadline-nobody-mentioned)** verified CTAP 2.0 WebAuthn registration and assertion.
+- **[exp176](../exp176-the-same-question-of-two-devices)** established keepalive packets during presence waits.
+- **[exp177](../exp177-the-same-chip-somebody-elses-decisions)** proved CTAPHID channel timeouts and cancellation semantics.
 - **[exp184](../exp184-the-client-that-must-know)** exposed `pinUvAuthProtocols: [1]` and handled `getPinRetries` (0x01) for browser pre-flight checks.
 - **[exp185](../exp185-a-channel-before-a-secret)** implemented PIN Protocol 1 ECDH P-256 key agreement, AES-256-CBC encrypted tunnel, and HMAC-SHA256 authentication.
 
