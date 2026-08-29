@@ -266,6 +266,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctap"
+version = "0.1.0"
+dependencies = [
+ "cbor",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -693,6 +700,7 @@ dependencies = [
  "cbor",
  "cortex-m",
  "cortex-m-rt",
+ "ctap",
  "embassy-executor",
  "embassy-futures",
  "embassy-rp",

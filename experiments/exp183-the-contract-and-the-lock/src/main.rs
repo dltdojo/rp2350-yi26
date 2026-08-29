@@ -64,67 +64,14 @@ bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
 });
 
-#[rustfmt::skip]
-const FIDO_REPORT_DESCRIPTOR: &[u8] = &[
-    0x06, 0xD0, 0xF1, // Usage Page (vendor-defined 0xF1D0 — FIDO Alliance)
-    0x09, 0x01,       // Usage (U2F HID Authenticator Device)
-    0xA1, 0x01,       // Collection (Application)
-    0x09, 0x20,       //   Usage (Input Report Data)
-    0x15, 0x00,       //   Logical Minimum (0)
-    0x26, 0xFF, 0x00, //   Logical Maximum (255)
-    0x75, 0x08,       //   Report Size (8 bits)
-    0x95, 0x40,       //   Report Count (64)
-    0x81, 0x02,       //   Input (Data, Variable, Absolute)
-    0x09, 0x21,       //   Usage (Output Report Data)
-    0x15, 0x00,       //   Logical Minimum (0)
-    0x26, 0xFF, 0x00, //   Logical Maximum (255)
-    0x75, 0x08,       //   Report Size (8 bits)
-    0x95, 0x40,       //   Report Count (64)
-    0x91, 0x02,       //   Output (Data, Variable, Absolute)
-    0xC0,             // End Collection
-];
 
-const PACKET: usize = 64;
-const INIT_HEADER: usize = 7;
-const CONT_HEADER: usize = 5;
-const INIT_PAYLOAD: usize = PACKET - INIT_HEADER;
-const CONT_PAYLOAD: usize = PACKET - CONT_HEADER;
-const MAX_MESSAGE: usize = 1024;
 const TRANSACTION_TIMEOUT: Duration = Duration::from_millis(750);
 
-const CTAPHID_PING: u8 = 0x01;
-const CTAPHID_MSG: u8 = 0x03;
-const CTAPHID_INIT: u8 = 0x06;
-const CTAPHID_CBOR: u8 = 0x10;
-const CTAPHID_CANCEL: u8 = 0x11;
-const CTAPHID_KEEPALIVE: u8 = 0x3B;
-const CTAPHID_ERROR: u8 = 0x3F;
 
-/// What CTAPHID_INIT tells every host this device can do.
-///
-/// `CAPABILITY_CBOR | CAPABILITY_NMSG`, the same value exp169 through exp188
-/// send. It is a named constant rather than a literal in the INIT response
-/// because this firmware once wrote `resp[16] = 0x08` there — which is
-/// `CAPABILITY_NMSG` alone, exp168's deliberate "this device has no CBOR" —
-/// under a comment that said CBOR. The board answered `authenticatorGetInfo`
-/// perfectly the whole time; `fido2-token -I` stopped at the byte and never
-/// asked, because libfido2 consults it and this repository's own client does
-/// not. exp173's finding, met a second time.
-const CAPABILITIES: u8 = 0x04 | 0x08;
 
-const STATUS_UPNEEDED: u8 = 0x02;
 const KEEPALIVE_INTERVAL: Duration = Duration::from_millis(100);
 const BUTTON_POLL: Duration = Duration::from_millis(10);
 
-const ERR_INVALID_CMD: u8 = 0x01;
-const ERR_INVALID_PAR: u8 = 0x02;
-const ERR_INVALID_LEN: u8 = 0x03;
-const ERR_INVALID_SEQ: u8 = 0x04;
-const ERR_MSG_TIMEOUT: u8 = 0x05;
-const ERR_CHANNEL_BUSY: u8 = 0x06;
-const ERR_LOCK_REQUIRED: u8 = 0x0A;
-const ERR_INVALID_CHANNEL: u8 = 0x0B;
-const ERR_OTHER: u8 = 0x7F;
 
 const CTAP2_OK: u8 = 0x00;
 const CTAP2_ERR_INVALID_COMMAND: u8 = 0x01;
@@ -140,7 +87,6 @@ const CMD_AUTHENTICATOR_MAKE_CREDENTIAL: u8 = 0x01;
 const CMD_AUTHENTICATOR_GET_ASSERTION: u8 = 0x02;
 const CMD_AUTHENTICATOR_GET_INFO: u8 = 0x04;
 
-const CID_BROADCAST: u32 = 0xFFFF_FFFF;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum StateKind {
@@ -148,53 +94,22 @@ enum StateKind {
     Accumulating,
 }
 
-struct ChannelState {
-    cid: u32,
-    state: StateKind,
-    cmd: u8,
-    total_len: usize,
-    received: usize,
-    next_seq: u8,
-    deadline: Instant,
-    buf: [u8; MAX_MESSAGE],
-}
-
-impl ChannelState {
-    const fn new() -> Self {
-        Self {
-            cid: 0,
-            state: StateKind::Idle,
-            cmd: 0,
-            total_len: 0,
-            received: 0,
-            next_seq: 0,
-            deadline: Instant::from_ticks(0),
-            buf: [0u8; MAX_MESSAGE],
-        }
-    }
-
-    fn reset(&mut self) {
-        self.state = StateKind::Idle;
-        self.cmd = 0;
-        self.total_len = 0;
-        self.received = 0;
-        self.next_seq = 0;
-    }
-}
 
 static NEXT_CID: AtomicU32 = AtomicU32::new(1);
 fn alloc_cid() -> u32 {
     loop {
         let cid = NEXT_CID.fetch_add(1, Ordering::Relaxed);
-        if cid != 0 && cid != CID_BROADCAST {
+        if cid != 0 && cid != ctap::hid::BROADCAST {
             return cid;
         }
     }
 }
 
-static CHANNEL: StaticCell<ChannelState> = StaticCell::new();
-static IN_PACKET: StaticCell<[u8; PACKET]> = StaticCell::new();
-static CBOR_BUF: StaticCell<[u8; MAX_MESSAGE]> = StaticCell::new();
+static CHANNEL: StaticCell<ctap::hid::Channel> = StaticCell::new();
+static IN_PACKET: StaticCell<[u8; ctap::hid::PACKET]> = StaticCell::new();
+/// The reassembled message. Claimed once, here, beside the other two.
+static MSG_BUF: StaticCell<[u8; ctap::hid::MAX_MESSAGE]> = StaticCell::new();
+static CBOR_BUF: StaticCell<[u8; ctap::hid::MAX_MESSAGE]> = StaticCell::new();
 
 static PRESENCE_CANCELLED: AtomicU8 = AtomicU8::new(0);
 
@@ -212,7 +127,7 @@ fn write_u16_be(buf: &mut [u8], v: u16) {
 
 async fn send_hid<'a, D: Driver<'a>>(
     class: &mut HidReaderWriter<'a, D, 64, 64>,
-    packet: &[u8; PACKET],
+    packet: &[u8; ctap::hid::PACKET],
 ) -> bool {
     class.write(packet).await.is_ok()
 }
@@ -229,13 +144,13 @@ async fn send_response<'a, D: Driver<'a>>(
     cmd: u8,
     data: &[u8],
 ) -> bool {
-    let mut pkt = [0u8; PACKET];
+    let mut pkt = [0u8; ctap::hid::PACKET];
     write_u32_be(&mut pkt[0..4], cid);
     pkt[4] = 0x80 | cmd;
     write_u16_be(&mut pkt[5..7], data.len() as u16);
 
-    let first = data.len().min(INIT_PAYLOAD);
-    pkt[INIT_HEADER..INIT_HEADER + first].copy_from_slice(&data[..first]);
+    let first = data.len().min(ctap::hid::INIT_PAYLOAD);
+    pkt[ctap::hid::INIT_HEADER..ctap::hid::INIT_HEADER + first].copy_from_slice(&data[..first]);
     // Before and after, on purpose. `class.write().await` has no deadline: a
     // host that has stopped reading the IN endpoint strands it forever, and
     // because it holds `&mut class` the read loop can never run again — the OUT
@@ -259,8 +174,8 @@ async fn send_response<'a, D: Driver<'a>>(
         write_u32_be(&mut pkt[0..4], cid);
         pkt[4] = seq;
         seq = (seq + 1) & 0x7F;
-        let chunk = (data.len() - sent).min(CONT_PAYLOAD);
-        pkt[CONT_HEADER..CONT_HEADER + chunk].copy_from_slice(&data[sent..sent + chunk]);
+        let chunk = (data.len() - sent).min(ctap::hid::CONT_PAYLOAD);
+        pkt[ctap::hid::CONT_HEADER..ctap::hid::CONT_HEADER + chunk].copy_from_slice(&data[sent..sent + chunk]);
         if !send_hid(class, &pkt).await {
             log!("out cid {:08x} continuation {} FAILED", cid, seq);
             return false;
@@ -275,7 +190,7 @@ async fn send_error<'a, D: Driver<'a>>(
     cid: u32,
     code: u8,
 ) -> bool {
-    send_response(class, cid, CTAPHID_ERROR, &[code]).await
+    send_response(class, cid, ctap::hid::CMD_ERROR, &[code]).await
 }
 
 async fn wait_for_user_presence<'a, D: Driver<'a>>(
@@ -308,12 +223,12 @@ async fn wait_for_user_presence<'a, D: Driver<'a>>(
         }
 
         if KEEPALIVE && now >= next_keepalive {
-            let mut pkt = [0u8; PACKET];
+            let mut pkt = [0u8; ctap::hid::PACKET];
             write_u32_be(&mut pkt[0..4], cid);
-            pkt[4] = 0x80 | CTAPHID_KEEPALIVE;
+            pkt[4] = 0x80 | ctap::hid::CMD_KEEPALIVE;
             pkt[5] = 0x00;
             pkt[6] = 0x01;
-            pkt[7] = STATUS_UPNEEDED;
+            pkt[7] = ctap::hid::STATUS_UPNEEDED;
             let _ = send_hid(class, &pkt).await;
             next_keepalive = now + KEEPALIVE_INTERVAL;
         }
@@ -350,7 +265,7 @@ fn encode_get_info(buf: &mut [u8]) -> usize {
 /// boot, and the second one killed the executor within a millisecond.
 ///
 /// Nothing found it for the length of this experiment's life, because the
-/// `CTAPHID_INIT` capability byte said `nocbor`: no `libfido2` client ever sent
+/// `ctap::hid::CMD_INIT` capability byte said `nocbor`: no `libfido2` client ever sent
 /// a first CBOR command, so none ever sent a second. This repository's own probe
 /// sends one per run. Correcting one byte is what let a real client through, and
 /// the crash was waiting behind it. `CHANNEL` and `IN_PACKET` are claimed once
@@ -359,12 +274,12 @@ async fn handle_cbor<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
     class: &mut HidReaderWriter<'a, D, 64, 64>,
     cid: u32,
     req: &[u8],
-    out: &mut [u8; MAX_MESSAGE],
+    out: &mut [u8; ctap::hid::MAX_MESSAGE],
     backend: &mut K,
     persist: &mut P,
 ) -> bool {
     if req.is_empty() {
-        return send_response(class, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_LENGTH]).await;
+        return send_response(class, cid, ctap::hid::CMD_CBOR, &[CTAP2_ERR_INVALID_LENGTH]).await;
     }
 
     let cmd = req[0];
@@ -374,7 +289,7 @@ async fn handle_cbor<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
             breadcrumb::step(STEP_INTO_CBOR);
             let len = encode_get_info(out);
             breadcrumb::step(STEP_ENCODED);
-            send_response(class, cid, CTAPHID_CBOR, &out[..len]).await
+            send_response(class, cid, ctap::hid::CMD_CBOR, &out[..len]).await
         }
         CMD_AUTHENTICATOR_MAKE_CREDENTIAL => {
             match wait_for_user_presence(class, cid).await {
@@ -497,15 +412,15 @@ async fn handle_cbor<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
                                 out[w] = sig_der.as_bytes().len() as u8; w += 1;
                                 out[w..w + sig_der.as_bytes().len()].copy_from_slice(sig_der.as_bytes()); w += sig_der.as_bytes().len();
 
-                                send_response(class, cid, CTAPHID_CBOR, &out[..w]).await
+                                send_response(class, cid, ctap::hid::CMD_CBOR, &out[..w]).await
                             } else {
-                                send_response(class, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await
+                                send_response(class, cid, ctap::hid::CMD_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await
                             }
                         }
-                        _ => send_response(class, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await,
+                        _ => send_response(class, cid, ctap::hid::CMD_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await,
                     }
                 }
-                Err(err_code) => send_response(class, cid, CTAPHID_CBOR, &[err_code]).await,
+                Err(err_code) => send_response(class, cid, ctap::hid::CMD_CBOR, &[err_code]).await,
             }
         }
         CMD_AUTHENTICATOR_GET_ASSERTION => {
@@ -567,7 +482,7 @@ async fn handle_cbor<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
                     }
 
                     if !found_cred || !backend.verify_credential_id(&cred_random, &rp_id_hash, &cred_tag) {
-                        return send_response(class, cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
+                        return send_response(class, cid, ctap::hid::CMD_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
                     }
 
                     let counter = persist.increment_counter();
@@ -600,31 +515,41 @@ async fn handle_cbor<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
                             out[w] = sig_der.as_bytes().len() as u8; w += 1;
                             out[w..w + sig_der.as_bytes().len()].copy_from_slice(sig_der.as_bytes()); w += sig_der.as_bytes().len();
 
-                            send_response(class, cid, CTAPHID_CBOR, &out[..w]).await
+                            send_response(class, cid, ctap::hid::CMD_CBOR, &out[..w]).await
                         } else {
-                            send_response(class, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await
+                            send_response(class, cid, ctap::hid::CMD_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await
                         }
                     } else {
-                        send_response(class, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await
+                        send_response(class, cid, ctap::hid::CMD_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await
                     }
                 }
-                Err(err_code) => send_response(class, cid, CTAPHID_CBOR, &[err_code]).await,
+                Err(err_code) => send_response(class, cid, ctap::hid::CMD_CBOR, &[err_code]).await,
             }
         }
-        _ => send_response(class, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_COMMAND]).await,
+        _ => send_response(class, cid, ctap::hid::CMD_CBOR, &[CTAP2_ERR_INVALID_COMMAND]).await,
     }
 }
 
+/// The transport, which is no longer this experiment's to get wrong.
+///
+/// This function was 143 lines and dispatched a finished message in **two**
+/// places — once for a message that fitted in an initialisation packet and once
+/// for one that did not — which is how the same `match` came to exist twice in
+/// one file. [`ctap::hid::Channel`](../../../crates/ctap/src/hid.rs) is that
+/// state machine as a pure function of bytes, with exp168's twelve graded cases
+/// as tests that need no board.
+///
+/// What this experiment kept is what it demonstrates: four key backends behind
+/// a trait, and the CTAP2 answers built on them.
 async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
     class: &mut HidReaderWriter<'a, D, 64, 64>,
     mut backend: K,
     mut persist: P,
 ) {
-    let chan = CHANNEL.init(ChannelState::new());
-    let in_buf = IN_PACKET.init([0u8; PACKET]);
-    // Claimed once, here, beside the other two. See handle_cbor for what it
-    // cost to claim it per request instead.
-    let cbor_buf = CBOR_BUF.init([0u8; MAX_MESSAGE]);
+    let chan = CHANNEL.init(ctap::hid::Channel::new());
+    let in_buf = IN_PACKET.init([0u8; ctap::hid::PACKET]);
+    let msg = MSG_BUF.init([0u8; ctap::hid::MAX_MESSAGE]);
+    let cbor_buf = CBOR_BUF.init([0u8; ctap::hid::MAX_MESSAGE]);
 
     log!("exp183: active contract backend: {}", backend.name());
 
@@ -633,125 +558,39 @@ async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStor
         if class.read(in_buf).await.is_err() {
             continue;
         }
-
-        let cid = read_u32_be(&in_buf[0..4]);
-        let is_init = (in_buf[4] & 0x80) != 0;
-
-        if is_init {
-            let cmd = in_buf[4] & 0x7F;
-            let bcnt = ((in_buf[5] as usize) << 8) | (in_buf[6] as usize);
-            // Initialisation packets only. exp168 measured what a paced line
-            // per packet costs: a 1024-byte PING took 1.08 s against its own
-            // 750 ms deadline and a legal message failed because the
-            // instrument was slower than the subject.
-            breadcrumb::step(STEP_PARSED_INIT);
-            log!("in  cid {:08x} cmd {:02x} bcnt {}", cid, cmd, bcnt);
-            breadcrumb::step(STEP_LOGGED_IN);
-
-            if cmd == CTAPHID_CANCEL {
-                if chan.state == StateKind::Accumulating && chan.cid == cid {
-                    chan.reset();
-                }
-                PRESENCE_CANCELLED.store(1, Ordering::Relaxed);
-                continue;
+        match chan.feed(in_buf, msg) {
+            ctap::hid::Event::Idle => {}
+            ctap::hid::Event::Init { cid, nonce } => {
+                let allocated = if cid == ctap::hid::BROADCAST { alloc_cid() } else { cid };
+                let body = ctap::hid::init_response(&nonce, allocated);
+                log!("in  cid {:08x} INIT -> cid {:08x}", cid, allocated);
+                send_response(class, cid, ctap::hid::CMD_INIT, &body).await;
             }
-
-            if cmd == CTAPHID_INIT {
-                if bcnt != 8 {
-                    send_error(class, cid, ERR_INVALID_LEN).await;
-                    continue;
-                }
-                let nonce = &in_buf[INIT_HEADER..INIT_HEADER + 8];
-                let allocated = if cid == CID_BROADCAST { alloc_cid() } else { cid };
-
-                let mut resp = [0u8; 17];
-                resp[..8].copy_from_slice(nonce);
-                write_u32_be(&mut resp[8..12], allocated);
-                resp[12] = 2; // CTAPHID protocol version 2
-                resp[13] = 1; // Major version
-                resp[14] = 0; // Minor version
-                resp[15] = 0; // Build version
-                resp[16] = CAPABILITIES;
-
-                chan.cid = allocated;
-                chan.reset();
-                send_response(class, cid, CTAPHID_INIT, &resp).await;
-                continue;
+            ctap::hid::Event::Error { cid, code } => {
+                send_response(class, cid, ctap::hid::CMD_ERROR, &[code]).await;
             }
-
-            if chan.state == StateKind::Accumulating {
-                if chan.cid != cid {
-                    send_error(class, cid, ERR_CHANNEL_BUSY).await;
-                    continue;
-                }
-            }
-
-            if bcnt > MAX_MESSAGE {
-                send_error(class, cid, ERR_INVALID_LEN).await;
-                continue;
-            }
-
-            chan.cid = cid;
-            chan.cmd = cmd;
-            chan.total_len = bcnt;
-            chan.next_seq = 0;
-            chan.deadline = Instant::now() + TRANSACTION_TIMEOUT;
-
-            let first = bcnt.min(INIT_PAYLOAD);
-            chan.buf[..first].copy_from_slice(&in_buf[INIT_HEADER..INIT_HEADER + first]);
-            chan.received = first;
-
-            if chan.received >= chan.total_len {
-                chan.state = StateKind::Idle;
-                let payload = &chan.buf[..chan.total_len];
-                match chan.cmd {
-                    CTAPHID_PING => {
-                        send_response(class, cid, CTAPHID_PING, payload).await;
+            ctap::hid::Event::Cancel { .. } => {}
+            ctap::hid::Event::Message { cid, cmd, len } => {
+                breadcrumb::step(STEP_PARSED_INIT);
+                log!("in  cid {:08x} cmd {:02x} bcnt {}", cid, cmd, len);
+                breadcrumb::step(STEP_LOGGED_IN);
+                match cmd {
+                    ctap::hid::CMD_PING => {
+                        send_response(class, cid, ctap::hid::CMD_PING, &msg[..len]).await;
                     }
-                    CTAPHID_CBOR => {
-                        handle_cbor(class, cid, payload, cbor_buf, &mut backend, &mut persist).await;
+                    ctap::hid::CMD_CBOR => {
+                        handle_cbor(class, cid, &msg[..len], cbor_buf, &mut backend, &mut persist)
+                            .await;
                         breadcrumb::step(STEP_HANDLED);
                     }
                     _ => {
-                        send_error(class, cid, ERR_INVALID_CMD).await;
-                    }
-                }
-            } else {
-                chan.state = StateKind::Accumulating;
-            }
-        } else {
-            // Continuation packet
-            let seq = in_buf[4] & 0x7F;
-            if chan.state != StateKind::Accumulating || chan.cid != cid {
-                continue;
-            }
-
-            if seq != chan.next_seq {
-                chan.reset();
-                send_error(class, cid, ERR_INVALID_SEQ).await;
-                continue;
-            }
-
-            chan.next_seq = (chan.next_seq + 1) & 0x7F;
-            let needed = chan.total_len - chan.received;
-            let chunk = needed.min(CONT_PAYLOAD);
-            chan.buf[chan.received..chan.received + chunk]
-                .copy_from_slice(&in_buf[CONT_HEADER..CONT_HEADER + chunk]);
-            chan.received += chunk;
-
-            if chan.received >= chan.total_len {
-                chan.state = StateKind::Idle;
-                let payload = &chan.buf[..chan.total_len];
-                match chan.cmd {
-                    CTAPHID_PING => {
-                        send_response(class, cid, CTAPHID_PING, payload).await;
-                    }
-                    CTAPHID_CBOR => {
-                        handle_cbor(class, cid, payload, cbor_buf, &mut backend, &mut persist).await;
-                        breadcrumb::step(STEP_HANDLED);
-                    }
-                    _ => {
-                        send_error(class, cid, ERR_INVALID_CMD).await;
+                        send_response(
+                            class,
+                            cid,
+                            ctap::hid::CMD_ERROR,
+                            &[ctap::hid::ERR_INVALID_CMD],
+                        )
+                        .await;
                     }
                 }
             }
@@ -774,7 +613,7 @@ async fn cdc_task(
     control: ControlChanged<'static>,
     mut receiver: Receiver<'static, usb_reboot::UsbDriver>,
 ) -> ! {
-    let mut buf = [0u8; PACKET];
+    let mut buf = [0u8; ctap::hid::PACKET];
     loop {
         match select(control.control_changed(), receiver.read_packet(&mut buf)).await {
             Either::First(()) => {
@@ -859,12 +698,12 @@ async fn main(spawner: Spawner) {
         CONTROL_BUF.init([0; 128]),
     );
 
-    let class = CdcAcmClass::new(&mut builder, CDC_STATE.init(State::new()), PACKET as u16);
+    let class = CdcAcmClass::new(&mut builder, CDC_STATE.init(State::new()), ctap::hid::PACKET as u16);
     let mut hid = HidReaderWriter::<_, 64, 64>::new(
         &mut builder,
         HID_STATE.init(HidState::new()),
         HidConfig {
-            report_descriptor: FIDO_REPORT_DESCRIPTOR,
+            report_descriptor: ctap::hid::REPORT_DESCRIPTOR,
             request_handler: None,
             poll_ms: 5,
             max_packet_size: 64,

@@ -21,6 +21,7 @@ static_cell = "2.1.1"
 usb-log = { path = "../../crates/usb-log" }
 usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 cbor = { path = "../../crates/cbor" }
+ctap = { path = "../../crates/ctap" }
 bootsel = { path = "../../crates/bootsel" }
 breadcrumb = { path = "../../crates/breadcrumb" }
 

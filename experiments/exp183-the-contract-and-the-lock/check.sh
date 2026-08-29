@@ -118,22 +118,28 @@ else
          "a .init( on a per-request path panics the second time: $BAD_INIT"
 fi
 
-# What CTAPHID_INIT tells a client that reads the byte.
+# The transport is no longer this experiment's to get wrong.
 #
-# This firmware shipped `resp[16] = 0x08` under a comment saying CBOR — which
-# is exp168's deliberate "I have no CBOR" — so `fido2-token -I` stopped at it
-# and no libfido2 client ever sent this board a CBOR message. The board's own
-# CBOR was fine the whole time. A named constant and this check are what stop
-# the two from disagreeing again.
-if grep -qE '^const CAPABILITIES: u8 = 0x04 \| 0x08;' src/main.rs; then
-    pass "CTAPHID_INIT claims CAPABILITY_CBOR (0x04 | 0x08), like exp169 through exp188"
-else
-    fail "CTAPHID_INIT claims CAPABILITY_CBOR" \
-         "0x08 alone is exp168's 'this device has no CBOR', and libfido2 believes it"
-fi
-grep -q 'resp\[16\] = CAPABILITIES;' src/main.rs \
-    && pass "the INIT response uses the constant rather than a literal" \
-    || fail "the INIT response uses the constant" "a literal there is how the comment and the value drifted apart"
+# CTAPHID framing, the report descriptor and the capability byte moved to
+# crates/ctap, whose tests include this experiment's own defect: 0x08 alone is
+# exp168's "this device has no CBOR", and sending it while implementing a full
+# authenticator is what hid a crash here for the life of the experiment. The
+# check that used to grep this file now runs as a test that needs no board.
+crate_test ../../crates/ctap "the shared CTAPHID transport passes its own tests"
+
+grep -q 'ctap::hid::REPORT_DESCRIPTOR' "$SRC" \
+    && pass "the report descriptor is the shared one, not a sixteenth copy" \
+    || fail "the report descriptor is shared" "34 bytes the specification fixes do not need another copy"
+
+# Stronger than sharing the constant: this experiment no longer writes the INIT
+# response at all, so the byte it got wrong is a byte it cannot reach.
+grep -q 'ctap::hid::init_response' "$SRC" \
+    && pass "the INIT response is built by the crate — the byte that hid the crash is unreachable here" \
+    || fail "the INIT response is the crate's" "a hand-built one is how the comment and the value drifted apart"
+
+grep -q 'ctap::hid::Channel' "$SRC" \
+    && pass "reassembly is the shared state machine, with exp168's twelve cases behind it" \
+    || fail "reassembly is shared" "a hand-rolled channel is what this experiment got wrong"
 
 if exp_running 183; then
     pass "a board is running exp183"
