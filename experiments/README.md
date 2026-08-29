@@ -197,6 +197,16 @@ Repository-wide, alongside `lib.sh`:
   distribution, and all of the `PRESENCE` and USB declarations at once. It
   needs no board and no toolchain, so there is no excuse to skip it, and CI
   runs it on every push.
+- **[`../crates/ctap`](../crates/ctap/)** — the CTAPHID transport and the CTAP2
+  request parsers, **once**. By exp189 this road had fifteen firmwares and
+  24,507 lines, each begun as a copy of the last: the 34-byte report descriptor
+  the specification fixes existed fifteen times, `parse_make_credential`
+  twelve, `derive_key` eleven. Three of one round's four defects lived in those
+  copies and **none was findable by any test this repository could run**, because
+  a copy can only be tested on hardware. They are twenty host tests now,
+  including exp183's capability byte, exp188's `0x06`, and exp168's twelve
+  graded CTAPHID cases. Used by exp183 and exp188; the rest keep their copies
+  for `cbor.py`'s reason, below.
 - **[`cbor.py`](./cbor.py)** — a canonical-only CBOR reader, for the
   experiments **after** exp177. Four experiments carry their own — exp169's,
   copied into exp170 to exp172, and exp173's — and both lineages refuse a real
