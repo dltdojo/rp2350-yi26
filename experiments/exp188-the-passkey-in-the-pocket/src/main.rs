@@ -59,9 +59,9 @@ const TRANSACTION_TIMEOUT: Duration = Duration::from_millis(1500);
 const KEEPALIVE_INTERVAL: Duration = Duration::from_millis(100);
 const PRESENCE_POLL: Duration = Duration::from_millis(10);
 
-type Cid = [u8; 4];
-const BROADCAST: Cid = [0xff, 0xff, 0xff, 0xff];
-const RESERVED: Cid = [0x00, 0x00, 0x00, 0x00];
+type Cid = u32;
+const BROADCAST: Cid = ctap::hid::BROADCAST;
+const RESERVED: Cid = ctap::hid::RESERVED;
 
 const CTAPHID_PING: u8 = 0x01;
 const CTAPHID_CBOR: u8 = 0x10;
@@ -79,25 +79,6 @@ const ERR_CHANNEL_BUSY: u8 = 0x06;
 
 const STATUS_UPNEEDED: u8 = 0x02;
 
-#[rustfmt::skip]
-const CTAPHID_REPORT_DESCRIPTOR: &[u8] = &[
-    0x06, 0xd0, 0xf1, // USAGE_PAGE (FIDO Alliance)
-    0x09, 0x01,       // USAGE (U2F HID Authenticator Device)
-    0xa1, 0x01,       // COLLECTION (Application)
-    0x09, 0x20,       //   USAGE (Data In)
-    0x15, 0x00,       //   LOGICAL_MINIMUM (0)
-    0x26, 0xff, 0x00, //   LOGICAL_MAXIMUM (255)
-    0x75, 0x08,       //   REPORT_SIZE (8)
-    0x95, 0x40,       //   REPORT_COUNT (64)
-    0x81, 0x02,       //   INPUT (Data,Var,Abs)
-    0x09, 0x21,       //   USAGE (Data Out)
-    0x15, 0x00,       //   LOGICAL_MINIMUM (0)
-    0x26, 0xff, 0x00, //   LOGICAL_MAXIMUM (255)
-    0x75, 0x08,       //   REPORT_SIZE (8)
-    0x95, 0x40,       //   REPORT_COUNT (64)
-    0x91, 0x02,       //   OUTPUT (Data,Var,Abs)
-    0xc0,             // END_COLLECTION
-];
 
 const INIT_HEADER: usize = 7;
 const CONT_HEADER: usize = 5;
@@ -144,6 +125,11 @@ const PACE: Duration = Duration::from_millis(0);
 static PACKETS_IN: AtomicU32 = AtomicU32::new(0);
 static MESSAGES: AtomicU32 = AtomicU32::new(0);
 static ERRORS: AtomicU32 = AtomicU32::new(0);
+/// The reassembly state machine, and the message it fills. Claimed once each,
+/// in `main`, which is where a StaticCell belongs — see exp183 for what
+/// claiming one per request cost.
+static CHANNEL: StaticCell<ctap::hid::Channel> = StaticCell::new();
+static MSG_BUF: StaticCell<[u8; ctap::hid::MAX_MESSAGE]> = StaticCell::new();
 static NEXT_CID: AtomicU32 = AtomicU32::new(1);
 static LED_SOLID_OVERRIDE: AtomicBool = AtomicBool::new(false);
 
@@ -164,7 +150,7 @@ fn allocate_cid() -> Cid {
         NEXT_CID.store(2, Ordering::Relaxed);
         n = 1;
     }
-    n.to_be_bytes()
+    n
 }
 
 fn cmd_name(cmd: u8) -> &'static str {
@@ -188,153 +174,21 @@ fn status_for(e: ReadError) -> u8 {
     }
 }
 
-struct Transaction {
-    cid: Cid,
-    cmd: u8,
-    seq: u8,
-    want: usize,
-    have: usize,
-    started: Instant,
-    buf: [u8; MAX_MESSAGE],
-}
 
-impl Transaction {
-    const fn none() -> Self {
-        Self {
-            cid: RESERVED,
-            cmd: 0,
-            seq: 0,
-            want: 0,
-            have: 0,
-            started: Instant::from_ticks(0),
-            buf: [0; MAX_MESSAGE],
-        }
-    }
-
-    fn busy(&self) -> bool {
-        self.cid != RESERVED
-    }
-
-    fn clear(&mut self) {
-        self.cid = RESERVED;
-        self.cmd = 0;
-        self.seq = 0;
-        self.want = 0;
-        self.have = 0;
-    }
-}
-
-static TRANSACTION: StaticCell<Transaction> = StaticCell::new();
-
-enum Action {
-    Complete,
-    More,
-    Ignore(&'static str),
-    Error(Cid, u8),
-}
-
-fn feed(t: &mut Transaction, pkt: &[u8]) -> Action {
-    if pkt.len() != PACKET {
-        return Action::Ignore("packet not 64 bytes");
-    }
-    let cid: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
-    let is_init = (pkt[4] & 0x80) != 0;
-
-    if is_init {
-        let cmd = pkt[4] & 0x7f;
-        let bcnt = ((pkt[5] as usize) << 8) | (pkt[6] as usize);
-
-        if cid == RESERVED {
-            return Action::Error(cid, ERR_INVALID_PAR);
-        }
-        if cid == BROADCAST && cmd != CTAPHID_INIT {
-            return Action::Error(cid, ERR_INVALID_PAR);
-        }
-        if t.busy() && t.cid != cid {
-            return Action::Error(cid, ERR_CHANNEL_BUSY);
-        }
-        match cmd {
-            CTAPHID_INIT | CTAPHID_PING | CTAPHID_CBOR | CTAPHID_CANCEL => {}
-            _ => return Action::Error(cid, ERR_INVALID_CMD),
-        }
-        if cmd == CTAPHID_INIT && bcnt != 8 {
-            return Action::Error(cid, ERR_INVALID_LEN);
-        }
-        if bcnt > MAX_MESSAGE {
-            return Action::Error(cid, ERR_INVALID_LEN);
-        }
-
-        t.cid = cid;
-        t.cmd = cmd;
-        t.seq = 0;
-        t.want = bcnt;
-        t.have = 0;
-        t.started = Instant::now();
-
-        let take = bcnt.min(INIT_PAYLOAD);
-        t.buf[..take].copy_from_slice(&pkt[INIT_HEADER..INIT_HEADER + take]);
-        t.have = take;
-
-        if t.have == t.want {
-            Action::Complete
-        } else {
-            Action::More
-        }
-    } else {
-        let seq = pkt[4] & 0x7f;
-        if !t.busy() || t.cid != cid {
-            return Action::Ignore("continuation for idle or different channel");
-        }
-        if seq != t.seq {
-            t.clear();
-            return Action::Error(cid, ERR_INVALID_SEQ);
-        }
-        t.seq = t.seq.wrapping_add(1);
-
-        let rem = t.want - t.have;
-        let take = rem.min(CONT_PAYLOAD);
-        t.buf[t.have..t.have + take].copy_from_slice(&pkt[CONT_HEADER..CONT_HEADER + take]);
-        t.have += take;
-
-        if t.have == t.want {
-            Action::Complete
-        } else {
-            Action::More
-        }
-    }
-}
-
+/// Write a reply out, one 64-byte report at a time.
+///
+/// The taking-apart is [`ctap::hid::frame`](../../../crates/ctap/src/hid.rs),
+/// which is the inverse of the reassembly on the way in and is tested against
+/// it. What stays here is the pacing, which is this firmware's own business.
 async fn send(
     writer: &mut embassy_usb::class::hid::HidWriter<'static, usb_reboot::UsbDriver, PACKET>,
     cid: Cid,
     cmd: u8,
     payload: &[u8],
 ) -> usize {
-    let mut pkt = [0u8; PACKET];
-    let total = payload.len();
-
-    pkt[0..4].copy_from_slice(&cid);
-    pkt[4] = 0x80 | cmd;
-    pkt[5] = (total >> 8) as u8;
-    pkt[6] = total as u8;
-    let take = total.min(INIT_PAYLOAD);
-    pkt[INIT_HEADER..INIT_HEADER + take].copy_from_slice(&payload[..take]);
-    pkt[INIT_HEADER + take..].fill(0);
-    let _ = writer.write(&pkt).await;
-
-    let mut sent = take;
-    let mut seq = 0u8;
-    let mut packets = 1usize;
-    while sent < total {
-        pkt[0..4].copy_from_slice(&cid);
-        pkt[4] = seq;
-        seq = (seq + 1) & 0x7f;
-        let rem = total - sent;
-        let take = rem.min(CONT_PAYLOAD);
-        pkt[CONT_HEADER..CONT_HEADER + take].copy_from_slice(&payload[sent..sent + take]);
-        pkt[CONT_HEADER + take..].fill(0);
+    let mut packets = 0usize;
+    for pkt in ctap::hid::frame(cid, cmd, payload) {
         let _ = writer.write(&pkt).await;
-        sent += take;
         packets += 1;
     }
     packets
@@ -1325,7 +1179,7 @@ async fn wait_for_presence(
 
         if let Either::First(Ok(n)) = select(reader.read(&mut pkt), Timer::after(PRESENCE_POLL)).await {
             if n >= 5 && pkt[4] & 0x80 != 0 {
-                let from: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
+                let from: Cid = u32::from_be_bytes([pkt[0], pkt[1], pkt[2], pkt[3]]);
                 let cmd = pkt[4] & 0x7f;
                 if from == cid && cmd == CTAPHID_CANCEL {
                     break Waited { outcome: Presence::Cancelled };
@@ -1370,7 +1224,7 @@ async fn wait_for_triple_tap(
 
         if let Either::First(Ok(n)) = select(reader.read(&mut pkt), Timer::after(Duration::from_millis(10))).await {
             if n >= 5 && pkt[4] & 0x80 != 0 {
-                let from: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
+                let from: Cid = u32::from_be_bytes([pkt[0], pkt[1], pkt[2], pkt[3]]);
                 let cmd = pkt[4] & 0x7f;
                 if from == cid && cmd == CTAPHID_CANCEL {
                     break false;
@@ -1408,12 +1262,14 @@ async fn wait_for_triple_tap(
 #[embassy_executor::task]
 async fn ctaphid_task(
     hid: HidReaderWriter<'static, usb_reboot::UsbDriver, PACKET, PACKET>,
-    t: &'static mut Transaction,
+    chan: &'static mut ctap::hid::Channel,
+    msg: &'static mut [u8; ctap::hid::MAX_MESSAGE],
     mut trng: Trng<'static, TRNG>,
     boot_time: Instant,
 ) -> ! {
     let (mut reader, mut writer) = hid.split();
     let mut pkt = [0u8; PACKET];
+    let mut assembled_at = Instant::now();
     let mut session_sk = SecretKey::from_slice(&DEVICE_SECRET).unwrap();
     let mut pin_state = PinState::new();
     let mut resident_store = ResidentStore::new();
@@ -1421,83 +1277,78 @@ async fn ctaphid_task(
     trng.blocking_fill_bytes(&mut device_salt);
 
     loop {
-        let deadline = if t.busy() { TRANSACTION_TIMEOUT } else { Duration::from_secs(3600) };
+        // The deadline stays here: timing is this firmware's business, and a
+        // transaction promised and never finished must not hold the channel.
+        let deadline = if chan.busy() { TRANSACTION_TIMEOUT } else { Duration::from_secs(3600) };
         let got = match select(reader.read(&mut pkt), Timer::after(deadline)).await {
             Either::First(Ok(n)) => n,
             Either::First(Err(_)) => continue,
             Either::Second(()) => {
-                if t.busy() {
-                    let c = t.cid;
-                    t.clear();
+                if chan.busy() {
+                    let c = chan.cid();
+                    let (have, want) = chan.progress();
+                    chan.clear();
                     ERRORS.fetch_add(1, Ordering::Relaxed);
-                    log!("  cid {} timed out with {}/{} bytes", Hex(&c), t.have, t.want);
+                    log!("  cid {:08x} timed out with {}/{} bytes", c, have, want);
                     Timer::after(PACE).await;
-                    send(&mut writer, c, CTAPHID_ERROR, &[ERR_MSG_TIMEOUT]).await;
+                    send(&mut writer, c, ctap::hid::CMD_ERROR, &[ctap::hid::ERR_MSG_TIMEOUT]).await;
                 }
                 continue;
             }
         };
 
         PACKETS_IN.fetch_add(1, Ordering::Relaxed);
-        let is_init = got >= 5 && pkt[4] & 0x80 != 0;
-        let cid: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
-
-        if is_init {
+        if got >= 5 && pkt[4] & 0x80 != 0 {
             log!(
-                "in  cid {} {} bcnt {}",
-                Hex(&cid),
+                "in  cid {:08x} {} bcnt {}",
+                u32::from_be_bytes([pkt[0], pkt[1], pkt[2], pkt[3]]),
                 cmd_name(pkt[4] & 0x7f),
                 ((pkt[5] as u16) << 8) | pkt[6] as u16
             );
             Timer::after(PACE).await;
         }
 
-        match feed(t, &pkt[..got]) {
-            Action::Ignore(why) => {
+        if chan.busy() {
+            assembled_at = assembled_at.min(Instant::now());
+        } else {
+            assembled_at = Instant::now();
+        }
+        match chan.feed(&pkt[..got], msg) {
+            ctap::hid::Event::Idle => {}
+            ctap::hid::Event::Ignored(why) => {
                 log!("  ignored: {}", why);
                 Timer::after(PACE).await;
             }
-            Action::More => {}
-            Action::Error(c, code) => {
+            ctap::hid::Event::Error { cid: c, code } => {
                 ERRORS.fetch_add(1, Ordering::Relaxed);
-                log!("  ERROR {:#04x} to cid {}", code, Hex(&c));
+                log!("  ERROR {:#04x} to cid {:08x}", code, c);
                 Timer::after(PACE).await;
-                send(&mut writer, c, CTAPHID_ERROR, &[code]).await;
+                send(&mut writer, c, ctap::hid::CMD_ERROR, &[code]).await;
             }
-            Action::Complete => {
+            ctap::hid::Event::Cancel { .. } => {}
+            ctap::hid::Event::Init { cid, nonce } => {
                 MESSAGES.fetch_add(1, Ordering::Relaxed);
-                let (cid, cmd, len) = (t.cid, t.cmd, t.want);
-                if len > INIT_PAYLOAD {
-                    log!("  assembled {} bytes in {} ms", len, t.started.elapsed().as_millis());
+                let new = allocate_cid();
+                let r = ctap::hid::init_response(&nonce, new);
+                log!("  INIT: nonce {} -> cid {:08x}", Hex(&nonce), new);
+                Timer::after(PACE).await;
+                send(&mut writer, cid, ctap::hid::CMD_INIT, &r).await;
+            }
+            ctap::hid::Event::Message { cid, cmd, len } => {
+                MESSAGES.fetch_add(1, Ordering::Relaxed);
+                if len > ctap::hid::INIT_PAYLOAD {
+                    log!("  assembled {} bytes in {} ms", len, assembled_at.elapsed().as_millis());
                     Timer::after(PACE).await;
                 }
                 match cmd {
-                    CTAPHID_INIT => {
-                        let new = allocate_cid();
-                        let mut r = [0u8; 17];
-                        r[..8].copy_from_slice(&t.buf[..8]);
-                        r[8..12].copy_from_slice(&new);
-                        r[12] = 2;
-                        r[13] = 0;
-                        r[14] = 1;
-                        r[15] = 0;
-                        r[16] = CAPABILITIES;
-                        t.clear();
-                        log!("  INIT: nonce {} -> cid {}", Hex(&r[..8]), Hex(&new));
-                        Timer::after(PACE).await;
-                        send(&mut writer, cid, CTAPHID_INIT, &r).await;
-                    }
-                    CTAPHID_PING => {
-                        let n = len;
-                        t.clear();
-                        let packets = send(&mut writer, cid, CTAPHID_PING, &t.buf[..n]).await;
-                        log!("  PING: echoed {} bytes in {} packets", n, packets);
+                    ctap::hid::CMD_PING => {
+                        let packets = send(&mut writer, cid, ctap::hid::CMD_PING, &msg[..len]).await;
+                        log!("  PING: echoed {} bytes in {} packets", len, packets);
                         Timer::after(PACE).await;
                     }
-                    CTAPHID_CBOR => {
-                        let ctap = if len >= 1 { t.buf[0] } else { 0xff };
+                    ctap::hid::CMD_CBOR => {
+                        let ctap = if len >= 1 { msg[0] } else { 0xff };
                         let params = len - len.min(1);
-                        t.clear();
                         let mut out = [0u8; 512];
                         match ctap {
                             AUTHENTICATOR_GET_INFO if params != 0 => {
@@ -1554,7 +1405,7 @@ async fn ctaphid_task(
                                 }
                             }
                             AUTHENTICATOR_CLIENT_PIN => {
-                                let body = &t.buf[1..len];
+                                let body = &msg[1..len];
                                 let mut r = Reader::new(body);
                                 let mut pin_proto: Option<u64> = None;
                                 let mut sub_cmd: Option<u64> = None;
@@ -1805,7 +1656,7 @@ async fn ctaphid_task(
                             }
                             AUTHENTICATOR_CREDENTIAL_MANAGEMENT => {
                                 // CTAP 2.1 Credential Management (0x0A)
-                                let body = &t.buf[1..len];
+                                let body = &msg[1..len];
                                 let mut r = Reader::new(body);
                                 let mut sub_cmd: Option<u64> = None;
                                 let mut pin_proto: Option<u64> = None;
@@ -1984,7 +1835,7 @@ async fn ctaphid_task(
                                 }
                             }
                             AUTHENTICATOR_MAKE_CREDENTIAL => {
-                                let body = &t.buf[1..len];
+                                let body = &msg[1..len];
                                 match parse_make_credential(body) {
                                     Ok(req) => {
                                         log!("  makeCredential: rp={:?}, user={}B (rk={}, uv={})", req.rp_id, req.user_id.len(), req.rk_required, req.uv_required);
@@ -2088,7 +1939,7 @@ async fn ctaphid_task(
                                 }
                             }
                             AUTHENTICATOR_GET_ASSERTION => {
-                                let body = &t.buf[1..len];
+                                let body = &msg[1..len];
                                 match parse_get_assertion(body) {
                                     Ok(req) => {
                                         log!("  getAssertion: rp={:?}, allow={} (uv_req={})", req.rp_id, req.n_allow, req.uv_required);
@@ -2239,7 +2090,7 @@ async fn main(spawner: Spawner) {
         &mut builder,
         HID_STATE.init(HidState::new()),
         HidConfig {
-            report_descriptor: CTAPHID_REPORT_DESCRIPTOR,
+            report_descriptor: ctap::hid::REPORT_DESCRIPTOR,
             request_handler: None,
             poll_ms: 5,
             max_packet_size: PACKET as u16,
@@ -2257,7 +2108,7 @@ async fn main(spawner: Spawner) {
     let mut trng_config = TrngConfig::default();
     trng_config.sample_count = TRNG_SAMPLE_COUNT;
     let trng = Trng::new(p.TRNG, Irqs, trng_config);
-    spawner.spawn(ctaphid_task(hid, TRANSACTION.init(Transaction::none()), trng, boot_time).unwrap());
+    spawner.spawn(ctaphid_task(hid, CHANNEL.init(ctap::hid::Channel::new()), MSG_BUF.init([0u8; ctap::hid::MAX_MESSAGE]), trng, boot_time).unwrap());
 
     Timer::after(Duration::from_secs(3)).await;
 

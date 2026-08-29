@@ -560,6 +560,7 @@ async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStor
         }
         match chan.feed(in_buf, msg) {
             ctap::hid::Event::Idle => {}
+            ctap::hid::Event::Ignored(why) => log!("  ignored: {}", why),
             ctap::hid::Event::Init { cid, nonce } => {
                 let allocated = if cid == ctap::hid::BROADCAST { alloc_cid() } else { cid };
                 let body = ctap::hid::init_response(&nonce, allocated);

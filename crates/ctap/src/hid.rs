@@ -94,6 +94,15 @@ pub const STATUS_UPNEEDED: u8 = 0x02;
 pub enum Event {
     /// Nothing yet — a continuation was taken and more is expected.
     Idle,
+    /// The packet was declined **without an answer**, and this is why.
+    ///
+    /// Silence is a deliberate reply here: [exp168] drove the case where a
+    /// continuation arrives for a transaction nobody started, precisely because
+    /// answering it would let anybody make the device talk. The reason is
+    /// carried so a firmware can still say what it saw — the authenticator
+    /// road's own rule is that the log is not optional, and collapsing this
+    /// into `Idle` would have quietly deleted a line exp188 was printing.
+    Ignored(&'static str),
     /// A `CTAPHID_INIT`. Allocate a channel and answer with the nonce.
     Init { cid: u32, nonce: [u8; 8] },
     /// A whole message. Its payload is in the caller's buffer, `len` bytes.
@@ -160,7 +169,7 @@ impl Channel {
     /// [`Event::Message`] the payload is `buf[..len]`.
     pub fn feed(&mut self, pkt: &[u8], buf: &mut [u8]) -> Event {
         if pkt.len() < CONT_HEADER {
-            return Event::Idle;
+            return Event::Ignored("packet shorter than a header");
         }
         let cid = u32::from_be_bytes([pkt[0], pkt[1], pkt[2], pkt[3]]);
         let is_init = pkt[4] & 0x80 != 0;
@@ -225,8 +234,11 @@ impl Channel {
             let seq = pkt[4] & 0x7f;
             // A continuation for a transaction nobody started is not an error
             // to answer; answering would let anybody make this device talk.
-            if !self.busy || self.cid != cid {
-                return Event::Idle;
+            if !self.busy {
+                return Event::Ignored("continuation with no transaction");
+            }
+            if self.cid != cid {
+                return Event::Ignored("continuation on another channel");
             }
             if seq != self.next_seq {
                 self.clear();
@@ -296,6 +308,12 @@ impl Iterator for Frames<'_> {
 }
 
 /// The seventeen bytes a `CTAPHID_INIT` is answered with.
+///
+/// The four version bytes are the **device's own**, not the protocol's — the
+/// specification fixes only `CTAPHID protocol version = 2`. Which is why the
+/// copies disagreed: exp174 and exp188 sent major 0 / minor 1, exp183 sent
+/// major 1 / minor 0, and nothing noticed because nothing depends on them. One
+/// number now, so a difference between two firmwares means something.
 pub fn init_response(nonce: &[u8; 8], allocated: u32) -> [u8; 17] {
     let mut r = [0u8; 17];
     r[..8].copy_from_slice(nonce);
@@ -413,7 +431,10 @@ mod tests {
     fn a_stray_continuation_draws_silence() {
         let mut ch = Channel::new();
         let mut buf = [0u8; MAX_MESSAGE];
-        assert_eq!(ch.feed(&cont_pkt(5, 0, &[1, 2, 3]), &mut buf), Event::Idle);
+        assert_eq!(
+            ch.feed(&cont_pkt(5, 0, &[1, 2, 3]), &mut buf),
+            Event::Ignored("continuation with no transaction")
+        );
     }
 
     #[test]
