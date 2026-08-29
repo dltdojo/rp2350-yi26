@@ -764,16 +764,42 @@ impl<'a> Reader<'a> {
                 // Keys are checked for order here too, because a map somebody
                 // skipped past is still a map that has to be canonical for the
                 // message to be.
-                let mut last: Option<u64> = None;
+                //
+                // **Negative keys are legal and this reader used to refuse
+                // them.** exp170 wrote down that whether a real client sends
+                // something this strict reader rejects was untested; exp189
+                // tested it. Every COSE key `libfido2` puts inside an
+                // `hmac-secret` request is `{1, 3, -1, -2, -3}`, that map is
+                // skipped rather than read, and the `-1` landed in the arm
+                // below that returns `NotCanonical`. A correct request from a
+                // correct client was refused with `CTAP2_ERR_INVALID_CBOR`.
+                //
+                // The order is the specification's: unsigned keys ascending,
+                // then negative keys — and a negative key sorts by its
+                // *encoding*, so `0x20, 0x21, 0x22` is ascending and that is
+                // -1, -2, -3. Ascending encoding is descending value.
+                let mut last_uint: Option<u64> = None;
+                let mut last_nint: Option<i64> = None;
                 for _ in 0..n {
                     match self.next()? {
                         Item::Uint(k) => {
-                            if let Some(prev) = last {
+                            if last_nint.is_some() {
+                                return Err(ReadError::NotCanonical);
+                            }
+                            if let Some(prev) = last_uint {
                                 if k <= prev {
                                     return Err(ReadError::NotCanonical);
                                 }
                             }
-                            last = Some(k);
+                            last_uint = Some(k);
+                        }
+                        Item::Nint(k) => {
+                            if let Some(prev) = last_nint {
+                                if k >= prev {
+                                    return Err(ReadError::NotCanonical);
+                                }
+                            }
+                            last_nint = Some(k);
                         }
                         // Text keys sort after integer ones and among
                         // themselves by length then bytes. This subset does not
@@ -913,6 +939,38 @@ mod read_tests {
         // Six nested arrays, one deeper than MAX_DEPTH allows.
         let deep = r("8181818181810100");
         assert_eq!(Reader::new(&deep).skip(), Err(ReadError::TooDeep));
+    }
+
+    /// The COSE key `libfido2` puts in an `hmac-secret` request, skipped rather
+    /// than read. Before exp189 this returned `NotCanonical` at the `-1`, and a
+    /// correct request from a correct client was refused.
+    #[test]
+    fn skips_a_map_with_negative_keys() {
+        // {1: {1: 2, 3: -25, -1: 1, -2: h'aa', -3: h'bb'}}
+        let bytes = [
+            0xa1, 0x01, 0xa5, 0x01, 0x02, 0x03, 0x38, 0x18, 0x20, 0x01, 0x21, 0x41, 0xaa, 0x22,
+            0x41, 0xbb,
+        ];
+        let mut r = Reader::new(&bytes);
+        assert_eq!(r.skip(), Ok(()));
+        assert!(r.is_empty());
+    }
+
+    /// Negative keys sort by their encoding, so -1 comes before -2. The other
+    /// way round is not canonical and must still be refused.
+    #[test]
+    fn refuses_negative_keys_in_the_wrong_order() {
+        // {-2: 1, -1: 1}  ->  0x21 before 0x20, which is descending encoding
+        let bytes = [0xa2, 0x21, 0x01, 0x20, 0x01];
+        assert_eq!(Reader::new(&bytes).skip(), Err(ReadError::NotCanonical));
+    }
+
+    /// Unsigned keys come first. A uint after a nint is not canonical.
+    #[test]
+    fn refuses_an_unsigned_key_after_a_negative_one() {
+        // {-1: 1, 1: 1}
+        let bytes = [0xa2, 0x20, 0x01, 0x01, 0x01];
+        assert_eq!(Reader::new(&bytes).skip(), Err(ReadError::NotCanonical));
     }
 
     #[test]
