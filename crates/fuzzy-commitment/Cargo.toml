@@ -1,0 +1,11 @@
+[package]
+name = "fuzzy-commitment"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Turn a noisy 4 KB window into the same 256-bit key every time, with helper data that is not the key"
+
+[dependencies]
+sha2 = { version = "0.10", default-features = false }
+
+[workspace]

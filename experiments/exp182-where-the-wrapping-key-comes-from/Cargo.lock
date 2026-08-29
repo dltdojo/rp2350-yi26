@@ -690,6 +690,7 @@ dependencies = [
  "embassy-rp",
  "embassy-time",
  "embassy-usb",
+ "fuzzy-commitment",
  "hmac",
  "p256",
  "panic-halt",
@@ -751,6 +752,13 @@ name = "futures-sink"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1944426bf7d03f1d14f708785e4b33efd750b36d48a157b836b3efc15ede8e1d"
+
+[[package]]
+name = "fuzzy-commitment"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
 
 [[package]]
 name = "generator"

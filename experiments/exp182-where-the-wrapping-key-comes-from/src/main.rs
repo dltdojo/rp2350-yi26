@@ -138,94 +138,35 @@ include!(concat!(env!("OUT_DIR"), "/exp182_config.rs"));
 /// reconstruction that fails must **refuse**, because signing with a secret that
 /// is nearly right does not produce a nearly-right credential; it produces a
 /// different device.
+/// Bank 8, and the only reason this experiment is RP2350-only.
+///
+/// The arithmetic that turns what is here into a key lives in
+/// [`crates/fuzzy-commitment`](../../crates/fuzzy-commitment/) — lifted out of
+/// this file so [exp189](../exp189-the-same-salt-twice/) could have it without a
+/// copy, and so every line of it can be tested on a host with no board. What
+/// stays here is the half that is hardware: this address, where the record
+/// lives in flash, and the reads and writes that touch them.
 const WINDOW: usize = 0x2008_0000;
-const WINDOW_BYTES: usize = 4096;
-const WINDOW_BITS: usize = WINDOW_BYTES * 8;
-const KEY_BITS: usize = 256;
-const REPEAT: usize = 31;
-const USED_BITS: usize = KEY_BITS * REPEAT;
-const HELPER_BYTES: usize = USED_BITS / 8;
-const UNIFORMITY_MIN: u32 = 400;
-const UNIFORMITY_MAX: u32 = 600;
 const HELPER_OFFSET: u32 = 0x30_0000;
 const PUF_FLASH_SIZE: usize = 4 * 1024 * 1024;
 const XIP_BASE: usize = 0x1000_0000;
 const SECTOR: usize = 4096;
-const RECORD_MAGIC: u32 = 0x8181_5241;
 
-const _: () = assert!(USED_BITS <= WINDOW_BITS);
-const _: () = assert!(REPEAT % 2 == 1, "an even repetition has no majority");
-
-/// What enrolment leaves in flash. None of it is the key.
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct PufRecord {
-    magic: u32,
-    key_bits: u32,
-    repeat: u32,
-    uniformity_per_mille: u32,
-    key_hash: [u8; 32],
-    helper: [u8; HELPER_BYTES],
-}
-
-fn puf_bit(buf: &[u8], i: usize) -> u8 {
-    (buf[i / 8] >> (i % 8)) & 1
-}
-
-fn puf_set_bit(buf: &mut [u8], i: usize, v: u8) {
-    if v != 0 {
-        buf[i / 8] |= 1 << (i % 8);
-    } else {
-        buf[i / 8] &= !(1 << (i % 8));
-    }
-}
-
-fn puf_uniformity(window: &[u8; WINDOW_BYTES]) -> u32 {
-    let ones: u32 = window.iter().map(|b| b.count_ones()).sum();
-    (ones as u64 * 1000 / WINDOW_BITS as u64) as u32
-}
+use fuzzy_commitment as fc;
+use fc::{Record as PufRecord, UNIFORMITY_MAX, UNIFORMITY_MIN, WINDOW_BYTES};
 
 fn puf_read_record() -> Option<PufRecord> {
     let at = (XIP_BASE + HELPER_OFFSET as usize) as *const PufRecord;
     // Safety: a fixed address in this board's own flash, read only, and nothing
-    // is believed until the magic and the parameters match this build.
+    // is believed until the magic and the parameters match this build —
+    // `Record::usable` is that check, and it is the crate's rather than ours so
+    // the two cannot disagree about what a record is.
     let r = unsafe { core::ptr::read_volatile(at) };
-    if r.magic == RECORD_MAGIC && r.key_bits == KEY_BITS as u32 && r.repeat == REPEAT as u32 {
+    if r.usable() {
         Some(r)
     } else {
         None
     }
-}
-
-fn puf_helper(key: &[u8; 32], window: &[u8; WINDOW_BYTES]) -> [u8; HELPER_BYTES] {
-    let mut helper = [0u8; HELPER_BYTES];
-    for i in 0..USED_BITS {
-        puf_set_bit(&mut helper, i, puf_bit(key, i / REPEAT) ^ puf_bit(window, i));
-    }
-    helper
-}
-
-/// Majority vote, and the number of cells that changed since enrolment.
-fn puf_reconstruct(helper: &[u8; HELPER_BYTES], window: &[u8; WINDOW_BYTES]) -> ([u8; 32], u32) {
-    let mut key = [0u8; 32];
-    let mut minority = 0u32;
-    for j in 0..KEY_BITS {
-        let mut ones = 0usize;
-        for r in 0..REPEAT {
-            let i = j * REPEAT + r;
-            ones += (puf_bit(helper, i) ^ puf_bit(window, i)) as usize;
-        }
-        let majority = if ones * 2 > REPEAT { 1 } else { 0 };
-        puf_set_bit(&mut key, j, majority);
-        minority += if majority == 1 { (REPEAT - ones) as u32 } else { ones as u32 };
-    }
-    (key, minority)
-}
-
-fn puf_hash(key: &[u8; 32]) -> [u8; 32] {
-    let mut h = Sha256::new();
-    h.update(key);
-    h.finalize().into()
 }
 
 /// What this boot knows about its own secret.
@@ -2111,7 +2052,7 @@ async fn main(spawner: Spawner) {
         // Safety: SRAM bank 8, outside the 512 KB the linker places into.
         window[i] = unsafe { core::ptr::read_volatile((WINDOW as *const u8).add(i)) };
     }
-    let uniformity = puf_uniformity(&window);
+    let uniformity = fc::uniformity(&window);
 
     let p = embassy_rp::init(Default::default());
 
@@ -2209,12 +2150,12 @@ async fn main(spawner: Spawner) {
                 let mut key = [0u8; 32];
                 trng.blocking_fill_bytes(&mut key);
                 let record = PufRecord {
-                    magic: RECORD_MAGIC,
-                    key_bits: KEY_BITS as u32,
-                    repeat: REPEAT as u32,
+                    magic: fc::RECORD_MAGIC,
+                    key_bits: fc::KEY_BITS as u32,
+                    repeat: fc::REPEAT as u32,
                     uniformity_per_mille: uniformity,
-                    key_hash: puf_hash(&key),
-                    helper: puf_helper(&key, &window),
+                    key_hash: fc::hash(&key),
+                    helper: fc::helper(&key, &window),
                 };
                 let mut page = [0xffu8; SECTOR];
                 // Safety: PufRecord is repr(C) plain data, and this is the same
@@ -2241,10 +2182,10 @@ async fn main(spawner: Spawner) {
             }
         }
         Some(r) => {
-            let (key, errors) = puf_reconstruct(&r.helper, &window);
+            let (key, errors) = fc::reconstruct(&r.helper, &window);
             provision.enrolled_at = r.uniformity_per_mille;
             provision.errors = errors;
-            if puf_hash(&key) == r.key_hash {
+            if fc::hash(&key) == r.key_hash {
                 provision.secret = Some(&*SECRET.init(key));
                 provision.state = "reconstructed from SRAM — the key came back";
             } else {
@@ -2321,7 +2262,7 @@ async fn main(spawner: Spawner) {
         log!(
             "    enrolled at {}.{}%, {} of {} cells changed since",
             provision.enrolled_at / 10, provision.enrolled_at % 10,
-            provision.errors, USED_BITS
+            provision.errors, fc::USED_BITS
         );
         Timer::after(PACE).await;
     }
@@ -2361,7 +2302,7 @@ async fn main(spawner: Spawner) {
                 "    bank 8 came up {}.{}% one-bits; enrolled at {}.{}%, {} of {} cells changed since",
                 provision.uniformity / 10, provision.uniformity % 10,
                 provision.enrolled_at / 10, provision.enrolled_at % 10,
-                provision.errors, USED_BITS
+                provision.errors, fc::USED_BITS
             );
             Timer::after(PACE).await;
         }

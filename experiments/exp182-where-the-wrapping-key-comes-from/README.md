@@ -38,6 +38,48 @@ that no longer works.
 is not *in the image*, which is the specific thing exp175 demonstrated and the
 specific thing this rung was asked for.
 
+## The arithmetic moved out, and it has not been on a board since
+
+> **Added and verified on hardware, 2026-08-29.** The strongest form the proof
+> could take: the moved arithmetic reconstructed **the key the unmoved
+> arithmetic enrolled six days earlier**, from a record written to flash on
+> 2026-08-23 and never rewritten. Record layout, helper bit order, majority vote
+> and key hash are byte-for-byte what they replaced, and nothing had to be
+> re-enrolled to prove it.
+>
+> ```text
+> device secret: reconstructed from SRAM — the key came back
+>   bank 8 came up 51.1% one-bits
+>   enrolled at 51.1%, 486 of 7936 cells changed since
+> ```
+>
+> 486 of 7,936 is 6.12%, against exp181's 494 and 6.22% on the same board. The
+> two guards held on the way through: the boot straight after `yi26 flash` said
+> `UNPROVISIONED — the key did NOT come back`, because flashing zeroes the SRAM,
+> and the key came back on the boot after the power was away. `./check.sh`
+> passes all forty of its checks with the board running it.
+
+`puf_helper`, `puf_reconstruct`, `puf_uniformity`, `puf_hash`, the record layout
+and the constants they share now live in
+[`crates/fuzzy-commitment`](../../crates/fuzzy-commitment/).
+[exp189](../exp189-the-same-salt-twice/) wants the same key, and the choice was
+between copying a hundred lines into it — the drift this repository has a whole
+convention against — and lifting them where both can reach.
+
+**What stayed here is the half that is hardware**: the bank 8 address, where the
+record lives in flash, the volatile reads that fill the window, and the flash
+write that stores a record. A crate that read SRAM could not be tested anywhere
+but on a board; this one is handed a slice, so **eight tests run on a host with
+no board at all** — including the two that matter most, that fifteen flips of
+thirty-one still vote the right way and sixteen do not, and that a zeroed window
+makes the helper data *become* the key, which is exp179's trap stated as an
+assertion rather than as a paragraph.
+
+That power cycle was the whole test, and it is the reason this section is short.
+A refactor that keeps a green `check.sh` proves the host half; a refactor that
+reconstructs a key enrolled by the code it replaced proves the rest, and there
+was no way to fake it — the record in flash was written by the old build.
+
 ## What changed in the firmware
 
 `DEVICE_SECRET` was a `const [u8; 32]` used by exactly two functions. Both now

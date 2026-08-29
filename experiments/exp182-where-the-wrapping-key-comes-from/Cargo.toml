@@ -21,6 +21,7 @@ static_cell = "2.1.1"
 usb-log = { path = "../../crates/usb-log" }
 usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 cbor = { path = "../../crates/cbor" }
+fuzzy-commitment = { path = "../../crates/fuzzy-commitment" }
 bootsel = { path = "../../crates/bootsel" }
 
 # The cryptography, arriving. exp159 measured P-256 signing on this part at
