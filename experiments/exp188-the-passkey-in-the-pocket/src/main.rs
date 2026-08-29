@@ -718,10 +718,25 @@ fn parse_get_assertion(body: &[u8]) -> Result<GetAssertion<'_>, u8> {
                 }
                 skip_map_pairs(&mut r, n).map_err(status_for)?;
             }
-            0x06 | 0x07 => match r.next().map_err(status_for)? {
+            0x06 => match r.next().map_err(status_for)? {
                 Item::Bytes(v) => pin_uv_auth_param = Some(v),
                 _ => return Err(CTAP2_ERR_INVALID_CBOR),
             },
+            // 0x07 is pinUvAuthProtocol, a uint. Read as a byte string it
+            // refused every request that named a protocol — the same shape of
+            // mistake as makeCredential's 0x06, and found the same way.
+            0x07 => match r.next().map_err(status_for)? {
+                Item::Uint(_) => {}
+                _ => return Err(CTAP2_ERR_INVALID_CBOR),
+            },
+            // 0x04 is extensions here. Skipped, not refused, for 0x06's reason.
+            0x04 => {
+                let n = match r.next().map_err(status_for)? {
+                    Item::Map(n) => n,
+                    _ => return Err(CTAP2_ERR_INVALID_CBOR),
+                };
+                skip_map_pairs(&mut r, n).map_err(status_for)?;
+            }
             _ => r.skip().map_err(status_for)?,
         }
     }
@@ -963,7 +978,24 @@ fn parse_make_credential(body: &[u8]) -> Result<MakeCredential<'_>, u8> {
                 }
                 skip_map_pairs(&mut r, n).map_err(status_for)?;
             }
-            0x06 | 0x08 => match r.next().map_err(status_for)? {
+            // 0x06 is **extensions** in makeCredential; 0x08 is pinUvAuthParam.
+            // Reading `0x06 | 0x08` as pinUvAuthParam is getAssertion's
+            // numbering, and an extension map is not a byte string — so every
+            // makeCredential carrying any extension was refused with
+            // CTAP2_ERR_INVALID_CBOR. Measured 2026-08-29 on this firmware:
+            // `fido2-cred -M -h` came back in 0.094 s with exactly that.
+            //
+            // This build implements no extension, so the map is skipped rather
+            // than read. Refusing to parse it was never the same thing as
+            // declining to support it. exp189 is where one gets implemented.
+            0x06 => {
+                let n = match r.next().map_err(status_for)? {
+                    Item::Map(n) => n,
+                    _ => return Err(CTAP2_ERR_INVALID_CBOR),
+                };
+                skip_map_pairs(&mut r, n).map_err(status_for)?;
+            }
+            0x08 => match r.next().map_err(status_for)? {
                 Item::Bytes(v) => pin_uv_auth_param = Some(v),
                 _ => return Err(CTAP2_ERR_INVALID_CBOR),
             },

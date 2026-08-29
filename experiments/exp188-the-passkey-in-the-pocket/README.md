@@ -9,9 +9,9 @@ Can the RP2350 support full modern Passkeys — storing CTAP 2.1 Discoverable Cr
 
 ## Background & Lineage
 
-- **[exp174](../exp174-the-authenticator-in-the-middle)** verified CTAP 2.0 WebAuthn registration and assertion.
-- **[exp176](../exp176-the-watchful-client)** established CTAPHID keepalive packets during presence waits.
-- **[exp177](../exp177-the-interrupted-handshake)** proved CTAPHID channel timeouts and cancellation semantics.
+- **[exp174](../exp174-a-deadline-nobody-mentioned)** verified CTAP 2.0 WebAuthn registration and assertion.
+- **[exp176](../exp176-the-same-question-of-two-devices)** established CTAPHID keepalive packets during presence waits.
+- **[exp177](../exp177-the-same-chip-somebody-elses-decisions)** proved CTAPHID channel timeouts and cancellation semantics.
 - **[exp184](../exp184-the-client-that-must-know)** exposed `pinUvAuthProtocols: [1]` and handled `getPinRetries` (0x01).
 - **[exp185](../exp185-a-channel-before-a-secret)** implemented PIN Protocol 1 ECDH P-256 key agreement and AES-256-CBC encrypted tunnel.
 - **[exp186](../exp186-the-number-behind-the-finger)** implemented the stateful CTAP 2.1 PIN lifecycle and `pinUvAuthToken` issuance with `FLAG_UV` (`0x04`).
@@ -58,6 +58,44 @@ Protected by `pinUvAuthToken`:
 - **`enumerateRPsBegin` (`0x02`)**: Lists Relying Parties with stored credentials.
 - **`enumerateCredentialsBegin` (`0x04`)**: Lists credentials under an RP.
 - **`deleteCredential` (`0x06`)**: Purges a credential by `credentialId`.
+
+## Two numbers this firmware had wrong
+
+> **Added and verified on hardware, 2026-08-29**, while
+> [exp189](../exp189-the-same-salt-twice/) was being built on this engine. The
+> Passkey and `credMgmt` claims above are untouched — nothing here changes what
+> this experiment set out to prove. What it changes is what the firmware does
+> with two fields it was never sent.
+
+| where | was read as | is | what it did |
+|---|---|---|---|
+| `makeCredential` key `0x06` | `pinUvAuthParam` | `extensions` | `0x06` is pinUvAuthParam in **getAssertion**, not here. An extension map is not a byte string, so **every `makeCredential` carrying any extension was refused** with `CTAP2_ERR_INVALID_CBOR` |
+| `getAssertion` key `0x07` | `pinUvAuthParam` | `pinUvAuthProtocol` | a uint read as a byte string, so a request naming its PIN protocol was refused the same way |
+
+Both are skipped rather than read: this build implements no extension, and
+**refusing to parse a field is not the same thing as declining to support it.**
+A client is entitled to send one.
+
+**The measurement needed nobody**, because the difference is visible before the
+button is ever involved — one refusal happens during parsing and the other after
+the full user-presence window:
+
+```console
+$ time fido2-cred -M -h /dev/hidraw4 < cred.in     # before
+fido2-cred: fido_dev_make_cred: FIDO_ERR_INVALID_CBOR
+real    0m0.094s
+
+$ time fido2-cred -M -h /dev/hidraw4 < cred.in     # after, still nobody pressing
+fido2-cred: fido_dev_make_cred: FIDO_ERR_OPERATION_DENIED
+real    1m0.099s
+```
+
+Nothing could have caught this from inside this repository. `libfido2` only
+sends `extensions` when a caller asks for one, this experiment's own probe never
+does, and until exp189 nothing here had an extension to ask for — which is
+[exp173](../exp173-a-client-that-is-not-ours/)'s subject arriving on a rung that
+had never been driven by somebody else's tools. `./check.sh`'s twenty-one
+existing checks are unchanged and still pass.
 
 ## Expected Output
 
