@@ -1,0 +1,13 @@
+{
+  "age_version": "v1.3.1",
+  "plugin_version": "v0.5.0",
+  "generated": true,
+  "recipient": "age1fido2-hmac1qqpgakgze2lklrsdp3h6nmgc5xtz5vgnshtss6d5tkx702n8dgmz6ggqrnalf74c93pj3y4lm8s5pcvtdnc6ujjxekugmvcn2na6lweyw50p0ym78wdrutzmw4x6dxxsazs0m5xductzvcezq829rfkxd2693rwc6eqp3uqgdggzzcpwuy0ee26rs3da8y",
+  "encrypted_without_board": true,
+  "separate_identity_answer": "2",
+  "decrypted_with_identity_file": false,
+  "decrypted_with_magic_identity": true,
+  "presses_the_board_saw": 3,
+  "make_credential_line": "makeCredential: rp=\"age-encryption.org\", user=32B (rk=false, uv=false)",
+  "rp_id_the_plugin_chose": "rp=\"age-encryption.org\""
+}

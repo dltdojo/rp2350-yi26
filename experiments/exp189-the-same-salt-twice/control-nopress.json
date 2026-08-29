@@ -1,0 +1,7 @@
+{
+  "attempts": 3,
+  "opened": 0,
+  "wrote_plaintext_anyway": 0,
+  "refusal": "age: error: fido2-hmac plugin: failed to get assertion: operation denied",
+  "bootsel_line": ""
+}

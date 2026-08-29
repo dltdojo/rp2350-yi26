@@ -194,6 +194,36 @@ if [[ -f roundtrip.json && -f roundtrip-constant.json ]]; then
                 "both say $A — the control was overwritten by the subject"
 fi
 
+# The control, if it has been run. Same shape as the pair above: both halves or
+# neither, and ruled on by their own verifier rather than described in prose.
+if [[ -f control.json && -f control-nopress.json ]]; then
+    echo "      ruling on control.json and control-nopress.json"
+    if python3 verify_control.py control.json control-nopress.json > /dev/null 2>&1; then
+        pass "the checked-in control transcripts pass their own verifier"
+    else
+        fail "the checked-in control transcripts pass their own verifier" \
+             "run python3 verify_control.py control.json control-nopress.json"
+    fi
+elif [[ -f control.json || -f control-nopress.json ]]; then
+    fail "both halves of the control are present or neither is" \
+         "one half of a run is not a run"
+fi
+
+# The driver must not have grown a guess back.
+#
+# Its first version answered every prompt with a bare return on the theory that
+# an empty line is a tool's default. This one has none: it printed
+# `invalid selection`, asked again, and would have looped forever with a press
+# already spent. An answer list is the fix, and this is that fix as a check.
+if [[ -f control_drive.py ]]; then
+    grep -q 'invalid selection' control_drive.py \
+        && pass "the driver stops when the tool rejects an answer, rather than asking again" \
+        || fail "the driver notices a rejected answer" "it will loop on invalid selection"
+    grep -q 'an unrecognised prompt' control_drive.py \
+        && pass "and an unrecognised prompt stops the run instead of being guessed at" \
+        || fail "the driver stops on an unrecognised prompt" "answering a guess costs a press"
+fi
+
 SRC=src/main.rs
 
 # The two arms, and the difference that needs no board.

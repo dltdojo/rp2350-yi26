@@ -252,6 +252,95 @@ recorded a browser giving up on a device that was working. `check.sh` never
 gates on the plugin succeeding, and the experiment does not grow a PIN to make
 somebody else's tool happy.
 
+### What the control actually did, on this board
+
+**Verified 2026-08-29**, on the `bank8` arm — so the key `age` opened the file
+with is one that exists in no file. Three presses, and the board's own log
+counted three:
+
+```text
+generated: True                        -g wants two touches, not one
+recipient: age1fido2-hmac1qqpgakgze2lklrsdp3h6nmgc5x...   (205 chars)
+encrypted_without_board: True          381 bytes, no board attached
+decrypted_with_magic_identity: True    age -d -j fido2-hmac, carrying no key material
+opened, and byte-identical to what went in
+presses_the_board_saw: 3
+rp_id_the_plugin_chose: rp="age-encryption.org"
+```
+
+**A tool that does not know this board exists opened a file with its key.** That
+is a stronger sentence than anything else in this experiment can produce:
+`fido2-assert` printing thirty-two bytes says something came back, and says
+nothing about whether it is a key.
+
+Three things the `--help` did not say, and only a board could answer:
+
+- **`-g` costs two presses.** It asks for a touch, asks its one question, and
+  asks for a touch again — once to make the credential and once to derive from
+  it. The help calls the whole thing "interactive" and stops there.
+- **It demands neither a PIN nor a discoverable credential.** The board's log
+  says `makeCredential: rp="age-encryption.org", user=32B (rk=false, uv=false)`.
+  This build has no PIN and no resident credentials by choice, and that turned
+  out to be enough — the refusal this section was written to be ready for never
+  came.
+- **The one question it asks is about privacy, not capability:** *"Are you fine
+  with having a separate identity (better privacy)?"* Answering **no** puts the
+  credential in the ciphertext header and makes `age -d -j fido2-hmac` work with
+  no identity file at all. That is exp191's shape exactly — nothing to carry, so
+  the board is the whole lock — which is why `control.sh` answers 2 by default
+  and says so in its own source.
+
+And with nobody at the board, [`./control-nopress.sh`](./control-nopress.sh):
+
+```text
+attempts: 3
+opened: 0
+wrote_plaintext_anyway: 0
+refusal: age: error: fido2-hmac plugin: failed to get assertion: operation denied
+bootsel_line: 
+```
+
+**The first attempt at that had to be thrown away, and the instrument is why it
+could be.** The third window was answered — out of habit, at a light that means
+press every other time this evening — and `age` duly opened the file. The board's
+own log named the moment (`presence: BOOTSEL read low at board uptime 1720077
+ms`), so the verifier could rule the run out rather than record a device that
+appeared to hand over a key with nobody there. Those are different findings, and
+a transcript that cannot separate them is neither. **This is not a mistake a
+person made; it is the design gap that
+[the LED rule](#the-led-is-the-only-interface-so-it-may-only-mean-one-thing)
+names** — the unattended case lights the identical light. Splitting it into its
+own script keeps a press out of the *press* transcript; it cannot stop a hand.
+Closing it properly needs a fourth LED state for "this round wants nobody", and
+that is a firmware change, so it is written down here rather than done quietly.
+
+`wrote_plaintext_anyway` is there because a refusal that still leaves the
+plaintext somewhere is not a refusal — exp191's leaky-CLI rule, applied to
+somebody else's tool. And `bootsel_line` being empty is the finding rather than
+an absence of one: the board never read the pad low, so this was nobody, not a
+finger that arrived too late.
+
+### What it cost to drive something interactive
+
+`control_drive.py` runs the plugin under a pty and writes down every word. Two
+things it got wrong first are worth keeping, because both are about **answering
+on a guess**:
+
+- **It answered every prompt with a bare return**, on the theory that an empty
+  line is a tool's own default. This tool has no defaults: it printed
+  `invalid selection '\n'`, asked the same question again, and would have done
+  so forever — with a credential already made and a person's press already
+  spent. It now answers from a list given on the command line, in order, and an
+  unrecognised prompt stops the run so the transcript can be the finding.
+- **A pty has one stream.** The tool's prompts and its output arrive
+  interleaved, so `-g > identity.txt` wrote the questions into the identity
+  file. Everything is pulled back out by shape now.
+
+And one that cost a whole run's presses: the recipient was extracted with
+`age1[0-9a-z]+`, which stops at the hyphen and yields `age1fido2` out of
+`age1fido2-hmac1qqp8vf3...`. `age` refused it as malformed. **A plugin recipient
+is `age1<plugin-name>1<data>` and the plugin's name has a hyphen in it.**
+
 ### What reading the tools actually said
 
 [`setup.sh`](./setup.sh) follows [exp177](../exp177-the-same-chip-somebody-elses-decisions/)'s
