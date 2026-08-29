@@ -24,7 +24,9 @@ use embassy_time::{Duration, Instant, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State};
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, State as HidState};
 use embassy_usb::{Builder, Config as UsbConfig, UsbDevice};
-use panic_halt as _;
+// The panic handler, the hard-fault handler and the watchdog are
+// `crates/lifeline`'s. This firmware halted in silence before, which reads from
+// outside exactly like a bad cable — see exp190 for what that cost.
 use rp2350_linker as _;
 use static_cell::StaticCell;
 use cbor::{Item, ReadError, Reader};
@@ -52,6 +54,13 @@ bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
     TRNG_IRQ => embassy_rp::trng::InterruptHandler<TRNG>;
 });
+
+/// The defaults, named once so nothing here and the watchdog can disagree.
+const LIFELINE: lifeline::Config = lifeline::Config {
+    boot_us: lifeline::DEFAULT_BOOT_US,
+    run_us: lifeline::DEFAULT_RUN_US,
+    escape_after: lifeline::DEFAULT_ESCAPE_AFTER,
+};
 
 const PACKET: usize = 64;
 const MAX_MESSAGE: usize = 1024;
@@ -2055,6 +2064,12 @@ async fn ctaphid_task(
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+    // FIRST, before embassy_rp::init and before any peripheral: three boots in
+    // a row that never got up and this call hands the board to the ROM
+    // bootloader instead of failing again. Anything that resets a peripheral
+    // before it destroys the note that decision is read from.
+    let boot = lifeline::begin(LIFELINE);
+
     let p = embassy_rp::init(Default::default());
     let boot_time = Instant::now();
 
@@ -2104,10 +2119,20 @@ async fn main(spawner: Spawner) {
     let (sender, receiver, control) = class.split_with_control();
     spawner.spawn(log_task(sender).unwrap());
     spawner.spawn(cdc_task(control, receiver).unwrap());
+    spawner.spawn(lifeline::keepalive(LIFELINE).unwrap());
 
     let mut trng_config = TrngConfig::default();
     trng_config.sample_count = TRNG_SAMPLE_COUNT;
     let trng = Trng::new(p.TRNG, Irqs, trng_config);
+    // Reachable: USB is built and the tasks that serve it are running. From
+    // here a death is an ordinary crash rather than a boot that never came up,
+    // and this boot stops counting towards the escape however it ends.
+    lifeline::alive(LIFELINE);
+    log!(
+        "boot {}, last ended: {:?} — {} death(s) in a row before it was up",
+        boot.count, boot.cause, boot.deaths
+    );
+
     spawner.spawn(ctaphid_task(hid, CHANNEL.init(ctap::hid::Channel::new()), MSG_BUF.init([0u8; ctap::hid::MAX_MESSAGE]), trng, boot_time).unwrap());
 
     Timer::after(Duration::from_secs(3)).await;

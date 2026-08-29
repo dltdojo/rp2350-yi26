@@ -20,7 +20,7 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=2
-LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
+LIFELINE=yes
 presence_check
 lifeline_check
 
@@ -219,12 +219,10 @@ grep -q 'fn led_rest' "$SRC" \
 # A panic that cannot be seen is a board that has left the USB bus.
 #
 # exp183 cost three trips to a bench on a silent `panic-halt`, and this
-# experiment cost a fourth: `SecretKey::from_slice` on the thirty-two zero bytes
-# an unprovisioned board returns is an `Err`, and the `.unwrap()` on it fired
-# before the USB stack was serving.
-grep -q 'panic_handler' "$SRC" && ! grep -q 'use panic_halt' "$SRC" \
-    && pass "a panic says where it was before it stops" \
-    || fail "a panic says where it was" "panic-halt halts in silence, which reads as a bad cable"
+# experiment cost a fourth. Both handlers are `crates/lifeline`'s now, so the
+# rule that used to be grepped here is `lifeline_check` above — which is the
+# point of a component: this file can no longer get it wrong, and cannot forget
+# to check it either.
 
 grep -q 'SecretKey::from_slice(secret_bytes()).unwrap()' "$SRC" \
     && fail "the key-agreement key tolerates an unprovisioned board" \

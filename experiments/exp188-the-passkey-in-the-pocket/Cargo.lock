@@ -114,6 +114,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "breadcrumb"
+version = "0.1.0"
+dependencies = [
+ "embassy-rp",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -722,8 +729,8 @@ dependencies = [
  "embassy-time",
  "embassy-usb",
  "hmac",
+ "lifeline",
  "p256",
- "panic-halt",
  "rp2350-linker",
  "sha2",
  "static_cell",
@@ -972,6 +979,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
+name = "lifeline"
+version = "0.1.0"
+dependencies = [
+ "breadcrumb",
+ "cortex-m",
+ "cortex-m-rt",
+ "embassy-executor",
+ "embassy-rp",
+ "embassy-time",
+]
+
+[[package]]
 name = "litrs"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1101,12 +1120,6 @@ dependencies = [
  "primeorder",
  "sha2",
 ]
-
-[[package]]
-name = "panic-halt"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de96540e0ebde571dc55c73d60ef407c653844e6f9a1e2fdbd40c07b9252d812"
 
 [[package]]
 name = "parking_lot"

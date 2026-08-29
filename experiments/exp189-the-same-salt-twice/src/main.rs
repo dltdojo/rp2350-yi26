@@ -25,26 +25,9 @@ use embassy_time::{Duration, Instant, Timer};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State};
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, State as HidState};
 use embassy_usb::{Builder, Config as UsbConfig, UsbDevice};
-/// A panic that says so before it stops.
-///
-/// `panic-halt` halts in silence, and a firmware that panics before its USB
-/// stack is serving is a board that simply **leaves the bus** — indistinguishable
-/// from a bad cable, and recoverable only by a hand on BOOTSEL. exp183 cost
-/// three trips to a bench that way and this experiment cost a fourth, on the
-/// line below this comment's own fix: `SecretKey::from_slice` on thirty-two
-/// zero bytes is an `Err`, because zero is not a valid P-256 scalar, and the
-/// `.unwrap()` on it fired on every boot of the `bank8` arm that had no key yet.
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    if let Some(loc) = info.location() {
-        log!("PANIC at {}:{}", loc.file(), loc.line());
-    } else {
-        log!("PANIC, location unknown");
-    }
-    loop {
-        cortex_m::asm::nop();
-    }
-}
+// The panic handler, the hard-fault handler and the watchdog are
+// `crates/lifeline`'s. This firmware had its own, written after a silent one
+// cost a trip to a bench; one component means the next firmware cannot forget.
 use rp2350_linker as _;
 use static_cell::StaticCell;
 use cbor::{Item, ReadError, Reader};
@@ -137,6 +120,13 @@ bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
     TRNG_IRQ => embassy_rp::trng::InterruptHandler<TRNG>;
 });
+
+/// The defaults, named once so nothing here and the watchdog can disagree.
+const LIFELINE: lifeline::Config = lifeline::Config {
+    boot_us: lifeline::DEFAULT_BOOT_US,
+    run_us: lifeline::DEFAULT_RUN_US,
+    escape_after: lifeline::DEFAULT_ESCAPE_AFTER,
+};
 
 const PACKET: usize = 64;
 const MAX_MESSAGE: usize = 1024;
@@ -2592,6 +2582,14 @@ async fn ctaphid_task(
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+    // FIRST, before embassy_rp::init and before any peripheral.
+    //
+    // On the `bank8` arm this matters twice over: a board straight from a flash
+    // cannot reconstruct its key, so it is *supposed* to come up unprovisioned —
+    // and that is a boot which got up, not one that failed. Three boots that
+    // never got up is a different thing, and this is what tells them apart.
+    let boot = lifeline::begin(LIFELINE);
+
     let p = embassy_rp::init(Default::default());
     let boot_time = Instant::now();
 
@@ -2641,6 +2639,7 @@ async fn main(spawner: Spawner) {
     let (sender, receiver, control) = class.split_with_control();
     spawner.spawn(log_task(sender).unwrap());
     spawner.spawn(cdc_task(control, receiver).unwrap());
+    spawner.spawn(lifeline::keepalive(LIFELINE).unwrap());
 
     let mut trng_config = TrngConfig::default();
     trng_config.sample_count = TRNG_SAMPLE_COUNT;
@@ -2731,6 +2730,14 @@ async fn main(spawner: Spawner) {
     // such a device a question waits forever, which is the exact failure exp183
     // cost three trips to a bench. exp182 keeps serving and refuses each
     // operation; so does this.
+    // Reachable, and deliberately *before* the authenticator task: this board
+    // serves and refuses when it has no secret, so it is up either way.
+    lifeline::alive(LIFELINE);
+    log!(
+        "  boot {}, last ended: {:?} — {} death(s) in a row before it was up",
+        boot.count, boot.cause, boot.deaths
+    );
+
     spawner.spawn(ctaphid_task(hid, TRANSACTION.init(Transaction::none()), trng, boot_time).unwrap());
 
     Timer::after(Duration::from_secs(3)).await;

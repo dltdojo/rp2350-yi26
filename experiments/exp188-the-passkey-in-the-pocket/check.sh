@@ -15,7 +15,7 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=2
-LIFELINE="no: verified before exp190, and the fix goes forward rather than back"
+LIFELINE=yes
 presence_check
 lifeline_check
 

@@ -23,6 +23,7 @@ usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 cbor = { path = "../../crates/cbor" }
 fuzzy-commitment = { path = "../../crates/fuzzy-commitment" }
 bootsel = { path = "../../crates/bootsel" }
+lifeline = { path = "../../crates/lifeline" }
 
 # The tunnel hmac-secret arrives through is exp185's, and every primitive it
 # needs is already here: ECDH P-256 for the shared secret, AES-256-CBC for

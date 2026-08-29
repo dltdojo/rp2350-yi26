@@ -8,7 +8,7 @@ description = "exp188: Discoverable credentials / Resident Keys (Passkeys) and C
 [dependencies]
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.3"
-panic-halt = "0.2.0"
+# panic-halt is gone: crates/lifeline provides a #[panic_handler] that reboots.
 rp2350-linker = "0.2.3"
 
 embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
@@ -23,6 +23,7 @@ usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 cbor = { path = "../../crates/cbor" }
 ctap = { path = "../../crates/ctap" }
 bootsel = { path = "../../crates/bootsel" }
+lifeline = { path = "../../crates/lifeline" }
 
 p256 = { version = "0.13", default-features = false, features = ["ecdsa", "ecdh"] }
 aes = { version = "0.8", default-features = false }

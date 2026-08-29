@@ -297,6 +297,28 @@ repository's client gets `CTAP2_OK` and `versions: ["FIDO_2_0"]` out of it. The
 byte is what stopped anybody else asking, and correcting it found something
 worse behind it. That belongs to exp183 and is written up there.
 
+## The captures below predate lifeline, and are recorded rather than repaired
+
+This firmware runs on [`crates/lifeline`](../../crates/lifeline/) as of
+2026-08-29 — an armed watchdog, a panic handler that reboots instead of halting,
+and a board that hands itself to the bootloader after three boots that never got
+up. [exp190](../exp190-the-board-that-brings-itself-back/) is what measured that
+it works.
+
+**The seven-press transcripts in [Expected output](#expected-output) were taken
+before it**, so they describe a binary that no longer exists — 191,488 bytes
+against 195,072. The repository's rule for that is to say so rather than edit a
+capture to match what one expects, and the argument the transcripts carry still
+holds for a reason that can be stated exactly: **lifeline touches nothing on the
+path those numbers come from.** It runs before `embassy_rp::init` and inside its
+own task; `CredRandom`, the HMAC, the salt tunnel and the press are untouched.
+
+What was re-measured on the new binary, with nobody pressing anything: the
+extension is still announced (`extension strings: hmac-secret`), and
+`forge.py` still mints an assertion from the `constant` image and still finds
+nothing in the `bank8` one. Whoever next walks this experiment replaces the
+seven-press block with what their own board prints.
+
 ## What this does not establish
 
 - **Uniqueness.** [exp181](../exp181-a-key-that-is-written-nowhere/) could not
