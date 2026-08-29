@@ -1,0 +1,14 @@
+{
+  "device": "/dev/hidraw4",
+  "rp_id": "example.test",
+  "salt_one": "GBhTPDEbbTBOgrXnMPCYW4upi+GgbMAlGuxxihzFFvU=",
+  "salt_two": "CNYnxbT/xMNOHhrA72L9RWnc/ZJ6+HbkSfaXPmPB9qA=",
+  "key_source": "key source: constant",
+  "cred_a_made": true,
+  "cred_b_made": true,
+  "ga_salt1": "z42AQ3fmIGLzJHg2uC3lEiGEsH7g3uTc/MK5foNJsGM=",
+  "ga_salt1_again": "z42AQ3fmIGLzJHg2uC3lEiGEsH7g3uTc/MK5foNJsGM=",
+  "ga_salt2": "abZqaVbZnVOBNhXFzF6s3kw+N1qWx69TkOvO9t2l0xw=",
+  "ga_credB_salt1": "UBOv5BrmkcaavSIkBQL7VnRMXVJzB1nVbeSYtmT0ewc=",
+  "ga_plain_ok": true
+}

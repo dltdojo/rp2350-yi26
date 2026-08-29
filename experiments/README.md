@@ -95,7 +95,8 @@ Per experiment:
 | exp186 | Any RP2350 board. `cdc+hid`, and host Python tools. Full CTAP 2.1 PIN State Machine: setPIN (0x03), changePIN (0x04), getPinToken (0x05), 8-retry limit with lockout (0x34), pinUvAuthToken, and FLAG_UV (0x04) in makeCredential/getAssertion. |
 | exp187 | Any RP2350 board. `cdc+hid`, and host Python tools. CTAP 2.1 Authenticator Reset (0x07 with 10s power-on interlock and master salt rotation) and on-device gesture UV (triple-tap). |
 | exp188 | Any RP2350 board. `cdc+hid`, and host Python tools. Full Passkeys support: CTAP 2.1 Discoverable Credentials (`rk: true`), username-less 1-Click login (empty allowList assertion), and credential management (`credMgmt` 0x0A: metadata, enumerate, delete). |
-| exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. |
+| exp189 | Any RP2350 board. `cdc+hid`, and `libfido2`'s own `fido2-cred` and `fido2-assert` on the host — the client is somebody else's on purpose. Split by what it costs a person: `./roundtrip.sh` needs **seven presses of BOOTSEL** and `./nopress.sh` needs **nobody**, which is the whole point of it being a second script. The `bank8` arm is declared and not built. The control needs **the network once** for `./setup.sh`, which pins `age` and `age-plugin-fido2-hmac` by SHA-256 the way exp177 pins pico-fido. |
+| exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
 | exp180 | Any RP2350 board, and the same hand on the same cable: the temperature half needs the board to start cool, which only unplugging it arranges. `cdc`, one log, no browser. **RP2350 only** — the FC0 source numbers, `FREQ_RANGE` and the temperature sensor's constants are all this chip's, and the RP2040 numbers the counter's sources differently. |
@@ -690,6 +691,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp186 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp187 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 | exp188 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
+| exp189 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own` |
 
 ### Reading the columns
 
@@ -857,6 +859,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp186-the-number-behind-the-finger](./exp186-the-number-behind-the-finger/) | 2 · a moment | Implements the complete CTAP 2.1 PIN state machine: `setPIN` (0x03), `changePIN` (0x04), `getPinToken` (0x05) with 8 retries limit and lockout (`0x34`), `pinUvAuthToken` encryption and issuance, and `FLAG_UV` (`0x04`) authentication in `makeCredential`/`getAssertion` |
 | [exp187-the-three-taps-and-the-reset](./exp187-the-three-taps-and-the-reset/) | 2 · a moment | CTAP 2.1 Authenticator Reset (`authenticatorReset` 0x07) enforcing the 10-second power-on security interlock (`CTAP2_ERR_NOT_ALLOWED` 0x30 if expired), credential salt rotation, and on-device built-in physical gesture User Verification (triple-tap cadence with `getPinUvAuthTokenUsingUv` 0x06) |
 | [exp188-the-passkey-in-the-pocket](./exp188-the-passkey-in-the-pocket/) | 2 · a moment | Modern Passkeys & CTAP 2.1 Credential Management: on-device resident credential storage for 16 discoverable credentials (`rk: true`), username-less 1-Click assertion returning UserEntity (`getAssertion` with empty `allowList`), and `authenticatorCredentialManagement` (`credMgmt` 0x0A: `getCredsMetadata`, `enumerateRPsBegin`, `enumerateCredentialsBegin`, `deleteCredential`) |
+| [exp189-the-same-salt-twice](./exp189-the-same-salt-twice/) | 2 · a moment | **The same salt, twice, gave the same thirty-two bytes bit for bit** — `hmac-secret`, and the first rung on this road whose product is a key rather than evidence, so every case is a comparison. Found three numbering mistakes nothing had ever exercised, including a canonical-CBOR reader that refused every COSE key a real client sends; and **the LED is the only interface, so the case that must not be pressed had to stop lighting it** |
 
 ## The browser track, finished
 
@@ -2420,11 +2423,79 @@ None of these is interrogated yet — a direction, not a schedule.
   firmware's log both reach nobody. The LED now has three states, which
   `AGENTS.md` had asked for before any of this started.
 
+  **Its arithmetic now lives in [`crates/fuzzy-commitment`](../crates/fuzzy-commitment/)**,
+  lifted out on 2026-08-29 so [exp189](./exp189-the-same-salt-twice/) could have
+  it without a copy — and verified in the strongest form available: the moved
+  code reconstructed **the key the unmoved code enrolled six days earlier**,
+  from a record in flash that was never rewritten. 486 of 7,936 cells changed,
+  against exp181's 494. Eight of the crate's tests run on a host with no board,
+  including the one that says fifteen flips of thirty-one still vote right and
+  sixteen do not, and the one that shows a zeroed window makes the helper data
+  *become* the key. What stayed in the experiment is the half that is hardware.
+
   Not closed by it: uniqueness, which exp181 could not show either, and which
   for an authenticator is the sharpest version of the caveat — a PUF that is
   stable but not unique is a device reliably reconstructing somebody else's
   identity. Nor attestation: the AAGUID is still sixteen zero bytes, which is
   exp176's one difference that is not code.
+
+- **the same salt twice** — `hmac-secret`, and the first rung on this road whose
+  product is not evidence. [exp189](./exp189-the-same-salt-twice/) is **verified
+  on hardware**: the same salt, twice, minutes apart, gave **the same thirty-two
+  bytes bit for bit**; a different salt moved 125 of 256 bits and a different
+  credential 110; and with the board left alone for four attempts no key came
+  out.
+
+  **A signature is something a third party verifies; a key is not**, so nothing
+  can check that thirty-two bytes are the right thirty-two bytes and every case
+  is a comparison rather than a validation. `CredRandom` is recomputed from the
+  credential ID rather than stored, which is exp172's rule in a new place — and
+  **both** of the specification's CredRandoms exist, because one used for both
+  would hand back a key that silently changed with how the caller authenticated.
+
+  **Three numbering mistakes, none of which any client had ever exercised.**
+  `makeCredential`'s `0x06` is `extensions` and was read as `pinUvAuthParam`, so
+  every request carrying any extension was refused; `getAssertion`'s `0x07` is
+  `pinUvAuthProtocol` and was read the same way; and
+  [`crates/cbor`](../crates/cbor/)'s `skip` refused any map key that was not a
+  uint or text — **a COSE key is `{1, 3, -1, -2, -3}`**, it is skipped rather
+  than read, and the `-1` made a correct request from a correct client
+  `CTAP2_ERR_INVALID_CBOR`. That last one is
+  [exp170](./exp170-a-map-somebody-else-wrote/)'s own written-down open question
+  — *whether a real client sends something this strict reader rejects is
+  untested* — answered, and it now has three tests.
+
+  **And the LED is the only interface, which turned out to be a design rule.**
+  A person at the board cannot see a script's prompts; a solid LED is the whole
+  channel. The case that must not be pressed ran the same firmware path and lit
+  the same light, so the one press that must never happen was being requested by
+  the only signal available — and a key came out twice. It is now its own
+  script, `./nopress.sh`, which needs nobody; `./roundtrip.sh` has exactly seven
+  solid LEDs and every one means press. **An instruction that says *do not
+  press* is an instruction that should not have been needed.** Eighteen attempts
+  with nobody in the room refused every one, at both poll intervals.
+
+  **The second arm is built, and its finding needed no board**: `forge.py`
+  mints an assertion from the `constant` image and **finds nothing** in the
+  `bank8` one, whose bytes do not contain exp171's test key at all. Getting
+  there cost two silent deaths, both the same failure — **a firmware that dies
+  before its USB stack is serving is a board that has left the bus**. An
+  interface nobody services took the whole device down; and thirty-two zero
+  bytes is not a valid P-256 scalar, so the key-agreement key's `.unwrap()`
+  panicked on every boot before the arm's first cable pull. `check.sh` now reads
+  both images for the test key and fails if `panic-halt` or that `.unwrap()`
+  comes back. What has not run is the arm **on silicon** —
+  [`./bank8.sh`](./exp189-the-same-salt-twice/bank8.sh) is that one command, and
+  it waits for the cable pull rather than asking for it.
+
+  It also carries the **ready-made control**: `age` v1.3.1 with
+  `age-plugin-fido2-hmac` v0.5.0, pinned by SHA-256 under exp177's rule, because
+  this repository hand-rolled FAT12, SCSI, Bulk-Only Transport and DHCP and
+  exp178 priced OpenSK before anybody argued about using it. **Hand-rolling
+  after measuring the alternative is a decision; hand-rolling instead of
+  measuring it is a reflex**, and exp190 is the thing being decided. A refusal
+  is its finding rather than its failure: this build has no PIN and no resident
+  credentials by choice.
 
 - **the strict client** — Android, and the finding above reproduced rather than
   quoted. This is the one that needs a phone and the browser track's whole

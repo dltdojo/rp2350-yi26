@@ -1,0 +1,8 @@
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[target.thumbv8m.main-none-eabihf]
+runner = "elf2flash --run --flash-burn-ms 500"
+rustflags = [
+    "-C", "link-arg=-Tlink.x",
+]
