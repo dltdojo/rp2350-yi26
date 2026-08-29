@@ -103,6 +103,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "breadcrumb"
+version = "0.1.0"
+dependencies = [
+ "embassy-rp",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -682,6 +689,7 @@ name = "exp183-the-contract-and-the-lock"
 version = "0.1.0"
 dependencies = [
  "bootsel",
+ "breadcrumb",
  "cbor",
  "cortex-m",
  "cortex-m-rt",
@@ -692,7 +700,6 @@ dependencies = [
  "embassy-usb",
  "hmac",
  "p256",
- "panic-halt",
  "rp2350-linker",
  "sha2",
  "static_cell",
@@ -1052,12 +1059,6 @@ dependencies = [
  "primeorder",
  "sha2",
 ]
-
-[[package]]
-name = "panic-halt"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de96540e0ebde571dc55c73d60ef407c653844e6f9a1e2fdbd40c07b9252d812"
 
 [[package]]
 name = "parking_lot"

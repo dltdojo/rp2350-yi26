@@ -98,6 +98,43 @@ else
     pass "transcript record present"
 fi
 
+# Every StaticCell is claimed once, and the check reads the source for it.
+#
+# `CBOR_BUF.init(...)` sat on the per-request path in `handle_cbor`, and
+# `StaticCell::init` panics the second time it is called — so this firmware
+# answered exactly one CBOR command per boot and the second one took the
+# executor down. `CHANNEL` and `IN_PACKET` were always claimed in
+# `run_fido_authenticator`, which is where a StaticCell belongs. This reads
+# which function each `.init(` lives in rather than merely counting them.
+BAD_INIT="$(awk '
+    /^(async )?fn [a-z_]+/ { match($0, /fn [a-z_]+/); f = substr($0, RSTART+3, RLENGTH-3) }
+    /^[[:space:]]*(\/\/|\*)/ { next }   # prose about a .init( is not a .init(
+    /\.init\(/ && f != "run_fido_authenticator" && f != "main" { print f ":" FNR }
+' src/main.rs)"
+if [[ -z "$BAD_INIT" ]]; then
+    pass "every StaticCell is claimed once, in run_fido_authenticator"
+else
+    fail "every StaticCell is claimed once" \
+         "a .init( on a per-request path panics the second time: $BAD_INIT"
+fi
+
+# What CTAPHID_INIT tells a client that reads the byte.
+#
+# This firmware shipped `resp[16] = 0x08` under a comment saying CBOR — which
+# is exp168's deliberate "I have no CBOR" — so `fido2-token -I` stopped at it
+# and no libfido2 client ever sent this board a CBOR message. The board's own
+# CBOR was fine the whole time. A named constant and this check are what stop
+# the two from disagreeing again.
+if grep -qE '^const CAPABILITIES: u8 = 0x04 \| 0x08;' src/main.rs; then
+    pass "CTAPHID_INIT claims CAPABILITY_CBOR (0x04 | 0x08), like exp169 through exp188"
+else
+    fail "CTAPHID_INIT claims CAPABILITY_CBOR" \
+         "0x08 alone is exp168's 'this device has no CBOR', and libfido2 believes it"
+fi
+grep -q 'resp\[16\] = CAPABILITIES;' src/main.rs \
+    && pass "the INIT response uses the constant rather than a literal" \
+    || fail "the INIT response uses the constant" "a literal there is how the comment and the value drifted apart"
+
 if exp_running 183; then
     pass "a board is running exp183"
 else

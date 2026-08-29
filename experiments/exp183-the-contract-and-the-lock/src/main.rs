@@ -20,7 +20,28 @@ use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender,
 use embassy_usb::class::hid::{Config as HidConfig, HidReaderWriter, State as HidState};
 use embassy_usb::driver::Driver;
 use embassy_usb::{Builder, Config as UsbConfig, UsbDevice};
-use panic_halt as _;
+/// A panic that says so before it stops.
+///
+/// This firmware used `panic-halt`, which halts in silence — so a board that
+/// had died and a board that was merely quiet looked identical, and telling
+/// them apart cost a walk to the bench each time. AGENTS.md asks for exactly
+/// this before anything that can hang: make *dark* and *died* different
+/// signals.
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    if let Some(loc) = info.location() {
+        log!("PANIC at {}:{}", loc.file(), loc.line());
+    } else {
+        log!("PANIC, location unknown");
+    }
+    // The log is a ring drained by a task that will never run again, so give
+    // the bytes that are already queued whatever chance the USB stack has.
+    let mut spin = 0u32;
+    loop {
+        spin = spin.wrapping_add(1);
+        cortex_m::asm::nop();
+    }
+}
 use rp2350_linker as _;
 use static_cell::StaticCell;
 
@@ -78,6 +99,18 @@ const CTAPHID_CBOR: u8 = 0x10;
 const CTAPHID_CANCEL: u8 = 0x11;
 const CTAPHID_KEEPALIVE: u8 = 0x3B;
 const CTAPHID_ERROR: u8 = 0x3F;
+
+/// What CTAPHID_INIT tells every host this device can do.
+///
+/// `CAPABILITY_CBOR | CAPABILITY_NMSG`, the same value exp169 through exp188
+/// send. It is a named constant rather than a literal in the INIT response
+/// because this firmware once wrote `resp[16] = 0x08` there — which is
+/// `CAPABILITY_NMSG` alone, exp168's deliberate "this device has no CBOR" —
+/// under a comment that said CBOR. The board answered `authenticatorGetInfo`
+/// perfectly the whole time; `fido2-token -I` stopped at the byte and never
+/// asked, because libfido2 consults it and this repository's own client does
+/// not. exp173's finding, met a second time.
+const CAPABILITIES: u8 = 0x04 | 0x08;
 
 const STATUS_UPNEEDED: u8 = 0x02;
 const KEEPALIVE_INTERVAL: Duration = Duration::from_millis(100);
@@ -184,6 +217,12 @@ async fn send_hid<'a, D: Driver<'a>>(
     class.write(packet).await.is_ok()
 }
 
+/// Every response leaves through here, and every one says so.
+///
+/// This firmware had **one** `log!` call in it — the backend name, at boot —
+/// and when it stopped answering there was no line to read, no LED pattern to
+/// count, and the next step was somebody walking to a bench. The authenticator
+/// road's own text says the log is not optional.
 async fn send_response<'a, D: Driver<'a>>(
     class: &mut HidReaderWriter<'a, D, 64, 64>,
     cid: u32,
@@ -197,9 +236,21 @@ async fn send_response<'a, D: Driver<'a>>(
 
     let first = data.len().min(INIT_PAYLOAD);
     pkt[INIT_HEADER..INIT_HEADER + first].copy_from_slice(&data[..first]);
+    // Before and after, on purpose. `class.write().await` has no deadline: a
+    // host that has stopped reading the IN endpoint strands it forever, and
+    // because it holds `&mut class` the read loop can never run again — the OUT
+    // endpoint stops being drained and the next write from the host fails with
+    // ETIMEDOUT. That is exactly what a wedged board looked like from outside.
+    // A line on each side is what tells "it never tried" from "it tried and the
+    // write never returned".
+    breadcrumb::step(STEP_SENDING);
+    log!("out cid {:08x} cmd {:02x} {}B, first packet ...", cid, cmd, data.len());
     if !send_hid(class, &pkt).await {
+        log!("out cid {:08x} first packet FAILED", cid);
         return false;
     }
+    breadcrumb::step(STEP_SENT);
+    log!("out cid {:08x} first packet away", cid);
 
     let mut sent = first;
     let mut seq = 0u8;
@@ -211,6 +262,7 @@ async fn send_response<'a, D: Driver<'a>>(
         let chunk = (data.len() - sent).min(CONT_PAYLOAD);
         pkt[CONT_HEADER..CONT_HEADER + chunk].copy_from_slice(&data[sent..sent + chunk]);
         if !send_hid(class, &pkt).await {
+            log!("out cid {:08x} continuation {} FAILED", cid, seq);
             return false;
         }
         sent += chunk;
@@ -290,10 +342,24 @@ fn encode_get_info(buf: &mut [u8]) -> usize {
     w
 }
 
+/// Handle one CTAP2 request.
+///
+/// **`out` is borrowed, not claimed.** It used to be `CBOR_BUF.init(...)` right
+/// here, on the per-request path — and `StaticCell::init` panics the second time
+/// it is called. So this firmware could answer exactly **one** CBOR command per
+/// boot, and the second one killed the executor within a millisecond.
+///
+/// Nothing found it for the length of this experiment's life, because the
+/// `CTAPHID_INIT` capability byte said `nocbor`: no `libfido2` client ever sent
+/// a first CBOR command, so none ever sent a second. This repository's own probe
+/// sends one per run. Correcting one byte is what let a real client through, and
+/// the crash was waiting behind it. `CHANNEL` and `IN_PACKET` are claimed once
+/// in `run_fido_authenticator`, which is where a `StaticCell` belongs.
 async fn handle_cbor<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
     class: &mut HidReaderWriter<'a, D, 64, 64>,
     cid: u32,
     req: &[u8],
+    out: &mut [u8; MAX_MESSAGE],
     backend: &mut K,
     persist: &mut P,
 ) -> bool {
@@ -302,11 +368,12 @@ async fn handle_cbor<'a, D: Driver<'a>, K: KeyBackend, P: PersistStore>(
     }
 
     let cmd = req[0];
-    let out = CBOR_BUF.init([0u8; MAX_MESSAGE]);
 
     match cmd {
         CMD_AUTHENTICATOR_GET_INFO => {
+            breadcrumb::step(STEP_INTO_CBOR);
             let len = encode_get_info(out);
+            breadcrumb::step(STEP_ENCODED);
             send_response(class, cid, CTAPHID_CBOR, &out[..len]).await
         }
         CMD_AUTHENTICATOR_MAKE_CREDENTIAL => {
@@ -555,10 +622,14 @@ async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStor
 ) {
     let chan = CHANNEL.init(ChannelState::new());
     let in_buf = IN_PACKET.init([0u8; PACKET]);
+    // Claimed once, here, beside the other two. See handle_cbor for what it
+    // cost to claim it per request instead.
+    let cbor_buf = CBOR_BUF.init([0u8; MAX_MESSAGE]);
 
     log!("exp183: active contract backend: {}", backend.name());
 
     loop {
+        breadcrumb::step(STEP_WAITING);
         if class.read(in_buf).await.is_err() {
             continue;
         }
@@ -569,6 +640,13 @@ async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStor
         if is_init {
             let cmd = in_buf[4] & 0x7F;
             let bcnt = ((in_buf[5] as usize) << 8) | (in_buf[6] as usize);
+            // Initialisation packets only. exp168 measured what a paced line
+            // per packet costs: a 1024-byte PING took 1.08 s against its own
+            // 750 ms deadline and a legal message failed because the
+            // instrument was slower than the subject.
+            breadcrumb::step(STEP_PARSED_INIT);
+            log!("in  cid {:08x} cmd {:02x} bcnt {}", cid, cmd, bcnt);
+            breadcrumb::step(STEP_LOGGED_IN);
 
             if cmd == CTAPHID_CANCEL {
                 if chan.state == StateKind::Accumulating && chan.cid == cid {
@@ -593,7 +671,7 @@ async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStor
                 resp[13] = 1; // Major version
                 resp[14] = 0; // Minor version
                 resp[15] = 0; // Build version
-                resp[16] = 0x08; // Capabilities: CBOR
+                resp[16] = CAPABILITIES;
 
                 chan.cid = allocated;
                 chan.reset();
@@ -631,7 +709,8 @@ async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStor
                         send_response(class, cid, CTAPHID_PING, payload).await;
                     }
                     CTAPHID_CBOR => {
-                        handle_cbor(class, cid, payload, &mut backend, &mut persist).await;
+                        handle_cbor(class, cid, payload, cbor_buf, &mut backend, &mut persist).await;
+                        breadcrumb::step(STEP_HANDLED);
                     }
                     _ => {
                         send_error(class, cid, ERR_INVALID_CMD).await;
@@ -668,7 +747,8 @@ async fn run_fido_authenticator<'a, D: Driver<'a>, K: KeyBackend, P: PersistStor
                         send_response(class, cid, CTAPHID_PING, payload).await;
                     }
                     CTAPHID_CBOR => {
-                        handle_cbor(class, cid, payload, &mut backend, &mut persist).await;
+                        handle_cbor(class, cid, payload, cbor_buf, &mut backend, &mut persist).await;
+                        breadcrumb::step(STEP_HANDLED);
                     }
                     _ => {
                         send_error(class, cid, ERR_INVALID_CMD).await;
@@ -706,8 +786,54 @@ async fn cdc_task(
     }
 }
 
+/// Two seconds apart, and its only job is to be missing.
+///
+/// exp183 logged one line in its life — the backend name at boot — so when it
+/// stopped answering there was nothing to read and no way to tell a wedged
+/// executor from an idle one. A heartbeat makes silence mean something, and
+/// feeding the watchdog makes that silence do something.
+///
+///
+/// Armed, so a firmware that dies **resets itself** and comes back able to say
+/// what happened — which is the difference between one more walk to the bench
+/// and none. exp156 spent seven flash cycles inside that constraint;
+/// [`crates/breadcrumb`](../../crates/breadcrumb/) exists to remove it.
+#[embassy_executor::task]
+async fn heartbeat() {
+    let mut n = 0u32;
+    loop {
+        Timer::after(Duration::from_secs(2)).await;
+        n += 1;
+        breadcrumb::feed(WATCHDOG_US);
+        log!("alive {}", n);
+    }
+}
+
+/// Three seconds: comfortably longer than anything this firmware does on
+/// purpose, and short enough that a death costs one reset rather than a trip.
+const WATCHDOG_US: u32 = 3_000_000;
+
+/// Where the CTAPHID loop was when it stopped. The numbers are the whole point:
+/// a note that survives says *which* of these did not come back.
+const STEP_WAITING: u8 = 1;
+const STEP_PARSED_INIT: u8 = 2;
+/// Set immediately after the `log!` for the incoming packet returns. If a note
+/// says step 2 and never 3, the hang is inside logging itself — which is worth
+/// separating, because the log is the instrument.
+const STEP_LOGGED_IN: u8 = 3;
+const STEP_INTO_CBOR: u8 = 4;
+const STEP_ENCODED: u8 = 5;
+const STEP_SENDING: u8 = 6;
+const STEP_SENT: u8 = 7;
+/// Back from handle_cbor, about to go round again.
+const STEP_HANDLED: u8 = 8;
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
+    // First, before embassy_rp::init and before any peripheral: anything that
+    // resets a peripheral before this runs destroys the only record of why the
+    // last boot ended.
+    let note = breadcrumb::read();
     let p = embassy_rp::init(Default::default());
 
     let driver = RpDriver::new(p.USB, Irqs);
@@ -753,6 +879,11 @@ async fn main(spawner: Spawner) {
     let (sender, receiver, control) = class.split_with_control();
     spawner.spawn(log_task(sender).unwrap());
     spawner.spawn(cdc_task(control, receiver).unwrap());
+    spawner.spawn(heartbeat().unwrap());
+
+    // What the last boot left behind, before anything else is said.
+    log!("boot {}, last ended: {:?} at step {}", note.boot, note.cause, note.step);
+    breadcrumb::arm(WATCHDOG_US);
 
     static PERSIST: StaticCell<MemoryPersistStore> = StaticCell::new();
     let persist = PERSIST.init(MemoryPersistStore::new(1));

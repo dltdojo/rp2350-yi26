@@ -24,6 +24,90 @@ The twelfth on the [authenticator road](../README.md#the-authenticator-road).
 > mode, while `image_seal.py` and `bootrom_verify.py` generate and emulate
 > RP2350 Block 0 Bootrom signature and AES-XIP decryption checks.
 
+
+## One byte, and the crash it was hiding
+
+> **Added and verified on hardware, 2026-08-29.** The trait contract, the four
+> backends and the Secure Boot inspection are untouched. What is corrected is
+> the half of this experiment that is a FIDO2 authenticator **as anybody else's
+> client sees it** — which turned out never to have been driven by one.
+
+`CTAPHID_INIT` answered `0x08` under a comment that said `CBOR`. `0x08` is
+`CAPABILITY_NMSG`; the CBOR bit is `0x04`. Every other rung on this road from
+[exp169](../exp169-what-it-says-it-can-do/) to
+[exp188](../exp188-the-passkey-in-the-pocket/) sends `0x04 | 0x08`, and the one
+experiment that sends `0x08` alone is
+[exp168](../exp168-a-security-key-that-knows-nothing/) — **on purpose**, because
+it has no CBOR at all. This firmware landed on the "I know nothing" value while
+implementing a full authenticator.
+
+Its own CBOR was never the problem. Asked by this repository's own client the
+board answered `CTAP2_OK` and `versions: ["FIDO_2_0"]`; asked by `libfido2` it
+printed `caps: 0x08 (nowink, nocbor, nomsg)` and stopped there. One client reads
+the byte and the other does not.
+
+### What the byte was hiding
+
+Correcting it did not make the board work. It made the board **die**, inside a
+second, every time — and finding out why is the point of this section.
+
+```rust
+async fn handle_cbor(...) {
+    let cmd = req[0];
+    let out = CBOR_BUF.init([0u8; MAX_MESSAGE]);   // once per request
+```
+
+**`StaticCell::init` panics the second time it is called.** `CHANNEL` and
+`IN_PACKET` are claimed once in `run_fido_authenticator`, which is where a
+`StaticCell` belongs; this one was claimed on the per-request path. So this
+firmware could answer **exactly one CBOR command per boot**, and the second one
+took the executor down with it.
+
+`fido2-token -I` sends two: `authenticatorGetInfo`, then `clientPIN` for the PIN
+retry count. This repository's own probe sends one per run. **Nothing here could
+have found it**, and the capability byte is why: no `libfido2` client ever sent
+this board a first CBOR command, so none ever sent a second. That is
+[exp173](../exp173-a-client-that-is-not-ours/)'s subject arriving on the one rung
+that had never been driven by somebody else's tools.
+
+### Three trips to the bench, and what stopped the fourth
+
+The board came back dead three times and each time needed a hand on BOOTSEL,
+because this firmware had **one** `log!` call in it — the backend name, at boot —
+and `panic-halt`, which stops the world in silence. *Dark* and *died* were the
+same signal, which is the exact failure `AGENTS.md` asks every firmware to
+design against before it needs to.
+
+What made the fourth trip unnecessary was this repository's own toolbox, and the
+sequence is worth reading as a method rather than a fix:
+
+| added | what it ruled out |
+|---|---|
+| a heartbeat, two seconds apart | it stopped dead with the response, so the board was not merely idle |
+| a `#[panic_handler]` that logs | replaced `panic-halt`; the line never escaped, because the log is a ring drained by a task that was no longer running |
+| packet logging on both sides of every write | the getInfo response **left** — so it was not stranded in `class.write().await` |
+| [`crates/breadcrumb`](../../crates/breadcrumb/)'s armed watchdog | `Hang at step 3`: past the incoming `log!`, before `handle_cbor`. And the board now **resets itself**, so every iteration after this one was free |
+
+The note said `Hang` rather than `Fault` because the panic handler spins without
+feeding the watchdog — so a panic and a hang look alike here, and the step number
+is what separated them. One caveat for anybody reading a note from this
+firmware: **reflashing also reads as `Hang at step 1`**, because the flash
+interrupts the loop where it waits.
+
+### Verified
+
+```console
+$ time fido2-token -I /dev/hidraw4
+caps: 0x0c (nowink, cbor, nomsg)
+version strings: FIDO_2_0
+real    0m0.107s
+```
+
+Five consecutive runs, all answered; the board stayed up; `./check.sh` passes
+its twenty-two checks. `CAPABILITIES` is a named constant now and `check.sh`
+fails if it or the `resp[16]` that uses it ever drifts apart again.
+
+
 ---
 
 ## Part 1: The Contract — Lightweight, Zero-Heap Hardware Abstraction
