@@ -59,9 +59,9 @@ forward by copying, and paid for again.
 
 ## The size of it, counted
 
-`./duplication.sh` groups every top-level function in `experiments/*/src/*.rs`
-by name and reports how many experiments define it and how many textually
-distinct versions exist between them.
+`./duplication.sh` groups every top-level function by name — in `*/src/*.rs`,
+`*/*.py` and `*/*.sh` — and reports how many experiments define it and how many
+textually distinct versions exist between them.
 
 | function | in experiments | distinct versions | avg lines |
 | --- | --- | --- | --- |
@@ -76,6 +76,22 @@ distinct versions exist between them.
 some other experiment also defines.** Forty-one per cent.
 
 *(As of exp189's port, 21,526. The first time this number has gone down.)*
+
+And the firmware was never the whole of it. The detector read only Rust until
+exp194 went looking for a CTAP-HID client and found seven copies of one that
+nothing here could see. Counting the host side too:
+
+| | duplicated functions | lines in copies |
+| --- | --- | --- |
+| `rs` — firmware | 64 | 22,386 |
+| `py` — drivers and verifiers | 30 | **5,950** |
+| `sh` — run, drop, check | 2 | 67 |
+
+The shell number is small because shell functions are short, not because they
+are not copied: `sh:flash` is in five experiments in three versions, and this
+session put it in two of them. The threshold had to come down from 12 lines to
+8 before any of it was visible at all — a number tuned to Rust hid the whole of
+the shell side.
 
 `ctaphid_task` is the shape of the problem drawn out. Sorted by experiment
 number, its length is:
@@ -305,5 +321,11 @@ and need a finger on BOOTSEL to redo.
   other twelve `ctaphid_task`s are untouched, and at this rate the backlog
   outlives the ratchet by a wide margin: the ratchet's job is that it stops
   growing, not that it shrinks.
-- **`duplication.sh` only reads Rust.** exp194 found seven copies of a host-side
-  client it cannot see. Every `.py` and `.sh` in `experiments/` is unmeasured.
+- **The Python backlog has no plan.** 5,950 lines in 30 duplicated functions are
+  now visible and nothing has been extracted from them; `tools/ctaphid/` is the
+  only host-side thing that has moved. The ratchet stops it growing.
+- **The detector counts names, not similarity.** Two functions sharing a name and
+  nothing else are counted as copies, and two identical bodies under different
+  names are not counted at all. exp194 met the first: a 17-line dispatch loop
+  failed the check for sharing a name with a 959-line transport, and the honest
+  fix was to rename the thing that had stopped being a transport.

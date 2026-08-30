@@ -108,17 +108,20 @@ The test is one question, and it has a checkable form:
 This is not a style preference, it is what copying has already cost: exp174
 shipped with exp173's USB serial because the string came across with the source;
 exp160 lost the end of its report to a full log queue and exp162 lost it again
-the same way. Today **22,629 of the 55,110 lines of firmware source here live
-inside a function that some other experiment also defines** — `ctaphid_task`
-exists in fourteen experiments as thirteen different functions, the longest 959
-lines.
+the same way. Today **21,526 lines of firmware source here live inside a function that some
+other experiment also defines**, and another **5,950 lines of Python** — the
+drivers and verifiers were invisible to the check until exp194 found seven
+copies of one CTAP-HID client.
 
 So there is a ratchet, and `docs-check.sh` runs it:
 
 ```sh
-./duplication.sh            # what is duplicated, worst first
+./duplication.sh            # what is duplicated, worst first — rs, py and sh
 ./duplication.sh --check    # fails if anything gained a copy
 ```
+
+Rust goes to [`crates/`](./crates/); Python and shell go to
+[`tools/`](./tools/).
 
 Existing copies are grandfathered in `duplication-baseline.txt`. The baseline
 may only shrink. **The second copy is the moment to extract, not the fifth.**
