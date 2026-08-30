@@ -49,10 +49,58 @@ is no CBOR: this device knows nothing.
 
 import hashlib
 import json
-import os
 import struct
 import sys
+from pathlib import Path
 import time
+
+# **The transport and the WebAuthn layer both live in `tools/ctaphid/`.**
+#
+# exp168 wrote the first of these clients and six experiments after it each
+# derived their own: seven copies between 238 and 689 lines. Comparing them
+# found exactly one substantive difference in the transport, and it was a *fix*
+# that had never propagated — exp174's `Link.drain()`, which throws away
+# keepalive packets a previous run left in the kernel's buffer. Six did not have
+# it.
+#
+# The CBOR and WebAuthn half had no divergence at all: every one of those
+# functions was byte-identical in every experiment that had it. Moving that half
+# is the one extraction here that cannot change behaviour.
+#
+# What stays below is this experiment's own cases.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools" / "ctaphid"))
+
+from ctaphid import (  # noqa: E402
+    BROADCAST,
+    CONT_HEADER,
+    CTAPHID_CBOR,
+    CTAPHID_ERROR,
+    CTAPHID_INIT,
+    CTAPHID_MSG,
+    CTAPHID_PING,
+    ERRORS,
+    INIT_HEADER,
+    INIT_PAYLOAD,
+    PACKET,
+    Link,
+)
+
+from webauthn import (  # noqa: E402
+    cbor_array,
+    cbor_bytes,
+    cbor_decode,
+    cbor_map,
+    cbor_nint,
+    cbor_text,
+    cbor_uint,
+    check_assertion,
+    check_credential,
+    get_assertion_request,
+    head,
+    make_credential_request,
+    register,
+)
+
 
 PACKET = 64
 INIT_HEADER, CONT_HEADER = 7, 5
@@ -82,370 +130,11 @@ ERRORS = {
 # there is not one here.
 # --------------------------------------------------------------------------
 
-def head(mt, arg, force_width=None):
-    """A major type and an argument. `force_width` writes it wider than it
-    needs to be, which is legal CBOR and is not canonical CBOR — the thing a
-    permissive parser accepts and this device must not."""
-    w = force_width
-    if w is None:
-        w = 0 if arg < 24 else 1 if arg < 0x100 else 2 if arg < 0x10000 else 4
-    if w == 0:
-        return bytes([(mt << 5) | arg])
-    ai = {1: 24, 2: 25, 4: 26, 8: 27}[w]
-    return bytes([(mt << 5) | ai]) + arg.to_bytes(w, "big")
-
-
-def cbor_uint(v, w=None):
-    return head(0, v, w)
-
-
-def cbor_nint(v):
-    return head(1, -1 - v)
-
-
-def cbor_bytes(b, claim=None):
-    """`claim` writes a length other than the real one — the hostile case."""
-    return head(2, len(b) if claim is None else claim) + b
-
-
-def cbor_text(s):
-    b = s.encode()
-    return head(3, len(b)) + b
-
-
-def cbor_array(items):
-    return head(4, len(items)) + b"".join(items)
-
-
-def cbor_map(pairs):
-    return head(5, len(pairs)) + b"".join(k + v for k, v in pairs)
-
-
-def make_credential_request(**kw):
-    """A well-formed authenticatorMakeCredential, and the knobs each case turns.
-
-    The defaults are what a browser sends: a 32-byte client data hash, a
-    relying party, a user, and ES256 first in the list of algorithms.
-    """
-    cdh = kw.get("cdh", bytes(range(32)))
-    rp_id = kw.get("rp_id", "example.test")
-    user_id = kw.get("user_id", b"\x01\x02\x03\x04")
-    algs = kw.get("algs", [-7])
-    pairs = []
-    if not kw.get("drop_cdh"):
-        pairs.append((cbor_uint(1), cbor_bytes(cdh, claim=kw.get("claim_cdh"))))
-    pairs.append((cbor_uint(2), cbor_map([(cbor_text("id"), cbor_text(rp_id)),
-                                          (cbor_text("name"), cbor_text("Example"))])))
-    pairs.append((cbor_uint(3), cbor_map([(cbor_text("id"), cbor_bytes(user_id)),
-                                          (cbor_text("name"), cbor_text("nobody"))])))
-    if not kw.get("drop_params"):
-        entries = [cbor_map([(cbor_text("alg"), cbor_nint(a) if a < 0 else cbor_uint(a)),
-                             (cbor_text("type"), cbor_text("public-key"))]) for a in algs]
-        pairs.append((cbor_uint(4), cbor_array(entries)))
-    body = cbor_map(pairs)
-    if kw.get("noncanonical"):
-        # Rewrite the outer map header wider than it needs to be.
-        body = head(5, len(pairs), force_width=1) + body[1:]
-    if kw.get("trailing"):
-        body += b"\x00"
-    return body
-
-
 # --------------------------------------------------------------------------
 # The relying party's half. exp159's rule: the signature is checked by a
 # different implementation from the one that made it, and a bit is flipped and
 # the check required to fail before the pass is reported.
 # --------------------------------------------------------------------------
-
-def cbor_decode(b, at=0):
-    """Just enough to read a makeCredential response, and strict about it."""
-    ib = b[at]
-    mt, ai = ib >> 5, ib & 0x1F
-    at += 1
-    if ai < 24:
-        arg = ai
-    elif ai == 24:
-        arg, at = b[at], at + 1
-    elif ai == 25:
-        arg, at = int.from_bytes(b[at:at + 2], "big"), at + 2
-    elif ai == 26:
-        arg, at = int.from_bytes(b[at:at + 4], "big"), at + 4
-    else:
-        raise ValueError(f"additional information {ai}")
-    if mt == 0:
-        return arg, at
-    if mt == 1:
-        return -1 - arg, at
-    if mt == 2:
-        return bytes(b[at:at + arg]), at + arg
-    if mt == 3:
-        return b[at:at + arg].decode(), at + arg
-    if mt == 4:
-        out = []
-        for _ in range(arg):
-            v, at = cbor_decode(b, at)
-            out.append(v)
-        return out, at
-    if mt == 5:
-        out = {}
-        for _ in range(arg):
-            k, at = cbor_decode(b, at)
-            v, at = cbor_decode(b, at)
-            out[k] = v
-        return out, at
-    raise ValueError(f"major type {mt}")
-
-
-def check_credential(response, rp_id, client_data_hash):
-    """Do what a relying party does with a makeCredential response.
-
-    Every field is derived from the bytes rather than from anything the board
-    said about them.
-    """
-    from cryptography.hazmat.primitives import hashes as _h
-    from cryptography.hazmat.primitives.asymmetric import ec as _ec
-    from cryptography.exceptions import InvalidSignature
-
-    att, end = cbor_decode(response)
-    out = {"fmt": att.get(1), "trailing": len(response) - end}
-    auth = att[2]
-    stmt = att[3]
-
-    rp_hash, flags, count = auth[:32], auth[32], int.from_bytes(auth[33:37], "big")
-    out["rp_id_hash_matches"] = rp_hash == hashlib.sha256(rp_id.encode()).digest()
-    out["flags"] = flags
-    out["user_present"] = bool(flags & 0x01)
-    out["user_verified"] = bool(flags & 0x04)
-    out["attested_data"] = bool(flags & 0x40)
-    out["sign_count"] = count
-
-    out["aaguid_all_zero"] = auth[37:53] == bytes(16)
-    cred_len = int.from_bytes(auth[53:55], "big")
-    out["credential_id_len"] = cred_len
-    cose, _ = cbor_decode(auth[55 + cred_len:])
-    out["cose_kty"], out["cose_alg"], out["cose_crv"] = cose.get(1), cose.get(3), cose.get(-1)
-    x, y = cose[-2], cose[-3]
-    out["coordinate_bytes"] = [len(x), len(y)]
-
-    pub = _ec.EllipticCurvePublicNumbers(
-        int.from_bytes(x, "big"), int.from_bytes(y, "big"), _ec.SECP256R1()
-    ).public_key()
-    signed = auth + client_data_hash
-    out["att_alg"] = stmt.get("alg")
-    out["att_has_x5c"] = "x5c" in stmt
-    try:
-        pub.verify(stmt["sig"], signed, _ec.ECDSA(_h.SHA256()))
-        out["signature_valid"] = True
-    except InvalidSignature:
-        out["signature_valid"] = False
-
-    # **The control.** A signature that verifies proves nothing until the same
-    # check has been seen to fail. One bit of the authenticator data.
-    broken = bytearray(signed)
-    broken[40] ^= 0x01
-    try:
-        pub.verify(stmt["sig"], bytes(broken), _ec.ECDSA(_h.SHA256()))
-        out["tamper_rejected"] = False
-    except InvalidSignature:
-        out["tamper_rejected"] = True
-    return out
-
-
-def get_assertion_request(rp_id="example.test", cdh=None, allow=None, no_allow=False):
-    """A well-formed authenticatorGetAssertion, and the knobs each case turns."""
-    cdh = bytes(range(32, 64)) if cdh is None else cdh
-    pairs = [
-        (cbor_uint(1), cbor_text(rp_id)),
-        (cbor_uint(2), cbor_bytes(cdh)),
-    ]
-    if not no_allow:
-        entries = [
-            cbor_map([(cbor_text("id"), cbor_bytes(c)),
-                      (cbor_text("type"), cbor_text("public-key"))])
-            for c in (allow or [])
-        ]
-        pairs.append((cbor_uint(3), cbor_array(entries)))
-    return cbor_map(pairs), cdh
-
-
-def check_assertion(response, rp_id, client_data_hash, x, y, expect_cred_id):
-    """Verify an assertion against the public key from **registration**.
-
-    This is the whole round trip: the board derived a key once to register, kept
-    nothing, and derived it again to sign. If these two signatures come from
-    different keys, the second verification fails and there is nowhere to hide.
-    """
-    from cryptography.hazmat.primitives import hashes as _h
-    from cryptography.hazmat.primitives.asymmetric import ec as _ec
-    from cryptography.exceptions import InvalidSignature
-
-    att, end = cbor_decode(response)
-    out = {"trailing": len(response) - end}
-    cred, auth, sig = att[1], att[2], att[3]
-    out["credential_id_echoed"] = cred.get("id") == expect_cred_id
-    out["credential_type"] = cred.get("type")
-    out["auth_data_len"] = len(auth)
-    flags = auth[32]
-    out["flags"] = flags
-    out["user_present"] = bool(flags & 0x01)
-    # Attested credential data belongs to registration and must not be here.
-    out["attested_data"] = bool(flags & 0x40)
-    out["rp_id_hash_matches"] = auth[:32] == hashlib.sha256(rp_id.encode()).digest()
-    out["sign_count"] = int.from_bytes(auth[33:37], "big")
-
-    pub = _ec.EllipticCurvePublicNumbers(
-        int.from_bytes(x, "big"), int.from_bytes(y, "big"), _ec.SECP256R1()
-    ).public_key()
-    signed = auth + client_data_hash
-    try:
-        pub.verify(sig, signed, _ec.ECDSA(_h.SHA256()))
-        out["signature_valid"] = True
-    except InvalidSignature:
-        out["signature_valid"] = False
-    broken = bytearray(signed)
-    broken[10] ^= 0x01
-    try:
-        pub.verify(sig, bytes(broken), _ec.ECDSA(_h.SHA256()))
-        out["tamper_rejected"] = False
-    except InvalidSignature:
-        out["tamper_rejected"] = True
-    return out
-
-
-def register(link, rp_id="example.test"):
-    """Make a credential and return what a relying party would have stored."""
-    r = init(link)
-    cid = bytes.fromhex(r["new_cid"])
-    cdh = bytes(range(32))
-    link.send_message(cid, CTAPHID_CBOR,
-                      bytes([AUTHENTICATOR_MAKE_CREDENTIAL]) + make_credential_request(rp_id=rp_id))
-    reply = link.read_message(timeout=15.0)
-    data = link.last
-    if not reply or data[0] != 0:
-        raise SystemExit(f"registration failed: {reply}")
-    att, _ = cbor_decode(data[1:])
-    auth = att[2]
-    cred_len = int.from_bytes(auth[53:55], "big")
-    cred_id = auth[55:55 + cred_len]
-    cose, _ = cbor_decode(auth[55 + cred_len:])
-    return cred_id, cose[-2], cose[-3]
-
-
-def find_device():
-    """The device this experiment is running on, found the way libfido2 finds
-    one: by asking every hidraw node what its report descriptor says."""
-    for name in sorted(os.listdir("/dev")):
-        if not name.startswith("hidraw"):
-            continue
-        path = f"/dev/{name}"
-        try:
-            desc = open(f"/sys/class/hidraw/{name}/device/report_descriptor", "rb").read()
-        except OSError:
-            continue
-        # Usage Page (0xF1D0), Usage (0x01) — the two items that make a device
-        # a FIDO authenticator to every host tool there is.
-        if desc.startswith(b"\x06\xd0\xf1\x09\x01"):
-            try:
-                fd = os.open(path, os.O_RDWR)
-            except PermissionError:
-                continue
-            return path, fd
-    raise SystemExit("no FIDO hidraw device this user can open — is this experiment flashed?")
-
-
-class Link:
-    def __init__(self):
-        self.path, self.fd = find_device()
-
-    def send_packet(self, pkt):
-        assert len(pkt) == PACKET
-        # Linux hidraw wants the report number first. This device uses no
-        # numbered reports, so it is zero — and leaving it out is a write that
-        # succeeds and delivers 63 bytes of the wrong thing.
-        os.write(self.fd, b"\x00" + pkt)
-
-    def read_packet(self, timeout=1.5):
-        end = time.time() + timeout
-        os.set_blocking(self.fd, False)
-        while time.time() < end:
-            try:
-                d = os.read(self.fd, PACKET)
-                if d:
-                    return d
-            except BlockingIOError:
-                time.sleep(0.002)
-        return None
-
-    def send_message(self, cid, cmd, data, hold_back=0):
-        """Fragment and send. `hold_back` stops short of the byte count the
-        header promised, which is how a truncated transaction is built."""
-        pkt = bytearray(PACKET)
-        pkt[0:4] = cid
-        pkt[4] = 0x80 | cmd
-        pkt[5:7] = struct.pack(">H", len(data))
-        n = min(len(data), INIT_PAYLOAD)
-        pkt[INIT_HEADER:INIT_HEADER + n] = data[:n]
-        self.send_packet(bytes(pkt))
-        sent, seq, packets = n, 0, 1
-        while sent < len(data) - hold_back:
-            pkt = bytearray(PACKET)
-            pkt[0:4] = cid
-            pkt[4] = seq
-            n = min(len(data) - hold_back - sent, CONT_PAYLOAD)
-            pkt[CONT_HEADER:CONT_HEADER + n] = data[sent:sent + n]
-            self.send_packet(bytes(pkt))
-            sent += n
-            seq += 1
-            packets += 1
-        return packets
-
-    def read_message(self, timeout=1.5):
-        first = self.read_packet(timeout)
-        if first is None:
-            return None
-        cid, cmd = first[0:4], first[4]
-        if not cmd & 0x80:
-            return {"error": "first packet back was a continuation packet"}
-        cmd &= 0x7F
-        want = struct.unpack(">H", first[5:7])[0]
-        data = bytearray(first[INIT_HEADER:INIT_HEADER + min(want, INIT_PAYLOAD)])
-        packets, seq = 1, 0
-        while len(data) < want:
-            nxt = self.read_packet(timeout)
-            if nxt is None:
-                return {"error": f"message stopped at {len(data)}/{want} bytes"}
-            packets += 1
-            if nxt[4] != seq:
-                return {"error": f"sequence {nxt[4]} where {seq} was due"}
-            seq += 1
-            data += nxt[CONT_HEADER:CONT_HEADER + min(want - len(data), CONT_PAYLOAD)]
-        out = {"cid": cid.hex(), "cmd": cmd, "len": want, "packets": packets}
-        if cmd == CTAPHID_ERROR:
-            out["error_code"] = data[0]
-            out["error_name"] = ERRORS.get(data[0], "unknown")
-        else:
-            # Truncated on purpose. A 1024-byte PING echoes 2 KB of hex, and a
-            # transcript nobody will read is a transcript nobody checks —
-            # `echo_matches` below is the claim, and it is computed from all of
-            # it. The first 16 bytes are here so a reader can see it is the
-            # pattern that was sent and not zeroes.
-            out["data_head"] = bytes(data[:16]).hex()
-            out["data_sha_len"] = len(data)
-            self.last = bytes(data)
-        return out
-
-
-def init(link, cid=BROADCAST, nonce=b"\x01\x02\x03\x04\x05\x06\x07\x08"):
-    link.send_message(cid, CTAPHID_INIT, nonce)
-    r = link.read_message()
-    if r and r.get("cmd") == CTAPHID_INIT:
-        d = link.last
-        r["nonce_echoed"] = d[:8] == nonce
-        r["new_cid"] = d[8:12].hex()
-        r["protocol"] = d[12]
-        r["capabilities"] = d[16]
-    return r
-
 
 def main():
     if len(sys.argv) < 2:
@@ -455,11 +144,11 @@ def main():
     out = {"case": case, "device": link.path}
 
     if case == "init":
-        out["reply"] = init(link)
+        out["reply"] = link.init()
 
     elif case == "ping":
         n = int(sys.argv[2]) if len(sys.argv) > 2 else 100
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
         payload = bytes((i * 7 + 3) & 0xFF for i in range(n))
         out["sent_bytes"] = n
@@ -470,7 +159,7 @@ def main():
             out["echo_matches"] = getattr(link, "last", b"") == payload
 
     elif case == "bad-seq":
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
         pkt = bytearray(PACKET)
         pkt[0:4], pkt[4] = cid, 0x80 | CTAPHID_PING
@@ -483,8 +172,8 @@ def main():
         out["reply"] = link.read_message()
 
     elif case == "busy":
-        a = bytes.fromhex(init(link)["new_cid"])
-        b = bytes.fromhex(init(link, nonce=b"\x11" * 8)["new_cid"])
+        a = bytes.fromhex(link.init()["new_cid"])
+        b = bytes.fromhex(link.init(nonce=b"\x11" * 8)["new_cid"])
         pkt = bytearray(PACKET)
         pkt[0:4], pkt[4] = a, 0x80 | CTAPHID_PING
         pkt[5:7] = struct.pack(">H", 200)
@@ -494,7 +183,7 @@ def main():
         out["reply"] = link.read_message()
 
     elif case == "truncated":
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
         out["cid"] = cid.hex()
         link.send_message(cid, CTAPHID_PING, b"\xaa" * 200, hold_back=100)
@@ -505,7 +194,7 @@ def main():
         # this is not merely an unimplemented command — it is the device being
         # checked against its own declaration. exp168 used CTAPHID_CBOR here;
         # this experiment implements that, which is the point.
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
         link.send_message(cid, CTAPHID_MSG, b"\x00\x01\x03\x00")
         out["reply"] = link.read_message()
@@ -514,7 +203,7 @@ def main():
         rp_id = "example.test"
         cred_id, x, y = register(link, rp_id)
         out["registered_credential_id"] = cred_id.hex()
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
 
         forged = bytearray(cred_id)
@@ -547,7 +236,7 @@ def main():
                 out["cbor"] = data[1:].hex()
 
     elif case.startswith("mc-"):
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
         kw = {
             "mc-good": {},
@@ -580,7 +269,7 @@ def main():
                 out["cbor"] = data[1:].hex()
 
     elif case in ("getinfo", "getinfo-params", "makecred", "ctap-unknown"):
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
         body = {
             "getinfo": bytes([AUTHENTICATOR_GET_INFO]),
@@ -600,7 +289,7 @@ def main():
             out["cbor"] = data[1:].hex()
 
     elif case == "stray-cont":
-        r = init(link)
+        r = link.init()
         cid = bytes.fromhex(r["new_cid"])
         pkt = bytearray(PACKET)
         pkt[0:4], pkt[4] = cid, 0

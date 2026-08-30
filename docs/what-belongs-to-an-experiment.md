@@ -359,10 +359,26 @@ are `PRESENCE=2`.
 
 | | |
 | --- | --- |
-| `py:find_device` | 8 copies → 5 |
-| `py:init` | 7 copies, 3 versions → 4, one version |
+| `py:find_device`, `py:init`, `py:head`, `py:cbor_*`, `py:make_credential_request`, `py:check_credential`, `py:register` | **gone from the list** — one copy each, in `tools/` |
 | exp168's client | 238 lines → 137 |
-| Python lines in copies | 5,950 → 5,845 |
+| exp174's client | 689 lines → 360 |
+| Python lines in copies | 5,950 → **4,799** |
+
+The WebAuthn half went second and was the easy one: comparing the five copies of
+`head`, `cbor_*`, `make_credential_request`, `cbor_decode`, `check_credential`,
+`get_assertion_request`, `check_assertion` and `register` found **no divergence
+at all** — every one byte-identical in every experiment that had it. A pure copy
+chain with nothing to reconcile, which makes it the one extraction here that
+cannot change behaviour.
+
+**And that was demonstrated rather than argued.** All seven experiments were
+re-driven on hardware afterwards, and every `capture.txt` came out
+byte-for-byte identical to the one already committed. `git status` had nothing
+to say about a single one of them.
+
+The press-gated transcripts — exp173's `capture-button.txt` and the rest — were
+not regenerated and did not need to be: the firmware did not change, and the
+drivers produce identical output.
 
 ## What is still not verified
 
@@ -379,10 +395,12 @@ are `PRESENCE=2`.
   other twelve `ctaphid_task`s are untouched, and at this rate the backlog
   outlives the ratchet by a wide margin: the ratchet's job is that it stops
   growing, not that it shrinks.
-- **The Python backlog is barely started.** 5,845 lines in 30 duplicated
-  functions, down 105 from adopting `tools/ctaphid/` in three experiments. The
-  four remaining copies of that client belong to `PRESENCE=2` experiments and
-  need a person to re-verify.
+- **The Python backlog is down to 4,799 lines**, from 5,950 when it first became
+  visible. All seven copies of the CTAP-HID client now import their transport
+  and their WebAuthn layer instead of carrying them. What is left is mostly
+  `py:main` — 31 `verify.py` bodies averaging 97 lines, of which the shared part
+  is a ten-line PASS/FAIL harness and the rest is each experiment's own
+  assertions. Extracting that would move the number and not much else.
 - **The detector counts names, not similarity.** Two functions sharing a name and
   nothing else are counted as copies, and two identical bodies under different
   names are not counted at all. exp194 met the first: a 17-line dispatch loop

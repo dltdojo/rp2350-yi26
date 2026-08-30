@@ -57,6 +57,17 @@ import time
 # What stays here is this experiment's own cases.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools" / "ctaphid"))
 
+from webauthn import (  # noqa: E402
+    cbor_array,
+    cbor_bytes,
+    cbor_map,
+    cbor_nint,
+    cbor_text,
+    cbor_uint,
+    head,
+    make_credential_request,
+)
+
 from ctaphid import (  # noqa: E402
     BROADCAST,
     CONT_HEADER,
@@ -99,75 +110,6 @@ ERRORS = {
 # sends. A library would refuse to produce most of these, which is exactly why
 # there is not one here.
 # --------------------------------------------------------------------------
-
-def head(mt, arg, force_width=None):
-    """A major type and an argument. `force_width` writes it wider than it
-    needs to be, which is legal CBOR and is not canonical CBOR — the thing a
-    permissive parser accepts and this device must not."""
-    w = force_width
-    if w is None:
-        w = 0 if arg < 24 else 1 if arg < 0x100 else 2 if arg < 0x10000 else 4
-    if w == 0:
-        return bytes([(mt << 5) | arg])
-    ai = {1: 24, 2: 25, 4: 26, 8: 27}[w]
-    return bytes([(mt << 5) | ai]) + arg.to_bytes(w, "big")
-
-
-def cbor_uint(v, w=None):
-    return head(0, v, w)
-
-
-def cbor_nint(v):
-    return head(1, -1 - v)
-
-
-def cbor_bytes(b, claim=None):
-    """`claim` writes a length other than the real one — the hostile case."""
-    return head(2, len(b) if claim is None else claim) + b
-
-
-def cbor_text(s):
-    b = s.encode()
-    return head(3, len(b)) + b
-
-
-def cbor_array(items):
-    return head(4, len(items)) + b"".join(items)
-
-
-def cbor_map(pairs):
-    return head(5, len(pairs)) + b"".join(k + v for k, v in pairs)
-
-
-def make_credential_request(**kw):
-    """A well-formed authenticatorMakeCredential, and the knobs each case turns.
-
-    The defaults are what a browser sends: a 32-byte client data hash, a
-    relying party, a user, and ES256 first in the list of algorithms.
-    """
-    cdh = kw.get("cdh", bytes(range(32)))
-    rp_id = kw.get("rp_id", "example.test")
-    user_id = kw.get("user_id", b"\x01\x02\x03\x04")
-    algs = kw.get("algs", [-7])
-    pairs = []
-    if not kw.get("drop_cdh"):
-        pairs.append((cbor_uint(1), cbor_bytes(cdh, claim=kw.get("claim_cdh"))))
-    pairs.append((cbor_uint(2), cbor_map([(cbor_text("id"), cbor_text(rp_id)),
-                                          (cbor_text("name"), cbor_text("Example"))])))
-    pairs.append((cbor_uint(3), cbor_map([(cbor_text("id"), cbor_bytes(user_id)),
-                                          (cbor_text("name"), cbor_text("nobody"))])))
-    if not kw.get("drop_params"):
-        entries = [cbor_map([(cbor_text("alg"), cbor_nint(a) if a < 0 else cbor_uint(a)),
-                             (cbor_text("type"), cbor_text("public-key"))]) for a in algs]
-        pairs.append((cbor_uint(4), cbor_array(entries)))
-    body = cbor_map(pairs)
-    if kw.get("noncanonical"):
-        # Rewrite the outer map header wider than it needs to be.
-        body = head(5, len(pairs), force_width=1) + body[1:]
-    if kw.get("trailing"):
-        body += b"\x00"
-    return body
-
 
 def main():
     if len(sys.argv) < 2:
