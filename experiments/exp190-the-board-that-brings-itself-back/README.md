@@ -96,7 +96,7 @@ the same signal.
   reaching three is the last boot before the board hands itself over
 
 `check.sh` reads the order out of the source and fails if the LED is ever
-spawned after `Driver::new`.
+spawned after the USB stack is brought up.
 
 ## What this experiment is not
 
@@ -104,6 +104,14 @@ The mechanism belongs to `crates/lifeline` and is used by other firmwares;
 [exp183](../exp183-the-contract-and-the-lock/) runs on it today. **This
 experiment is the weight**, and the reason it exists is that until it ran, the
 net had never been dropped on.
+
+The serial console is not this experiment's either. It comes from
+[`crates/cdc-console`](../../crates/cdc-console/), which this firmware is the
+first caller of — and the first to run it on hardware. That crate exists for a
+reason this experiment counted: two of the three deaths above, a `StaticCell`
+claimed twice and an interface with no task servicing it, lived in the
+twenty-two lines of bring-up that seventy-five firmwares here had each written
+out by hand.
 
 Nor is it a claim that a board can always be saved. A firmware that corrupts the
 watchdog registers, or one flashed with an image the bootrom will not start, is

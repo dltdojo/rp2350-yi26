@@ -259,7 +259,14 @@ usb_check() {
     # early when the USB channel table has no row yet — so during development,
     # when the row is the last thing added, this half never ran. The order is
     # the bug's hiding place, not the token.
-    for f in cdc:CdcAcmClass::new ncm:CdcNcmClass::new 'hid:Hid(ReaderWriter|Writer)' msc:CLASS_MSC vendor:CLASS_VENDOR; do
+    # `cdc` has two spellings because the bring-up moved. exp190 onwards call
+    # `cdc_console::open`, which builds the class inside `crates/cdc-console`
+    # rather than in `src/main.rs`; the hand-written form is still what the
+    # other seventy-four use. Naming both is deliberate — the loose alternative
+    # was to relax this pattern until it always matched, which would leave the
+    # check running and testing nothing, exactly the way the `hid` pattern did
+    # for four experiments before it was widened correctly.
+    for f in 'cdc:(CdcAcmClass::new|cdc_console::open)' ncm:CdcNcmClass::new 'hid:Hid(ReaderWriter|Writer)' msc:CLASS_MSC vendor:CLASS_VENDOR; do
         want="${f%%:*}"; have="${f#*:}"
         if grep -qE "$have" "$src"; then
             [[ "$USB_IFACE" == *"$want"* ]] || bad="$bad [source builds $want, USB_IFACE does not say so]"

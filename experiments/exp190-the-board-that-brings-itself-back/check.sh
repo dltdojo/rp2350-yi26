@@ -69,7 +69,7 @@ fi
 # The LED comes up before anything that can hang. exp156 paid for this rule and
 # exp157 records paying it again.
 LED_AT="$(grep -n 'spawner.spawn(lifeline::led' "$SRC" | grep -v ':[[:space:]]*//' | head -1 | cut -d: -f1)"
-USB_AT="$(grep -n 'Driver::new' "$SRC" | grep -v ':[[:space:]]*//' | head -1 | cut -d: -f1)"
+USB_AT="$(grep -n 'cdc_console::open' "$SRC" | grep -v ':[[:space:]]*//' | head -1 | cut -d: -f1)"
 if [[ -n "$LED_AT" && -n "$USB_AT" && "$LED_AT" -lt "$USB_AT" ]]; then
     pass "the LED is up before the USB stack, so dark and died are different signals"
 else

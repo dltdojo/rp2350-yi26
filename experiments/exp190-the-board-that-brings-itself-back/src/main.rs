@@ -46,19 +46,18 @@
 //!
 //! The mechanism is [`crates/lifeline`](../../crates/lifeline/), which is used
 //! by other firmwares and tested on a host. This experiment is the weight.
+//!
+//! Nor is the serial console. It is
+//! [`crates/cdc-console`](../../crates/cdc-console/), which this firmware is
+//! the first caller of, and which exists because two of the three deaths
+//! counted above lived in the bring-up it replaces.
 
 #![no_std]
 #![no_main]
 
 use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals::USB;
-use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_time::{Duration, Timer};
-use embassy_usb::class::cdc_acm::{CdcAcmClass, ControlChanged, Receiver, Sender, State};
-use embassy_usb::UsbDevice;
-use static_cell::StaticCell;
 
 use usb_log::log;
 
@@ -71,12 +70,6 @@ const LIFELINE: lifeline::Config = lifeline::Config {
     run_us: lifeline::DEFAULT_RUN_US,
     escape_after: lifeline::DEFAULT_ESCAPE_AFTER,
 };
-
-bind_interrupts!(struct Irqs {
-    USBCTRL_IRQ => InterruptHandler<USB>;
-});
-
-const PACKET: usize = 64;
 
 /// Stop, without dying.
 ///
@@ -102,24 +95,6 @@ fn make_it_hang() -> ! {
 #[inline(always)]
 fn make_it_fault() -> ! {
     cortex_m::asm::udf()
-}
-
-#[embassy_executor::task]
-async fn usb_task(mut device: UsbDevice<'static, Driver<'static, USB>>) -> ! {
-    device.run().await
-}
-
-#[embassy_executor::task]
-async fn reboot_task(
-    control: ControlChanged<'static>,
-    receiver: Receiver<'static, usb_reboot::UsbDriver>,
-) -> ! {
-    usb_reboot::watch(control, receiver).await
-}
-
-#[embassy_executor::task]
-async fn log_task(sender: Sender<'static, usb_reboot::UsbDriver>) -> ! {
-    usb_log::run(sender).await
 }
 
 /// Everything established so far, on a loop.
@@ -170,33 +145,20 @@ async fn main(spawner: Spawner) {
         make_it_hang();
     }
 
-    static BUS: StaticCell<[u8; 256]> = StaticCell::new();
-    static BOS: StaticCell<[u8; 256]> = StaticCell::new();
-    static CONTROL: StaticCell<[u8; 128]> = StaticCell::new();
-    static ACM: StaticCell<State> = StaticCell::new();
-
-    let driver = Driver::new(p.USB, Irqs);
-    let mut config = embassy_usb::Config::new(0x1209, 0x0001);
-    config.manufacturer = Some("rp2350-yi26");
-    config.product = Some("exp190 the board that brings itself back");
-    config.serial_number = Some("190");
-    config.max_power = 100;
-    config.max_packet_size_0 = 64;
-
-    let mut builder = embassy_usb::Builder::new(
-        driver,
-        config,
-        BUS.init([0; 256]),
-        BOS.init([0; 256]),
-        &mut [],
-        CONTROL.init([0; 128]),
+    // Everything a serial console needs, in one call: the descriptors, the
+    // class, and the three tasks that serve it. `crates/cdc-console` exists
+    // because two of the three deaths this experiment counts — a `StaticCell`
+    // claimed twice, and an interface declared with no task servicing it —
+    // lived in the twenty-two hand-written lines this replaces, and both are
+    // now impossible to write rather than merely documented.
+    cdc_console::open(
+        spawner,
+        p.USB,
+        cdc_console::Config {
+            product: "exp190 the board that brings itself back",
+            serial: "190",
+        },
     );
-    let class = CdcAcmClass::new(&mut builder, ACM.init(State::new()), PACKET as u16);
-    let usb = builder.build();
-    spawner.spawn(usb_task(usb).unwrap());
-    let (sender, receiver, control) = class.split_with_control();
-    spawner.spawn(log_task(sender).unwrap());
-    spawner.spawn(reboot_task(control, receiver).unwrap());
 
     // **Reachable.** USB is built and the tasks that serve it are running, so a
     // host can reach this board — and from here a death is an ordinary crash
