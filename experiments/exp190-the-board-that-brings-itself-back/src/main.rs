@@ -50,8 +50,6 @@
 #![no_std]
 #![no_main]
 
-use core::sync::atomic::{AtomicBool, Ordering};
-
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
@@ -80,8 +78,6 @@ bind_interrupts!(struct Irqs {
 
 const PACKET: usize = 64;
 
-static UP: AtomicBool = AtomicBool::new(false);
-
 /// Stop, without dying.
 ///
 /// Interrupts off and a loop that yields to nothing: no exception fires, no
@@ -106,35 +102,6 @@ fn make_it_hang() -> ! {
 #[inline(always)]
 fn make_it_fault() -> ! {
     cortex_m::asm::udf()
-}
-
-/// The LED, up before anything that can hang.
-///
-/// exp156's hardest-won rule, and exp157 records what ignoring it cost: a
-/// firmware frozen inside the USB stack with the LED dark looks exactly like one
-/// that never started.
-///
-/// - **one short flash a second** — up
-/// - **N quick flashes then a pause** — this is retry number N after a death,
-///   and N reaching three is the last boot before the board hands itself over
-#[embassy_executor::task]
-async fn heartbeat(mut led: Output<'static>, deaths: u8) -> ! {
-    loop {
-        if !UP.load(Ordering::Relaxed) && deaths > 0 {
-            for _ in 0..deaths {
-                led.set_high();
-                Timer::after(Duration::from_millis(80)).await;
-                led.set_low();
-                Timer::after(Duration::from_millis(120)).await;
-            }
-            Timer::after(Duration::from_millis(700)).await;
-        } else {
-            led.set_high();
-            Timer::after(Duration::from_millis(50)).await;
-            led.set_low();
-            Timer::after(Duration::from_millis(950)).await;
-        }
-    }
 }
 
 #[embassy_executor::task]
@@ -182,7 +149,16 @@ async fn main(spawner: Spawner) {
     let boot = lifeline::begin(LIFELINE);
 
     let p = embassy_rp::init(Default::default());
-    spawner.spawn(heartbeat(Output::new(p.PIN_25, Level::Low), boot.deaths).unwrap());
+    // The LED, up before anything that can hang. exp156's hardest-won rule, and
+    // exp157 records what ignoring it cost: a firmware frozen inside the USB
+    // stack with the LED dark looks exactly like one that never started.
+    //
+    // This is `lifeline`'s own blink — one short flash a second when up, N quick
+    // flashes then a pause while this is retry number N — because this firmware
+    // has no other LED meaning to carry. Rewriting it here would be a second
+    // copy of the crate's legend, free to drift from the one the crate
+    // documents.
+    spawner.spawn(lifeline::led(Output::new(p.PIN_25, Level::Low), boot).unwrap());
     spawner.spawn(lifeline::keepalive(LIFELINE).unwrap());
 
     if DIE == "early" {
@@ -227,7 +203,6 @@ async fn main(spawner: Spawner) {
     // rather than a boot that never came up. This boot stops counting towards
     // the escape however it ends.
     lifeline::alive(LIFELINE);
-    UP.store(true, Ordering::Relaxed);
 
     spawner.spawn(report(boot).unwrap());
 
