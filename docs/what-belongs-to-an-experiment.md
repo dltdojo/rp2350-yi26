@@ -333,6 +333,37 @@ What was *not* re-verified is written into exp194's README rather than left to
 be discovered: exp189's `hmac-secret` transcripts were recorded before the port
 and need a finger on BOOTSEL to redo.
 
+## Measured a fourth time, 2026-08-30 — the seven host clients
+
+The mirror of exp194's firmware finding, and it comes out the other way round.
+
+Seven experiments each grew their own CTAP-HID client, 238 to 689 lines.
+Comparing the transport half across all seven found **exactly one substantive
+difference, and it was a fix that never propagated**: exp174's `Link.drain()`,
+which throws away keepalive packets a previous run left in the kernel's buffer.
+Without it the next `INIT` reads one of them as its own reply and fails with a
+missing channel id — which exp174 records paying for. Six of the seven clients
+did not have it, **and neither did `tools/ctaphid/`** until the seven were
+compared.
+
+Where the firmware chain had its newest member carrying two defects, the host
+chain had its newest member carrying the only fix. The shape is the same: a
+change lands in one fork and the others never hear about it.
+
+`find_device` differed in one other way, and only in the wording of an error
+message.
+
+exp168, exp169 and exp170 now import the transport instead of carrying it, and
+were re-driven on hardware — `PRESENCE=1`, so nobody was needed. The other four
+are `PRESENCE=2`.
+
+| | |
+| --- | --- |
+| `py:find_device` | 8 copies → 5 |
+| `py:init` | 7 copies, 3 versions → 4, one version |
+| exp168's client | 238 lines → 137 |
+| Python lines in copies | 5,950 → 5,845 |
+
 ## What is still not verified
 
 - **Only HID has been composed on `cdc-console`.**
@@ -348,9 +379,10 @@ and need a finger on BOOTSEL to redo.
   other twelve `ctaphid_task`s are untouched, and at this rate the backlog
   outlives the ratchet by a wide margin: the ratchet's job is that it stops
   growing, not that it shrinks.
-- **The Python backlog has no plan.** 5,950 lines in 30 duplicated functions are
-  now visible and nothing has been extracted from them; `tools/ctaphid/` is the
-  only host-side thing that has moved. The ratchet stops it growing.
+- **The Python backlog is barely started.** 5,845 lines in 30 duplicated
+  functions, down 105 from adopting `tools/ctaphid/` in three experiments. The
+  four remaining copies of that client belong to `PRESENCE=2` experiments and
+  need a person to re-verify.
 - **The detector counts names, not similarity.** Two functions sharing a name and
   nothing else are counted as copies, and two identical bodies under different
   names are not counted at all. exp194 met the first: a 17-line dispatch loop

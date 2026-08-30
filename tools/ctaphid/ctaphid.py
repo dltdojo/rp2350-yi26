@@ -115,6 +115,30 @@ class Link:
     def __init__(self):
         self.path, self.fd = find_device()
         self.last = b""
+        # Start from an empty pipe. See `drain`.
+        self.drain()
+
+    def drain(self):
+        """Throw away anything the device sent before we started listening.
+
+        **exp174 paid for this and only exp174 had it.** Every experiment before
+        it had a device that spoke only when spoken to, so a fresh client could
+        assume an empty pipe. A device that sends `KEEPALIVE` while it waits
+        does not: a run that ends during a presence wait leaves packets in the
+        kernel's buffer, and the next `INIT` reads one of them as its own reply
+        and fails with a missing channel id.
+
+        It was in one of the seven copies of this client, which is the whole
+        argument for there being one — and this shared version did not have it
+        until the seven were compared. It is called on construction rather than
+        left to a caller to remember, because remembering is what the six other
+        copies did not do.
+        """
+        n = 0
+        while True:
+            if self.read_packet(timeout=0.05) is None:
+                return n
+            n += 1
 
     def send_packet(self, pkt):
         assert len(pkt) == PACKET

@@ -23,10 +23,8 @@ rs:read_error_name	10	2	8
 rs:tags_equal	10	1	9
 rs:report	9	8	15
 rs:report_task	9	7	43
-py:find_device	8	3	22
 rs:wait_for_presence	7	4	62
 py:cbor_bytes	7	3	8
-py:init	7	1	13
 py:verify	6	7	84
 rs:core1_main	6	6	30
 rs:http_task	6	4	159
@@ -37,6 +35,7 @@ rs:candidate_name	5	5	10
 sh:flash	5	3	8
 rs:draw_one	5	2	30
 rs:decrypt_pin_payload	5	2	22
+py:find_device	5	2	22
 rs:parse_cose_key_point	5	1	39
 py:make_credential_request	5	1	31
 rs:decapsulate_shared_secret	5	1	16
@@ -54,6 +53,7 @@ rs:mdns_task	4	1	60
 py:check_credential	4	1	56
 rs:encrypt_pin_payload	4	1	21
 rs:verify_pin_uv_auth_token	4	1	20
+py:init	4	1	13
 rs:send_csw	4	1	12
 rs:pin_into_subnet	4	1	11
 py:load	3	4	11
