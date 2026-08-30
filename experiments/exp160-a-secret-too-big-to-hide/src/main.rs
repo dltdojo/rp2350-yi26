@@ -512,7 +512,7 @@ async fn launch_core1(core1: embassy_rp::Peri<'static, embassy_rp::peripherals::
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let mut note = breadcrumb::read();
+    let mut note = breadcrumb::read(160);
 
     let p = embassy_rp::init(Default::default());
     spawner.spawn(heartbeat(Output::new(p.PIN_25, Level::Low)).unwrap());

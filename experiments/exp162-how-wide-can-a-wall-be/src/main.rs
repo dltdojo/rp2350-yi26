@@ -594,7 +594,7 @@ async fn verdict(note: &breadcrumb::Note) {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let note = breadcrumb::read();
+    let note = breadcrumb::read(162);
 
     let p = embassy_rp::init(Default::default());
     spawner.spawn(heartbeat(Output::new(p.PIN_25, Level::Low)).unwrap());

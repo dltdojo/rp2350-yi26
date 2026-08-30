@@ -11,9 +11,14 @@
 
 use super::*;
 
+/// This firmware. Real callers pass their experiment number.
+const OURS: u8 = 157;
+/// Somebody else's, flashed onto the same board earlier.
+const THEIRS: u8 = 174;
+
 /// A boot that armed and then died at `step`, with `tally` already counted.
 fn left_by(boot: u32, step: u8, tally: u8) -> Scratch {
-    Scratch { s0: MAGIC, s1: pack(boot, step | (tally << STEP_TALLY_SHIFT)), s2: 0, s3: 0 }
+    Scratch { s0: token(OURS), s1: pack(boot, step | (tally << STEP_TALLY_SHIFT)), s2: 0, s3: 0 }
 }
 
 // --- the token, and the reflash that broke the first design ----------------
@@ -23,6 +28,7 @@ fn a_boot_with_no_token_is_fresh_however_convincing_the_rest_looks() {
     let (note, after) = interpret(
         Scratch { s0: 0, s1: pack(9, 7), s2: 0xFFFF_FFFF, s3: 0x0403_0201 },
         false,
+        OURS,
     );
     assert_eq!(note.cause, Cause::Fresh);
     assert_eq!(note.boot, 1);
@@ -38,7 +44,7 @@ fn a_reflashed_board_does_not_inherit_the_previous_builds_death() {
     // caused the boot. The 1200-baud reflash touch reboots THROUGH the
     // watchdog, so `forced` is exactly what a freshly flashed firmware sees —
     // and it reported the previous build's history as its own.
-    let (note, _) = interpret(Scratch { s0: 0, s1: pack(4, 3), s2: 0x55, s3: 0x0302 }, true);
+    let (note, _) = interpret(Scratch { s0: 0, s1: pack(4, 3), s2: 0x55, s3: 0x0302 }, true, OURS);
     assert_eq!(note.cause, Cause::Fresh);
     assert_eq!(note.boot, 1);
 }
@@ -47,7 +53,7 @@ fn a_reflashed_board_does_not_inherit_the_previous_builds_death() {
 
 #[test]
 fn a_step_in_progress_and_a_forced_reset_is_a_fault() {
-    let (note, _) = interpret(left_by(1, 5, 0), true);
+    let (note, _) = interpret(left_by(1, 5, 0), true, OURS);
     assert_eq!(note.cause, Cause::Fault);
     assert_eq!(note.step, 5);
     assert_eq!(note.boot, 2);
@@ -56,7 +62,7 @@ fn a_step_in_progress_and_a_forced_reset_is_a_fault() {
 #[test]
 fn a_step_in_progress_and_a_timeout_is_a_hang() {
     // The failure no fault handler catches, and exp156's very first round.
-    let (note, _) = interpret(left_by(1, 5, 0), false);
+    let (note, _) = interpret(left_by(1, 5, 0), false, OURS);
     assert_eq!(note.cause, Cause::Hang);
     assert_eq!(note.step, 5);
 }
@@ -67,7 +73,7 @@ fn a_boot_that_got_up_is_completed_and_not_a_death_at_step_sixty_four() {
     // a boot that finished, carrying a tally of 2, into a death at step 192.
     let s1 = with_finished(pack(3, 2 << STEP_TALLY_SHIFT));
     assert_eq!(unpack(s1).1, STEP_STICKY | (2 << STEP_TALLY_SHIFT));
-    let (note, _) = interpret(Scratch { s0: MAGIC, s1, s2: 0, s3: 0 }, false);
+    let (note, _) = interpret(Scratch { s0: token(OURS), s1, s2: 0, s3: 0 }, false, OURS);
     assert_eq!(note.cause, Cause::Completed);
     assert_eq!(note.step, 0);
 }
@@ -75,7 +81,7 @@ fn a_boot_that_got_up_is_completed_and_not_a_death_at_step_sixty_four() {
 #[test]
 fn a_tally_without_the_sticky_bit_is_still_not_a_step() {
     // 2 << 5 is 64, which is the number the crate's own comment names.
-    let (note, _) = interpret(left_by(2, 0, 2), false);
+    let (note, _) = interpret(left_by(2, 0, 2), false, OURS);
     assert_eq!(note.cause, Cause::Completed);
     assert_ne!(note.step, 64);
 }
@@ -86,7 +92,7 @@ fn a_tally_without_the_sticky_bit_is_still_not_a_step() {
 fn the_step_that_died_is_marked_so_the_next_boot_steps_over_it() {
     // 1 and 2 survived, 3 killed the board. The next boot must attempt 4.
     let s2 = with_mark(with_mark(0, 1, SURVIVED_A), 2, SURVIVED_B);
-    let (note, after) = interpret(Scratch { s0: MAGIC, s1: pack(3, 3), s2, s3: 0 }, false);
+    let (note, after) = interpret(Scratch { s0: token(OURS), s1: pack(3, 3), s2, s3: 0 }, false, OURS);
     assert_eq!(note.outcome(3), DIED);
     assert_eq!(note.next_unattempted(6), Some(4));
     assert_eq!(after.s2, note.steps);
@@ -96,15 +102,15 @@ fn the_step_that_died_is_marked_so_the_next_boot_steps_over_it() {
 fn a_harness_that_retried_what_killed_it_would_never_finish() {
     // The same note fed back in: step 3 stays DIED and 4 is still next.
     let s2 = with_mark(with_mark(0, 1, SURVIVED_A), 2, SURVIVED_B);
-    let (first, after) = interpret(Scratch { s0: MAGIC, s1: pack(3, 3), s2, s3: 0 }, false);
-    let (second, _) = interpret(Scratch { s0: MAGIC, s1: after.s1, s2: after.s2, s3: after.s3 }, false);
+    let (first, after) = interpret(Scratch { s0: token(OURS), s1: pack(3, 3), s2, s3: 0 }, false, OURS);
+    let (second, _) = interpret(Scratch { s0: token(OURS), s1: after.s1, s2: after.s2, s3: after.s3 }, false, OURS);
     assert_eq!(first.next_unattempted(6), second.next_unattempted(6));
 }
 
 #[test]
 fn a_death_does_not_overwrite_a_step_that_already_said_what_it_was() {
     let s2 = with_mark(0, 3, SURVIVED_B);
-    let (note, _) = interpret(Scratch { s0: MAGIC, s1: pack(1, 3), s2, s3: 0 }, true);
+    let (note, _) = interpret(Scratch { s0: token(OURS), s1: pack(1, 3), s2, s3: 0 }, true, OURS);
     assert_eq!(note.outcome(3), SURVIVED_B);
 }
 
@@ -147,7 +153,7 @@ fn ended_never_reports_the_boot_that_is_asking() {
 
 #[test]
 fn a_death_lands_in_the_previous_boots_slot_and_the_next_boot_can_read_it() {
-    let (note, _) = interpret(left_by(1, 5, 0), true);
+    let (note, _) = interpret(left_by(1, 5, 0), true, OURS);
     assert_eq!(note.boot, 2);
     assert_eq!(note.ended(1), Some((Cause::Fault, 5)));
     assert_eq!(note.ended(2), None);
@@ -156,15 +162,15 @@ fn a_death_lands_in_the_previous_boots_slot_and_the_next_boot_can_read_it() {
 #[test]
 fn a_completed_boot_leaves_a_zero_in_its_slot_and_reads_back_as_completed() {
     let s1 = with_finished(pack(1, 0));
-    let (note, _) = interpret(Scratch { s0: MAGIC, s1, s2: 0, s3: 0xFF }, false);
+    let (note, _) = interpret(Scratch { s0: token(OURS), s1, s2: 0, s3: 0xFF }, false, OURS);
     assert_eq!(note.history[0], 0);
     assert_eq!(note.ended(1), Some((Cause::Completed, 0)));
 }
 
 #[test]
 fn a_hang_and_a_fault_at_the_same_step_are_different_bytes() {
-    let (hung, _) = interpret(left_by(1, 6, 0), false);
-    let (faulted, _) = interpret(left_by(1, 6, 0), true);
+    let (hung, _) = interpret(left_by(1, 6, 0), false, OURS);
+    let (faulted, _) = interpret(left_by(1, 6, 0), true, OURS);
     assert_eq!(hung.ended(1), Some((Cause::Hang, 6)));
     assert_eq!(faulted.ended(1), Some((Cause::Fault, 6)));
     assert_ne!(hung.history[0], faulted.history[0]);
@@ -174,7 +180,7 @@ fn a_hang_and_a_fault_at_the_same_step_are_different_bytes() {
 fn beyond_four_boots_the_history_stops_being_written_and_says_so() {
     // A documented limit, not a bug: `history` is indexed by absolute boot
     // number. `ended` must refuse to answer rather than repeat boot four.
-    let (note, _) = interpret(left_by(HISTORY as u32 + 1, 2, 0), false);
+    let (note, _) = interpret(left_by(HISTORY as u32 + 1, 2, 0), false, OURS);
     assert_eq!(note.boot, HISTORY as u32 + 2);
     assert_eq!(note.ended(HISTORY as u32 + 1), None);
     assert_eq!(note.history, [0; HISTORY]);
@@ -184,7 +190,7 @@ fn beyond_four_boots_the_history_stops_being_written_and_says_so() {
 
 #[test]
 fn the_tally_survives_a_boot_and_the_step_does_not() {
-    let (_, after) = interpret(left_by(2, 5, 3), false);
+    let (_, after) = interpret(left_by(2, 5, 3), false, OURS);
     assert_eq!(tally_of(after.s1), 3);
     assert_eq!(unpack(after.s1).1 & !(STEP_STICKY | STEP_TALLY), 0);
     assert_eq!(unpack(after.s1).0, 3);
@@ -217,7 +223,7 @@ fn a_boot_that_got_up_cannot_un_get_up() {
     // board into its bootloader because somebody flashed it three times.
     let s1 = with_finished(pack(2, 0));
     assert_eq!(with_step(s1, 5), s1);
-    let (note, _) = interpret(Scratch { s0: MAGIC, s1: with_step(s1, 5), s2: 0, s3: 0 }, false);
+    let (note, _) = interpret(Scratch { s0: token(OURS), s1: with_step(s1, 5), s2: 0, s3: 0 }, false, OURS);
     assert_eq!(note.cause, Cause::Completed);
 }
 
@@ -247,4 +253,70 @@ fn a_step_number_cannot_reach_the_sticky_or_tally_bits() {
     let after = with_step(s1, 0xFF);
     assert_eq!(tally_of(after), 3);
     assert_eq!(unpack(after).1 & STEP_STICKY, 0);
+}
+
+// --- whose note is it -------------------------------------------------------
+//
+// Measured on hardware 2026-08-30, and the reason `read` takes a tag at all.
+// exp157 was flashed onto a board that had been running exp174, came up as
+// `boot #19`, went straight past its own `boot >= 5` stop having run nothing,
+// and reported success. Eight of the thirteen firmwares using this crate stop
+// that way.
+
+#[test]
+fn a_note_left_by_another_firmware_is_not_ours() {
+    let (note, after) = interpret(
+        Scratch { s0: token(THEIRS), s1: pack(18, 3), s2: 0xFFFF_FFFF, s3: 0x0000_005C },
+        false,
+        OURS,
+    );
+    assert_eq!(note.cause, Cause::Fresh);
+    assert_eq!(note.boot, 1);
+    assert_eq!(note.history, [0; HISTORY]);
+    assert_eq!(after, Scratch { s0: 0, s1: pack(1, 0), s2: 0, s3: 0 });
+}
+
+#[test]
+fn the_measured_failure_cannot_happen_again() {
+    // The exact shape of it: boot 19, and a step number that does not fit the
+    // five bits a step gets, so nothing here could have written it.
+    let stale = Scratch { s0: token(THEIRS), s1: pack(18, 3), s2: 0, s3: 0x0000_005C };
+    let (bad, _) = interpret(stale, false, THEIRS);
+    assert_eq!(bad.boot, 19);
+    assert_eq!(bad.ended(1), Some((Cause::Hang, 92)));
+    assert!(92 > (!(STEP_STICKY | STEP_TALLY)), "92 must not fit a step field");
+
+    let (good, _) = interpret(stale, false, OURS);
+    assert_eq!(good.boot, 1);
+    assert_eq!(good.ended(1), None);
+}
+
+#[test]
+fn an_untagged_note_is_not_inherited_by_a_tagged_firmware() {
+    let (note, _) = interpret(Scratch { s0: token(0), s1: pack(7, 2), s2: 0, s3: 0 }, false, OURS);
+    assert_eq!(note.cause, Cause::Fresh);
+}
+
+#[test]
+fn a_tagged_note_is_not_inherited_by_an_untagged_firmware() {
+    let (note, _) = interpret(left_by(7, 2, 0), false, 0);
+    assert_eq!(note.cause, Cause::Fresh);
+}
+
+#[test]
+fn tag_zero_writes_exactly_the_word_untagged_builds_wrote() {
+    // Which is why the documentation says to pass a non-zero tag: at zero this
+    // crate behaves exactly as it did before the tag existed.
+    assert_eq!(token(0), 0xB1EA_D500);
+    assert!(is_ours(0xB1EA_D500, 0));
+    assert!(!is_ours(0xB1EA_D500, OURS));
+}
+
+#[test]
+fn every_tag_gives_a_different_token_and_none_collide_with_the_base() {
+    for tag in 1..=255u8 {
+        assert_ne!(token(tag), token(0));
+        assert!(is_ours(token(tag), tag));
+        assert!(!is_ours(token(tag), tag.wrapping_add(1)));
+    }
 }

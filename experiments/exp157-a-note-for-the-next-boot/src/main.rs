@@ -250,7 +250,7 @@ fn report(note: &breadcrumb::Note) {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     // FIRST, before anything else can touch a register or take a fault.
-    let note = breadcrumb::read();
+    let note = breadcrumb::read(157);
 
     let p = embassy_rp::init(Default::default());
 

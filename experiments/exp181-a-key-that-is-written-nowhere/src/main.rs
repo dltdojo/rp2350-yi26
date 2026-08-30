@@ -243,7 +243,7 @@ fn cause_name(c: Cause) -> &'static str {
 async fn main(spawner: Spawner) {
     // First, before anything can take a fault or touch a peripheral, and before
     // the window could be disturbed. Reading bank 8 needs no clocks.
-    let note = breadcrumb::read();
+    let note = breadcrumb::read(181);
     let mut window = [0u8; WINDOW_BYTES];
     for i in 0..WINDOW_BYTES {
         // Safety: bank 8, which nothing the linker placed can occupy.

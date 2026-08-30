@@ -455,7 +455,7 @@ async fn main(spawner: Spawner) {
         BEFORE[i].store(*v, Ordering::Relaxed);
     }
 
-    let note = breadcrumb::read();
+    let note = breadcrumb::read(164);
 
     let p = embassy_rp::init(Default::default());
     let after = snapshot();

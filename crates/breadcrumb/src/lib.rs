@@ -65,11 +65,11 @@
 //! `REASON` is still read — it is what separates a hang from a fault — but it no
 //! longer decides whether the note is ours.
 //!
-//! # The one-shot token has a hole, and it was walked into on 2026-08-30
+//! # The token carries a tag, because a magic word alone was not enough
 //!
-//! "A fresh flash finds nothing to believe" is **wider than what it can promise**,
-//! and the first hardware run after this crate was split proved it. exp157 came
-//! up and reported this, having run nothing:
+//! "A fresh flash finds nothing to believe" was **wider than what it could
+//! promise**, and the first hardware run after this crate was split proved it.
+//! exp157 came up and reported this, having run nothing:
 //!
 //! ```text
 //!   boot #19, and the boot before it completed.
@@ -79,29 +79,34 @@
 //!
 //! Step 92 does not fit the five bits a step gets, so no code here wrote it; it
 //! was whatever `SCRATCH3` happened to hold. `SCRATCH1` held 18, so the first
-//! boot of a freshly flashed firmware was boot 19 and went straight past its
-//! own hard stop without ever running its sequence.
+//! boot of a freshly flashed firmware was boot 19 and went **straight past its
+//! own hard stop without running a single step, reporting success**. Eight of
+//! the thirteen firmwares that use this crate stop on `note.boot >= N`, so
+//! eight of them could do that.
 //!
-//! **The token is consumed by the next boot's [`read`], and that is the whole
-//! assumption.** If the firmware that boots next does not use this crate — most
-//! of the experiments here do not — nobody consumes it. It then survives every
-//! flash, for as long as the board keeps power, until some later breadcrumb
-//! firmware boots and inherits a stranger's note as its own.
+//! The token is consumed by the next boot's [`read`], and that was the whole
+//! assumption. If the firmware that boots next does not use this crate — 81 of
+//! the 94 experiments here do not — nobody consumes it, and it survives every
+//! flash until some later breadcrumb firmware inherits a stranger's note.
 //!
-//! There is no fix inside these four words. A magic value cannot distinguish
-//! *this build's* handoff from *another build's* leftover, and the obvious
-//! discriminator was already ruled out above: the 1200-baud reflash touch
-//! reboots through the watchdog, so `REASON` cannot tell a flash from a reboot.
+//! **So the token carries who left it.** [`read`] takes a `tag`, the firmware
+//! answers with something unique to itself (these experiments pass their own
+//! number, which they already hold for the USB serial), and a note is only ours
+//! when the whole word matches:
 //!
-//! What a caller can do, and what a reader must know:
+//! ```text
+//!   SCRATCH0 = 0xB1EAD5_00 | tag
+//!                         ^^ the low byte of the magic was always zero
+//! ```
 //!
-//! - **A first run on a board of unknown history is not evidence.** Run it
-//!   twice. The first [`read`] consumes whatever was there, so the second run
-//!   starts clean — which is exactly how the run above was diagnosed, and the
-//!   rerun passed every assertion.
-//! - **[`Note::boot`] arriving implausibly large is the signature.** A harness
-//!   whose stop is `boot >= N` skips its whole sequence silently when this
-//!   happens, and reports success.
+//! A note from another build now reads as [`Cause::Fresh`], which is what it
+//! always should have been. [`arm`] and [`reboot`] keep their signatures — the
+//! tag is remembered from [`read`] — because `reboot` is called from fault
+//! handlers, where the caller has nothing to hand it.
+//!
+//! **Pass a non-zero tag.** Tag `0` writes exactly the old magic word, so it
+//! inherits from, and is inherited by, every untagged build. Nothing can stop
+//! a caller doing that; the experiment number is never zero.
 //!
 //! # The safety property, and it is not optional
 //!
@@ -120,9 +125,22 @@
 #![no_std]
 
 /// Says a note was left deliberately, rather than being whatever was in the
-/// register. Not a checksum: it only has to be a value nobody writes by
-/// accident, and the note is already gated on `REASON` before this is consulted.
+/// register — and **whose** note it is, in the low byte.
+///
+/// Not a checksum. It has to be a value nobody writes by accident, and it has
+/// to differ between firmwares, which is the part a fixed word could not do and
+/// a board proved it could not do. See the module documentation.
 const MAGIC: u32 = 0xB1EA_D500;
+
+/// The word `SCRATCH0` holds while a note is in flight, for this firmware.
+pub const fn token(tag: u8) -> u32 {
+    MAGIC | tag as u32
+}
+
+/// Is the word in `SCRATCH0` a note **this** firmware left?
+pub const fn is_ours(s0: u32, tag: u8) -> bool {
+    s0 == token(tag)
+}
 
 /// How many boots [`Note::history`] can carry. One byte each, in `SCRATCH3`.
 pub const HISTORY: usize = 4;
@@ -303,8 +321,11 @@ pub struct Scratch {
 /// **`s0` comes back zero either way.** The token is one-shot: a firmware that
 /// stops cleanly must leave nothing for the next one to misread, and a fresh
 /// flash must find nothing to believe.
-pub fn interpret(before: Scratch, forced: bool) -> (Note, Scratch) {
-    if before.s0 != MAGIC {
+///
+/// `tag` is what makes the second half of that true. A note whose tag is not
+/// this firmware's is not this firmware's note, however well-formed it looks.
+pub fn interpret(before: Scratch, forced: bool, tag: u8) -> (Note, Scratch) {
+    if !is_ours(before.s0, tag) {
         return (
             Note { boot: 1, cause: Cause::Fresh, step: 0, history: [0; HISTORY], steps: 0 },
             Scratch { s0: 0, s1: pack(1, 0), s2: 0, s3: 0 },

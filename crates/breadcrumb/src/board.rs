@@ -7,11 +7,25 @@
 //! decision about what those words mean is in the parent module, where
 //! `cargo test` can reach it.
 
+use core::sync::atomic::{AtomicU8, Ordering};
+
 use embassy_rp::pac;
 
 use super::{
-    interpret, tally_of, with_finished, with_mark, with_step, with_tally, Note, Scratch, MAGIC,
+    interpret, tally_of, token, with_finished, with_mark, with_step, with_tally, Note, Scratch,
 };
+
+/// Whose notes this firmware writes and accepts, remembered from [`read`].
+///
+/// A `static`, and the crate's own comment on `next_cid` argues against those —
+/// but this one is right for the same reason the registers are: there is
+/// exactly one watchdog on the chip, so there is exactly one breadcrumb in a
+/// binary. It exists so [`arm`] and [`reboot`] keep the signatures they had:
+/// `reboot` is called from fault handlers, which have nothing to hand it.
+///
+/// **Zero until [`read`] is called**, which is why the module documentation
+/// says to call `read` first, before anything else in `main`.
+static TAG: AtomicU8 = AtomicU8::new(0);
 
 
 /// Read the note, fold the previous boot into the history, and start this one.
@@ -23,7 +37,15 @@ use super::{
 ///
 /// It clears `WATCHDOG.REASON` on the way through, so the next boot's reading of
 /// it describes the next death and not this one.
-pub fn read() -> Note {
+///
+/// `tag` says whose notes this firmware writes and accepts, and it is
+/// remembered for [`arm`] and [`reboot`]. **Pass something unique and non-zero**
+/// — these experiments pass their own number. A note carrying anybody else's
+/// tag reads as [`Cause`](super::Cause)`::Fresh`, which is what stops a board
+/// handing one firmware's death to the next one that happens to be flashed
+/// onto it. The module documentation has the run that made this necessary.
+pub fn read(tag: u8) -> Note {
+    TAG.store(tag, Ordering::Relaxed);
     let wd = pac::WATCHDOG;
 
     // Disarm FIRST, unconditionally, before reading anything.
@@ -53,7 +75,7 @@ pub fn read() -> Note {
 
     let before =
         Scratch { s0, s1: wd.scratch1().read(), s2: wd.scratch2().read(), s3: wd.scratch3().read() };
-    let (note, after) = interpret(before, forced);
+    let (note, after) = interpret(before, forced, tag);
 
     wd.scratch1().write_value(after.s1);
     wd.scratch2().write_value(after.s2);
@@ -124,7 +146,7 @@ pub fn arm(timeout_us: u32) {
     select_reset_targets();
     let wd = pac::WATCHDOG;
     // Hand the token forward: from here, a death is ours to report.
-    wd.scratch0().write_value(MAGIC);
+    wd.scratch0().write_value(token(TAG.load(Ordering::Relaxed)));
     wd.ctrl().modify(|w| w.set_enable(false));
     wd.load().write(|w| w.set_load(timeout_us.min(0x00ff_ffff)));
     wd.ctrl().modify(|w| w.set_enable(true));
@@ -163,7 +185,7 @@ pub fn disarm() {
 pub fn reboot() -> ! {
     select_reset_targets();
     let wd = pac::WATCHDOG;
-    wd.scratch0().write_value(MAGIC);
+    wd.scratch0().write_value(token(TAG.load(Ordering::Relaxed)));
 
     // Load a short timeout BEFORE forcing the reset, and that order is the
     // whole point.

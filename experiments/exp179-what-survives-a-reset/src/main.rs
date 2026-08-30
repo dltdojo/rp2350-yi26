@@ -248,7 +248,7 @@ fn cause_name(c: Cause) -> &'static str {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     // First, before anything can take a fault or reset a peripheral.
-    let note = breadcrumb::read();
+    let note = breadcrumb::read(179);
     // Before embassy_rp::init, before USB, before any task. Safety: see survey.
     let found = unsafe { survey() };
 

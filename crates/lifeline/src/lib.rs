@@ -93,6 +93,16 @@ pub struct Config {
     pub boot_us: u32,
     pub run_us: u32,
     pub escape_after: u8,
+    /// Whose breadcrumb notes this firmware writes and accepts. **Non-zero, and
+    /// unique to this firmware** — these experiments pass their own number.
+    ///
+    /// It is a field rather than a constant because a board keeps its scratch
+    /// registers across a flash, and a note left by whatever ran before must
+    /// not be read as this firmware's. Measured 2026-08-30: exp157 flashed onto
+    /// a board that had been running exp174 came up as `boot #19`, skipped its
+    /// whole sequence and reported success. See `breadcrumb`'s module
+    /// documentation.
+    pub tag: u8,
 }
 
 impl Default for Config {
@@ -101,6 +111,12 @@ impl Default for Config {
             boot_us: DEFAULT_BOOT_US,
             run_us: DEFAULT_RUN_US,
             escape_after: DEFAULT_ESCAPE_AFTER,
+            // Zero is the untagged word every build wrote before tags existed,
+            // so a firmware that takes this default inherits from, and is
+            // inherited by, any other untagged build on the same board. Every
+            // caller in this repository writes the literal and names its own
+            // number instead; this exists so `Config` has a `Default` at all.
+            tag: 0,
         }
     }
 }

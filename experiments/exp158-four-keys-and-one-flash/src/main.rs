@@ -203,7 +203,7 @@ fn report(note: &breadcrumb::Note) {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     // FIRST, before anything can touch a register or take a fault.
-    let note = breadcrumb::read();
+    let note = breadcrumb::read(158);
 
     let p = embassy_rp::init(Default::default());
     spawner.spawn(heartbeat(Output::new(p.PIN_25, Level::Low)).unwrap());

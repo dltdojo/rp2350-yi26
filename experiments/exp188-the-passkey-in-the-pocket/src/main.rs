@@ -60,6 +60,7 @@ const LIFELINE: lifeline::Config = lifeline::Config {
     boot_us: lifeline::DEFAULT_BOOT_US,
     run_us: lifeline::DEFAULT_RUN_US,
     escape_after: lifeline::DEFAULT_ESCAPE_AFTER,
+    tag: 188,
 };
 
 const PACKET: usize = 64;

@@ -328,7 +328,7 @@ fn report(note: &breadcrumb::Note) {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    let mut note = breadcrumb::read();
+    let mut note = breadcrumb::read(159);
 
     let p = embassy_rp::init(Default::default());
     spawner.spawn(heartbeat(Output::new(p.PIN_25, Level::Low)).unwrap());

@@ -41,7 +41,7 @@ impl Boot {
 /// the only record of why the last boot ended — which is [`breadcrumb::read`]'s
 /// rule, inherited whole.
 pub fn begin(cfg: Config) -> Boot {
-    let note = breadcrumb::read();
+    let note = breadcrumb::read(cfg.tag);
     let deaths = breadcrumb::tally();
 
     #[cfg(feature = "escape")]
