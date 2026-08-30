@@ -94,6 +94,40 @@ Read
 **[Which of these can I do right now](./experiments/README.md#which-of-these-can-i-do-right-now)**
 before proposing a plan that ends up parked until morning.
 
+## Do not start a new experiment by copying the last one
+
+From exp190 on, an experiment's `src/main.rs` is meant to hold **only what the
+experiment is asking about**. Everything else comes from `crates/`.
+
+The test is one question, and it has a checkable form:
+
+> This code changed. Would this experiment's claim change?
+> No -> it is not this experiment's. And in practice: an experiment's scope is
+> what its `check.sh` and `verify.py` assert on.
+
+This is not a style preference, it is what copying has already cost: exp174
+shipped with exp173's USB serial because the string came across with the source;
+exp160 lost the end of its report to a full log queue and exp162 lost it again
+the same way. Today **22,629 of the 55,110 lines of firmware source here live
+inside a function that some other experiment also defines** — `ctaphid_task`
+exists in fourteen experiments as thirteen different functions, the longest 959
+lines.
+
+So there is a ratchet, and `docs-check.sh` runs it:
+
+```sh
+./duplication.sh            # what is duplicated, worst first
+./duplication.sh --check    # fails if anything gained a copy
+```
+
+Existing copies are grandfathered in `duplication-baseline.txt`. The baseline
+may only shrink. **The second copy is the moment to extract, not the fifth.**
+
+[`docs/what-belongs-to-an-experiment.md`](./docs/what-belongs-to-an-experiment.md)
+is the whole argument, the cost of extraction stated plainly, and the order to
+extract in. Read it before proposing a new experiment's structure — including
+the part that says not to extract ahead of a real caller.
+
 ## The rules that are not agent-specific
 
 These apply to everyone and are documented where they belong. An agent should

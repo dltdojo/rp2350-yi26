@@ -367,6 +367,38 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 8. The duplication ratchet.
+#
+# `presence_check` and `usb_check` keep each experiment honest about itself, and
+# the sections above keep the sums honest. Neither can see the thing that has
+# cost this repository the most: the same function, copied into the next
+# experiment, diverging, and carrying a bug forward that was never what either
+# experiment was asking about.
+#
+# It is not a hypothesis. exp174 shipped with exp173's USB serial because the
+# string came across with the source; exp160 lost the end of its report to a
+# full log queue and exp162 lost it again the same way; exp189 records meeting
+# exp173's subject "for the second time in one afternoon". Today 22,629 of the
+# 55,110 lines of firmware source here live inside a function that some other
+# experiment also defines.
+#
+# Ninety-two experiments cannot be retrofitted — each would cost a board run —
+# so `duplication-baseline.txt` grandfathers what exists and this fails only
+# when a number goes up. The rule is the one thing that has to hold from here
+# on: **the second copy is the moment to extract, not the fifth.**
+if [[ -x ./duplication.sh ]]; then
+    while IFS= read -r line; do
+        case "$line" in
+            PASS*) pass "${line#PASS  }" ;;
+            FAIL*) fail "${line#FAIL  }" ;;
+            *)     echo "$line" ;;
+        esac
+    done < <(./duplication.sh --check)
+else
+    fail "duplication.sh is present and executable" "the ratchet cannot run"
+fi
+
+# ---------------------------------------------------------------------------
 # What this deliberately does not do: rewrite anything. A generator that
 # silently fixes a table means nobody ever learns the document was wrong, and
 # the prose *around* a generated block can still contradict it. `pack.sh`
