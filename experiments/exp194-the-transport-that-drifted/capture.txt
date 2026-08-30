@@ -1,5 +1,5 @@
 === exp194 — the transport that drifted ===
-recorded at 2026-08-30T05:51:01Z from commit afad667 (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-08-30T05:57:47Z from commit 9123f5a
 
 == exp168 ==
 -- exp168 | init --
