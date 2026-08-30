@@ -416,6 +416,45 @@ extension is still announced (`extension strings: hmac-secret`), and
 nothing in the `bank8` one. Whoever next walks this experiment replaces the
 seven-press block with what their own board prints.
 
+## Four build flags exp192 bought, and why they are flags
+
+[exp192](../exp192-the-salt-the-browser-sends/) pointed a browser at this
+firmware and could not get its LED to light. The reason was never `prf`: it was
+four places where this experiment's contract said something a browser reads and
+`libfido2` does not. Each one ended the conversation before any press was asked
+for, which from the bench is indistinguishable from a broken board.
+
+```console
+EXP189_LOG_SALT=1        print the decrypted salt (the salt is not the secret)
+EXP189_ADVERTISE_UV=0    stop claiming a configured verification method
+EXP189_SELECTION=1       answer CTAP 2.1 authenticatorSelection (0x0B)
+EXP189_ADVERTISE_PIN=0   stop claiming a PIN this board has not got
+```
+
+They are flags rather than fixes because **the default here is not wrong, it is
+measured**: every transcript in this directory was taken by clients that ask
+none of these questions, and a build that answers them differently is a
+different subject. One board can be asked the same question under both
+contracts, which is what exp192 needed.
+
+- **`uv: true` while `getUVRetries` returns `CTAP2_ERR_UNSUPPORTED_OPTION`.**
+  Not a lie — [exp187](../exp187-the-three-taps-and-the-reset/)'s three-tap
+  gesture is real and `makeCredential` honours it — but a claim carries the rest
+  of its contract, and Chrome asks `clientPIN sub=7` before it will send
+  anything else.
+- **`authenticatorSelection` (0x0B) was missing.** That is the command a browser
+  uses to ask *which* attached key the person means, and it is the one that
+  lights the LED. Nothing in this repository had ever sent it.
+- **`clientPin: false` with `pinUvAuthToken: true`** reads to a browser as "a
+  PIN this key supports and has not got yet", and Chrome responds by offering to
+  set one up.
+
+**The fourth is not a flag.** CTAP 2.1 requires `alg` on a key-agreement
+`COSE_Key` and this shipped with kty, crv, x and y only. Every `hmac-secret`
+result in exp189 and exp191 rode a tunnel built on that key, because `libfido2`
+does not check; Chrome parses strictly and stopped there. `alg: -25` is now
+always present, and the fix changes nothing any recorded run depended on.
+
 ## What this does not establish
 
 - **Uniqueness.** [exp181](../exp181-a-key-that-is-written-nowhere/) could not

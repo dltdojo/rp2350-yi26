@@ -1,0 +1,42 @@
+[   30059 ms] in  cid ffffffff INIT bcnt 8
+[   30060 ms]   INIT: nonce 208b10503a60edcf -> cid 00000002
+[   30067 ms] in  cid 00000002 CBOR bcnt 1
+[   30068 ms]   getInfo: 105 bytes of canonical CBOR (CTAP 2.1 rk+credMgmt)
+[   30079 ms] in  cid 00000002 CBOR bcnt 156
+[   30087 ms]   assembled 156 bytes in 7 ms
+[   30088 ms]   makeCredential: rp="localhost", user=16B (rk=false, uv=false)
+[   33038 ms] idle: 7 pkts, 5 msgs, 0 errs
+[   33253 ms]   presence: BOOTSEL read low at 3165 ms (poll 20 ms)
+[   33365 ms]   credential created: authData 194B, total 291B (rk=false)
+[   35376 ms] in  cid ffffffff INIT bcnt 8
+[   35376 ms]   INIT: nonce bc8160be7870fab7 -> cid 00000003
+[   35384 ms] in  cid 00000003 CBOR bcnt 1
+[   35384 ms]   getInfo: 105 bytes of canonical CBOR (CTAP 2.1 rk+credMgmt)
+[   35396 ms] in  cid 00000003 CBOR bcnt 6
+[   35396 ms]   clientPIN: pinProtocol=1 sub=2
+[   35460 ms] in  cid 00000003 CBOR bcnt 269
+[   35476 ms]   assembled 269 bytes in 15 ms
+[   35476 ms]   getAssertion: rp="localhost", allow=1 (uv_req=false)
+[   37820 ms]   presence: BOOTSEL read low at 2343 ms (poll 20 ms)
+[   37867 ms]   hmac-secret: 32B salt in, 32B out, UV=false
+[   37867 ms]   hmac-secret: salt in = 0b6137d0e36e072d3f54fbfc3c4bea2117e86dd3f2517f54dfd5179ea...
+[   37967 ms]   assertion signed: 233B, (Passkey=false, UV=false)
+[   40308 ms] in  cid ffffffff INIT bcnt 8
+[   40308 ms]   INIT: nonce 6d56fb042caf91be -> cid 00000004
+[   40316 ms] in  cid 00000004 CBOR bcnt 1
+[   40316 ms]   getInfo: 105 bytes of canonical CBOR (CTAP 2.1 rk+credMgmt)
+[   40328 ms] in  cid 00000004 CBOR bcnt 1
+[   40328 ms]   authenticatorSelection: a client is asking which key
+[   42371 ms]   presence: BOOTSEL read low at 2043 ms (poll 20 ms)
+[   42371 ms]   authenticatorSelection: this one
+[   48044 ms] in  cid ffffffff INIT bcnt 8
+[   48044 ms]   INIT: nonce 8e6c9927f041b0b7 -> cid 00000005
+[   48052 ms] in  cid 00000005 CBOR bcnt 1
+[   48052 ms]   getInfo: 105 bytes of canonical CBOR (CTAP 2.1 rk+credMgmt)
+[   48064 ms] in  cid 00000005 CBOR bcnt 1
+[   48064 ms]   authenticatorSelection: a client is asking which key
+[   49987 ms]   presence: BOOTSEL read low at 1923 ms (poll 20 ms)
+[   49987 ms]   authenticatorSelection: this one
+[   63038 ms] idle: 21 pkts, 15 msgs, 0 errs
+[   93038 ms] idle: 21 pkts, 15 msgs, 0 errs
+[  123038 ms] idle: 21 pkts, 15 msgs, 0 errs

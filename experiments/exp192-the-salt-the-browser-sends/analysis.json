@@ -1,0 +1,32 @@
+{
+  "prf_input": "exp192 prf input",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+  "rp_id": "localhost",
+  "entries": 2,
+  "create_prf": {
+    "enabled": true
+  },
+  "create_error": null,
+  "salts_the_board_received": [
+    "0b6137d0e36e072d3f54fbfc3c4bea2117e86dd3f2517f54dfd5179ea"
+  ],
+  "uv_the_board_saw": [
+    false
+  ],
+  "gets": [
+    {
+      "userVerification": "discouraged",
+      "error": null,
+      "prf_first_hex": "29805b806accd1043997408fece041d46ce204e4d83bafcf2022d0c1ebc2da3e",
+      "authdata_flags": 129,
+      "salt_the_board_received": "0b6137d0e36e072d3f54fbfc3c4bea2117e86dd3f2517f54dfd5179ea",
+      "which_candidate": "prf-prefixed-sha256 (first 28 of 32 bytes, the log cut mid-byte)"
+    }
+  ],
+  "pairable": true,
+  "candidates": {
+    "raw": "6578703139322070726620696e707574",
+    "prf-prefixed-sha256": "0b6137d0e36e072d3f54fbfc3c4bea2117e86dd3f2517f54dfd5179ea49d3b67",
+    "plain-sha256": "24e9da58d166e024f1f1b71eaaf681a53309b90cce01ac937e68b8567e3c3d38"
+  }
+}

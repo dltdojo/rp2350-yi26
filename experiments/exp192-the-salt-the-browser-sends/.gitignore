@@ -1,0 +1,13 @@
+# Built here rather than checked in — see ./run.sh.
+target/
+__pycache__/
+work/
+
+# The server's own noise. The board's log and the page's transcript are the
+# capture and are checked in; this is neither.
+serve.log
+
+# The diagnostic capture from the round that found the four contract defects.
+# board.log is the run that produced the finding and is kept; this one is the
+# scratch beside it.
+board2.log

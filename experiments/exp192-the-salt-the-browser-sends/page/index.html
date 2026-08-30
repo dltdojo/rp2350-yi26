@@ -1,0 +1,124 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp192 — the salt the browser sends</title>
+<style>
+  body { font: 14px/1.55 system-ui, sans-serif; margin: 2rem auto; max-width: 46rem; padding: 0 1rem; }
+  h1 { font-size: 1.2rem; }
+  button { font: inherit; padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; }
+  pre { background: #f4f4f4; padding: .7rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+  .note { color: #555; }
+  .ok { color: #076; } .bad { color: #a00; }
+</style>
+
+<h1>exp192 — the salt the browser sends</h1>
+
+<p class="note">A page hands <code>prf.eval.first</code> some bytes. What arrives at
+the authenticator as an <code>hmac-secret</code> salt is not necessarily those
+bytes, and the board's own log is the only thing that can say. Press BOOTSEL
+when the board's LED goes solid — the browser will not tell you when.</p>
+
+<p>
+  <button id="reg">1 — register (rp id = <code id="rpid"></code>)</button>
+  <button id="ev">2 — evaluate prf, uv discouraged</button>
+  <button id="evuv">3 — evaluate prf, uv required</button>
+</p>
+
+<pre id="log">ready.</pre>
+
+<script>
+// The one place this string exists. salt.py takes it as an argument and
+// analyse.py reads it back out of the transcript the page posts, so there is no
+// second copy to drift — a comparison against a candidate derived from a
+// different input would agree with nothing and look like a browser mystery.
+const PRF_INPUT = "exp192 prf input";
+
+const rpId = location.hostname;             // "localhost", the one plain-http exception
+document.getElementById("rpid").textContent = rpId;
+const logEl = document.getElementById("log");
+let credentialId = null;
+
+const enc = new TextEncoder();
+const hex = (b) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+const b64 = (b) => btoa(String.fromCharCode(...new Uint8Array(b)));
+
+function say(s, cls) {
+  logEl.innerHTML += "\n" + (cls ? `<span class="${cls}">${s}</span>` : s);
+}
+
+async function post(entry) {
+  entry.at = new Date().toISOString();
+  entry.userAgent = navigator.userAgent;
+  entry.rpId = rpId;
+  entry.prfInput = PRF_INPUT;
+  try {
+    await fetch("/", {method: "POST", body: JSON.stringify(entry)});
+    say("  (written to transcript.json)", "note");
+  } catch (e) {
+    say("  could not reach the server: " + e, "bad");
+  }
+}
+
+document.getElementById("reg").onclick = async () => {
+  say("\n=== create() with extensions.prf ===");
+  try {
+    const c = await navigator.credentials.create({publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rp: {id: rpId, name: "exp192"},
+      user: {id: crypto.getRandomValues(new Uint8Array(16)), name: "exp192", displayName: "exp192"},
+      pubKeyCredParams: [{type: "public-key", alg: -7}],
+      authenticatorSelection: {authenticatorAttachment: "cross-platform", userVerification: "discouraged"},
+      timeout: 120000,
+      extensions: {prf: {}},
+    }});
+    credentialId = new Uint8Array(c.rawId);
+    const ext = c.getClientExtensionResults();
+    // For a security key, hmac-secret is not evaluated during makeCredential —
+    // so this is expected to say `enabled` and carry no bytes. Whether it does
+    // is the measurement, not the assumption.
+    say("credential id: " + b64(c.rawId));
+    say("prf at create: " + JSON.stringify(ext.prf ?? null));
+    await post({step: "create", credentialId: b64(c.rawId), prf: ext.prf ?? null});
+  } catch (e) {
+    say("create refused: " + e, "bad");
+    await post({step: "create", error: String(e)});
+  }
+};
+
+async function evaluate(uv) {
+  say(`\n=== get() with prf.eval.first, userVerification: ${uv} ===`);
+  if (!credentialId) { say("register first", "bad"); return; }
+  try {
+    const a = await navigator.credentials.get({publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rpId: rpId,
+      allowCredentials: [{type: "public-key", id: credentialId, transports: ["usb"]}],
+      userVerification: uv,
+      timeout: 120000,
+      extensions: {prf: {eval: {first: enc.encode(PRF_INPUT)}}},
+    }});
+    const ext = a.getClientExtensionResults();
+    const first = ext.prf?.results?.first;
+    const flags = new Uint8Array(a.response.authenticatorData)[32];
+    say("authData flags: 0x" + flags.toString(16).padStart(2, "0")
+        + "  (UP=" + !!(flags & 1) + ", UV=" + !!(flags & 4) + ", ED=" + !!(flags & 128) + ")");
+    if (first) {
+      say("prf.results.first: " + hex(first), "ok");
+    } else {
+      say("no prf result came back: " + JSON.stringify(ext.prf ?? null), "bad");
+    }
+    await post({
+      step: "get", userVerification: uv,
+      credentialId: b64(credentialId),
+      flags: flags,
+      prfFirstHex: first ? hex(first) : null,
+      prf: first ? undefined : (ext.prf ?? null),
+    });
+  } catch (e) {
+    say("get refused: " + e, "bad");
+    await post({step: "get", userVerification: uv, error: String(e)});
+  }
+}
+
+document.getElementById("ev").onclick = () => evaluate("discouraged");
+document.getElementById("evuv").onclick = () => evaluate("required");
+</script>

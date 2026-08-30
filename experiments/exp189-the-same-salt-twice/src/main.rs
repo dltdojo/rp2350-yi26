@@ -211,6 +211,8 @@ const CTAP2_ERR_EXTENSION_FIRST: u8 = 0xE1;
 const CTAP2_ERR_NO_SECRET: u8 = 0xE2;
 
 const COSE_ES256: i64 = -7;
+/// ECDH-ES + HKDF-256, the algorithm a CTAP key-agreement COSE_Key must name.
+const COSE_ECDH_ES_HKDF_256: i64 = -25;
 const USER_PRESENCE_TIMEOUT: Duration = Duration::from_millis(TIMEOUT_MS);
 
 const AUTHENTICATOR_MAKE_CREDENTIAL: u8 = 0x01;
@@ -219,6 +221,15 @@ const AUTHENTICATOR_GET_INFO: u8 = 0x04;
 const AUTHENTICATOR_CLIENT_PIN: u8 = 0x06;
 const AUTHENTICATOR_RESET: u8 = 0x07;
 const AUTHENTICATOR_CREDENTIAL_MANAGEMENT: u8 = 0x0A;
+/// CTAP 2.1 `authenticatorSelection`. One byte, no parameters, and the thing a
+/// browser sends to ask *which* of the attached keys the person means: light
+/// up, and whichever one is touched wins.
+///
+/// exp192 found it missing. Nothing in this repository had ever sent it —
+/// `libfido2` does not — so a board that answered every question the CLI asked
+/// could not get a browser as far as lighting its LED. Behind a flag, because
+/// exp189's own transcripts were taken by a client that never asks.
+const AUTHENTICATOR_SELECTION: u8 = 0x0B;
 
 const AAGUID: [u8; 16] = [0; 16];
 const TRNG_SAMPLE_COUNT: u32 = 1000;
@@ -1334,19 +1345,48 @@ fn get_info<'a>(buf: &'a mut [u8], pin_state: &PinState) -> Result<&'a [u8], cbo
 
     // 0x04: options (canonical order by key length: "rk" (2), "up" (2), "uv" (2), "credMgmt" (8), "clientPin" (9), "pinUvAuthToken" (14), "makeCredUvNotRqd" (16))
     w.key(0x04);
+    // `uv` is a claim about a **configured** verification method, and exp192
+    // found that a browser reads it as one. This firmware's is exp187's
+    // three-tap gesture, which is real — but advertising it makes Chrome run a
+    // preflight before it will send a makeCredential, and the conversation ends
+    // there. libfido2 does not run that preflight, which is why every other
+    // client in this repository worked. The flag exists so one board can be
+    // asked the same question under both contracts; the default is unchanged,
+    // so exp189's own transcripts still describe the firmware they were taken
+    // on.
+    // How many claims this build is willing to make. Each one exp192 switched
+    // off bought a browser one more step, and none of them mattered to
+    // libfido2 — which is the finding rather than the workaround.
+    #[cfg(all(no_uv, no_pin))]
+    w.map(4);
+    #[cfg(all(no_uv, not(no_pin)))]
+    w.map(6);
+    #[cfg(all(not(no_uv), no_pin))]
+    w.map(5);
+    #[cfg(all(not(no_uv), not(no_pin)))]
     w.map(7);
     w.key_text("rk");
     w.bool(true); // Discoverable credentials (Passkeys) supported!
     w.key_text("up");
     w.bool(WAIT_FOR_USER);
-    w.key_text("uv");
-    w.bool(true); // Built-in gesture UV supported
+    #[cfg(not(no_uv))]
+    {
+        w.key_text("uv");
+        w.bool(true); // Built-in gesture UV supported
+    }
     w.key_text("credMgmt");
     w.bool(true); // CTAP 2.1 Credential Management supported! (len 8)
-    w.key_text("clientPin");
-    w.bool(pin_state.is_set); // (len 9)
-    w.key_text("pinUvAuthToken");
-    w.bool(true);
+    // `clientPin: false` plus `pinUvAuthToken: true` is not "no PIN" to a
+    // browser — it is "a PIN this key supports and has not got yet", and Chrome
+    // responds by offering to set one. A board whose whole verification story
+    // is one button says neither.
+    #[cfg(not(no_pin))]
+    {
+        w.key_text("clientPin");
+        w.bool(pin_state.is_set); // (len 9)
+        w.key_text("pinUvAuthToken");
+        w.bool(true);
+    }
     w.key_text("makeCredUvNotRqd");
     w.bool(!pin_state.is_set);
     w.end();
@@ -1829,6 +1869,23 @@ async fn ctaphid_task(
                                     }
                                 }
                             }
+                            #[cfg(selection)]
+                            AUTHENTICATOR_SELECTION => {
+                                // The whole command: light up, and say whether
+                                // somebody answered. There is nothing to parse —
+                                // its entire payload is the command byte — and
+                                // nothing to return but a status.
+                                log!("  authenticatorSelection: a client is asking which key");
+                                let w = wait_for_user_presence(&mut reader, &mut writer, cid).await;
+                                if matches!(w.outcome, Presence::Pressed) {
+                                    log!("  authenticatorSelection: this one");
+                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_OK]).await;
+                                } else {
+                                    ERRORS.fetch_add(1, Ordering::Relaxed);
+                                    log!("  authenticatorSelection: nobody answered");
+                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                }
+                            }
                             AUTHENTICATOR_RESET => {
                                 let elapsed = boot_time.elapsed();
                                 log!("  authenticatorReset: request received (elapsed: {} ms)", elapsed.as_millis());
@@ -1909,6 +1966,15 @@ async fn ctaphid_task(
                                         }
                                     }
                                 }
+                                // Which question was asked, in the device's own
+                                // words. Chrome sends a six-byte clientPIN
+                                // before it will send anything else, and this
+                                // firmware's log said only `CBOR bcnt 6` — so a
+                                // browser that walked away after that answer
+                                // left nothing behind saying what it had asked.
+                                // Subcommand numbers are not secret.
+                                log!("  clientPIN: pinProtocol={} sub={}",
+                                     pin_proto.unwrap_or(0), sub_cmd.unwrap_or(0));
                                 match sub_cmd {
                                     Some(0x01) => {
                                         // getPinRetries
@@ -1944,9 +2010,23 @@ async fn ctaphid_task(
                                         let mut w = cbor::Writer::new(&mut out[1..]);
                                         w.map(1);
                                         w.key(0x01); // keyAgreement
-                                        w.map(4);
+                                        // Five fields, not four. CTAP 2.1 requires
+                                        // `alg` on a key-agreement COSE_Key, and this
+                                        // shipped without it: kty, crv, x, y and
+                                        // nothing else.
+                                        //
+                                        // libfido2 never noticed — every hmac-secret
+                                        // result in exp189 and exp191 rode a tunnel
+                                        // built on this key. Chrome parses the COSE_Key
+                                        // strictly, so exp192 watched it ask for the
+                                        // key agreement, receive it, and stop: the last
+                                        // line in the board's log, and no getAssertion
+                                        // ever sent.
+                                        w.map(5);
                                         w.key(1);
                                         w.uint(2); // kty: EC2
+                                        w.key(3);
+                                        w.nint(COSE_ECDH_ES_HKDF_256); // alg
                                         w.key_nint(-1);
                                         w.uint(1); // crv: P-256
                                         w.key_nint(-2);
@@ -2541,6 +2621,44 @@ async fn ctaphid_task(
                                                 }
                                             };
                                             log!("  hmac-secret: {}B salt in, {}B out, UV={}", salt_len, hmac_enc_len, user_verified);
+                                            // The salt itself, when a build asks for it.
+                                            //
+                                            // Off by default, and the transcripts in this
+                                            // directory were taken without it. exp192 needs it
+                                            // because a browser does not send the salt a page
+                                            // hands it: WebAuthn's `prf` derives one, and the
+                                            // only way to find out what from is to have the
+                                            // device say what arrived. **The salt is not a
+                                            // secret** — the client chooses it and sends it, and
+                                            // exp190 stores one in the clear next to the file it
+                                            // opens. The *output* is the key, and nothing here
+                                            // ever prints that.
+                                            #[cfg(log_salt)]
+                                            {
+                                                let mut hex = [0u8; 128];
+                                                for (i, b) in salt[..salt_len].iter().enumerate() {
+                                                    const H: &[u8; 16] = b"0123456789abcdef";
+                                                    hex[i * 2] = H[(b >> 4) as usize];
+                                                    hex[i * 2 + 1] = H[(b & 15) as usize];
+                                                }
+                                                // Sixteen bytes a line, because the log ring
+                                                // has a fixed line width and thirty-two bytes
+                                                // of hex does not fit in it. The first run of
+                                                // exp192 printed 28 of the 32 and the rest was
+                                                // gone — enough to identify the salt beyond
+                                                // any doubt, and not enough to *be* the salt.
+                                                // A truncated reading that happens to be
+                                                // sufficient is still a truncated reading.
+                                                let mut off = 0;
+                                                while off < salt_len {
+                                                    let n = core::cmp::min(16, salt_len - off);
+                                                    log!("  hmac-secret: salt in [{}..{}] = {}",
+                                                         off, off + n,
+                                                         core::str::from_utf8(&hex[off * 2..(off + n) * 2])
+                                                             .unwrap_or("?"));
+                                                    off += n;
+                                                }
+                                            }
                                         }
                                         let hmac_out = if hmac_enc_len > 0 { Some(&hmac_enc[..hmac_enc_len]) } else { None };
 

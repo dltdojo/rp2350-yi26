@@ -88,7 +88,39 @@ fn main() {
     }
     println!("cargo:rustc-check-cfg=cfg(bank8)");
 
-    for var in ["EXP189_KEY", "EXP189_KEEPALIVE", "EXP189_TIMEOUT_MS", "EXP189_HOLD_MS", "EXP189_RESET_WINDOW_SECS", "EXP189_MAX_RK", "EXP189_PRESENCE_POLL_MS"] {
+    // exp192 asks the board to say which salt actually arrived, because a
+    // browser does not send the one a page hands it. Off unless asked for, so
+    // the transcripts already in this directory describe the same firmware they
+    // were taken on.
+    if env::var("EXP189_LOG_SALT").map(|v| v == "1").unwrap_or(false) {
+        println!("cargo:rustc-cfg=log_salt");
+    }
+    println!("cargo:rustc-check-cfg=cfg(log_salt)");
+
+    // exp192 asks the same board the same question under two contracts: one
+    // that advertises a configured user-verification method and one that does
+    // not. Default unchanged.
+    if env::var("EXP189_ADVERTISE_UV").map(|v| v == "0").unwrap_or(false) {
+        println!("cargo:rustc-cfg=no_uv");
+    }
+    println!("cargo:rustc-check-cfg=cfg(no_uv)");
+
+    // CTAP 2.1 authenticatorSelection (0x0B), which exp192 found missing. Off
+    // by default for the same reason as the other two: exp189's transcripts
+    // were taken by a client that never sends it.
+    if env::var("EXP189_SELECTION").map(|v| v == "1").unwrap_or(false) {
+        println!("cargo:rustc-cfg=selection");
+    }
+    println!("cargo:rustc-check-cfg=cfg(selection)");
+
+    // The PIN pair. Off means this build claims no PIN capability at all,
+    // rather than claiming one it has not got.
+    if env::var("EXP189_ADVERTISE_PIN").map(|v| v == "0").unwrap_or(false) {
+        println!("cargo:rustc-cfg=no_pin");
+    }
+    println!("cargo:rustc-check-cfg=cfg(no_pin)");
+
+    for var in ["EXP189_KEY", "EXP189_LOG_SALT", "EXP189_ADVERTISE_UV", "EXP189_SELECTION", "EXP189_ADVERTISE_PIN", "EXP189_KEEPALIVE", "EXP189_TIMEOUT_MS", "EXP189_HOLD_MS", "EXP189_RESET_WINDOW_SECS", "EXP189_MAX_RK", "EXP189_PRESENCE_POLL_MS"] {
         println!("cargo:rerun-if-env-changed={var}");
     }
     println!("cargo:rerun-if-changed=build.rs");
