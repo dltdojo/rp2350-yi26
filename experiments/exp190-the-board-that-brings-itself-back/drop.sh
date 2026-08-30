@@ -11,6 +11,11 @@
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+# For `capture_header`, so the recording says which tree produced it. lib.sh
+# also defines a `say`; the definitions below are deliberately after the source
+# line, because a capture wants a louder marker than an interactive walkthrough.
+source ../lib.sh
+
 say()  { printf '>>> %s\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
 
@@ -58,8 +63,7 @@ for arm in never late early hang; do build "$arm"; done
 note "$(ls -la target/exp190-*.uf2 | wc -l) images"
 
 {
-echo "=== exp190 — the board that brings itself back ==="
-echo
+capture_header "exp190 — the board that brings itself back"
 
 # ---------------------------------------------------------------- the control
 say "arm 1/4: never — the control. It gets up and stays up."

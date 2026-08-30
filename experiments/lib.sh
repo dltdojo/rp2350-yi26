@@ -279,6 +279,41 @@ usb_check() {
     fi
 }
 
+# ---------- what tree produced this recording? -------------------------------
+#
+# A `capture.txt` is evidence, and evidence with no date on it is an anecdote.
+# Every recording here was made by flashing a build of *some* tree, and until
+# this existed nothing wrote down which one — so "does this capture still
+# describe the code?" had no answer, only a guess based on how recently
+# somebody remembered running it.
+#
+# It stopped being a theoretical gap the moment firmware started sharing crates.
+# A copy of a bug in one experiment's `src/main.rs` can only be wrong about that
+# experiment; a bug in `crates/` is wrong about every firmware built after it,
+# including ones whose captures were recorded before it landed and still read as
+# passing. The question that then has to be answerable is "which recordings
+# predate this fix", and a commit is the only thing that answers it.
+#
+# Two lines, printed as the first thing in the capture:
+#
+#   capture_header "exp190 — the board that brings itself back"
+#
+# `dirty` is not a warning to be tidied away. It is the honest state of a
+# recording made from a working tree, and the reason to print it is that such a
+# recording cannot be reproduced from the commit alone.
+capture_header() { # title
+    local commit dirty
+    commit="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    if [[ -n "$(git -C "$(dirname "${BASH_SOURCE[0]}")" status --porcelain 2>/dev/null)" ]]; then
+        dirty=" (working tree dirty — this recording is not reproducible from the commit alone)"
+    else
+        dirty=""
+    fi
+    echo "=== $1 ==="
+    echo "recorded at $(date -u +%Y-%m-%dT%H:%M:%SZ) from commit $commit$dirty"
+    echo
+}
+
 # ---------- is this firmware able to bring itself back? ----------------------
 #
 # [exp190](./exp190-the-board-that-brings-itself-back/) measured what a firmware

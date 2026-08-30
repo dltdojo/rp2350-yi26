@@ -71,6 +71,17 @@ whatever the outcome, and when firmware fails the LED is the only channel left.
 what seven flash cycles of it taught, starting with: **search prior work before
 forming a hypothesis, and prove the LED works before you need it.**
 
+Reading one of the later experiments and finding a thousand lines that have
+nothing to do with its subject? That is a design decision being unwound.
+Every experiment here owns its `src/main.rs`, which was right for sixty of them
+and then started carrying bugs forward by copying — exp174 shipped with exp173's
+USB serial, and exp160's lost log line was lost a second time by exp162. From
+exp190 on, an experiment holds only what it is asking about and the rest lives
+in [`crates/`](./crates/).
+[`docs/what-belongs-to-an-experiment.md`](./docs/what-belongs-to-an-experiment.md)
+is the argument, the 22,629 lines it is up against, and the ratchet that stops
+the number growing: **the second copy is the moment to extract, not the fifth.**
+
 No computer at all — a phone, a board, and nothing else? The thing that builds
 the `.uf2` can be a cloud AI session you describe the change to in sentences,
 and the phone flashes what comes back with
