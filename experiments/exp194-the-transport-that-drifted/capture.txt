@@ -1,0 +1,185 @@
+=== exp194 — the transport that drifted ===
+recorded at 2026-08-30T05:51:01Z from commit afad667 (working tree dirty — this recording is not reproducible from the commit alone)
+
+== exp168 ==
+-- exp168 | init --
+{"reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 8}, "case": "init", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | ping 57 --
+{"sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_len": 57}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | ping 1024 --
+{"sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_len": 1024}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | ping 1025 --
+{"sent_bytes": 1025, "sent_packets": 18, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | bad-seq --
+{"reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}, "case": "bad-seq", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | unknown --
+{"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | bad-cid --
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 11, "error_name": "ERR_INVALID_CHANNEL"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | stray-cont --
+{"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | init-resets --
+{"reply": {"cid": "00000008", "cmd": 6, "len": 17, "packets": 1, "data_head": "22222222222222220000000902000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000009", "protocol": 2, "capabilities": 8}, "ping_after": null, "case": "init-resets", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | truncated --
+{"cid": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}, "case": "truncated", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | busy --
+{"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp168 | busy-recovers --
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "33333333333333330000000f02000100", "data_len": 17, "nonce_echoed": true, "new_cid": "0000000f", "protocol": 2, "capabilities": 8}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "spec"}
+
+== exp170 ==
+-- exp170 | init --
+{"reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 12}, "case": "init", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | ping 57 --
+{"sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_len": 57}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | ping 1024 --
+{"sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_len": 1024}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | ping 1025 --
+{"sent_bytes": 1025, "sent_packets": 18, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | bad-seq --
+{"reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}, "case": "bad-seq", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | unknown --
+{"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | bad-cid --
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 11, "error_name": "ERR_INVALID_CHANNEL"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | stray-cont --
+{"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | init-resets --
+{"reply": {"cid": "00000008", "cmd": 6, "len": 17, "packets": 1, "data_head": "22222222222222220000000902000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000009", "protocol": 2, "capabilities": 12}, "ping_after": null, "case": "init-resets", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | truncated --
+{"cid": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}, "case": "truncated", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | busy --
+{"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp170 | busy-recovers --
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "33333333333333330000000f02000100", "data_len": 17, "nonce_echoed": true, "new_cid": "0000000f", "protocol": 2, "capabilities": 12}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "spec"}
+
+== exp172 ==
+-- exp172 | init --
+{"reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 12}, "case": "init", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | ping 57 --
+{"sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_len": 57}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | ping 1024 --
+{"sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_len": 1024}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | ping 1025 --
+{"sent_bytes": 1025, "sent_packets": 18, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | bad-seq --
+{"reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}, "case": "bad-seq", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | unknown --
+{"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | bad-cid --
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 11, "error_name": "ERR_INVALID_CHANNEL"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | stray-cont --
+{"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | init-resets --
+{"reply": {"cid": "00000008", "cmd": 6, "len": 17, "packets": 1, "data_head": "22222222222222220000000902000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000009", "protocol": 2, "capabilities": 12}, "ping_after": null, "case": "init-resets", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | truncated --
+{"cid": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}, "case": "truncated", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | busy --
+{"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp172 | busy-recovers --
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "33333333333333330000000f02000100", "data_len": 17, "nonce_echoed": true, "new_cid": "0000000f", "protocol": 2, "capabilities": 12}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "spec"}
+
+== exp174 ==
+-- exp174 | init --
+{"reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 12}, "case": "init", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | ping 57 --
+{"sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_len": 57}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | ping 1024 --
+{"sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_len": 1024}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | ping 1025 --
+{"sent_bytes": 1025, "sent_packets": 18, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | bad-seq --
+{"reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}, "case": "bad-seq", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | unknown --
+{"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | bad-cid --
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 11, "error_name": "ERR_INVALID_CHANNEL"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | stray-cont --
+{"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | init-resets --
+{"reply": {"cid": "00000008", "cmd": 6, "len": 17, "packets": 1, "data_head": "22222222222222220000000902000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000009", "protocol": 2, "capabilities": 12}, "ping_after": null, "case": "init-resets", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | truncated --
+{"cid": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}, "case": "truncated", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | busy --
+{"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp174 | busy-recovers --
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "33333333333333330000000f02000100", "data_len": 17, "nonce_echoed": true, "new_cid": "0000000f", "protocol": 2, "capabilities": 12}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "spec"}
+
+== exp184 ==
+-- exp184 | init --
+{"reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 12}, "case": "init", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | ping 57 --
+{"sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_len": 57}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | ping 1024 --
+{"sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_len": 1024}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | ping 1025 --
+{"sent_bytes": 1025, "sent_packets": 18, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | bad-seq --
+{"reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}, "case": "bad-seq", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | unknown --
+{"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | bad-cid --
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 11, "error_name": "ERR_INVALID_CHANNEL"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | stray-cont --
+{"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | init-resets --
+{"reply": {"cid": "00000008", "cmd": 6, "len": 17, "packets": 1, "data_head": "22222222222222220000000902000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000009", "protocol": 2, "capabilities": 12}, "ping_after": null, "case": "init-resets", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | truncated --
+{"cid": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}, "case": "truncated", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | busy --
+{"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp184 | busy-recovers --
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "33333333333333330000000f02000100", "data_len": 17, "nonce_echoed": true, "new_cid": "0000000f", "protocol": 2, "capabilities": 12}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "spec"}
+
+== exp189 ==
+-- exp189 | init --
+{"reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 12}, "case": "init", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | ping 57 --
+{"sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_len": 57}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | ping 1024 --
+{"sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_len": 1024}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | ping 1025 --
+{"sent_bytes": 1025, "sent_packets": 18, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | bad-seq --
+{"reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}, "case": "bad-seq", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | unknown --
+{"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | bad-cid --
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 2, "error_name": "ERR_INVALID_PAR"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "ERR_INVALID_PAR, not ERR_INVALID_CHANNEL"}
+-- exp189 | stray-cont --
+{"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | init-resets --
+{"reply": {"cid": "00000008", "cmd": 6, "len": 17, "packets": 1, "data_head": "22222222222222220000000902000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000009", "protocol": 2, "capabilities": 12}, "ping_after": null, "case": "init-resets", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | truncated --
+{"cid": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}, "case": "truncated", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | busy --
+{"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp189 | busy-recovers --
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "broadcast INIT refused with ERR_CHANNEL_BUSY after a busy refusal"}
+
+== exp194 ==
+-- exp194 | init --
+{"reply": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "01020304050607080000000102000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000001", "protocol": 2, "capabilities": 8}, "case": "init", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | ping 57 --
+{"sent_bytes": 57, "sent_packets": 1, "reply": {"cid": "00000002", "cmd": 1, "len": 57, "packets": 1, "data_head": "030a11181f262d343b424950575e656c", "data_len": 57}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | ping 1024 --
+{"sent_bytes": 1024, "sent_packets": 18, "reply": {"cid": "00000003", "cmd": 1, "len": 1024, "packets": 18, "data_head": "030a11181f262d343b424950575e656c", "data_len": 1024}, "echo_matches": true, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | ping 1025 --
+{"sent_bytes": 1025, "sent_packets": 18, "reply": {"cid": "00000004", "cmd": 63, "len": 1, "packets": 1, "error_code": 3, "error_name": "ERR_INVALID_LEN"}, "case": "ping", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | bad-seq --
+{"reply": {"cid": "00000005", "cmd": 63, "len": 1, "packets": 1, "error_code": 4, "error_name": "ERR_INVALID_SEQ"}, "case": "bad-seq", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | unknown --
+{"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | bad-cid --
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 11, "error_name": "ERR_INVALID_CHANNEL"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | stray-cont --
+{"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | init-resets --
+{"reply": {"cid": "00000008", "cmd": 6, "len": 17, "packets": 1, "data_head": "22222222222222220000000902000100", "data_len": 17, "nonce_echoed": true, "new_cid": "00000009", "protocol": 2, "capabilities": 8}, "ping_after": null, "case": "init-resets", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | truncated --
+{"cid": "0000000a", "reply": {"cid": "0000000a", "cmd": 63, "len": 1, "packets": 1, "error_code": 5, "error_name": "ERR_MSG_TIMEOUT"}, "case": "truncated", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | busy --
+{"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
+-- exp194 | busy-recovers --
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "33333333333333330000000f02000100", "data_len": 17, "nonce_echoed": true, "new_cid": "0000000f", "protocol": 2, "capabilities": 8}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "spec"}
+

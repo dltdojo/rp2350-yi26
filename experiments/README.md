@@ -100,6 +100,7 @@ Per experiment:
 | exp191 | A board running **exp189**, either arm, and **four presses**. No firmware of its own. Host side: `python3` with `cryptography`, and `libfido2` for the one step that makes a credential. The vault half needs no board at all — a wrong key raising is a property of AES-GCM, not of this wrapper. |
 | exp192 | A board running **exp189** built with `EXP189_LOG_SALT=1`, a **browser**, a person, and **three presses**. No firmware of its own. Chrome reaches the board through its own CTAP stack on `/dev/hidraw`, not WebUSB, so there is no permission to pre-grant and no headless path — a visible window and a finger, or nothing. |
 | exp193 | Any RP2350 board and **nobody**. `cdc+hid`, one log. It walks two lanes of interface counts until the board stops enumerating, reads every step out of the host's own descriptor bytes, and relies on exp190's recovery for the two steps that panic before USB exists. The only host requirement is `yi26`. |
+| exp194 | Any RP2350 board and **nobody**. It flashes six other experiments' firmwares and its own in turn, and asks each the same twelve CTAP-HID questions over `/dev/hidraw`. No case reaches user presence, so nothing here needs a finger. The only host requirements are `yi26` and the udev rule exp115 installs. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -484,7 +485,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -737,6 +738,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp191 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
 | exp192 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
 | exp193 | `cdc+hid` | `log` | `cdc_acm+hidraw` | `own` |
+| exp194 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own+exp168+exp170+exp172+exp174+exp184+exp189` |
 
 ### Reading the columns
 
@@ -909,6 +911,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp191-the-vault-that-needs-a-finger](./exp191-the-vault-that-needs-a-finger/) | 2 · a moment | **Planned, and half of it verified without a board.** exp189's thirty-two bytes become an AES-256-GCM key over a CLI's configuration directory: without the board there are no credentials, and a wrong key **raises** rather than opening into rubbish. Two subjects, because a second one that quietly caches in `$HOME` is what turns *the redirection worked* and *nothing was left behind* into two assertions |
 | [exp192-the-salt-the-browser-sends](./exp192-the-salt-the-browser-sends/) | 2 · a moment | **Scaffolded, not yet run.** WebAuthn's `prf` is `hmac-secret` under another name, and a page hands it bytes that are not necessarily the bytes that arrive: the spec derives a salt. exp189 grew an `EXP189_LOG_SALT` flag so the only party reporting what it *received* can settle it. Two evaluations, uv on and off, because this firmware keys `credrandom-uv` and `credrandom-noUV` separately — a second silent way to get a different key from the same salt |
 | [exp193-how-many-doors-fit](./exp193-how-many-doors-fit/) | 1 · board | **The wall is not where the bytes run out.** The first caller of `cdc-console`'s composite path walks interfaces until the board stops enumerating, and stops at five with 120 of its 256 descriptor bytes still free: `embassy-usb`'s `MAX_INTERFACE_COUNT` defaults to 4, and a serial console spends two of them. Raise it to 8 and the byte count becomes the wall instead, at 268 of 256. Both walls panic before USB exists and lifeline brought the board back from each in **one second**, drive presented, nobody in the room |
+| [exp194-the-transport-that-drifted](./exp194-the-transport-that-drifted/) | 1 · board | **Ten of twelve cases are answered identically by six firmwares off one accretion chain — and the two that are not are both at its head.** `ctaphid_task` exists here as thirteen different functions, 110 lines at exp168 and 959 at exp189; asked what CTAP-HID says the right answer is, exp189 returns `ERR_INVALID_PAR` where the specification names `ERR_INVALID_CHANNEL`, and refuses the broadcast INIT that is a client's only way to recover — for the four seconds an abandoned transaction takes to expire, against the specification's 750 ms. This is what tells `crates/ctap-hid` what to be |
 
 ## The browser track, finished
 

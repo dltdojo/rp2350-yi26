@@ -176,7 +176,7 @@ Priority is the measurement, not taste.
 
 | # | what | now | why it is first |
 | --- | --- | --- | --- |
-| 1 | CTAP-HID transport → `crates/ctap-hid` | 14 copies, 13 versions, 959 lines at the head | Largest single win in the tree. What remains in each experiment is its `get_info`/`makeCredential` policy — which is the subject. `crates/ctap` is 62 lines: the extraction barely started |
+| 1 | ~~CTAP-HID transport~~ → [`crates/ctap-hid`](../crates/ctap-hid/) | **done, exp194** | 384 lines of deciding with 22 host tests, 141 lines of loop, and an experiment left with 17. The fourteen copies are grandfathered; what exists now is what the *next* CTAP experiment is built on |
 | 2 | MSC/SCSI + FAT12 glue → `crates/msc-disk` | 12 copies, 7 versions, 262 lines | `crates/fat12` exists and is tested; what is missing is the layer between it and USB |
 | 3 | CDC command console → `cdc-console`'s second phase | 17 copies, 14 versions | The crate exists and now hands back the `Builder`; what is still missing is handing back a *reader*, for the firmwares that take commands |
 | 4 | `blink_task` / `heartbeat` | 21 + 12 copies, 5 versions each | Already solved by `lifeline::led`; only adoption is missing |
@@ -231,6 +231,33 @@ And the first, on exp190:
   `exp190 → cdc-console → usb-reboot` rather than being unified back on by
   Cargo.
 
+## Measured again, 2026-08-30 — exp194
+
+The extraction the priority table had been holding for a caller, done the way
+the table said to do it.
+
+- **The measurement came first.** Six firmwares off the chain were asked twelve
+  questions where CTAP-HID says what the right answer is. Ten of twelve were
+  answered identically — the chain drifted in size from 110 lines to 959 and
+  almost not at all in behaviour, which is not what the accretion picture
+  predicts. The two exceptions are both exp189's, and one of them refuses the
+  broadcast INIT that is a client's only way to recover.
+- **So the crate is not a fork tidied up.** It is the behaviour five firmwares
+  agreed on and the specification requires — a thing that could only be written
+  after the table existed.
+- **It has 22 host tests**, because `feed` takes the clock as a `u64` rather
+  than reaching for `Instant`. Same split as `log-policy` against `usb-log`.
+- **The ratchet caught the author.** exp194's first firmware carried a 97-line
+  `ctaphid_task` — ten times smaller than what it replaced — and
+  `duplication.sh` failed it for being a fifteenth one. It was right: a loop
+  small enough to feel harmless is exactly the kind that gets copied. The loop
+  moved into the crate and the experiment kept 17 lines.
+- **The host side was duplicated too, and nothing could see it.**
+  `duplication.sh` reads only Rust; seven experiments each grew their own
+  `ctaphid.py`, 238 to 689 lines, six textually different. That client is now
+  [`tools/ctaphid/`](../tools/ctaphid/). **The detector has a blind spot the
+  width of every Python and shell script in the tree.**
+
 ## What is still not verified
 
 - **Only HID has been composed on `cdc-console`.**
@@ -241,5 +268,9 @@ And the first, on exp190:
 - **The `lifeline::led` swap has not been seen.** `drop.sh` rules on the log,
   and an LED is not in the log. The conditions and the millisecond constants are
   identical on both sides, so this is a confirmation owed rather than a doubt.
-- **Nothing has been extracted at scale yet.** cdc-console is 199 lines against
-  a 22,629-line problem. The ratchet stops it growing; it does not shrink it.
+- **Nothing has been extracted at scale yet.** cdc-console and ctap-hid together
+  are under a thousand lines against a 22,629-line problem, and neither removed
+  a single existing copy — the fourteen `ctaphid_task`s are all still there. The
+  ratchet stops the number growing; it does not shrink it.
+- **`duplication.sh` only reads Rust.** exp194 found seven copies of a host-side
+  client it cannot see. Every `.py` and `.sh` in `experiments/` is unmeasured.
