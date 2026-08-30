@@ -75,6 +75,8 @@ distinct versions exist between them.
 **22,629 of the 55,110 lines of firmware source here live inside a function that
 some other experiment also defines.** Forty-one per cent.
 
+*(As of exp189's port, 21,526. The first time this number has gone down.)*
+
 `ctaphid_task` is the shape of the problem drawn out. Sorted by experiment
 number, its length is:
 
@@ -258,6 +260,36 @@ the table said to do it.
   [`tools/ctaphid/`](../tools/ctaphid/). **The detector has a blind spot the
   width of every Python and shell script in the tree.**
 
+## Measured a third time, 2026-08-30 — exp189's port
+
+The first time an extraction removed a copy rather than adding a crate beside
+one, and the first time it fixed something.
+
+- **Both defects exp194 measured are gone by construction.** `bad-cid` and
+  `busy-recovers` are `spec` on the ported firmware; nobody has to remember.
+- **A second instance of one of them was found on the way**, in a different code
+  path the twelve-case suite could not reach: exp189 refused a broadcast `INIT`
+  for the whole of a wait for a person, which the default build makes thirty
+  seconds long. Reaching it needed a command that waits, and
+  `EXP189_SELECTION=1` with a four-second timeout is one with no side effects —
+  so it was measured with nobody in the room.
+- **And a drift nobody had asked about**: exp189's own transaction timeout was
+  1500 ms where CTAP-HID names 750. The port takes the crate's.
+- **The crate grew `Wire::wait_for` for a caller that existed**, which is the
+  rule holding for the third round running.
+- **The port was mechanical and the compiler did the checking.** Seventy
+  `send(&mut writer, …)` call sites became `wire.reply(…)`; everything the
+  regex got wrong failed to compile. What needed care was the two presence
+  loops, because their LED behaviour is a rule of its own.
+- **Naming is part of the measurement.** The remaining function was renamed
+  `ctap2_task`, because it dispatches CTAP2 and no longer implements CTAP-HID —
+  and a name that says otherwise makes `duplication.sh` count a transport that
+  is not there.
+
+What was *not* re-verified is written into exp194's README rather than left to
+be discovered: exp189's `hmac-secret` transcripts were recorded before the port
+and need a finger on BOOTSEL to redo.
+
 ## What is still not verified
 
 - **Only HID has been composed on `cdc-console`.**
@@ -268,9 +300,10 @@ the table said to do it.
 - **The `lifeline::led` swap has not been seen.** `drop.sh` rules on the log,
   and an LED is not in the log. The conditions and the millisecond constants are
   identical on both sides, so this is a confirmation owed rather than a doubt.
-- **Nothing has been extracted at scale yet.** cdc-console and ctap-hid together
-  are under a thousand lines against a 22,629-line problem, and neither removed
-  a single existing copy — the fourteen `ctaphid_task`s are all still there. The
-  ratchet stops the number growing; it does not shrink it.
+- **One copy of thirteen has been removed.** exp189 was ported onto
+  `crates/ctap-hid` and the count went 22,629 → 21,526, the first reduction. The
+  other twelve `ctaphid_task`s are untouched, and at this rate the backlog
+  outlives the ratchet by a wide margin: the ratchet's job is that it stops
+  growing, not that it shrinks.
 - **`duplication.sh` only reads Rust.** exp194 found seven copies of a host-side
   client it cannot see. Every `.py` and `.sh` in `experiments/` is unmeasured.

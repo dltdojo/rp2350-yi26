@@ -28,7 +28,7 @@ use embassy_time::{Duration, Instant, Timer};
 use embassy_usb::class::hid::{HidReader, HidWriter};
 use embassy_usb::driver::Driver;
 
-use super::{Action, Cid, Transaction, PACKET};
+use super::{Action, Cid, Transaction, BROADCAST, PACKET, RESERVED};
 
 /// The largest number of packets a [`MAX_MESSAGE`](super::MAX_MESSAGE) reply
 /// takes: 57 bytes in the first, 59 in each of the rest.
@@ -135,6 +135,97 @@ impl<'d, D: Driver<'d>> Wire<'d, D> {
                     self.transaction.clear();
                     return (cid, cmd, n);
                 }
+            }
+        }
+    }
+}
+
+/// How a long operation ended.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Waited {
+    /// The condition the caller was waiting for came true.
+    Ready,
+    /// The client sent `CTAPHID_CANCEL` on the channel that owns the operation.
+    Cancelled,
+    /// Nobody answered in time.
+    TimedOut,
+}
+
+impl<'d, D: Driver<'d>> Wire<'d, D> {
+    /// Hold a channel for an operation that takes a person, saying so.
+    ///
+    /// Polls `ready` and returns [`Waited::Ready`] as soon as it is true;
+    /// returns [`Waited::Cancelled`] on `CTAPHID_CANCEL` from the owning
+    /// channel, and [`Waited::TimedOut`] after `timeout`.
+    ///
+    /// While it waits it does three things, and the third is why this is in the
+    /// crate rather than in each experiment:
+    ///
+    /// 1. **Sends `CTAPHID_KEEPALIVE` every `interval`**, carrying `status`.
+    ///    [exp174](../../../experiments/exp174-a-deadline-nobody-mentioned/)
+    ///    measured what its absence costs: a browser gave up on a board that
+    ///    was working, at twenty-five seconds, and the same board with
+    ///    keepalives on was accepted.
+    /// 2. **Refuses other allocated channels** with `ERR_CHANNEL_BUSY`, which
+    ///    is what a device with one transaction owes a second client.
+    /// 3. **Answers a broadcast `INIT`.** This is the part
+    ///    [exp194](../../../experiments/exp194-the-transport-that-drifted/)
+    ///    measured being got wrong, twice, in one firmware — once after a busy
+    ///    refusal and once here. Broadcast `INIT` is a client's only way back
+    ///    when it has lost track, and a wait for a person can be thirty
+    ///    seconds long. A device that answers `ERR_CHANNEL_BUSY` to it has told
+    ///    the client to go away and left it no way to return.
+    pub async fn wait_for<F>(
+        &mut self,
+        cid: Cid,
+        status: u8,
+        interval: Duration,
+        poll: Duration,
+        timeout: Duration,
+        mut ready: F,
+    ) -> Waited
+    where
+        F: FnMut() -> bool,
+    {
+        let start = Instant::now();
+        let mut next_keepalive = start + interval;
+        let mut pkt = [0u8; PACKET];
+
+        loop {
+            if ready() {
+                return Waited::Ready;
+            }
+            if start.elapsed() >= timeout {
+                return Waited::TimedOut;
+            }
+
+            if let Either::First(Ok(n)) =
+                select(self.reader.read(&mut pkt), Timer::after(poll)).await
+            {
+                if n >= 5 && pkt[4] & 0x80 != 0 {
+                    let from: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
+                    let cmd = pkt[4] & 0x7f;
+                    if from == cid && cmd == super::CTAPHID_CANCEL {
+                        return Waited::Cancelled;
+                    }
+                    if from == BROADCAST && cmd == super::CTAPHID_INIT {
+                        // The way back. Answered here whatever else is going on.
+                        let new = super::next_cid(&mut self.next_cid);
+                        let r = super::init_reply(
+                            &pkt[super::INIT_HEADER..super::INIT_HEADER + 8],
+                            new,
+                            self.capabilities,
+                        );
+                        self.reply(BROADCAST, super::CTAPHID_INIT, &r).await;
+                    } else if from != cid && from != RESERVED && from != BROADCAST {
+                        self.error(from, super::ERR_CHANNEL_BUSY).await;
+                    }
+                }
+            }
+
+            if Instant::now() >= next_keepalive {
+                self.reply(cid, super::CTAPHID_KEEPALIVE, &[status]).await;
+                next_keepalive = Instant::now() + interval;
             }
         }
     }

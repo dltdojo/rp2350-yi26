@@ -110,6 +110,11 @@ pub const CTAPHID_INIT: u8 = 0x06;
 pub const CTAPHID_CBOR: u8 = 0x10;
 pub const CTAPHID_CANCEL: u8 = 0x11;
 pub const CTAPHID_KEEPALIVE: u8 = 0x3B;
+
+/// `CTAPHID_KEEPALIVE`'s status byte: the device is busy.
+pub const STATUS_PROCESSING: u8 = 0x01;
+/// `CTAPHID_KEEPALIVE`'s status byte: waiting for a person.
+pub const STATUS_UPNEEDED: u8 = 0x02;
 pub const CTAPHID_ERROR: u8 = 0x3F;
 
 pub const ERR_INVALID_CMD: u8 = 0x01;

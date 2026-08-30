@@ -19,6 +19,7 @@ embassy-futures = "0.1.1"
 static_cell = "2.1.1"
 
 usb-log = { path = "../../crates/usb-log" }
+ctap-hid = { path = "../../crates/ctap-hid" }
 usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 cbor = { path = "../../crates/cbor" }
 fuzzy-commitment = { path = "../../crates/fuzzy-commitment" }

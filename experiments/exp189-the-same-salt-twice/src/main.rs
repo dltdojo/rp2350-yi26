@@ -40,6 +40,17 @@ use aes::Aes256;
 use embassy_rp::peripherals::TRNG;
 use embassy_rp::trng::{Config as TrngConfig, Trng};
 use sha2::{Digest, Sha256};
+// Everything the transport owns comes from the crate rather than being spelled
+// again here. exp189's own copies were not all the same as the specification's:
+// its transaction timeout was 1500 ms where CTAP-HID names 750, and exp194
+// measured what the difference costs a client that has lost track.
+use ctap_hid::board::{Waited, Wire as WireOf};
+use ctap_hid::{
+    Cid, CTAPHID_CBOR, CTAPHID_PING, ERR_INVALID_CMD, INIT_PAYLOAD, MAX_MESSAGE,
+};
+/// The transport, with this firmware's driver filled in.
+type Wire = WireOf<'static, usb_reboot::UsbDriver>;
+
 use usb_log::log;
 
 include!(concat!(env!("OUT_DIR"), "/exp189_config.rs"));
@@ -129,30 +140,11 @@ const LIFELINE: lifeline::Config = lifeline::Config {
 };
 
 const PACKET: usize = 64;
-const MAX_MESSAGE: usize = 1024;
-const TRANSACTION_TIMEOUT: Duration = Duration::from_millis(1500);
 const KEEPALIVE_INTERVAL: Duration = Duration::from_millis(100);
 const PRESENCE_POLL: Duration = Duration::from_millis(PRESENCE_POLL_MS);
 
-type Cid = [u8; 4];
-const BROADCAST: Cid = [0xff, 0xff, 0xff, 0xff];
-const RESERVED: Cid = [0x00, 0x00, 0x00, 0x00];
-
-const CTAPHID_PING: u8 = 0x01;
-const CTAPHID_CBOR: u8 = 0x10;
-const CTAPHID_INIT: u8 = 0x06;
-const CTAPHID_KEEPALIVE: u8 = 0x3b;
-const CTAPHID_CANCEL: u8 = 0x11;
 const CTAPHID_ERROR: u8 = 0x3f;
 
-const ERR_INVALID_CMD: u8 = 0x01;
-const ERR_INVALID_PAR: u8 = 0x02;
-const ERR_INVALID_LEN: u8 = 0x03;
-const ERR_INVALID_SEQ: u8 = 0x04;
-const ERR_MSG_TIMEOUT: u8 = 0x05;
-const ERR_CHANNEL_BUSY: u8 = 0x06;
-
-const STATUS_UPNEEDED: u8 = 0x02;
 
 #[rustfmt::skip]
 const CTAPHID_REPORT_DESCRIPTOR: &[u8] = &[
@@ -174,10 +166,6 @@ const CTAPHID_REPORT_DESCRIPTOR: &[u8] = &[
     0xc0,             // END_COLLECTION
 ];
 
-const INIT_HEADER: usize = 7;
-const CONT_HEADER: usize = 5;
-const INIT_PAYLOAD: usize = PACKET - INIT_HEADER;
-const CONT_PAYLOAD: usize = PACKET - CONT_HEADER;
 
 const CAPABILITIES: u8 = 0x04 | 0x08; // CAPABILITY_CBOR | CAPABILITY_NMSG
 
@@ -241,7 +229,6 @@ const PACE: Duration = Duration::from_millis(0);
 static PACKETS_IN: AtomicU32 = AtomicU32::new(0);
 static MESSAGES: AtomicU32 = AtomicU32::new(0);
 static ERRORS: AtomicU32 = AtomicU32::new(0);
-static NEXT_CID: AtomicU32 = AtomicU32::new(1);
 /// Three states, and the vocabulary is [exp182](../exp182-where-the-wrapping-key-comes-from/)'s
 /// on purpose: somebody who has watched one of these boards should not have to
 /// learn a second language for the other.
@@ -267,37 +254,8 @@ fn led_rest() {
     );
 }
 
-struct Hex<'a>(&'a [u8]);
 
-impl core::fmt::Display for Hex<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for b in self.0 {
-            write!(f, "{:02x}", b)?;
-        }
-        Ok(())
-    }
-}
 
-fn allocate_cid() -> Cid {
-    let mut n = NEXT_CID.fetch_add(1, Ordering::Relaxed);
-    if n == 0 || n == 0xffff_ffff {
-        NEXT_CID.store(2, Ordering::Relaxed);
-        n = 1;
-    }
-    n.to_be_bytes()
-}
-
-fn cmd_name(cmd: u8) -> &'static str {
-    match cmd {
-        CTAPHID_PING => "PING",
-        CTAPHID_CBOR => "CBOR",
-        CTAPHID_INIT => "INIT",
-        CTAPHID_KEEPALIVE => "KEEPALIVE",
-        CTAPHID_CANCEL => "CANCEL",
-        CTAPHID_ERROR => "ERROR",
-        _ => "UNKNOWN",
-    }
-}
 
 fn status_for(e: ReadError) -> u8 {
     match e {
@@ -308,157 +266,11 @@ fn status_for(e: ReadError) -> u8 {
     }
 }
 
-struct Transaction {
-    cid: Cid,
-    cmd: u8,
-    seq: u8,
-    want: usize,
-    have: usize,
-    started: Instant,
-    buf: [u8; MAX_MESSAGE],
-}
 
-impl Transaction {
-    const fn none() -> Self {
-        Self {
-            cid: RESERVED,
-            cmd: 0,
-            seq: 0,
-            want: 0,
-            have: 0,
-            started: Instant::from_ticks(0),
-            buf: [0; MAX_MESSAGE],
-        }
-    }
 
-    fn busy(&self) -> bool {
-        self.cid != RESERVED
-    }
 
-    fn clear(&mut self) {
-        self.cid = RESERVED;
-        self.cmd = 0;
-        self.seq = 0;
-        self.want = 0;
-        self.have = 0;
-    }
-}
 
-static TRANSACTION: StaticCell<Transaction> = StaticCell::new();
 
-enum Action {
-    Complete,
-    More,
-    Ignore(&'static str),
-    Error(Cid, u8),
-}
-
-fn feed(t: &mut Transaction, pkt: &[u8]) -> Action {
-    if pkt.len() != PACKET {
-        return Action::Ignore("packet not 64 bytes");
-    }
-    let cid: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
-    let is_init = (pkt[4] & 0x80) != 0;
-
-    if is_init {
-        let cmd = pkt[4] & 0x7f;
-        let bcnt = ((pkt[5] as usize) << 8) | (pkt[6] as usize);
-
-        if cid == RESERVED {
-            return Action::Error(cid, ERR_INVALID_PAR);
-        }
-        if cid == BROADCAST && cmd != CTAPHID_INIT {
-            return Action::Error(cid, ERR_INVALID_PAR);
-        }
-        if t.busy() && t.cid != cid {
-            return Action::Error(cid, ERR_CHANNEL_BUSY);
-        }
-        match cmd {
-            CTAPHID_INIT | CTAPHID_PING | CTAPHID_CBOR | CTAPHID_CANCEL => {}
-            _ => return Action::Error(cid, ERR_INVALID_CMD),
-        }
-        if cmd == CTAPHID_INIT && bcnt != 8 {
-            return Action::Error(cid, ERR_INVALID_LEN);
-        }
-        if bcnt > MAX_MESSAGE {
-            return Action::Error(cid, ERR_INVALID_LEN);
-        }
-
-        t.cid = cid;
-        t.cmd = cmd;
-        t.seq = 0;
-        t.want = bcnt;
-        t.have = 0;
-        t.started = Instant::now();
-
-        let take = bcnt.min(INIT_PAYLOAD);
-        t.buf[..take].copy_from_slice(&pkt[INIT_HEADER..INIT_HEADER + take]);
-        t.have = take;
-
-        if t.have == t.want {
-            Action::Complete
-        } else {
-            Action::More
-        }
-    } else {
-        let seq = pkt[4] & 0x7f;
-        if !t.busy() || t.cid != cid {
-            return Action::Ignore("continuation for idle or different channel");
-        }
-        if seq != t.seq {
-            t.clear();
-            return Action::Error(cid, ERR_INVALID_SEQ);
-        }
-        t.seq = t.seq.wrapping_add(1);
-
-        let rem = t.want - t.have;
-        let take = rem.min(CONT_PAYLOAD);
-        t.buf[t.have..t.have + take].copy_from_slice(&pkt[CONT_HEADER..CONT_HEADER + take]);
-        t.have += take;
-
-        if t.have == t.want {
-            Action::Complete
-        } else {
-            Action::More
-        }
-    }
-}
-
-async fn send(
-    writer: &mut embassy_usb::class::hid::HidWriter<'static, usb_reboot::UsbDriver, PACKET>,
-    cid: Cid,
-    cmd: u8,
-    payload: &[u8],
-) -> usize {
-    let mut pkt = [0u8; PACKET];
-    let total = payload.len();
-
-    pkt[0..4].copy_from_slice(&cid);
-    pkt[4] = 0x80 | cmd;
-    pkt[5] = (total >> 8) as u8;
-    pkt[6] = total as u8;
-    let take = total.min(INIT_PAYLOAD);
-    pkt[INIT_HEADER..INIT_HEADER + take].copy_from_slice(&payload[..take]);
-    pkt[INIT_HEADER + take..].fill(0);
-    let _ = writer.write(&pkt).await;
-
-    let mut sent = take;
-    let mut seq = 0u8;
-    let mut packets = 1usize;
-    while sent < total {
-        pkt[0..4].copy_from_slice(&cid);
-        pkt[4] = seq;
-        seq = (seq + 1) & 0x7f;
-        let rem = total - sent;
-        let take = rem.min(CONT_PAYLOAD);
-        pkt[CONT_HEADER..CONT_HEADER + take].copy_from_slice(&payload[sent..sent + take]);
-        pkt[CONT_HEADER + take..].fill(0);
-        let _ = writer.write(&pkt).await;
-        sent += take;
-        packets += 1;
-    }
-    packets
-}
 
 const CRED_ID_LEN: usize = 48;
 const TAG_LEN: usize = 16;
@@ -1618,70 +1430,44 @@ async fn blink_task(mut led: Output<'static>) -> ! {
     }
 }
 
-enum Presence {
-    Pressed,
-    TimedOut,
-    Cancelled,
-}
 
-struct Waited {
-    outcome: Presence,
-}
 
-async fn wait_for_user_presence(
-    reader: &mut embassy_usb::class::hid::HidReader<'static, usb_reboot::UsbDriver, PACKET>,
-    writer: &mut embassy_usb::class::hid::HidWriter<'static, usb_reboot::UsbDriver, PACKET>,
-    cid: Cid,
-) -> Waited {
+async fn wait_for_user_presence(wire: &mut Wire, cid: Cid) -> Waited {
     LED_MODE.store(LED_PRESS_NOW, Ordering::Relaxed);
     let start = Instant::now();
-    let mut pkt = [0u8; PACKET];
     let mut pressed_at: Option<u64> = None;
-    let mut next = start + KEEPALIVE_INTERVAL;
 
-    let res = loop {
-        if bootsel::is_pressed() && pressed_at.is_none() {
-            let at = start.elapsed().as_millis();
-            // When the line read low, in the device's own words. Without it a
-            // press nobody made and a press somebody made are the same event.
-            log!("  presence: BOOTSEL read low at {} ms (poll {} ms)", at, PRESENCE_POLL_MS);
-            pressed_at = Some(at);
-        }
-        if pressed_at.is_some() && start.elapsed().as_millis() >= HOLD_MS {
-            break Waited { outcome: Presence::Pressed };
-        }
-        if start.elapsed() >= USER_PRESENCE_TIMEOUT {
-            break Waited { outcome: Presence::TimedOut };
-        }
-
-        if let Either::First(Ok(n)) = select(reader.read(&mut pkt), Timer::after(PRESENCE_POLL)).await {
-            if n >= 5 && pkt[4] & 0x80 != 0 {
-                let from: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
-                let cmd = pkt[4] & 0x7f;
-                if from == cid && cmd == CTAPHID_CANCEL {
-                    break Waited { outcome: Presence::Cancelled };
+    // The press bookkeeping is this experiment's and stays here; the keepalives,
+    // the busy refusals and — the part exp194 measured this firmware getting
+    // wrong — answering a broadcast INIT while it waits are the transport's,
+    // and are now `crates/ctap-hid`'s.
+    let res = wire
+        .wait_for(
+            cid,
+            ctap_hid::STATUS_UPNEEDED,
+            // With EXP189_KEEPALIVE off, an interval nothing reaches. exp174
+            // measured what its absence costs and both arms stay honest.
+            if KEEPALIVE { KEEPALIVE_INTERVAL } else { Duration::from_secs(3600) },
+            PRESENCE_POLL,
+            USER_PRESENCE_TIMEOUT,
+            || {
+                if bootsel::is_pressed() && pressed_at.is_none() {
+                    let at = start.elapsed().as_millis();
+                    // When the line read low, in the device's own words.
+                    // Without it a press nobody made and a press somebody made
+                    // are the same event.
+                    log!("  presence: BOOTSEL read low at {} ms (poll {} ms)", at, PRESENCE_POLL_MS);
+                    pressed_at = Some(at);
                 }
-                if from != cid && from != RESERVED {
-                    ERRORS.fetch_add(1, Ordering::Relaxed);
-                    send(writer, from, CTAPHID_ERROR, &[ERR_CHANNEL_BUSY]).await;
-                }
-            }
-        }
-
-        if KEEPALIVE && Instant::now() >= next {
-            send(writer, cid, CTAPHID_KEEPALIVE, &[STATUS_UPNEEDED]).await;
-            next = Instant::now() + KEEPALIVE_INTERVAL;
-        }
-    };
+                pressed_at.is_some() && start.elapsed().as_millis() >= HOLD_MS
+            },
+        )
+        .await;
     led_rest();
     res
 }
 
-async fn wait_for_triple_tap(
-    reader: &mut embassy_usb::class::hid::HidReader<'static, usb_reboot::UsbDriver, PACKET>,
-    writer: &mut embassy_usb::class::hid::HidWriter<'static, usb_reboot::UsbDriver, PACKET>,
-    cid: Cid,
-) -> bool {
+async fn wait_for_triple_tap(wire: &mut Wire, cid: Cid) -> bool {
     if !WAIT_FOR_USER {
         return true;
     }
@@ -1691,60 +1477,55 @@ async fn wait_for_triple_tap(
     let mut tap_count = 0u8;
     let mut is_down = false;
     let mut last_tap_time = start;
-    let mut next_keepalive = start + KEEPALIVE_INTERVAL;
-    let mut pkt = [0u8; PACKET];
 
-    let success = loop {
-        if start.elapsed() >= Duration::from_millis(5000) {
-            break false;
-        }
-
-        if let Either::First(Ok(n)) = select(reader.read(&mut pkt), Timer::after(Duration::from_millis(10))).await {
-            if n >= 5 && pkt[4] & 0x80 != 0 {
-                let from: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
-                let cmd = pkt[4] & 0x7f;
-                if from == cid && cmd == CTAPHID_CANCEL {
-                    break false;
+    let res = wire
+        .wait_for(
+            cid,
+            ctap_hid::STATUS_UPNEEDED,
+            if KEEPALIVE { KEEPALIVE_INTERVAL } else { Duration::from_secs(3600) },
+            Duration::from_millis(10),
+            Duration::from_millis(5000),
+            || {
+                let currently_down = bootsel::is_pressed();
+                if currently_down && !is_down {
+                    is_down = true;
+                } else if !currently_down && is_down {
+                    is_down = false;
+                    tap_count += 1;
+                    last_tap_time = Instant::now();
+                    log!("  [Gesture UV] tap {}/3 detected", tap_count);
                 }
-            }
-        }
-
-        let currently_down = bootsel::is_pressed();
-        if currently_down && !is_down {
-            is_down = true;
-        } else if !currently_down && is_down {
-            is_down = false;
-            tap_count += 1;
-            last_tap_time = Instant::now();
-            log!("  [Gesture UV] tap {}/3 detected", tap_count);
-            if tap_count >= 3 {
-                break true;
-            }
-        }
-
-        if tap_count > 0 && !is_down && last_tap_time.elapsed() > Duration::from_millis(1500) {
-            tap_count = 0;
-        }
-
-        if KEEPALIVE && Instant::now() >= next_keepalive {
-            send(writer, cid, CTAPHID_KEEPALIVE, &[STATUS_UPNEEDED]).await;
-            next_keepalive = Instant::now() + KEEPALIVE_INTERVAL;
-        }
-    };
-
+                if tap_count > 0 && !is_down && last_tap_time.elapsed() > Duration::from_millis(1500) {
+                    tap_count = 0;
+                }
+                tap_count >= 3
+            },
+        )
+        .await;
     led_rest();
-    success
+    res == Waited::Ready
 }
 
+/// The CTAP2 commands this authenticator answers.
+///
+/// It was `ctaphid_task` and 959 lines until
+/// [exp194](../exp194-the-transport-that-drifted/) measured this firmware's
+/// transport answering two of twelve cases wrongly — `ERR_INVALID_PAR` where
+/// the specification names `ERR_INVALID_CHANNEL`, and refusing the broadcast
+/// `INIT` that is a client's only way back, both in the main loop and again for
+/// the whole of a thirty-second wait for a finger.
+///
+/// The transport is [`crates/ctap-hid`](../../crates/ctap-hid/) now and those
+/// are gone by construction. The name changed with it: this function does not
+/// implement CTAP-HID any more, it dispatches CTAP2, and a name that says
+/// otherwise makes `experiments/duplication.sh` count a transport that is not
+/// there.
 #[embassy_executor::task]
-async fn ctaphid_task(
+async fn ctap2_task(
     hid: HidReaderWriter<'static, usb_reboot::UsbDriver, PACKET, PACKET>,
-    t: &'static mut Transaction,
     mut trng: Trng<'static, TRNG>,
     boot_time: Instant,
 ) -> ! {
-    let (mut reader, mut writer) = hid.split();
-    let mut pkt = [0u8; PACKET];
     // **Not `.unwrap()`.** Thirty-two zero bytes is what `secret_bytes` returns
     // on an unprovisioned board, and zero is not a valid P-256 scalar — so this
     // line used to panic before the USB stack was serving, which takes the board
@@ -1771,88 +1552,39 @@ async fn ctaphid_task(
     let mut device_salt = [0u8; 16];
     trng.blocking_fill_bytes(&mut device_salt);
 
+    let (reader, writer) = hid.split();
+    let mut wire = Wire::new(reader, writer, CAPABILITIES);
+    let mut buf = [0u8; MAX_MESSAGE];
+
     loop {
-        let deadline = if t.busy() { TRANSACTION_TIMEOUT } else { Duration::from_secs(3600) };
-        let got = match select(reader.read(&mut pkt), Timer::after(deadline)).await {
-            Either::First(Ok(n)) => n,
-            Either::First(Err(_)) => continue,
-            Either::Second(()) => {
-                if t.busy() {
-                    let c = t.cid;
-                    t.clear();
-                    ERRORS.fetch_add(1, Ordering::Relaxed);
-                    log!("  cid {} timed out with {}/{} bytes", Hex(&c), t.have, t.want);
-                    Timer::after(PACE).await;
-                    send(&mut writer, c, CTAPHID_ERROR, &[ERR_MSG_TIMEOUT]).await;
-                }
-                continue;
-            }
-        };
-
-        PACKETS_IN.fetch_add(1, Ordering::Relaxed);
-        let is_init = got >= 5 && pkt[4] & 0x80 != 0;
-        let cid: Cid = [pkt[0], pkt[1], pkt[2], pkt[3]];
-
-        if is_init {
-            log!(
-                "in  cid {} {} bcnt {}",
-                Hex(&cid),
-                cmd_name(pkt[4] & 0x7f),
-                ((pkt[5] as u16) << 8) | pkt[6] as u16
-            );
+        // Reassembly, channels, INIT, every error the specification names and
+        // the expiry that frees a channel are `crates/ctap-hid`'s. What arrives
+        // here is only what this experiment has to decide something about.
+        //
+        // exp194 measured this firmware's own transport answering two of twelve
+        // cases wrongly, and one of them refused a client's only way back. Those
+        // are gone by construction rather than by anybody remembering.
+        let (cid, cmd, len) = wire.next(&mut buf).await;
+        MESSAGES.fetch_add(1, Ordering::Relaxed);
+        if len > INIT_PAYLOAD {
+            log!("  assembled {} bytes", len);
             Timer::after(PACE).await;
         }
-
-        match feed(t, &pkt[..got]) {
-            Action::Ignore(why) => {
-                log!("  ignored: {}", why);
-                Timer::after(PACE).await;
-            }
-            Action::More => {}
-            Action::Error(c, code) => {
-                ERRORS.fetch_add(1, Ordering::Relaxed);
-                log!("  ERROR {:#04x} to cid {}", code, Hex(&c));
-                Timer::after(PACE).await;
-                send(&mut writer, c, CTAPHID_ERROR, &[code]).await;
-            }
-            Action::Complete => {
-                MESSAGES.fetch_add(1, Ordering::Relaxed);
-                let (cid, cmd, len) = (t.cid, t.cmd, t.want);
-                if len > INIT_PAYLOAD {
-                    log!("  assembled {} bytes in {} ms", len, t.started.elapsed().as_millis());
-                    Timer::after(PACE).await;
-                }
+        {
+            {
                 match cmd {
-                    CTAPHID_INIT => {
-                        let new = allocate_cid();
-                        let mut r = [0u8; 17];
-                        r[..8].copy_from_slice(&t.buf[..8]);
-                        r[8..12].copy_from_slice(&new);
-                        r[12] = 2;
-                        r[13] = 0;
-                        r[14] = 1;
-                        r[15] = 0;
-                        r[16] = CAPABILITIES;
-                        t.clear();
-                        log!("  INIT: nonce {} -> cid {}", Hex(&r[..8]), Hex(&new));
-                        Timer::after(PACE).await;
-                        send(&mut writer, cid, CTAPHID_INIT, &r).await;
-                    }
                     CTAPHID_PING => {
-                        let n = len;
-                        t.clear();
-                        let packets = send(&mut writer, cid, CTAPHID_PING, &t.buf[..n]).await;
-                        log!("  PING: echoed {} bytes in {} packets", n, packets);
+                        let packets = wire.reply(cid, CTAPHID_PING, &buf[..len]).await;
+                        log!("  PING: echoed {} bytes in {} packets", len, packets);
                         Timer::after(PACE).await;
                     }
                     CTAPHID_CBOR => {
-                        let ctap = if len >= 1 { t.buf[0] } else { 0xff };
+                        let ctap = if len >= 1 { buf[0] } else { 0xff };
                         let params = len - len.min(1);
-                        t.clear();
                         let mut out = [0u8; 512];
                         match ctap {
                             AUTHENTICATOR_GET_INFO if params != 0 => {
-                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP1_ERR_INVALID_LENGTH]).await;
+                                wire.reply(cid, CTAPHID_CBOR, &[CTAP1_ERR_INVALID_LENGTH]).await;
                             }
                             AUTHENTICATOR_GET_INFO => {
                                 out[0] = CTAP2_OK;
@@ -1861,11 +1593,11 @@ async fn ctaphid_task(
                                         let n = 1 + body.len();
                                         log!("  getInfo: {} bytes of canonical CBOR (CTAP 2.1 rk+credMgmt)", body.len());
                                         Timer::after(PACE).await;
-                                        send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                     }
                                     Err(_) => {
                                         ERRORS.fetch_add(1, Ordering::Relaxed);
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[0x7f]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &[0x7f]).await;
                                     }
                                 }
                             }
@@ -1876,14 +1608,14 @@ async fn ctaphid_task(
                                 // its entire payload is the command byte — and
                                 // nothing to return but a status.
                                 log!("  authenticatorSelection: a client is asking which key");
-                                let w = wait_for_user_presence(&mut reader, &mut writer, cid).await;
-                                if matches!(w.outcome, Presence::Pressed) {
+                                let w = wait_for_user_presence(&mut wire, cid).await;
+                                if w == Waited::Ready {
                                     log!("  authenticatorSelection: this one");
-                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_OK]).await;
+                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_OK]).await;
                                 } else {
                                     ERRORS.fetch_add(1, Ordering::Relaxed);
                                     log!("  authenticatorSelection: nobody answered");
-                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
                                 }
                             }
                             AUTHENTICATOR_RESET => {
@@ -1893,15 +1625,15 @@ async fn ctaphid_task(
                                     ERRORS.fetch_add(1, Ordering::Relaxed);
                                     log!("  authenticatorReset: rejected (elapsed {} ms > {} s window)", elapsed.as_millis(), RESET_WINDOW_SECS);
                                     Timer::after(PACE).await;
-                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_NOT_ALLOWED]).await;
+                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_NOT_ALLOWED]).await;
                                     continue;
                                 }
 
                                 if WAIT_FOR_USER {
-                                    let w = wait_for_user_presence(&mut reader, &mut writer, cid).await;
-                                    if !matches!(w.outcome, Presence::Pressed) {
+                                    let w = wait_for_user_presence(&mut wire, cid).await;
+                                    if w != Waited::Ready {
                                         ERRORS.fetch_add(1, Ordering::Relaxed);
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
                                         continue;
                                     }
                                 }
@@ -1918,11 +1650,11 @@ async fn ctaphid_task(
                                 w.end();
                                 if let Ok(b) = w.finish() {
                                     let n = 1 + b.len();
-                                    send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                    wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                 }
                             }
                             AUTHENTICATOR_CLIENT_PIN => {
-                                let body = &t.buf[1..len];
+                                let body = &buf[1..len];
                                 let mut r = Reader::new(body);
                                 let mut pin_proto: Option<u64> = None;
                                 let mut sub_cmd: Option<u64> = None;
@@ -1986,7 +1718,7 @@ async fn ctaphid_task(
                                         w.end();
                                         if let Ok(b) = w.finish() {
                                             let n = 1 + b.len();
-                                            send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
                                     Some(0x02) => {
@@ -2037,42 +1769,42 @@ async fn ctaphid_task(
                                         w.end();
                                         if let Ok(b) = w.finish() {
                                             let n = 1 + b.len();
-                                            send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
                                     Some(0x03) => {
                                         // setPIN (0x03)
                                         if pin_proto != Some(1) {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_OPTION]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_OPTION]).await;
                                             continue;
                                         }
                                         let (peer_x, peer_y) = match peer_key {
                                             Some(k) => k,
-                                            None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
+                                            None => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
                                         };
                                         let auth = match pin_auth {
                                             Some(a) => a,
-                                            None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
+                                            None => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
                                         };
                                         let enc = match new_pin_enc {
                                             Some(e) => e,
-                                            None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
+                                            None => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
                                         };
 
                                         let shared_secret = match decapsulate_shared_secret(&session_sk, &peer_x, &peer_y) {
                                             Ok(s) => s,
-                                            Err(_) => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
+                                            Err(_) => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
                                         };
 
                                         if !verify_pin_auth(&shared_secret, enc, &auth) {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await;
                                             continue;
                                         }
 
                                         let mut decrypted = [0u8; 128];
                                         let dec_len = match decrypt_pin_payload(&shared_secret, enc, &mut decrypted) {
                                             Ok(l) => l,
-                                            Err(_) => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
+                                            Err(_) => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
                                         };
 
                                         let mut pin_len = 0;
@@ -2090,45 +1822,45 @@ async fn ctaphid_task(
                                         w.end();
                                         if let Ok(b) = w.finish() {
                                             let n = 1 + b.len();
-                                            send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
                                     Some(0x05) => {
                                         // getPinToken (0x05)
                                         if !pin_state.is_set {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_NOT_SET]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_NOT_SET]).await;
                                             continue;
                                         }
                                         if pin_state.retries_remaining == 0 {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
                                             continue;
                                         }
                                         let (peer_x, peer_y) = match peer_key {
                                             Some(k) => k,
-                                            None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
+                                            None => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
                                         };
                                         let enc_hash = match pin_hash_enc {
                                             Some(h) => h,
-                                            None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
+                                            None => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
                                         };
 
                                         let shared_secret = match decapsulate_shared_secret(&session_sk, &peer_x, &peer_y) {
                                             Ok(s) => s,
-                                            Err(_) => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
+                                            Err(_) => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
                                         };
 
                                         let mut dec_hash = [0u8; 16];
                                         if decrypt_pin_payload(&shared_secret, enc_hash, &mut dec_hash).is_err() {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await;
                                             continue;
                                         }
 
                                         if dec_hash != pin_state.pin_hash {
                                             pin_state.retries_remaining = pin_state.retries_remaining.saturating_sub(1);
                                             if pin_state.retries_remaining == 0 {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
                                             } else {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_INVALID]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_INVALID]).await;
                                             }
                                             continue;
                                         }
@@ -2149,26 +1881,26 @@ async fn ctaphid_task(
                                         w.end();
                                         if let Ok(b) = w.finish() {
                                             let n = 1 + b.len();
-                                            send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
                                     Some(0x06) => {
                                         // getPinUvAuthTokenUsingUv (0x06)
                                         let (peer_x, peer_y) = match peer_key {
                                             Some(k) => k,
-                                            None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
+                                            None => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
                                         };
 
-                                        let gesture_ok = wait_for_triple_tap(&mut reader, &mut writer, cid).await;
+                                        let gesture_ok = wait_for_triple_tap(&mut wire, cid).await;
                                         if !gesture_ok {
                                             ERRORS.fetch_add(1, Ordering::Relaxed);
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
                                             continue;
                                         }
 
                                         let shared_secret = match decapsulate_shared_secret(&session_sk, &peer_x, &peer_y) {
                                             Ok(s) => s,
-                                            Err(_) => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
+                                            Err(_) => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
                                         };
 
                                         let mut token = [0u8; 32];
@@ -2186,17 +1918,17 @@ async fn ctaphid_task(
                                         w.end();
                                         if let Ok(b) = w.finish() {
                                             let n = 1 + b.len();
-                                            send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
                                     _ => {
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_OPTION]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_OPTION]).await;
                                     }
                                 }
                             }
                             AUTHENTICATOR_CREDENTIAL_MANAGEMENT => {
                                 // CTAP 2.1 Credential Management (0x0A)
-                                let body = &t.buf[1..len];
+                                let body = &buf[1..len];
                                 let mut r = Reader::new(body);
                                 let mut sub_cmd: Option<u64> = None;
                                 let mut pin_proto: Option<u64> = None;
@@ -2256,7 +1988,7 @@ async fn ctaphid_task(
                                 if !verify_pin_uv_auth_token(pin_state.active_token.as_ref(), &[sub_cmd.unwrap_or(0) as u8], pin_auth) {
                                     // For testing flexibility in credMgmt, if subCommand matches:
                                     if pin_state.active_token.is_none() {
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_BLOCKED]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_BLOCKED]).await;
                                         continue;
                                     }
                                 }
@@ -2278,7 +2010,7 @@ async fn ctaphid_task(
                                         w.end();
                                         if let Ok(b) = w.finish() {
                                             let n = 1 + b.len();
-                                            send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
                                     Some(0x02) => {
@@ -2304,10 +2036,10 @@ async fn ctaphid_task(
                                             w.end();
                                             if let Ok(b) = w.finish() {
                                                 let n = 1 + b.len();
-                                                send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                             }
                                         } else {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
                                         }
                                     }
                                     Some(0x04) => {
@@ -2341,17 +2073,17 @@ async fn ctaphid_task(
                                             w.end();
                                             if let Ok(b) = w.finish() {
                                                 let n = 1 + b.len();
-                                                send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                             }
                                         } else {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
                                         }
                                     }
                                     Some(0x06) => {
                                         // deleteCredential (0x06)
                                         let cred_to_delete = match target_cred_id {
                                             Some(id) => id,
-                                            None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
+                                            None => { wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; }
                                         };
                                         let deleted = resident_store.delete_by_cred_id(cred_to_delete);
                                         log!("  credMgmt: deleteCredential -> deleted={}", deleted);
@@ -2363,14 +2095,14 @@ async fn ctaphid_task(
                                             w.end();
                                             if let Ok(b) = w.finish() {
                                                 let n = 1 + b.len();
-                                                send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &out[..n]).await;
                                             }
                                         } else {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
                                         }
                                     }
                                     _ => {
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_OPTION]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_OPTION]).await;
                                     }
                                 }
                             }
@@ -2378,10 +2110,10 @@ async fn ctaphid_task(
                                 if device_secret().is_none() {
                                     ERRORS.fetch_add(1, Ordering::Relaxed);
                                     log!("  refused: this board has no secret to key anything with");
-                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_SECRET]).await;
+                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_SECRET]).await;
                                     continue;
                                 }
-                                let body = &t.buf[1..len];
+                                let body = &buf[1..len];
                                 match parse_make_credential(body) {
                                     Ok(req) => {
                                         log!("  makeCredential: rp={:?}, user={}B (rk={}, uv={})", req.rp_id, req.user_id.len(), req.rk_required, req.uv_required);
@@ -2394,7 +2126,7 @@ async fn ctaphid_task(
                                         }
                                         if !es256 {
                                             ERRORS.fetch_add(1, Ordering::Relaxed);
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_ALGORITHM]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_UNSUPPORTED_ALGORITHM]).await;
                                             continue;
                                         }
 
@@ -2404,15 +2136,15 @@ async fn ctaphid_task(
                                                 user_verified = true;
                                                 log!("  makeCredential: PIN UV verified (FLAG_UV=1)");
                                             } else {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await;
                                                 continue;
                                             }
                                         } else if req.uv_required {
-                                            if wait_for_triple_tap(&mut reader, &mut writer, cid).await {
+                                            if wait_for_triple_tap(&mut wire, cid).await {
                                                 user_verified = true;
                                                 log!("  makeCredential: on-device gesture UV verified (FLAG_UV=1)");
                                             } else {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
                                                 continue;
                                             }
                                         }
@@ -2420,20 +2152,20 @@ async fn ctaphid_task(
                                         let present = if user_verified {
                                             true
                                         } else if WAIT_FOR_USER {
-                                            let w = wait_for_user_presence(&mut reader, &mut writer, cid).await;
-                                            if matches!(w.outcome, Presence::Cancelled) {
+                                            let w = wait_for_user_presence(&mut wire, cid).await;
+                                            if w == Waited::Cancelled {
                                                 ERRORS.fetch_add(1, Ordering::Relaxed);
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_KEEPALIVE_CANCEL]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_KEEPALIVE_CANCEL]).await;
                                                 continue;
                                             }
-                                            matches!(w.outcome, Presence::Pressed)
+                                            w == Waited::Ready
                                         } else {
                                             false
                                         };
 
                                         if WAIT_FOR_USER && !present {
                                             ERRORS.fetch_add(1, Ordering::Relaxed);
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
                                             continue;
                                         }
 
@@ -2471,17 +2203,17 @@ async fn ctaphid_task(
                                                 resp[0] = CTAP2_OK;
                                                 log!("  credential created: authData {}B, total {}B (rk={})", b.auth_len, b.response, req.rk_required);
                                                 Timer::after(PACE).await;
-                                                send(&mut writer, cid, CTAPHID_CBOR, &resp[..1 + b.response]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &resp[..1 + b.response]).await;
                                             }
                                             Err(()) => {
                                                 ERRORS.fetch_add(1, Ordering::Relaxed);
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[0x7f]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[0x7f]).await;
                                             }
                                         }
                                     }
                                     Err(status) => {
                                         ERRORS.fetch_add(1, Ordering::Relaxed);
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[status]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &[status]).await;
                                     }
                                 }
                             }
@@ -2489,10 +2221,10 @@ async fn ctaphid_task(
                                 if device_secret().is_none() {
                                     ERRORS.fetch_add(1, Ordering::Relaxed);
                                     log!("  refused: this board has no secret to key anything with");
-                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_SECRET]).await;
+                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_SECRET]).await;
                                     continue;
                                 }
-                                let body = &t.buf[1..len];
+                                let body = &buf[1..len];
                                 match parse_get_assertion(body) {
                                     Ok(req) => {
                                         log!("  getAssertion: rp={:?}, allow={} (uv_req={})", req.rp_id, req.n_allow, req.uv_required);
@@ -2526,7 +2258,7 @@ async fn ctaphid_task(
                                                 ERRORS.fetch_add(1, Ordering::Relaxed);
                                                 log!("  getAssertion: no matching credential (empty allowList or invalid ID)");
                                                 Timer::after(PACE).await;
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_NO_CREDENTIALS]).await;
                                                 continue;
                                             }
                                         };
@@ -2537,15 +2269,15 @@ async fn ctaphid_task(
                                                 user_verified = true;
                                                 log!("  getAssertion: PIN UV verified (FLAG_UV=1)");
                                             } else {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await;
                                                 continue;
                                             }
                                         } else if req.uv_required {
-                                            if wait_for_triple_tap(&mut reader, &mut writer, cid).await {
+                                            if wait_for_triple_tap(&mut wire, cid).await {
                                                 user_verified = true;
                                                 log!("  getAssertion: gesture UV verified (FLAG_UV=1)");
                                             } else {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
                                                 continue;
                                             }
                                         }
@@ -2553,20 +2285,20 @@ async fn ctaphid_task(
                                         let present = if user_verified {
                                             true
                                         } else if WAIT_FOR_USER {
-                                            let w = wait_for_user_presence(&mut reader, &mut writer, cid).await;
-                                            if matches!(w.outcome, Presence::Cancelled) {
+                                            let w = wait_for_user_presence(&mut wire, cid).await;
+                                            if w == Waited::Cancelled {
                                                 ERRORS.fetch_add(1, Ordering::Relaxed);
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_KEEPALIVE_CANCEL]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_KEEPALIVE_CANCEL]).await;
                                                 continue;
                                             }
-                                            matches!(w.outcome, Presence::Pressed)
+                                            w == Waited::Ready
                                         } else {
                                             false
                                         };
 
                                         if WAIT_FOR_USER && !present {
                                             ERRORS.fetch_add(1, Ordering::Relaxed);
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
+                                            wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_OPERATION_DENIED]).await;
                                             continue;
                                         }
 
@@ -2583,14 +2315,14 @@ async fn ctaphid_task(
                                                 Ok(v) => v,
                                                 Err(()) => {
                                                     ERRORS.fetch_add(1, Ordering::Relaxed);
-                                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
+                                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
                                                     continue;
                                                 }
                                             };
                                             if !verify_pin_auth(&shared, hs.salt_enc, hs.salt_auth) {
                                                 ERRORS.fetch_add(1, Ordering::Relaxed);
                                                 log!("  hmac-secret: saltAuth did not verify");
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
                                                 continue;
                                             }
                                             let mut salt = [0u8; 64];
@@ -2598,7 +2330,7 @@ async fn ctaphid_task(
                                                 Ok(n) if n == 32 || n == 64 => n,
                                                 _ => {
                                                     ERRORS.fetch_add(1, Ordering::Relaxed);
-                                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
+                                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
                                                     continue;
                                                 }
                                             };
@@ -2616,7 +2348,7 @@ async fn ctaphid_task(
                                                 Ok(n) => n,
                                                 Err(()) => {
                                                     ERRORS.fetch_add(1, Ordering::Relaxed);
-                                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
+                                                    wire.reply(cid, CTAPHID_CBOR, &[CTAP2_ERR_EXTENSION_FIRST]).await;
                                                     continue;
                                                 }
                                             };
@@ -2668,29 +2400,29 @@ async fn ctaphid_task(
                                                 resp[0] = CTAP2_OK;
                                                 log!("  assertion signed: {}B, (Passkey={}, UV={})", n_body, resident_entry.is_some(), user_verified);
                                                 Timer::after(PACE).await;
-                                                send(&mut writer, cid, CTAPHID_CBOR, &resp[..1 + n_body]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &resp[..1 + n_body]).await;
                                             }
                                             Err(()) => {
                                                 ERRORS.fetch_add(1, Ordering::Relaxed);
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[0x7f]).await;
+                                                wire.reply(cid, CTAPHID_CBOR, &[0x7f]).await;
                                             }
                                         }
                                     }
                                     Err(status) => {
                                         ERRORS.fetch_add(1, Ordering::Relaxed);
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[status]).await;
+                                        wire.reply(cid, CTAPHID_CBOR, &[status]).await;
                                     }
                                 }
                             }
                             _ => {
                                 ERRORS.fetch_add(1, Ordering::Relaxed);
-                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP1_ERR_INVALID_COMMAND]).await;
+                                wire.reply(cid, CTAPHID_CBOR, &[CTAP1_ERR_INVALID_COMMAND]).await;
                             }
                         }
                     }
                     _ => {
                         ERRORS.fetch_add(1, Ordering::Relaxed);
-                        send(&mut writer, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD]).await;
+                        wire.reply(cid, CTAPHID_ERROR, &[ERR_INVALID_CMD]).await;
                     }
                 }
             }
@@ -2856,7 +2588,7 @@ async fn main(spawner: Spawner) {
         boot.count, boot.cause, boot.deaths
     );
 
-    spawner.spawn(ctaphid_task(hid, TRANSACTION.init(Transaction::none()), trng, boot_time).unwrap());
+    spawner.spawn(ctap2_task(hid, trng, boot_time).unwrap());
 
     Timer::after(Duration::from_secs(3)).await;
 

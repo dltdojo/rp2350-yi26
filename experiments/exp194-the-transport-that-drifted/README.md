@@ -29,7 +29,18 @@ Every case below is one where **CTAP-HID says what the right answer is**, so a
 firmware is graded rather than described. None of them reaches user presence, so
 the whole run needs a board and nobody.
 
-## What was measured
+## Two captures, and why both are here
+
+`capture.txt` is the tree as it stands: **seven firmwares, twelve cases, every
+cell `spec`.** That is not the finding — it is what the finding was acted on.
+
+[`capture-before-port.txt`](./capture-before-port.txt) is the measurement, taken
+before exp189 was moved onto `crates/ctap-hid`, and it is the table below. It is
+kept because re-running the suite after a fix erases the evidence that there was
+one, and this repository's rule is that a recording is evidence with a date on
+it rather than a claim.
+
+## What was measured, before the port
 
 ```
       case           exp168  exp170  exp172  exp174  exp184  exp189  exp194
@@ -50,6 +61,9 @@ the whole run needs a board and nobody.
 exp194 is the last column and it is the only subject held to a standard by
 `verify.py`: **built on the crate, it must be `spec` in every cell.** The
 others are evidence; it is the product.
+
+**exp189 has since been moved onto the same crate and its column is now `ok`
+throughout** — see [What was done about it](#what-was-done-about-it).
 
 **Ten of twelve cases: identical across all six.** The chain drifted in size
 from 110 lines to 959 and in behaviour almost not at all — which is a real
@@ -139,13 +153,14 @@ have tests where `usb-log` cannot, `lifeline`'s give-up rule is arithmetic where
 - **The transport layer only.** No case here sends CBOR, makes a credential or
   asks for a press. What every firmware does *above* the transport is each
   experiment's own subject and is untouched by this.
-- **Nothing was fixed.** exp189 still answers `ERR_INVALID_PAR` and still
-  refuses the recovery path; the fourteen copies are grandfathered and this
-  changes none of them. What exists now is a crate the *next* CTAP experiment
-  can be built on, and a measurement saying what it owes.
-- **The crate has one caller.** exp194 and nothing else. Its value is entirely
-  in what comes after it, which is the same bet `crates/cdc-console` made in
-  exp190 and had paid off by exp193.
+- **Twelve of the thirteen remaining copies are untouched.** Only exp189 was
+  ported. The others still each carry their own transport, correct as far as
+  these twelve cases reach.
+- **exp189's own claims were not re-verified.** Its `hmac-secret` transcripts —
+  `roundtrip.json` and the two control runs — were recorded before the port and
+  need a finger on BOOTSEL to redo. What was re-run is everything that needs
+  nobody: `check.sh`'s 45 assertions, the twelve transport cases, and the
+  presence-wait probe.
 
 ## Run it
 
@@ -170,3 +185,35 @@ that changes between boards is not a comparison.
 - [exp190](../exp190-the-board-that-brings-itself-back/) and
   [exp193](../exp193-how-many-doors-fit/) — the design change this serves, and
   the rule that an extraction waits for a caller.
+
+
+## What was done about it
+
+exp189 was moved onto `crates/ctap-hid`, and both measured defects are gone by
+construction rather than by anybody remembering:
+
+| | before | after |
+| --- | --- | --- |
+| `bad-cid` | `ERR_INVALID_PAR` | `ERR_INVALID_CHANNEL` |
+| `busy-recovers` | `ERR_CHANNEL_BUSY` | a channel |
+| broadcast `INIT` during a presence wait | refused, 0 replies | answered, 1 reply |
+| its own transaction timeout | **1500 ms** | 750 ms, the specification's |
+| `ctaphid_task` | 959 lines | renamed `ctap2_task`, and it dispatches CTAP2 |
+| `src/main.rs` | 2,896 lines | 2,614 |
+
+The third row is a **second instance of the same defect**, in a different code
+path, and the twelve-case suite could not reach it: getting there needs a
+command that waits for a person. `EXP189_SELECTION=1` with a four-second
+timeout gives one with no side effects, so it was measured with nobody in the
+room — 24 keepalives either way, and the difference is whether the client has a
+way back during the thirty seconds the default build waits.
+
+`crates/ctap-hid` grew `Wire::wait_for` for it, which is the rule this
+repository keeps writing down: the API was shaped by a caller that existed.
+
+And the repository's duplication count went **down for the first time**:
+
+```
+22,629 → 21,526 lines living in a function some other experiment also defines
+ctaphid_task: 14 copies → 13
+```

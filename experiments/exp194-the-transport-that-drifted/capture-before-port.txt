@@ -1,5 +1,5 @@
 === exp194 — the transport that drifted ===
-recorded at 2026-08-30T06:35:27Z from commit 0e59a5a (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-08-30T05:57:47Z from commit 9123f5a
 
 == exp168 ==
 -- exp168 | init --
@@ -145,7 +145,7 @@ recorded at 2026-08-30T06:35:27Z from commit 0e59a5a (working tree dirty — thi
 -- exp189 | unknown --
 {"reply": {"cid": "00000006", "cmd": 63, "len": 1, "packets": 1, "error_code": 1, "error_name": "ERR_INVALID_CMD"}, "case": "unknown", "device": "/dev/hidraw4", "verdict": "spec"}
 -- exp189 | bad-cid --
-{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 11, "error_name": "ERR_INVALID_CHANNEL"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "spec"}
+{"reply": {"cid": "00000000", "cmd": 63, "len": 1, "packets": 1, "error_code": 2, "error_name": "ERR_INVALID_PAR"}, "case": "bad-cid", "device": "/dev/hidraw4", "verdict": "ERR_INVALID_PAR, not ERR_INVALID_CHANNEL"}
 -- exp189 | stray-cont --
 {"reply": null, "case": "stray-cont", "device": "/dev/hidraw4", "verdict": "spec"}
 -- exp189 | init-resets --
@@ -155,7 +155,7 @@ recorded at 2026-08-30T06:35:27Z from commit 0e59a5a (working tree dirty — thi
 -- exp189 | busy --
 {"cid_a": "0000000b", "cid_b": "0000000c", "reply": {"cid": "0000000c", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy", "device": "/dev/hidraw4", "verdict": "spec"}
 -- exp189 | busy-recovers --
-{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 6, "len": 17, "packets": 1, "data_head": "33333333333333330000000f02000100", "data_len": 17, "nonce_echoed": true, "new_cid": "0000000f", "protocol": 2, "capabilities": 12}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "spec"}
+{"busy_reply": {"cid": "0000000e", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "init_after_busy": {"cid": "ffffffff", "cmd": 63, "len": 1, "packets": 1, "error_code": 6, "error_name": "ERR_CHANNEL_BUSY"}, "case": "busy-recovers", "device": "/dev/hidraw4", "verdict": "broadcast INIT refused with ERR_CHANNEL_BUSY after a busy refusal"}
 
 == exp194 ==
 -- exp194 | init --

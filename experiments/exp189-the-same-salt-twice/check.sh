@@ -317,7 +317,7 @@ if [[ -f "$SRC" ]]; then
     # The **call sites**, not the definitions: where a function is written says
     # nothing about when it runs, and the first version of this check compared
     # the two `fn` lines and failed a firmware that was correct.
-    WAIT_AT="$(grep -n 'wait_for_user_presence(&mut reader' "$SRC" | tail -1 | cut -d: -f1)"
+    WAIT_AT="$(grep -n 'wait_for_user_presence(&mut wire' "$SRC" | tail -1 | cut -d: -f1)"
     HMAC_AT="$(grep -n 'hmac_secret_output(&cr' "$SRC" | head -1 | cut -d: -f1)"
     if [[ -z "$WAIT_AT" || -z "$HMAC_AT" ]]; then
         fail "the source names wait_for_user_presence and hmac_secret_output" \

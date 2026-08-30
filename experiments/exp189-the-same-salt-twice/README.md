@@ -455,6 +455,35 @@ result in exp189 and exp191 rode a tunnel built on that key, because `libfido2`
 does not check; Chrome parses strictly and stopped there. `alg: -25` is now
 always present, and the fix changes nothing any recorded run depended on.
 
+## Its transport is `crates/ctap-hid` now, and that fixed two things
+
+[exp194](../exp194-the-transport-that-drifted/) asked six firmwares off this
+chain the same twelve CTAP-HID questions and found **this one wrong twice** —
+the newest and largest of them, at the front of the road:
+
+| | before | after the port |
+| --- | --- | --- |
+| `bad-cid` | `ERR_INVALID_PAR` | `ERR_INVALID_CHANNEL`, which the spec names |
+| `busy-recovers` | `ERR_CHANNEL_BUSY` to a broadcast `INIT` | a channel |
+| broadcast `INIT` during a wait for a finger | refused, for the whole wait | answered |
+| its own transaction timeout | 1500 ms | 750 ms, the spec's |
+
+The third row is the same defect in a second code path, and the one that would
+have bitten hardest: the default build waits **thirty seconds** for a press, and
+for all of it a client that had lost track was being told to go away with no way
+back. It was found by building with `EXP189_SELECTION=1` and a four-second
+timeout — a command that waits, with no side effects — and asking, with nobody
+in the room.
+
+`ctaphid_task` became `ctap2_task`: it dispatches CTAP2 and no longer implements
+CTAP-HID. `src/main.rs` went from 2,896 lines to 2,614.
+
+**What was not re-verified.** The transcripts below — `roundtrip.json` and the
+two control runs — were recorded before the port and need a finger on BOOTSEL to
+redo. What was re-run needs nobody: `check.sh`'s forty-five assertions, exp194's
+twelve transport cases, and the presence-wait probe. The port did not touch a
+line of the CBOR, the key derivation or the `hmac-secret` output.
+
 ## What this does not establish
 
 - **Uniqueness.** [exp181](../exp181-a-key-that-is-written-nowhere/) could not
