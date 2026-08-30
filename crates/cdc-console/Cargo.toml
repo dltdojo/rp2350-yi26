@@ -1,0 +1,27 @@
+[package]
+name = "cdc-console"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The CDC-ACM bring-up every experiment here was writing by hand: one call that builds the serial port, spawns the tasks that serve it, and cannot be half-wired"
+
+[features]
+# Forwarded, not inherited. `usb-reboot` is taken with its defaults OFF below,
+# because Cargo unifies features across a dependency graph: if this crate asked
+# for `auto-reboot` on its own account, an experiment that turned it off with
+# `default-features = false` would silently get it back on, and the only sign
+# would be a board that reboots when somebody's terminal touches it at 1200
+# baud. So the choice stays the experiment's, one level further away.
+default = ["auto-reboot"]
+auto-reboot = ["usb-reboot/auto-reboot"]
+
+[dependencies]
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m"] }
+embassy-rp = { version = "0.10.0", default-features = false }
+embassy-usb = "0.6.0"
+static_cell = "2.1.1"
+
+usb-log = { path = "../usb-log" }
+usb-reboot = { path = "../usb-reboot", default-features = false }
+
+[workspace]

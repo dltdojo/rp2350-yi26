@@ -14,16 +14,15 @@ embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "execu
 embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
 embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info", "unstable-pac"] }
 embassy-usb = "0.6.0"
-static_cell = "2.1.1"
 
 usb-log = { path = "../../crates/usb-log" }
-usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
+cdc-console = { path = "../../crates/cdc-console", default-features = false }
 breadcrumb = { path = "../../crates/breadcrumb" }
 lifeline = { path = "../../crates/lifeline" }
 
 [features]
 default = ["auto-reboot"]
-auto-reboot = ["usb-reboot/auto-reboot"]
+auto-reboot = ["cdc-console/auto-reboot"]
 
 [profile.release]
 opt-level = "s"
