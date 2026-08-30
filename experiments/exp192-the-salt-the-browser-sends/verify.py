@@ -115,10 +115,33 @@ def verify(d):
     return not FAILED
 
 
+def verify_crosscheck(d):
+    """The one claim here that is about the board rather than about a client."""
+    print(f"      salt:  {d.get('salt_hex')}")
+    print(f"      named: {d.get('salt_named')}")
+    b, c = d.get("browser_key_hex"), d.get("cli_key_hex")
+    rule(bool(b) and len(b) == 64 and bool(c) and len(c) == 64,
+         "both stacks produced thirty-two bytes",
+         f"a key is missing or the wrong length: browser={b!r} cli={c!r}")
+    # libfido2 has never heard of WebAuthn's prf extension and cannot derive
+    # this salt; it was handed the one the board reported receiving. So an
+    # agreement here is about the authenticator, not about two clients agreeing
+    # with each other.
+    rule(b == c and bool(b),
+         "and they are the same thirty-two bytes, from two stacks that have "
+         "never heard of each other",
+         "the two stacks derived different keys from the same salt and the same "
+         "credential — which is a finding about this board, not about either client")
+    return not FAILED
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("usage: verify.py analysis.json", file=sys.stderr)
+    if len(sys.argv) not in (2, 3):
+        print("usage: verify.py analysis.json [crosscheck.json]", file=sys.stderr)
         raise SystemExit(2)
     with open(sys.argv[1]) as f:
         verify(json.load(f))
+    if len(sys.argv) == 3:
+        with open(sys.argv[2]) as f:
+            verify_crosscheck(json.load(f))
     raise SystemExit(1 if FAILED else 0)

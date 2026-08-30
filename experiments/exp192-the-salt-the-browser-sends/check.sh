@@ -140,11 +140,25 @@ fi
 rm -rf "$FIX"
 
 # Then on whatever the real run left, if it has been run.
-if [[ -f analysis.json ]]; then
-    echo "      ruling on analysis.json"
+if [[ -f analysis.json && -f crosscheck.json ]]; then
+    echo "      ruling on analysis.json and crosscheck.json"
+    python3 verify.py analysis.json crosscheck.json || FAILED=1
+elif [[ -f analysis.json ]]; then
+    echo "      ruling on analysis.json (no cross-check has been run)"
     python3 verify.py analysis.json || FAILED=1
 else
     echo "SKIP  no analysis.json — ./run.sh has not been run on this checkout"
+fi
+
+# The cross-check leans on one inference and must keep saying so: the salt it
+# feeds libfido2 is reconstructed from the named candidate, not read out of the
+# truncated log line. Burying that would turn a stated assumption into a hidden
+# one.
+if [[ -f crosscheck.json ]]; then
+    python3 -c 'import json,sys; sys.exit(0 if json.load(open("crosscheck.json")).get("salt_named") else 1)' \
+        && pass "the cross-check records which candidate its salt came from" \
+        || fail "crosscheck.json names its salt candidate" \
+                "the reconstruction would be an inference nobody can see"
 fi
 
 for e in exp173 exp174 exp175 exp189 exp191; do

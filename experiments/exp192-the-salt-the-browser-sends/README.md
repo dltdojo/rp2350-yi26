@@ -18,8 +18,9 @@ On the [authenticator road](../README.md#the-authenticator-road).
 > the board say what it received, and matching the candidate on every byte the
 > log carried. Getting there cost **four corrections to exp189's contract**,
 > every one of which had ended the conversation before the board's LED could
-> light, and **none of which `libfido2` can see**. See
-> [Expected output](#expected-output).
+> light, and **none of which `libfido2` can see**. Told that derived salt, a
+> second stack that could not have computed it returns **the same thirty-two
+> bytes**. See [Expected output](#expected-output).
 
 ## The question, and why reading the spec is not an answer
 
@@ -216,12 +217,11 @@ belonged to, so a run whose counts differ is a run that cannot be paired, and
 
 ## What this will not establish
 
-**That the browser and the CLI open the same vault.** That needs the cross-check
-this experiment sets up and does not yet run: take the salt the board reports,
-feed it to `fido2-assert` with the page's credential id and rp id, and compare
-the thirty-two bytes with what the page received. It is one more press and it is
-the sentence worth having — *the same key through two stacks that have never
-heard of each other* — but it is a separate claim and it gets a separate run.
+**That a browser and a CLI interoperate without being told.** The cross-check
+shows one authenticator giving one answer to one salt, which is what makes
+exp191's vault openable from either side — but only once the CLI is told the
+salt a browser derives. Left to themselves the two disagree, and that is the
+finding rather than a footnote to it.
 
 **That `prf` works on any other board.** One authenticator, one browser, one
 version each; [exp176](../exp176-the-same-question-of-two-devices/)'s caveat
@@ -273,6 +273,20 @@ reconstructed from the *named candidate* rather than from the truncated log
 line, because feeding libfido2 twenty-eight bytes would ask a question nobody
 asked. `crosscheck.json` records which candidate, so the inference is visible.
 
-**Not yet run** — the one press it needs went unanswered on 2026-08-29 and it is
-owed, exactly as exp189 owed its `bank8` arm for a day. Everything it needs is
-in `analysis.json` and `transcript.json` already.
+**Run, 2026-08-29:**
+
+```text
+salt         0b6137d0e36e072d3f54fbfc3c4bea2117e86dd3f2517f54dfd5179ea49d3b67
+browser key  29805b806accd1043997408fece041d46ce204e4d83bafcf2022d0c1ebc2da3e
+cli key      29805b806accd1043997408fece041d46ce204e4d83bafcf2022d0c1ebc2da3e
+```
+
+**The same thirty-two bytes.** And the agreement is a statement about the
+*board*, not about two clients agreeing with each other: `libfido2` could not
+have produced that salt on its own, so what is shown is that one authenticator
+gives one answer to one salt regardless of which stack asks. Told the browser's
+derivation, exp191's vault opens from either side.
+
+What it is not is a statement about *the browser and the CLI interoperating by
+default*. They do not: the CLI has to be told the salt a browser would derive,
+which is the whole finding at the top of this file.

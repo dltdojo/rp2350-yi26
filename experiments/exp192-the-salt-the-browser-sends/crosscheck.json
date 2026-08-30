@@ -1,0 +1,10 @@
+{
+  "rp_id": "localhost",
+  "prf_input": "exp192 prf input",
+  "salt_hex": "0b6137d0e36e072d3f54fbfc3c4bea2117e86dd3f2517f54dfd5179ea49d3b67",
+  "salt_named": "prf-prefixed-sha256 (first 28 of 32 bytes, the log cut mid-byte)",
+  "credential_id_b64": "nZa5YNuwhjyMGOmb7LIVuHOhpgZ0UH39bTSIHUNYmmQbYRpfKFBUqZBs6fpNzoO9",
+  "browser_key_hex": "29805b806accd1043997408fece041d46ce204e4d83bafcf2022d0c1ebc2da3e",
+  "cli_key_hex": "29805b806accd1043997408fece041d46ce204e4d83bafcf2022d0c1ebc2da3e",
+  "same": true
+}
