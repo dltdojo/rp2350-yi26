@@ -5,6 +5,7 @@
 
     python3 ctaphid.py <case> [args]        one case, one JSON object
     python3 ctaphid.py --list               the cases and what the spec says
+    python3 ctaphid.py --socket P <case>    against a device on a Unix socket
 
 # Why this is here and not in an experiment
 
@@ -28,10 +29,24 @@ requires, otherwise a short reason.
 
 Nothing here parses CBOR. This is the transport, and the transport's contract is
 the same whether or not there is an authenticator above it.
+
+# Two transports, and one of them is not evidence
+
+By default a case runs against a board through `/dev/hidraw`. With `--socket` it
+runs against [`tools/vctaphid`](../vctaphid/), which answers out of
+`crates/ctap-hid` with no hardware anywhere.
+
+That second one is a **pre-flight check and never a verification**: it says a
+change to the crate or to this file did not break the ten answers, on a machine
+with nothing plugged in. It touches no USB stack, no enumeration and no silicon,
+so it may not fill an experiment's `Expected output` and may not lower a
+`Needs` level. Every row says which transport produced it, so the two can never
+be mistaken for each other after the fact.
 """
 
 import json
 import os
+import socket
 import struct
 import sys
 import time
@@ -111,9 +126,81 @@ def find_device():
     raise SystemExit("no FIDO hidraw device this user can open — is a board flashed?")
 
 
-class Link:
+class HidrawTransport:
+    """A board, through the kernel's HID driver."""
+
+    kind = "hidraw"
+
     def __init__(self):
         self.path, self.fd = find_device()
+
+    def write(self, pkt):
+        # Linux hidraw wants the report number first. This device uses no
+        # numbered reports, so it is zero — and leaving it out is a write that
+        # succeeds and delivers 63 bytes of the wrong thing.
+        os.write(self.fd, b"\x00" + pkt)
+
+    def read(self, timeout):
+        end = time.time() + timeout
+        os.set_blocking(self.fd, False)
+        while time.time() < end:
+            try:
+                d = os.read(self.fd, PACKET)
+                if d:
+                    return d
+            except BlockingIOError:
+                time.sleep(0.002)
+        return None
+
+
+class SocketTransport:
+    """`tools/vctaphid`, or anything else that speaks reports on a socket.
+
+    **No leading report-number byte.** That zero is a hidraw convention, not
+    part of CTAP-HID, and sending it here would mean the two transports
+    disagree about what a 64-byte report is — which would make a case pass on
+    one and fail on the other for a reason that is nobody's bug.
+
+    A stream socket may also split a write, so a report is accumulated rather
+    than assumed to arrive whole.
+    """
+
+    kind = "socket"
+
+    def __init__(self, path):
+        self.path = path
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            self.sock.connect(path)
+        except OSError as e:
+            raise SystemExit(f"no device on {path}: {e} — is tools/vctaphid running?")
+        self.held = b""
+
+    def write(self, pkt):
+        self.sock.sendall(pkt)
+
+    def read(self, timeout):
+        end = time.time() + timeout
+        while len(self.held) < PACKET:
+            left = end - time.time()
+            if left <= 0:
+                return None
+            self.sock.settimeout(left)
+            try:
+                chunk = self.sock.recv(PACKET)
+            except (socket.timeout, TimeoutError):
+                return None
+            if not chunk:
+                return None
+            self.held += chunk
+        pkt, self.held = self.held[:PACKET], self.held[PACKET:]
+        return pkt
+
+
+class Link:
+    def __init__(self, transport=None):
+        self.transport = transport or HidrawTransport()
+        self.path = self.transport.path
         self.last = b""
         # Start from an empty pipe. See `drain`.
         self.drain()
@@ -142,22 +229,10 @@ class Link:
 
     def send_packet(self, pkt):
         assert len(pkt) == PACKET
-        # Linux hidraw wants the report number first. This device uses no
-        # numbered reports, so it is zero — and leaving it out is a write that
-        # succeeds and delivers 63 bytes of the wrong thing.
-        os.write(self.fd, b"\x00" + pkt)
+        self.transport.write(pkt)
 
     def read_packet(self, timeout=1.5):
-        end = time.time() + timeout
-        os.set_blocking(self.fd, False)
-        while time.time() < end:
-            try:
-                d = os.read(self.fd, PACKET)
-                if d:
-                    return d
-            except BlockingIOError:
-                time.sleep(0.002)
-        return None
+        return self.transport.read(timeout)
 
     def send_message(self, cid, cmd, data, hold_back=0):
         """Fragment and send. `hold_back` stops short of the byte count the
@@ -410,28 +485,46 @@ CASES = {
 }
 
 
-def run(case, args):
-    link = Link()
+def run(case, args, transport=None):
+    link = Link(transport)
     fn, _ = CASES[case]
     try:
         out, verdict = fn(link, args)
     except NoChannel as e:
         out, verdict = {"reply": e.reply}, e.verdict()
-    out.update({"case": case, "device": link.path, "verdict": verdict})
+    # `transport` is in every row on purpose. A verdict from `tools/vctaphid`
+    # and a verdict from a board are the same JSON otherwise, and a pre-flight
+    # result that cannot be told from a hardware one is how a check becomes a
+    # claim nobody watched. See tools/vctaphid/README.md.
+    out.update({
+        "case": case,
+        "device": link.path,
+        "transport": link.transport.kind,
+        "verdict": verdict,
+    })
     return out
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+    argv = sys.argv[1:]
+    sock = None
+    if "--socket" in argv:
+        i = argv.index("--socket")
+        if i + 1 >= len(argv):
+            raise SystemExit("--socket needs a path")
+        sock = argv[i + 1]
+        del argv[i:i + 2]
+
+    if not argv or argv[0] in ("-h", "--help"):
         raise SystemExit(__doc__)
-    if sys.argv[1] == "--list":
+    if argv[0] == "--list":
         for name, (_, says) in CASES.items():
             print(f"{name:14} {says}")
         return
-    case = sys.argv[1]
+    case = argv[0]
     if case not in CASES:
         raise SystemExit(f"unknown case: {case}. Try --list.")
-    print(json.dumps(run(case, sys.argv[2:])))
+    print(json.dumps(run(case, argv[1:], SocketTransport(sock) if sock else None)))
 
 
 if __name__ == "__main__":

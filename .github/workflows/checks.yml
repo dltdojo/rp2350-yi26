@@ -66,6 +66,24 @@ jobs:
               exit 1
           fi
 
+  # The CTAP-HID conformance suite, against a device that is a socket.
+  #
+  # This is the only job here that exercises a *host-side* tool end to end.
+  # `docs-check.sh` reads the tree and the `crates` job reads Rust, and between
+  # them they could not see the 13,370 lines of Python in this repository whose
+  # only test has ever been "a board was plugged in once and it worked". exp194
+  # is what that costs: seven copies of one client, six textually different.
+  #
+  # It proves nothing about a board and says so — see tools/vctaphid/README.md.
+  # Its last check points the suite at a device built to answer one question
+  # the way exp189 answered it, and fails if the verdict comes back `spec`.
+  vctaphid:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: the ten cases, and the wrong answer that must be caught
+        run: tools/vctaphid/selftest.sh
+
   # The two experiments that need no board at all: exp102 proves this machine
   # can cross-compile RP2350 firmware, exp140 is pure arithmetic. Running them
   # here means the toolchain instructions in exp102's README are executed on a

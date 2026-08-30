@@ -2,8 +2,10 @@
 
 Host-side programs. Everything here runs on your computer, not on the board.
 
-Two of them talk to the board, and they are for two different hosts (there is
-also one build-time helper, [`partimg`](#partimg), that touches no board at all):
+Two of them talk to the board, and they are for two different hosts (three
+others touch no board at all: the build-time helper [`partimg`](#partimg), the
+conformance client [`ctaphid/`](./ctaphid/), and the device it can be pointed at
+instead of hardware, [`vctaphid`](#vctaphid)):
 
 | | For a host with | Opened by |
 | --- | --- | --- |
@@ -433,3 +435,26 @@ not a linker trick. exp139 learned that from a board that went dark; `partimg`
 refuses an image not linked at `0x10000000` so the mistake cannot be made twice.
 The eight table words come from the [`partition-table`](../crates/partition-table/)
 crate, so they stay defined and tested in one place.
+
+## `vctaphid`
+
+A CTAP-HID device with no board behind it, so that
+[`ctaphid/`](./ctaphid/)'s conformance suite can be run on a machine with
+nothing plugged in:
+
+```sh
+cd tools/vctaphid && ./selftest.sh
+```
+
+It binds a Unix socket and answers out of `crates/ctap-hid` — the same crate
+the firmware uses — so the only thing it adds is which commands it implements.
+`python3 tools/ctaphid/ctaphid.py --socket PATH <case>` points the client at it
+instead of `/dev/hidraw`.
+
+**It is a pre-flight check and never a verification.** It touches no
+`embassy-usb`, no USB stack and no silicon, so nothing it prints belongs in an
+experiment's `Expected output` and no `Needs` level moves because it passes.
+Every verdict the client emits names its `transport`, so a socket result and a
+board result cannot be confused later. [`vctaphid/README.md`](./vctaphid/README.md)
+has the whole argument, including the deliberate wrong answer `selftest.sh`
+uses to prove the suite grades rather than describes.

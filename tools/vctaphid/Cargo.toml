@@ -1,0 +1,14 @@
+[package]
+name = "vctaphid"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The board's half of CTAP-HID with no board: crates/ctap-hid answering tools/ctaphid over a Unix socket, so the conformance suite runs where there is no hardware"
+
+[dependencies]
+# The same decisions the firmware makes, from the crate the firmware uses. This
+# tool contributes no judgement of its own: every answer below is either
+# `Transaction::feed`'s or `init_reply`'s, and the only thing here that is not
+# in the crate is which commands are implemented — which is exactly what the
+# crate leaves to a caller, board or not.
+ctap-hid = { path = "../../crates/ctap-hid" }
