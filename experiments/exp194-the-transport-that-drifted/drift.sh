@@ -32,6 +32,10 @@ SUBJECTS=(
     exp174-a-deadline-nobody-mentioned
     exp184-the-client-that-must-know
     exp189-the-same-salt-twice
+    # And last, the one that was assembled instead of copied. It is in the list
+    # rather than in a run of its own because a comparison whose subjects were
+    # measured by different means is not a comparison.
+    exp194-the-transport-that-drifted
 )
 
 # Order matters, and finding that out is part of the result. A case that leaves
@@ -73,10 +77,13 @@ wait_for() { # state seconds
 
 say "building ${#SUBJECTS[@]} subjects"
 for s in "${SUBJECTS[@]}"; do
-    ( cd "../$s" && cargo build --release -q > /dev/null 2>&1 ) \
+    dir="../$s"
+    [[ "$s" == exp194-* ]] && dir="."
+    ( cd "$dir" && cargo build --release -q > /dev/null 2>&1 ) \
         || { echo "build $s failed" >&2; exit 1; }
-    elf="$(ls ../$s/target/thumbv8m.main-none-eabihf/release/${s} 2>/dev/null)"
-    elf2flash convert -b rp2350 "$elf" "target-uf2/${s:0:6}.uf2" > /dev/null 2>&1
+    elf2flash convert -b rp2350 \
+        "$dir/target/thumbv8m.main-none-eabihf/release/$s" \
+        "target-uf2/${s:0:6}.uf2" > /dev/null 2>&1
 done
 note "$(ls target-uf2/*.uf2 2>/dev/null | wc -l) images"
 

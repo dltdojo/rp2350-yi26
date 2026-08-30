@@ -1,0 +1,21 @@
+[package]
+name = "ctap-hid"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "The CTAP-HID transport: reassembly, channels and the errors the specification names, as a pure function a host can test"
+
+# Nothing on the host. Deciding what a packet means needs no board, and
+# `cargo test` asks every question the hardware suite asks with none attached.
+[dependencies]
+
+# The board half — a read with a deadline, and the transport answering the parts
+# that are its own. Gated on the target rather than on a feature, the way
+# `lifeline` gates `board.rs`, so `cargo test` never sees embassy at all.
+[target.'cfg(target_os = "none")'.dependencies]
+embassy-time = "0.5.1"
+embassy-futures = "0.1.2"
+embassy-usb = "0.6.0"
+embassy-rp = { version = "0.10.0", default-features = false }
+
+[workspace]

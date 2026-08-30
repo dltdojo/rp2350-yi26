@@ -16,20 +16,34 @@ source ../lib.sh
 require_supported_platform
 
 PRESENCE=1
-LIFELINE="no: no firmware of its own — it drives six other experiments' firmwares"
+LIFELINE=yes
 presence_check
 lifeline_check
 
 USB_IFACE="cdc+hid"
 USB_CARRIES="log+ctaphid"
 USB_HOST="cdc_acm+hidraw"
-USB_RUNS_ON="exp168+exp170+exp172+exp174+exp184+exp189"
+USB_RUNS_ON="own+exp168+exp170+exp172+exp174+exp184+exp189"
 usb_check
 
 command -v python3 > /dev/null && pass "python3 present" \
     || { fail "python3 present" "needed to drive the suite and rule on it"; exit 1; }
 
 CLIENT=../../tools/ctaphid/ctaphid.py
+
+# The firmware, and the crate under it. The crate is where every judgement
+# lives, so its tests are this experiment's cheapest evidence and run first.
+crate_test ../../crates/ctap-hid "the transport's twenty-two host tests pass"
+
+if command -v cargo > /dev/null; then
+    cargo build --release --quiet 2> /dev/null \
+        && pass "the firmware compiles" \
+        || fail "the firmware compiles" "cargo build --release"
+fi
+
+grep -q "ctap_hid::" src/main.rs || grep -q "use ctap_hid" src/main.rs \
+    && pass "the firmware's decisions come from crates/ctap-hid" \
+    || fail "src/main.rs uses ctap-hid" "a copied transport measures nothing"
 
 [[ -f "$CLIENT" ]] \
     && pass "the client is in tools/, not here — one suite for every firmware" \

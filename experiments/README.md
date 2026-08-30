@@ -100,7 +100,7 @@ Per experiment:
 | exp191 | A board running **exp189**, either arm, and **four presses**. No firmware of its own. Host side: `python3` with `cryptography`, and `libfido2` for the one step that makes a credential. The vault half needs no board at all — a wrong key raising is a property of AES-GCM, not of this wrapper. |
 | exp192 | A board running **exp189** built with `EXP189_LOG_SALT=1`, a **browser**, a person, and **three presses**. No firmware of its own. Chrome reaches the board through its own CTAP stack on `/dev/hidraw`, not WebUSB, so there is no permission to pre-grant and no headless path — a visible window and a finger, or nothing. |
 | exp193 | Any RP2350 board and **nobody**. `cdc+hid`, one log. It walks two lanes of interface counts until the board stops enumerating, reads every step out of the host's own descriptor bytes, and relies on exp190's recovery for the two steps that panic before USB exists. The only host requirement is `yi26`. |
-| exp194 | Any RP2350 board and **nobody**. No firmware of its own: it flashes six other experiments' firmwares in turn and asks each the same twelve CTAP-HID questions over `/dev/hidraw`. No case reaches user presence, so nothing here needs a finger. The only host requirements are `yi26` and the udev rule exp115 installs. |
+| exp194 | Any RP2350 board and **nobody**. It flashes six other experiments' firmwares and its own in turn, and asks each the same twelve CTAP-HID questions over `/dev/hidraw`. No case reaches user presence, so nothing here needs a finger. The only host requirements are `yi26` and the udev rule exp115 installs. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -738,7 +738,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp191 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
 | exp192 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
 | exp193 | `cdc+hid` | `log` | `cdc_acm+hidraw` | `own` |
-| exp194 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp168+exp170+exp172+exp174+exp184+exp189` |
+| exp194 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own+exp168+exp170+exp172+exp174+exp184+exp189` |
 
 ### Reading the columns
 

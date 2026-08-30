@@ -1,0 +1,35 @@
+[package]
+name = "exp194-the-transport-that-drifted"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "A CTAP-HID transport assembled from crates rather than copied, held to the twelve answers six other firmwares were measured against"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info", "unstable-pac"] }
+embassy-usb = "0.6.0"
+embassy-futures = "0.1.2"
+static_cell = "2.1.1"
+
+usb-log = { path = "../../crates/usb-log" }
+cdc-console = { path = "../../crates/cdc-console", default-features = false }
+ctap-hid = { path = "../../crates/ctap-hid" }
+breadcrumb = { path = "../../crates/breadcrumb" }
+lifeline = { path = "../../crates/lifeline" }
+
+[features]
+default = ["auto-reboot"]
+auto-reboot = ["cdc-console/auto-reboot"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]

@@ -5,6 +5,9 @@ answer the specification on every one. The sixth — the newest, the largest, th
 one on the authenticator road's front — is wrong twice, and one of them takes
 away the client's only way to recover.**
 
+**Then a seventh, assembled from a crate instead of copied, answers all twelve
+in seventeen lines.**
+
 ## Why this exists
 
 `ctaphid_task` is defined in **fourteen experiments here as thirteen different
@@ -29,20 +32,24 @@ the whole run needs a board and nobody.
 ## What was measured
 
 ```
-      case           exp168  exp170  exp172  exp174  exp184  exp189
-      bad-cid        ok      ok      ok      ok      ok      DIFF
-      bad-seq        ok      ok      ok      ok      ok      ok
-      busy           ok      ok      ok      ok      ok      ok
-      busy-recovers  ok      ok      ok      ok      ok      DIFF
-      init           ok      ok      ok      ok      ok      ok
-      init-resets    ok      ok      ok      ok      ok      ok
-      ping 1024      ok      ok      ok      ok      ok      ok
-      ping 1025      ok      ok      ok      ok      ok      ok
-      ping 57        ok      ok      ok      ok      ok      ok
-      stray-cont     ok      ok      ok      ok      ok      ok
-      truncated      ok      ok      ok      ok      ok      ok
-      unknown        ok      ok      ok      ok      ok      ok
+      case           exp168  exp170  exp172  exp174  exp184  exp189  exp194
+      bad-cid        ok      ok      ok      ok      ok      DIFF    ok
+      bad-seq        ok      ok      ok      ok      ok      ok      ok
+      busy           ok      ok      ok      ok      ok      ok      ok
+      busy-recovers  ok      ok      ok      ok      ok      DIFF    ok
+      init           ok      ok      ok      ok      ok      ok      ok
+      init-resets    ok      ok      ok      ok      ok      ok      ok
+      ping 1024      ok      ok      ok      ok      ok      ok      ok
+      ping 1025      ok      ok      ok      ok      ok      ok      ok
+      ping 57        ok      ok      ok      ok      ok      ok      ok
+      stray-cont     ok      ok      ok      ok      ok      ok      ok
+      truncated      ok      ok      ok      ok      ok      ok      ok
+      unknown        ok      ok      ok      ok      ok      ok      ok
 ```
+
+exp194 is the last column and it is the only subject held to a standard by
+`verify.py`: **built on the crate, it must be `spec` in every cell.** The
+others are evidence; it is the product.
 
 **Ten of twelve cases: identical across all six.** The chain drifted in size
 from 110 lines to 959 and in behaviour almost not at all — which is a real
@@ -84,6 +91,44 @@ seconds the device has told the client to go away and left it no way back. A
 first reading of this said "stuck forever"; putting a clock on it is what made
 it true.
 
+## The crate, and where the deciding went
+
+[`crates/ctap-hid`](../../crates/ctap-hid/) is not exp189's transport tidied up.
+It is **the behaviour five firmwares agreed on and the specification requires**,
+which is a thing that could only be written after the table above existed.
+
+The shape that made it testable is one decision: `Transaction::feed` takes the
+clock as a `u64` of milliseconds rather than reaching for `Instant`. With that,
+deciding what an arriving packet means needs no board:
+
+| | |
+| --- | --- |
+| `crates/ctap-hid/src/lib.rs` | 384 lines of deciding, no `async`, no embassy, **22 host tests** |
+| `crates/ctap-hid/src/board.rs` | 141 lines: the loop, the deadline, `INIT`, every error |
+| exp194's `answer_task` | **17 lines** — `PING`, and `ERR_INVALID_CMD` for the rest |
+| exp189's `ctaphid_task` | 959 lines |
+
+The twenty-two tests are the same twelve questions the hardware suite asks, plus
+the reassembly and fragmentation identities. **Two witnesses for one contract**:
+if the tests pass and the board fails, the fault is in the USB half; if both
+fail, it is in the crate.
+
+**The loop is in the crate because the ratchet said so, not because anyone was
+far-sighted.** This firmware first carried a 97-line `ctaphid_task` — already
+ten times smaller than what it replaced — and `experiments/duplication.sh`
+failed it for being a fifteenth one. A loop small enough to feel harmless is
+exactly the kind that gets copied. What is left in the experiment is the only
+question that was ever its own: which commands does it answer?
+
+One of those tests was wrong when it was written — it expected a late
+continuation packet to be ignored, where the correct answer, and what five
+boards do, is `ERR_MSG_TIMEOUT` on its own channel. The crate was right and the
+test was not, which is the direction that costs nothing to find.
+
+This repository's existing split, applied again: `log-policy` and `log-ring`
+have tests where `usb-log` cannot, `lifeline`'s give-up rule is arithmetic where
+`lifeline::board` is not.
+
 ## What this does not establish
 
 - **Six of fourteen.** The samples span the chain — 110, 241, 451, 531, the
@@ -94,6 +139,13 @@ it true.
 - **The transport layer only.** No case here sends CBOR, makes a credential or
   asks for a press. What every firmware does *above* the transport is each
   experiment's own subject and is untouched by this.
+- **Nothing was fixed.** exp189 still answers `ERR_INVALID_PAR` and still
+  refuses the recovery path; the fourteen copies are grandfathered and this
+  changes none of them. What exists now is a crate the *next* CTAP experiment
+  can be built on, and a measurement saying what it owes.
+- **The crate has one caller.** exp194 and nothing else. Its value is entirely
+  in what comes after it, which is the same bet `crates/cdc-console` made in
+  exp190 and had paid off by exp193.
 
 ## Run it
 
