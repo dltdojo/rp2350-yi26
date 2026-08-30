@@ -6,6 +6,10 @@ license = "Apache-2.0"
 description = "Record where an RP2350 firmware died, let the watchdog reboot it, and report it on the way back up"
 
 [dependencies]
+# The board half only. Gated on the target rather than on a feature, the way
+# `lifeline` and `ctap-hid` gate theirs, so `cargo test` never sees embassy —
+# which is the whole point of the split in src/lib.rs.
+[target.'cfg(target_os = "none")'.dependencies]
 embassy-rp = { version = "0.10.0", default-features = false }
 
 [workspace]

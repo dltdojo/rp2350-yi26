@@ -126,6 +126,23 @@ for _ in $(seq 20); do
     sleep 3
 done
 
+# Before anything is asserted: did this run start from a clean board?
+#
+# `breadcrumb`'s handoff token is consumed by the next boot's `read`, and a
+# firmware that does not use the crate never consumes it — so a note from some
+# earlier session survives every flash until a breadcrumb firmware inherits it.
+# Measured 2026-08-30: a freshly flashed exp157 came up as `boot #19`, went
+# straight past its own hard stop without running a single step, and reported a
+# death "in step 92" that no code here can write. Every assertion below then
+# failed for a reason that has nothing to do with this experiment.
+#
+# The fix is to run it twice: this boot's `read` consumed whatever was there.
+STORM_BOOT="$(grep -oE 'STOP after [0-9]+ boots' <<< "$OUT" | grep -oE '[0-9]+' | head -1)"
+if [[ -n "$STORM_BOOT" && "$STORM_BOOT" -gt 5 ]]; then
+    fail "the board started this run with a clean note" \
+         "stopped at boot $STORM_BOOT, not 5 — an older session's breadcrumb was inherited. Flash again and re-run; this boot consumed it."
+fi
+
 # The two controls. Without a boot that finished, "it says where it died" cannot
 # be told from "it always says something died" — and a harness that can only
 # report failure cannot report success.

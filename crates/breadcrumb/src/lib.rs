@@ -65,6 +65,44 @@
 //! `REASON` is still read — it is what separates a hang from a fault — but it no
 //! longer decides whether the note is ours.
 //!
+//! # The one-shot token has a hole, and it was walked into on 2026-08-30
+//!
+//! "A fresh flash finds nothing to believe" is **wider than what it can promise**,
+//! and the first hardware run after this crate was split proved it. exp157 came
+//! up and reported this, having run nothing:
+//!
+//! ```text
+//!   boot #19, and the boot before it completed.
+//!     boot 1: HANG in step 92
+//!   STOP after 19 boots. Nothing armed; still reflashable.
+//! ```
+//!
+//! Step 92 does not fit the five bits a step gets, so no code here wrote it; it
+//! was whatever `SCRATCH3` happened to hold. `SCRATCH1` held 18, so the first
+//! boot of a freshly flashed firmware was boot 19 and went straight past its
+//! own hard stop without ever running its sequence.
+//!
+//! **The token is consumed by the next boot's [`read`], and that is the whole
+//! assumption.** If the firmware that boots next does not use this crate — most
+//! of the experiments here do not — nobody consumes it. It then survives every
+//! flash, for as long as the board keeps power, until some later breadcrumb
+//! firmware boots and inherits a stranger's note as its own.
+//!
+//! There is no fix inside these four words. A magic value cannot distinguish
+//! *this build's* handoff from *another build's* leftover, and the obvious
+//! discriminator was already ruled out above: the 1200-baud reflash touch
+//! reboots through the watchdog, so `REASON` cannot tell a flash from a reboot.
+//!
+//! What a caller can do, and what a reader must know:
+//!
+//! - **A first run on a board of unknown history is not evidence.** Run it
+//!   twice. The first [`read`] consumes whatever was there, so the second run
+//!   starts clean — which is exactly how the run above was diagnosed, and the
+//!   rerun passed every assertion.
+//! - **[`Note::boot`] arriving implausibly large is the signature.** A harness
+//!   whose stop is `boot >= N` skips its whole sequence silently when this
+//!   happens, and reports success.
+//!
 //! # The safety property, and it is not optional
 //!
 //! [`arm`] must stop being called at some point. A board in a reboot loop it
@@ -80,8 +118,6 @@
 //! [doc]: https://github.com/dltdojo/rp2350-yi26/blob/main/docs/the-board-is-the-loop.md
 
 #![no_std]
-
-use embassy_rp::pac;
 
 /// Says a note was left deliberately, rather than being whatever was in the
 /// register. Not a checksum: it only has to be a value nobody writes by
@@ -227,63 +263,62 @@ impl Note {
         })
     }
 }
+// ---------------------------------------------------------------------------
+// The arithmetic, with no chip in it.
+//
+// Everything below decides what four words MEAN and what they should become.
+// `board` does the only two things that need silicon: reading those words out
+// of `WATCHDOG.SCRATCH0`-`SCRATCH3`, and writing them back.
+//
+// The split is this repository's existing one — `lifeline` and `ctap-hid` both
+// gate their board half on the target so `cargo test` never sees embassy — and
+// it is applied here late, for a reason worth stating: this crate is the
+// INSTRUMENT. Every comment above names a bug that a board paid for, and until
+// now not one of them had a test. A harness that misreports is worse than no
+// harness, because the rounds it costs look like rounds spent on the subject.
+// See `docs/the-board-is-the-loop.md`, which says instrumentation is exactly
+// what the slow loop cannot develop.
 
-/// Read the note, fold the previous boot into the history, and start this one.
+/// The four words, as values rather than as registers.
 ///
-/// **Call this first, before anything else in `main`** — before
-/// `embassy_rp::init`, before the USB stack, before any peripheral. Not
-/// superstition: anything that resets a peripheral or takes a fault before this
-/// runs destroys the only record of why the last boot ended.
+/// `SCRATCH4`-`SCRATCH7` are the bootrom's and are not here.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub struct Scratch {
+    /// The handoff token: [`MAGIC`](self) when a note was left deliberately.
+    pub s0: u32,
+    /// Boot counter in the top 24 bits; step, sticky bit and tally in the low 8.
+    pub s1: u32,
+    /// Two bits per step: what became of each.
+    pub s2: u32,
+    /// One byte per boot, oldest first: how that boot ended.
+    pub s3: u32,
+}
+
+/// Everything [`board::read`] decides, given what it found.
 ///
-/// It clears `WATCHDOG.REASON` on the way through, so the next boot's reading of
-/// it describes the next death and not this one.
-pub fn read() -> Note {
-    let wd = pac::WATCHDOG;
-
-    // Disarm FIRST, unconditionally, before reading anything.
-    //
-    // "Stop calling `arm`" is not the same as "the watchdog is off", and the
-    // difference cost a board. A watchdog left enabled by the boot that died is
-    // still enabled in the boot that comes back, and it will cut that boot down
-    // before USB finishes enumerating — which looks exactly like a firmware that
-    // never started, and leaves nothing able to reflash it.
-    //
-    // So a boot can never inherit an armed watchdog. Arming is something a run
-    // does deliberately, after it has reported, and it starts from off.
-    wd.ctrl().modify(|w| w.set_enable(false));
-
-    // REASON tells a hang from a fault. It does NOT decide whether this note is
-    // ours: the 1200-baud reflash touch reboots through the watchdog, so REASON
-    // says "watchdog" on the first boot of a newly flashed firmware, which is
-    // precisely the boot that must not inherit anything.
-    let reason = wd.reason().read();
-    let forced = reason.force();
-    wd.reason().write_value(pac::watchdog::regs::Reason(0));
-
-    // The token is one-shot: consumed here, and only rewritten by `arm` or
-    // `reboot`. So a firmware that stopped cleanly leaves nothing behind, and a
-    // fresh flash finds nothing to believe.
-    let ours = wd.scratch0().read() == MAGIC;
-    wd.scratch0().write_value(0);
-
-    if !ours {
-        wd.scratch1().write_value(pack(1, 0));
-        wd.scratch2().write_value(0);
-        wd.scratch3().write_value(0);
-        return Note { boot: 1, cause: Cause::Fresh, step: 0, history: [0; HISTORY], steps: 0 };
+/// Returns the note to hand the firmware and the four words to write back.
+/// `forced` is `WATCHDOG.REASON.FORCE` — the one bit that separates a fault
+/// from a hang, and the only thing outside these four words that matters.
+///
+/// **`s0` comes back zero either way.** The token is one-shot: a firmware that
+/// stops cleanly must leave nothing for the next one to misread, and a fresh
+/// flash must find nothing to believe.
+pub fn interpret(before: Scratch, forced: bool) -> (Note, Scratch) {
+    if before.s0 != MAGIC {
+        return (
+            Note { boot: 1, cause: Cause::Fresh, step: 0, history: [0; HISTORY], steps: 0 },
+            Scratch { s0: 0, s1: pack(1, 0), s2: 0, s3: 0 },
+        );
     }
 
-    let (previous, step_raw) = unpack(wd.scratch1().read());
+    let (previous, step_raw) = unpack(before.s1);
     let boot = previous.saturating_add(1);
-    let mut steps = wd.scratch2().read();
+    let mut steps = before.s2;
 
-    // SCRATCH1's low byte still holds whatever step the previous boot was inside
-    // when it stopped, because it is written before each step and cleared only
-    // by `finished`.
-    // Three things share this byte and only one of them is the step: the tally
-    // belongs to a caller and outlives boots, and the sticky bit says this boot
-    // got up. Reading the whole byte as a step number turns a successful boot
-    // with a tally of 2 into a death at step 64.
+    // Three things share the low byte and only one of them is the step: the
+    // tally belongs to a caller and outlives boots, and the sticky bit says
+    // this boot got up. Reading the whole byte as a step number turns a
+    // successful boot with a tally of 2 into a death at step 64.
     let step = if step_raw & STEP_STICKY != 0 {
         NO_STEP as u8
     } else {
@@ -307,10 +342,9 @@ pub fn read() -> Note {
             steps = (steps & !(0b11 << shift)) | ((DIED as u32) << shift);
         }
     }
-    wd.scratch2().write_value(steps);
 
     // Fold it into the history, in the previous boot's slot.
-    let mut history = wd.scratch3().read().to_le_bytes();
+    let mut history = before.s3.to_le_bytes();
     if previous >= 1 && (previous as usize) <= HISTORY {
         history[(previous - 1) as usize] = match cause {
             Cause::Fault => step | FAULT_BIT,
@@ -319,11 +353,54 @@ pub fn read() -> Note {
         };
     }
 
-    // The tally is the caller's and outlives a boot; the step is not.
-    wd.scratch1().write_value(pack(boot, step_raw & STEP_TALLY));
-    wd.scratch3().write_value(u32::from_le_bytes(history));
+    (
+        Note { boot, cause, step, history, steps },
+        // The tally is the caller's and outlives a boot; the step is not.
+        Scratch { s0: 0, s1: pack(boot, step_raw & STEP_TALLY), s2: steps, s3: u32::from_le_bytes(history) },
+    )
+}
 
-    Note { boot, cause, step, history, steps }
+/// `SCRATCH1` with the step set. See [`board::step`].
+///
+/// Returns `s1` unchanged once this boot has said it got up — see
+/// [`STEP_STICKY`](self).
+pub fn with_step(s1: u32, n: u8) -> u32 {
+    let (boot, current) = unpack(s1);
+    if current & STEP_STICKY != 0 {
+        return s1;
+    }
+    pack(boot, (n & !(STEP_STICKY | STEP_TALLY)) | (current & STEP_TALLY))
+}
+
+/// The caller's tally, out of `SCRATCH1`.
+pub fn tally_of(s1: u32) -> u8 {
+    let (_, step) = unpack(s1);
+    (step & STEP_TALLY) >> STEP_TALLY_SHIFT
+}
+
+/// `SCRATCH1` with the tally set, **saturating** at [`TALLY_MAX`].
+///
+/// Saturating and not wrapping: a caller deciding *give up after three* must
+/// never see the count roll back to zero.
+pub fn with_tally(s1: u32, n: u8) -> u32 {
+    let (boot, step) = unpack(s1);
+    let n = n.min(TALLY_MAX);
+    pack(boot, (step & !STEP_TALLY) | (n << STEP_TALLY_SHIFT))
+}
+
+/// `SCRATCH2` with step `n` recorded. Out-of-range steps change nothing.
+pub fn with_mark(s2: u32, n: u8, outcome: u8) -> u32 {
+    if n == 0 || n > STEPS {
+        return s2;
+    }
+    let shift = 2 * (n - 1) as u32;
+    (s2 & !(0b11 << shift)) | (((outcome as u32) & 0b11) << shift)
+}
+
+/// `SCRATCH1` saying the sequence finished without dying.
+pub fn with_finished(s1: u32) -> u32 {
+    let (boot, step) = unpack(s1);
+    pack(boot, NO_STEP as u8 | STEP_STICKY | (step & STEP_TALLY))
 }
 
 /// `SCRATCH1` carries two things, because four words have to hold five.
@@ -339,197 +416,15 @@ fn unpack(v: u32) -> (u32, u8) {
     (v >> 8, (v & 0xff) as u8)
 }
 
-/// Say which step is about to run.
+/// The half that needs a chip: the same arithmetic, with the registers.
 ///
-/// **Before it runs, never after.** The number that survives has to name the
-/// step that did not come back; a number written afterwards names the last one
-/// that did, which is the same information the LED already had.
-///
-/// Steps count from 1. Step 0 means "between steps" and is not reportable.
-pub fn step(n: u8) {
-    let wd = pac::WATCHDOG;
-    let (boot, current) = unpack(wd.scratch1().read());
-    // Ignored once this boot has said it got up. See STEP_STICKY.
-    if current & STEP_STICKY != 0 {
-        return;
-    }
-    wd.scratch1().write_value(pack(boot, (n & !(STEP_STICKY | STEP_TALLY)) | (current & STEP_TALLY)));
-}
+/// Only compiled for the target, so `cargo test` never sees embassy. Its items
+/// are re-exported at the crate root, so `breadcrumb::read()` is unchanged for
+/// the thirteen experiments that call it.
+#[cfg(target_os = "none")]
+pub mod board;
+#[cfg(target_os = "none")]
+pub use board::*;
 
-/// Read the caller's tally. See [`STEP_TALLY`].
-pub fn tally() -> u8 {
-    let (_, step) = unpack(pac::WATCHDOG.scratch1().read());
-    (step & STEP_TALLY) >> STEP_TALLY_SHIFT
-}
-
-/// Write the caller's tally, saturating at [`TALLY_MAX`].
-pub fn set_tally(n: u8) {
-    let wd = pac::WATCHDOG;
-    let (boot, step) = unpack(wd.scratch1().read());
-    let n = n.min(TALLY_MAX);
-    wd.scratch1()
-        .write_value(pack(boot, (step & !STEP_TALLY) | (n << STEP_TALLY_SHIFT)));
-}
-
-/// The per-step outcomes as they stand **right now**.
-///
-/// [`Note`] is a snapshot taken at boot, so a report built from it is stale the
-/// moment this boot marks anything — and a run whose last act is to mark a step
-/// will report that step as never attempted. Measured, in exp159's first run,
-/// where the final line said *not reached* about the candidate it had just
-/// finished.
-pub fn steps_now() -> u32 {
-    pac::WATCHDOG.scratch2().read()
-}
-
-/// Record what became of a step that **survived**, with the firmware's own
-/// meaning: [`SURVIVED_A`] or [`SURVIVED_B`].
-///
-/// A step that dies is marked by [`read`] on the way back up. A step that lives
-/// has to say so, or the next boot cannot tell "already tried, and it worked"
-/// from "not tried yet" and will attempt it again forever.
-pub fn mark(n: u8, outcome: u8) {
-    if n == 0 || n > STEPS {
-        return;
-    }
-    let wd = pac::WATCHDOG;
-    let shift = 2 * (n - 1) as u32;
-    let v = wd.scratch2().read();
-    wd.scratch2()
-        .write_value((v & !(0b11 << shift)) | (((outcome as u32) & 0b11) << shift));
-}
-
-/// Say that the sequence finished without dying.
-///
-/// Without this every completed boot looks like a boot that died in whatever
-/// step it ran last, and a report that cannot say "nothing went wrong" is a
-/// report whose failures mean nothing.
-pub fn finished() {
-    let wd = pac::WATCHDOG;
-    let (boot, _) = unpack(wd.scratch1().read());
-    let (_, step) = unpack(wd.scratch1().read());
-    wd.scratch1()
-        .write_value(pack(boot, NO_STEP as u8 | STEP_STICKY | (step & STEP_TALLY)));
-}
-
-/// Start the watchdog. From here a hang is a reboot.
-///
-/// `timeout_us` has to be longer than the slowest step that is expected to
-/// succeed, or the harness reports a death that never happened.
-pub fn arm(timeout_us: u32) {
-    select_reset_targets();
-    let wd = pac::WATCHDOG;
-    // Hand the token forward: from here, a death is ours to report.
-    wd.scratch0().write_value(MAGIC);
-    wd.ctrl().modify(|w| w.set_enable(false));
-    wd.load().write(|w| w.set_load(timeout_us.min(0x00ff_ffff)));
-    wd.ctrl().modify(|w| w.set_enable(true));
-}
-
-/// Keep it quiet for another `timeout_us`.
-pub fn feed(timeout_us: u32) {
-    pac::WATCHDOG.load().write(|w| w.set_load(timeout_us.min(0x00ff_ffff)));
-}
-
-/// Stop the watchdog, and withdraw the handoff token.
-///
-/// Both halves matter. Stopping the watchdog means nothing after this reboots
-/// the board; clearing the token means that if something else does, the next
-/// boot knows the note is not a continuation of anything.
-pub fn disarm() {
-    pac::WATCHDOG.ctrl().modify(|w| w.set_enable(false));
-    pac::WATCHDOG.scratch0().write_value(0);
-}
-
-/// Reboot **now**, and let the note say what kind of reboot it was.
-///
-/// One function and not two, because the classification is not in the caller's
-/// hands and should not look as if it were: [`read`] asks whether a step was in
-/// progress. Called from a fault handler, with [`step`] set, this is recorded as
-/// a **fault**. Called after [`finished`], it is recorded as a boot that
-/// **completed** and chose to go round again.
-///
-/// Written to survive a fault handler: no HAL, no executor, no interrupts, no
-/// allocation, because those are exactly what is no longer trustworthy at that
-/// point. It does not return.
-///
-/// Simply hanging would also reboot, once the watchdog ran out — and would be
-/// recorded as a **hang**. So the distinction between *it stopped* and *it
-/// faulted* is bought by a fault handler calling this instead of parking.
-pub fn reboot() -> ! {
-    select_reset_targets();
-    let wd = pac::WATCHDOG;
-    wd.scratch0().write_value(MAGIC);
-
-    // Load a short timeout BEFORE forcing the reset, and that order is the
-    // whole point.
-    //
-    // `CTRL.TRIGGER` forcing a reset from inside a fault handler is the fast
-    // path and it is the one that had never been measured. A timeout reset had
-    // been — five of them in a row, on this part. So the timeout is armed first
-    // and acts as the fallback: if TRIGGER turns out to do nothing here, this
-    // still brings the board home a fifth of a second later.
-    //
-    // The failure is then **visible instead of silent**: the next boot reads
-    // `REASON.TIMER` rather than `REASON.FORCE` and reports the death as a hang
-    // where a fault was expected. A wrong label in a log is recoverable. A board
-    // that never comes back is a walk to a bench.
-    wd.load().write(|w| w.set_load(200_000));
-    wd.ctrl().modify(|w| {
-        w.set_pause_dbg0(false);
-        w.set_pause_dbg1(false);
-        w.set_pause_jtag(false);
-        w.set_enable(true);
-    });
-    wd.ctrl().modify(|w| w.set_trigger(true));
-    loop {
-        cortex_m_nop();
-    }
-}
-
-/// What the watchdog is allowed to reset.
-///
-/// **This is `embassy-rp`'s mask, kept because it is the one that was
-/// measured**, and that sentence is the whole point of this comment.
-///
-/// A spike run before this crate existed armed the watchdog with exactly this
-/// value and was reset by it five times in a row, on an RP2350, coming back
-/// healthy and reflashable every time. That is evidence.
-///
-/// Reading the register layout afterwards suggests it should not work at all.
-/// `embassy-rp` applies one constant to both parts with no `cfg`, and the two
-/// parts do not agree:
-///
-/// ```text
-///                        bit 0      bit 1   bit 2   bit 3    top bit
-///   RP2040  PSM.WDSEL    rosc       xosc    ...                   16
-///   RP2350  PSM.WDSEL    proc_cold  otp     ROSC    XOSC          24
-/// ```
-///
-/// So on an RP2350 `0x0001_ffff & !0b11` clears `proc_cold` and `otp`, leaves
-/// ROSC and XOSC **in** the reset set, and never reaches `proc0` or `proc1` at
-/// bits 23 and 24. pico-sdk's `watchdog_reboot` uses
-/// `PSM_WDSEL_BITS & ~(PSM_WDSEL_ROSC_BITS | PSM_WDSEL_XOSC_BITS)`, which on
-/// this part is a different set of bits entirely.
-///
-/// **The deduction was acted on, and it was the wrong call.** A build using the
-/// bit-by-bit "corrected" mask went onto a board before anything measured it,
-/// on the strength of the reasoning above — and the board had to be recovered by
-/// hand. The cause turned out to be somewhere else entirely (a product string
-/// one character too long for the USB control buffer), so the corrected mask was
-/// never even the problem; it was simply an unmeasured change made in the same
-/// breath as a real fix, which is how an unmeasured change gets believed.
-///
-/// So: the measured value stays until something measures the other one.
-/// **Which mask is right for RP2350 is an open question, not a settled one**,
-/// and it is written down as a question in the experiment that will answer it.
-fn select_reset_targets() {
-    pac::PSM
-        .wdsel()
-        .write_value(pac::psm::regs::Wdsel(0x0001_ffff & !0b11));
-}
-
-#[inline(always)]
-fn cortex_m_nop() {
-    unsafe { core::arch::asm!("nop", options(nomem, nostack, preserves_flags)) }
-}
+#[cfg(test)]
+mod tests;
