@@ -1,0 +1,40 @@
+[package]
+name = "exp193-how-many-doors-fit"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "How many interfaces fit in one configuration descriptor, measured from the host, and what the board does when they do not"
+
+[dependencies]
+cortex-m = "0.7.7"
+cortex-m-rt = "0.7.3"
+rp2350-linker = "0.2.3"
+
+embassy-executor = { version = "0.10.0", features = ["platform-cortex-m", "executor-thread"] }
+embassy-time = { version = "0.5.1", features = ["generic-queue-8"] }
+embassy-rp = { version = "0.10.0", features = ["rp235xa", "time-driver", "critical-section-impl", "binary-info", "unstable-pac"] }
+embassy-usb = "0.6.0"
+static_cell = "2.1.1"
+
+usb-log = { path = "../../crates/usb-log" }
+cdc-console = { path = "../../crates/cdc-console", default-features = false }
+breadcrumb = { path = "../../crates/breadcrumb" }
+lifeline = { path = "../../crates/lifeline" }
+
+[features]
+default = ["auto-reboot"]
+auto-reboot = ["cdc-console/auto-reboot"]
+
+# The second lane. `embassy-usb` keeps its interface and handler lists in
+# `heapless::Vec`s whose capacity is a compile-time setting, and the default is
+# 4 — which nothing in this repository has ever changed, because nothing in this
+# repository has ever built a fifth interface. Raising it is what lets the walk
+# reach the wall this experiment set out to measure.
+wide = ["embassy-usb/max-interface-count-8", "embassy-usb/max-handler-count-8"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[workspace]

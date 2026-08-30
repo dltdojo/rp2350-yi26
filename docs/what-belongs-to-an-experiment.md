@@ -45,6 +45,11 @@ Three bills, all already written into the source:
   note.
 - **exp189 records meeting exp173's subject** — a client that sends a field
   nothing else sends — "for the second time in one afternoon".
+- **exp152's `Cargo.toml` explained the wrong number for months.** Its comment
+  said the firmware declares four interfaces; it declares five. The comment came
+  across from exp151 with the dependency line and was never updated, and the
+  file says so itself: *"it was inherited from exp151 and never updated. `lsusb`
+  says five."*
 
 None of these is a bug in an experiment's subject. Each is a bug in the part of
 the firmware that was never what the experiment was asking about, carried
@@ -173,7 +178,7 @@ Priority is the measurement, not taste.
 | --- | --- | --- | --- |
 | 1 | CTAP-HID transport → `crates/ctap-hid` | 14 copies, 13 versions, 959 lines at the head | Largest single win in the tree. What remains in each experiment is its `get_info`/`makeCredential` policy — which is the subject. `crates/ctap` is 62 lines: the extraction barely started |
 | 2 | MSC/SCSI + FAT12 glue → `crates/msc-disk` | 12 copies, 7 versions, 262 lines | `crates/fat12` exists and is tested; what is missing is the layer between it and USB |
-| 3 | CDC command console → `cdc-console`'s second phase | 17 copies, 14 versions | The crate exists; it needs `open` to hand back a reader |
+| 3 | CDC command console → `cdc-console`'s second phase | 17 copies, 14 versions | The crate exists and now hands back the `Builder`; what is still missing is handing back a *reader*, for the firmwares that take commands |
 | 4 | `blink_task` / `heartbeat` | 21 + 12 copies, 5 versions each | Already solved by `lifeline::led`; only adoption is missing |
 
 **Do not extract ahead of a caller.** `crates/cdc-console` deliberately has no
@@ -188,7 +193,24 @@ real caller decides the shape, and verifies it on hardware in the same round.
 
 ## Measured, 2026-08-30
 
-The first application of this document, on exp190:
+The second application, on exp193 — the first firmware built from crates rather
+than from the previous experiment:
+
+- It introduced **no duplicated function**; `duplication.sh --check` passes with
+  the baseline unchanged. Its periodic reporting is inside `main`, which every
+  experiment is entitled to its own of.
+- It needed `cdc-console` to hand back the `Builder`, so the composite path was
+  written for a caller that existed, and verified on hardware in the same round.
+- **It refuted the crate's own documentation.** `CONFIG_DESCRIPTOR_BYTES` was
+  described as the wall; the board stopped at five interfaces with 120 of those
+  256 bytes free, because `embassy-usb`'s `MAX_INTERFACE_COUNT` defaults to 4
+  and a serial console spends 2. Raising it to 8 moves the wall to the byte
+  count, at 268 of 256.
+- Both walls are a panic before USB exists. `lifeline` put the board in its
+  bootloader in **one second** from each, drive presented, and the script that
+  was already running reflashed it. Nobody was in the room.
+
+And the first, on exp190:
 
 - `lifeline::led` replaced a line-for-line copy of itself that exp190 was
   carrying, along with the `AtomicBool` duplicating `lifeline::is_alive()`.
@@ -211,9 +233,11 @@ The first application of this document, on exp190:
 
 ## What is still not verified
 
-- **No composite firmware runs on `cdc-console`.** The seventeen experiments
-  that add HID, MSC or a vendor interface to the same `Builder` have no path
-  through it, by design, and the two-phase API is therefore an untested idea.
+- **Only HID has been composed on `cdc-console`.**
+  [exp193](../experiments/exp193-how-many-doors-fit/) verified the two-phase API
+  on hardware and found the wall it was looking for in the wrong place — the
+  first limit is `embassy-usb`'s `MAX_INTERFACE_COUNT`, default 4, of which the
+  console spends 2. MSC, NCM and vendor interfaces have not been put through it.
 - **The `lifeline::led` swap has not been seen.** `drop.sh` rules on the log,
   and an LED is not in the log. The conditions and the millisecond constants are
   identical on both sides, so this is a confirmation owed rather than a doubt.
