@@ -197,7 +197,34 @@ Priority is the measurement, not taste.
 | 1 | ~~CTAP-HID transport~~ → [`crates/ctap-hid`](../crates/ctap-hid/) | **done, exp194** | 384 lines of deciding with 22 host tests, 141 lines of loop, and an experiment left with 17. The fourteen copies are grandfathered; what exists now is what the *next* CTAP experiment is built on |
 | 2 | MSC/SCSI + FAT12 glue → `crates/msc-disk` | 12 copies, 7 versions, 262 lines | `crates/fat12` exists and is tested; what is missing is the layer between it and USB |
 | 3 | CDC command console → `cdc-console`'s second phase | 17 copies, 14 versions | The crate exists and now hands back the `Builder`; what is still missing is handing back a *reader*, for the firmwares that take commands |
-| 4 | `blink_task` / `heartbeat` | 21 + 12 copies, 5 versions each | Already solved by `lifeline::led`; only adoption is missing |
+| 4 | ~~`blink_task` / `heartbeat`~~ | **withdrawn — see below** | The 33 name-matches are one candidate, and it needs a person |
+
+### The fourth entry was withdrawn, and why is worth more than it was
+
+`blink_task` and `heartbeat` are defined in 33 experiments, and this table said
+the work was pure adoption because `lifeline::led` already exists. Sorting the
+33 by what they actually are:
+
+| | | |
+| --- | --- | --- |
+| **1** | eligible — a plain LED on a firmware already using `lifeline` | exp188 |
+| 11 | **the LED already means something else** — `STOPPED`, `BUSY`, *press me* | `lifeline::led`'s own doc says these keep their own |
+| 20 | would have to **add** `lifeline` | arms a watchdog, replaces the panic handler, adds the bootloader escape |
+| 1 | **not an LED at all** — it logs `alive N` every two seconds | exp183 |
+
+The third row is the one that settles it. Adding `lifeline` to a firmware is not
+a cosmetic change, and several of those twenty — exp162, exp163, exp164 — kill
+core 0 or hang on purpose to measure a wall. A watchdog that reboots them is a
+change to *what they measure*.
+
+And the one remaining candidate is `PRESENCE=2`: re-verifying it needs a finger.
+
+**The number 33 came from grepping a function name**, which is the limitation
+written two sections below as a known gap in `duplication.sh` — met here from
+the planning side rather than the measuring side, an hour after writing it down.
+A priority table built on the detector's output inherits the detector's blind
+spots. What the detector is good for is *finding* candidates; what it cannot do
+is tell you whether they are the same thing.
 
 **Do not extract ahead of a caller.** `crates/cdc-console` deliberately has no
 method for handing the `Builder` back to a composite firmware, because the
