@@ -33,15 +33,28 @@ jobs:
   # with no socket and no hardware in it, which is exactly what makes them
   # testable on the machine you are reading this on.
   #
-  # Three of the thirteen are not: they depend on cortex-m or embassy-rp, so
-  # they assemble Cortex-M instructions or need a chip feature the experiment
-  # selects, and neither is a thing an x86 runner can do. They are classified
-  # by reading their manifests rather than by a list kept here, because a list
-  # here is one more thing to update when a crate is added — the failure this
-  # whole workflow exists to stop. What they are, and why they are uncovered,
-  # is printed rather than passed over: `usb-log` and `usb-reboot` are compiled
-  # by the thirty-nine and forty-one experiments that depend on them, which is
+  # Some are not: they depend on cortex-m or embassy-rp, so they assemble
+  # Cortex-M instructions or need a chip feature the experiment selects, and
+  # neither is a thing an x86 runner can do. They are classified by reading
+  # their manifests rather than by a list kept here, because a list here is one
+  # more thing to update when a crate is added — the failure this whole
+  # workflow exists to stop. What they are, and why they are uncovered, is
+  # printed rather than passed over: `usb-log` and `usb-reboot` are compiled by
+  # the thirty-nine and forty-one experiments that depend on them, which is
   # where their coverage actually comes from.
+  #
+  # THE CLASSIFIER USED TO READ THE WRONG LINES, and it cost 27 tests.
+  # `crates/ctap-hid` and `crates/lifeline` put their embassy dependencies
+  # under `[target.'cfg(target_os = "none")'.dependencies]` — the whole point
+  # being that `cargo test` never sees embassy at all — and a grep anchored at
+  # column zero cannot tell that section from `[dependencies]`. So the two
+  # crates written specifically to be host-testable were the two this job
+  # silently skipped, ctap-hid's 22 tests and lifeline's 5 among them. It said
+  # so on a line nobody read.
+  #
+  # Hence the guard below. A crate classified firmware-only that nonetheless
+  # has host tests is a misclassification, not a fact, and it now fails the job
+  # rather than printing.
   crates:
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +65,18 @@ jobs:
           failed=(); skipped=()
           for manifest in crates/*/Cargo.toml; do
               crate="$(basename "$(dirname "$manifest")")"
-              if grep -qE '^(cortex-m|embassy-[a-z]+) *=' "$manifest"; then
+              # Only dependencies a host build actually pulls in. A `[target...]`
+              # section is not one of them.
+              firmware_only="$(awk '
+                  /^\[/                { section = $0; next }
+                  (section == "[dependencies]" || section == "[dev-dependencies]") \
+                      && /^(cortex-m|embassy-[a-z]+) *=/ { print "yes"; exit }
+              ' "$manifest")"
+              if [[ "$firmware_only" == yes ]]; then
+                  if grep -rq '#\[cfg(test)\]' "crates/$crate/src"; then
+                      echo "::error::$crate is classified firmware-only but has host tests — they are not running"
+                      failed+=("$crate")
+                  fi
                   skipped+=("$crate")
                   continue
               fi
