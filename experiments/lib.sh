@@ -301,10 +301,16 @@ usb_check() {
 # `dirty` is not a warning to be tidied away. It is the honest state of a
 # recording made from a working tree, and the reason to print it is that such a
 # recording cannot be reproduced from the commit alone.
+# The capture file itself is excluded from the dirty test, and that is not a
+# convenience. This runs *inside* the pipeline that is writing `capture.txt`, so
+# without the exclusion every recording reports a dirty tree — including one
+# made from a clean checkout, which would make the warning mean nothing within a
+# day of existing.
 capture_header() { # title
-    local commit dirty
-    commit="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-    if [[ -n "$(git -C "$(dirname "${BASH_SOURCE[0]}")" status --porcelain 2>/dev/null)" ]]; then
+    local root commit dirty
+    root="$(dirname "${BASH_SOURCE[0]}")"
+    commit="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    if [[ -n "$(git -C "$root" status --porcelain -- ':(exclude)*capture.txt' 2>/dev/null)" ]]; then
         dirty=" (working tree dirty — this recording is not reproducible from the commit alone)"
     else
         dirty=""
