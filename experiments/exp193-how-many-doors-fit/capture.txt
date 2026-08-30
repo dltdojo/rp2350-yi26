@@ -1,5 +1,5 @@
 === exp193 — how many doors fit ===
-recorded at 2026-08-30T03:52:58Z from commit 199bda1 (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-08-30T04:00:34Z from commit f70f2d8
 
 == lane narrow ==
 -- narrow hid 0 --

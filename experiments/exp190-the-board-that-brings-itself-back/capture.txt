@@ -1,5 +1,5 @@
 === exp190 — the board that brings itself back ===
-recorded at 2026-08-30T02:30:29Z from commit 17a4cb3
+recorded at 2026-08-30T04:03:49Z from commit f70f2d8
 
 >>> arm 1/4: never — the control. It gets up and stays up.
 -- never --
