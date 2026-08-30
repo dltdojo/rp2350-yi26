@@ -37,15 +37,52 @@
 //! a second interface is added later: CDC-ACM is two interfaces wearing one
 //! coat, and the association descriptor is what tells a host so.
 //!
-//! # What is deliberately not here
+//! # Two shapes, because the tree has two
 //!
-//! Seventeen experiments add HID, MSC or a vendor interface to the same
-//! `Builder`, and they need it back between construction and `build()`. There
-//! is no method for that yet, **on purpose**: an API shaped for a caller that
-//! does not exist yet is an API nobody has ever been able to catch being wrong,
-//! and this repository has a name for that ([exp140](../../experiments/exp140-a-checksum-that-passes/)).
-//! The first composite experiment that wants it is what should decide its
-//! shape, and adding it then breaks nothing here.
+//! Forty-five experiments here are `USB_IFACE="cdc"` and want nothing else;
+//! [`open`] serves them in one call. Twenty-nine add HID, MSC, NCM or a vendor
+//! interface to the *same* `Builder`, and they need it back between
+//! construction and `build()` — that is [`open_composite`], which hands over a
+//! [`Composite`] and builds nothing until [`Composite::finish`] is called.
+//!
+//! `open` is `open_composite(..).finish(..)`. There is one bring-up, not two.
+//!
+//! The second shape was not invented in advance. It exists because
+//! [exp193](../../experiments/exp193-how-many-doors-fit/) asked how many
+//! interfaces fit in one configuration descriptor and could not ask without it
+//! — an API shaped for a caller that does not exist is an API nobody has been
+//! able to catch being wrong, which is
+//! [exp140](../../experiments/exp140-a-checksum-that-passes/)'s subject.
+//!
+//! # Two budgets, and the console spends half of one
+//!
+//! [`CONFIG_DESCRIPTOR_BYTES`] is how much descriptor room every interface on
+//! this device shares, and the console spends **70 of 256** — measured from the
+//! host by [exp193](../../experiments/exp193-how-many-doors-fit/), not claimed
+//! here. Run out and `embassy-usb` asserts `"Descriptor buffer full"` inside
+//! `Builder`.
+//!
+//! That is the budget a caller expects. The one that actually bites first is
+//! not this crate's at all: **`embassy-usb`'s `MAX_INTERFACE_COUNT` defaults to
+//! 4**, and CDC-ACM is two interfaces wearing one IAD, so **opening a console
+//! spends half the device's interface budget before the caller adds anything**.
+//! exp193 measured a board stopping at five interfaces with 120 descriptor bytes
+//! still free.
+//!
+//! A composite firmware that wants more than two of its own interfaces has to
+//! raise it, and it is a Cargo feature on `embassy-usb` rather than anything
+//! this crate can do for it. Eight experiments here already do — exp148–exp155
+//! and exp161 — and thirty-two others fit under the default without saying so:
+//!
+//! ```toml
+//! embassy-usb = { version = "0.6.0", features = ["max-interface-count-8", "max-handler-count-8"] }
+//! ```
+//!
+//! Both walls are a panic before the board is reachable — no USB, no log, no
+//! 1200-baud watcher — so a firmware that might approach either wants
+//! [`crates/lifeline`](../../crates/lifeline/) under it. exp193's board reached
+//! the bootloader by itself in one second from both, and was reflashed with
+//! nobody in the room.
 //!
 //! # Using it
 //!
@@ -109,13 +146,24 @@ pub struct Config {
 const VID: u16 = 0x1209;
 const PID: u16 = 0x0001;
 
-/// The descriptor buffers.
+/// How many bytes every interface on this device shares.
 ///
-/// 256/256 is what every CDC-only caller used. The control buffer is 128 rather
-/// than the 64 a third of them chose: 64 is enough for CDC alone, 128 is enough
-/// for CDC plus whatever the composite path will one day put beside it, and the
-/// difference is sixty-four bytes of SRAM on a chip with 520 KiB of it.
-const DESCRIPTOR_BYTES: usize = 256;
+/// 256 is what every CDC-only caller used, and CDC alone spends 70 of it —
+/// measured from the host, not claimed by the board. Public because a firmware
+/// that adds interfaces is spending against a budget, and a budget nobody can
+/// read is one every caller guesses at.
+///
+/// **This number is a finding waiting to happen, not a considered default.** No
+/// composite firmware had ever been built from this crate when it was chosen,
+/// so raising it before exp193 measured where 256 runs out would have been
+/// picking a number to avoid learning one.
+pub const CONFIG_DESCRIPTOR_BYTES: usize = 256;
+
+const DESCRIPTOR_BYTES: usize = CONFIG_DESCRIPTOR_BYTES;
+/// The control buffer is 128 rather than the 64 a third of the callers chose:
+/// 64 is enough for CDC alone, 128 leaves room for the control transfers a
+/// second class brings with it, and the difference is sixty-four bytes of SRAM
+/// on a chip with 520 KiB of it.
 const CONTROL_BYTES: usize = 128;
 
 /// The CDC-ACM bulk endpoint size. Full-speed USB permits 8, 16, 32 or 64, and
@@ -137,24 +185,55 @@ async fn reboot_task(control: ControlChanged<'static>, receiver: Receiver<'stati
     usb_reboot::watch(control, receiver).await
 }
 
-/// Put a serial console on the bus and spawn everything that serves it.
+/// A device under construction: the serial console is in it, nothing is built
+/// yet, and the `Builder` is still reachable.
 ///
-/// Returns once the device is running: the log has somewhere to go and the
-/// 1200-baud touch works. It does not return a handle, because a CDC-only
-/// firmware has nothing left to hold — the sender belongs to the log task and
-/// the receiver to the reboot watcher, which is precisely the arrangement
-/// [`usb_reboot::watch`] documents as the reliable one.
+/// Hold it only for as long as it takes to add interfaces. Nothing is on the
+/// bus until [`finish`](Self::finish), so a `Composite` dropped instead of
+/// finished is a board that enumerates as nothing at all — which looks exactly
+/// like a dead firmware and is the one mistake this shape can still make.
+pub struct Composite {
+    builder: embassy_usb::Builder<'static, Driver<'static, USB>>,
+    class: CdcAcmClass<'static, Driver<'static, USB>>,
+}
+
+impl Composite {
+    /// The `Builder`, for adding an interface beside the console.
+    ///
+    /// Everything written through this shares
+    /// [`CONFIG_DESCRIPTOR_BYTES`] with the console's own 70.
+    pub fn builder(&mut self) -> &mut embassy_usb::Builder<'static, Driver<'static, USB>> {
+        &mut self.builder
+    }
+
+    /// Build the device and spawn the three tasks that serve the console.
+    ///
+    /// Consumes `self`, so the `Builder` cannot be reached afterwards — adding
+    /// an interface to a device that is already running is not a thing that can
+    /// be written here, rather than a thing that is documented as not working.
+    pub fn finish(self, spawner: Spawner) {
+        let device = self.builder.build();
+        let (sender, receiver, control) = self.class.split_with_control();
+        spawner.spawn(usb_task(device).unwrap());
+        spawner.spawn(log_task(sender).unwrap());
+        spawner.spawn(reboot_task(control, receiver).unwrap());
+    }
+}
+
+/// Begin a device with a serial console on it, and hand back the `Builder`.
 ///
-/// **Call it once.** Calling it twice panics inside `StaticCell` at the second
-/// call, which is the same failure as claiming a cell twice by hand — except
-/// that here it takes a second `open` to do it, and there is never a reason to
-/// write one.
+/// For a firmware that puts something else on the same port. The console is
+/// already declared when this returns, so the console's interfaces come first
+/// and every later interface is numbered after them — which is what makes a
+/// composite firmware's `ttyACM` predictable across builds.
+///
+/// **Call it once**, and call [`Composite::finish`] on what it returns.
 ///
 /// It must be called *after* whatever this firmware's LED does, and after
 /// [`lifeline::begin`](../../crates/lifeline/) if the firmware uses it: this is
 /// the first thing in a boot that can hang, and a board that hangs before its
 /// LED is up is indistinguishable from a board that never started.
-pub fn open(spawner: Spawner, usb: Peri<'static, USB>, cfg: Config) {
+pub fn open_composite(usb: Peri<'static, USB>, cfg: Config) -> Composite {
     static CONFIG_DESC: StaticCell<[u8; DESCRIPTOR_BYTES]> = StaticCell::new();
     static BOS_DESC: StaticCell<[u8; DESCRIPTOR_BYTES]> = StaticCell::new();
     static CONTROL_BUF: StaticCell<[u8; CONTROL_BYTES]> = StaticCell::new();
@@ -187,13 +266,26 @@ pub fn open(spawner: Spawner, usb: Peri<'static, USB>, cfg: Config) {
     );
 
     let class = CdcAcmClass::new(&mut builder, ACM_STATE.init(State::new()), PACKET);
-    let device = builder.build();
+    Composite { builder, class }
+}
 
-    // Built and served in one place. The interface cannot exist without the
-    // task that answers for it, which is the second of exp190's three deaths
-    // spent for good.
-    let (sender, receiver, control) = class.split_with_control();
-    spawner.spawn(usb_task(device).unwrap());
-    spawner.spawn(log_task(sender).unwrap());
-    spawner.spawn(reboot_task(control, receiver).unwrap());
+/// Put a serial console on the bus and spawn everything that serves it.
+///
+/// Returns once the device is running: the log has somewhere to go and the
+/// 1200-baud touch works. It does not return a handle, because a CDC-only
+/// firmware has nothing left to hold — the sender belongs to the log task and
+/// the receiver to the reboot watcher, which is precisely the arrangement
+/// [`usb_reboot::watch`] documents as the reliable one.
+///
+/// **Call it once.** Calling it twice panics inside `StaticCell` at the second
+/// call, which is the same failure as claiming a cell twice by hand — except
+/// that here it takes a second `open` to do it, and there is never a reason to
+/// write one.
+///
+/// It must be called *after* whatever this firmware's LED does, and after
+/// [`lifeline::begin`](../../crates/lifeline/) if the firmware uses it: this is
+/// the first thing in a boot that can hang, and a board that hangs before its
+/// LED is up is indistinguishable from a board that never started.
+pub fn open(spawner: Spawner, usb: Peri<'static, USB>, cfg: Config) {
+    open_composite(usb, cfg).finish(spawner);
 }

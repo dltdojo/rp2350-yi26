@@ -1,0 +1,53 @@
+=== exp193 — how many doors fit ===
+recorded at 2026-08-30T03:52:58Z from commit 199bda1 (working tree dirty — this recording is not reproducible from the commit alone)
+
+== lane narrow ==
+-- narrow hid 0 --
+host says: wTotalLength=70 bNumInterfaces=2
+[      37 ms] EXP193_HID=0 lane=narrow, declaring 2 of 4 interfaces, 256 descriptor bytes
+-- narrow hid 1 --
+host says: wTotalLength=103 bNumInterfaces=3
+[      37 ms] EXP193_HID=1 lane=narrow, declaring 3 of 4 interfaces, 256 descriptor bytes
+-- narrow hid 2 --
+host says: wTotalLength=136 bNumInterfaces=4
+[      37 ms] EXP193_HID=2 lane=narrow, declaring 4 of 4 interfaces, 256 descriptor bytes
+-- narrow hid 3 --
+did not enumerate
+bootsel after: 1 s
+drive present: yes
+
+-- narrow wall --
+first shape that did not fit: hid 3
+
+== lane wide ==
+-- wide hid 0 --
+host says: wTotalLength=70 bNumInterfaces=2
+[      37 ms] EXP193_HID=0 lane=wide, declaring 2 of 8 interfaces, 256 descriptor bytes
+-- wide hid 1 --
+host says: wTotalLength=103 bNumInterfaces=3
+[      37 ms] EXP193_HID=1 lane=wide, declaring 3 of 8 interfaces, 256 descriptor bytes
+-- wide hid 2 --
+host says: wTotalLength=136 bNumInterfaces=4
+[      37 ms] EXP193_HID=2 lane=wide, declaring 4 of 8 interfaces, 256 descriptor bytes
+-- wide hid 3 --
+host says: wTotalLength=169 bNumInterfaces=5
+[      37 ms] EXP193_HID=3 lane=wide, declaring 5 of 8 interfaces, 256 descriptor bytes
+-- wide hid 4 --
+host says: wTotalLength=202 bNumInterfaces=6
+[      37 ms] EXP193_HID=4 lane=wide, declaring 6 of 8 interfaces, 256 descriptor bytes
+-- wide hid 5 --
+host says: wTotalLength=235 bNumInterfaces=7
+[      37 ms] EXP193_HID=5 lane=wide, declaring 7 of 8 interfaces, 256 descriptor bytes
+-- wide hid 6 --
+did not enumerate
+bootsel after: 1 s
+drive present: yes
+
+-- wide wall --
+first shape that did not fit: hid 6
+
+
+-- restored --
+[      37 ms] EXP193_HID=0 lane=narrow, declaring 2 of 4 interfaces, 256 descriptor bytes
+final state: running
+final host says: wTotalLength=70 bNumInterfaces=2
