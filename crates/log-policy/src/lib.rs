@@ -53,6 +53,11 @@
 //! at all. Reaching the interesting states on a board takes minutes of
 //! deliberate idling per case. Here it takes a function call.
 //!
+//! `usb-log` has since been split the same way `breadcrumb` was, and its own
+//! arithmetic — truncation, and how the loss count is claimed and refunded —
+//! is now tested too. This stays a separate crate anyway: which line survives
+//! is a question about a queue, not about USB.
+//!
 //! The caller keeps the queue. This crate is handed two facts about it and
 //! returns one instruction.
 

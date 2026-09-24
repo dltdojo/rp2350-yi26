@@ -1,9 +1,9 @@
-[target.thumbv8m.main-none-eabihf]
-runner = "probe-rs run --chip RP2350"
-
 [build]
 target = "thumbv8m.main-none-eabihf"
 
-[env]
-DEFMT_LOG = "debug"
+[target.thumbv8m.main-none-eabihf]
+runner = "elf2flash --run --flash-burn-ms 500"
+rustflags = [
+    "-C", "link-arg=-Tlink.x",
+]
 

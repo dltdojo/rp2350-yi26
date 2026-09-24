@@ -164,8 +164,9 @@ answer.
   reason: its comments are fourteen experiments' accumulated reasoning.
 - **Board-only crates cannot be host-tested.** The repository already answers
   this by splitting the decidable part out: `log-policy` and `log-ring` have
-  tests, `usb-log` cannot; `lifeline`'s rule is tested on a host, `lifeline`'s
-  `board.rs` is not. New extractions follow the same split — the arithmetic
+  tests, and so does `usb-log`'s `lib.rs` — how a line is cut, stamped and
+  marked — while its `board.rs` does not; `lifeline`'s rule is tested on a
+  host, `lifeline`'s `board.rs` is not. New extractions follow the same split — the arithmetic
   where `cargo test` can reach it, the I/O shell as thin as it can be made.
 
 ---
