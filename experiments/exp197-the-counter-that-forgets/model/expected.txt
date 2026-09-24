@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What TLC says about each configuration: the claim of exp197, as data.
+# Design, attacker, property. A physical attacker is not asked the malware
+# question: a person unplugging the board is the user interaction the
+# specification means.
+#
+# --- exp186-exp189 as they were: RAM, compare first, no checks ---------------
+PinRetries before-malware-ThePinCannotBeReplaced       violated
+PinRetries before-malware-GuessesAreBounded            holds
+PinRetries before-malware-MalwareCannotBlock           violated
+PinRetries before-physical-ThePinCannotBeReplaced      violated
+PinRetries before-physical-GuessesAreBounded           holds
+#
+# --- crates/client-pin, still in RAM: what is in the tree -------------------
+PinRetries crate-malware-ThePinCannotBeReplaced        holds
+PinRetries crate-malware-GuessesAreBounded             holds
+PinRetries crate-malware-MalwareCannotBlock            holds
+PinRetries crate-physical-ThePinCannotBeReplaced       violated
+PinRetries crate-physical-GuessesAreBounded            holds
+#
+# --- flash added to the old order: what persisting it naively would do ------
+PinRetries naiveflash-malware-ThePinCannotBeReplaced   holds
+PinRetries naiveflash-malware-GuessesAreBounded        holds
+PinRetries naiveflash-malware-MalwareCannotBlock       holds
+PinRetries naiveflash-physical-ThePinCannotBeReplaced  holds
+PinRetries naiveflash-physical-GuessesAreBounded       violated
+#
+# --- crates/client-pin with flash: the experiment this one leaves open ------
+PinRetries crateflash-malware-ThePinCannotBeReplaced   holds
+PinRetries crateflash-malware-GuessesAreBounded        holds
+PinRetries crateflash-malware-MalwareCannotBlock       holds
+PinRetries crateflash-physical-ThePinCannotBeReplaced  holds
+PinRetries crateflash-physical-GuessesAreBounded       holds

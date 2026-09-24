@@ -114,10 +114,10 @@ const CTAP2_ERR_OPERATION_DENIED: u8 = 0x27;
 const CTAP2_ERR_UNSUPPORTED_OPTION: u8 = 0x2B;
 const CTAP2_ERR_KEEPALIVE_CANCEL: u8 = 0x2D;
 const CTAP2_ERR_NO_CREDENTIALS: u8 = 0x2E;
-const CTAP2_ERR_PIN_INVALID: u8 = 0x31;
-const CTAP2_ERR_PIN_AUTH_INVALID: u8 = 0x32;
-const CTAP2_ERR_PIN_BLOCKED: u8 = 0x34;
-const CTAP2_ERR_PIN_NOT_SET: u8 = 0x35;
+const CTAP2_ERR_PIN_INVALID: u8 = client_pin::code::PIN_INVALID;
+const CTAP2_ERR_PIN_AUTH_INVALID: u8 = client_pin::code::PIN_AUTH_INVALID;
+const CTAP2_ERR_PIN_BLOCKED: u8 = client_pin::code::PIN_BLOCKED;
+const CTAP2_ERR_PIN_NOT_SET: u8 = client_pin::code::PIN_NOT_SET;
 
 const COSE_ES256: i64 = -7;
 const USER_PRESENCE_TIMEOUT: Duration = Duration::from_millis(TIMEOUT_MS);
@@ -352,24 +352,8 @@ const FLAG_UP: u8 = 0x01;
 const FLAG_UV: u8 = 0x04;
 const FLAG_AT: u8 = 0x40;
 
-/// State machine for CTAP 2.1 PIN management
-struct PinState {
-    is_set: bool,
-    pin_hash: [u8; 16], // SHA-256(pin)[0..16]
-    retries_remaining: u8,
-    active_token: Option<[u8; 32]>,
-}
-
-impl PinState {
-    const fn new() -> Self {
-        Self {
-            is_set: false,
-            pin_hash: [0u8; 16],
-            retries_remaining: 8,
-            active_token: None,
-        }
-    }
-}
+// The PIN, its counter and its token: crates/client-pin, extracted by exp197.
+use client_pin::PinState;
 
 struct Built {
     response: usize,
@@ -819,11 +803,11 @@ fn get_info<'a>(buf: &'a mut [u8], pin_state: &PinState) -> Result<&'a [u8], cbo
     w.key_text("up");
     w.bool(WAIT_FOR_USER);
     w.key_text("clientPin");
-    w.bool(pin_state.is_set);
+    w.bool(pin_state.is_set());
     w.key_text("pinUvAuthToken");
     w.bool(true);
     w.key_text("makeCredUvNotRqd");
-    w.bool(!pin_state.is_set);
+    w.bool(!pin_state.is_set());
     w.end();
 
     // 0x05: maxMsgSize
@@ -1279,12 +1263,12 @@ async fn ctaphid_task(
                                 match sub_cmd {
                                     Some(0x01) => {
                                         // getPinRetries: answer current retries remaining (CTAP2 key 0x03)
-                                        log!("  clientPIN: getPinRetries -> {} retries remaining", pin_state.retries_remaining);
+                                        log!("  clientPIN: getPinRetries -> {} retries remaining", pin_state.retries());
                                         out[0] = CTAP2_OK;
                                         let mut w = cbor::Writer::new(&mut out[1..]);
                                         w.map(1);
                                         w.key(0x03); // pinRetries (key 0x03 per CTAP 2.0/2.1 spec)
-                                        w.uint(pin_state.retries_remaining as u64);
+                                        w.uint(pin_state.retries() as u64);
                                         w.end();
                                         if let Ok(b) = w.finish() {
                                             let n = 1 + b.len();
@@ -1335,6 +1319,12 @@ async fn ctaphid_task(
                                     }
                                     Some(0x03) => {
                                         // setPIN (0x03): setting PIN when clientPin: false
+                                        // "If a PIN has already been set, authenticator returns
+                                        // CTAP2_ERR_PIN_AUTH_INVALID error." exp186-exp189 overwrote it.
+                                        if pin_state.is_set() {
+                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await;
+                                            continue;
+                                        }
                                         log!("  clientPIN: setPIN request received (proto={:?}, key={}, auth={}, enc={})",
                                             pin_proto, peer_key.is_some(), pin_auth.is_some(), new_pin_enc.is_some());
                                         if pin_proto != Some(1) {
@@ -1392,9 +1382,12 @@ async fn ctaphid_task(
                                             pin_len += 1;
                                         }
                                         let hash = Sha256::digest(&decrypted[..pin_len]);
-                                        pin_state.pin_hash.copy_from_slice(&hash[..16]);
-                                        pin_state.is_set = true;
-                                        pin_state.retries_remaining = 8;
+                                        let mut new_hash = [0u8; 16];
+                                        new_hash.copy_from_slice(&hash[..16]);
+                                        if let Err(already) = pin_state.set_pin(&new_hash) {
+                                            send(&mut writer, cid, CTAPHID_CBOR, &[already.code()]).await;
+                                            continue;
+                                        }
                                         log!("  setPIN: PIN configured (len={}), retries reset to 8", pin_len);
 
                                         out[0] = CTAP2_OK;
@@ -1409,11 +1402,11 @@ async fn ctaphid_task(
                                     Some(0x04) => {
                                         // changePIN (0x04): changing existing PIN
                                         log!("  clientPIN: changePIN request received");
-                                        if !pin_state.is_set {
+                                        if !pin_state.is_set() {
                                             send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_NOT_SET]).await;
                                             continue;
                                         }
-                                        if pin_state.retries_remaining == 0 {
+                                        if pin_state.retries() == 0 {
                                             send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
                                             continue;
                                         }
@@ -1448,35 +1441,34 @@ async fn ctaphid_task(
                                             continue;
                                         }
 
+                                        // Paid for before it is looked at, as in getPinToken. crates/client-pin.
+                                        let attempt = match pin_state.begin() {
+                                            Ok(a) => a,
+                                            Err(refused) => { send(&mut writer, cid, CTAPHID_CBOR, &[refused.code()]).await; continue; }
+                                        };
                                         let mut dec_old_hash = [0u8; 16];
                                         if decrypt_pin_payload(&shared_secret, enc_hash, &mut dec_old_hash).is_err() {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await;
-                                            continue;
-                                        }
-
-                                        if dec_old_hash != pin_state.pin_hash {
-                                            pin_state.retries_remaining = pin_state.retries_remaining.saturating_sub(1);
-                                            log!("  changePIN: wrong old PIN, retries remaining: {}", pin_state.retries_remaining);
-                                            if pin_state.retries_remaining == 0 {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
-                                            } else {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_INVALID]).await;
-                                            }
+                                            let verdict = attempt.mismatch();
+                                            send(&mut writer, cid, CTAPHID_CBOR, &[verdict.code().unwrap_or(CTAP2_ERR_PIN_INVALID)]).await;
                                             continue;
                                         }
 
                                         let mut decrypted = [0u8; 128];
                                         let dec_len = match decrypt_pin_payload(&shared_secret, enc_new, &mut decrypted) {
                                             Ok(l) => l,
-                                            Err(_) => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
+                                            Err(_) => { let _ = attempt.judge(&dec_old_hash); send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_AUTH_INVALID]).await; continue; }
                                         };
                                         let mut pin_len = 0;
                                         while pin_len < dec_len && decrypted[pin_len] != 0 {
                                             pin_len += 1;
                                         }
                                         let hash = Sha256::digest(&decrypted[..pin_len]);
-                                        pin_state.pin_hash.copy_from_slice(&hash[..16]);
-                                        pin_state.retries_remaining = 8;
+                                        let mut new_hash = [0u8; 16];
+                                        new_hash.copy_from_slice(&hash[..16]);
+                                        if let Some(code) = attempt.judge_and_change(&dec_old_hash, &new_hash).code() {
+                                            send(&mut writer, cid, CTAPHID_CBOR, &[code]).await;
+                                            continue;
+                                        }
                                         log!("  changePIN: PIN updated successfully");
 
                                         out[0] = CTAP2_OK;
@@ -1491,11 +1483,11 @@ async fn ctaphid_task(
                                     Some(0x05) => {
                                         // getPinToken (0x05): authenticate PIN and issue pinUvAuthToken
                                         log!("  clientPIN: getPinToken request received");
-                                        if !pin_state.is_set {
+                                        if !pin_state.is_set() {
                                             send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_NOT_SET]).await;
                                             continue;
                                         }
-                                        if pin_state.retries_remaining == 0 {
+                                        if pin_state.retries() == 0 {
                                             send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
                                             continue;
                                         }
@@ -1513,24 +1505,22 @@ async fn ctaphid_task(
                                             Err(_) => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await; continue; }
                                         };
 
+                                        // Paid for before it is looked at: CTAP 2.1 "decrements the pinRetries
+                                        // counter by 1" and only then decrypts and compares. crates/client-pin.
+                                        let attempt = match pin_state.begin() {
+                                            Ok(a) => a,
+                                            Err(refused) => { send(&mut writer, cid, CTAPHID_CBOR, &[refused.code()]).await; continue; }
+                                        };
                                         let mut dec_hash = [0u8; 16];
-                                        if decrypt_pin_payload(&shared_secret, enc_hash, &mut dec_hash).is_err() {
-                                            send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_INVALID_CBOR]).await;
+                                        let verdict = if decrypt_pin_payload(&shared_secret, enc_hash, &mut dec_hash).is_err() {
+                                            attempt.mismatch()
+                                        } else {
+                                            attempt.judge(&dec_hash)
+                                        };
+                                        if let Some(code) = verdict.code() {
+                                            send(&mut writer, cid, CTAPHID_CBOR, &[code]).await;
                                             continue;
                                         }
-
-                                        if dec_hash != pin_state.pin_hash {
-                                            pin_state.retries_remaining = pin_state.retries_remaining.saturating_sub(1);
-                                            log!("  getPinToken: wrong PIN! retries remaining: {}", pin_state.retries_remaining);
-                                            if pin_state.retries_remaining == 0 {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_BLOCKED]).await;
-                                            } else {
-                                                send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_INVALID]).await;
-                                            }
-                                            continue;
-                                        }
-
-                                        pin_state.retries_remaining = 8;
                                         let mut token = [0u8; 32];
                                         trng.blocking_fill_bytes(&mut token);
                                         pin_state.active_token = Some(token);

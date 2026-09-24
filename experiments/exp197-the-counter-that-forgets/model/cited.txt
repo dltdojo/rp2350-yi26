@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every line of code the model translates: <path>:<line>|<a piece of that line>.
+# tools/tlc/tlc.sh cited re-reads each one.
+crates/client-pin/src/lib.rs:194|if self.set {
+crates/client-pin/src/lib.rs:220|if self.consecutive >= MAX_CONSECUTIVE
+crates/client-pin/src/lib.rs:223|self.retries -= 1;
+crates/client-pin/src/lib.rs:267|fn judge(state: &mut PinState, presented: &PinHash)
+experiments/exp186-the-number-behind-the-finger/src/main.rs:1113|let mut pin_state = PinState::new();
+experiments/exp187-the-three-taps-and-the-reset/src/main.rs:1231|let mut pin_state = PinState::new();
+experiments/exp188-the-passkey-in-the-pocket/src/main.rs:1262|let mut pin_state = PinState::new();
+experiments/exp189-the-same-salt-twice/src/main.rs:1529|let mut pin_state = PinState::new();
+experiments/exp189-the-same-salt-twice/src/main.rs:1842|let attempt = match pin_state.begin()
