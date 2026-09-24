@@ -1,0 +1,13 @@
+[package]
+name = "client-pin"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "CTAP 2.1 clientPIN's retry counter as a state machine: decrement before compare, refuse a second setPIN, and stop after three consecutive mismatches"
+
+# No dependencies, on purpose: this is the decision, and a decision `cargo test`
+# can interrogate on a machine with no board. Hashing, key agreement and the
+# wire stay with the firmware.
+[dependencies]
+
+[workspace]

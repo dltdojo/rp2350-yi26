@@ -18,6 +18,7 @@ embassy-usb = "0.6.0"
 embassy-futures = "0.1.1"
 static_cell = "2.1.1"
 
+client-pin = { path = "../../crates/client-pin" }
 usb-log = { path = "../../crates/usb-log" }
 usb-reboot = { path = "../../crates/usb-reboot", default-features = false }
 cbor = { path = "../../crates/cbor" }

@@ -33,8 +33,8 @@ except ImportError:
 
 CTAP2_OK = 0x00
 CTAP2_ERR_PIN_INVALID = 0x31
-CTAP2_ERR_PIN_AUTH_INVALID = 0x32
-CTAP2_ERR_PIN_BLOCKED = 0x34
+CTAP2_ERR_PIN_AUTH_INVALID = 0x33  # was 0x32 (PIN_BLOCKED); exp197
+CTAP2_ERR_PIN_BLOCKED = 0x32  # was 0x34 (PIN_AUTH_BLOCKED); exp197
 
 class FidoLink:
     def __init__(self, path):

@@ -7,6 +7,14 @@
 
 Can the RP2350 enforce the full CTAP 2.1 PIN lifecycle state machine — initial `clientPin: false`, setting a PIN (`setPIN` 0x03), tracking retry counters with decrement upon failure (`CTAP2_ERR_PIN_INVALID` 0x31) and lockout (`CTAP2_ERR_PIN_BLOCKED` 0x34), issuing an encrypted `pinUvAuthToken` (`getPinToken` 0x05), and setting `FLAG_UV` (`0x04`) in `authData` for PIN-authenticated `makeCredential` and `getAssertion`?
 
+> **Corrected by [exp197](../exp197-the-counter-that-forgets/).** Not the full
+> lifecycle: this firmware, and exp187-exp189 copied from it, let a second
+> `setPIN` overwrite the owner's PIN, decremented after the compare rather than
+> before it, did nothing about three wrong PINs in a row, kept everything in RAM,
+> and answered with three wrong status codes — lockout is `0x32`, not `0x34`.
+> The PIN handling is now [`crates/client-pin`](../../crates/client-pin/); the
+> capture below was recorded before that and says what this firmware did then.
+
 ## Background & Lineage
 
 - **[exp174](../exp174-a-deadline-nobody-mentioned)** verified CTAP 2.0 WebAuthn registration and assertion.

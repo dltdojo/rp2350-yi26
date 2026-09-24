@@ -30,7 +30,6 @@ rs:http_task	6	4	159
 rs:render	6	4	47
 py:decode	6	3	61
 rs:candidate_name	5	5	10
-sh:flash	5	3	8
 rs:draw_one	5	2	30
 rs:decrypt_pin_payload	5	2	22
 rs:parse_cose_key_point	5	1	39
