@@ -163,7 +163,49 @@ crate). Any RP2350 board and **nobody** for the board half.
 ## Expected output
 
 ```text
-(recorded after the commit that adds this file)
+=== exp196 — the INIT from another channel ===
+recorded at 2026-09-24T12:43:17Z from commit efd1952
+
+>>> steps 1 and 2: every configuration in model/expected.txt
+    TLC Version 2.19, one worker, breadth first
+
+CtapHid    clears-h1open-NoSilentLoss               violated      7 states  ASendInit -> BBcastInit
+CtapHid    clears-h1open-AnInitIsAnswered           holds       299 states  
+CtapHid    clears-h1fixed-NoSilentLoss              violated      7 states  ASendInit -> BBcastInit
+CtapHid    clears-h1fixed-AnInitIsAnswered          holds       287 states  
+CtapHid    answers-h1open-NoSilentLoss              violated     44 states  ASendInit -> Tick -> Tick -> BBcastInit
+CtapHid    answers-h1open-AnInitIsAnswered          holds       244 states  
+CtapHid    answers-h1fixed-NoSilentLoss             holds       220 states  
+CtapHid    answers-h1fixed-AnInitIsAnswered         holds       220 states  
+CtapHid    busy-h1open-NoSilentLoss                 violated     49 states  ASendInit -> Tick -> Tick -> BBcastInit
+CtapHid    busy-h1open-AnInitIsAnswered             violated      7 states  ASendInit -> BBcastInit
+CtapHid    busy-h1fixed-NoSilentLoss                holds       262 states  
+CtapHid    busy-h1fixed-AnInitIsAnswered            violated      7 states  ASendInit -> BBcastInit
+
+>>> step 3 and 4 on a host: replay/, the crate before exp196 and after
+test h1_after_exp196_the_expiry_is_still_owed_to_a ... ok
+test h1_before_exp196_the_expiry_was_decided_and_dropped ... ok
+test h2_after_exp196_the_message_arrives_whole ... ok
+test h2_before_exp196_another_clients_init_ate_the_message_in_silence ... ok
+
+>>> end to end over a socket: tools/vctaphid/selftest.sh
+PASS  the device builds
+PASS  init
+PASS  ping
+PASS  bad-seq
+PASS  busy
+PASS  truncated
+PASS  unknown
+PASS  bad-cid
+PASS  busy-recovers
+PASS  stray-cont
+PASS  init-resets
+PASS  init-keeps-other
+PASS  ping 1024
+PASS  ping 1025
+PASS  the suite catches a wrong answer, and names it: ERR_INVALID_PAR, not ERR_INVALID_CHANNEL
+PASS  the suite catches a message eaten by another client's INIT: A's message vanished: no answer at all after another client's INIT
+PRE-FLIGHT ONLY: this says nothing about any board.
 ```
 
 The board half: **not captured yet.**
