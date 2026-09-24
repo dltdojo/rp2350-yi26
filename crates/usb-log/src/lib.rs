@@ -117,23 +117,39 @@
 //!   process that can open the serial port. `experiments/audit.sh` reports
 //!   this. Do not log secrets.
 
+//!
+//! # Two halves, and only one of them needs a board
+//!
+//! How a line is cut at [`LINE_CAPACITY`], which [`POLICY`] a build chose, and
+//! how the loss count is claimed by the line that reports it and handed back
+//! when that line loses a race — all of that is in this file, and `cargo test`
+//! runs it on a machine with no board. `board.rs` is the rest: the queue, the
+//! USB sender, the clock, the DTR wait. It compiles only for the chip.
+//!
+//! For seventy-four experiments this crate was the one instrument everything
+//! printed through, with no tests, because it depends on `embassy-rp`. That
+//! was true of half of it.
+//!
+//! **The split changes nothing a board runs**, and that is measured rather
+//! than argued: every firmware that depends on this crate builds to the same
+//! bytes after it as before. The same measurement is why the stamp and the
+//! loss marker are still written inline in `board.rs`. Moving them here, in
+//! each of five shapes tried, changed the code emitted for `log` in every
+//! dependent firmware — equivalent, but no longer the same bytes, and so a
+//! change that would need a board to verify. They are the next thing to move
+//! the day somebody is at one.
+
 #![no_std]
 
 use core::fmt::{self, Write};
-use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU32, Ordering};
 
-use log_policy::{admit, Admission, Policy};
+use log_policy::Policy;
 
-use embassy_rp::peripherals::USB;
-use embassy_rp::usb::Driver;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::Channel;
-use embassy_time::{Instant, Timer};
-use embassy_usb::class::cdc_acm::Sender;
-use embedded_io_async::Write as _;
-
-/// The USB driver type these experiments use.
-pub type UsbDriver = Driver<'static, USB>;
+#[cfg(target_os = "none")]
+mod board;
+#[cfg(target_os = "none")]
+pub use board::*;
 
 /// Longest line, in bytes, including the timestamp prefix. Longer lines are
 /// truncated and marked with `...`.
@@ -168,11 +184,6 @@ pub const POLICY: Policy = if cfg!(feature = "keep-recent") {
     Policy::DropNewest
 };
 
-/// How often the writer checks whether a host has opened the port.
-///
-/// Only relevant while nobody is listening, so it costs nothing that matters.
-const DTR_POLL_MS: u64 = 100;
-
 /// One formatted line, waiting its turn.
 ///
 /// A fixed-size array rather than a `String`: there is no allocator on this
@@ -185,6 +196,7 @@ pub struct Line {
 }
 
 impl Line {
+    #[cfg_attr(not(target_os = "none"), allow(dead_code))]
     const fn new() -> Self {
         Self { buf: [0; LINE_CAPACITY], len: 0, truncated: false }
     }
@@ -210,208 +222,44 @@ impl Write for Line {
     }
 }
 
-/// The queue. `CriticalSectionRawMutex` because senders may live in different
-/// tasks — and, in principle, on a different core or inside an interrupt.
-static QUEUE: Channel<CriticalSectionRawMutex, Line, QUEUE_DEPTH> = Channel::new();
-
-/// Whether a host currently has the port open, as last observed by [`run`].
+/// How many lost lines the line being built should report, taken from the
+/// shared count.
 ///
-/// Only [`Policy::SilentWhileIdle`] reads it, and it starts `true` on purpose.
-/// `log` is a synchronous function with no access to the USB sender, so it
-/// cannot ask — it has to be told, and nobody can tell it until the writer has
-/// looked at least once. Starting `false` would mean nothing is ever queued,
-/// so the writer never wakes, so it never looks: a deadlock built out of two
-/// correct halves.
-///
-/// The cost of starting `true` is exactly one line: the first thing logged
-/// into a closed port is queued, the writer collects it, discovers DTR is low
-/// and sets this flag, and from then on nothing is queued at all. That one
-/// held line is the last thing said before the silence, which is a reasonable
-/// thing for a reader to find waiting for them.
-static READER_PRESENT: AtomicBool = AtomicBool::new(true);
-
-/// Lines thrown away since the last time we managed to say so.
-static DROPPED: AtomicU32 = AtomicU32::new(0);
-
-/// How many recent lines are kept for a second reader, under `retain`.
-///
-/// Sixty-four at [`LINE_CAPACITY`] is 6 KiB of SRAM, which is nothing on an
-/// RP2350 and is about a minute of a firmware that reports every five seconds
-/// — enough that somebody who opens a page after plugging the board in sees
-/// how it started, and not so much that a phone has to scroll through a day.
-#[cfg(feature = "retain")]
-pub const RETAIN_LINES: usize = 64;
-
-/// The retained copy. A blocking mutex and not a channel: nothing awaits this,
-/// nothing is woken by it, and a reader takes what is there at the moment it
-/// asks.
-#[cfg(feature = "retain")]
-static RING: embassy_sync::blocking_mutex::Mutex<
-    CriticalSectionRawMutex,
-    core::cell::RefCell<log_ring::Ring<RETAIN_LINES, LINE_CAPACITY>>,
-> = embassy_sync::blocking_mutex::Mutex::new(core::cell::RefCell::new(log_ring::Ring::new()));
-
-/// Hand every retained line to `f`, oldest first, then the number that were
-/// overwritten before anyone asked.
-///
-/// Runs inside a critical section, so `f` must be short and must not log.
-#[cfg(feature = "retain")]
-pub fn retained(mut f: impl FnMut(&[u8])) -> u32 {
-    RING.lock(|r| {
-        let r = r.borrow();
-        r.for_each(&mut f);
-        r.lost()
-    })
-}
-
-/// Queues one line for the host. Never blocks, never waits, never fails.
-///
-/// Use the [`log!`] macro rather than calling this directly.
-pub fn log(args: fmt::Arguments) {
-    line(args, true)
-}
-
-/// Log a line to the serial stream **without keeping it in the retained ring**.
-///
-/// For things that are noise in a history and useful in a stream — above all,
-/// a board's account of serving its own log. exp151 measured what happens
-/// without this: reading the page over HTTP logs three lines per request, the
-/// page refreshes itself every three seconds, and within a minute **58 of the
-/// 64 retained lines were the reader's own footsteps**. The log had been
-/// erased by the act of reading it.
-///
-/// The serial port still gets these lines, because somebody watching a serial
-/// port wants to see requests arriving. The distinction is not importance, it
-/// is *whose* log it belongs in.
-///
-/// With `retain` off this is exactly [`log`], because there is no ring to skip.
-pub fn log_transient(args: fmt::Arguments) {
-    line(args, false)
-}
-
-fn line(args: fmt::Arguments, retain: bool) {
-    let _ = retain;
-    // Ask before formatting anything. The decision needs two facts and no
-    // string, and under `silent-while-idle` the cheapest line is the one that
-    // was never built.
-    let admission = admit(POLICY, QUEUE.is_full(), READER_PRESENT.load(Ordering::Relaxed));
-
-    // Under `retain` the early return has to be deferred: the outgoing queue
-    // and the ring are different consumers with different rules, and a line
-    // the queue has no room for is one the ring should still keep. Without the
-    // feature this is the same early return it always was, and the line is
-    // never formatted at all.
-    #[cfg(not(feature = "retain"))]
-    match admission {
-        Admission::Drop => {
-            DROPPED.fetch_add(1, Ordering::Relaxed);
-            return;
-        }
-        Admission::EvictOldest => {
-            // Discard the head to make room. `admit` only returns this for a
-            // full queue, so the receive cannot come up empty — but it is
-            // checked rather than unwrapped, because "cannot" here depends on
-            // another crate staying correct.
-            if QUEUE.try_receive().is_ok() {
-                DROPPED.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-        Admission::Enqueue => {}
-    }
-
-    #[cfg(feature = "retain")]
-    if let Admission::EvictOldest = admission {
-        if QUEUE.try_receive().is_ok() {
-            DROPPED.fetch_add(1, Ordering::Relaxed);
-        }
-    }
-
-    // Claim the loss so it can be reported on *this* line, which — if it makes
-    // it into the queue — is by definition the first one after the gap. That
-    // is why the count is carried here rather than announced by the writer:
-    // the writer only ever sees lines that survived, and would have to guess
-    // where the missing ones went.
-    //
-    // The two policies count differently, and they have to.
-    //
-    // A **delta** is safe only in a queue that never discards what it already
-    // accepted: the number is rendered into one line's text, and if that line
-    // is thrown away the number goes with it. `keep-recent` throws accepted
-    // lines away by design, so a delta would quietly undercount every gap it
-    // evicted a marker for. It therefore reports a **running total**, which
-    // survives eviction because every later line repeats it.
-    let lost = if matches!(POLICY, Policy::KeepRecent) {
-        DROPPED.load(Ordering::Relaxed)
+/// A **delta** is safe only in a queue that never discards what it already
+/// accepted: the number is rendered into one line's text, and if that line is
+/// thrown away the number goes with it. `keep-recent` throws accepted lines
+/// away by design, so a delta would quietly undercount every gap it evicted a
+/// marker for. It therefore reads the count and leaves it, and every later
+/// line repeats the total. The other two policies take the count and zero it
+/// in one step, so two tasks logging at once cannot both report the same gap.
+// Called only from `board.rs`, which a host build does not compile; the tests
+// below are the other caller.
+#[cfg_attr(not(target_os = "none"), allow(dead_code))]
+#[inline(always)]
+fn claim(policy: Policy, dropped: &AtomicU32) -> u32 {
+    if matches!(policy, Policy::KeepRecent) {
+        dropped.load(Ordering::Relaxed)
     } else {
-        DROPPED.swap(0, Ordering::Relaxed)
-    };
-
-    let now = Instant::now().as_millis();
-
-    // Built without the loss marker first, because that marker belongs to the
-    // **queue** and not to the ring.
-    //
-    // Measured on a phone: with nobody holding the serial port, the queue drops
-    // a line per tick and every survivor carries `(+1 lines lost)`. Those
-    // markers were being formatted into the text and then handed to *both*
-    // consumers — so the HTTP page showed `(+1 lines lost)` on every line of a
-    // log that had lost nothing at all. A reader shown a gap that is not there
-    // is worse off than one shown no marker: they go looking for the missing
-    // middle of something complete.
-    //
-    // The ring keeps its own count and [`retained`] returns it, so nothing is
-    // hidden — it is reported by whoever actually lost something.
-    let mut line = Line::new();
-    // Stamped here, in the caller's task, at the moment the event happened —
-    // see the module docs for why this must not happen on the way out.
-    let _ = write!(&mut line, "[{:>8} ms] ", now);
-    let _ = line.write_fmt(args);
-
-    // The ring gets it whatever the queue decides — unless the caller asked
-    // for a line that passes through without being kept. This is the only
-    // place in this function the second consumer is touched.
-    #[cfg(feature = "retain")]
-    if retain {
-        RING.lock(|r| r.borrow_mut().push(&line.buf[..line.len]));
+        dropped.swap(0, Ordering::Relaxed)
     }
+}
 
-    // Now the queue's copy, which does carry the queue's marker. `Arguments` is
-    // `Copy`, so this costs a second formatting pass only in the rare case that
-    // something was actually lost.
-    let line = if lost > 0 {
-        let mut marked = Line::new();
-        let _ = write!(&mut marked, "[{:>8} ms] ", now);
-        if matches!(POLICY, Policy::KeepRecent) {
-            let _ = write!(&mut marked, "({} lines lost so far) ", lost);
-        } else {
-            let _ = write!(&mut marked, "(+{} lines lost) ", lost);
-        }
-        let _ = marked.write_fmt(args);
-        marked
+/// Account for a line that lost the race for the last slot: `is_full` said
+/// there was room, and another task filled it before this one got there.
+///
+/// Under a delta policy the line was carrying the count it [`claim`]ed, so
+/// that goes back along with the line itself — otherwise the gap it was about
+/// to report would vanish with it. Under `keep-recent` nothing was taken, so
+/// only the line itself is new loss.
+// Called only from `board.rs`, which a host build does not compile; the tests
+// below are the other caller.
+#[cfg_attr(not(target_os = "none"), allow(dead_code))]
+#[inline(always)]
+fn refund(policy: Policy, dropped: &AtomicU32, lost: u32) {
+    if matches!(policy, Policy::KeepRecent) {
+        dropped.fetch_add(1, Ordering::Relaxed);
     } else {
-        line
-    };
-
-    #[cfg(feature = "retain")]
-    if let Admission::Drop = admission {
-        DROPPED.fetch_add(1, Ordering::Relaxed);
-        return;
-    }
-
-    // `try_send` is the whole design in one call: it either takes the line
-    // immediately or refuses. It has no third option that involves waiting,
-    // which is precisely why the caller cannot be parked here.
-    //
-    // Reaching the failure arm now means a race rather than a full queue:
-    // `is_full` said there was room and another task filled it in between.
-    if QUEUE.try_send(line).is_err() {
-        if matches!(POLICY, Policy::KeepRecent) {
-            DROPPED.fetch_add(1, Ordering::Relaxed);
-        } else {
-            // This line is lost too, and it was carrying the running total —
-            // put both back so the next survivor reports the full gap.
-            DROPPED.fetch_add(lost + 1, Ordering::Relaxed);
-        }
+        dropped.fetch_add(lost + 1, Ordering::Relaxed);
     }
 }
 
@@ -440,59 +288,165 @@ macro_rules! log_transient {
     };
 }
 
-/// Drains the queue to the host, forever. Spawn this in its own task.
-///
-/// This is the one place in the program allowed to touch the USB sender, and
-/// the one place allowed to block. Give it the `Sender` half of your
-/// `CdcAcmClass` and never keep a copy — single ownership is what makes
-/// "callable from anywhere" safe.
-pub async fn run(mut sender: Sender<'static, UsbDriver>) -> ! {
-    loop {
-        // Sleeps until a line arrives. No polling: an idle log costs nothing.
-        let line = QUEUE.receive().await;
+#[cfg(test)]
+mod tests {
+    //! Named after the wrong answer each one prevents. A log that misreports is
+    //! worse than no log: the rounds it costs look like rounds spent on the
+    //! subject.
 
-        // Wait for the host to configure the device at all.
-        sender.wait_connection().await;
+    extern crate std;
+    use std::string::String;
 
-        // Then wait for a host that has actually *opened* the port.
-        //
-        // This is not politeness, it is a hardware-level requirement, and it
-        // cost a wedged board to learn. Writing into the IN endpoint while
-        // nothing is collecting leaves a packet armed indefinitely; on this
-        // chip a firmware that keeps doing that eventually stops answering
-        // control requests altogether. The serial port still streams, so the
-        // board looks perfectly healthy — but SET_LINE_CODING never completes,
-        // which means the 1200-baud reflash touch from exp105 hangs and the
-        // only way back is the BOOTSEL button. Measured, not theorised: see
-        // this experiment's README.
-        //
-        // DTR — the host asserts it on open and drops it on close — is the
-        // signal for "somebody is there". There is no async way to await it
-        // from a `Sender` (the `ControlChanged` half belongs to the reboot
-        // watcher), so poll it. This task has nothing better to do.
-        while !sender.dtr() {
-            READER_PRESENT.store(false, Ordering::Relaxed);
-            Timer::after_millis(DTR_POLL_MS).await;
-        }
-        READER_PRESENT.store(true, Ordering::Relaxed);
+    use super::*;
 
-        emit(&mut sender, &line).await;
+    fn text(line: &Line) -> String {
+        String::from_utf8(line.buf[..line.len].to_vec()).unwrap()
     }
-}
 
-/// Writes one line plus its terminator, ignoring errors.
-///
-/// Errors here mean the host went away mid-write. There is nobody to report
-/// that to — the reporting channel is the thing that just broke — so the loop
-/// simply goes back to waiting for a connection.
-async fn emit(sender: &mut Sender<'static, UsbDriver>, line: &Line) {
-    let _ = sender.write_all(&line.buf[..line.len]).await;
+    fn filled(n: usize) -> Line {
+        let mut line = Line::new();
+        for _ in 0..n {
+            let _ = line.write_str("x");
+        }
+        line
+    }
 
-    // The terminator goes out as its own small write on purpose. A USB bulk
-    // transfer ends when the host sees a packet shorter than the maximum, so
-    // a line that happened to be exactly 64 bytes would otherwise sit in the
-    // host's buffer waiting for a continuation that never comes. This short
-    // trailing write always ends the transfer.
-    let tail: &[u8] = if line.truncated { b"...\r\n" } else { b"\r\n" };
-    let _ = sender.write_all(tail).await;
+    // --- cutting a line at LINE_CAPACITY -----------------------------------
+
+    #[test]
+    fn a_line_that_exactly_fits_is_not_called_truncated() {
+        let line = filled(LINE_CAPACITY);
+        assert_eq!(line.len, LINE_CAPACITY);
+        assert!(!line.truncated);
+    }
+
+    #[test]
+    fn one_byte_over_is_cut_and_says_so() {
+        let mut line = filled(LINE_CAPACITY);
+        let _ = line.write_str("y");
+        assert_eq!(line.len, LINE_CAPACITY);
+        assert!(line.truncated);
+        assert!(text(&line).bytes().all(|b| b == b'x'), "the overflow must not overwrite what fitted");
+    }
+
+    #[test]
+    fn a_write_that_straddles_the_end_keeps_the_part_that_fits() {
+        let mut line = filled(LINE_CAPACITY - 3);
+        let _ = line.write_str("abcdef");
+        assert_eq!(line.len, LINE_CAPACITY);
+        assert!(line.truncated);
+        assert!(text(&line).ends_with("xabc"));
+    }
+
+    #[test]
+    fn a_full_line_never_makes_the_caller_handle_an_error() {
+        // A logging path that can fail becomes one callers stop using.
+        let mut line = filled(LINE_CAPACITY);
+        assert!(line.write_str("more").is_ok());
+        assert!(write!(&mut line, "{}", 12345).is_ok());
+        assert_eq!(line.len, LINE_CAPACITY);
+    }
+
+    #[test]
+    fn an_empty_write_is_not_a_truncation() {
+        let mut line = filled(LINE_CAPACITY);
+        let _ = line.write_str("");
+        assert!(!line.truncated);
+    }
+
+    // --- claiming and refunding the loss count -----------------------------
+
+    #[test]
+    fn a_delta_is_reported_once_and_not_again() {
+        for policy in [Policy::DropNewest, Policy::SilentWhileIdle] {
+            let dropped = AtomicU32::new(5);
+            assert_eq!(claim(policy, &dropped), 5);
+            assert_eq!(claim(policy, &dropped), 0, "{policy:?} reported one gap twice");
+        }
+    }
+
+    #[test]
+    fn keep_recent_repeats_the_total_on_every_line() {
+        // Because the line carrying it may itself be evicted, every later line
+        // has to say it again or the gap is undercounted.
+        let dropped = AtomicU32::new(5);
+        assert_eq!(claim(Policy::KeepRecent, &dropped), 5);
+        assert_eq!(claim(Policy::KeepRecent, &dropped), 5);
+    }
+
+    #[test]
+    fn a_line_that_loses_the_race_takes_its_gap_down_with_it_unless_refunded() {
+        // Under a delta the lost line was carrying the count it claimed. The
+        // refund puts back that count and the line itself, so the next
+        // survivor reports the whole gap: 3 earlier, plus this one.
+        for policy in [Policy::DropNewest, Policy::SilentWhileIdle] {
+            let dropped = AtomicU32::new(3);
+            let lost = claim(policy, &dropped);
+            refund(policy, &dropped, lost);
+            assert_eq!(claim(policy, &dropped), 4, "{policy:?}");
+        }
+    }
+
+    #[test]
+    fn keep_recent_refunds_only_the_line_because_it_took_nothing() {
+        let dropped = AtomicU32::new(3);
+        let lost = claim(Policy::KeepRecent, &dropped);
+        refund(Policy::KeepRecent, &dropped, lost);
+        assert_eq!(claim(Policy::KeepRecent, &dropped), 4, "a refund of lost + 1 would count the gap twice");
+    }
+
+    #[test]
+    fn every_dropped_line_is_reported_exactly_once_under_a_delta() {
+        // The accounting end to end, with no queue: drops, a survivor, a lost
+        // race, more drops, a survivor. What the survivors say must add up to
+        // what was dropped — no more, no less.
+        for policy in [Policy::DropNewest, Policy::SilentWhileIdle] {
+            let dropped = AtomicU32::new(0);
+            let mut reported = 0;
+            let mut really_lost = 0;
+
+            for _ in 0..4 {
+                dropped.fetch_add(1, Ordering::Relaxed);
+                really_lost += 1;
+            }
+            reported += claim(policy, &dropped); // a survivor
+
+            let lost = claim(policy, &dropped); // a line that loses the race
+            refund(policy, &dropped, lost);
+            really_lost += 1;
+
+            for _ in 0..2 {
+                dropped.fetch_add(1, Ordering::Relaxed);
+                really_lost += 1;
+            }
+            reported += claim(policy, &dropped); // the next survivor
+
+            assert_eq!(reported, really_lost, "{policy:?}");
+            assert_eq!(dropped.load(Ordering::Relaxed), 0);
+        }
+    }
+
+    #[test]
+    fn keep_recents_last_line_knows_the_whole_total() {
+        let dropped = AtomicU32::new(0);
+        for _ in 0..4 {
+            dropped.fetch_add(1, Ordering::Relaxed);
+        }
+        let lost = claim(Policy::KeepRecent, &dropped);
+        refund(Policy::KeepRecent, &dropped, lost);
+        dropped.fetch_add(2, Ordering::Relaxed);
+        assert_eq!(claim(Policy::KeepRecent, &dropped), 7);
+    }
+
+    // --- the build-time choice ---------------------------------------------
+
+    #[test]
+    fn the_default_build_still_refuses_the_newest() {
+        // The module docs promise this "always will be". The CI job builds
+        // this crate with its default features, so a change of default is a
+        // failing test rather than a quietly different log.
+        if !cfg!(feature = "keep-recent") && !cfg!(feature = "silent-while-idle") {
+            assert_eq!(POLICY, Policy::DropNewest);
+        }
+    }
 }

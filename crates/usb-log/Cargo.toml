@@ -22,13 +22,18 @@ retain = ["dep:log-ring"]
 
 [dependencies]
 # What to do when the queue is full, and when nobody is reading. A separate
-# crate because this one cannot be tested: it depends on embassy-rp, so it
-# only compiles for the board, and every question about which line survives is
-# answerable with no hardware at all.
+# crate, written when this one could not be tested at all, and still the right
+# shape: which line survives is a question about a queue, not about USB.
 log-policy = { path = "../log-policy" }
 # The ring itself, with no I/O in it, so which lines survive is decided by
 # something `cargo test` can interrogate on a machine with no board.
 log-ring = { path = "../log-ring", optional = true }
+
+# The board half only (src/board.rs). Gated on the target rather than on a
+# feature, the way `breadcrumb`, `lifeline` and `ctap-hid` gate theirs, so
+# `cargo test` never sees embassy and can run what src/lib.rs decides: how a
+# line is cut, stamped and marked, and how the loss count is kept.
+[target.'cfg(target_os = "none")'.dependencies]
 embassy-rp = { version = "0.10.0", default-features = false }
 embassy-usb = "0.6.0"
 # The queue between the loggers and the one task allowed to touch USB.
