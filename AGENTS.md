@@ -144,9 +144,10 @@ read them before proposing work, not instead of them:
   it was answered a year ago is not a small error — it spends somebody's
   attention on a question that was already closed. Their findings may be cited
   here as facts; their code, paths and identity must not appear.
-- **[Nothing is pushed unverified](./experiments/README.md#nothing-is-pushed-unverified)**
-  — a push means someone plugged a board in and watched it work. `Expected
-  output` sections are pasted captures, never predictions.
+- **[Captures are pasted, never predicted](./experiments/README.md#captures-are-pasted-never-predicted)**
+  — a board is not a gate on merging to `main`, but `Expected output` sections
+  are pasted captures, never predictions, and whatever was not run on a board
+  is said so in the commit message.
 - **[The tool explains itself](./tools/README.md)** — `--explain` on every
   subcommand prints the hand-typed equivalent. Use it when you need to know
   what a command actually does.

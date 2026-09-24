@@ -376,50 +376,50 @@ exp102 and exp103, deleted a vendored binary and the five files that existed
 only to support it, replaced nightly Rust with stable, and demoted picotool
 from required to optional.
 
-### Nothing is pushed unverified
+### Captures are pasted, never predicted
 
-One rule governs what reaches GitHub:
+What reaches `main` is decided by what can be checked where the work is done:
+it builds, the host tests pass, `check.sh` passes, and `docs-check.sh` passes.
+**A board is not a gate on merging.**
 
-> **Nothing reaches `main` until it has been verified on real hardware.**
+That is a change, made on 2026-09-24, and the old rule is worth stating so
+the reason for dropping it is on record. It read:
 
-Work in progress is committed locally as often as is useful, and a push to
-`main` means someone plugged a board in and watched it work.
+> ~~Nothing reaches `main` until it has been verified on real hardware.~~
 
-That sentence used to say *nothing is pushed*, full stop, and it was rewritten
-on 2026-08-18 for a reason worth stating rather than quietly absorbing.
-Development here increasingly happens in a cloud session whose container is
-reclaimed without notice, so "committed locally" stopped meaning *kept* — a
-day's work can exist only inside a machine that is about to be deleted. Holding
-an unverified branch hostage to a bench visit does not make the claim any
-truer; it just risks losing the code that would have been checked.
+It was written when this repository was developed at a bench. Development here
+now happens mostly in cloud sessions, which have no board at all, so the rule
+meant every change was parked on a branch until someone pulled it onto another
+machine, ran it, and merged it by hand. That is a slower loop than the one
+[`docs/the-board-is-the-loop.md`](../docs/the-board-is-the-loop.md) set out to
+shorten, and it bought nothing a capture does not buy better.
 
-So unverified work may reach a **branch**, under two conditions that are not
-negotiable, because they are the whole reason the rule exists:
+What the rule protected is kept, because it was never about merging:
 
-- **The commit message says so plainly**, in the subject line where nobody has
-  to go looking. `NOT YET VERIFIED ON HARDWARE` is the wording used.
-- **`Expected output` stays empty.** A section that says *not captured yet* is
-  honest. One filled in from what the code should do is the exact failure this
-  rule was written against, and moving the push does not license it.
+- **`Expected output` is a capture, pasted in** — never hand-written, never
+  predicted from what the code "should" do. A section whose board half has not
+  been run says *not captured yet*, and that stays true on `main`. A filled-in
+  prediction is the failure this whole section exists to prevent, wherever it
+  is committed.
+- **What was not run on a board is said plainly**, in the commit message, where
+  nobody has to go looking. `NOT YET VERIFIED ON HARDWARE` is the wording used,
+  and an experiment's index row says so while it is true.
+- **Every capture names its commit** (see below), so a capture that predates a
+  change is visibly older than the code it describes.
 
-`main` is unchanged: a board ran it, somebody watched, and the capture is in
-the file. The `Expected output` section
-of each experiment is that verification, pasted in — never hand-written,
-never predicted from what the code "should" do.
-
-This exists because the gap between "it compiles" and "it works" is where
+This matters because the gap between "it compiles" and "it works" is where
 learners get stranded. An experiment that only ever built cleanly is not
-evidence that a reader following it will succeed; it is a hypothesis. Hardware
-runs also surface things no amount of reading finds — exp104's discovery that
-the firmware stalls mid-write when nothing is draining the serial port came
-out of a real capture, not the source.
+evidence that a reader following it will succeed; it is a hypothesis, and it
+has to be labelled as one. Hardware runs also surface things no amount of
+reading finds — exp104's discovery that the firmware stalls mid-write when
+nothing is draining the serial port came out of a real capture, not the source.
 
 Practical consequences:
 
 - Build-only checks (`cargo build`, UF2 conversion) can be verified anywhere,
   and `check.sh` is written so it passes with or without a board attached.
-- The board-dependent half waits for hardware. If an experiment is committed
-  but not yet verified, its commit message says so plainly.
+- The board-dependent half is run when a board is available, and its capture
+  is committed then — to `main` or anywhere else.
 - A firmware without USB cannot be rebooted from the host, so flashing the
   next experiment needs a human on the BOOTSEL button. That is a real cost of
   the early track, and the reason the 1200-baud experiment is worth reaching.
