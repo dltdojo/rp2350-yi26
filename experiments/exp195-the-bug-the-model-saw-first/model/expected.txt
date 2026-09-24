@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What TLC says about each configuration: the claim of this experiment, as data.
+# check.sh runs every one and fails on any disagreement. A line is
+#   <module> <config> <holds|violated>
+#
+# --- breadcrumb: before ecf659e, after it, the reflash fix alone, and both ---
+Breadcrumb bc-before-NeverAnotherExperimentsNote   violated
+Breadcrumb bc-before-AFreshFlashBelievesNothing    violated
+Breadcrumb bc-before-ADeathIsStillReported         holds
+Breadcrumb bc-tagged-NeverAnotherExperimentsNote   holds
+Breadcrumb bc-tagged-AFreshFlashBelievesNothing    violated
+Breadcrumb bc-tagged-ADeathIsStillReported         holds
+Breadcrumb bc-fixonly-NeverAnotherExperimentsNote  holds
+Breadcrumb bc-fixonly-AFreshFlashBelievesNothing   holds
+Breadcrumb bc-fixonly-ADeathIsStillReported        holds
+Breadcrumb bc-fixed-NeverAnotherExperimentsNote    holds
+Breadcrumb bc-fixed-AFreshFlashBelievesNothing     holds
+Breadcrumb bc-fixed-ADeathIsStillReported          holds
+#
+# --- usb-log: the blind half, as PREDICTIONS.md committed it before the run ---
+UsbLog usblog-cooperative                          holds
+UsbLog usblog-preemptive                           violated
+UsbLog usblog-preemptive-count                     holds

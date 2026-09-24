@@ -324,6 +324,14 @@ pub struct Scratch {
 ///
 /// `tag` is what makes the second half of that true. A note whose tag is not
 /// this firmware's is not this firmware's note, however well-formed it looks.
+///
+/// **And the tag is only half of it.** A rebuild of the same experiment carries
+/// the same tag, and a firmware that holds its token while running — every
+/// `lifeline` user does — reaches a reflash with the token armed. Nothing in
+/// four words can tell that from a death, so the reflash has to withdraw it:
+/// `crates/usb-reboot` clears `SCRATCH0` before it enters the bootrom. exp195
+/// found the gap with a model of the crates together; exp190's own capture had
+/// been showing it as `boot 4` on a firmware that had just been flashed.
 pub fn interpret(before: Scratch, forced: bool, tag: u8) -> (Note, Scratch) {
     if !is_ours(before.s0, tag) {
         return (

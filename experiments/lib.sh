@@ -490,6 +490,28 @@ yi26() {
 }
 
 # True when a board is sitting in the ROM bootloader.
+# Flash a .uf2 so it cannot race the mount.
+#
+# `yi26 flash` does the 1200-baud touch and then copies. On this host the copy
+# sometimes arrives before udisks has mounted the drive, and yi26 reports it as
+# "no USB at all" — which cost exp190 three false starts and reads exactly like
+# the failure it is meant to measure. So: try yi26, and if the board is sitting
+# in BOOTSEL afterwards, finish the job with `cp`.
+#
+# exp190's drop.sh wrote this first; exp195 needed it second, which is the
+# moment to extract rather than the fifth.
+flash_uf2() { # uf2
+    local img="$1"
+    yi26 flash "$img" > /dev/null 2>&1 && return 0
+    for _ in $(seq 1 30); do
+        if [[ -d "/media/$USER/RP2350" ]]; then
+            cp "$img" "/media/$USER/RP2350/" && sync && return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
 in_bootsel() { [[ "$(yi26 state 2>/dev/null)" == "bootsel" ]]; }
 
 # Prints the serial port of a board running one of this repository's firmwares.
