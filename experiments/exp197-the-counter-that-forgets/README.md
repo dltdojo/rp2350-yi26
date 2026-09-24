@@ -160,7 +160,48 @@ board and **nobody**: no PIN operation waits for a person.
 ## Expected output
 
 ```text
-(recorded after the commit that adds this file)
+=== exp197 — the counter that forgets ===
+recorded at 2026-09-24T13:53:57Z from commit 02d3c8c
+
+>>> steps 1 and 2: every configuration in model/expected.txt
+    TLC Version 2.19, one worker, breadth first
+
+PinRetries before-malware-ThePinCannotBeReplaced    violated      2 states  SetPin
+PinRetries before-malware-GuessesAreBounded         holds       170 states  
+PinRetries before-malware-MalwareCannotBlock        violated     89 states  Begin -> Finish -> Begin -> Finish -> Begin -> Finish -> Begin -> Finish -> Begin -> Finish -> Begin -> Finish -> Begin -> Finish -> Begin -> Finish
+PinRetries before-physical-ThePinCannotBeReplaced   violated      2 states  SetPin
+PinRetries before-physical-GuessesAreBounded        holds       179 states  
+PinRetries crate-malware-ThePinCannotBeReplaced     holds         7 states  
+PinRetries crate-malware-GuessesAreBounded          holds         7 states  
+PinRetries crate-malware-MalwareCannotBlock         holds         7 states  
+PinRetries crate-physical-ThePinCannotBeReplaced    violated      5 states  PowerCycle -> SetPin
+PinRetries crate-physical-GuessesAreBounded         holds        39 states  
+PinRetries naiveflash-malware-ThePinCannotBeReplaced holds         7 states  
+PinRetries naiveflash-malware-GuessesAreBounded     holds         7 states  
+PinRetries naiveflash-malware-MalwareCannotBlock    holds         7 states  
+PinRetries naiveflash-physical-ThePinCannotBeReplaced holds       266 states  
+PinRetries naiveflash-physical-GuessesAreBounded    violated    209 states  Begin -> Finish -> Begin -> Finish -> Begin -> PowerCycle -> Begin -> Finish -> Begin -> Finish -> Begin -> PowerCycle -> Begin -> Finish -> Begin -> Finish -> Begin
+PinRetries crateflash-malware-ThePinCannotBeReplaced holds         7 states  
+PinRetries crateflash-malware-GuessesAreBounded     holds         7 states  
+PinRetries crateflash-malware-MalwareCannotBlock    holds         7 states  
+PinRetries crateflash-physical-ThePinCannotBeReplaced holds       215 states  
+PinRetries crateflash-physical-GuessesAreBounded    holds       215 states  
+
+>>> step 3 and 4 on a host: crates/client-pin
+test tests::an_undecryptable_pin_is_a_mismatch_and_is_paid_for ... ok
+test tests::change_pin_needs_the_old_one_and_a_wrong_one_is_paid_for ... ok
+test tests::nothing_is_attempted_before_a_pin_exists ... ok
+test tests::p1_a_refused_set_pin_does_not_refill_a_counter_an_attacker_has_spent ... ok
+test tests::p1_a_second_set_pin_is_refused_and_the_owners_pin_survives ... ok
+test tests::p2_a_correct_pin_gives_the_attempt_back ... ok
+test tests::p2_an_attempt_the_power_cut_short_is_still_spent ... ok
+test tests::p2_the_counter_is_paid_before_the_answer_exists ... ok
+test tests::p3_a_power_cycle_clears_the_run_but_not_the_counter ... ok
+test tests::p3_malware_cannot_spend_all_eight_without_a_person ... ok
+test tests::p3_the_last_attempt_is_blocked_not_auth_blocked ... ok
+test tests::p4_a_state_nobody_persisted_takes_the_next_pin_offered ... ok
+test tests::p5_the_codes_are_the_specifications_table ... ok
+test tests::reset_forgets_everything ... ok
 ```
 
 The board half: **not captured yet.**
