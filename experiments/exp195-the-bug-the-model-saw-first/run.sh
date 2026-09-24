@@ -24,12 +24,12 @@ IMG=$EXP190/target/exp195-exp190-never.uf2
 capture_header "exp195 — the bug the model saw first"
 
 echo ">>> the model half: every configuration in model/expected.txt"
-echo "    TLC $(java -cp tools/tla2tools.jar tlc2.TLC -h 2>&1 | grep -o 'Version [0-9.]*' | head -1), one worker, breadth first"
+echo "    TLC $(java -cp ../../tools/tlc/tla2tools.jar tlc2.TLC -h 2>&1 | grep -o 'Version [0-9.]*' | head -1), one worker, breadth first"
 echo
-./model.sh
+../../tools/tlc/tlc.sh table model
 echo
 echo ">>> the shortest counterexample under a preemptive scheduler, in full"
-./model.sh --trace usblog-preemptive
+../../tools/tlc/tlc.sh trace model usblog-preemptive
 echo
 
 echo ">>> the board half: exp190's control arm, flashed twice through the 1200-baud touch"

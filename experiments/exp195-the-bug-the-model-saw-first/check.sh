@@ -26,68 +26,35 @@ USB_HOST="cdc_acm"
 USB_RUNS_ON="exp190"
 usb_check
 
-JAR="tools/tla2tools.jar"
+TLC=../../tools/tlc/tlc.sh
 if ! command -v java > /dev/null; then
     echo "SKIP  the model half: no java on this machine (TLC needs Java 11 or later)"
     exit "$FAILED"
 fi
-if [[ ! -f "$JAR" ]]; then
-    fail "tla2tools.jar is fetched" "run ./setup.sh — it needs the network once"
+if [[ ! -f ../../tools/tlc/tla2tools.jar ]]; then
+    fail "tla2tools.jar is fetched" "run ../../tools/tlc/setup.sh — it needs the network once"
     exit 1
 fi
-PINNED="$(grep -o 'TLA_SHA256="[0-9a-f]*"' setup.sh | cut -d'"' -f2)"
-[[ "$(sha256sum "$JAR" | cut -d' ' -f1)" == "$PINNED" ]] \
-    && pass "tla2tools.jar is the one setup.sh pins" \
-    || fail "tla2tools.jar matches the pinned sha256" "re-run ./setup.sh"
+( cd ../../tools/tlc && ./setup.sh > /dev/null 2>&1 ) \
+    && pass "tla2tools.jar is the one tools/tlc/setup.sh pins" \
+    || fail "tla2tools.jar matches the pinned sha256" "re-run tools/tlc/setup.sh"
 
-# --- the models are well-formed TLA+ ---------------------------------------
-for m in model/*.tla; do
-    ( cd model && java -cp ../"$JAR" tla2sany.SANY "$(basename "$m")" ) 2>&1 \
-        | grep -q 'Semantic processing of module' \
-        && pass "$(basename "$m") parses" \
-        || fail "$(basename "$m") parses" "java -cp $JAR tla2sany.SANY $m"
-done
-
-# --- the model cites the code it translates, and the citations still hold --
+# Every result below is a PASS/FAIL line from tools/tlc/tlc.sh, which exits
+# non-zero if any of its lines failed.
+# --- the models are well-formed, and still cite the code they translate ---
 #
 # A model is a second description of the program, which is the thing
 # docs/what-belongs-to-an-experiment.md exists to prevent. What keeps it
-# honest is that it says which line each fact came from — and that those lines
-# are checked, so a crate that changes under the model turns this red instead
-# of leaving a model that describes code which no longer exists.
-ROOT=../..
-while IFS='|' read -r where want; do
-    file="${where%:*}"; line="${where##*:}"
-    got="$(sed -n "${line}p" "$ROOT/$file" 2>/dev/null)"
-    [[ "$got" == *"$want"* ]] \
-        && pass "the model's citation $where is still: $want" \
-        || fail "the model's citation $where still holds" "line $line of $file is now: ${got:-missing}"
-done <<'CITED'
-crates/lifeline/src/board.rs:44|breadcrumb::read(cfg.tag)
-crates/lifeline/src/board.rs:71|breadcrumb::arm(cfg.boot_us)
-crates/lifeline/src/board.rs:82|pub fn alive(cfg: Config)
-crates/lifeline/src/board.rs:86|breadcrumb::feed(cfg.run_us)
-crates/breadcrumb/src/lib.rs:141|pub const fn is_ours(s0: u32, tag: u8)
-crates/breadcrumb/src/lib.rs:335|pub fn interpret(before: Scratch, forced: bool, tag: u8)
-crates/usb-reboot/src/lib.rs:169|write_volatile(WATCHDOG_SCRATCH0, 0)
-crates/usb-log/src/board.rs:115|admit(POLICY, QUEUE.is_full()
-crates/usb-log/src/board.rs:124|Admission::Drop =>
-crates/usb-log/src/board.rs:161|claim(POLICY, &DROPPED)
-crates/usb-log/src/board.rs:222|QUEUE.try_send(line).is_err()
-crates/usb-log/src/board.rs:223|refund(POLICY, &DROPPED, lost)
-CITED
+# honest is that it says which line each fact came from — model/cited.txt —
+# and that those lines are re-read on every run.
+"$TLC" parse model || FAILED=1
+"$TLC" cited model || FAILED=1
 
 # --- step 2: what TLC says, against what this experiment claims ------------
-./model.sh > states.out 2>&1 || fail "TLC ran on every configuration" "see ./model.sh"
-while read -r module config want; do
-    [[ -z "$module" || "$module" == \#* ]] && continue
-    got="$(awk -v c="$config" '$2 == c { print $3 }' states.out)"
-    [[ "$got" == "$want" ]] \
-        && pass "$config: $want" \
-        || fail "$config: $want" "TLC says ${got:-nothing}"
-done < model/expected.txt
+"$TLC" check model || FAILED=1
 
 # The two counterexamples the experiment is about, as paths, not just verdicts.
+"$TLC" table model > states.out 2>&1
 grep -q 'bc-before-NeverAnotherExperimentsNote .*exp190a -> exp157' states.out \
     && pass "before ecf659e, exp157 believes exp190's note — the bug a board found on 2026-08-30" \
     || fail "the historical bug is the counterexample" "$(grep bc-before-Never states.out)"

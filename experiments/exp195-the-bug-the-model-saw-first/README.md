@@ -16,7 +16,7 @@ already paid for.
 | | Step | Here |
 | --- | --- | --- |
 | 1 | **Model** only the hard part: the state that outlives a reboot, the order events can come in | [`model/Breadcrumb.tla`](./model/Breadcrumb.tla), 97 lines; [`model/UsbLog.tla`](./model/UsbLog.tla), 118 |
-| 2 | **Find counterexamples**: let a tool search every order of events for one that breaks a stated property | TLC, fetched and pinned by [`setup.sh`](./setup.sh); [`model.sh`](./model.sh) runs all 15 configurations |
+| 2 | **Find counterexamples**: let a tool search every order of events for one that breaks a stated property | TLC, fetched and pinned by [`tools/tlc/setup.sh`](../../tools/tlc/setup.sh); [`tools/tlc/tlc.sh`](../../tools/tlc/tlc.sh) runs all 15 configurations |
 | 3 | **Reproduce**: go back to the real code and make it happen | a test in `crates/breadcrumb`; exp190 flashed twice ([`run.sh`](./run.sh)) |
 | 4 | **Fix** it in the code, and ask the model again | `crates/usb-reboot`, and the `fixed` configurations |
 
@@ -181,17 +181,17 @@ not a patch.
 
 Before reading `model/Breadcrumb.tla` to the end, delete the three properties
 and write your own from `interpret`'s documentation. Run
-`./model.sh`. If you wrote the property `ecf659e` was checked against, every
+`../../tools/tlc/tlc.sh table model`. If you wrote the property `ecf659e` was checked against, every
 configuration after `before` passes — which is exactly how that fix came to be
 called done.
 
 ## Running it
 
 ```sh
-./setup.sh      # once, needs the network: TLC v1.7.4, checked against its sha256
-./check.sh      # no board: models, citations, the crate's tests; rules on capture.txt
-./run.sh        # records capture.txt; the board half runs if a board is attached
-./model.sh --trace bc-tagged-AFreshFlashBelievesNothing   # any one counterexample in full
+../../tools/tlc/setup.sh   # once, needs the network: TLC v1.7.4, checked against its sha256
+./check.sh                 # no board: models, citations, the crate's tests; rules on capture.txt
+./run.sh                   # records capture.txt; the board half runs if a board is attached
+../../tools/tlc/tlc.sh trace model bc-tagged-AFreshFlashBelievesNothing   # one counterexample in full
 ```
 
 Java 11 or later. No board for the model half; any RP2350 board and **nobody**

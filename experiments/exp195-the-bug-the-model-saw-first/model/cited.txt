@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every line of code the models translate: <path>:<line>|<a piece of that line>.
+# tools/tlc/tlc.sh cited re-reads each one.
+crates/lifeline/src/board.rs:44|breadcrumb::read(cfg.tag)
+crates/lifeline/src/board.rs:71|breadcrumb::arm(cfg.boot_us)
+crates/lifeline/src/board.rs:82|pub fn alive(cfg: Config)
+crates/lifeline/src/board.rs:86|breadcrumb::feed(cfg.run_us)
+crates/breadcrumb/src/lib.rs:141|pub const fn is_ours(s0: u32, tag: u8)
+crates/breadcrumb/src/lib.rs:335|pub fn interpret(before: Scratch, forced: bool, tag: u8)
+crates/usb-reboot/src/lib.rs:169|write_volatile(WATCHDOG_SCRATCH0, 0)
+crates/usb-log/src/board.rs:115|admit(POLICY, QUEUE.is_full()
+crates/usb-log/src/board.rs:124|Admission::Drop =>
+crates/usb-log/src/board.rs:161|claim(POLICY, &DROPPED)
+crates/usb-log/src/board.rs:222|QUEUE.try_send(line).is_err()
+crates/usb-log/src/board.rs:223|refund(POLICY, &DROPPED, lost)
