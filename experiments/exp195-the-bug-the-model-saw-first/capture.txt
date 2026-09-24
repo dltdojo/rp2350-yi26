@@ -1,5 +1,5 @@
 === exp195 — the bug the model saw first ===
-recorded at 2026-09-24T12:06:33Z from commit 06d51b8
+recorded at 2026-09-24T12:42:33Z from commit a2c9fc1
 
 >>> the model half: every configuration in model/expected.txt
     TLC Version 2.19, one worker, breadth first
@@ -17,7 +17,7 @@ Breadcrumb bc-fixed-NeverAnotherExperimentsNote     holds         7 states
 Breadcrumb bc-fixed-AFreshFlashBelievesNothing      holds         7 states  
 Breadcrumb bc-fixed-ADeathIsStillReported           holds         7 states  
 UsbLog     usblog-cooperative                       holds       162 states  
-UsbLog     usblog-preemptive                        violated    214 states  12 states long — ./model.sh --trace usblog-preemptive
+UsbLog     usblog-preemptive                        violated    214 states  Next -> Next -> Next -> Next -> Next -> Next -> Next -> Next -> Next -> Receive -> Next
 UsbLog     usblog-preemptive-count                  holds       808 states  
 
 >>> the shortest counterexample under a preemptive scheduler, in full

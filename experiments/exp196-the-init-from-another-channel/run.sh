@@ -31,7 +31,7 @@ echo
 echo
 
 echo ">>> step 3 and 4 on a host: replay/, the crate before exp196 and after"
-( cd replay && cargo test --quiet -- --test-threads 1 2>&1 ) | grep -E '^test |test result'
+( cd replay && cargo test -- --test-threads 1 2>&1 ) | grep -E '^test [a-z0-9_]+ ... '
 echo
 
 echo ">>> end to end over a socket: tools/vctaphid/selftest.sh"
