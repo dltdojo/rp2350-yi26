@@ -202,8 +202,30 @@ for the board half.
 The model half, from `capture.txt`:
 
 ```text
-(recorded in the next step of this commit series)
+=== exp195 — the bug the model saw first ===
+recorded at 2026-09-24T12:06:33Z from commit 06d51b8
+
+>>> the model half: every configuration in model/expected.txt
+    TLC Version 2.19, one worker, breadth first
+
+Breadcrumb bc-before-NeverAnotherExperimentsNote    violated      9 states  blank -> exp190a -> exp157
+Breadcrumb bc-before-AFreshFlashBelievesNothing     violated      6 states  blank -> exp190a -> exp190a
+Breadcrumb bc-before-ADeathIsStillReported          holds        15 states  
+Breadcrumb bc-tagged-NeverAnotherExperimentsNote    holds        13 states  
+Breadcrumb bc-tagged-AFreshFlashBelievesNothing     violated      6 states  blank -> exp190a -> exp190a
+Breadcrumb bc-tagged-ADeathIsStillReported          holds        13 states  
+Breadcrumb bc-fixonly-NeverAnotherExperimentsNote   holds         7 states  
+Breadcrumb bc-fixonly-AFreshFlashBelievesNothing    holds         7 states  
+Breadcrumb bc-fixonly-ADeathIsStillReported         holds         7 states  
+Breadcrumb bc-fixed-NeverAnotherExperimentsNote     holds         7 states  
+Breadcrumb bc-fixed-AFreshFlashBelievesNothing      holds         7 states  
+Breadcrumb bc-fixed-ADeathIsStillReported           holds         7 states  
+UsbLog     usblog-cooperative                       holds       162 states  
+UsbLog     usblog-preemptive                        violated    214 states  12 states long — ./model.sh --trace usblog-preemptive
+UsbLog     usblog-preemptive-count                  holds       808 states  
 ```
+
+The full preemptive counterexample follows it in `capture.txt`.
 
 The board half: **not captured yet.** It needs a board, and this experiment's
 fix has not been run on one.

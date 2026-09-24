@@ -1,0 +1,161 @@
+=== exp195 — the bug the model saw first ===
+recorded at 2026-09-24T12:06:33Z from commit 06d51b8
+
+>>> the model half: every configuration in model/expected.txt
+    TLC Version 2.19, one worker, breadth first
+
+Breadcrumb bc-before-NeverAnotherExperimentsNote    violated      9 states  blank -> exp190a -> exp157
+Breadcrumb bc-before-AFreshFlashBelievesNothing     violated      6 states  blank -> exp190a -> exp190a
+Breadcrumb bc-before-ADeathIsStillReported          holds        15 states  
+Breadcrumb bc-tagged-NeverAnotherExperimentsNote    holds        13 states  
+Breadcrumb bc-tagged-AFreshFlashBelievesNothing     violated      6 states  blank -> exp190a -> exp190a
+Breadcrumb bc-tagged-ADeathIsStillReported          holds        13 states  
+Breadcrumb bc-fixonly-NeverAnotherExperimentsNote   holds         7 states  
+Breadcrumb bc-fixonly-AFreshFlashBelievesNothing    holds         7 states  
+Breadcrumb bc-fixonly-ADeathIsStillReported         holds         7 states  
+Breadcrumb bc-fixed-NeverAnotherExperimentsNote     holds         7 states  
+Breadcrumb bc-fixed-AFreshFlashBelievesNothing      holds         7 states  
+Breadcrumb bc-fixed-ADeathIsStillReported           holds         7 states  
+UsbLog     usblog-cooperative                       holds       162 states  
+UsbLog     usblog-preemptive                        violated    214 states  12 states long — ./model.sh --trace usblog-preemptive
+UsbLog     usblog-preemptive-count                  holds       808 states  
+
+>>> the shortest counterexample under a preemptive scheduler, in full
+Error: Invariant TheMarkIsWhereTheGapIs is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 3, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "idle", p2 |-> "idle"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<>>
+
+State 2: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 3, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "admitted", p2 |-> "idle"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<>>
+
+State 3: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 3, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "claimed", p2 |-> "idle"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<>>
+
+State 4: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 2, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "idle", p2 |-> "idle"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<0>>
+
+State 5: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 2, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "admitted", p2 |-> "idle"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<0>>
+
+State 6: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 2, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "claimed", p2 |-> "idle"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<0>>
+
+State 7: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 2, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "claimed", p2 |-> "admitted"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<0>>
+
+State 8: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 1, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "idle", p2 |-> "admitted"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<0, 0>>
+
+State 9: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 0
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 1, p2 |-> 3]
+/\ gap = FALSE
+/\ pc = [p1 |-> "idle", p2 |-> "claimed"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 0
+/\ queue = <<0, 0>>
+
+State 10: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 1
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 0, p2 |-> 3]
+/\ gap = TRUE
+/\ pc = [p1 |-> "idle", p2 |-> "claimed"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 1
+/\ queue = <<0, 0>>
+
+State 11: <Receive line 99, col 12 to line 101, col 88 of module UsbLog>
+/\ dropped = 1
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 0, p2 |-> 3]
+/\ gap = TRUE
+/\ pc = [p1 |-> "idle", p2 |-> "claimed"]
+/\ misplaced = FALSE
+/\ reported = 0
+/\ lostTotal = 1
+/\ queue = <<0>>
+
+State 12: <Next line 105, col 14 to line 105, col 78 of module UsbLog>
+/\ dropped = 1
+/\ held = [p1 |-> 0, p2 |-> 0]
+/\ left = [p1 |-> 0, p2 |-> 2]
+/\ gap = FALSE
+/\ pc = [p1 |-> "idle", p2 |-> "idle"]
+/\ misplaced = TRUE
+/\ reported = 0
+/\ lostTotal = 1
+/\ queue = <<0, 0>>
+
+374 states generated, 214 distinct states found, 61 states left on queue.
+
+>>> the board half: exp190's control arm, flashed twice through the 1200-baud touch
+not captured: no board attached
