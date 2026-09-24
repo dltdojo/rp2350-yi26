@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What TLC says about each configuration: the claim of exp196, as data.
+# tools/tlc/tlc.sh check runs every one and fails on any disagreement.
+#
+# --- before exp196: an INIT from anyone clears the buffer --------------------
+CtapHid clears-h1open-NoSilentLoss           violated
+CtapHid clears-h1open-AnInitIsAnswered       holds
+CtapHid clears-h1fixed-NoSilentLoss          violated
+CtapHid clears-h1fixed-AnInitIsAnswered      holds
+#
+# --- exp196's INIT alone, then with H1 fixed too: what is in the tree --------
+CtapHid answers-h1open-NoSilentLoss          violated
+CtapHid answers-h1open-AnInitIsAnswered      holds
+CtapHid answers-h1fixed-NoSilentLoss         holds
+CtapHid answers-h1fixed-AnInitIsAnswered     holds
+#
+# --- the road not taken: §11.2.5.1 read literally ----------------------------
+CtapHid busy-h1open-NoSilentLoss             violated
+CtapHid busy-h1open-AnInitIsAnswered         violated
+CtapHid busy-h1fixed-NoSilentLoss            holds
+CtapHid busy-h1fixed-AnInitIsAnswered        violated

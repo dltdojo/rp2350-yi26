@@ -118,18 +118,22 @@ impl<'d, D: Driver<'d>> Wire<'d, D> {
             };
 
             let now = Instant::now().as_millis();
-            match self.transaction.feed(&pkt[..got], now) {
+            let action = self.transaction.feed(&pkt[..got], now);
+            // Before the packet's own answer: the channel this packet's arrival
+            // expired has nobody else to tell it.
+            if let Some(stale) = self.transaction.take_expired() {
+                self.error(stale, super::ERR_MSG_TIMEOUT).await;
+            }
+            match action {
                 Action::Ignore(_) | Action::More => continue,
                 Action::Error(cid, code) => self.error(cid, code).await,
+                Action::Init(cid, nonce) => {
+                    let new = super::next_cid(&mut self.next_cid);
+                    let r = super::init_reply(&nonce, new, self.capabilities);
+                    self.reply(cid, super::CTAPHID_INIT, &r).await;
+                }
                 Action::Complete => {
                     let (cid, cmd, data) = self.transaction.message();
-                    if cmd == super::CTAPHID_INIT {
-                        let new = super::next_cid(&mut self.next_cid);
-                        let r = super::init_reply(data, new, self.capabilities);
-                        self.transaction.clear();
-                        self.reply(cid, super::CTAPHID_INIT, &r).await;
-                        continue;
-                    }
                     let n = data.len().min(out.len());
                     out[..n].copy_from_slice(&data[..n]);
                     self.transaction.clear();

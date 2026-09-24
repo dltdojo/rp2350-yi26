@@ -471,6 +471,53 @@ def case_init_resets(link, _args):
     return out, "spec"
 
 
+def case_init_keeps_other(link, _args):
+    """Another client's INIT leaves a message in flight alone.
+
+    `busy-recovers` asks whether a broadcast INIT is answered while another
+    channel is busy, and stops there. This asks the next question: what became
+    of the message that was in flight. CTAP-HID §11.2.5.3 aborts a transaction
+    on an INIT with the *same* channel id; nothing says another client's INIT
+    may throw it away. Before exp196, crates/ctap-hid did, and the owner's next
+    packets were ignored in silence.
+    """
+    a = link.open_channel()
+    payload = bytes((i * 7) & 0xFF for i in range(200))
+    pkt = bytearray(PACKET)
+    pkt[0:4], pkt[4] = a, 0x80 | CTAPHID_PING
+    pkt[5:7] = struct.pack(">H", len(payload))
+    pkt[INIT_HEADER:INIT_HEADER + INIT_PAYLOAD] = payload[:INIT_PAYLOAD]
+    link.send_packet(bytes(pkt))                        # A: the first packet only
+
+    r = link.init(BROADCAST, nonce=b"\x44" * 8)         # another client enumerates
+    out = {"init_reply": r}
+    # Answered, or refused as busy (§11.2.5.1 read literally): either way this
+    # case is about A, so it goes on. Anything else is its own failure.
+    if not r:
+        return out, "the INIT was not answered"
+    if r.get("cmd") != CTAPHID_INIT and wants_error(r, ERR_CHANNEL_BUSY) != "spec":
+        return out, f"the INIT was answered with {r.get('error_name', hex(r.get('cmd', 0)))}"
+
+    sent, seq = INIT_PAYLOAD, 0                         # A: the rest of it
+    while sent < len(payload):
+        pkt = bytearray(PACKET)
+        pkt[0:4], pkt[4] = a, seq
+        n = min(len(payload) - sent, CONT_PAYLOAD)
+        pkt[CONT_HEADER:CONT_HEADER + n] = payload[sent:sent + n]
+        link.send_packet(bytes(pkt))
+        sent, seq = sent + n, seq + 1
+
+    echo = link.read_message()
+    out["echo"] = echo
+    if echo is None:
+        return out, "A's message vanished: no answer at all after another client's INIT"
+    if echo.get("cmd") == CTAPHID_ERROR:
+        return out, f"A's message was refused with {echo.get('error_name')}"
+    if echo.get("cmd") != CTAPHID_PING or link.last != payload:
+        return out, "A was answered with something that is not its own message"
+    return out, "spec"
+
+
 CASES = {
     "init": (case_init, "17 bytes back, nonce echoed, a channel that is not broadcast"),
     "ping": (case_ping, "echo N bytes exactly; N > 1024 is ERR_INVALID_LEN, not truncation"),
@@ -482,6 +529,7 @@ CASES = {
     "busy-recovers": (case_busy_recovers, "broadcast INIT still answered after a busy refusal"),
     "stray-cont": (case_stray_cont, "silence"),
     "init-resets": (case_init_resets, "INIT aborts the channel's pending transaction"),
+    "init-keeps-other": (case_init_keeps_other, "another channel's INIT leaves the message in flight whole"),
 }
 
 

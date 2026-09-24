@@ -24,8 +24,14 @@
 //! ```
 //!
 //! So this is not exp189's transport tidied up. It is the behaviour five
-//! firmwares agreed on and the specification requires, and every one of those
-//! twelve answers is a test below.
+//! firmwares agreed on, and every one of those twelve answers is a test below.
+//!
+//! "Agreed on" and "the specification requires" are not the same, and this
+//! said both until [exp196](../../experiments/exp196-the-init-from-another-channel/)
+//! modelled it: CTAP-HID §11.2.5.1 refuses a busy device's every other
+//! channel, a broadcast INIT included. Answering that INIT is a choice this
+//! repository made on exp194's measurement, and exp196 found what the first
+//! version of the choice cost — another client's half-sent message.
 //!
 //! # Two halves, and only one of them needs a board
 //!
@@ -88,8 +94,10 @@ pub const RESERVED: Cid = [0x00, 0x00, 0x00, 0x00];
 
 /// How long a promised-but-unfinished message may sit before it expires.
 ///
-/// **750 ms is the specification's number**, and it is worth stating why it is
-/// short. The channel is held for the whole of it, so every millisecond here is
+/// **750 ms is not in CTAP 2.1 or 2.2** — §11.2.5.2 names no number, and
+/// neither text contains one (exp196 searched both). It is what exp189 was
+/// brought down to and what this repository uses; where it came from still
+/// needs citing. It is worth stating why it is short. The channel is held for the whole of it, so every millisecond here is
 /// a millisecond in which a second client is told the device is busy. exp194
 /// measured exp189 taking about four seconds and refusing the recovery path for
 /// all of it.
@@ -139,6 +147,15 @@ pub enum Action {
     Error(Cid, u8),
     /// A whole message is in [`Transaction::message`].
     Complete,
+    /// An `INIT`, with its nonce: answer it on this channel with
+    /// [`init_reply`]. It never goes through the message buffer, because a
+    /// message another channel is assembling may be sitting in it.
+    ///
+    /// exp196 is why this is its own variant. `INIT` used to arrive as
+    /// [`Complete`](Self::Complete) with its nonce in the buffer, which meant
+    /// answering one client's `INIT` wiped another client's half-sent message —
+    /// and that client's next packet was ignored in silence.
+    Init(Cid, [u8; 8]),
 }
 
 /// The one message being assembled.
@@ -153,6 +170,7 @@ pub struct Transaction {
     seq: u8,
     started_ms: u64,
     active: bool,
+    expired: Option<Cid>,
     buf: [u8; MAX_MESSAGE],
 }
 
@@ -172,6 +190,7 @@ impl Transaction {
             seq: 0,
             started_ms: 0,
             active: false,
+            expired: None,
             buf: [0; MAX_MESSAGE],
         }
     }
@@ -219,6 +238,18 @@ impl Transaction {
         None
     }
 
+    /// A channel whose transaction [`feed`](Self::feed) expired while judging
+    /// another channel's packet, and which is still owed `ERR_MSG_TIMEOUT`.
+    ///
+    /// **Call this after every `feed`.** `feed` runs expiry first so the packet
+    /// in hand is judged against a free device, and when that packet is some
+    /// other channel's, the one it expired has nobody else to tell it. exp196
+    /// found the notice being computed and dropped: the board's timer would
+    /// have sent it, but the transaction was gone by the time the timer looked.
+    pub fn take_expired(&mut self) -> Option<Cid> {
+        self.expired.take()
+    }
+
     /// The assembled message: its channel, its command, and its bytes.
     pub fn message(&self) -> (Cid, u8, &[u8]) {
         (self.cid, self.cmd, &self.buf[..self.want])
@@ -239,6 +270,9 @@ impl Transaction {
             if cid == stale {
                 return Action::Error(stale, ERR_MSG_TIMEOUT);
             }
+            // Somebody else's packet tripped the expiry. The stale channel is
+            // still owed its answer; see `take_expired`.
+            self.expired = Some(stale);
         }
 
         if is_init {
@@ -254,26 +288,39 @@ impl Transaction {
                 return Action::Error(cid, ERR_INVALID_CHANNEL);
             }
 
-            // **INIT is not a new transaction, it is a reset.** The
-            // specification makes it how a host resynchronises a channel it has
-            // lost track of, so it clears whatever was in flight rather than
-            // being refused as busy — the opposite of what every other command
-            // gets, and the reason this test is above the busy test.
+            // **INIT is answered, and it resets only its own channel.**
             //
-            // exp194 measured what happens when it is not: a device that
-            // answers ERR_CHANNEL_BUSY to a broadcast INIT has told the client
-            // to go away and left it no way back.
+            // CTAP-HID §11.2.5.3: "If the device detects an INIT command during
+            // a transaction that has the same channel id as the active
+            // transaction, the transaction is aborted". The same channel, and no
+            // other. An INIT from anywhere else is answered without touching the
+            // message in flight: it is a single packet, it needs no buffer, and
+            // the client assembling that message has done nothing wrong.
+            //
+            // Answering it at all, while another channel is busy, is this
+            // repository's choice and not the specification's: §11.2.5.1 has a
+            // busy device refuse every other channel. exp194 measured what the
+            // refusal costs a client that has lost track of its channel — told
+            // to go away until the abandoned transaction expires — and five of
+            // six firmwares answer it. exp196 kept that choice and stopped it
+            // costing the other client its message.
             if cmd == CTAPHID_INIT {
-                self.clear();
-            } else if self.active && self.cid != cid {
+                if want != 8 {
+                    // An INIT request is a nonce and nothing else.
+                    return Action::Error(cid, ERR_INVALID_LEN);
+                }
+                if self.active && self.cid == cid {
+                    self.clear();
+                }
+                let mut nonce = [0u8; 8];
+                nonce.copy_from_slice(&pkt[INIT_HEADER..INIT_HEADER + 8]);
+                return Action::Init(cid, nonce);
+            }
+            if self.active && self.cid != cid {
                 return Action::Error(cid, ERR_CHANNEL_BUSY);
             }
 
             if want > MAX_MESSAGE {
-                return Action::Error(cid, ERR_INVALID_LEN);
-            }
-            if cmd == CTAPHID_INIT && want != 8 {
-                // An INIT request is a nonce and nothing else.
                 return Action::Error(cid, ERR_INVALID_LEN);
             }
 
