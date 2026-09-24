@@ -101,6 +101,7 @@ Per experiment:
 | exp192 | A board running **exp189** built with `EXP189_LOG_SALT=1`, a **browser**, a person, and **three presses**. No firmware of its own. Chrome reaches the board through its own CTAP stack on `/dev/hidraw`, not WebUSB, so there is no permission to pre-grant and no headless path — a visible window and a finger, or nothing. |
 | exp193 | Any RP2350 board and **nobody**. `cdc+hid`, one log. It walks two lanes of interface counts until the board stops enumerating, reads every step out of the host's own descriptor bytes, and relies on exp190's recovery for the two steps that panic before USB exists. The only host requirement is `yi26`. |
 | exp194 | Any RP2350 board and **nobody**. It flashes six other experiments' firmwares and its own in turn, and asks each the same twelve CTAP-HID questions over `/dev/hidraw`. No case reaches user presence, so nothing here needs a finger. The only host requirements are `yi26` and the udev rule exp115 installs. |
+| exp195 | **No board** for the model half: Java 11 or later, and the network once for `./setup.sh`, which fetches TLC and pins it by SHA-256. The board half needs any RP2350 board and **nobody**: it flashes exp190 twice with `yi26` and reads what the second build believes. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -375,50 +376,50 @@ exp102 and exp103, deleted a vendored binary and the five files that existed
 only to support it, replaced nightly Rust with stable, and demoted picotool
 from required to optional.
 
-### Nothing is pushed unverified
+### Captures are pasted, never predicted
 
-One rule governs what reaches GitHub:
+What reaches `main` is decided by what can be checked where the work is done:
+it builds, the host tests pass, `check.sh` passes, and `docs-check.sh` passes.
+**A board is not a gate on merging.**
 
-> **Nothing reaches `main` until it has been verified on real hardware.**
+That is a change, made on 2026-09-24, and the old rule is worth stating so
+the reason for dropping it is on record. It read:
 
-Work in progress is committed locally as often as is useful, and a push to
-`main` means someone plugged a board in and watched it work.
+> ~~Nothing reaches `main` until it has been verified on real hardware.~~
 
-That sentence used to say *nothing is pushed*, full stop, and it was rewritten
-on 2026-08-18 for a reason worth stating rather than quietly absorbing.
-Development here increasingly happens in a cloud session whose container is
-reclaimed without notice, so "committed locally" stopped meaning *kept* — a
-day's work can exist only inside a machine that is about to be deleted. Holding
-an unverified branch hostage to a bench visit does not make the claim any
-truer; it just risks losing the code that would have been checked.
+It was written when this repository was developed at a bench. Development here
+now happens mostly in cloud sessions, which have no board at all, so the rule
+meant every change was parked on a branch until someone pulled it onto another
+machine, ran it, and merged it by hand. That is a slower loop than the one
+[`docs/the-board-is-the-loop.md`](../docs/the-board-is-the-loop.md) set out to
+shorten, and it bought nothing a capture does not buy better.
 
-So unverified work may reach a **branch**, under two conditions that are not
-negotiable, because they are the whole reason the rule exists:
+What the rule protected is kept, because it was never about merging:
 
-- **The commit message says so plainly**, in the subject line where nobody has
-  to go looking. `NOT YET VERIFIED ON HARDWARE` is the wording used.
-- **`Expected output` stays empty.** A section that says *not captured yet* is
-  honest. One filled in from what the code should do is the exact failure this
-  rule was written against, and moving the push does not license it.
+- **`Expected output` is a capture, pasted in** — never hand-written, never
+  predicted from what the code "should" do. A section whose board half has not
+  been run says *not captured yet*, and that stays true on `main`. A filled-in
+  prediction is the failure this whole section exists to prevent, wherever it
+  is committed.
+- **What was not run on a board is said plainly**, in the commit message, where
+  nobody has to go looking. `NOT YET VERIFIED ON HARDWARE` is the wording used,
+  and an experiment's index row says so while it is true.
+- **Every capture names its commit** (see below), so a capture that predates a
+  change is visibly older than the code it describes.
 
-`main` is unchanged: a board ran it, somebody watched, and the capture is in
-the file. The `Expected output` section
-of each experiment is that verification, pasted in — never hand-written,
-never predicted from what the code "should" do.
-
-This exists because the gap between "it compiles" and "it works" is where
+This matters because the gap between "it compiles" and "it works" is where
 learners get stranded. An experiment that only ever built cleanly is not
-evidence that a reader following it will succeed; it is a hypothesis. Hardware
-runs also surface things no amount of reading finds — exp104's discovery that
-the firmware stalls mid-write when nothing is draining the serial port came
-out of a real capture, not the source.
+evidence that a reader following it will succeed; it is a hypothesis, and it
+has to be labelled as one. Hardware runs also surface things no amount of
+reading finds — exp104's discovery that the firmware stalls mid-write when
+nothing is draining the serial port came out of a real capture, not the source.
 
 Practical consequences:
 
 - Build-only checks (`cargo build`, UF2 conversion) can be verified anywhere,
   and `check.sh` is written so it passes with or without a board attached.
-- The board-dependent half waits for hardware. If an experiment is committed
-  but not yet verified, its commit message says so plainly.
+- The board-dependent half is run when a board is available, and its capture
+  is committed then — to `main` or anywhere else.
 - A firmware without USB cannot be rebooted from the host, so flashing the
   next experiment needs a human on the BOOTSEL button. That is a real cost of
   the early track, and the reason the 1200-baud experiment is worth reaching.
@@ -485,7 +486,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -739,6 +740,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp192 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
 | exp193 | `cdc+hid` | `log` | `cdc_acm+hidraw` | `own` |
 | exp194 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `own+exp168+exp170+exp172+exp174+exp184+exp189` |
+| exp195 | `cdc` | `log` | `cdc_acm` | `exp190` |
 
 ### Reading the columns
 
@@ -912,6 +914,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp192-the-salt-the-browser-sends](./exp192-the-salt-the-browser-sends/) | 2 · a moment | **Scaffolded, not yet run.** WebAuthn's `prf` is `hmac-secret` under another name, and a page hands it bytes that are not necessarily the bytes that arrive: the spec derives a salt. exp189 grew an `EXP189_LOG_SALT` flag so the only party reporting what it *received* can settle it. Two evaluations, uv on and off, because this firmware keys `credrandom-uv` and `credrandom-noUV` separately — a second silent way to get a different key from the same salt |
 | [exp193-how-many-doors-fit](./exp193-how-many-doors-fit/) | 1 · board | **The wall is not where the bytes run out.** The first caller of `cdc-console`'s composite path walks interfaces until the board stops enumerating, and stops at five with 120 of its 256 descriptor bytes still free: `embassy-usb`'s `MAX_INTERFACE_COUNT` defaults to 4, and a serial console spends two of them. Raise it to 8 and the byte count becomes the wall instead, at 268 of 256. Both walls panic before USB exists and lifeline brought the board back from each in **one second**, drive presented, nobody in the room |
 | [exp194-the-transport-that-drifted](./exp194-the-transport-that-drifted/) | 1 · board | **Ten of twelve cases are answered identically by six firmwares off one accretion chain — and the two that are not are both at its head.** `ctaphid_task` exists here as thirteen different functions, 110 lines at exp168 and 959 at exp189; asked what CTAP-HID says the right answer is, exp189 returns `ERR_INVALID_PAR` where the specification names `ERR_INVALID_CHANNEL`, and refuses the broadcast INIT that is a client's only way to recover — for the four seconds an abandoned transaction takes to expire, against the specification's 750 ms. This is what tells `crates/ctap-hid` what to be |
+| [exp195-the-bug-the-model-saw-first](./exp195-the-bug-the-model-saw-first/) | 1 · board | **A model checker finds in nine states the bug a board found on 2026-08-30 — and the one its fix left open.** Four crates are each right alone and wrong together: `breadcrumb` believes a same-tag note, `lifeline` holds its token while running, SCRATCH0 survives the 1200-baud touch — so a second flash of the same experiment believes the first, which exp190's own capture showed as `boot 4`. The tag fix was checked against a weaker property than the crate promises. Fixed in `crates/usb-reboot`; the blind half, usb-log's predictions committed before the model ran, got four verdicts right and the counterexample's shape wrong. **Board half not yet verified** |
 
 ## The browser track, finished
 

@@ -44,9 +44,40 @@ fn a_reflashed_board_does_not_inherit_the_previous_builds_death() {
     // caused the boot. The 1200-baud reflash touch reboots THROUGH the
     // watchdog, so `forced` is exactly what a freshly flashed firmware sees —
     // and it reported the previous build's history as its own.
+    //
+    // `s0: 0` is this test's premise, and it is not this crate's to keep: a
+    // firmware that holds its token while running (every lifeline user does)
+    // arrives at a reflash with `s0` armed. What clears it is the reflash path —
+    // see the next test, and crates/usb-reboot.
     let (note, _) = interpret(Scratch { s0: 0, s1: pack(4, 3), s2: 0x55, s3: 0x0302 }, true, OURS);
     assert_eq!(note.cause, Cause::Fresh);
     assert_eq!(note.boot, 1);
+}
+
+#[test]
+fn a_rebuild_reflashed_while_running_starts_fresh_only_if_the_reflash_withdrew_the_token() {
+    // exp195's R1, replayed: the TLC trace BootselFlash(exp190a) ->
+    // Reflash1200(exp190a), as the four words go. lifeline::begin reads then
+    // arms; alive() sets the tally to 0, marks the boot finished and feeds —
+    // and nothing withdraws the token while the firmware runs.
+    let (_, mut s) = interpret(Scratch::default(), false, OURS);
+    s.s1 = with_step(s.s1, 16);
+    s.s0 = token(OURS);
+    s.s1 = with_finished(with_tally(s.s1, 0));
+
+    // The 1200-baud touch reboots through the watchdog, so `forced` is set, and
+    // SCRATCH0-3 survive it. Left alone, the new build believes the old one.
+    // That is not this crate being wrong: a same-tag note after a watchdog
+    // reset is exactly what it exists to believe. It cannot tell a reflash from
+    // a death, so the reflash has to say so.
+    let (inherited, _) = interpret(s, true, OURS);
+    assert_eq!(inherited.cause, Cause::Completed);
+    assert_eq!(inherited.boot, 2);
+
+    // crates/usb-reboot withdraws the token before it enters the bootrom.
+    let (fresh, _) = interpret(Scratch { s0: 0, ..s }, true, OURS);
+    assert_eq!(fresh.cause, Cause::Fresh);
+    assert_eq!(fresh.boot, 1);
 }
 
 // --- how a boot ended -------------------------------------------------------

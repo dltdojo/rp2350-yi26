@@ -48,6 +48,12 @@ pub type UsbDriver = Driver<'static, USB>;
 /// a signal.
 pub const MAGIC_BAUD: u32 = 1200;
 
+/// `WATCHDOG.SCRATCH0` on the RP2350, where `crates/breadcrumb` keeps its
+/// handoff token. Cleared before a deliberate reflash; see
+/// [`reboot_if_requested`].
+#[cfg(feature = "auto-reboot")]
+const WATCHDOG_SCRATCH0: *mut u32 = (0x400d_8000 + 0x0c) as *mut u32;
+
 /// A plain-text marker stamped into the firmware image recording how this
 /// crate was compiled.
 ///
@@ -141,6 +147,26 @@ pub async fn reboot_if_requested(data_rate: u32) {
         // 250 ms is far more than a control transfer needs and still
         // imperceptible to a person.
         Timer::after_millis(250).await;
+
+        // A deliberate reflash is not a death, so it must not leave a note.
+        //
+        // `crates/breadcrumb` hands a note to the next boot through
+        // `WATCHDOG.SCRATCH0`, and SCRATCH0-3 survive this reboot and the flash
+        // that follows it (measured 2026-08-30). `crates/lifeline` arms that
+        // token at boot and holds it for as long as the firmware runs, which is
+        // what lets a hang be reported — and which meant that a rebuild of the
+        // same experiment, flashed through this touch, read the old build's
+        // note as its own: `boot 4` in exp190's own capture, from a firmware
+        // that had just been flashed onto itself. exp195 found it with
+        // a model of the four crates together; no one of them is wrong alone.
+        //
+        // One store, and no dependency on breadcrumb: most firmwares that link
+        // this crate do not enable embassy-rp's `unstable-pac`, and a firmware
+        // that never uses breadcrumb loses nothing by a zero in a register
+        // nothing else here reads. The address is `WATCHDOG` (0x400d_8000) plus
+        // `SCRATCH0`'s offset (0x0c), from rp-pac's `rp235x` map. SCRATCH4-7
+        // are the bootrom's and are not touched.
+        unsafe { core::ptr::write_volatile(WATCHDOG_SCRATCH0, 0) };
 
         // Into the ROM bootloader. The first argument can flash a GPIO as a
         // USB-activity light; the second can hide the mass storage or PICOBOOT

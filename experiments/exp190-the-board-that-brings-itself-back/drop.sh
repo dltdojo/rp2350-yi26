@@ -21,24 +21,7 @@ note() { printf '    %s\n' "$*"; }
 
 ELF=target/thumbv8m.main-none-eabihf/release/exp190-the-board-that-brings-itself-back
 
-# --- flashing, done so it cannot race the mount -----------------------------
-#
-# `yi26 flash` does the 1200-baud touch and then copies. On this host the copy
-# sometimes arrives before udisks has mounted the drive, and yi26 reports it as
-# "no USB at all" — which cost this experiment three false starts and reads
-# exactly like the failure it is meant to measure. So: try yi26, and if the
-# board is sitting in BOOTSEL afterwards, finish the job with `cp`.
-flash() { # uf2
-    local img="$1"
-    yi26 flash "$img" > /dev/null 2>&1 && return 0
-    for _ in $(seq 1 30); do
-        if [[ -d "/media/$USER/RP2350" ]]; then
-            cp "$img" "/media/$USER/RP2350/" && sync && return 0
-        fi
-        sleep 1
-    done
-    return 1
-}
+# Flashing goes through lib.sh's flash_uf2, which tolerates the mount race.
 
 build() { # arm -> uf2
     EXP190_DIE="$1" cargo build --release > /dev/null 2>&1 || { echo "build $1 failed" >&2; exit 1; }
@@ -67,7 +50,7 @@ capture_header "exp190 — the board that brings itself back"
 
 # ---------------------------------------------------------------- the control
 say "arm 1/4: never — the control. It gets up and stays up."
-flash target/exp190-never.uf2 || { echo "could not flash"; exit 1; }
+flash_uf2 target/exp190-never.uf2 || { echo "could not flash"; exit 1; }
 sleep 6
 echo "-- never --"
 yi26 log --seconds 5 2>/dev/null | grep -E "boot |EXP190_DIE" | head -2
@@ -77,7 +60,7 @@ echo
 # ------------------------------------------------- a death that must not escape
 say "arm 2/4: late — dies AFTER saying it is reachable."
 say "         it must come back, and it must NOT be handed to the bootloader."
-flash target/exp190-late.uf2 || { echo "could not flash"; exit 1; }
+flash_uf2 target/exp190-late.uf2 || { echo "could not flash"; exit 1; }
 sleep 8
 echo "-- late --"
 yi26 log --seconds 10 2>/dev/null | grep -E "boot |dying on purpose" | head -6
@@ -94,7 +77,7 @@ echo
 # ------------------------------------------------------- the weight that matters
 say "arm 3/4: early — dies BEFORE it is reachable, by a fault."
 say "         nobody touches the board from here."
-flash target/exp190-early.uf2 || { echo "could not flash"; exit 1; }
+flash_uf2 target/exp190-early.uf2 || { echo "could not flash"; exit 1; }
 echo "-- early --"
 T="$(wait_for bootsel 40 || true)"
 echo "reached bootsel after: ${T} s"
@@ -103,7 +86,7 @@ echo
 
 # ------------------------------------- the one no fault handler can catch
 say "arm 4/4: hang — stops without dying, interrupts off."
-flash target/exp190-hang.uf2 || { echo "could not flash"; exit 1; }
+flash_uf2 target/exp190-hang.uf2 || { echo "could not flash"; exit 1; }
 echo "-- hang --"
 T="$(wait_for bootsel 40 || true)"
 echo "reached bootsel after: ${T} s"
@@ -111,7 +94,7 @@ echo "drive present: $([[ -d /media/$USER/RP2350 ]] && echo yes || echo no)"
 echo
 
 say "putting the control back"
-flash target/exp190-never.uf2 || true
+flash_uf2 target/exp190-never.uf2 || true
 sleep 6
 echo "-- restored --"
 yi26 log --seconds 5 2>/dev/null | grep -E "boot " | head -1

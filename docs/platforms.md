@@ -599,7 +599,7 @@ appears. No toolchain on the local machine and no hand on the button.
 
 Which provider to rent from, what it costs, or which image to pick. Those
 change faster than this repository does, and none of them could be verified
-here — see [Nothing is pushed unverified](../experiments/README.md#nothing-is-pushed-unverified)
+here — see [Captures are pasted, never predicted](../experiments/README.md#captures-are-pasted-never-predicted)
 for why this project does not publish claims it cannot check.
 
 What you need is a Linux machine that can pass exp102. If it can install

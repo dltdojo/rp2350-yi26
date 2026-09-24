@@ -155,8 +155,8 @@ answer.
 - **A bug in a crate is wrong about every firmware built after it**, including
   ones whose captures were recorded earlier and still read as passing. This is
   the real price. It is paid by: recording the commit in every capture (above),
-  requiring that a crate change be verified on hardware by at least one
-  experiment, and requiring that every dependent experiment still compile.
+  requiring that every dependent experiment still compile, and saying plainly,
+  in the commit, when a crate change has not yet been run on a board.
 - **An experiment stops being readable on its own.** The mitigation is that the
   narrative moves with the code. `crates/cdc-console` carries the count of what
   its twenty-two lines cost, because that sentence is worth as much as the
