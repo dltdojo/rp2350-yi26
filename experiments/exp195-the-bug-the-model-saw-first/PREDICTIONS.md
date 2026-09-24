@@ -71,3 +71,43 @@ right conclusion is about the scheduler, not a patch.
 
 It is recorded as wrong, here, in the commit that runs the model — with what TLC
 said instead, and nothing above this line edited.
+
+---
+
+## Outcome — added after the first run, in the commit that ran it
+
+TLC 2.19 (`v1.7.4`), `-workers 1`, run for the first time after `4ab6233` was
+pushed. Nothing above the line was edited.
+
+| Scheduler | `EveryLossIsCounted` | `TheMarkIsWhereTheGapIs` | States |
+| --- | --- | --- | --- |
+| cooperative | holds — **as predicted** | holds — **as predicted** | 162 distinct, exhaustive |
+| preemptive | holds — **as predicted** | violated — **as predicted** | 808 distinct, exhaustive, checked alone* |
+
+\* TLC stops at the first invariant it finds violated, so a run that checks both
+never finishes checking the count. `model/usblog-preemptive-count.cfg` checks
+the count by itself; that config was added in this commit, and it is the
+first correction this half needed.
+
+**The predicted shape was wrong.** The prediction said producer 1 claims the
+count after the gap and producer 2 slips a whole `line()` in before it. TLC's
+counterexample — the shortest one, since it searches breadth first — is a
+different interleaving:
+
+```text
+State  9   p2 claimed          dropped = 0, so p2 holds a claim of zero
+State 10   p1 refused          the queue is full: dropped = 1, a gap
+State 11   the writer takes one line out
+State 12   p2 sends            the first line after the gap, carrying the 0
+                               it claimed before the gap existed
+```
+
+The late line is not one that lost a race for the count. It is one that
+**claimed before the loss and arrived after it** — a window the prediction did
+not see, because it reasoned about who takes the count rather than about when a
+claim is made relative to the loss it is supposed to report. The shape
+predicted may still be reachable; this run does not say, because TLC reports
+one counterexample, not all of them.
+
+Step 3 is unchanged by this: no caller in the repository logs from core1 or an
+interrupt, so neither interleaving can occur in a firmware that exists.
