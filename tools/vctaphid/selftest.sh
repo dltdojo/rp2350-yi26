@@ -112,6 +112,22 @@ fi
 
 stop_device
 
+# --- and exp196's: an INIT from another channel eating a message in flight ---
+
+start_device init-clears.sock --wrong init-clears || exit 1
+
+v="$(verdict "$SOCK" init-keeps-other)"
+if [[ "$v" == "spec" ]]; then
+    fail "the suite catches a message eaten by another client's INIT" \
+         "a device that clears it was graded 'spec'"
+elif [[ "$v" == *vanished* ]]; then
+    pass "the suite catches a message eaten by another client's INIT: $v"
+else
+    fail "the suite catches a message eaten by another client's INIT" "caught it, but reported '$v'"
+fi
+
+stop_device
+
 echo
 [[ $FAILED -eq 0 ]] \
     && echo "PRE-FLIGHT ONLY: this says nothing about any board." \

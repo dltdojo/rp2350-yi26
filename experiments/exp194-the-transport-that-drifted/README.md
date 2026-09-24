@@ -111,6 +111,15 @@ it true.
 It is **the behaviour five firmwares agreed on and the specification requires**,
 which is a thing that could only be written after the table above existed.
 
+> **Corrected by [exp196](../exp196-the-init-from-another-channel/).** Not
+> quite: CTAP 2.1 and 2.2 §11.2.5.1 refuse every other channel while the device
+> is busy, and neither has an exception for a broadcast INIT — so answering it,
+> which `busy-recovers` grades as `spec`, is a choice this repository made on
+> the measurement above rather than something the text requires. And the crate
+> first answered it by clearing the message another client had in flight;
+> exp196's `init-keeps-other` is the question this table stopped one step short
+> of.
+
 The shape that made it testable is one decision: `Transaction::feed` takes the
 clock as a `u64` of milliseconds rather than reaching for `Instant`. With that,
 deciding what an arriving packet means needs no board:

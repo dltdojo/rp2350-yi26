@@ -1,0 +1,18 @@
+[package]
+name = "exp196-replay"
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "TLC's counterexamples, replayed against crates/ctap-hid before and after exp196"
+publish = false
+
+# Step 3 and step 4 of the method, side by side and permanently re-runnable:
+# the same scenario against the crate as it was on main before exp196 (pinned
+# by commit, fetched once) and against the crate in this tree. Each test asserts
+# BOTH — the bug is there before, and gone after — so it passes only while the
+# reproduction and the fix are both still true.
+[dev-dependencies]
+before = { package = "ctap-hid", git = "https://github.com/dltdojo/rp2350-yi26", rev = "fe5b2bbe76fff49401d3090e0fa03e80ecd96834" }
+after = { package = "ctap-hid", path = "../../../crates/ctap-hid" }
+
+[workspace]

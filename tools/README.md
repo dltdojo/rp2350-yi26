@@ -2,10 +2,11 @@
 
 Host-side programs. Everything here runs on your computer, not on the board.
 
-Two of them talk to the board, and they are for two different hosts (three
+Two of them talk to the board, and they are for two different hosts (four
 others touch no board at all: the build-time helper [`partimg`](#partimg), the
-conformance client [`ctaphid/`](./ctaphid/), and the device it can be pointed at
-instead of hardware, [`vctaphid`](#vctaphid)):
+conformance client [`ctaphid/`](./ctaphid/), the device it can be pointed at
+instead of hardware, [`vctaphid`](#vctaphid), and the model checker's wrapper,
+[`tlc/`](#tlc)):
 
 | | For a host with | Opened by |
 | --- | --- | --- |
@@ -458,3 +459,20 @@ Every verdict the client emits names its `transport`, so a socket result and a
 board result cannot be confused later. [`vctaphid/README.md`](./vctaphid/README.md)
 has the whole argument, including the deliberate wrong answer `selftest.sh`
 uses to prove the suite grades rather than describes.
+
+## `tlc/`
+
+The TLA+ model checker, the same way for every experiment that models
+something. `setup.sh` fetches TLC once and refuses it unless it matches a pinned
+sha256; `tlc.sh` runs every configuration in an experiment's `model/` directory
+and holds it to that directory's `expected.txt` (what TLC must say) and
+`cited.txt` (every line of code the model translates, re-read on each run).
+
+```sh
+tools/tlc/setup.sh                                  # once, needs the network
+tools/tlc/tlc.sh table experiments/exp195-*/model    # one line per configuration
+tools/tlc/tlc.sh trace experiments/exp195-*/model bc-tagged-AFreshFlashBelievesNothing
+```
+
+Needs Java 11 or later and no board. exp195 wrote it first; exp196 needed it
+second.

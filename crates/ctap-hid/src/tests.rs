@@ -45,13 +45,10 @@ fn cont_pkt(cid: Cid, seq: u8, payload: &[u8]) -> [u8; PACKET] {
 // -- init -----------------------------------------------------------------
 
 #[test]
-fn init_completes_and_carries_the_nonce() {
+fn init_is_answered_with_its_nonce_and_never_enters_the_buffer() {
     let mut t = Transaction::new();
-    assert_eq!(t.feed(&init_pkt(BROADCAST, CTAPHID_INIT, 8, &NONCE), 0), Action::Complete);
-    let (cid, cmd, data) = t.message();
-    assert_eq!(cid, BROADCAST);
-    assert_eq!(cmd, CTAPHID_INIT);
-    assert_eq!(data, &NONCE);
+    assert_eq!(t.feed(&init_pkt(BROADCAST, CTAPHID_INIT, 8, &NONCE), 0), Action::Init(BROADCAST, NONCE));
+    assert!(!t.busy(), "an INIT is one packet and holds nothing");
 }
 
 #[test]
@@ -159,10 +156,44 @@ fn broadcast_init_is_answered_while_another_channel_is_busy() {
     assert_eq!(t.feed(&init_pkt(A, CTAPHID_PING, 200, &[0; 57]), 0), Action::More);
     assert_eq!(
         t.feed(&init_pkt(BROADCAST, CTAPHID_INIT, 8, &NONCE), 10),
-        Action::Complete,
+        Action::Init(BROADCAST, NONCE),
         "a broadcast INIT during a busy transaction must be answered, not refused"
     );
-    assert_eq!(t.message().2, &NONCE);
+    assert!(t.busy() && t.cid() == A, "and answering it costs A nothing");
+}
+
+// -- exp196's H2 ----------------------------------------------------------
+//
+// TLC's counterexample, replayed: A sends the first packet of a message,
+// another client enumerates with a broadcast INIT, A sends the rest. Before
+// exp196 the INIT went through the message buffer and cleared it, and A's
+// continuation packets were ignored in silence.
+
+#[test]
+fn another_clients_init_does_not_silently_eat_a_message_in_flight() {
+    let payload: Vec<u8> = (0..200u32).map(|i| (i * 7) as u8).collect();
+    let mut packets: Vec<[u8; PACKET]> = Vec::new();
+    fragment(A, CTAPHID_PING, &payload, |p| packets.push(*p));
+
+    let mut t = Transaction::new();
+    assert_eq!(t.feed(&packets[0], 0), Action::More);
+    assert_eq!(t.feed(&init_pkt(BROADCAST, CTAPHID_INIT, 8, &NONCE), 5), Action::Init(BROADCAST, NONCE));
+    let mut last = Action::More;
+    for p in &packets[1..] {
+        last = t.feed(p, 10);
+    }
+    assert_eq!(last, Action::Complete, "A's message arrived whole");
+    assert_eq!(t.message(), (A, CTAPHID_PING, &payload[..]));
+}
+
+#[test]
+fn an_init_on_another_allocated_channel_leaves_the_message_alone_too() {
+    let mut t = Transaction::new();
+    assert_eq!(t.feed(&init_pkt(A, CTAPHID_PING, 200, &[0; 57]), 0), Action::More);
+    // §11.2.5.3 aborts a transaction on the SAME channel id. B's resync is
+    // B's business.
+    assert_eq!(t.feed(&init_pkt(B, CTAPHID_INIT, 8, &NONCE), 5), Action::Init(B, NONCE));
+    assert!(t.busy() && t.cid() == A);
 }
 
 // -- truncated ------------------------------------------------------------
@@ -214,6 +245,31 @@ fn another_channel_arriving_after_the_deadline_gets_the_free_channel() {
     assert_eq!(t.message().0, B);
 }
 
+// -- exp196's H1 ----------------------------------------------------------
+//
+// The test above said "that is A's business" — and before exp196 nobody
+// minded it: the expiry was computed, and the channel owed ERR_MSG_TIMEOUT was
+// dropped. The board's timer did not send it either, because by the time the
+// timer looked the transaction was already gone.
+
+#[test]
+fn an_expiry_decided_by_another_channels_packet_is_still_owed_to_its_channel() {
+    let mut t = Transaction::new();
+    t.feed(&init_pkt(A, CTAPHID_PING, 200, &[0; 57]), 0);
+    t.feed(&init_pkt(B, CTAPHID_PING, 8, &[7; 8]), TRANSACTION_TIMEOUT_MS);
+    assert_eq!(t.take_expired(), Some(A), "A is owed ERR_MSG_TIMEOUT");
+    assert_eq!(t.take_expired(), None, "once");
+    assert_eq!(t.expire(TRANSACTION_TIMEOUT_MS * 2), None, "and the timer has nothing left to find");
+}
+
+#[test]
+fn nothing_is_owed_when_the_late_packet_was_the_stale_channels_own() {
+    let mut t = Transaction::new();
+    t.feed(&init_pkt(A, CTAPHID_PING, 200, &[0; 57]), 0);
+    assert_eq!(t.feed(&cont_pkt(A, 0, &[0; 59]), TRANSACTION_TIMEOUT_MS), Action::Error(A, ERR_MSG_TIMEOUT));
+    assert_eq!(t.take_expired(), None, "it was told in the return value, not twice");
+}
+
 // -- unknown, bad-cid, stray-cont, init-resets ----------------------------
 
 #[test]
@@ -259,10 +315,12 @@ fn a_continuation_packet_from_another_channel_is_ignored() {
 fn init_on_a_busy_channel_resets_it_rather_than_refusing() {
     let mut t = Transaction::new();
     t.feed(&init_pkt(A, CTAPHID_PING, 200, &[0; 57]), 0);
-    assert_eq!(t.feed(&init_pkt(A, CTAPHID_INIT, 8, &NONCE), 0), Action::Complete);
-    let (cid, cmd, data) = t.message();
-    assert_eq!((cid, cmd), (A, CTAPHID_INIT));
-    assert_eq!(data, &NONCE, "and it is the new nonce, not the abandoned PING");
+    assert_eq!(
+        t.feed(&init_pkt(A, CTAPHID_INIT, 8, &NONCE), 0),
+        Action::Init(A, NONCE),
+        "answered with the new nonce, not the abandoned PING"
+    );
+    assert!(!t.busy(), "and its own INIT aborts its own transaction (§11.2.5.3)");
 }
 
 // -- fragmentation, which is the other half of reassembly -----------------

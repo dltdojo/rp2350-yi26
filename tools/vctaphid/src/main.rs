@@ -73,6 +73,9 @@ enum Wrong {
     Nothing,
     /// exp189's `bad-cid`: `ERR_INVALID_PAR` where `ERR_INVALID_CHANNEL` is due.
     BadCidPar,
+    /// `crates/ctap-hid` before exp196: an `INIT` from another channel throws
+    /// away the message in flight, and its owner is never told.
+    InitClears,
 }
 
 /// How long to block when nothing is in flight. Any large value: a transaction
@@ -92,6 +95,9 @@ fn usage() -> ! {
          \x20                    names ERR_INVALID_CHANNEL, the way exp194\n\
          \x20                    measured exp189 doing. For proving the suite\n\
          \x20                    grades rather than describes.\n\
+         --wrong init-clears  let an INIT from another channel throw away the\n\
+         \x20                    message in flight, the way crates/ctap-hid did\n\
+         \x20                    before exp196.\n\
          --once               serve one client and exit."
     );
     std::process::exit(2)
@@ -115,6 +121,7 @@ fn main() -> io::Result<()> {
             "--wrong" => {
                 wrong = match args.next().unwrap_or_else(|| usage()).as_str() {
                     "bad-cid-par" => Wrong::BadCidPar,
+                    "init-clears" => Wrong::InitClears,
                     _ => usage(),
                 }
             }
@@ -244,35 +251,45 @@ fn serve(
                     send(stream, cid, CTAPHID_ERROR, &[ERR_MSG_TIMEOUT])?;
                 }
             }
-            Got::Packet(pkt) => match transaction.feed(&pkt, now_ms()) {
-                Action::Ignore(_) | Action::More => {}
-                Action::Error(cid, code) => {
-                    let code = match (wrong, code) {
-                        (Wrong::BadCidPar, ERR_INVALID_CHANNEL) => ERR_INVALID_PAR,
-                        _ => code,
-                    };
-                    send(stream, cid, CTAPHID_ERROR, &[code])?
+            Got::Packet(pkt) => {
+                let was = (transaction.busy(), transaction.cid());
+                let action = transaction.feed(&pkt, now_ms());
+                if let Some(stale) = transaction.take_expired() {
+                    send(stream, stale, CTAPHID_ERROR, &[ERR_MSG_TIMEOUT])?;
                 }
-                Action::Complete => {
-                    let (cid, cmd, data) = transaction.message();
-                    if cmd == CTAPHID_INIT {
-                        let reply = init_reply(data, next_cid(counter), capabilities);
-                        transaction.clear();
+                match action {
+                    Action::Ignore(_) | Action::More => {}
+                    Action::Error(cid, code) => {
+                        let code = match (wrong, code) {
+                            (Wrong::BadCidPar, ERR_INVALID_CHANNEL) => ERR_INVALID_PAR,
+                            _ => code,
+                        };
+                        send(stream, cid, CTAPHID_ERROR, &[code])?
+                    }
+                    Action::Init(cid, nonce) => {
+                        // The wrong answer exp196 fixed, on request: an INIT from
+                        // another channel throwing away the message in flight.
+                        if wrong == Wrong::InitClears && was.0 && was.1 != cid {
+                            transaction.clear();
+                        }
+                        let reply = init_reply(&nonce, next_cid(counter), capabilities);
                         send(stream, cid, CTAPHID_INIT, &reply)?;
-                        continue;
                     }
-                    let n = data.len();
-                    body[..n].copy_from_slice(data);
-                    transaction.clear();
+                    Action::Complete => {
+                        let (cid, cmd, data) = transaction.message();
+                        let n = data.len();
+                        body[..n].copy_from_slice(data);
+                        transaction.clear();
 
-                    // The only three lines that are this program's own, and the
-                    // same three an experiment's `src/main.rs` keeps.
-                    match cmd {
-                        CTAPHID_PING => send(stream, cid, CTAPHID_PING, &body[..n])?,
-                        _ => send(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD])?,
+                        // The only three lines that are this program's own, and the
+                        // same three an experiment's `src/main.rs` keeps.
+                        match cmd {
+                            CTAPHID_PING => send(stream, cid, CTAPHID_PING, &body[..n])?,
+                            _ => send(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD])?,
+                        }
                     }
                 }
-            },
+            }
         }
     }
 }

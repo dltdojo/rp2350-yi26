@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every line of code the model translates: <path>:<line>|<a piece of that line>.
+# tools/tlc/tlc.sh cited re-reads each one.
+crates/ctap-hid/src/lib.rs:269|if let Some(stale) = self.expire(now_ms)
+crates/ctap-hid/src/lib.rs:275|self.expired = Some(stale)
+crates/ctap-hid/src/lib.rs:307|if cmd == CTAPHID_INIT {
+crates/ctap-hid/src/lib.rs:312|if self.active && self.cid == cid {
+crates/ctap-hid/src/lib.rs:320|return Action::Error(cid, ERR_CHANNEL_BUSY)
+crates/ctap-hid/src/lib.rs:339|a continuation packet with no transaction
+crates/ctap-hid/src/lib.rs:342|a continuation packet from another channel
+crates/ctap-hid/src/lib.rs:357|self.active = false; // whole
+crates/ctap-hid/src/board.rs:111|Either::Second(()) =>
+crates/ctap-hid/src/board.rs:124|self.transaction.take_expired()
