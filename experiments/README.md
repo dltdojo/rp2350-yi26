@@ -2587,3 +2587,71 @@ None of these is interrogated yet — a direction, not a schedule.
 Not on this road: attestation anybody should trust, a certificate, and any
 suggestion that this is a security key to use. It is a security key to
 understand.
+
+### The model road
+
+The authenticator road built things and measured them on a board. This road
+asks what can be found **before** the board: model the part of the code where
+the order of events decides the outcome, let a tool search every order, and
+bring what it finds back to the real code. It is the method
+[`docs/the-board-is-the-loop.md`](../docs/the-board-is-the-loop.md) was
+reaching for — a round that costs a second instead of a walk to a bench — and
+the [briefing that proposed it](../docs/2026-09-24-1020-model-round-briefing-zh-tw.md)
+has the argument.
+
+**Built, with their board halves still to run:**
+
+- [exp195](./exp195-the-bug-the-model-saw-first/) — the method calibrated on a
+  bug a board had already found, with one half predicted before it was run.
+- [exp196](./exp196-the-init-from-another-channel/) — the method on a protocol:
+  two silent losses in `crates/ctap-hid`.
+- [exp197](./exp197-the-counter-that-forgets/) — four copies of a PIN counter,
+  five mistakes, one crate, and a model of which attacker each design loses to.
+
+All three use **TLA+**: a model checker that walks every order of events inside
+stated bounds and prints the shortest path to a violation. That is the right
+tool for *finding* a bug, and it can only ever say "none inside these bounds".
+
+#### Next: exp198, a proof instead of a search
+
+**Lean** answers the other question. It does not search; it checks a proof, and a
+checked proof holds for every input, with no bounds at all. The first thing to
+prove is small, already tested, and already modelled, on purpose — the lesson is
+the kind of certainty, not a new finding:
+
+- **`crates/client-pin`: a failed attempt is never given back.** For every state
+  and every sequence of attempts without a correct PIN, the counter never
+  increases, and after `MAX_RETRIES` of them `begin` refuses. exp197's model
+  checked eight retries; the proof would cover any number, and any sequence
+  length.
+- A candidate second: `crates/ctap-hid`'s `fragment` and `feed` are inverses for
+  every message length up to `MAX_MESSAGE` — today a test samples seven lengths.
+
+The contradictions to settle in its interrogation, not assume:
+
+- **The proof is about a Lean function, not the Rust one.** It is the same
+  second-copy problem the TLA+ models have, and the same answer is available:
+  cite the Rust lines the Lean definition transcribes, and have `check.sh` re-read
+  them. A translator from Rust to Lean would remove the copy and add a large box
+  of magic; which is worth more to a reader is the experiment's call.
+- **The toolchain is heavier than a jar.** `elan` installs Lean the way `rustup`
+  installs Rust, and a proof about `u8` arithmetic may want a library on top.
+  How much it downloads is to be measured, not guessed — this road's first
+  prerequisite beyond Java.
+- **A proof can prove the wrong sentence.** exp195 found a fix verified against a
+  weaker property than the one written down; a proof is exactly as strong as its
+  statement. Each theorem quotes the sentence it formalises, as every property
+  on this road does.
+
+**Needs 0**: no board at all. The exercise writes itself — state the theorem
+from the crate's documentation, and watch the proof checker refuse the first
+wrong version.
+
+#### After it
+
+- **Persisting the PIN and its counter** — exp197's open P4. The model already
+  says what the design must be (`crateflash`: every property holds); what is
+  left is a flash layout whose write is atomic where the model assumed one.
+- **`credMgmt`'s authorization** — exp197 found exp188's and exp189's `credMgmt`
+  carrying on when `pinUvAuthParam` fails but a token exists. A model of who may
+  call what with which token is the natural first step.
