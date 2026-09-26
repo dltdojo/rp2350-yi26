@@ -2,11 +2,11 @@
 
 Host-side programs. Everything here runs on your computer, not on the board.
 
-Two of them talk to the board, and they are for two different hosts (four
+Two of them talk to the board, and they are for two different hosts (five
 others touch no board at all: the build-time helper [`partimg`](#partimg), the
 conformance client [`ctaphid/`](./ctaphid/), the device it can be pointed at
-instead of hardware, [`vctaphid`](#vctaphid), and the model checker's wrapper,
-[`tlc/`](#tlc)):
+instead of hardware, [`vctaphid`](#vctaphid), the model checker's wrapper,
+[`tlc/`](#tlc), and the proof checker's setup, [`lean/`](#lean)):
 
 | | For a host with | Opened by |
 | --- | --- | --- |
@@ -476,3 +476,21 @@ tools/tlc/tlc.sh trace experiments/exp195-*/model bc-tagged-AFreshFlashBelievesN
 
 Needs Java 11 or later and no board. exp195 wrote it first; exp196 needed it
 second.
+
+`tlc.sh cited` only reads text, so it runs without the jar: exp198 holds its
+Lean proof to the Rust it transcribes the same way.
+
+## `lean/`
+
+The Lean 4 proof checker, fetched once by `setup.sh` and refused unless the
+release matches a pinned sha256 — the way `tlc/` pins TLC.
+
+```sh
+tools/lean/setup.sh                                          # once, needs the network
+tools/lean/lean-4.34.0-linux/bin/lean experiments/exp198-*/proof/ClientPin.lean
+```
+
+It is not small: **580 MB** to download and **2.9 GB** unpacked, against TLC's
+2 MB, and there is no smaller official build. Unpacking needs `zstd`, or python3
+with `zstandard` where there is no `zstd` binary. No board. exp198 is its only
+caller; there is no `lean.sh` wrapper until a second one needs it.

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wrong versions of the crate, each written into the Lean transcription with
+# sed. check.sh requires Lean to REFUSE every one: a proof that still checks
+# after the rule it is about has been deleted is not about that rule.
+#
+# <finding>|<what the wrong version does>|<sed expression>
+P2|begin lets the attempt through without paying for it|s/  else .ok { s with retries := s.retries - 1 }/  else .ok s/
+P2|a mismatch refills the counter instead of keeping it|s/    let s' := { s with consecutive := s.consecutive + 1 }/    let s' := { s with retries := MAX_RETRIES, consecutive := s.consecutive + 1 }/
+P3|begin forgets the three-in-a-row limit|/  else if MAX_CONSECUTIVE ≤ s.consecutive then .error .authBlocked/d
+P1|setPIN stops refusing a device that has a PIN|s/  if s.set then none/  if false then none/
