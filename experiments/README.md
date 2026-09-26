@@ -104,6 +104,7 @@ Per experiment:
 | exp195 | **No board** for the model half: Java 11 or later, and the network once for `./setup.sh`, which fetches TLC and pins it by SHA-256. The board half needs any RP2350 board and **nobody**: it flashes exp190 twice with `yi26` and reads what the second build believes. |
 | exp196 | **No board** for the model, `replay/` and the socket half: Java 11 or later, and the network once — for TLC through `tools/tlc/setup.sh`, and for `replay/`'s copy of `crates/ctap-hid` pinned to the commit before this experiment. The board half needs any RP2350 board and **nobody**: it flashes exp194 and asks it two CTAP-HID questions over `/dev/hidraw`, neither of which reaches user presence. |
 | exp197 | **No board** for the model and the crate: Java 11 or later, and the network once for `tools/tlc/setup.sh`. The board half needs any RP2350 board and **nobody**: it flashes exp189 and asks it three clientPIN questions over `/dev/hidraw`, none of which waits for a person. Host side: `python3` with `cryptography`. |
+| exp198 | **No board at all**, and no USB anywhere in it. Needs `cargo` for the crate's tests and the network once for `tools/lean/setup.sh`, which fetches Lean 4.34.0 pinned by SHA-256: **580 MB, 2.9 GB unpacked**, and `zstd` or python3's `zstandard` to unpack it. After that it is offline, and the proof checks in under a second. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -487,7 +488,7 @@ awake — and because most of these experiments cost nothing.
 
 | | Means | Experiments |
 | --- | --- | --- |
-| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178 |
+| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
@@ -745,6 +746,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp195 | `cdc` | `log` | `cdc_acm` | `exp190` |
 | exp196 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp194` |
 | exp197 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
+| exp198 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -921,6 +923,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp195-the-bug-the-model-saw-first](./exp195-the-bug-the-model-saw-first/) | 1 · board | **A model checker finds in nine states the bug a board found on 2026-08-30 — and the one its fix left open.** Four crates are each right alone and wrong together: `breadcrumb` believes a same-tag note, `lifeline` holds its token while running, SCRATCH0 survives the 1200-baud touch — so a second flash of the same experiment believes the first, which exp190's own capture showed as `boot 4`. The tag fix was checked against a weaker property than the crate promises. Fixed in `crates/usb-reboot`; the blind half, usb-log's predictions committed before the model ran, got four verdicts right and the counterexample's shape wrong. **Board half not yet verified** |
 | [exp196-the-init-from-another-channel](./exp196-the-init-from-another-channel/) | 1 · board | **One client's INIT threw away another client's half-sent message, and told nobody — three states into a model of `crates/ctap-hid`, one step past where exp194's `busy-recovers` stopped.** With that fixed, the model found a second silent loss behind it: an expiry decided by another channel's packet and dropped. CTAP 2.1 and 2.2 §11.2.5.3 abort a transaction only on an INIT from the same channel, and §11.2.5.1 has no exception for a broadcast one — so answering it is this repository's choice, and the model shows what the literal reading would cost instead. `replay/` runs each counterexample against the crate before and after. **Board half not yet verified** |
 | [exp197-the-counter-that-forgets](./exp197-the-counter-that-forgets/) | 1 · board | **Four firmwares carried their own CTAP 2.1 PIN counter and made the same five mistakes: a second `setPIN` overwrote the owner's PIN, the counter was decremented after the compare, three wrong PINs in a row stopped nothing, three status codes were wrong, and it all lived in RAM.** `crates/client-pin` now holds it for exp186–exp189. The model shows which attacker each design loses to: the copies lose to malware in one step, the crate loses only to a person who unplugs the board, and persisting the counter in the copies' order would have made a guess free every third try. **Board half not yet verified** |
+| [exp198-a-proof-instead-of-a-search](./exp198-a-proof-instead-of-a-search/) | 0 · none | **`crates/client-pin`'s counter, proved rather than searched: a failed attempt is never given back, for any starting counter and any sequence of wrong guesses, power cycles and refused `setPIN`s of any length.** exp197's model checked eight retries; five theorems in Lean cover every number, rest on Lean's own axioms and nothing assumed, and four wrong versions of the crate — one per finding they are about — are each refused. The Lean is a transcription, held to sixteen cited Rust lines |
 
 ## The browser track, finished
 
@@ -2612,40 +2615,34 @@ All three use **TLA+**: a model checker that walks every order of events inside
 stated bounds and prints the shortest path to a violation. That is the right
 tool for *finding* a bug, and it can only ever say "none inside these bounds".
 
-#### Next: exp198, a proof instead of a search
+**Built, with nothing left to run:**
 
-**Lean** answers the other question. It does not search; it checks a proof, and a
-checked proof holds for every input, with no bounds at all. The first thing to
-prove is small, already tested, and already modelled, on purpose — the lesson is
-the kind of certainty, not a new finding:
+- [exp198](./exp198-a-proof-instead-of-a-search/) — the other question, in
+  **Lean**. It does not search; it checks a proof, and a checked proof holds for
+  every input with no bounds at all. The subject was chosen small, already
+  tested and already modelled, on purpose — the lesson is the kind of
+  certainty, not a new finding: `crates/client-pin` never gives a failed
+  attempt back, for any counter and any sequence of any length.
 
-- **`crates/client-pin`: a failed attempt is never given back.** For every state
-  and every sequence of attempts without a correct PIN, the counter never
-  increases, and after `MAX_RETRIES` of them `begin` refuses. exp197's model
-  checked eight retries; the proof would cover any number, and any sequence
-  length.
-- A candidate second: `crates/ctap-hid`'s `fragment` and `feed` are inverses for
-  every message length up to `MAX_MESSAGE` — today a test samples seven lengths.
+The three contradictions its interrogation had to settle, and what they
+settled to:
 
-The contradictions to settle in its interrogation, not assume:
+- **The proof is about a Lean function, not the Rust one.** Answered the way the
+  TLA+ models answer it: the Lean transcribes, `proof/cited.txt` names the
+  sixteen Rust lines it transcribes, and `check.sh` re-reads them. A translator
+  from Rust to Lean was not used; the copy is small enough to read beside the
+  crate, and a translator is a large box to trust.
+- **The toolchain is heavier than a jar** — measured, not guessed: 580 MB to
+  download, 2.9 GB unpacked, against TLC's 2 MB. No library on top was needed:
+  the proof stays in `Nat` and says so, where the crate has `u8`.
+- **A proof can prove the wrong sentence.** Each theorem quotes the sentence it
+  formalises, one theorem shows a hypothesis is needed rather than decorative,
+  and four wrong versions of the crate must each be refused by the checker —
+  the proof's equivalent of exp196's `--wrong`.
 
-- **The proof is about a Lean function, not the Rust one.** It is the same
-  second-copy problem the TLA+ models have, and the same answer is available:
-  cite the Rust lines the Lean definition transcribes, and have `check.sh` re-read
-  them. A translator from Rust to Lean would remove the copy and add a large box
-  of magic; which is worth more to a reader is the experiment's call.
-- **The toolchain is heavier than a jar.** `elan` installs Lean the way `rustup`
-  installs Rust, and a proof about `u8` arithmetic may want a library on top.
-  How much it downloads is to be measured, not guessed — this road's first
-  prerequisite beyond Java.
-- **A proof can prove the wrong sentence.** exp195 found a fix verified against a
-  weaker property than the one written down; a proof is exactly as strong as its
-  statement. Each theorem quotes the sentence it formalises, as every property
-  on this road does.
-
-**Needs 0**: no board at all. The exercise writes itself — state the theorem
-from the crate's documentation, and watch the proof checker refuse the first
-wrong version.
+**A candidate next**, not yet scheduled: `crates/ctap-hid`'s `fragment` and
+`feed` are inverses for every message length up to `MAX_MESSAGE` — today a test
+samples seven lengths.
 
 #### After it
 

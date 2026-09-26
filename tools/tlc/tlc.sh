@@ -33,7 +33,9 @@ JAR="$HERE/tla2tools.jar"
 mode="${1-}"; dir="${2-}"
 [[ -n "$mode" && -d "$dir" ]] || { sed -n '3,24p' "${BASH_SOURCE[0]}"; exit 2; }
 dir="$(cd "$dir" && pwd)"
-[[ -f "$JAR" ]] || { echo "FAIL  tla2tools.jar is fetched — run tools/tlc/setup.sh (it needs the network once)"; exit 1; }
+# `cited` only reads text, so it runs without the jar — exp198 re-reads its
+# citations this way and has no TLA+ model at all.
+[[ "$mode" == cited || -f "$JAR" ]] || { echo "FAIL  tla2tools.jar is fetched — run tools/tlc/setup.sh (it needs the network once)"; exit 1; }
 
 run_tlc() { # module config
     ( cd "$dir" && java -cp "$JAR" tlc2.TLC -deadlock -workers 1 -config "$2.cfg" \
@@ -86,8 +88,8 @@ case "$mode" in
             [[ -z "$where" || "$where" == \#* ]] && continue
             file="${where%:*}"; line="${where##*:}"
             got="$(sed -n "${line}p" "$ROOT/$file" 2>/dev/null)"
-            if [[ "$got" == *"$want"* ]]; then echo "PASS  the model's citation $where is still: $want"
-            else echo "FAIL  the model's citation $where still holds — line $line of $file is now: ${got:-missing}"; status=1; fi
+            if [[ "$got" == *"$want"* ]]; then echo "PASS  the citation $where is still: $want"
+            else echo "FAIL  the citation $where still holds — line $line of $file is now: ${got:-missing}"; status=1; fi
         done < "$dir/cited.txt"
         exit "$status";;
     parse)

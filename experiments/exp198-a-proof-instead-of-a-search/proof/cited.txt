@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every line of Rust that ClientPin.lean transcribes: <path>:<line>|<a piece of
+# that line>. tools/tlc/tlc.sh cited re-reads each one, so a crate that changes
+# under the proof turns check.sh red instead of leaving a proof about code that
+# no longer exists.
+#
+# pay  <- PinState::begin
+crates/client-pin/src/lib.rs:213|pub fn begin(&mut self) -> Result<Attempt<'_>, Refused>
+crates/client-pin/src/lib.rs:214|if !self.set {
+crates/client-pin/src/lib.rs:217|if self.retries == 0 {
+crates/client-pin/src/lib.rs:220|if self.consecutive >= MAX_CONSECUTIVE {
+crates/client-pin/src/lib.rs:223|self.retries -= 1;
+# judge <- judge and miss
+crates/client-pin/src/lib.rs:267|fn judge(state: &mut PinState, presented: &PinHash) -> Verdict {
+crates/client-pin/src/lib.rs:269|state.retries = MAX_RETRIES;
+crates/client-pin/src/lib.rs:270|state.consecutive = 0;
+crates/client-pin/src/lib.rs:277|state.consecutive = state.consecutive.saturating_add(1);
+crates/client-pin/src/lib.rs:280|if state.retries == 0 {
+crates/client-pin/src/lib.rs:282|} else if state.consecutive >= MAX_CONSECUTIVE {
+# setPin <- PinState::set_pin
+crates/client-pin/src/lib.rs:194|if self.set {
+crates/client-pin/src/lib.rs:199|self.retries = MAX_RETRIES;
+# powerCycle <- PinState::power_cycle
+crates/client-pin/src/lib.rs:188|self.consecutive = 0;
+# the constants
+crates/client-pin/src/lib.rs:63|pub const MAX_RETRIES: u8 = 8;
+crates/client-pin/src/lib.rs:66|pub const MAX_CONSECUTIVE: u8 = 3;
