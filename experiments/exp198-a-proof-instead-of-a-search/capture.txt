@@ -1,0 +1,18 @@
+=== exp198 — a proof instead of a search ===
+recorded at 2026-09-26T01:48:54Z from commit ddd8557
+
+>>> the proof: every theorem, and what it rests on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'ClientPin.never_given_back' depends on axioms: [propext, Quot.sound]
+'ClientPin.guesses_bounded' depends on axioms: [propext, Quot.sound]
+'ClientPin.malware_stops_at_three' depends on axioms: [propext, Quot.sound]
+'ClientPin.a_power_cycle_is_what_lifts_the_limit' depends on axioms: [propext]
+'ClientPin.old_design_replaces_the_pin' does not depend on any axioms
+exit 0
+
+>>> the wrong versions: each must be refused
+P2  begin lets the attempt through without paying for it   refused in pay_ok
+P2  a mismatch refills the counter instead of keeping it   refused in judge_wrong
+P3  begin forgets the three-in-a-row limit                 refused in pay_ok
+P1  setPIN stops refusing a device that has a PIN          refused in setPin_refused_when_set
