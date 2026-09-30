@@ -40,7 +40,7 @@ crate_test ../../crates/client-pin "crates/client-pin's tests pass, P1-P5 each a
 # --- the four firmwares are on the crate, and the old answers are gone ----
 for e in exp186 exp187 exp188 exp189; do
     src="$(ls ../$e-*/src/main.rs)"
-    if grep -q 'use client_pin::PinState;' "$src" && ! grep -q 'retries_remaining' "$src"; then
+    if grep -qE 'use client_pin::(PinState|\{[^}]*PinState[^}]*\});' "$src" && ! grep -q 'retries_remaining' "$src"; then
         pass "$e keeps no PIN counter of its own"
     else
         fail "$e uses crates/client-pin" "$src still has its own PinState or counter"

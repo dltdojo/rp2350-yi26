@@ -261,13 +261,18 @@ def main():
     # 3. Built-in Gesture UV Token Issuance (subCommand 0x06)
     uv_token_req = bytearray()
     uv_token_req.append(0x06)
-    uv_token_req.append(0xa3)
+    uv_token_req.append(0xa5)
     uv_token_req.extend(cbor_encode_uint(1))
     uv_token_req.extend(cbor_encode_uint(1))
     uv_token_req.extend(cbor_encode_uint(2))
-    uv_token_req.extend(cbor_encode_uint(6)) # getPinUvAuthTokenUsingUv
+    uv_token_req.extend(cbor_encode_uint(6)) # getPinUvAuthTokenUsingUvWithPermissions
     uv_token_req.extend(cbor_encode_uint(3))
     uv_token_req.extend(cbor_encode_cose_key(host_x, host_y))
+    # permissions are mandatory here, and mc needs its rpId (CTAP 2.1; exp200)
+    uv_token_req.extend(cbor_encode_uint(9))
+    uv_token_req.extend(cbor_encode_uint(0x03)) # mc | ga
+    uv_token_req.extend(cbor_encode_uint(10))
+    uv_token_req.extend(cbor_encode_text("example.com"))
 
     link.send_message(cid, 0x10, bytes(uv_token_req))
     uv_token_resp = link.read_message(2.0)

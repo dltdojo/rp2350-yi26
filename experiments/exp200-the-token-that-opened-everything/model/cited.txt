@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every line of code the model translates: <path>:<line>|<a piece of that line>.
+# tools/tlc/tlc.sh cited re-reads each one.
+#
+# RejectsBadParam (C1): no parameter, then one that does not verify
+crates/client-pin/src/lib.rs:387|let param = param.ok_or(Denied::PuatRequired)?;
+crates/client-pin/src/lib.rs:389|if param.len() != 16 || !ct_eq(&authenticate(&grant.token, message), param) {
+# BindsParams (C2): the MAC is over subCommand || subCommandParams as they arrived
+experiments/exp188-the-passkey-in-the-pocket/src/main.rs:1680|let params_start = r.position();
+experiments/exp188-the-passkey-in-the-pocket/src/main.rs:1713|params_raw = Some(&body[params_start..r.position()]);
+experiments/exp188-the-passkey-in-the-pocket/src/main.rs:1759|pin_state.authorize(permission::CM, scope, &[&sub_byte, params_raw.unwrap_or(&[])], pin_auth)
+experiments/exp189-the-same-salt-twice/src/main.rs:1943|let params_start = r.position();
+experiments/exp189-the-same-salt-twice/src/main.rs:1976|params_raw = Some(&body[params_start..r.position()]);
+experiments/exp189-the-same-salt-twice/src/main.rs:2022|pin_state.authorize(permission::CM, scope, &[&sub_byte, params_raw.unwrap_or(&[])], pin_auth)
+# ChecksPermissions (C3): getPinToken's token is mc|ga, cm must be asked for
+crates/client-pin/src/lib.rs:121|pub const DEFAULT: u8 = MC | GA;
+crates/client-pin/src/lib.rs:392|if grant.permissions & needs != needs {
+experiments/exp189-the-same-salt-twice/src/main.rs:1800|Some(0x05) | Some(0x09) => {
+experiments/exp189-the-same-salt-twice/src/main.rs:1810|permission::DEFAULT
+# One token at a time: issuing replaces the last
+crates/client-pin/src/lib.rs:362|self.grant = Some(Grant { token, permissions, rp });

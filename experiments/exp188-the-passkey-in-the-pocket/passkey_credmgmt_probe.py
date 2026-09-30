@@ -6,7 +6,7 @@ exp188 - Discoverable Credentials (Passkey rk) & Credential Management (credMgmt
 
 Tests:
 1. getInfo: verifies rk: true, credMgmt: true, uv: true
-2. setPIN ("123456") & getPinToken -> derives 32B pinUvAuthToken
+2. setPIN ("123456"), then a token per job: cm through 0x09, mc|ga through getPinToken (exp200)
 3. credMgmt getCredsMetadata (0x01) -> existing: 0, remaining: 16
 4. makeCredential with options: { rk: true } -> registers Alice's resident passkey
 5. credMgmt getCredsMetadata -> existing: 1, remaining: 15
@@ -239,30 +239,40 @@ def main():
     set_resp = link.read_message(2.0)
     set_pin_ok = (set_resp is not None and set_resp[0] == CTAP2_OK)
 
-    # 3. getPinToken ("123456") to get pinUvAuthToken
+    # 3. A token for each job, as CTAP 2.1 has it (exp200): getPinToken's
+    # carries only mc and ga, so managing credentials needs a token asked for
+    # with the cm permission through getPinUvAuthTokenUsingPinWithPermissions
+    # (0x09). Each new token invalidates the last, so the probe asks again
+    # before each phase.
     good_pin_hash = hashlib.sha256(b"123456").digest()[:16]
     good_pin_enc = aes_cbc_encrypt(shared_secret, b"\x00" * 16, good_pin_hash)
 
-    token_req = bytearray()
-    token_req.append(0x06)
-    token_req.append(0xa4)
-    token_req.extend(cbor_encode_uint(1))
-    token_req.extend(cbor_encode_uint(1))
-    token_req.extend(cbor_encode_uint(2))
-    token_req.extend(cbor_encode_uint(5)) # getPinToken
-    token_req.extend(cbor_encode_uint(3))
-    token_req.extend(cbor_encode_cose_key(host_x, host_y))
-    token_req.extend(cbor_encode_uint(6))
-    token_req.extend(cbor_encode_bytes(good_pin_enc))
+    def request_token(cm):
+        token_req = bytearray()
+        token_req.append(0x06)
+        token_req.append(0xa5 if cm else 0xa4)
+        token_req.extend(cbor_encode_uint(1))
+        token_req.extend(cbor_encode_uint(1))
+        token_req.extend(cbor_encode_uint(2))
+        token_req.extend(cbor_encode_uint(9 if cm else 5)) # ...WithPermissions, or getPinToken
+        token_req.extend(cbor_encode_uint(3))
+        token_req.extend(cbor_encode_cose_key(host_x, host_y))
+        token_req.extend(cbor_encode_uint(6))
+        token_req.extend(cbor_encode_bytes(good_pin_enc))
+        if cm:
+            token_req.extend(cbor_encode_uint(9))
+            token_req.extend(cbor_encode_uint(0x04)) # permissions: cm, no rpId
+        link.send_message(cid, 0x10, bytes(token_req))
+        token_resp = link.read_message(2.0)
+        if token_resp and token_resp[0] == CTAP2_OK:
+            idx_tok = token_resp.find(b"\x02\x58\x20")
+            if idx_tok != -1:
+                enc_tok = token_resp[idx_tok + 3:idx_tok + 3 + 32]
+                return aes_cbc_decrypt(shared_secret, b"\x00" * 16, enc_tok)
+        return None
 
-    link.send_message(cid, 0x10, bytes(token_req))
-    token_resp = link.read_message(2.0)
-    pin_uv_auth_token = None
-    if token_resp and token_resp[0] == CTAP2_OK:
-        idx_tok = token_resp.find(b"\x02\x58\x20")
-        if idx_tok != -1:
-            enc_tok = token_resp[idx_tok + 3:idx_tok + 3 + 32]
-            pin_uv_auth_token = aes_cbc_decrypt(shared_secret, b"\x00" * 16, enc_tok)
+    cm_token = request_token(cm=True)
+    pin_uv_auth_token = cm_token
 
     # 4. credMgmt: getCredsMetadata (0x01) initial -> should be existing: 0, remaining: 16
     mgmt_req_1 = bytearray()
@@ -273,7 +283,7 @@ def main():
     mgmt_req_1.extend(cbor_encode_uint(3))
     mgmt_req_1.extend(cbor_encode_uint(1)) # pinUvAuthProtocol: 1
     mgmt_req_1.extend(cbor_encode_uint(4))
-    mgmt_auth_1 = hmac_sha256(pin_uv_auth_token, bytes([1]))[:16] if pin_uv_auth_token else b"\x00" * 16
+    mgmt_auth_1 = hmac_sha256(cm_token, bytes([1]))[:16] if cm_token else b"\x00" * 16
     mgmt_req_1.extend(cbor_encode_bytes(mgmt_auth_1))
 
     link.send_message(cid, 0x10, bytes(mgmt_req_1))
@@ -289,6 +299,7 @@ def main():
             initial_remaining = mgmt_resp_1[idx_r + 1]
 
     # 5. makeCredential with options: { "rk": true } (Passkey registration for Alice)
+    pin_uv_auth_token = request_token(cm=False)
     client_data_hash = hashlib.sha256(b"exp188-passkey-reg-alice").digest()
     pin_uv_auth_param = hmac_sha256(pin_uv_auth_token, client_data_hash)[:16] if pin_uv_auth_token else b"\x00" * 16
 
@@ -333,6 +344,8 @@ def main():
             alice_cred_id = ad[55:55 + 48]
 
     # 6. credMgmt: getCredsMetadata after registration -> should be existing: 1, remaining: 15
+    cm_token = request_token(cm=True)
+    mgmt_req_1 = mgmt_req_1[:-16] + (hmac_sha256(cm_token, bytes([1]))[:16] if cm_token else b"\x00" * 16)
     link.send_message(cid, 0x10, bytes(mgmt_req_1))
     mgmt_resp_2 = link.read_message(2.0)
     post_reg_existing = None
@@ -345,6 +358,7 @@ def main():
             post_reg_remaining = mgmt_resp_2[idx_r + 1]
 
     # 7. 1-Click Passkey Assertion: getAssertion with EMPTY allowList (allow: [])
+    pin_uv_auth_token = request_token(cm=False)
     assert_client_data_hash = hashlib.sha256(b"exp188-passkey-1click-assert").digest()
     assert_uv_param = hmac_sha256(pin_uv_auth_token, assert_client_data_hash)[:16] if pin_uv_auth_token else b"\x00" * 16
 
@@ -371,6 +385,8 @@ def main():
             returned_cred_id_matches = True
 
     # 8. credMgmt: enumerateRPsBegin (0x02)
+    cm_token = request_token(cm=True)
+    mgmt_req_1 = mgmt_req_1[:-16] + (hmac_sha256(cm_token, bytes([1]))[:16] if cm_token else b"\x00" * 16)
     mgmt_req_enum_rp = bytearray()
     mgmt_req_enum_rp.append(0x0a)
     mgmt_req_enum_rp.append(0xa3)
@@ -379,7 +395,7 @@ def main():
     mgmt_req_enum_rp.extend(cbor_encode_uint(3))
     mgmt_req_enum_rp.extend(cbor_encode_uint(1))
     mgmt_req_enum_rp.extend(cbor_encode_uint(4))
-    mgmt_auth_2 = hmac_sha256(pin_uv_auth_token, bytes([2]))[:16] if pin_uv_auth_token else b"\x00" * 16
+    mgmt_auth_2 = hmac_sha256(cm_token, bytes([2]))[:16] if cm_token else b"\x00" * 16
     mgmt_req_enum_rp.extend(cbor_encode_bytes(mgmt_auth_2))
 
     link.send_message(cid, 0x10, bytes(mgmt_req_enum_rp))
@@ -394,13 +410,13 @@ def main():
     mgmt_req_enum_cred.extend(cbor_encode_uint(1))
     mgmt_req_enum_cred.extend(cbor_encode_uint(4)) # subCommand: 4 (enumerateCredentialsBegin)
     mgmt_req_enum_cred.extend(cbor_encode_uint(2)) # subCommandParams map
-    mgmt_req_enum_cred.extend(bytes([0xa1]))
-    mgmt_req_enum_cred.extend(cbor_encode_uint(1)) # 0x01: rpIDHash
-    mgmt_req_enum_cred.extend(cbor_encode_bytes(rp_hash))
+    enum_params = bytes([0xa1]) + cbor_encode_uint(1) + cbor_encode_bytes(rp_hash) # 0x01: rpIDHash
+    mgmt_req_enum_cred.extend(enum_params)
     mgmt_req_enum_cred.extend(cbor_encode_uint(3))
     mgmt_req_enum_cred.extend(cbor_encode_uint(1))
     mgmt_req_enum_cred.extend(cbor_encode_uint(4))
-    mgmt_auth_4 = hmac_sha256(pin_uv_auth_token, bytes([4]))[:16] if pin_uv_auth_token else b"\x00" * 16
+    # The MAC covers subCommand || subCommandParams, not the byte alone (exp200).
+    mgmt_auth_4 = hmac_sha256(cm_token, bytes([4]) + enum_params)[:16] if cm_token else b"\x00" * 16
     mgmt_req_enum_cred.extend(cbor_encode_bytes(mgmt_auth_4))
 
     link.send_message(cid, 0x10, bytes(mgmt_req_enum_cred))
@@ -414,17 +430,15 @@ def main():
     mgmt_req_del.extend(cbor_encode_uint(1))
     mgmt_req_del.extend(cbor_encode_uint(6)) # subCommand: 6 (deleteCredential)
     mgmt_req_del.extend(cbor_encode_uint(2)) # subCommandParams map
-    mgmt_req_del.extend(bytes([0xa1]))
-    mgmt_req_del.extend(cbor_encode_uint(2)) # 0x02: credentialId map
-    mgmt_req_del.extend(bytes([0xa2]))
-    mgmt_req_del.extend(cbor_encode_text("id"))
-    mgmt_req_del.extend(cbor_encode_bytes(alice_cred_id if alice_cred_id else b"\x00" * 48))
-    mgmt_req_del.extend(cbor_encode_text("type"))
-    mgmt_req_del.extend(cbor_encode_text("public-key"))
+    del_params = (bytes([0xa1]) + cbor_encode_uint(2) # 0x02: credentialId map
+                  + bytes([0xa2])
+                  + cbor_encode_text("id") + cbor_encode_bytes(alice_cred_id if alice_cred_id else b"\x00" * 48)
+                  + cbor_encode_text("type") + cbor_encode_text("public-key"))
+    mgmt_req_del.extend(del_params)
     mgmt_req_del.extend(cbor_encode_uint(3))
     mgmt_req_del.extend(cbor_encode_uint(1))
     mgmt_req_del.extend(cbor_encode_uint(4))
-    mgmt_auth_6 = hmac_sha256(pin_uv_auth_token, bytes([6]))[:16] if pin_uv_auth_token else b"\x00" * 16
+    mgmt_auth_6 = hmac_sha256(cm_token, bytes([6]) + del_params)[:16] if cm_token else b"\x00" * 16
     mgmt_req_del.extend(cbor_encode_bytes(mgmt_auth_6))
 
     link.send_message(cid, 0x10, bytes(mgmt_req_del))

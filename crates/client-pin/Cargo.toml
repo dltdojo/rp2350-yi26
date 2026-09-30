@@ -3,11 +3,14 @@ name = "client-pin"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "CTAP 2.1 clientPIN's retry counter as a state machine: decrement before compare, refuse a second setPIN, and stop after three consecutive mismatches"
+description = "CTAP 2.1 clientPIN as decisions: the retry counter (decrement before compare, refuse a second setPIN, stop after three consecutive mismatches) and what a pinUvAuthToken may authorize"
 
-# No dependencies, on purpose: this is the decision, and a decision `cargo test`
-# can interrogate on a machine with no board. Hashing, key agreement and the
-# wire stay with the firmware.
+# This is the decision, and a decision `cargo test` can interrogate on a machine
+# with no board. Key agreement and the wire stay with the firmware. The HMAC
+# does not: exp200 found the firmware MACing the wrong message, so the MAC is
+# computed beside the decision that relies on it.
 [dependencies]
+sha2 = { version = "0.10", default-features = false }
+hmac = { version = "0.12", default-features = false }
 
 [workspace]

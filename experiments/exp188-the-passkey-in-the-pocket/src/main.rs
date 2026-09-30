@@ -366,7 +366,11 @@ impl ResidentStore {
 }
 
 // The PIN, its counter and its token: crates/client-pin, extracted by exp197.
-use client_pin::PinState;
+use client_pin::{check_permissions, permission, PinState, Scope};
+
+/// The permissions a token may be issued with here — mc and ga, and cm because getInfo says credMgmt: true.
+/// crates/client-pin refuses anything else before a PIN attempt is spent.
+const OFFERED_PERMISSIONS: u8 = permission::DEFAULT | permission::CM;
 
 struct Built {
     response: usize,
@@ -1062,30 +1066,6 @@ fn verify_pin_auth(
     &full[..16] == pin_auth
 }
 
-/// Verify pinUvAuthParam against active pinUvAuthToken:
-/// HMAC-SHA256(token, clientDataHash)[0..16] == pinUvAuthParam
-fn verify_pin_uv_auth_token(
-    active_token: Option<&[u8; 32]>,
-    client_data_hash: &[u8],
-    param: Option<&[u8]>,
-) -> bool {
-    let token = match active_token {
-        Some(t) => t,
-        None => return false,
-    };
-    let pin_auth = match param {
-        Some(p) if p.len() >= 16 => &p[..16],
-        _ => return false,
-    };
-    let mut mac = match <SimpleHmac<Sha256> as KeyInit>::new_from_slice(token) {
-        Ok(m) => m,
-        Err(_) => return false,
-    };
-    mac.update(client_data_hash);
-    let full = mac.finalize().into_bytes();
-    &full[..16] == pin_auth
-}
-
 #[embassy_executor::task]
 async fn usb_task(mut device: UsbDevice<'static, Driver<'static, USB>>) -> ! {
     device.run().await
@@ -1401,6 +1381,8 @@ async fn ctaphid_task(
                                 let mut pin_auth: Option<[u8; 16]> = None;
                                 let mut new_pin_enc: Option<&[u8]> = None;
                                 let mut pin_hash_enc: Option<&[u8]> = None;
+                                let mut permissions: Option<u64> = None;
+                                let mut perm_rp_id: Option<&str> = None;
 
                                 if let Ok(pairs) = r.map_header() {
                                     for _ in 0..pairs {
@@ -1432,6 +1414,8 @@ async fn ctaphid_task(
                                                         pin_hash_enc = Some(b);
                                                     }
                                                 }
+                                                0x09 => if let Ok(Item::Uint(p)) = r.next() { permissions = Some(p); },
+                                                0x0A => if let Ok(Item::Text(t)) = r.next() { perm_rp_id = Some(t); },
                                                 _ => { let _ = r.skip(); }
                                             }
                                         }
@@ -1550,7 +1534,23 @@ async fn ctaphid_task(
                                             send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
-                                    Some(0x05) => {
+                                    Some(0x05) | Some(0x09) => {
+                                        // What this token may do, decided before anything is spent: getPinToken
+                                        // gets mc|ga, the ...WithPermissions subcommands ask. crates/client-pin.
+                                        let granted = if sub_cmd == Some(0x09) {
+                                            let asked = match permissions { Some(p) => (p & 0xff) as u8, None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; } };
+                                            match check_permissions(asked, perm_rp_id.is_some(), OFFERED_PERMISSIONS) {
+                                                Ok(g) => g,
+                                                Err(e) => { send(&mut writer, cid, CTAPHID_CBOR, &[e.code()]).await; continue; }
+                                            }
+                                        } else {
+                                            permission::DEFAULT
+                                        };
+                                        let perm_rp: Option<[u8; 32]> = if sub_cmd == Some(0x09) {
+                                            perm_rp_id.map(|id| Sha256::digest(id.as_bytes()).into())
+                                        } else {
+                                            None
+                                        };
                                         // getPinToken (0x05)
                                         if !pin_state.is_set() {
                                             send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PIN_NOT_SET]).await;
@@ -1592,7 +1592,7 @@ async fn ctaphid_task(
                                         }
                                         let mut token = [0u8; 32];
                                         trng.blocking_fill_bytes(&mut token);
-                                        pin_state.active_token = Some(token);
+                                        pin_state.issue(token, granted, perm_rp);
 
                                         let mut token_enc = [0u8; 32];
                                         encrypt_pin_payload(&shared_secret, &token, &mut token_enc).unwrap();
@@ -1609,6 +1609,14 @@ async fn ctaphid_task(
                                         }
                                     }
                                     Some(0x06) => {
+                                        // What this token may do, decided before anything is spent: getPinToken
+                                        // gets mc|ga, the ...WithPermissions subcommands ask. crates/client-pin.
+                                        let asked = match permissions { Some(p) => (p & 0xff) as u8, None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; } };
+                                        let granted = match check_permissions(asked, perm_rp_id.is_some(), OFFERED_PERMISSIONS) {
+                                            Ok(g) => g,
+                                            Err(e) => { send(&mut writer, cid, CTAPHID_CBOR, &[e.code()]).await; continue; }
+                                        };
+                                        let perm_rp: Option<[u8; 32]> = perm_rp_id.map(|id| Sha256::digest(id.as_bytes()).into());
                                         // getPinUvAuthTokenUsingUv (0x06)
                                         let (peer_x, peer_y) = match peer_key {
                                             Some(k) => k,
@@ -1629,7 +1637,7 @@ async fn ctaphid_task(
 
                                         let mut token = [0u8; 32];
                                         trng.blocking_fill_bytes(&mut token);
-                                        pin_state.active_token = Some(token);
+                                        pin_state.issue(token, granted, perm_rp);
 
                                         let mut token_enc = [0u8; 32];
                                         encrypt_pin_payload(&shared_secret, &token, &mut token_enc).unwrap();
@@ -1659,6 +1667,8 @@ async fn ctaphid_task(
                                 let mut pin_auth: Option<&[u8]> = None;
                                 let mut rp_id_hash: Option<[u8; 32]> = None;
                                 let mut target_cred_id: Option<&[u8]> = None;
+                                // subCommandParams exactly as they arrived: the MAC covers them.
+                                let mut params_raw: Option<&[u8]> = None;
 
                                 if let Ok(pairs) = r.map_header() {
                                     for _ in 0..pairs {
@@ -1667,6 +1677,7 @@ async fn ctaphid_task(
                                                 0x01 => if let Ok(Item::Uint(s)) = r.next() { sub_cmd = Some(s); },
                                                 0x02 => {
                                                     // subCommandParams map
+                                                    let params_start = r.position();
                                                     if let Ok(p_len) = r.map_header() {
                                                         for _ in 0..p_len {
                                                             if let Ok(Item::Uint(pk)) = r.next() {
@@ -1699,6 +1710,7 @@ async fn ctaphid_task(
                                                             }
                                                         }
                                                     }
+                                                    params_raw = Some(&body[params_start..r.position()]);
                                                 }
                                                 0x03 => if let Ok(Item::Uint(p)) = r.next() { pin_proto = Some(p); },
                                                 0x04 => if let Ok(Item::Bytes(b)) = r.next() { pin_auth = Some(b); },
@@ -1708,13 +1720,46 @@ async fn ctaphid_task(
                                     }
                                 }
 
-                                // Verify pinUvAuthParam permission
-                                if !verify_pin_uv_auth_token(pin_state.active_token.as_ref(), &[sub_cmd.unwrap_or(0) as u8], pin_auth) {
-                                    // For testing flexibility in credMgmt, if subCommand matches:
-                                    if pin_state.active_token.is_none() {
-                                        send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PUAT_REQUIRED]).await;
-                                        continue;
-                                    }
+                                // CTAP 2.1 §6.8, in its order: no parameter, a missing mandatory one,
+                                // an unsupported protocol, then verify(token, subCommand ||
+                                // subCommandParams) and the cm permission. exp200: a parameter that does
+                                // not verify is refused whether or not a token exists (C1), the MAC
+                                // names the credential (C2), and getPinToken's mc|ga token is not
+                                // enough (C3).
+                                if pin_auth.is_none() {
+                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_PUAT_REQUIRED]).await;
+                                    continue;
+                                }
+                                let missing = match sub_cmd {
+                                    Some(0x04) => rp_id_hash.is_none(),
+                                    Some(0x06) => target_cred_id.is_none(),
+                                    None => true,
+                                    _ => false,
+                                };
+                                if missing {
+                                    send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await;
+                                    continue;
+                                }
+                                if pin_proto != Some(1) {
+                                    send(&mut writer, cid, CTAPHID_CBOR, &[client_pin::code::INVALID_PARAMETER]).await;
+                                    continue;
+                                }
+                                // A token tied to one RP reaches that RP's credentials and no others:
+                                // deleteCredential is judged by the RP of the credential it names.
+                                let cred_rp: Option<[u8; 32]> = target_cred_id.and_then(|id| {
+                                    resident_store.entries.iter().find(|e| e.in_use && &e.cred_id[..] == id)
+                                        .map(|e| Sha256::digest(&e.rp_id[..e.rp_id_len as usize]).into())
+                                });
+                                let scope = match (sub_cmd, rp_id_hash.as_ref(), cred_rp.as_ref()) {
+                                    (Some(0x04), Some(h), _) => Scope::Rp(h),
+                                    (Some(0x06), _, Some(h)) => Scope::Rp(h),
+                                    _ => Scope::AllRps,
+                                };
+                                let sub_byte = [sub_cmd.unwrap_or(0) as u8];
+                                if let Err(denied) = pin_state.authorize(permission::CM, scope, &[&sub_byte, params_raw.unwrap_or(&[])], pin_auth) {
+                                    log!("  credMgmt: refused, 0x{:02x}", denied.code());
+                                    send(&mut writer, cid, CTAPHID_CBOR, &[denied.code()]).await;
+                                    continue;
                                 }
 
                                 match sub_cmd {
@@ -1850,7 +1895,8 @@ async fn ctaphid_task(
 
                                         let mut user_verified = false;
                                         if let Some(param) = req.pin_uv_auth_param {
-                                            if verify_pin_uv_auth_token(pin_state.active_token.as_ref(), req.client_data_hash, Some(param)) {
+                                            let rp_hash: [u8; 32] = Sha256::digest(req.rp_id.as_bytes()).into();
+                                            if pin_state.authorize(permission::MC, Scope::Rp(&rp_hash), &[req.client_data_hash], Some(param)).is_ok() {
                                                 user_verified = true;
                                                 log!("  makeCredential: PIN UV verified (FLAG_UV=1)");
                                             } else {
@@ -1976,7 +2022,8 @@ async fn ctaphid_task(
 
                                         let mut user_verified = false;
                                         if let Some(param) = req.pin_uv_auth_param {
-                                            if verify_pin_uv_auth_token(pin_state.active_token.as_ref(), req.client_data_hash, Some(param)) {
+                                            let rp_hash: [u8; 32] = Sha256::digest(req.rp_id.as_bytes()).into();
+                                            if pin_state.authorize(permission::GA, Scope::Rp(&rp_hash), &[req.client_data_hash], Some(param)).is_ok() {
                                                 user_verified = true;
                                                 log!("  getAssertion: PIN UV verified (FLAG_UV=1)");
                                             } else {

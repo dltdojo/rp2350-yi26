@@ -104,6 +104,7 @@ Per experiment:
 | exp195 | **No board** for the model half: Java 11 or later, and the network once for `./setup.sh`, which fetches TLC and pins it by SHA-256. The board half needs any RP2350 board and **nobody**: it flashes exp190 twice with `yi26` and reads what the second build believes. |
 | exp196 | **No board** for the model, `replay/` and the socket half: Java 11 or later, and the network once — for TLC through `tools/tlc/setup.sh`, and for `replay/`'s copy of `crates/ctap-hid` pinned to the commit before this experiment. The board half needs any RP2350 board and **nobody**: it flashes exp194 and asks it two CTAP-HID questions over `/dev/hidraw`, neither of which reaches user presence. |
 | exp197 | **No board** for the model and the crate: Java 11 or later, and the network once for `tools/tlc/setup.sh`. The board half needs any RP2350 board and **nobody**: it flashes exp189 and asks it three clientPIN questions over `/dev/hidraw`, none of which waits for a person. Host side: `python3` with `cryptography`. |
+| exp200 | **No board** for the model and the crate: Java 11 or later, and the network once for `tools/tlc/setup.sh`. The board half needs any RP2350 board and **nobody**: it flashes exp189 and asks it seven credential-management questions over `/dev/hidraw`, none of which needs a credential to exist and so none a press. Host side: `python3` with `cryptography`. |
 | exp198 | **No board at all**, and no USB anywhere in it. Needs `cargo` for the crate's tests and the network once for `tools/lean/setup.sh`, which fetches Lean 4.34.0 pinned by SHA-256: **580 MB, 2.9 GB unpacked**, and `zstd` or python3's `zstandard` to unpack it. After that it is offline, and the proof checks in under a second. |
 | exp199 | **No board at all**, and no USB anywhere in it — though its subject is a USB transport. Needs `cargo` for the crate's tests and Lean 4.34.0 through `tools/lean/setup.sh`, the same 580 MB exp198 fetches. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
@@ -490,7 +491,7 @@ awake — and because most of these experiments cost nothing.
 | | Means | Experiments |
 | --- | --- | --- |
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199 |
-| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197 |
+| **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
 
@@ -749,6 +750,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp197 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
 | exp198 | `none` | `none` | `none` | `none` |
 | exp199 | `none` | `none` | `none` | `none` |
+| exp200 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
 
 ### Reading the columns
 
@@ -927,6 +929,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp197-the-counter-that-forgets](./exp197-the-counter-that-forgets/) | 1 · board | **Four firmwares carried their own CTAP 2.1 PIN counter and made the same five mistakes: a second `setPIN` overwrote the owner's PIN, the counter was decremented after the compare, three wrong PINs in a row stopped nothing, three status codes were wrong, and it all lived in RAM.** `crates/client-pin` now holds it for exp186–exp189. The model shows which attacker each design loses to: the copies lose to malware in one step, the crate loses only to a person who unplugs the board, and persisting the counter in the copies' order would have made a guess free every third try. **Board half not yet verified** |
 | [exp198-a-proof-instead-of-a-search](./exp198-a-proof-instead-of-a-search/) | 0 · none | **`crates/client-pin`'s counter, proved rather than searched: a failed attempt is never given back, for any starting counter and any sequence of wrong guesses, power cycles and refused `setPIN`s of any length.** exp197's model checked eight retries; five theorems in Lean cover every number, rest on Lean's own axioms and nothing assumed, and four wrong versions of the crate — one per finding they are about — are each refused. The Lean is a transcription, held to sixteen cited Rust lines |
 | [exp199-every-length-not-seven](./exp199-every-length-not-seven/) | 0 · none | **`crates/ctap-hid`'s `fragment` and `feed` are inverses for every message length up to `MAX_MESSAGE`, where its test asks seven** — and the proof would only go through once the five conditions the test held fixed without saying so were named, each shown needed by a theorem of its own. Writing it down found where `fragment` stops being right: at **7609 bytes**, CTAP-HID's own maximum, the 129th continuation packet carries `0x80` and reads as a new message. Nothing here sends past 1024, so it is recorded, not fixed |
+| [exp200-the-token-that-opened-everything](./exp200-the-token-that-opened-everything/) | 1 · board | **exp188's and exp189's credential management let a `pinUvAuthToken` open three doors CTAP 2.1 keeps shut: a parameter that failed to verify went through whenever any token existed, the MAC did not say which credential it was for, and a login token could delete every credential on the key.** The model shows each fix alone stops one attacker and leaves the next; all three now live in `crates/client-pin`, exp186–exp189 issue and check every token through it, and exp188's own probe — which had computed its MACs as wrongly as the firmware checked them — asks the specification's questions. **Board half not yet verified** |
 
 ## The browser track, finished
 
@@ -2613,8 +2616,11 @@ has the argument.
   two silent losses in `crates/ctap-hid`.
 - [exp197](./exp197-the-counter-that-forgets/) — four copies of a PIN counter,
   five mistakes, one crate, and a model of which attacker each design loses to.
+- [exp200](./exp200-the-token-that-opened-everything/) — what a PIN token may
+  open: three ways into credential management, each fix alone losing to a
+  different attacker, and a probe that had agreed with the bug.
 
-All three use **TLA+**: a model checker that walks every order of events inside
+All four use **TLA+**: a model checker that walks every order of events inside
 stated bounds and prints the shortest path to a violation. That is the right
 tool for *finding* a bug, and it can only ever say "none inside these bounds".
 
@@ -2660,6 +2666,3 @@ settled to — exp199 met the same three and answered them the same way:
 - **Persisting the PIN and its counter** — exp197's open P4. The model already
   says what the design must be (`crateflash`: every property holds); what is
   left is a flash layout whose write is atomic where the model assumed one.
-- **`credMgmt`'s authorization** — exp197 found exp188's and exp189's `credMgmt`
-  carrying on when `pinUvAuthParam` fails but a token exists. A model of who may
-  call what with which token is the natural first step.

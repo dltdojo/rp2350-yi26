@@ -45,7 +45,6 @@ rs:interrogate_task	4	3	60
 rs:pin_task	4	3	35
 rs:mdns_task	4	1	60
 rs:encrypt_pin_payload	4	1	21
-rs:verify_pin_uv_auth_token	4	1	20
 rs:send_csw	4	1	12
 rs:pin_into_subnet	4	1	11
 py:load	3	4	11
