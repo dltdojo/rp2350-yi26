@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wrong versions of the crate, each written into the Lean transcription with
+# sed. check.sh requires Lean to REFUSE every one: a proof that still checks
+# after the rule it is about has been broken is not about that rule.
+#
+# <which half>|<what the wrong version does>|<sed expression>
+fragment|the first continuation packet is numbered 1, not 0|s/  initPacket cid cmd data :: conts cid 0 data.length/  initPacket cid cmd data :: conts cid 1 data.length/
+fragment|continuation packets carry 58 bytes where feed reads 59|s/    contPacket cid seq (rest.take CONT_PAYLOAD)$/    contPacket cid seq (rest.take 58)/; s/      :: conts cid ((seq + 1) % 256) fuel (rest.drop CONT_PAYLOAD)/      :: conts cid ((seq + 1) % 256) fuel (rest.drop 58)/
+fragment|BCNT loses its high byte|s/  cid ++ \[0x80 ||| cmd, (data.length >>> 8) % 256, data.length % 256\]/  cid ++ [0x80 ||| cmd, 0, data.length % 256]/
+feed|the expected sequence number never advances|s/    finish { t with seq := (t.seq + 1) % 256,/    finish { t with seq := t.seq,/
+feed|the command keeps the init bit|s/  let cmd := pkt.getD 4 0 &&& 0x7f/  let cmd := pkt.getD 4 0/
+both|MAX_MESSAGE is raised past CTAP-HID's 7609|s/^def MAX_MESSAGE : Nat := 1024/def MAX_MESSAGE : Nat := 7610/

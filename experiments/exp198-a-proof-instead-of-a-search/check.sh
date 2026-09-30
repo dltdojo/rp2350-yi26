@@ -32,43 +32,10 @@ USB_HOST="none"
 USB_RUNS_ON="none"
 usb_check
 
-LEAN=../../tools/lean/lean-4.34.0-linux/bin/lean
-SCRATCH="$(mktemp -d)"
-trap 'rm -rf "$SCRATCH"' EXIT
-
-# A wrong version must not check. The sed has to change something, or the
-# mutant has drifted away from the file and is testing nothing.
-lean_refuses() { # finding what sed-expression
-    sed "$3" proof/ClientPin.lean > "$SCRATCH/Mutant.lean"
-    if cmp -s proof/ClientPin.lean "$SCRATCH/Mutant.lean"; then
-        fail "$1: the proof refuses a crate where $2" "the sed no longer matches proof/ClientPin.lean"
-    elif "$LEAN" "$SCRATCH/Mutant.lean" > /dev/null 2>&1; then
-        fail "$1: the proof refuses a crate where $2" "Lean accepted it"
-    else
-        pass "$1: the proof refuses a crate where $2"
-    fi
-}
-
-if [[ -x "$LEAN" ]]; then
-    out="$("$LEAN" proof/ClientPin.lean 2>&1)"; status=$?
-    if [[ $status -eq 0 ]] && ! grep -qE 'error|warning' <<< "$out"; then
-        pass "proof/ClientPin.lean checks, with no errors and no warnings"
-    else
-        fail "proof/ClientPin.lean checks" "$(head -3 <<< "$out")"
-    fi
-    printed="$(grep -c 'axioms' <<< "$out")"
-    if [[ "$printed" -eq 5 ]] && ! grep -q 'sorryAx' <<< "$out"; then
-        pass "all five theorems rest on Lean's own axioms only — no sorryAx"
-    else
-        fail "no theorem is assumed rather than proved" "$printed axiom lines; sorryAx: $(grep -c sorryAx <<< "$out")"
-    fi
-    while IFS='|' read -r finding what expr; do
-        [[ -z "$finding" || "$finding" == \#* ]] && continue
-        lean_refuses "$finding" "$what" "$expr"
-    done < proof/mutants.txt
-else
-    echo "SKIP  the proof: needs tools/lean/setup.sh (the network, once — 580 MB)"
-fi
+# The proof checks, rests on nothing but Lean's own axioms, and refuses every
+# wrong version of the crate in proof/mutants.txt.
+../../tools/lean/lean.sh check proof/ClientPin.lean || FAILED=1
+../../tools/lean/lean.sh mutants proof/ClientPin.lean || FAILED=1
 
 ../../tools/tlc/tlc.sh cited proof || FAILED=1
 

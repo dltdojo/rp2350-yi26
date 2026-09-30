@@ -1,0 +1,25 @@
+=== exp199 — every length, not seven ===
+recorded at 2026-09-30T00:34:06Z from commit 597d475
+
+>>> the proof: every theorem, and what it rests on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'CtapHid.fragment_then_feed' depends on axioms: [propext, Quot.sound]
+'CtapHid.a_1024_byte_message_takes_eighteen_packets' depends on axioms: [propext, Quot.sound]
+'CtapHid.init_is_not_a_message' depends on axioms: [propext]
+'CtapHid.broadcast_is_refused' depends on axioms: [propext]
+'CtapHid.reserved_is_refused' depends on axioms: [propext]
+'CtapHid.a_command_loses_its_top_bit' depends on axioms: [propext]
+'CtapHid.past_the_limit_is_refused' depends on axioms: [propext, Quot.sound]
+'CtapHid.a_busy_device_refuses' depends on axioms: [propext]
+'CtapHid.fragment_to_7609_never_sets_the_init_bit' depends on axioms: [propext, Quot.sound]
+'CtapHid.past_7609_a_continuation_is_read_as_an_init' depends on axioms: [propext, Quot.sound]
+exit 0
+
+>>> the wrong versions: each must be refused
+fragment  the first continuation packet is numbered 1, not 0        refused in fragment_then_feed
+fragment  continuation packets carry 58 bytes where feed reads 59   refused in feedAll_conts
+fragment  BCNT loses its high byte                                  refused in feed_initPacket
+feed      the expected sequence number never advances               refused in feedAll_conts
+feed      the command keeps the init bit                            refused in feed_initPacket
+both      MAX_MESSAGE is raised past CTAP-HID's 7609                refused in fragment_then_feed

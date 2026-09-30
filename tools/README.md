@@ -487,10 +487,20 @@ release matches a pinned sha256 — the way `tlc/` pins TLC.
 
 ```sh
 tools/lean/setup.sh                                          # once, needs the network
-tools/lean/lean-4.34.0-linux/bin/lean experiments/exp198-*/proof/ClientPin.lean
+tools/lean/lean.sh run experiments/exp198-*/proof/ClientPin.lean
 ```
 
 It is not small: **580 MB** to download and **2.9 GB** unpacked, against TLC's
 2 MB, and there is no smaller official build. Unpacking needs `zstd`, or python3
-with `zstandard` where there is no `zstd` binary. No board. exp198 is its only
-caller; there is no `lean.sh` wrapper until a second one needs it.
+with `zstandard` where there is no `zstd` binary. No board.
+
+`lean.sh` checks an experiment's proof the same way every time: that it checks
+with no warnings, that every `#print axioms` in it lists Lean's own axioms and
+no `sorryAx`, and that every wrong version in the `mutants.txt` beside it is
+refused. exp198 wrote those steps inline; exp199 needed them second.
+
+```sh
+tools/lean/lean.sh check   experiments/exp199-*/proof/CtapHid.lean
+tools/lean/lean.sh mutants experiments/exp199-*/proof/CtapHid.lean
+tools/lean/lean.sh table   experiments/exp199-*/proof/CtapHid.lean   # refused in which theorem
+```
