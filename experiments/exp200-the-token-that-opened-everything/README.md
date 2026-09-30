@@ -156,4 +156,61 @@ board and **nobody**.
 
 ## Expected output
 
-The capture lands in the next commit.
+```text
+=== exp200 — the token that opened everything ===
+recorded at 2026-09-30T02:03:58Z from commit bfb3025
+
+>>> steps 1 and 2: every configuration in model/expected.txt
+    TLC Version 2.19, one worker, breadth first
+
+CredMgmt   before-malware                           violated      5 states  OwnerGetsToken -> MalwareDeletes
+CredMgmt   before-observer                          violated     11 states  OwnerGetsToken -> OwnerDeletes -> ObserverDeletes
+CredMgmt   before-browser                           violated      8 states  BrowserGetsToken -> BrowserDeletes
+CredMgmt   rejects-malware                          holds        30 states  
+CredMgmt   rejects-observer                         violated     11 states  OwnerGetsToken -> OwnerDeletes -> ObserverDeletes
+CredMgmt   rejects-browser                          violated      8 states  BrowserGetsToken -> BrowserDeletes
+CredMgmt   binds-malware                            holds        30 states  
+CredMgmt   binds-observer                           holds        30 states  
+CredMgmt   binds-browser                            violated      8 states  BrowserGetsToken -> BrowserDeletes
+CredMgmt   permissions-malware                      holds        30 states  
+CredMgmt   permissions-observer                     violated     11 states  OwnerGetsToken -> OwnerDeletes -> ObserverDeletes
+CredMgmt   permissions-browser                      holds        44 states  
+CredMgmt   all-malware                              holds        30 states  
+CredMgmt   all-observer                             holds        30 states  
+CredMgmt   all-browser                              holds        44 states  
+
+>>> steps 3 and 4 on a host: crates/client-pin
+test tests::a_new_token_invalidates_the_last ... ok
+test tests::a_power_cycle_forgets_the_token ... ok
+test tests::an_undecryptable_pin_is_a_mismatch_and_is_paid_for ... ok
+test tests::authenticate_is_left_16_of_hmac_sha256_over_the_parts_in_order ... ok
+test tests::c1_a_parameter_that_does_not_verify_is_refused_even_with_a_token_current ... ok
+test tests::c1_a_parameter_with_no_token_current_is_invalid_not_accepted ... ok
+test tests::c1_no_parameter_is_puat_required_whatever_token_exists ... ok
+test tests::c1_the_owner_with_a_cm_token_is_let_in ... ok
+test tests::c2_a_parameter_for_one_credential_does_not_delete_another ... ok
+test tests::c2_the_old_message_no_longer_verifies ... ok
+test tests::c3_a_cm_token_cannot_make_credentials ... ok
+test tests::c3_a_login_token_is_tied_to_the_first_rp_it_is_used_with ... ok
+test tests::c3_a_token_tied_to_one_rp_reaches_that_rp_and_nothing_else ... ok
+test tests::c3_get_pin_tokens_default_token_cannot_manage_credentials ... ok
+test tests::change_pin_needs_the_old_one_and_a_wrong_one_is_paid_for ... ok
+test tests::nothing_is_attempted_before_a_pin_exists ... ok
+test tests::p1_a_refused_set_pin_does_not_refill_a_counter_an_attacker_has_spent ... ok
+test tests::p1_a_second_set_pin_is_refused_and_the_owners_pin_survives ... ok
+test tests::p2_a_correct_pin_gives_the_attempt_back ... ok
+test tests::p2_an_attempt_the_power_cut_short_is_still_spent ... ok
+test tests::p2_the_counter_is_paid_before_the_answer_exists ... ok
+test tests::p3_a_power_cycle_clears_the_run_but_not_the_counter ... ok
+test tests::p3_malware_cannot_spend_all_eight_without_a_person ... ok
+test tests::p3_the_last_attempt_is_blocked_not_auth_blocked ... ok
+test tests::p4_a_state_nobody_persisted_takes_the_next_pin_offered ... ok
+test tests::p5_the_codes_are_the_specifications_table ... ok
+test tests::permissions_are_checked_before_any_pin_is_asked_for ... ok
+test tests::reset_forgets_everything ... ok
+
+>>> the board half: exp189, freshly flashed, asked over hidraw
+not captured: no board attached
+```
+
+The board half: **not captured yet.**
