@@ -26,7 +26,7 @@ importantly. They are the product. `yi26` is the workshop tool.
 
 The maintained pages live in [`tools/pages/`](./tools/pages/), and that
 README has the table you want if you are ever unsure which side to reach for:
-the two overlap in four jobs, and there are ten things `yi26` can do that no
+the two overlap in five jobs, and there are ten things `yi26` can do that no
 page can. When they overlap they speak the same language on purpose —
 `console.html` takes the same `\xNN` escapes as `yi26 send` — so an
 instruction written for one works in the other.
@@ -108,22 +108,23 @@ The test is one question, and it has a checkable form:
 This is not a style preference, it is what copying has already cost: exp174
 shipped with exp173's USB serial because the string came across with the source;
 exp160 lost the end of its report to a full log queue and exp162 lost it again
-the same way. Today **21,526 lines of firmware source here live inside a function that some
-other experiment also defines**, and another **5,950 lines of Python** — the
-drivers and verifiers were invisible to the check until exp194 found seven
-copies of one CTAP-HID client.
+the same way. **More than twenty thousand lines of firmware source here live
+inside a function that some other experiment also defines**, and thousands more
+lines of Python — the drivers and verifiers were invisible to the check until
+exp194 found seven copies of one CTAP-HID client. `experiments/duplication.sh`
+prints today's figures.
 
-So there is a ratchet, and `docs-check.sh` runs it:
+So there is a ratchet, and `experiments/docs-check.sh` runs it:
 
 ```sh
-./duplication.sh            # what is duplicated, worst first — rs, py and sh
-./duplication.sh --check    # fails if anything gained a copy
+experiments/duplication.sh            # what is duplicated, worst first — rs, py and sh
+experiments/duplication.sh --check    # fails if anything gained a copy
 ```
 
 Rust goes to [`crates/`](./crates/); Python and shell go to
 [`tools/`](./tools/).
 
-Existing copies are grandfathered in `duplication-baseline.txt`. The baseline
+Existing copies are grandfathered in `experiments/duplication-baseline.txt`. The baseline
 may only shrink. **The second copy is the moment to extract, not the fifth.**
 
 [`docs/what-belongs-to-an-experiment.md`](./docs/what-belongs-to-an-experiment.md)
@@ -165,5 +166,6 @@ read them before proposing work, not instead of them:
 - **[Which layer of USB is this](./experiments/README.md#which-layer-of-usb-is-this)**
   — every experiment declares its interface, what travels on it, who claims it
   on the host, and whose firmware it runs against. Read the row before
-  proposing anything that touches an endpoint: six experiments here have no
-  firmware of their own, and one of them runs against exp118 and nothing else.
+  proposing anything that touches an endpoint: many experiments here have no
+  firmware of their own — the *Runs on* column says whose they need — and one of
+  them runs against exp118 and nothing else.

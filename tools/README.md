@@ -13,10 +13,11 @@ instead of hardware, [`vctaphid`](#vctaphid), the model checker's wrapper,
 | [`yi26`](#yi26) | a Rust toolchain and a terminal | typing a command |
 | [`pages/`](./pages/) | **a browser and nothing else** — a phone, most importantly | double-clicking a file |
 
-They overlap in exactly four jobs — read the log, send bytes, enter the
-bootloader, look at the descriptors — and nowhere else, because a page cannot
+They overlap in exactly five jobs — read the log, send bytes, enter the
+bootloader, write firmware without a drive, look at the descriptors — and
+nowhere else, because a page cannot
 mount a drive or write a udev rule and a terminal cannot come off the board on
-a volume. [`pages/README.md`](./pages/README.md) has both tables, and the four
+a volume. [`pages/README.md`](./pages/README.md) has both tables, and the five
 overlapping jobs are kept speaking the same language on purpose: `console.html`
 accepts the same escape grammar as `yi26 send`, and a check proves it.
 

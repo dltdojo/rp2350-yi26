@@ -56,7 +56,7 @@ also has a command line, and a volume is read by somebody who has nothing else.
 ## Two toolboxes, and the line between them
 
 This repository has two ways to talk to a board: [`yi26`](../README.md), a
-command-line program, and these pages. They overlap, but only in four places:
+command-line program, and these pages. They overlap, but only in five places:
 
 | The job | Command line | Browser |
 | --- | --- | --- |
@@ -88,7 +88,7 @@ is not going to change:
 
 So the two sides are **not** meant to converge. A page that could write udev
 rules would be a browser bug, and a CLI that pretended it had no filesystem
-would be less useful for nothing. What must stay in step is the four jobs
+would be less useful for nothing. What must stay in step is the five jobs
 above, and in particular the **vocabulary**.
 
 ### The vocabulary that is checked
