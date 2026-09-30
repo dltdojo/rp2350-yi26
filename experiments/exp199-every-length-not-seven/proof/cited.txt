@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every line of Rust that CtapHid.lean transcribes: <path>:<line>|<a piece of
+# that line>. tools/tlc/tlc.sh cited re-reads each one, so a crate that changes
+# under the proof turns check.sh red instead of leaving a proof about code that
+# no longer exists.
+#
+# the constants
+crates/ctap-hid/src/lib.rs:78|pub const PACKET: usize = 64;
+crates/ctap-hid/src/lib.rs:81|pub const INIT_HEADER: usize = 7;
+crates/ctap-hid/src/lib.rs:83|pub const CONT_HEADER: usize = 5;
+crates/ctap-hid/src/lib.rs:85|pub const INIT_PAYLOAD: usize = PACKET - INIT_HEADER;
+crates/ctap-hid/src/lib.rs:87|pub const CONT_PAYLOAD: usize = PACKET - CONT_HEADER;
+crates/ctap-hid/src/lib.rs:91|pub const BROADCAST: Cid = [0xff, 0xff, 0xff, 0xff];
+crates/ctap-hid/src/lib.rs:93|pub const RESERVED: Cid = [0x00, 0x00, 0x00, 0x00];
+crates/ctap-hid/src/lib.rs:104|pub const TRANSACTION_TIMEOUT_MS: u64 = 750;
+crates/ctap-hid/src/lib.rs:113|pub const MAX_MESSAGE: usize = 1024;
+# Tx.clear <- Transaction::clear
+crates/ctap-hid/src/lib.rs:219|self.active = false;
+crates/ctap-hid/src/lib.rs:220|self.have = 0;
+# expire <- Transaction::expire
+crates/ctap-hid/src/lib.rs:233|if self.active && now_ms.saturating_sub(self.started_ms) >= TRANSACTION_TIMEOUT_MS {
+# Tx.message <- Transaction::message
+crates/ctap-hid/src/lib.rs:255|(self.cid, self.cmd, &self.buf[..self.want])
+# feed
+crates/ctap-hid/src/lib.rs:260|if pkt.len() < PACKET {
+crates/ctap-hid/src/lib.rs:264|let is_init = pkt[4] & 0x80 != 0;
+crates/ctap-hid/src/lib.rs:269|if let Some(stale) = self.expire(now_ms) {
+crates/ctap-hid/src/lib.rs:275|self.expired = Some(stale);
+# judgeInit <- feed's `if is_init`
+crates/ctap-hid/src/lib.rs:279|let cmd = pkt[4] & 0x7f;
+crates/ctap-hid/src/lib.rs:280|let want = ((pkt[5] as usize) << 8) | pkt[6] as usize;
+crates/ctap-hid/src/lib.rs:284|if cid == BROADCAST && cmd != CTAPHID_INIT {
+crates/ctap-hid/src/lib.rs:287|if cid == RESERVED {
+crates/ctap-hid/src/lib.rs:308|if want != 8 {
+crates/ctap-hid/src/lib.rs:312|if self.active && self.cid == cid {
+crates/ctap-hid/src/lib.rs:319|if self.active && self.cid != cid {
+crates/ctap-hid/src/lib.rs:323|if want > MAX_MESSAGE {
+crates/ctap-hid/src/lib.rs:334|let n = want.min(INIT_PAYLOAD);
+# judgeCont <- feed's `else`
+crates/ctap-hid/src/lib.rs:338|if !self.active {
+crates/ctap-hid/src/lib.rs:341|if cid != self.cid {
+crates/ctap-hid/src/lib.rs:345|if seq != self.seq {
+crates/ctap-hid/src/lib.rs:350|self.seq = self.seq.wrapping_add(1);
+crates/ctap-hid/src/lib.rs:351|let n = (self.want - self.have).min(CONT_PAYLOAD);
+# finish <- the end of feed
+crates/ctap-hid/src/lib.rs:356|if self.have >= self.want {
+# fragment
+crates/ctap-hid/src/lib.rs:406|pkt[4] = 0x80 | cmd;
+crates/ctap-hid/src/lib.rs:407|pkt[5] = (data.len() >> 8) as u8;
+crates/ctap-hid/src/lib.rs:408|pkt[6] = data.len() as u8;
+crates/ctap-hid/src/lib.rs:409|let n = data.len().min(INIT_PAYLOAD);
+crates/ctap-hid/src/lib.rs:414|let mut seq = 0u8;
+crates/ctap-hid/src/lib.rs:416|while sent < data.len() {
+crates/ctap-hid/src/lib.rs:419|pkt[4] = seq;
+crates/ctap-hid/src/lib.rs:420|let n = (data.len() - sent).min(CONT_PAYLOAD);
+crates/ctap-hid/src/lib.rs:424|seq = seq.wrapping_add(1);

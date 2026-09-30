@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp198 run — the whole experiment, recorded to capture.txt. No board.
+# exp199 run — the whole experiment, recorded to capture.txt. No board.
 #
 #   ./run.sh
 
@@ -12,14 +12,14 @@ source ../lib.sh
 LEAN=../../tools/lean/lean.sh
 
 {
-capture_header "exp198 — a proof instead of a search"
+capture_header "exp199 — every length, not seven"
 
 echo ">>> the proof: every theorem, and what it rests on"
 echo "    $("$LEAN" version)"
 echo
-"$LEAN" run proof/ClientPin.lean
+"$LEAN" run proof/CtapHid.lean
 echo
 
 echo ">>> the wrong versions: each must be refused"
-"$LEAN" table proof/ClientPin.lean
+"$LEAN" table proof/CtapHid.lean
 } 2>&1 | tee capture.txt
