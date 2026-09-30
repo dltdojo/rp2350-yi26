@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What TLC says about each configuration: the claim of exp200, as data.
+# Design, then attacker. Each fix is shown alone and with the others, because
+# which attacker a design still loses to is the finding.
+#
+# --- exp188/exp189 as they were: none of the three -------------------------
+CredMgmt before-malware        violated
+CredMgmt before-observer       violated
+CredMgmt before-browser        violated
+# --- C1: a parameter that does not verify stops the request -----------------
+CredMgmt rejects-malware       holds
+CredMgmt rejects-observer      violated
+CredMgmt rejects-browser       violated
+# --- C1 + C2: the MAC covers which credential -------------------------------
+CredMgmt binds-malware         holds
+CredMgmt binds-observer        holds
+CredMgmt binds-browser         violated
+# --- C1 + C3: the token must carry cm, but the MAC covers only the byte -----
+CredMgmt permissions-malware   holds
+CredMgmt permissions-observer  violated
+CredMgmt permissions-browser   holds
+# --- all three: the specification ------------------------------------------
+CredMgmt all-malware           holds
+CredMgmt all-observer          holds
+CredMgmt all-browser           holds

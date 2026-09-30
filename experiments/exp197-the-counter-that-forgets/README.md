@@ -131,6 +131,9 @@ other can enumerate and delete discoverable credentials without a valid
 `pinUvAuthParam`. It is an authorization bug, not a counter bug, so it is
 recorded here rather than fixed under this experiment's name.
 
+[exp200](../exp200-the-token-that-opened-everything/) fixed it, and reading the
+rest of the specification's credential management first found two more ways in.
+
 ## What a model is not
 
 - **Not a proof.** Eight retries, three in a row, one attacker at a time.

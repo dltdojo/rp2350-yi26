@@ -353,7 +353,11 @@ const FLAG_UV: u8 = 0x04;
 const FLAG_AT: u8 = 0x40;
 
 // The PIN, its counter and its token: crates/client-pin, extracted by exp197.
-use client_pin::PinState;
+use client_pin::{check_permissions, permission, PinState, Scope};
+
+/// The permissions a token may be issued with here — mc and ga: this firmware has no credential management to grant cm for.
+/// crates/client-pin refuses anything else before a PIN attempt is spent.
+const OFFERED_PERMISSIONS: u8 = permission::DEFAULT;
 
 struct Built {
     response: usize,
@@ -953,30 +957,6 @@ fn verify_pin_auth(
     &full[..16] == pin_auth
 }
 
-/// Verify pinUvAuthParam against active pinUvAuthToken:
-/// HMAC-SHA256(token, clientDataHash)[0..16] == pinUvAuthParam
-fn verify_pin_uv_auth_token(
-    active_token: Option<&[u8; 32]>,
-    client_data_hash: &[u8],
-    param: Option<&[u8]>,
-) -> bool {
-    let token = match active_token {
-        Some(t) => t,
-        None => return false,
-    };
-    let pin_auth = match param {
-        Some(p) if p.len() >= 16 => &p[..16],
-        _ => return false,
-    };
-    let mut mac = match <SimpleHmac<Sha256> as KeyInit>::new_from_slice(token) {
-        Ok(m) => m,
-        Err(_) => return false,
-    };
-    mac.update(client_data_hash);
-    let full = mac.finalize().into_bytes();
-    &full[..16] == pin_auth
-}
-
 #[embassy_executor::task]
 async fn usb_task(mut device: UsbDevice<'static, Driver<'static, USB>>) -> ! {
     device.run().await
@@ -1224,6 +1204,8 @@ async fn ctaphid_task(
                                 let mut pin_auth: Option<[u8; 16]> = None;
                                 let mut new_pin_enc: Option<&[u8]> = None;
                                 let mut pin_hash_enc: Option<&[u8]> = None;
+                                let mut permissions: Option<u64> = None;
+                                let mut perm_rp_id: Option<&str> = None;
 
                                 if let Ok(pairs) = r.map_header() {
                                     for _ in 0..pairs {
@@ -1255,6 +1237,8 @@ async fn ctaphid_task(
                                                         pin_hash_enc = Some(b);
                                                     }
                                                 }
+                                                0x09 => if let Ok(Item::Uint(p)) = r.next() { permissions = Some(p); },
+                                                0x0A => if let Ok(Item::Text(t)) = r.next() { perm_rp_id = Some(t); },
                                                 _ => { let _ = r.skip(); }
                                             }
                                         }
@@ -1480,7 +1464,23 @@ async fn ctaphid_task(
                                             send(&mut writer, cid, CTAPHID_CBOR, &out[..n]).await;
                                         }
                                     }
-                                    Some(0x05) => {
+                                    Some(0x05) | Some(0x09) => {
+                                        // What this token may do, decided before anything is spent: getPinToken
+                                        // gets mc|ga, the ...WithPermissions subcommands ask. crates/client-pin.
+                                        let granted = if sub_cmd == Some(0x09) {
+                                            let asked = match permissions { Some(p) => (p & 0xff) as u8, None => { send(&mut writer, cid, CTAPHID_CBOR, &[CTAP2_ERR_MISSING_PARAMETER]).await; continue; } };
+                                            match check_permissions(asked, perm_rp_id.is_some(), OFFERED_PERMISSIONS) {
+                                                Ok(g) => g,
+                                                Err(e) => { send(&mut writer, cid, CTAPHID_CBOR, &[e.code()]).await; continue; }
+                                            }
+                                        } else {
+                                            permission::DEFAULT
+                                        };
+                                        let perm_rp: Option<[u8; 32]> = if sub_cmd == Some(0x09) {
+                                            perm_rp_id.map(|id| Sha256::digest(id.as_bytes()).into())
+                                        } else {
+                                            None
+                                        };
                                         // getPinToken (0x05): authenticate PIN and issue pinUvAuthToken
                                         log!("  clientPIN: getPinToken request received");
                                         if !pin_state.is_set() {
@@ -1523,7 +1523,7 @@ async fn ctaphid_task(
                                         }
                                         let mut token = [0u8; 32];
                                         trng.blocking_fill_bytes(&mut token);
-                                        pin_state.active_token = Some(token);
+                                        pin_state.issue(token, granted, perm_rp);
 
                                         let mut token_enc = [0u8; 32];
                                         encrypt_pin_payload(&shared_secret, &token, &mut token_enc).unwrap();
@@ -1574,7 +1574,8 @@ async fn ctaphid_task(
 
                                         let mut user_verified = false;
                                         if let Some(param) = req.pin_uv_auth_param {
-                                            if verify_pin_uv_auth_token(pin_state.active_token.as_ref(), req.client_data_hash, Some(param)) {
+                                            let rp_hash: [u8; 32] = Sha256::digest(req.rp_id.as_bytes()).into();
+                                            if pin_state.authorize(permission::MC, Scope::Rp(&rp_hash), &[req.client_data_hash], Some(param)).is_ok() {
                                                 user_verified = true;
                                                 log!("  makeCredential: PIN UV verified via pinUvAuthParam (FLAG_UV=1)");
                                             } else {
@@ -1707,7 +1708,8 @@ async fn ctaphid_task(
 
                                         let mut user_verified = false;
                                         if let Some(param) = req.pin_uv_auth_param {
-                                            if verify_pin_uv_auth_token(pin_state.active_token.as_ref(), req.client_data_hash, Some(param)) {
+                                            let rp_hash: [u8; 32] = Sha256::digest(req.rp_id.as_bytes()).into();
+                                            if pin_state.authorize(permission::GA, Scope::Rp(&rp_hash), &[req.client_data_hash], Some(param)).is_ok() {
                                                 user_verified = true;
                                                 log!("  getAssertion: PIN UV verified (FLAG_UV=1)");
                                             } else {

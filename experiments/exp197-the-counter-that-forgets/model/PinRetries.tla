@@ -11,10 +11,10 @@
      Order       "compare_first"    exp186-exp189: compare, and only on a
                                     mismatch, decrement
                  "decrement_first"  CTAP 2.1, and crates/client-pin:
-                                    begin() decrements (lib.rs:223) before
-                                    judge() can compare (lib.rs:267)
-     SetChecks   does setPIN refuse a device that has a PIN?     (lib.rs:194)
-     Consecutive do three mismatches in a row stop everything?   (lib.rs:220)
+                                    begin() decrements (lib.rs:354) before
+                                    judge() can compare (lib.rs:456)
+     SetChecks   does setPIN refuse a device that has a PIN?     (lib.rs:325)
+     Consecutive do three mismatches in a row stop everything?   (lib.rs:351)
 
    The attacker never knows the PIN, so every guess is wrong.
 

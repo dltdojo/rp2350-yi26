@@ -56,8 +56,33 @@
 //!
 //! The consecutive-mismatch count is meant to be RAM, and is: the specification
 //! makes a power cycle — a person — the thing that clears it.
+//!
+//! # What a token is for
+//!
+//! A correct PIN earns a `pinUvAuthToken`, and the token is not a key to
+//! everything. [exp200](../../experiments/exp200-the-token-that-opened-everything/)
+//! read exp188's and exp189's credential management against CTAP 2.1 §6.8 and
+//! found three ways the token opened more than it should:
+//!
+//! - **C1: a `pinUvAuthParam` that did not verify was let through** whenever any
+//!   token existed. [`PinState::authorize`] answers `PIN_AUTH_INVALID`, and
+//!   `PUAT_REQUIRED` when there is no parameter at all.
+//! - **C2: the MAC covered only the subcommand byte**, not which credential it
+//!   was about. `authorize` takes the message in parts, and the caller passes
+//!   `subCommand || subCommandParams` exactly as §6.8 writes it.
+//! - **C3: `getPinToken`'s token could manage credentials.** "default
+//!   permissions of mc and ga (value 0x03) are granted" — nothing else. A token
+//!   carries [`permission`]s from [`PinState::issue`], and `authorize` checks
+//!   the one each command needs, and its permissions RP ID.
+//!
+//! The HMAC lives here, beside the decision, because C2 was a wrong answer to
+//! "what does the MAC cover", and a caller that computes the MAC can get that
+//! wrong again.
 
 #![no_std]
+
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 
 /// The most attempts a PIN gets. "pinRetries … Maximum value 8".
 pub const MAX_RETRIES: u8 = 8;
@@ -69,8 +94,32 @@ pub const MAX_CONSECUTIVE: u8 = 3;
 /// platform sends encrypted.
 pub type PinHash = [u8; 16];
 
-/// A token issued by `getPinToken`.
+/// A `pinUvAuthToken`.
 pub type Token = [u8; 32];
+
+/// SHA-256 of an RP ID: how a token's permissions RP ID is kept and compared.
+pub type RpIdHash = [u8; 32];
+
+/// What a token may be used for. CTAP 2.1 §6.5.5.7, the permissions table.
+pub mod permission {
+    /// `authenticatorMakeCredential`.
+    pub const MC: u8 = 0x01;
+    /// `authenticatorGetAssertion`.
+    pub const GA: u8 = 0x02;
+    /// `authenticatorCredentialManagement`.
+    pub const CM: u8 = 0x04;
+    /// `authenticatorBioEnrollment`.
+    pub const BE: u8 = 0x08;
+    /// `authenticatorLargeBlobs`.
+    pub const LBW: u8 = 0x10;
+    /// `authenticatorConfig`.
+    pub const ACFG: u8 = 0x20;
+    /// Every permission CTAP 2.1 defines. "Undefined permissions present in
+    /// the permissions parameter are ignored."
+    pub const DEFINED: u8 = MC | GA | CM | BE | LBW | ACFG;
+    /// What `getPinToken` grants: "default permissions of mc and ga (value 0x03)".
+    pub const DEFAULT: u8 = MC | GA;
+}
 
 /// CTAP 2.1's status codes for clientPIN, from the specification's table.
 pub mod code {
@@ -79,6 +128,10 @@ pub mod code {
     pub const PIN_AUTH_INVALID: u8 = 0x33;
     pub const PIN_AUTH_BLOCKED: u8 = 0x34;
     pub const PIN_NOT_SET: u8 = 0x35;
+    pub const PUAT_REQUIRED: u8 = 0x36;
+    pub const INVALID_PARAMETER: u8 = 0x02;
+    pub const MISSING_PARAMETER: u8 = 0x14;
+    pub const UNAUTHORIZED_PERMISSION: u8 = 0x40;
 }
 
 /// Why an attempt was refused before any PIN was looked at.
@@ -142,15 +195,93 @@ impl AlreadySet {
     }
 }
 
-/// The PIN, its counter, and the token it last issued.
+/// A request for a token asked for permissions it cannot have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BadRequest {
+    /// `mc` or `ga` without an `rpId`: "Required" in the permissions table.
+    MissingRpId,
+    /// "If the authenticator receives a permissions parameter with value 0".
+    Zero,
+    /// A permission for a feature this authenticator does not advertise.
+    Unauthorized,
+}
+
+impl BadRequest {
+    /// The CTAP2 status byte to answer with.
+    pub const fn code(self) -> u8 {
+        match self {
+            BadRequest::MissingRpId => code::MISSING_PARAMETER,
+            BadRequest::Zero => code::INVALID_PARAMETER,
+            BadRequest::Unauthorized => code::UNAUTHORIZED_PERMISSION,
+        }
+    }
+}
+
+/// Check the `permissions` and `rpId` of `getPinUvAuthTokenUsingPinWithPermissions`
+/// (0x09) or `...UsingUvWithPermissions` (0x06) **before** the PIN or the user
+/// is asked: the specification refuses these without spending an attempt.
+///
+/// `offered` is what this authenticator advertises in `getInfo` — `mc` and `ga`
+/// always, `cm` only with `credMgmt: true`. Returns the permissions to issue,
+/// with undefined bits dropped.
+pub fn check_permissions(requested: u8, has_rp_id: bool, offered: u8) -> Result<u8, BadRequest> {
+    if requested & permission::DEFAULT != 0 && !has_rp_id {
+        return Err(BadRequest::MissingRpId);
+    }
+    if requested == 0 {
+        return Err(BadRequest::Zero);
+    }
+    let wanted = requested & permission::DEFINED;
+    if wanted & !offered != 0 {
+        return Err(BadRequest::Unauthorized);
+    }
+    Ok(wanted)
+}
+
+/// A `pinUvAuthParam` was refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Denied {
+    /// There was none: "If pinUvAuthParam is missing from the input map".
+    PuatRequired,
+    /// It did not verify, or the token may not be used for this.
+    PinAuthInvalid,
+}
+
+impl Denied {
+    /// The CTAP2 status byte to answer with.
+    pub const fn code(self) -> u8 {
+        match self {
+            Denied::PuatRequired => code::PUAT_REQUIRED,
+            Denied::PinAuthInvalid => code::PIN_AUTH_INVALID,
+        }
+    }
+}
+
+/// Which credentials a command reaches, for the permissions RP ID check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope<'a> {
+    /// Every RP's: `getCredsMetadata`, `enumerateRPsBegin`. A token tied to one
+    /// RP may not — "has the cm permission and no associated permissions RP ID".
+    AllRps,
+    /// One RP's: allowed when the token has no RP ID, or this one.
+    Rp(&'a RpIdHash),
+}
+
+struct Grant {
+    token: Token,
+    permissions: u8,
+    rp: Option<RpIdHash>,
+}
+
+/// The PIN, its counter, and the one token that is current.
 pub struct PinState {
     set: bool,
     hash: PinHash,
     retries: u8,
     consecutive: u8,
-    /// The token `getPinToken` issued last, if any. Kept here because a reset
-    /// or a new PIN has to forget it along with everything else.
-    pub active_token: Option<Token>,
+    /// The token issued last, with what it may do. One at a time: "all
+    /// existing pinUvAuthTokens are invalidated" when a new one is made.
+    grant: Option<Grant>,
 }
 
 impl Default for PinState {
@@ -162,7 +293,7 @@ impl Default for PinState {
 impl PinState {
     /// No PIN, a full counter, no token — what `authenticatorReset` leaves.
     pub const fn new() -> Self {
-        Self { set: false, hash: [0; 16], retries: MAX_RETRIES, consecutive: 0, active_token: None }
+        Self { set: false, hash: [0; 16], retries: MAX_RETRIES, consecutive: 0, grant: None }
     }
 
     /// `authenticatorReset`: forget the PIN, refill the counter, drop the token.
@@ -186,7 +317,7 @@ impl PinState {
     /// itself in RAM, as today, a power cycle is [`PinState::new`] instead.
     pub fn power_cycle(&mut self) {
         self.consecutive = 0;
-        self.active_token = None;
+        self.grant = None;
     }
 
     /// `setPIN`. Refused if a PIN is already set.
@@ -198,7 +329,7 @@ impl PinState {
         self.hash = *hash;
         self.retries = MAX_RETRIES;
         self.consecutive = 0;
-        self.active_token = None;
+        self.grant = None;
         Ok(())
     }
 
@@ -223,6 +354,64 @@ impl PinState {
         self.retries -= 1;
         Ok(Attempt { state: self })
     }
+
+    /// Make `token` the current one, with these permissions and, if given, a
+    /// permissions RP ID. Call only after the PIN or the user was verified;
+    /// `getPinToken` passes [`permission::DEFAULT`] and no RP ID.
+    pub fn issue(&mut self, token: Token, permissions: u8, rp: Option<RpIdHash>) {
+        self.grant = Some(Grant { token, permissions, rp });
+    }
+
+    /// Is a token current?
+    pub fn has_token(&self) -> bool {
+        self.grant.is_some()
+    }
+
+    /// Decide whether `param` authorizes a command that `needs` a permission,
+    /// over `message` — the parts the specification concatenates, in order.
+    ///
+    /// The order is §6.8's: no parameter is `PUAT_REQUIRED`; a parameter that
+    /// does not verify, a token without the permission, and a token tied to
+    /// another RP are all `PIN_AUTH_INVALID`. PIN/UV auth protocol 1:
+    /// `LEFT(HMAC-SHA-256(token, message), 16)`, compared in constant time.
+    ///
+    /// Using an `mc` or `ga` token with an RP ties it to that RP, as the
+    /// specification does on first use.
+    pub fn authorize(
+        &mut self,
+        needs: u8,
+        scope: Scope<'_>,
+        message: &[&[u8]],
+        param: Option<&[u8]>,
+    ) -> Result<(), Denied> {
+        let param = param.ok_or(Denied::PuatRequired)?;
+        let grant = self.grant.as_mut().ok_or(Denied::PinAuthInvalid)?;
+        if param.len() != 16 || !ct_eq(&authenticate(&grant.token, message), param) {
+            return Err(Denied::PinAuthInvalid);
+        }
+        if grant.permissions & needs != needs {
+            return Err(Denied::PinAuthInvalid);
+        }
+        match (scope, grant.rp) {
+            (Scope::AllRps, Some(_)) => return Err(Denied::PinAuthInvalid),
+            (Scope::Rp(rp), Some(bound)) if bound != *rp => return Err(Denied::PinAuthInvalid),
+            (Scope::Rp(rp), None) if needs & permission::DEFAULT != 0 => grant.rp = Some(*rp),
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+/// `authenticate(key, message)` for PIN/UV auth protocol 1: the first 16 bytes
+/// of HMAC-SHA-256 over the message's parts, in order.
+pub fn authenticate(key: &Token, message: &[&[u8]]) -> [u8; 16] {
+    let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
+    for part in message {
+        mac.update(part);
+    }
+    let mut out = [0u8; 16];
+    out.copy_from_slice(&mac.finalize().into_bytes()[..16]);
+    out
 }
 
 /// A paid-for PIN attempt, not yet judged.
@@ -258,7 +447,7 @@ impl Attempt<'_> {
         let verdict = judge(self.state, presented);
         if verdict == Verdict::Correct {
             self.state.hash = *new;
-            self.state.active_token = None;
+            self.state.grant = None;
         }
         verdict
     }
@@ -287,7 +476,7 @@ fn miss(state: &mut PinState) -> Verdict {
 }
 
 /// Equality that takes the same time whichever byte differs.
-fn ct_eq(a: &PinHash, b: &PinHash) -> bool {
+fn ct_eq(a: &[u8; 16], b: &[u8]) -> bool {
     let mut diff = 0u8;
     for i in 0..a.len() {
         diff |= a[i] ^ b[i];

@@ -152,3 +152,13 @@ Running `python3 passkey_credmgmt_probe.py`:
 }
 ```
 
+
+## Changed since this was recorded
+
+[exp200](../exp200-the-token-that-opened-everything/) found this firmware's
+credential management letting a token through that should have been refused,
+three ways, and `passkey_credmgmt_probe.py` computing its MACs over the same
+wrong message the firmware checked. Both now follow CTAP 2.1: the probe asks
+for a `cm` token through `0x09` before managing credentials and a `getPinToken`
+token before registering and asserting, and MACs `subCommand || subCommandParams`.
+The capture above was recorded before that change and has not been re-run.

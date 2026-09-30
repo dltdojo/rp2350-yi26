@@ -6,23 +6,23 @@
 # no longer exists.
 #
 # pay  <- PinState::begin
-crates/client-pin/src/lib.rs:213|pub fn begin(&mut self) -> Result<Attempt<'_>, Refused>
-crates/client-pin/src/lib.rs:214|if !self.set {
-crates/client-pin/src/lib.rs:217|if self.retries == 0 {
-crates/client-pin/src/lib.rs:220|if self.consecutive >= MAX_CONSECUTIVE {
-crates/client-pin/src/lib.rs:223|self.retries -= 1;
+crates/client-pin/src/lib.rs:344|pub fn begin(&mut self) -> Result<Attempt<'_>, Refused>
+crates/client-pin/src/lib.rs:345|if !self.set {
+crates/client-pin/src/lib.rs:348|if self.retries == 0 {
+crates/client-pin/src/lib.rs:351|if self.consecutive >= MAX_CONSECUTIVE {
+crates/client-pin/src/lib.rs:354|self.retries -= 1;
 # judge <- judge and miss
-crates/client-pin/src/lib.rs:267|fn judge(state: &mut PinState, presented: &PinHash) -> Verdict {
-crates/client-pin/src/lib.rs:269|state.retries = MAX_RETRIES;
-crates/client-pin/src/lib.rs:270|state.consecutive = 0;
-crates/client-pin/src/lib.rs:277|state.consecutive = state.consecutive.saturating_add(1);
-crates/client-pin/src/lib.rs:280|if state.retries == 0 {
-crates/client-pin/src/lib.rs:282|} else if state.consecutive >= MAX_CONSECUTIVE {
+crates/client-pin/src/lib.rs:456|fn judge(state: &mut PinState, presented: &PinHash) -> Verdict {
+crates/client-pin/src/lib.rs:458|state.retries = MAX_RETRIES;
+crates/client-pin/src/lib.rs:459|state.consecutive = 0;
+crates/client-pin/src/lib.rs:466|state.consecutive = state.consecutive.saturating_add(1);
+crates/client-pin/src/lib.rs:469|if state.retries == 0 {
+crates/client-pin/src/lib.rs:471|} else if state.consecutive >= MAX_CONSECUTIVE {
 # setPin <- PinState::set_pin
-crates/client-pin/src/lib.rs:194|if self.set {
-crates/client-pin/src/lib.rs:199|self.retries = MAX_RETRIES;
+crates/client-pin/src/lib.rs:325|if self.set {
+crates/client-pin/src/lib.rs:330|self.retries = MAX_RETRIES;
 # powerCycle <- PinState::power_cycle
-crates/client-pin/src/lib.rs:188|self.consecutive = 0;
+crates/client-pin/src/lib.rs:319|self.consecutive = 0;
 # the constants
-crates/client-pin/src/lib.rs:63|pub const MAX_RETRIES: u8 = 8;
-crates/client-pin/src/lib.rs:66|pub const MAX_CONSECUTIVE: u8 = 3;
+crates/client-pin/src/lib.rs:88|pub const MAX_RETRIES: u8 = 8;
+crates/client-pin/src/lib.rs:91|pub const MAX_CONSECUTIVE: u8 = 3;

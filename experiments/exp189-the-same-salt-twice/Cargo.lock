@@ -165,6 +165,10 @@ dependencies = [
 [[package]]
 name = "client-pin"
 version = "0.1.0"
+dependencies = [
+ "hmac",
+ "sha2",
+]
 
 [[package]]
 name = "codespan-reporting"
