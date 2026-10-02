@@ -12,8 +12,10 @@ that kernel is asking about.
 | [`Rv32/Machine.lean`](./Rv32/Machine.lean) | what one instruction does in User mode inside one region; `ecall` as HASH and HALT | riscv-tests and the Hazard3 RTL, in [exp202](../experiments/exp202-the-tests-the-chip-passes/) |
 | [`Rv32/Load.lean`](./Rv32/Load.lean) | `boot`: the calling convention, the state the shell builds | the harness in `tools/hazard3`, which builds it |
 | [`Rv32/Proof.lean`](./Rv32/Proof.lean) | runs compose; a loaded program fetches; registers and memory after a write | — it is lemmas about the model, and is checked by Lean |
+| [`Rv32/Place.lean`](./Rv32/Place.lean) | a kernel at `base` in the 64 KiB region: `Placed`, address arithmetic that never wraps, the `lbu` and HASH steps, `readBytes`, and `code_of_image` — the bridge from a file's bytes to `CodeAt` | — lemmas, checked by Lean; exp203 wrote the first half, exp204 needed it second |
 | [`Rv32/Asm.lean`](./Rv32/Asm.lean) | instructions as text, the way LLVM writes them | used by exp201's differential |
-| [`Run.lean`](./Run.lean) | `rv32run`: the model, compiled, for running a binary | exp202 and exp203 run it beside the RTL |
+| [`Run.lean`](./Run.lean) | `rv32run`: the model, compiled, for running a binary; memory held in an array, so 6000 stores take a fraction of a second | exp202, exp203 and exp204 run it beside the RTL |
+| [`Sha256.lean`](./Sha256.lean) | SHA-256, for `rv32run`'s HASH only — no theorem mentions it, so it can make a run disagree but never a proof wrong | `hashlib` at ten lengths, and the harness's C, in [exp204](../experiments/exp204-the-signature-the-kernel-checks/) |
 
 ```sh
 tools/lean/lean.sh exe rv32run     # builds the library and the runner; prints the runner's path

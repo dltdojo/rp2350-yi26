@@ -31,7 +31,7 @@ with `obtain` and keeps only a small description of it. And `0 : Reg` and
 `0#5` are the same register spelled two ways, which `simp` will not identify
 for you: the register facts are stated in both.
 -/
-import Rv32.Proof
+import Rv32.Place
 import Rv32.Asm
 
 
@@ -62,43 +62,9 @@ def kernel : List Instr := [
 
 /-- The kernel as bytes: each instruction's word, little-endian. This is
 `kernel.bin`, and the only thing on the chip the theorems are about. -/
-def bytes : List UInt8 :=
-  kernel.flatMap fun i =>
-    let n := (encode i).toNat
-    [n % 256, n / 256 % 256, n / 65536 % 256, n / 16777216].map UInt8.ofNat
+def bytes : List UInt8 := toBytes kernel
 
 def image : ByteArray := ⟨bytes.toArray⟩
-
-/-- What the theorems assume about where the kernel is. -/
-structure Placed (env : Env) (base : Word) : Prop where
-  align : base.toNat % 4 = 0
-  fit : base.toNat + 0x10000 ≤ 2^32
-  region : env.region = ⟨base.toNat, base.toNat + 0x10000⟩
-
-/-- `base + c`, as a number: nothing wraps inside the region. -/
-theorem toNat_off {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (c : Nat) (hc : c < 0x10000) :
-    (base + BitVec.ofNat 32 c).toNat = base.toNat + c := by
-  rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show c < 2^32 by omega),
-    Nat.mod_eq_of_lt (show base.toNat + c < 2^32 by omega)]
-
-theorem off_add {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (c d : Nat)
-    (h : c + d < 0x10000) :
-    base + BitVec.ofNat 32 c + BitVec.ofNat 32 d = base + BitVec.ofNat 32 (c + d) := by
-  apply BitVec.eq_of_toNat_eq
-  rw [BitVec.toNat_add, toNat_off hfit c (by omega), toNat_off hfit (c + d) h, BitVec.toNat_ofNat,
-    Nat.mod_eq_of_lt (show d < 2^32 by omega), Nat.mod_eq_of_lt (show base.toNat + c + d < 2^32 by omega)]
-  omega
-
-theorem ok_off {env : Env} {base : Word} (hp : Placed env base) (c n : Nat) (hc : c < 0x10000)
-    (h : c + n ≤ 0x10000) :
-    env.region.ok (base + BitVec.ofNat 32 c) n := by
-  rw [hp.region]
-  simp only [Region.ok]
-  rw [toNat_off hp.fit c (by omega)]; omega
-
-theorem align_off {base : Word} (hp : base.toNat % 4 = 0) (hfit : base.toNat + 0x10000 ≤ 2^32)
-    (c : Nat) (hc : c < 0x10000) (h4 : c % 4 = 0) : (base + BitVec.ofNat 32 c).toNat % 4 = 0 := by
-  rw [toNat_off hfit c hc]; omega
 
 /-- The destination after `i` words have been copied: the first `4 * i` bytes
 from the source, everything else as it was. -/
@@ -135,33 +101,8 @@ The bridge from the file to the theorems: the shell loads `kernel.bin`, which
 theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (img : ByteArray)
     (hsize : 60 ≤ img.size)
     (himg : ∀ d (h : d < 60), img.get d (by omega) = bytes.getD d 0) :
-    CodeAt (memOfImage base img) base kernel := by
-  intro k hk
-  have hk' : k < 15 := by simpa [kernel] using hk
-  rw [readLE_four, ← bytes_words k hk']
-  have at_ : ∀ j (hj : j < 4), memOfImage base img (base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 j)
-      = BitVec.ofNat 8 (bytes.getD (4 * k + j) 0).toNat := by
-    intro j hj
-    unfold memOfImage
-    have hd : (base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 j - base).toNat = 4 * k + j := by
-      rw [off_add hfit _ _ (by omega), BitVec.toNat_sub, toNat_off hfit _ (by omega)]
-      omega
-    simp only [hd, show 4 * k + j < img.size by omega, ↓reduceDIte]
-    rw [himg _ (by omega)]
-  have e0 := at_ 0 (by decide); have e1 := at_ 1 (by decide)
-  have e2 := at_ 2 (by decide); have e3 := at_ 3 (by decide)
-  simp only [show base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 0 = base + BitVec.ofNat 32 (4 * k)
-    by simp, Nat.add_zero] at e0
-  rw [e0, show base + BitVec.ofNat 32 (4 * k) + 1 = base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 1
-    from rfl, e1, show base + BitVec.ofNat 32 (4 * k) + 2 = base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 2
-    from rfl, e2, show base + BitVec.ofNat 32 (4 * k) + 3 = base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 3
-    from rfl, e3]
-  simp only [BitVec.toNat_ofNat]
-  have := (bytes.getD (4 * k) 0).toNat_lt
-  have := (bytes.getD (4 * k + 1) 0).toNat_lt
-  have := (bytes.getD (4 * k + 2) 0).toNat_lt
-  have := (bytes.getD (4 * k + 3) 0).toNat_lt
-  omega
+    CodeAt (memOfImage base img) base kernel :=
+  Rv32.code_of_image hfit (by decide) (fun k h => bytes_words k (by simpa [kernel] using h)) img hsize himg
 
 /-! ## Block 1: six instructions of setup -/
 
@@ -180,11 +121,6 @@ theorem setup {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
   simp [hpc, reg_setReg, T1, T2, T3, A0, aluR, aluI, BitVec.add_assoc]
 
 /-! ## One word copied -/
-
-theorem toNat_sub_off {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (x : Word) (c : Nat)
-    (hc : c < 0x10000) :
-    (x - (base + BitVec.ofNat 32 c)).toNat = (2^32 - (base.toNat + c) + x.toNat) % 2^32 := by
-  rw [BitVec.toNat_sub, toNat_off hfit c hc]
 
 /-- What memory holds after iteration `i`'s store, given what it held before. -/
 theorem mem_step {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {m0 m : Word → Byte} {i : Nat}

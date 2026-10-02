@@ -110,6 +110,7 @@ Per experiment:
 | exp201 | **No board at all**, and no USB anywhere in it. Lean 4.34.0 through `tools/lean/setup.sh`, and `llvm-mc` and `llvm-objdump` with the RISC-V target (Ubuntu's `llvm`). The shared library in `lean/` is built with `lake`, which ships with Lean. Each library mutant rebuilds it in a copy, so `check.sh` takes four or five minutes. |
 | exp202 | **No board at all**, and no USB anywhere in it. Lean 4.34.0 through `tools/lean/setup.sh`, and the Hazard3 RTL through `tools/hazard3/setup.sh` — a pinned clone, built with `verilator` and `clang++` in under a minute, 10 MB. `clang`, `lld` and `llvm-objcopy` for the RISC-V images. About five minutes, most of it the fourteen mutants. |
 | exp203 | **No board at all**, and no USB anywhere in it. Lean 4.34.0 through `tools/lean/setup.sh`, the Hazard3 RTL through `tools/hazard3/setup.sh`, and `clang`, `lld` and `llvm-objcopy`. About two minutes, most of it seven mutants of the proof. |
+| exp204 | **No board at all**, and no USB anywhere in it. The same as exp203, and `python3` for the images. A few minutes, most of it eleven mutants of the proof. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -493,7 +494,7 @@ awake — and because most of these experiments cost nothing.
 
 | | Means | Experiments |
 | --- | --- | --- |
-| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203 |
+| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
@@ -757,6 +758,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp201 | `none` | `none` | `none` | `none` |
 | exp202 | `none` | `none` | `none` | `none` |
 | exp203 | `none` | `none` | `none` | `none` |
+| exp204 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -939,6 +941,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp201-one-word-one-reading](./exp201-one-word-one-reading/) | 0 · none | **`lean/Rv32/Isa.lean`'s encoder and decoder for the forty-six RV32IM forms a kernel may use agree in both directions — every instruction survives a round trip, and no word decodes unless it is exactly an encoding — so a word of a kernel has one reading.** The first theorem alone is shown not to be enough. LLVM agrees with all 3,450 instructions and 5,572 words it was shown, and two wrong encodings that both theorems accept, because the mistake is the same in both directions, are each refused by LLVM at once |
 | [exp202-the-tests-the-chip-passes](./exp202-the-tests-the-chip-passes/) | 0 · none | **`lean/Rv32/Machine.lean`, the model every later proof is about, passes all 48 of riscv-tests' RV32I and RV32M tests; the Hazard3 RTL — the RP2350's core, simulated — passes them from the same bytes; and after each, and after five probes of its own, the two end the same way and leave the whole 64 KiB region byte for byte the same.** Fourteen wrong models are each refused, four only by the probes: the suite never jumps to an odd address, never misaligns a load, and never stores or fetches outside its own memory — the behaviours a kernel proof leans on hardest |
 | [exp203-the-count-the-proof-promised](./exp203-the-count-the-proof-promised/) | 0 · none | **Sixty bytes of RV32IM — `kernel.bin`, SHA-256 committed beside it — proved to copy 64 bytes and halt with 0 at exactly instruction 105, for every base address, every input and every register; the model runs them in 105 and the Hazard3 RTL retires 108.** The 3 is the harness's, constant across every payload length measured, and spent in a way the privileged specification says it should not be: Hazard3 counts `ecall`, counts `mret` twice, and counts the same instructions differently depending on what lies in memory behind an `mret`. So a count from `minstret` is a proof's count plus a constant that must be measured for the exact shell |
+| [exp204-the-signature-the-kernel-checks](./exp204-the-signature-the-kernel-checks/) | 0 · none | **352 bytes of RV32IM proved to check a Lamport one-time signature: they halt with 0 when all 256 preimages hash to the key halves the message's bits select and with 1 otherwise, at exactly instruction 16663 either way, writing nothing outside 96 bytes of scratch — for every input and for every function HASH might be.** The model, the Hazard3 RTL and Python agree on ten cases, region byte for byte. One HASH costs the RTL 4 `minstret` the model does not count; and the count also depends on the word behind the last `ecall`, which never runs — so on the chip, on what the shell leaves after `kernel.bin` |
 
 ## The browser track, finished
 
@@ -2703,12 +2706,15 @@ they can settle is settled before anybody walks to a bench.**
   copy and to halt at exactly instruction 105; the RTL retires 108, and the 3 is
   the shell's, measured — including that Hazard3 counts `ecall`, counts `mret`
   twice, and counts by what lies in memory behind it.
+- [exp204](./exp204-the-signature-the-kernel-checks/) — Lamport verify: proved
+  to give the verification predicate's verdict for every HASH, at exactly
+  instruction 16663 whatever the verdict; one HASH costs the RTL 4 `minstret`,
+  and the word behind the last `ecall` moves the count by one.
 
 **Planned without a board**, each the same path with a bigger kernel:
 
 | | Kernel | What the proof adds |
 | --- | --- | --- |
-| exp204 | Lamport one-time signature, verify | the first `ecall` to HASH, as an abstract function; and the cost of one HASH call in `minstret`, measured |
 | exp205 | WOTS, w = 16, verify | a loop invariant over a hash chain, and the checksum |
 | exp206 | MSS — WOTS under a Merkle tree of height 4 | an authentication path and a leaf index; completeness, `verify (sign m)`, proved at the reference level and carried to the bytes |
 | exp207 | sign and keygen, again | constant time as a relational proof: two runs with the same public input and different secrets fetch the same PCs and touch the same addresses |

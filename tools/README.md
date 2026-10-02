@@ -543,7 +543,12 @@ writes a log of several gigabytes while failing. The result is 10 MB.
 
 `harness/` is the shell, written small: PMP gives User mode one 64 KiB region at
 `0x80010000` and nothing else, every register is zeroed, `mret` enters the
-payload, and `ecall` with `t0 = 1` ends it with `a0` as the result. That is the
-state `lean/Rv32/Load.lean`'s `boot` describes, and every kernel proof starts
-from. Counting is held everywhere but in the payload, which costs exactly three
-counted instructions per run on this RTL — exp203 measures where they go.
+payload, `ecall` with `t0 = 1` ends it with `a0` as the result, and `ecall`
+with `t0 = 0` is HASH — SHA-256 in C, its arguments checked as the model checks
+them. That is the state `lean/Rv32/Load.lean`'s `boot` describes, and every
+kernel proof starts from. Counting is held everywhere but in the payload, which
+costs exactly three counted instructions per run on this RTL — exp203 measures
+where they go — and four more per HASH, which exp204 measures. Both also depend
+on the word behind the payload's last `ecall`: a word that never runs.
+`sigfile.py`'s `read_sig` reads a `--dump` back as bytes; `rv32run` writes the
+same format.

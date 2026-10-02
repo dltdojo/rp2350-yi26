@@ -9,4 +9,4 @@ kernel|the branch goes back one instruction too far|s/  .br .bne T3 0 0xff6,/  .
 count|it is claimed to halt within 104 instructions|s/    ∃ s', run env 105 s = .halted 0 s'$/    ∃ s', run env 104 s = .halted 0 s'/
 count|it is claimed still to be running after 105|s/    ∃ s1, run env 104 s = .running s1 := by/    ∃ s1, run env 105 s = .running s1 := by/
 copy|it is claimed to copy 65 bytes|s/      ∧ (∀ k < 64, s'.mem (base + BitVec.ofNat 32 (0x2000 + k)) = s.mem/      ∧ (∀ k < 65, s'.mem (base + BitVec.ofNat 32 (0x2000 + k)) = s.mem/
-place|the base is only required to be even, not a multiple of four|s/  align : base.toNat % 4 = 0/  align : base.toNat % 2 = 0/
+place|the base is only required to be even, not a multiple of four|s/  align : base.toNat % 4 = 0/  align : base.toNat % 2 = 0/|lean/Rv32/Place.lean

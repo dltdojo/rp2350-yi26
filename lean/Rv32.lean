@@ -3,3 +3,4 @@ import Rv32.Machine
 import Rv32.Asm
 import Rv32.Load
 import Rv32.Proof
+import Rv32.Place

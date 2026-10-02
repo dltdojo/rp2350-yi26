@@ -1,0 +1,16 @@
+# exp204 — wrong kernels, and wrong claims about the right one. Each must be
+# refused by Lean. The first six are mistakes in the 352 bytes; the rest leave
+# the bytes alone and claim something they do not do.
+#
+# <label>|<what is wrong>|<sed>
+kernel|the loop stops after 255 preimages, so the last bit of the message is never checked|s/  .opi .addi S7 0 256 ] ++/  .opi .addi S7 0 255 ] ++/
+kernel|the zero padding starts one word late, so HASH reads four bytes left over from before|s/(BitVec.ofNat 12 (32 + 4 \* j))$/(BitVec.ofNat 12 (36 + 4 * j))/
+kernel|HASH is asked for 32 bytes, a length it refuses|s/.opi .addi A1 0 64, .opi .addi A2 S5 64/.opi .addi A1 0 32, .opi .addi A2 S5 64/
+kernel|the message byte is found with a shift of 4, not 3|s/  .sh .srli T1 S4 3, .op .add T1 S3 T1/  .sh .srli T1 S4 4, .op .add T1 S3 T1/
+kernel|the words are folded together with and, so one matching word is enough|s/     .op .xor T2 T2 T3, .op .or S6 S6 T2\]/     .op .xor T2 T2 T3, .op .and S6 S6 T2]/
+kernel|the verdict compares s6 the wrong way round, so every signature is accepted|s/def finish : List Instr := \[ .op .sltu A0 0 S6,/def finish : List Instr := [ .op .sltu A0 S6 0,/
+count|it is claimed to halt within 16662 instructions|s/    ∃ s', run env 16663 s = .halted (if Verifies env.hash s.mem base then 0 else 1) s'/    ∃ s', run env 16662 s = .halted (if Verifies env.hash s.mem base then 0 else 1) s'/
+count|it is claimed still to be running after 16663|s/    ∃ s1, run env 16662 s = .running s1 := by/    ∃ s1, run env 16663 s = .running s1 := by/
+verdict|it is claimed to accept every signature|s/    ∃ s', run env 16663 s = .halted (if Verifies env.hash s.mem base then 0 else 1) s'/    ∃ s', run env 16663 s = .halted (if Verifies env.hash s.mem base then 0 else 0) s'/
+verdict|the message's bits are read high bit first|s/  (m (base + BitVec.ofNat 32 (MSG + i \/ 8))).toNat \/ 2 ^ (i % 8) % 2/  (m (base + BitVec.ofNat 32 (MSG + i \/ 8))).toNat \/ 2 ^ (7 - i % 8) % 2/
+scratch|it is claimed to write only 64 bytes of scratch|s/(base + BitVec.ofNat 32 SCR)).toNat < 96$/(base + BitVec.ofNat 32 SCR)).toNat < 64/

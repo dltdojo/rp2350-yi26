@@ -20,6 +20,9 @@ Python, not from the model, so a check here is a third party's opinion.
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "hazard3"))
+from sigfile import read_sig  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC, DST = 0x1000, 0x2000
 BEFORE, AFTER = 0x5A, 0xA5
@@ -51,15 +54,6 @@ def image(data):
     img[DST:DST + 64] = bytes([0xEE] * 64)       # something to overwrite
     img[DST + 64:DST + 128] = bytes([AFTER] * 64)
     return bytes(img)
-
-
-def read_sig(path):
-    out = bytearray()
-    for line in open(path):
-        line = line.strip()
-        if line:
-            out += int(line, 16).to_bytes(4, "little")
-    return bytes(out)
 
 
 # The entry point is not called `main` on purpose, and the reason is written

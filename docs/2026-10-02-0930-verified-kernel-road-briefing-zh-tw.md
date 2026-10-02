@@ -108,10 +108,11 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 | --- | --- | --- |
 | [exp201](../experiments/exp201-one-word-one-reading/) | Lean 的 RV32IM 編碼器／解碼器雙向一致：每條指令往返不變，且不是編碼的字組一律不解碼——**一個字組只有一種讀法**。LLVM 同意 3,450 條指令與 5,572 個字組；兩個「兩邊一起錯」的版本 Lean 證明擋不住，LLVM 立刻擋下 | 已提交、已錄製 |
 | [exp202](../experiments/exp202-the-tests-the-chip-passes/) | Lean 語意模型通過 48 個 riscv-tests；Hazard3 RTL 用同樣的位元組也通過；53 支程式之後兩者 64 KiB 記憶體逐位元組相同。14 個錯誤模型全被擋下，其中 4 個只有自寫的探針擋得住 | 已提交、已錄製 |
-| [exp203](../experiments/exp203-the-count-the-proof-promised/) | 60 位元組的拷貝核心，證明正確且恰好 105 條指令；`kernel.bin` 與 SHA-256 已提交；RTL 退休 108，差的 3 逐條拆解 | 本輪提交 |
+| [exp203](../experiments/exp203-the-count-the-proof-promised/) | 60 位元組的拷貝核心，證明正確且恰好 105 條指令；`kernel.bin` 與 SHA-256 已提交；RTL 退休 108，差的 3 逐條拆解 | 已提交、已錄製 |
+| [exp204](../experiments/exp204-the-signature-the-kernel-checks/) | 352 位元組的 Lamport verify 核心：對**任何** HASH 函數，簽章全對回 0、任一錯回 1，無論結果都恰好 16663 條指令，只寫 96 位元組暫存區。模型、RTL、Python 在 10 個案例上判決一致、記憶體逐位元組相同。每次 HASH 在 RTL 上多計 4；最後一個 `ecall` 後面那個不會執行的字組也會讓計數差 1 | 本輪提交 |
 
-新增的共用部分：`lean/Rv32/`（`Isa`、`Machine`、`Load`、`Asm`、`Proof`）、`lean/Run.lean`
-（模型編譯成 `rv32run`）、`tools/hazard3/`（`setup.sh`、`sim.sh`、harness）、
+新增的共用部分：`lean/Rv32/`（`Isa`、`Machine`、`Load`、`Asm`、`Proof`、`Place`）、`lean/Run.lean`
+（模型編譯成 `rv32run`，記憶體改用陣列）、`lean/Sha256.lean`（只供執行）、`tools/hazard3/`（`setup.sh`、`sim.sh`、harness）、
 `tools/lean/lean.sh` 能檢查引用函式庫的證明、能讓 mutant 改函式庫本身。
 
 ---
@@ -123,7 +124,6 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 
 | 編號（暫定） | 內容 | 新增的證明重點 | 雲端完成條件 |
 | --- | --- | --- | --- |
-| exp204 | **Lamport verify**：核心以 `ecall` 呼叫 HASH；RTL harness 的 HASH 用軟體 SHA-256（C），Lean 模型執行時用 Lean 寫的 SHA-256（只供執行，不進證明） | 第一次用到 HASH 抽象；「揭露原像、比對雜湊」的區塊合約；每次 HASH 呼叫的 `minstret` 成本實測 | Python 測試向量全過；模型與 RTL 逐位元組一致；錯誤簽章一律拒絕 |
 | exp205 | **WOTS（w = 16）verify** | 雜湊鏈的迴圈不變式、checksum | 同上 |
 | exp206 | **MSS（WOTS + Merkle，樹高 4）** keygen／sign／verify | 驗證路徑、葉節點索引；**完整性** verify(sign(m)) 在參考實作層證明，經功能正確性傳到 binary | 16 個葉全部簽／驗成功（計數器此時由測試平台扮演） |
 | exp207 | **常數時間** | sign 與 keygen 的「兩次執行」關係型證明：公開輸入相同、秘密不同 → PC 序列與存取位址序列相同 | 證明通過；RTL 上不同秘密金鑰的 `mcycle` 完全相同（exp203 已看到 113 個週期與資料無關，但那是觀察，不是定理） |
@@ -147,7 +147,7 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 
 ## 八、問題（請決定）
 
-1. **exp204 的 HASH 填充規則。** Lamport 的原像是 32 位元組，介面要求 64 的倍數。
+1. **exp204 的 HASH 填充規則。**（已採 (a)，exp204） Lamport 的原像是 32 位元組，介面要求 64 的倍數。
    - (a) **推薦**：原像補 32 個零到 64 位元組再雜湊——規則最簡單，Lean、C、Python 三邊都好寫；
    - (b) 放寬介面為「任意長度」，由 handler 做 SHA-256 標準填充——貼近加速器，但 Lean 的 HASH 抽象要多帶長度。
 2. **板子上的殼層要不要第一版就做 1200 baud 重開機？** 做了 exp209 是 Needs 1（沒人也能燒錄），
