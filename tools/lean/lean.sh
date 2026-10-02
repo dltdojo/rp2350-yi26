@@ -20,8 +20,10 @@
 #   lean.sh mutants FILE    PASS/FAIL per line of mutants.txt beside FILE
 #   lean.sh run FILE        what Lean prints, and its exit status
 #   lean.sh table FILE      one line per mutant: refused in which theorem
-#   lean.sh exec FILE [LIB] `lean --run FILE`: run its `main`, against the
-#                           library copy LIB if given
+#   lean.sh exec FILE [LIB] [ARGS...]
+#                           `lean --run FILE ARGS...`: run its `main`, against
+#                           the library copy LIB if given (a directory with a
+#                           lakefile.toml); ARGS go to the program
 #   lean.sh mutant-lib SED FILE
 #                           a copy of lean/ with SED applied to FILE, built;
 #                           prints the copy's path, which the caller removes
@@ -169,11 +171,17 @@ case "$mode" in
         echo "exit $?";;
     exec)
         f="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+        shift 2
+        lib="$REPO/lean"
+        if [[ $# -gt 0 && -f "${1}/lakefile.toml" ]]; then lib="$1"; shift; fi
         if uses_lib "$f"; then
-            (cd "${3:-$REPO/lean}" && PATH="$BIN:$PATH" lake build -q > /dev/null \
-                && PATH="$BIN:$PATH" lake env lean --run "$f")
+            # Built in the library's directory, run in the caller's, so that
+            # a relative path among ARGS means what the caller meant by it.
+            (cd "$lib" && PATH="$BIN:$PATH" lake build -q > /dev/null) || exit 1
+            LEAN_PATH="$(cd "$lib" && PATH="$BIN:$PATH" lake env printenv LEAN_PATH)" \
+                "$LEAN" --run "$f" "$@"
         else
-            "$LEAN" --run "$f"
+            "$LEAN" --run "$f" "$@"
         fi
         status=$?;;
     drop-lib)

@@ -14,7 +14,8 @@ misaligns a load, and never stores or fetches outside its own memory.**
 instruction. This settles what each instruction *does* — in the model every
 later proof is about, [`lean/Rv32/Machine.lean`](../../lean/Rv32/Machine.lean)
 — and it does it the only way a model can be checked: against things that are
-not it. The [design](../../docs/2026-10-02-0800-verified-kernel-road-briefing-zh-tw.md)
+not it. The design this road follows (see its
+[briefing](../../docs/2026-10-02-0930-verified-kernel-road-briefing-zh-tw.md))
 names three executors for every kernel: the Lean model, the Hazard3 RTL, and
 the chip. This is the first two, on a test suite somebody else wrote.
 
@@ -103,10 +104,11 @@ in any binary above:
 - **That the model is right.** It is evidence, on 53 programs, and the mutants
   measure how much of the model those programs actually look at. It is not a
   proof; there is no specification in Lean to prove it against.
-- **That the RTL is the chip.** The testbench's configuration is Hazard3's
-  default: four PMP regions and the Zbc extension, where the RP2350's
-  configuration differs. The board half of this road
-  ([Planned](../README.md#the-verified-kernel-road)) runs the same bytes on
+- **That the RTL is the chip.** By the Hazard3 README, the testbench's default
+  configuration is the RP2350's except that it adds the Zbc extension. But the
+  RTL is a 2026 commit of the v1.1 line, and the RP2350 has v1.0-rc1 — its
+  `mimpid` is `86fc4e3f`, by Hazard3's own documentation. The board half of this
+  road ([Planned](../README.md#the-verified-kernel-road)) runs the same bytes on
   silicon.
 - **Instruction counts.** Both executors count, and the numbers are printed;
   what they mean, and whether a proof can predict them, is

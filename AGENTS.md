@@ -122,7 +122,8 @@ experiments/duplication.sh --check    # fails if anything gained a copy
 ```
 
 Rust goes to [`crates/`](./crates/); Python and shell go to
-[`tools/`](./tools/).
+[`tools/`](./tools/); Lean goes to [`lean/`](./lean/), the library every
+verified-kernel proof stands on.
 
 Existing copies are grandfathered in `experiments/duplication-baseline.txt`. The baseline
 may only shrink. **The second copy is the moment to extract, not the fifth.**

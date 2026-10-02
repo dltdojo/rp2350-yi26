@@ -32,8 +32,9 @@ The first theorem is the one anybody writes down, and it is not enough.
 instruction and also reads `0x40001013` — an `slli` with the reserved bit 30 set
 — as `slli x0, x0, 0`. That decoder has two words for one instruction. A
 theorem about the instruction would then be about two binaries, and only one of
-them is the one whose hash the shell checks before running it
-([design §5](../../docs/2026-10-02-0800-verified-kernel-road-briefing-zh-tw.md)).
+them is the one whose hash the shell checks before running it — §5 of the
+design this road follows, summarised in its
+[briefing](../../docs/2026-10-02-0930-verified-kernel-road-briefing-zh-tw.md).
 `encode_decode` is what rules it out.
 
 ## What only somebody else's reading can check

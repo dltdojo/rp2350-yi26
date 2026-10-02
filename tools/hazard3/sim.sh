@@ -11,6 +11,11 @@
 #       With --dump, the first BYTES of the payload's region afterwards, one
 #       little-endian word per line in hex, to FILE — the testbench's own
 #       --sigfile format.
+#   sim.sh bare IMAGE.bin [--cycles N]
+#       IMAGE at the start of RAM with no harness at all — a Machine-mode
+#       program of its own, for measuring the core rather than running a
+#       payload. Prints every word the program writes to the testbench's
+#       print port, one per line in hex, then `exit=<code>` or `timeout`.
 #   sim.sh ready      exit 0 when tools/hazard3/setup.sh has run
 #   sim.sh region     the region's base and size, as two hex numbers
 #
@@ -44,6 +49,16 @@ harness() {
 
 case "${1-}" in
     ready) ready; exit;;
+    bare)
+        [[ -f "${2-}" ]] || { echo "no image '${2-}'" >&2; exit 2; }
+        ready || { echo "the testbench is not built — run tools/hazard3/setup.sh" >&2; exit 2; }
+        cycles=100000; [[ "${3-}" == --cycles ]] && cycles="$4"
+        out="$("$TB" --bin "$2" --cycles "$cycles" 2>&1)"
+        grep -E '^[0-9a-f]{8}$' <<< "$out"
+        if grep -q 'CPU requested halt' <<< "$out"; then
+            echo "exit=$(sed -n 's/.*Exit code \(-\?[0-9]*\).*/\1/p' <<< "$out")"
+        else echo timeout; fi
+        exit 0;;
     region) echo "$REGION $REGION_SIZE"; exit 0;;
     run) ;;
     *) sed -n '3,22p' "${BASH_SOURCE[0]}"; exit 2;;
