@@ -23,7 +23,9 @@ while IFS='|' read -r label what expr; do
     if [[ ! "$expr" =~ ^(.*)\|(lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
         echo "FAIL  $claim — no target file named"; status=1; continue
     fi
-    lib="$($LEAN mutant-lib "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}")"; built=$?
+    # Only the runner is built: a proof in lean/Rv32/Proof.lean that the wrong
+    # model breaks is not what this comparison is asked to show.
+    lib="$($LEAN mutant-lib "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" rv32run)"; built=$?
     if [[ $built -eq 3 ]]; then echo "FAIL  $claim — the sed no longer matches its file"; status=1
     elif [[ $built -ne 0 ]]; then echo "FAIL  $claim — it does not even build, so this says nothing"; status=1
     elif ! run="$($LEAN exe rv32run "$lib")"; then echo "FAIL  $claim — rv32run did not build"; status=1

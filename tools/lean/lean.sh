@@ -24,9 +24,12 @@
 #                           `lean --run FILE ARGS...`: run its `main`, against
 #                           the library copy LIB if given (a directory with a
 #                           lakefile.toml); ARGS go to the program
-#   lean.sh mutant-lib SED FILE
-#                           a copy of lean/ with SED applied to FILE, built;
-#                           prints the copy's path, which the caller removes
+#   lean.sh mutant-lib SED FILE [TARGET]
+#                           a copy of lean/ with SED applied to FILE, built —
+#                           all of it, or only TARGET (e.g. rv32run, for a
+#                           mutant the model's runs must refuse rather than a
+#                           proof); prints the copy's path, which the caller
+#                           removes
 #   lean.sh exe NAME [LIB]  build the library's executable NAME, in LIB if
 #                           given, and print its path
 #   lean.sh drop-lib LIB    remove a copy mutant-lib made, and nothing else
@@ -52,8 +55,8 @@ LEAN="$BIN/lean"
 mode="${1-}"; file="${2-}"
 case "$mode" in
     version|drop-lib|exe) ;;
-    mutant-lib) [[ -f "$REPO/${3-}" ]] || { sed -n '3,38p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) [[ -f "$file" ]] || { sed -n '3,38p' "${BASH_SOURCE[0]}"; exit 2; };;
+    mutant-lib) [[ -f "$REPO/${3-}" ]] || { sed -n '3,41p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) [[ -f "$file" ]] || { sed -n '3,41p' "${BASH_SOURCE[0]}"; exit 2; };;
 esac
 [[ "$mode" == mutant-lib ]] || mutants="$(dirname "$file")/mutants.txt"
 
@@ -198,7 +201,7 @@ case "$mode" in
         # 0 it built, 1 the build refused it, 3 the sed matched nothing.
         lib="$(mutant_lib "$2" "$3")"; status=$?
         if [[ $status -eq 0 ]]; then
-            (cd "$lib" && PATH="$BIN:$PATH" lake build -q > /dev/null 2>&1) || status=1
+            (cd "$lib" && PATH="$BIN:$PATH" lake build -q ${4:+"$4"} > /dev/null 2>&1) || status=1
         fi
         echo "$lib";;
     check)
@@ -227,6 +230,6 @@ case "$mode" in
         lw="$(awk -F'|' '!/^#/ && NF >= 3 { if (length($1) > w) w = length($1) } END { print w }' "$mutants")"
         each_mutant where_refused;;
     *)
-        sed -n '3,38p' "${BASH_SOURCE[0]}"; exit 2;;
+        sed -n '3,41p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 exit "$status"
