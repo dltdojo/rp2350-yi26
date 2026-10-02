@@ -3,3 +3,8 @@ defaultTargets = ["Rv32"]
 
 [[lean_lib]]
 name = "Rv32"
+
+# The model, compiled, for holding it against things that are not it.
+[[lean_exe]]
+name = "rv32run"
+root = "Run"

@@ -25,6 +25,8 @@
 #   lean.sh mutant-lib SED FILE
 #                           a copy of lean/ with SED applied to FILE, built;
 #                           prints the copy's path, which the caller removes
+#   lean.sh exe NAME [LIB]  build the library's executable NAME, in LIB if
+#                           given, and print its path
 #   lean.sh drop-lib LIB    remove a copy mutant-lib made, and nothing else
 #   lean.sh version         the pinned Lean's own version line
 #
@@ -47,7 +49,7 @@ LEAN="$BIN/lean"
 
 mode="${1-}"; file="${2-}"
 case "$mode" in
-    version|drop-lib) ;;
+    version|drop-lib|exe) ;;
     mutant-lib) [[ -f "$REPO/${3-}" ]] || { sed -n '3,38p' "${BASH_SOURCE[0]}"; exit 2; };;
     *) [[ -f "$file" ]] || { sed -n '3,38p' "${BASH_SOURCE[0]}"; exit 2; };;
 esac
@@ -176,6 +178,13 @@ case "$mode" in
         status=$?;;
     drop-lib)
         drop_lib "$file"; status=$?;;
+    exe)
+        lib="${3:-$REPO/lean}"
+        if (cd "$lib" && PATH="$BIN:$PATH" lake build -q "$file" > /dev/null 2>&1); then
+            echo "$lib/.lake/build/bin/$file"
+        else
+            echo "$file did not build in $lib" >&2; status=1
+        fi;;
     mutant-lib)
         # Prints the copy's path whatever happens; the status says what did:
         # 0 it built, 1 the build refused it, 3 the sed matched nothing.
