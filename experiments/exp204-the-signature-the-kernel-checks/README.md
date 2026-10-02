@@ -214,11 +214,164 @@ mutant rebuilds against it, so `check.sh` takes a few minutes.
 
 ## Expected output
 
-See [`capture.txt`](./capture.txt), recorded by `./run.sh`; the summary lines
-are:
-
 ```text
-CAPTURE
+=== exp204 — the signature the kernel checks ===
+recorded at 2026-10-02T14:34:32Z from commit 04a5800
+
+>>> the kernel, as the proof states it and as kernel.bin holds it
+  0000  00000417  auipc x8, 0
+  0004  00002337  lui x6, 2
+  0008  006404b3  add x9, x8, x6
+  000c  00004337  lui x6, 4
+  0010  00640933  add x18, x8, x6
+  0014  00001337  lui x6, 1
+  0018  006409b3  add x19, x8, x6
+  001c  00008337  lui x6, 8
+  0020  00640ab3  add x21, x8, x6
+  0024  00000a13  addi x20, x0, 0
+  0028  00000b13  addi x22, x0, 0
+  002c  10000b93  addi x23, x0, 256
+  0030  020aa023  sw x0, 32(x21)
+  0034  020aa223  sw x0, 36(x21)
+  0038  020aa423  sw x0, 40(x21)
+  003c  020aa623  sw x0, 44(x21)
+  0040  020aa823  sw x0, 48(x21)
+  0044  020aaa23  sw x0, 52(x21)
+  0048  020aac23  sw x0, 56(x21)
+  004c  020aae23  sw x0, 60(x21)
+  0050  0004ae83  lw x29, 0(x9)
+  0054  01daa023  sw x29, 0(x21)
+  0058  0044ae83  lw x29, 4(x9)
+  005c  01daa223  sw x29, 4(x21)
+  0060  0084ae83  lw x29, 8(x9)
+  0064  01daa423  sw x29, 8(x21)
+  0068  00c4ae83  lw x29, 12(x9)
+  006c  01daa623  sw x29, 12(x21)
+  0070  0104ae83  lw x29, 16(x9)
+  0074  01daa823  sw x29, 16(x21)
+  0078  0144ae83  lw x29, 20(x9)
+  007c  01daaa23  sw x29, 20(x21)
+  0080  0184ae83  lw x29, 24(x9)
+  0084  01daac23  sw x29, 24(x21)
+  0088  01c4ae83  lw x29, 28(x9)
+  008c  01daae23  sw x29, 28(x21)
+  0090  00000293  addi x5, x0, 0
+  0094  000a8513  addi x10, x21, 0
+  0098  04000593  addi x11, x0, 64
+  009c  040a8613  addi x12, x21, 64
+  00a0  00000073  ecall
+  00a4  003a5313  srli x6, x20, 3
+  00a8  00698333  add x6, x19, x6
+  00ac  00034303  lbu x6, 0(x6)
+  00b0  007a7393  andi x7, x20, 7
+  00b4  00735333  srl x6, x6, x7
+  00b8  00137313  andi x6, x6, 1
+  00bc  00531313  slli x6, x6, 5
+  00c0  00690333  add x6, x18, x6
+  00c4  040aa383  lw x7, 64(x21)
+  00c8  00032e03  lw x28, 0(x6)
+  00cc  01c3c3b3  xor x7, x7, x28
+  00d0  007b6b33  or x22, x22, x7
+  00d4  044aa383  lw x7, 68(x21)
+  00d8  00432e03  lw x28, 4(x6)
+  00dc  01c3c3b3  xor x7, x7, x28
+  00e0  007b6b33  or x22, x22, x7
+  00e4  048aa383  lw x7, 72(x21)
+  00e8  00832e03  lw x28, 8(x6)
+  00ec  01c3c3b3  xor x7, x7, x28
+  00f0  007b6b33  or x22, x22, x7
+  00f4  04caa383  lw x7, 76(x21)
+  00f8  00c32e03  lw x28, 12(x6)
+  00fc  01c3c3b3  xor x7, x7, x28
+  0100  007b6b33  or x22, x22, x7
+  0104  050aa383  lw x7, 80(x21)
+  0108  01032e03  lw x28, 16(x6)
+  010c  01c3c3b3  xor x7, x7, x28
+  0110  007b6b33  or x22, x22, x7
+  0114  054aa383  lw x7, 84(x21)
+  0118  01432e03  lw x28, 20(x6)
+  011c  01c3c3b3  xor x7, x7, x28
+  0120  007b6b33  or x22, x22, x7
+  0124  058aa383  lw x7, 88(x21)
+  0128  01832e03  lw x28, 24(x6)
+  012c  01c3c3b3  xor x7, x7, x28
+  0130  007b6b33  or x22, x22, x7
+  0134  05caa383  lw x7, 92(x21)
+  0138  01c32e03  lw x28, 28(x6)
+  013c  01c3c3b3  xor x7, x7, x28
+  0140  007b6b33  or x22, x22, x7
+  0144  02048493  addi x9, x9, 32
+  0148  04090913  addi x18, x18, 64
+  014c  001a0a13  addi x20, x20, 1
+  0150  f17a10e3  bne x20, x23, -256
+  0154  01603533  sltu x10, x0, x22
+  0158  00100293  addi x5, x0, 1
+  015c  00000073  ecall
+    sha256 f078c2905bc937322cff2ba4a98e28eeb6c705c036174c64caff3e1b131fb104  (352 bytes)
+    byte for byte the committed kernel.bin
+
+>>> the theorems, and what they rest on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'Exp204.bytes_words' depends on axioms: [propext]
+'Exp204.code_of_image' depends on axioms: [propext, Quot.sound]
+'Exp204.copy_block' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.hash_block' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.pick_block' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.compare_block' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.good_iff' depends on axioms: [propext, Quot.sound]
+'Exp204.iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.verifies' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.exactly_16663' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp204.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+kernel   the loop stops after 255 preimages, so the last bit of the message is never checked     refused in setup_regs
+kernel   the zero padding starts one word late, so HASH reads four bytes left over from before   refused in at_setup_zero
+kernel   HASH is asked for 32 bytes, a length it refuses                                         refused in hash_block
+kernel   the message byte is found with a shift of 4, not 3                                      refused in pick_block
+kernel   the words are folded together with and, so one matching word is enough                  refused in at_cmp_or
+kernel   the verdict compares s6 the wrong way round, so every signature is accepted             refused in halt
+count    it is claimed to halt within 16662 instructions                                         refused in verifies
+count    it is claimed still to be running after 16663                                           refused in exactly_16663
+verdict  it is claimed to accept every signature                                                 refused in verifies
+verdict  the message's bits are read high bit first                                              refused in pick_block
+scratch  it is claimed to write only 64 bytes of scratch                                         refused in overlay_outside
+
+>>> what one HASH costs the RTL that the model does not count
+  k   model   RTL: zeros   input   behind   RTL − model
+  0       8           11      11       12             3
+  1       9           16      16       17             7
+  2      10           21      21       22            11
+  3      11           26      26       27            15
+  4      12           31      31       32            19
+  5      13           36      36       37            23
+  6      14           41      41       42            27
+  7      15           46      46       47            31
+PASS  RTL − model = 3 + 4 × HASH calls, for k = 0..7: the harness's constant is 3 and one HASH costs 4 more
+PASS  the bytes hashed do not move the count; a nop behind the HALT ecall, never executed, adds one, at every k
+
+>>> the kernel on the model and on the RTL, against Python
+case                     python model at 0x80010000        RTL                                model at 0x20070000
+valid                    0      halt code=00000000 count=16663 halt code=00000000 instret=17690 cycles=20508 halt code=00000000 count=16663
+valid-other-key          0      halt code=00000000 count=16663 halt code=00000000 instret=17690 cycles=20508 halt code=00000000 count=16663
+all-ones-message         0      halt code=00000000 count=16663 halt code=00000000 instret=17690 cycles=20508 halt code=00000000 count=16663
+first-preimage-flipped   1      halt code=00000001 count=16663 halt code=00000001 instret=17690 cycles=20508 halt code=00000001 count=16663
+last-preimage-flipped    1      halt code=00000001 count=16663 halt code=00000001 instret=17690 cycles=20508 halt code=00000001 count=16663
+message-bit-flipped      1      halt code=00000001 count=16663 halt code=00000001 instret=17690 cycles=20508 halt code=00000001 count=16663
+other-half-revealed      1      halt code=00000001 count=16663 halt code=00000001 instret=17690 cycles=20508 halt code=00000001 count=16663
+other-message-signature  1      halt code=00000001 count=16663 halt code=00000001 instret=17690 cycles=20508 halt code=00000001 count=16663
+public-key-swapped       1      halt code=00000001 count=16663 halt code=00000001 instret=17690 cycles=20508 halt code=00000001 count=16663
+zero-signature           1      halt code=00000001 count=16663 halt code=00000001 instret=17690 cycles=20508 halt code=00000001 count=16663
+
+PASS  the model gives Python's verdict after exactly 16663 instructions, the number proved, on all 10 cases
+PASS  the RTL gives the same verdict and counts 17690 = 16663 proved + 3 for the harness + 256 HASH × 4, on all 10
+PASS  the whole region is byte for byte the same on both, on all 10
+PASS  Python agrees: only the 96 bytes of scratch changed, on all 10
+PASS  at 0x20070000 the same bytes give the same verdict after 16663, on all 10
 ```
 
 There is no board half here: the RTL is the chip's core, simulated on this
