@@ -1,0 +1,8 @@
+# exp201 — wrong versions of lean/Rv32/Isa.lean that Lean ACCEPTS: both
+# theorems still hold, because the mistake is the same in the encoder and the
+# decoder. Each must be accepted by the build and refused by the LLVM
+# differential. This is the gap the two theorems cannot close, kept honest.
+#
+# <label>|<what is wrong>|<sed>|<file>
+differential|sub is given funct7 0x30 instead of 0x20, in both tables|s/| .add => (0, 0) | .sub => (32, 0)/| .add => (0, 0) | .sub => (48, 0)/; s/| 0, 0 => some .add | 32, 0 => some .sub/| 0, 0 => some .add | 48, 0 => some .sub/|lean/Rv32/Isa.lean
+differential|lw and lh trade funct3, in both tables|s/| .lb => 0 | .lh => 1 | .lw => 2/| .lb => 0 | .lh => 2 | .lw => 1/; s/| 0 => some .lb | 1 => some .lh | 2 => some .lw/| 0 => some .lb | 1 => some .lw | 2 => some .lh/|lean/Rv32/Isa.lean

@@ -1,0 +1,9 @@
+# exp201 — wrong versions of lean/Rv32/Isa.lean. Each must be refused: the
+# library's own build checks both theorems, so a refusal names the step of the
+# proof that stopped holding.
+#
+# <label>|<what is wrong>|<sed>|<file>
+decode_encode|bge is given blt's funct3, so two branches share a code|s/| .bge => 5 | .bltu => 6/| .bge => 4 | .bltu => 6/|lean/Rv32/Isa.lean
+decode_encode|jal's immediate is put back with bit 11 read from bit 9|s/((f \/ 2^8) % 2) \* 2^10/((f \/ 2^9) % 2) * 2^10/|lean/Rv32/Isa.lean
+encode_decode|slli is read whatever funct7 holds, the reserved bit 30 included|s/  | 0, 1 => some .slli | 0, 5 => some .srli/  | _, 1 => some .slli | 0, 5 => some .srli/|lean/Rv32/Isa.lean
+encode_decode|every SYSTEM opcode reads as ecall, so csrrw is an ecall|s/  else if n = 0x73 then some .ecall/  else if n % 128 = 0x73 then some .ecall/|lean/Rv32/Isa.lean

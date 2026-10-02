@@ -1,0 +1,5 @@
+name = "yi26"
+defaultTargets = ["Rv32"]
+
+[[lean_lib]]
+name = "Rv32"
