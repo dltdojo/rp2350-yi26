@@ -128,4 +128,91 @@ minutes.
 
 ## Expected output
 
-Not captured yet.
+```text
+=== exp202 — the tests the chip passes ===
+recorded at 2026-10-02T08:31:15Z from commit dd7ce8b
+
+>>> what runs it
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+    Hazard3 8af992930f71, riscv-tests 49a24d7f41e7, Verilator 5.020 2024-01-01 rev (Debian 5.020-1)
+
+>>> every binary, on the model and on the RTL
+binary                   Lean model                 Hazard3 RTL
+probe-fetch_outside      fault 1 at 80000100        fault 1 at 80000100
+probe-illegal_csr        fault 2 at 80010000        fault 2 at 80010000
+probe-jalr_lsb           halt 00000000              halt 00000000
+probe-load_misaligned    fault 4 at 80010008        fault 4 at 80010008
+probe-store_outside      fault 7 at 80010004        fault 7 at 80010004
+rv32ui-add               halt 00000000              halt 00000000
+rv32ui-addi              halt 00000000              halt 00000000
+rv32ui-and               halt 00000000              halt 00000000
+rv32ui-andi              halt 00000000              halt 00000000
+rv32ui-auipc             halt 00000000              halt 00000000
+rv32ui-beq               halt 00000000              halt 00000000
+rv32ui-bge               halt 00000000              halt 00000000
+rv32ui-bgeu              halt 00000000              halt 00000000
+rv32ui-blt               halt 00000000              halt 00000000
+rv32ui-bltu              halt 00000000              halt 00000000
+rv32ui-bne               halt 00000000              halt 00000000
+rv32ui-jal               halt 00000000              halt 00000000
+rv32ui-jalr              halt 00000000              halt 00000000
+rv32ui-lb                halt 00000000              halt 00000000
+rv32ui-lbu               halt 00000000              halt 00000000
+rv32ui-ld_st             halt 00000000              halt 00000000
+rv32ui-lh                halt 00000000              halt 00000000
+rv32ui-lhu               halt 00000000              halt 00000000
+rv32ui-lui               halt 00000000              halt 00000000
+rv32ui-lw                halt 00000000              halt 00000000
+rv32ui-or                halt 00000000              halt 00000000
+rv32ui-ori               halt 00000000              halt 00000000
+rv32ui-sb                halt 00000000              halt 00000000
+rv32ui-sh                halt 00000000              halt 00000000
+rv32ui-simple            halt 00000000              halt 00000000
+rv32ui-sll               halt 00000000              halt 00000000
+rv32ui-slli              halt 00000000              halt 00000000
+rv32ui-slt               halt 00000000              halt 00000000
+rv32ui-slti              halt 00000000              halt 00000000
+rv32ui-sltiu             halt 00000000              halt 00000000
+rv32ui-sltu              halt 00000000              halt 00000000
+rv32ui-sra               halt 00000000              halt 00000000
+rv32ui-srai              halt 00000000              halt 00000000
+rv32ui-srl               halt 00000000              halt 00000000
+rv32ui-srli              halt 00000000              halt 00000000
+rv32ui-st_ld             halt 00000000              halt 00000000
+rv32ui-sub               halt 00000000              halt 00000000
+rv32ui-sw                halt 00000000              halt 00000000
+rv32ui-xor               halt 00000000              halt 00000000
+rv32ui-xori              halt 00000000              halt 00000000
+rv32um-div               halt 00000000              halt 00000000
+rv32um-divu              halt 00000000              halt 00000000
+rv32um-mul               halt 00000000              halt 00000000
+rv32um-mulh              halt 00000000              halt 00000000
+rv32um-mulhsu            halt 00000000              halt 00000000
+rv32um-mulhu             halt 00000000              halt 00000000
+rv32um-rem               halt 00000000              halt 00000000
+rv32um-remu              halt 00000000              halt 00000000
+
+PASS  the Lean model passes all 48 riscv-tests
+PASS  the Hazard3 RTL passes all 48 riscv-tests
+PASS  every binary ends the same way on both — 48 tests and 5 probes
+PASS  after every one, the whole region is byte for byte the same on both (53 × 65536 bytes)
+
+>>> wrong models: each must be refused, and by what
+PASS  x0: the comparison refuses a model where x0 can be written and read back — refused by 26: probe-jalr_lsb rv32ui-add rv32ui-addi rv32ui-andi ...
+PASS  sra: the comparison refuses a model where sra shifts in zeros, as srl does — refused by 1: rv32ui-sra
+PASS  sll: the comparison refuses a model where sll uses the whole register as the shift amount, not its low five bits — refused by 1: rv32ui-sll
+PASS  div: the comparison refuses a model where signed division by zero gives zero, not all ones — refused by 1: rv32um-div
+PASS  rem: the comparison refuses a model where the remainder of intMin by -1 is intMin, not zero — refused by 1: rv32um-rem
+PASS  mulhsu: the comparison refuses a model where mulhsu takes the second operand as the signed one — refused by 1: rv32um-mulhsu
+PASS  bge: the comparison refuses a model where bge compares unsigned — refused by 1: rv32ui-bge
+PASS  lb: the comparison refuses a model where lb zero-extends the byte — refused by 4: rv32ui-lb rv32ui-ld_st rv32ui-sb rv32ui-st_ld
+PASS  sh: the comparison refuses a model where sh stores four bytes — refused by 3: rv32ui-ld_st rv32ui-sh rv32ui-st_ld
+PASS  auipc: the comparison refuses a model where auipc adds to the next instruction's address — refused by 14: probe-jalr_lsb rv32ui-auipc rv32ui-jal rv32ui-jalr ...
+PASS  jalr: the comparison refuses a model where jalr keeps the target's low bit — refused by 1: probe-jalr_lsb
+PASS  misaligned: the comparison refuses a model where a misaligned load is carried out instead of faulting — refused by 1: probe-load_misaligned
+PASS  store-region: the comparison refuses a model where a store outside the region is carried out — refused by 1: probe-store_outside
+PASS  fetch-region: the comparison refuses a model where an instruction outside the region is fetched — refused by 1: probe-fetch_outside
+```
+
+There is no board half here: the RTL is the chip's core, simulated on this
+machine. Running the same bytes on silicon is on the board half of the road.
