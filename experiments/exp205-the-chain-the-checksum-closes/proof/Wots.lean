@@ -1142,7 +1142,8 @@ theorem exactly {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s1, run env (4141 + 3 * steps s.mem base) s = .running s1 := by
   obtain ⟨s1, -, e, -, -⟩ := to_the_ecall hp s hpc hcode
-  exact ⟨s1, e⟩
+  refine ⟨s1, ?_⟩
+  rw [e]
 
 /-- The number of HASH calls is at most `67 · 15`, and the count at most
 `4142 + 3 · 1005 = 7157`. -/

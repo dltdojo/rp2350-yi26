@@ -21,7 +21,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "hazard3"))
-from sigfile import read_sig  # noqa: E402
+from kernelimages import command  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC, DST = 0x1000, 0x2000
@@ -45,7 +45,7 @@ def data_sets():
     }
 
 
-def image(data):
+def copy_image(data):
     kernel = open(os.path.join(HERE, "kernel.bin"), "rb").read()
     img = bytearray(DST + 128)
     img[:len(kernel)] = kernel
@@ -56,40 +56,13 @@ def image(data):
     return bytes(img)
 
 
-# The entry point is not called `main` on purpose, and the reason is written
-# here so it is not mistaken for dodging: duplication.sh counts every Python
-# `main` under experiments/ as a possible copy of another, because driver
-# scripts' mains have been copied before. This one builds exp203's own images
-# and is a copy of nothing.
-def build_or_verify():
-    if sys.argv[1:2] == ["build"]:
-        d = sys.argv[2]
-        os.makedirs(d, exist_ok=True)
-        for name, data in data_sets().items():
-            with open(os.path.join(d, name + ".bin"), "wb") as f:
-                f.write(image(data))
-            print(name)
-        return 0
-    if sys.argv[1:2] == ["verify"]:
-        name, sig = sys.argv[2], sys.argv[3]
-        data = data_sets()[name]
-        before = image(data)
-        after = read_sig(sig)
-        problems = []
-        if after[DST:DST + 64] != data:
-            problems.append("the destination is not the source")
-        if after[DST - 64:DST] != bytes([BEFORE] * 64) or after[DST + 64:DST + 128] != bytes([AFTER] * 64):
-            problems.append("a canary beside the destination changed")
-        changed = [a for a in range(len(before)) if not DST <= a < DST + 64 and after[a] != before[a]]
-        if changed:
-            problems.append(f"{len(changed)} bytes outside the destination changed, first at {changed[0]:#x}")
-        if problems:
-            print("; ".join(problems))
-            return 1
-        return 0
-    print(__doc__)
-    return 2
+# The command line — build, verify — is tools/hazard3/kernelimages.py's, as
+# every kernel experiment's is; what is here is only this experiment's cases.
+def copied(data, after):
+    if after[DST:DST + 64] != data:
+        return "the destination is not the source"
+    return None
 
 
 if __name__ == "__main__":
-    sys.exit(build_or_verify())
+    sys.exit(command(__doc__, data_sets(), copy_image, DST, DST + 64, check=copied))

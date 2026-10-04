@@ -191,7 +191,189 @@ mutant checks it again, so `check.sh` takes about ten minutes.
 
 ## Expected output
 
-CAPTURE
+```text
+=== exp205 — the chain the checksum closes ===
+recorded at 2026-10-04T05:46:57Z from commit e4b2b1f (working tree dirty — this recording is not reproducible from the commit alone)
+
+>>> the kernel, as the proof states it and as kernel.bin holds it
+  0000  00000417  auipc x8, 0
+  0004  00001337  lui x6, 1
+  0008  006409b3  add x19, x8, x6
+  000c  00002337  lui x6, 2
+  0010  006404b3  add x9, x8, x6
+  0014  00003337  lui x6, 3
+  0018  00640933  add x18, x8, x6
+  001c  00008337  lui x6, 8
+  0020  00640ab3  add x21, x8, x6
+  0024  00000b13  addi x22, x0, 0
+  0028  020aa023  sw x0, 32(x21)
+  002c  020aa223  sw x0, 36(x21)
+  0030  020aa423  sw x0, 40(x21)
+  0034  020aa623  sw x0, 44(x21)
+  0038  020aa823  sw x0, 48(x21)
+  003c  020aaa23  sw x0, 52(x21)
+  0040  020aac23  sw x0, 56(x21)
+  0044  020aae23  sw x0, 60(x21)
+  0048  00098713  addi x14, x19, 0
+  004c  040a8793  addi x15, x21, 64
+  0050  02098813  addi x16, x19, 32
+  0054  00000693  addi x13, x0, 0
+  0058  00074303  lbu x6, 0(x14)
+  005c  00f37393  andi x7, x6, 15
+  0060  00435313  srli x6, x6, 4
+  0064  00778023  sb x7, 0(x15)
+  0068  006780a3  sb x6, 1(x15)
+  006c  407686b3  sub x13, x13, x7
+  0070  406686b3  sub x13, x13, x6
+  0074  01e68693  addi x13, x13, 30
+  0078  00170713  addi x14, x14, 1
+  007c  00278793  addi x15, x15, 2
+  0080  fd071ce3  bne x14, x16, -40
+  0084  00f6f313  andi x6, x13, 15
+  0088  00678023  sb x6, 0(x15)
+  008c  0046d313  srli x6, x13, 4
+  0090  00f37313  andi x6, x6, 15
+  0094  006780a3  sb x6, 1(x15)
+  0098  0086d313  srli x6, x13, 8
+  009c  00678123  sb x6, 2(x15)
+  00a0  040a8713  addi x14, x21, 64
+  00a4  083a8b93  addi x23, x21, 131
+  00a8  00000293  addi x5, x0, 0
+  00ac  000a8513  addi x10, x21, 0
+  00b0  04000593  addi x11, x0, 64
+  00b4  000a8613  addi x12, x21, 0
+  00b8  0004ae83  lw x29, 0(x9)
+  00bc  01daa023  sw x29, 0(x21)
+  00c0  0044ae83  lw x29, 4(x9)
+  00c4  01daa223  sw x29, 4(x21)
+  00c8  0084ae83  lw x29, 8(x9)
+  00cc  01daa423  sw x29, 8(x21)
+  00d0  00c4ae83  lw x29, 12(x9)
+  00d4  01daa623  sw x29, 12(x21)
+  00d8  0104ae83  lw x29, 16(x9)
+  00dc  01daa823  sw x29, 16(x21)
+  00e0  0144ae83  lw x29, 20(x9)
+  00e4  01daaa23  sw x29, 20(x21)
+  00e8  0184ae83  lw x29, 24(x9)
+  00ec  01daac23  sw x29, 24(x21)
+  00f0  01c4ae83  lw x29, 28(x9)
+  00f4  01daae23  sw x29, 28(x21)
+  00f8  00074e03  lbu x28, 0(x14)
+  00fc  00f00393  addi x7, x0, 15
+  0100  41c38e33  sub x28, x7, x28
+  0104  000e0863  beq x28, x0, 16
+  0108  00000073  ecall
+  010c  fffe0e13  addi x28, x28, -1
+  0110  fe0e1ce3  bne x28, x0, -8
+  0114  000aa383  lw x7, 0(x21)
+  0118  00092e03  lw x28, 0(x18)
+  011c  01c3c3b3  xor x7, x7, x28
+  0120  007b6b33  or x22, x22, x7
+  0124  004aa383  lw x7, 4(x21)
+  0128  00492e03  lw x28, 4(x18)
+  012c  01c3c3b3  xor x7, x7, x28
+  0130  007b6b33  or x22, x22, x7
+  0134  008aa383  lw x7, 8(x21)
+  0138  00892e03  lw x28, 8(x18)
+  013c  01c3c3b3  xor x7, x7, x28
+  0140  007b6b33  or x22, x22, x7
+  0144  00caa383  lw x7, 12(x21)
+  0148  00c92e03  lw x28, 12(x18)
+  014c  01c3c3b3  xor x7, x7, x28
+  0150  007b6b33  or x22, x22, x7
+  0154  010aa383  lw x7, 16(x21)
+  0158  01092e03  lw x28, 16(x18)
+  015c  01c3c3b3  xor x7, x7, x28
+  0160  007b6b33  or x22, x22, x7
+  0164  014aa383  lw x7, 20(x21)
+  0168  01492e03  lw x28, 20(x18)
+  016c  01c3c3b3  xor x7, x7, x28
+  0170  007b6b33  or x22, x22, x7
+  0174  018aa383  lw x7, 24(x21)
+  0178  01892e03  lw x28, 24(x18)
+  017c  01c3c3b3  xor x7, x7, x28
+  0180  007b6b33  or x22, x22, x7
+  0184  01caa383  lw x7, 28(x21)
+  0188  01c92e03  lw x28, 28(x18)
+  018c  01c3c3b3  xor x7, x7, x28
+  0190  007b6b33  or x22, x22, x7
+  0194  02048493  addi x9, x9, 32
+  0198  02090913  addi x18, x18, 32
+  019c  00170713  addi x14, x14, 1
+  01a0  f1771ce3  bne x14, x23, -232
+  01a4  01603533  sltu x10, x0, x22
+  01a8  00100293  addi x5, x0, 1
+  01ac  00000073  ecall
+    sha256 9dcefad599a16bc59acd9c815d5eef445bd3ca5ccda6c700169f133614d5d66c  (432 bytes)
+    byte for byte the committed kernel.bin
+
+>>> the theorems, and what they rest on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'Exp205.bytes_words' depends on axioms: [propext]
+'Exp205.code_of_image' depends on axioms: [propext, Quot.sound]
+'Exp205.digit_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.middle' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.walk_chain' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.good_iff' depends on axioms: [propext, Quot.sound]
+'Exp205.chain_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.chain_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.verifies' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.exactly' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp205.steps_le' depends on axioms: [propext, Quot.sound]
+'Exp205.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+kernel   the checksum adds 16 per digit, not 15                                        refused in digit_iter
+kernel   the digits are stored high nibble first                                       refused in digit_iter
+kernel   the third checksum digit is shifted by 9, not 8                               refused in middle
+kernel   the loop stops after 66 chains, so the last checksum chain is never checked   refused in middle
+kernel   every chain is walked one step too far                                        refused in fetch
+kernel   a digit of 15 branches into the middle of the walk                            refused in skip_or_walk
+kernel   the words are folded with and, so one matching word is enough                 refused in at_cmp
+kernel   the public key pointer moves 64 bytes per chain                               refused in chain_iter
+count    the count is claimed not to depend on the message                             refused in verifies
+count    each HASH is claimed to cost two instructions, not three                      refused in verifies
+count    it is claimed still to be running one instruction later                       refused in verifies
+verdict  the checksum's three chains are claimed not to be checked                     refused in halt
+verdict  the message's digits are read high nibble first                               refused in md_lo
+scratch  it is claimed to write only the 64-byte buffer                                refused in verifies
+
+>>> what one HASH costs the RTL that the model does not count
+  k   model   RTL: zeros   input   behind   RTL − model
+  0       8           11      11       12             3
+  1       9           16      16       17             7
+  2      10           21      21       22            11
+  3      11           26      26       27            15
+  4      12           31      31       32            19
+  5      13           36      36       37            23
+  6      14           41      41       42            27
+  7      15           46      46       47            31
+PASS  RTL − model = 3 + 4 × HASH calls, for k = 0..7: the harness's constant is 3 and one HASH costs 4 more
+PASS  the bytes hashed do not move the count; a nop behind the HALT ecall, never executed, adds one, at every k
+
+>>> the kernel on the model and on the RTL, against Python
+case                     python S  model at 0x80010000        RTL                                model at 0x20070000
+valid                    0 480     halt code=00000000 count=5582 halt code=00000000 instret=7505 cycles=9523 halt code=00000000 count=5582
+valid-other-key          0 600     halt code=00000000 count=5942 halt code=00000000 instret=8345 cycles=10718 halt code=00000000 count=5942
+valid-zero-message       0 990     halt code=00000000 count=7112 halt code=00000000 instret=11075 cycles=14617 halt code=00000000 count=7112
+valid-ones-message       0 45      halt code=00000000 count=4277 halt code=00000000 instret=4460 cycles=5232 halt code=00000000 count=4277
+first-chain-wrong        1 480     halt code=00000001 count=5582 halt code=00000001 instret=7505 cycles=9523 halt code=00000001 count=5582
+checksum-chain-wrong     1 480     halt code=00000001 count=5582 halt code=00000001 instret=7505 cycles=9523 halt code=00000001 count=5582
+last-chain-wrong         1 480     halt code=00000001 count=5582 halt code=00000001 instret=7505 cycles=9523 halt code=00000001 count=5582
+chain-walked-forward     1 480     halt code=00000001 count=5582 halt code=00000001 instret=7505 cycles=9523 halt code=00000001 count=5582
+other-message-signature  1 600     halt code=00000001 count=5942 halt code=00000001 instret=8345 cycles=10718 halt code=00000001 count=5942
+public-key-swapped       1 480     halt code=00000001 count=5582 halt code=00000001 instret=7505 cycles=9523 halt code=00000001 count=5582
+zero-signature           1 480     halt code=00000001 count=5582 halt code=00000001 instret=7505 cycles=9523 halt code=00000001 count=5582
+
+PASS  the model gives Python's verdict after exactly 4142 + 3 S instructions, the count proved, on all 11 cases
+PASS  the RTL gives the same verdict and counts 4142 + 3 S proved + 3 for the harness + 4 S for HASH, on all 11
+PASS  the whole region is byte for byte the same on both, on all 11
+PASS  Python agrees: only the 131 bytes of scratch changed, and the digits there are right, on all 11
+PASS  at 0x20070000 the same bytes give the same verdict after the same count, on all 11
+```
 
 There is no board half here: the RTL is the chip's core, simulated on this
 machine. exp210 runs this kernel on silicon with the SHA-256 block as HASH.
