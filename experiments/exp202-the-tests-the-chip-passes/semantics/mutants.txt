@@ -1,0 +1,20 @@
+# exp202 — wrong versions of lean/Rv32/Machine.lean, each a mistake a model
+# of RV32IM could plausibly make. Every one builds: Lean has nothing to say
+# about what an instruction *should* do. What refuses them is the suite —
+# or, for the ones it cannot see, this experiment's own probes in probes/.
+#
+# <label>|<what is wrong>|<sed>|<file>
+x0|x0 can be written and read back|s/^def Machine.reg (s : Machine) (r : Reg) : Word := if r = 0 then 0 else s.regs r/def Machine.reg (s : Machine) (r : Reg) : Word := s.regs r/; s/^  if r = 0 then s else { s with regs/  if False then s else { s with regs/|lean/Rv32/Machine.lean
+sra|sra shifts in zeros, as srl does|s/  | .sra, a, b => a.sshiftRight (b.toNat % 32)/  | .sra, a, b => a >>> (b.toNat % 32)/|lean/Rv32/Machine.lean
+sll|sll uses the whole register as the shift amount, not its low five bits|s/  | .sll, a, b => a <<< (b.toNat % 32)/  | .sll, a, b => a <<< b.toNat/|lean/Rv32/Machine.lean
+div|signed division by zero gives zero, not all ones|s/^  if b = 0 then BitVec.allOnes 32$/  if b = 0 then 0/|lean/Rv32/Machine.lean
+rem|the remainder of intMin by -1 is intMin, not zero|s/  else if a = intMin ∧ b = BitVec.allOnes 32 then 0$/  else if a = intMin ∧ b = BitVec.allOnes 32 then a/|lean/Rv32/Machine.lean
+mulhsu|mulhsu takes the second operand as the signed one|s/  | .mulhsu, a, b => mulHigh (a.toInt \* b.toNat)/  | .mulhsu, a, b => mulHigh (a.toNat * b.toInt)/|lean/Rv32/Machine.lean
+bge|bge compares unsigned|s/  | .bge, a, b => !(a.slt b)/  | .bge, a, b => !(a.ult b)/|lean/Rv32/Machine.lean
+lb|lb zero-extends the byte|s/  | .lb, v => (BitVec.ofNat 8 v).signExtend 32/  | .lb, v => BitVec.ofNat 32 v/|lean/Rv32/Machine.lean
+sh|sh stores four bytes|s/  | .sb => 1 | .sh => 2 | .sw => 4/  | .sb => 1 | .sh => 4 | .sw => 4/|lean/Rv32/Machine.lean
+auipc|auipc adds to the next instruction's address|s/  | .auipc rd imm => .running (s.setReg rd (s.pc + (imm ++ 0#12))).next/  | .auipc rd imm => .running (s.setReg rd (s.pc + 4 + (imm ++ 0#12))).next/|lean/Rv32/Machine.lean
+jalr|jalr keeps the target's low bit|s/    let target := (s.reg rs1 + imm.signExtend 32) \&\&\& ~~~1#32/    let target := s.reg rs1 + imm.signExtend 32/|lean/Rv32/Machine.lean
+misaligned|a misaligned load is carried out instead of faulting|s/    if a.toNat % op.size ≠ 0 then .fault .loadMisaligned s/    if False then .fault .loadMisaligned s/|lean/Rv32/Machine.lean
+store-region|a store outside the region is carried out|s/    else if ¬ env.region.ok a op.size then .fault .storeAccess s/    else if False then .fault .storeAccess s/|lean/Rv32/Machine.lean
+fetch-region|an instruction outside the region is fetched|s/  else if ¬ env.region.ok s.pc 4 then .error .fetchAccess/  else if False then .error .fetchAccess/|lean/Rv32/Machine.lean

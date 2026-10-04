@@ -107,6 +107,10 @@ Per experiment:
 | exp200 | **No board** for the model and the crate: Java 11 or later, and the network once for `tools/tlc/setup.sh`. The board half needs any RP2350 board and **nobody**: it flashes exp189 and asks it seven credential-management questions over `/dev/hidraw`, none of which needs a credential to exist and so none a press. Host side: `python3` with `cryptography`. |
 | exp198 | **No board at all**, and no USB anywhere in it. Needs `cargo` for the crate's tests and the network once for `tools/lean/setup.sh`, which fetches Lean 4.34.0 pinned by SHA-256: **580 MB, 2.9 GB unpacked**, and `zstd` or python3's `zstandard` to unpack it. After that it is offline, and the proof checks in under a second. |
 | exp199 | **No board at all**, and no USB anywhere in it — though its subject is a USB transport. Needs `cargo` for the crate's tests and Lean 4.34.0 through `tools/lean/setup.sh`, the same 580 MB exp198 fetches. |
+| exp201 | **No board at all**, and no USB anywhere in it. Lean 4.34.0 through `tools/lean/setup.sh`, and `llvm-mc` and `llvm-objdump` with the RISC-V target (Ubuntu's `llvm`). The shared library in `lean/` is built with `lake`, which ships with Lean. Each library mutant rebuilds it in a copy, so `check.sh` takes four or five minutes. |
+| exp202 | **No board at all**, and no USB anywhere in it. Lean 4.34.0 through `tools/lean/setup.sh`, and the Hazard3 RTL through `tools/hazard3/setup.sh` — a pinned clone, built with `verilator` and `clang++` in under a minute, 10 MB. `clang`, `lld` and `llvm-objcopy` for the RISC-V images. About five minutes, most of it the fourteen mutants. |
+| exp203 | **No board at all**, and no USB anywhere in it. Lean 4.34.0 through `tools/lean/setup.sh`, the Hazard3 RTL through `tools/hazard3/setup.sh`, and `clang`, `lld` and `llvm-objcopy`. About two minutes, most of it seven mutants of the proof. |
+| exp204 | **No board at all**, and no USB anywhere in it. The same as exp203, and `python3` for the images. A few minutes, most of it eleven mutants of the proof. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -490,7 +494,7 @@ awake — and because most of these experiments cost nothing.
 
 | | Means | Experiments |
 | --- | --- | --- |
-| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199 |
+| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153 |
@@ -751,6 +755,10 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp198 | `none` | `none` | `none` | `none` |
 | exp199 | `none` | `none` | `none` | `none` |
 | exp200 | `cdc+hid` | `log+ctaphid` | `cdc_acm+hidraw` | `exp189` |
+| exp201 | `none` | `none` | `none` | `none` |
+| exp202 | `none` | `none` | `none` | `none` |
+| exp203 | `none` | `none` | `none` | `none` |
+| exp204 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -930,6 +938,10 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp198-a-proof-instead-of-a-search](./exp198-a-proof-instead-of-a-search/) | 0 · none | **`crates/client-pin`'s counter, proved rather than searched: a failed attempt is never given back, for any starting counter and any sequence of wrong guesses, power cycles and refused `setPIN`s of any length.** exp197's model checked eight retries; five theorems in Lean cover every number, rest on Lean's own axioms and nothing assumed, and four wrong versions of the crate — one per finding they are about — are each refused. The Lean is a transcription, held to sixteen cited Rust lines |
 | [exp199-every-length-not-seven](./exp199-every-length-not-seven/) | 0 · none | **`crates/ctap-hid`'s `fragment` and `feed` are inverses for every message length up to `MAX_MESSAGE`, where its test asks seven** — and the proof would only go through once the five conditions the test held fixed without saying so were named, each shown needed by a theorem of its own. Writing it down found where `fragment` stops being right: at **7609 bytes**, CTAP-HID's own maximum, the 129th continuation packet carries `0x80` and reads as a new message. Nothing here sends past 1024, so it is recorded, not fixed |
 | [exp200-the-token-that-opened-everything](./exp200-the-token-that-opened-everything/) | 1 · board | **exp188's and exp189's credential management let a `pinUvAuthToken` open three doors CTAP 2.1 keeps shut: a parameter that failed to verify went through whenever any token existed, the MAC did not say which credential it was for, and a login token could delete every credential on the key.** The model shows each fix alone stops one attacker and leaves the next; all three now live in `crates/client-pin`, exp186–exp189 issue and check every token through it, and exp188's own probe — which had computed its MACs as wrongly as the firmware checked them — asks the specification's questions. **Board half not yet verified** |
+| [exp201-one-word-one-reading](./exp201-one-word-one-reading/) | 0 · none | **`lean/Rv32/Isa.lean`'s encoder and decoder for the forty-six RV32IM forms a kernel may use agree in both directions — every instruction survives a round trip, and no word decodes unless it is exactly an encoding — so a word of a kernel has one reading.** The first theorem alone is shown not to be enough. LLVM agrees with all 3,450 instructions and 5,572 words it was shown, and two wrong encodings that both theorems accept, because the mistake is the same in both directions, are each refused by LLVM at once |
+| [exp202-the-tests-the-chip-passes](./exp202-the-tests-the-chip-passes/) | 0 · none | **`lean/Rv32/Machine.lean`, the model every later proof is about, passes all 48 of riscv-tests' RV32I and RV32M tests; the Hazard3 RTL — the RP2350's core, simulated — passes them from the same bytes; and after each, and after five probes of its own, the two end the same way and leave the whole 64 KiB region byte for byte the same.** Fourteen wrong models are each refused, four only by the probes: the suite never jumps to an odd address, never misaligns a load, and never stores or fetches outside its own memory — the behaviours a kernel proof leans on hardest |
+| [exp203-the-count-the-proof-promised](./exp203-the-count-the-proof-promised/) | 0 · none | **Sixty bytes of RV32IM — `kernel.bin`, SHA-256 committed beside it — proved to copy 64 bytes and halt with 0 at exactly instruction 105, for every base address, every input and every register; the model runs them in 105 and the Hazard3 RTL retires 108.** The 3 is the harness's, constant across every payload length measured, and spent in a way the privileged specification says it should not be: Hazard3 counts `ecall`, counts `mret` twice, and counts the same instructions differently depending on what lies in memory behind an `mret`. So a count from `minstret` is a proof's count plus a constant that must be measured for the exact shell |
+| [exp204-the-signature-the-kernel-checks](./exp204-the-signature-the-kernel-checks/) | 0 · none | **352 bytes of RV32IM proved to check a Lamport one-time signature: they halt with 0 when all 256 preimages hash to the key halves the message's bits select and with 1 otherwise, at exactly instruction 16663 either way, writing nothing outside 96 bytes of scratch — for every input and for every function HASH might be.** The model, the Hazard3 RTL and Python agree on ten cases, region byte for byte. One HASH costs the RTL 4 `minstret` the model does not count; and the count also depends on the word behind the last `ecall`, which never runs — so on the chip, on what the shell leaves after `kernel.bin` |
 
 ## The browser track, finished
 
@@ -2666,3 +2678,65 @@ settled to — exp199 met the same three and answered them the same way:
 - **Persisting the PIN and its counter** — exp197's open P4. The model already
   says what the design must be (`crateflash`: every property holds); what is
   left is a flash layout whose write is atomic where the model assumed one.
+
+### The verified-kernel road
+
+The model road proved things about Rust by transcribing it into Lean. This road
+proves things about **the bytes a RISC-V core executes**: a kernel written as a
+list of RV32IM instructions in Lean, proved there, emitted as `kernel.bin`, and
+run on the RP2350's Hazard3 core by a thin shell that is the only unproved code
+on the path. The design it follows — a small hash-based signature scheme whose
+verifier is that kernel, in the manner of sig.golf, but with a real chip to
+measure the model against — and the interrogation of it are in the
+[briefing](../docs/2026-10-02-0930-verified-kernel-road-briefing-zh-tw.md).
+
+Every kernel meets three executors: the Lean model (`lean/Rv32`, run as
+`rv32run`), the Hazard3 RTL simulated with Verilator (`tools/hazard3`), and the
+chip. **The first two need no board, and the road is ordered so that everything
+they can settle is settled before anybody walks to a bench.**
+
+**Built, with nothing left to run:**
+
+- [exp201](./exp201-one-word-one-reading/) — the encoding: one word, one
+  reading, proved both ways, and LLVM agreeing where the proof cannot look.
+- [exp202](./exp202-the-tests-the-chip-passes/) — the semantics: riscv-tests on
+  the model and on the RTL, the whole region compared, and the four behaviours
+  the suite never exercises found by mutants and probed.
+- [exp203](./exp203-the-count-the-proof-promised/) — the first kernel: proved to
+  copy and to halt at exactly instruction 105; the RTL retires 108, and the 3 is
+  the shell's, measured — including that Hazard3 counts `ecall`, counts `mret`
+  twice, and counts by what lies in memory behind it.
+- [exp204](./exp204-the-signature-the-kernel-checks/) — Lamport verify: proved
+  to give the verification predicate's verdict for every HASH, at exactly
+  instruction 16663 whatever the verdict; one HASH costs the RTL 4 `minstret`,
+  and the word behind the last `ecall` moves the count by one.
+
+**Planned without a board**, each the same path with a bigger kernel:
+
+| | Kernel | What the proof adds |
+| --- | --- | --- |
+| exp205 | WOTS, w = 16, verify | a loop invariant over a hash chain, and the checksum |
+| exp206 | MSS — WOTS under a Merkle tree of height 4 | an authentication path and a leaf index; completeness, `verify (sign m)`, proved at the reference level and carried to the bytes |
+| exp207 | sign and keygen, again | constant time as a relational proof: two runs with the same public input and different secrets fetch the same PCs and touch the same addresses |
+| exp208 | SHA-256's compression function in RV32IM | optional: HASH stops being an assumption |
+
+**Planned on a board:**
+
+| | Needs | What only silicon can say |
+| --- | --- | --- |
+| exp209 | 1 or 2 | the shell in Rust on the RP2350 in RISC-V mode — copy, hash with the SHA-256 block, PMP, `mret` — running exp203's bytes. Is `minstret` 108 on silicon, whose Hazard3 is v1.0-rc1? Needs `yi26` to accept an `rp2350-riscv` UF2 first |
+| exp210 | 1 | exp204's and exp205's kernels with the hardware SHA-256 as HASH: model, RTL and chip byte for byte |
+| exp211 | 2 | MSS with its counter in flash: power pulled and firmware reflashed mid-sequence, and the counter never going back |
+| exp212 | 1 (3 with an analyser) | `mcycle` across secret keys on silicon; a logic analyser would be this repository's first extra instrument, and is optional |
+
+#### Questions this road has not answered, and must not assume
+
+- **That silicon counts as the RTL does.** exp203's accounting is the RTL at a
+  2026 commit; the chip's core is older. The constant is to be measured again,
+  on the chip, for the chip's shell.
+- **That the RISC-V shell can reuse `crates/`.** Everything here so far is Arm
+  and Embassy. Which crates build for `riscv32imac-unknown-none-elf` is a fact
+  to establish by compiling, before exp209 is planned in detail.
+- **That a passing suite means a correct model.** exp202's four blind spots were
+  found only because somebody wrote wrong models on purpose. The mutants stay,
+  and every new instruction a kernel needs brings its own.

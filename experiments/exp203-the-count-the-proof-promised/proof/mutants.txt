@@ -1,0 +1,12 @@
+# exp203 — wrong kernels, and wrong claims about the right one. Each must be
+# refused by Lean. The first three are mistakes in the sixty bytes; the rest
+# leave the bytes alone and claim something they do not do.
+#
+# <label>|<what is wrong>|<sed>
+kernel|the loop counter starts at 15, so 60 bytes are copied|s/  .opi .addi T3 0 16,/  .opi .addi T3 0 15,/
+kernel|the store goes through the source pointer, writing the source back to itself|s/  .st .sw T2 T4 0,/  .st .sw T1 T4 0,/
+kernel|the branch goes back one instruction too far|s/  .br .bne T3 0 0xff6,/  .br .bne T3 0 0xff4,/
+count|it is claimed to halt within 104 instructions|s/    ∃ s', run env 105 s = .halted 0 s'$/    ∃ s', run env 104 s = .halted 0 s'/
+count|it is claimed still to be running after 105|s/    ∃ s1, run env 104 s = .running s1 := by/    ∃ s1, run env 105 s = .running s1 := by/
+copy|it is claimed to copy 65 bytes|s/      ∧ (∀ k < 64, s'.mem (base + BitVec.ofNat 32 (0x2000 + k)) = s.mem/      ∧ (∀ k < 65, s'.mem (base + BitVec.ofNat 32 (0x2000 + k)) = s.mem/
+place|the base is only required to be even, not a multiple of four|s/  align : base.toNat % 4 = 0/  align : base.toNat % 2 = 0/|lean/Rv32/Place.lean

@@ -1,0 +1,81 @@
+=== exp203 — the count the proof promised ===
+recorded at 2026-10-02T09:33:49Z from commit 559e7b0
+
+>>> the kernel, as the proof states it and as kernel.bin holds it
+  0000  00000517  auipc x10, 0
+  0004  00001337  lui x6, 1
+  0008  00650333  add x6, x10, x6
+  000c  000023b7  lui x7, 2
+  0010  007503b3  add x7, x10, x7
+  0014  01000e13  addi x28, x0, 16
+  0018  00032e83  lw x29, 0(x6)
+  001c  01d3a023  sw x29, 0(x7)
+  0020  00430313  addi x6, x6, 4
+  0024  00438393  addi x7, x7, 4
+  0028  fffe0e13  addi x28, x28, -1
+  002c  fe0e16e3  bne x28, x0, -20
+  0030  00100293  addi x5, x0, 1
+  0034  00000513  addi x10, x0, 0
+  0038  00000073  ecall
+    sha256 a23ae89b0c8e2eaa9e74b07b6ff3cd92e860f189feee101739d5f89ac09abd3e  (60 bytes)
+    byte for byte the committed kernel.bin
+
+>>> the theorems, and what they rest on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'Exp203.bytes_words' depends on axioms: [propext]
+'Exp203.code_of_image' depends on axioms: [propext, Quot.sound]
+'Exp203.iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp203.loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp203.halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp203.copies' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp203.exactly_105' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp203.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+kernel  the loop counter starts at 15, so 60 bytes are copied                          refused in setup
+kernel  the store goes through the source pointer, writing the source back to itself   refused in iter
+kernel  the branch goes back one instruction too far                                   refused in iter
+count   it is claimed to halt within 104 instructions                                  refused in copies
+count   it is claimed still to be running after 105                                    refused in exactly_105
+copy    it is claimed to copy 65 bytes                                                 refused in copies
+place   the base is only required to be even, not a multiple of four                   refused in stepK
+
+>>> what the RTL counts that the model does not
+  k   model   RTL minstret   RTL − model
+  0       2              5             3
+  1       3              6             3
+  2       4              7             3
+  3       5              8             3
+  4       6              9             3
+  5       7             10             3
+  6       8             11             3
+  7       9             12             3
+PASS  every instruction the model counts, the RTL counts once: RTL − model = 3 for k = 0..7
+
+  measurement                                    apart  adjacent
+  1  enable; read                                    0         0
+  2  enable; disable; read                           1         1
+  3  enable; nop; disable; read                      2         2
+  4  enable; mret to Machine                         2         2
+  5  enable; mret to User; ecall                     4         4
+  6  enable; mret to User; illegal instruction       3         3
+  7  enable; mret to User; nop; ecall                5         4
+PASS  the write that starts counting is not counted, the write that stops it is
+PASS  one mret is counted as two
+PASS  an ecall is counted at all — the privileged specification says it should not be
+PASS  the same instructions count differently when only what lies behind an mret changes (5 and 4)
+
+>>> the kernel on the model and on the RTL
+data         model at 0x80010000        RTL                              model at 0x20070000
+alternating  halt code=00000000 count=105 halt code=00000000 instret=108 cycles=113 halt code=00000000 count=105
+counting     halt code=00000000 count=105 halt code=00000000 instret=108 cycles=113 halt code=00000000 count=105
+ones         halt code=00000000 count=105 halt code=00000000 instret=108 cycles=113 halt code=00000000 count=105
+random       halt code=00000000 count=105 halt code=00000000 instret=108 cycles=113 halt code=00000000 count=105
+
+PASS  the model halts with 0 after exactly 105 instructions, the number proved, on all 4 data sets
+PASS  the RTL halts with 0 and counts 108 = 105 proved + 3 for the harness, on all 4
+PASS  the whole region is byte for byte the same on both, on all 4
+PASS  Python agrees: the destination is the source and nothing else changed, on all 4
+PASS  at 0x20070000 the same bytes halt with 0 after 105, on all 4

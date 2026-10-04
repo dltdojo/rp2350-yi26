@@ -1,0 +1,33 @@
+=== exp201 — one word, one reading ===
+recorded at 2026-10-02T08:10:09Z from commit 1f06707
+
+>>> the two theorems, and what they rest on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'Exp201.round_trip' depends on axioms: [propext, Quot.sound]
+'Exp201.no_alias' depends on axioms: [propext, Quot.sound]
+'Exp201.encode_injective' depends on axioms: [propext, Quot.sound]
+'Exp201.one_reading' depends on axioms: [propext, Quot.sound]
+'Exp201.sloppy_round_trips' depends on axioms: [propext, Quot.sound]
+'Exp201.a_round_trip_allows_a_second_reading' does not depend on any axioms
+exit 0
+
+>>> wrong versions of the library: each must be refused
+decode_encode  bge is given blt's funct3, so two branches share a code            refused in BrOp.ofF3_f3
+decode_encode  jal's immediate is put back with bit 11 read from bit 9            refused in dec_jal
+encode_decode  slli is read whatever funct7 holds, the reserved bit 30 included   refused in ShOp.f_ofF
+encode_decode  every SYSTEM opcode reads as ecall, so csrrw is an ecall           refused in encodeNat_decodeNat
+
+>>> LLVM's reading against Lean's
+    Ubuntu LLVM version 18.1.3
+PASS  every encoding is LLVM's: 3450 instructions, all 46 forms
+PASS  no word of another length is read as a 32-bit instruction: 428 refused
+PASS  every word is read as LLVM reads it: 5572 words — 2453 the same instruction, 2784 refused by both, 335 real instructions this model refuses on purpose
+
+>>> wrong versions Lean cannot see: each must be accepted by Lean and refused by LLVM
+PASS  differential: a version where sub is given funct7 0x30 instead of 0x20, in both tables passes both theorems and fails against LLVM
+      LLVM: every encoding is LLVM's — 75 of 3450 differ; first: `sub x0, x31, x7` Lean 607f8033, LLVM 407f8033
+      LLVM: every word is read as LLVM reads it — 2 of 5572 differ; first: 61ef0cb3: Lean reads `sub x25, x30, x30`, LLVM `<unknown>`
+PASS  differential: a version where lw and lh trade funct3, in both tables passes both theorems and fails against LLVM
+      LLVM: every encoding is LLVM's — 150 of 3450 differ; first: `lh x0, 0(x31)` Lean 000fa003, LLVM 000f9003
+      LLVM: every word is read as LLVM reads it — 122 of 5572 differ; first: 89cd1f83: Lean reads `lw x31, -1892(x26)`, LLVM `lh x31, -0x764(x26)`

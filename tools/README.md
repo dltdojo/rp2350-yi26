@@ -505,3 +505,50 @@ tools/lean/lean.sh check   experiments/exp199-*/proof/CtapHid.lean
 tools/lean/lean.sh mutants experiments/exp199-*/proof/CtapHid.lean
 tools/lean/lean.sh table   experiments/exp199-*/proof/CtapHid.lean   # refused in which theorem
 ```
+
+From exp201 on, a proof may be about the shared library in
+[`lean/`](../lean/) rather than about a file of its own: `lean/Rv32` holds the
+RV32IM encoding, the machine model and the lemmas every kernel proof uses, and
+`lake` — which ships with Lean — builds it. A file that imports `Rv32` is checked
+against that build, and a line in `mutants.txt` may end with the library file it
+edits, in which case the mutant is a rebuilt copy of the library:
+
+```sh
+tools/lean/lean.sh check   experiments/exp203-*/proof/Copy64.lean
+tools/lean/lean.sh exe     rv32run                 # the model, compiled; prints its path
+tools/lean/lean.sh exec    experiments/exp203-*/proof/Copy64.lean kernel.bin   # run a file's main
+```
+
+`check` also refuses `Lean.ofReduceBool` and `Lean.trustCompiler`, the axioms
+`native_decide` and `bv_decide` leave behind: a proof that runs compiled code
+trusts the compiler, and none here does.
+
+## `hazard3/`
+
+The RISC-V core in the RP2350, as RTL, simulated — the second of the three
+executors the verified-kernel road holds every kernel against, and the only one
+that is neither the repository's own model nor a board somebody has to plug in.
+
+```sh
+tools/hazard3/setup.sh                      # once, needs the network: pinned clone, Verilator build, ~1 minute
+tools/hazard3/sim.sh run payload.bin        # halt code=… instret=… cycles=…, or the fault
+tools/hazard3/sim.sh run payload.bin --dump 65536 region.sig   # and the region afterwards
+tools/hazard3/sim.sh bare program.bin       # a Machine-mode program, no harness, for measuring the core
+```
+
+`setup.sh` pins Hazard3 by commit, with the two submodules it needs pinned by
+the commits that commit names, and builds the Verilator testbench with
+`clang++`: Ubuntu's verilator with `g++` trips a precompiled-header bug and
+writes a log of several gigabytes while failing. The result is 10 MB.
+
+`harness/` is the shell, written small: PMP gives User mode one 64 KiB region at
+`0x80010000` and nothing else, every register is zeroed, `mret` enters the
+payload, `ecall` with `t0 = 1` ends it with `a0` as the result, and `ecall`
+with `t0 = 0` is HASH — SHA-256 in C, its arguments checked as the model checks
+them. That is the state `lean/Rv32/Load.lean`'s `boot` describes, and every
+kernel proof starts from. Counting is held everywhere but in the payload, which
+costs exactly three counted instructions per run on this RTL — exp203 measures
+where they go — and four more per HASH, which exp204 measures. Both also depend
+on the word behind the payload's last `ecall`: a word that never runs.
+`sigfile.py`'s `read_sig` reads a `--dump` back as bytes; `rv32run` writes the
+same format.
