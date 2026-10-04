@@ -551,4 +551,5 @@ costs exactly three counted instructions per run on this RTL — exp203 measures
 where they go — and four more per HASH, which exp204 measures. Both also depend
 on the word behind the payload's last `ecall`: a word that never runs.
 `sigfile.py`'s `read_sig` reads a `--dump` back as bytes; `rv32run` writes the
-same format.
+same format. `hash-cost.sh` is the sweep that measures the HASH cost and the
+harness constant, which exp204 and exp205 both read.

@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp204 quick check — non-interactive, and no board anywhere in it.
+# exp205 quick check — non-interactive, and no board anywhere in it.
 #
 #   1. the proof checks, and rests on Lean's own axioms only: the kernel halts
-#      with 0 exactly when all 256 preimages of a Lamport signature hash to the
-#      public key's halves the message selects, with 1 otherwise, at exactly
-#      instruction 16663 either way, writing nothing outside its 96 bytes of
+#      with 0 exactly when all 67 chains of a WOTS (w = 16) signature reach the
+#      public key — 64 for the message's digits, 3 for its checksum's — and with
+#      1 otherwise, at exactly instruction 4142 + 3 S, where S = Σ (15 - dᵢ) is
+#      the number of HASH calls, writing nothing outside its 131 bytes of
 #      scratch — for every base, every input, every HASH;
 #   2. every wrong kernel and every wrong claim in proof/mutants.txt is refused;
 #   3. kernel.bin is the bytes the proof is about — Lean writes them again and
 #      they are byte for byte the committed file — and its SHA-256 is the one
 #      committed beside it;
 #   4. on the RTL, one HASH costs a measured, fixed number of minstret beyond
-#      the model's count (tools/hazard3/hash-cost.sh); and the model, the RTL and
-#      Python give the same verdict on ten cases, the model and the RTL leaving
-#      the region byte for byte the same.
+#      the model's count (tools/hazard3/hash-cost.sh); and the model, the RTL
+#      and Python give the same verdict and the same count on eleven cases,
+#      from 45 HASH calls to 990, the region byte for byte the same.
 #
 # Needs Lean (tools/lean/setup.sh); (4) also the Hazard3 testbench
 # (tools/hazard3/setup.sh) and clang, lld and llvm-objcopy. Without either it
-# says SKIP for what it cannot run. About five minutes, most of it (2).
+# says SKIP for what it cannot run. About ten minutes, most of it (2).
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 
@@ -42,14 +43,14 @@ USB_RUNS_ON="none"
 usb_check
 
 LEAN=../../tools/lean/lean.sh
-$LEAN check proof/Lamport.lean || FAILED=1
-$LEAN mutants proof/Lamport.lean || FAILED=1
+$LEAN check proof/Wots.lean || FAILED=1
+$LEAN mutants proof/Wots.lean || FAILED=1
 
 if [[ "$($LEAN version 2>&1)" != Lean* ]]; then
     echo "SKIP  kernel.bin against the proof: needs tools/lean/setup.sh"
 else
     work="$(mktemp -d)"
-    $LEAN exec proof/Lamport.lean "$work/kernel.bin" > /dev/null
+    $LEAN exec proof/Wots.lean "$work/kernel.bin" > /dev/null
     if cmp -s "$work/kernel.bin" kernel.bin; then
         pass "kernel.bin is the bytes the proof is about: Lean writes the same $(stat -c %s kernel.bin)"
     else

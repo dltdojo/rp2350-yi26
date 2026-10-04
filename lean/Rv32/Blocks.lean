@@ -24,6 +24,29 @@ theorem se_small (c : Nat) (hc : c < 2048) : (BitVec.ofNat 12 c).signExtend 32 =
   apply BitVec.eq_of_toNat_eq
   simp only [BitVec.toNat_setWidth, BitVec.toNat_ofNat]; omega
 
+/-- A 12-bit immediate from 2048 is negative, and sign-extends to `2^32 - 4096 + c`.
+`decide` cannot do this one: evaluating `signExtend` on a negative value runs
+Lean out of memory. -/
+theorem se_neg (c : Nat) (h1 : 2048 ≤ c) (h2 : c < 4096) :
+    (BitVec.ofNat 12 c).signExtend 32 = BitVec.ofNat 32 (2^32 - 4096 + c) := by
+  have hm : (BitVec.ofNat 12 c).msb = true := by
+    rw [BitVec.msb_eq_decide]; simp only [BitVec.toNat_ofNat, decide_eq_true_eq]; omega
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_signExtend, hm]
+  simp only [BitVec.toNat_setWidth, BitVec.toNat_ofNat, ↓reduceIte]
+  omega
+
+/-- `addi r, r, -1` on a counter: one less. Written without `omega`, which
+runs Lean's kernel out of memory on a goal holding `2^32 - 1` as a literal. -/
+theorem dec_one (n : Nat) (hn : n < 2 ^ 32 - 1) :
+    BitVec.ofNat 32 (n + 1) + BitVec.signExtend 32 (0xfff : BitVec 12) = BitVec.ofNat 32 n := by
+  rw [show (0xfff : BitVec 12) = BitVec.ofNat 12 4095 from rfl, se_neg 4095 (by decide) (by decide)]
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+    Nat.mod_eq_of_lt (show n + 1 < 2 ^ 32 by omega), Nat.mod_eq_of_lt (show 2 ^ 32 - 4096 + 4095 < 2 ^ 32 by decide),
+    show 2 ^ 32 - 4096 + 4095 = 2 ^ 32 - 1 by decide, Nat.add_assoc,
+    show 1 + (2 ^ 32 - 1) = 2 ^ 32 by decide, Nat.add_mod_right]
+
 /-- An address `c'` past `base` that is not among the `n` from `c`: an
 overlay there reads what was under it. -/
 theorem overlay_off_out (hfit : base.toNat + 0x10000 ≤ 2^32) (m : Word → Byte) {c n c' : Nat}
@@ -204,5 +227,118 @@ theorem compare_words (hp : Placed env base) {k0 : Nat} {ra rb acc t u : Reg} {o
         exact ⟨⟨h0, fun j' hj' => hall j' (by omega)⟩, by rw [hall j (by omega)]⟩
     · intro r x y z
       rw [reg_kept r4 x, reg_kept r3 y, reg_kept r2 z, reg_kept r1 y, k0' r x y z]
+
+/-! ## Memory that changed only in one place -/
+
+/-- `m'` is `m` everywhere but the `n` bytes from `a`. -/
+def Keeps (a : Word) (n : Nat) (m m' : Word → Byte) : Prop := ∀ x, ¬ (x - a).toNat < n → m' x = m x
+
+theorem Keeps.refl (a : Word) (n : Nat) (m : Word → Byte) : Keeps a n m m := fun _ _ => rfl
+
+theorem Keeps.trans {a : Word} {n : Nat} {m1 m2 m3 : Word → Byte} (h1 : Keeps a n m1 m2) (h2 : Keeps a n m2 m3) :
+    Keeps a n m1 m3 := fun x hx => (h2 x hx).trans (h1 x hx)
+
+/-- Outside the kept-to place, the memory is the old one. -/
+theorem Keeps.off (hfit : base.toNat + 0x10000 ≤ 2^32) {S N c : Nat} {m m' : Word → Byte}
+    (h : Keeps (base + BitVec.ofNat 32 S) N m m') (hSN : S + N < 0x10000) (hc : c < 0x10000)
+    (hout : c < S ∨ S + N ≤ c) : m' (base + BitVec.ofNat 32 c) = m (base + BitVec.ofNat 32 c) := by
+  apply h
+  rw [toNat_sub_off hfit _ S (by omega), toNat_off hfit c hc]
+  have := base.isLt
+  rw [wrapdist _ _ (by omega) (by omega)]
+  split <;> omega
+
+/-- A program stays loaded while memory changes only above it. -/
+theorem Keeps.code (hfit : base.toNat + 0x10000 ≤ 2^32) {S N : Nat} {m m' : Word → Byte}
+    (h : Keeps (base + BitVec.ofNat 32 S) N m m') (hSN : S + N < 0x10000) (hlo : 4 * prog.length ≤ S)
+    (hc : CodeAt m base prog) : CodeAt m' base prog := by
+  refine CodeAt.congr (by omega) (fun x h1 h2 => ?_) hc
+  have hx : x = base + BitVec.ofNat 32 (x.toNat - base.toNat) := by
+    apply BitVec.eq_of_toNat_eq; rw [toNat_off hfit _ (by omega)]; omega
+  rw [hx]; exact (h.off hfit hSN (by omega) (by omega)).symm
+
+theorem keeps_overlay (hfit : base.toNat + 0x10000 ≤ 2^32) {S N c n : Nat} (m : Word → Byte) (f : Nat → Byte)
+    (hc : S ≤ c) (hn : c + n ≤ S + N) (hSN : S + N < 0x10000) :
+    Keeps (base + BitVec.ofNat 32 S) N m (overlay m (base + BitVec.ofNat 32 c) n f) := by
+  intro x hx
+  unfold overlay
+  rw [toNat_sub_off hfit _ S (by omega)] at hx
+  rw [toNat_sub_off hfit _ c (by omega)]
+  have := x.isLt; have := base.isLt
+  rw [wrapdist _ _ (by omega) (by omega)] at hx ⊢
+  have : ¬ (if base.toNat + c ≤ x.toNat then x.toNat - (base.toNat + c)
+      else 2 ^ 32 - (base.toNat + c) + x.toNat) < n := by
+    split at hx <;> split <;> omega
+  simp only [this, ↓reduceIte]
+
+theorem keeps_writeByte (hfit : base.toNat + 0x10000 ≤ 2^32) {S N c : Nat} (m : Word → Byte) (v : Byte)
+    (hc : S ≤ c) (hn : c < S + N) (hSN : S + N < 0x10000) :
+    Keeps (base + BitVec.ofNat 32 S) N m (writeByte m (base + BitVec.ofNat 32 c) v) := by
+  intro x hx
+  unfold writeByte
+  have : x ≠ base + BitVec.ofNat 32 c := by
+    rintro rfl
+    rw [toNat_sub_off hfit _ S (by omega), toNat_off hfit c (by omega)] at hx
+    have := base.isLt
+    rw [wrapdist _ _ (by omega) (by omega)] at hx
+    split at hx <;> omega
+  simp [this]
+
+theorem keeps_writeBytes (hfit : base.toNat + 0x10000 ≤ 2^32) {S N c : Nat} (m : Word → Byte)
+    (f : Fin 32 → Byte) (hc : S ≤ c) (hn : c + 32 ≤ S + N) (hSN : S + N < 0x10000) :
+    Keeps (base + BitVec.ofNat 32 S) N m (writeBytes m (base + BitVec.ofNat 32 c) f) := by
+  intro x hx
+  rw [writeBytes_apply]
+  rw [toNat_sub_off hfit _ S (by omega)] at hx
+  have : ¬ (x - (base + BitVec.ofNat 32 c)).toNat < 32 := by
+    rw [toNat_sub_off hfit _ c (by omega)]
+    have := x.isLt; have := base.isLt
+    rw [wrapdist _ _ (by omega) (by omega)] at hx ⊢
+    split at hx <;> split <;> omega
+  simp only [this, ↓reduceDIte]
+
+/-- One byte stored right after an overlay extends it by one — when it is
+the next byte of `f`. -/
+theorem overlay_byte {m : Word → Byte} {a : Word} {n : Nat} {f : Nat → Byte} {v : Byte}
+    (hfit : a.toNat + n + 1 ≤ 2^32) (hv : v = f n) :
+    writeByte (overlay m a n f) (a + BitVec.ofNat 32 n) v = overlay m a (n + 1) f := by
+  funext x
+  unfold writeByte overlay
+  have ha := a.isLt
+  by_cases hx : x = a + BitVec.ofNat 32 n
+  · subst hx
+    have : (a + BitVec.ofNat 32 n - a).toNat = n := by
+      rw [BitVec.add_comm, BitVec.add_sub_cancel, BitVec.toNat_ofNat]; omega
+    simp [this, hv]
+  · have hne : (x - a).toNat ≠ n := by
+      intro e; apply hx
+      have : x - a = BitVec.ofNat 32 n := BitVec.eq_of_toNat_eq (by rw [e, BitVec.toNat_ofNat]; omega)
+      rw [← this, BitVec.add_comm, BitVec.sub_add_cancel]
+    simp only [hx, ↓reduceIte]
+    generalize (x - a).toNat = e at hne ⊢
+    by_cases h : e < n
+    · rw [ite_eq_left_of_eq_true _ _ (eq_true h), ite_eq_left_of_eq_true _ _ (eq_true (by omega))]
+    · rw [ite_eq_right_of_eq_false _ _ (eq_false h), ite_eq_right_of_eq_false _ _ (eq_false (by omega))]
+
+/-- The 32 bytes HASH wrote, read back from where it wrote them. -/
+theorem readBytes_writeBytes (m : Word → Byte) (a : Word) (f : Fin 32 → Byte) :
+    readBytes (writeBytes m a f) a 32 = List.ofFn f := by
+  apply List.ext_getElem (by rw [readBytes_length, List.length_ofFn])
+  intro d h1 h2
+  rw [readBytes_getElem _ _ _ _ (by rw [readBytes_length] at h1; exact h1), List.getElem_ofFn, writeBytes_apply]
+  have hd : d < 32 := by rw [readBytes_length] at h1; exact h1
+  have : (a + BitVec.ofNat 32 d - a).toNat = d := by
+    rw [BitVec.add_comm, BitVec.add_sub_cancel, BitVec.toNat_ofNat]; omega
+  simp only [this, hd, ↓reduceDIte]
+
+/-- Thirty-two bytes equal, one by one, is the two lists of them equal. -/
+theorem bytes_iff_readBytes {m m' : Word → Byte} {a a' : Word} :
+    (∀ d < 32, m (a + BitVec.ofNat 32 d) = m' (a' + BitVec.ofNat 32 d))
+      ↔ readBytes m a 32 = readBytes m' a' 32 := by
+  constructor
+  · exact fun h => readBytes_shift h
+  · intro h d hd
+    rw [← readBytes_getElem m a 32 d hd, ← readBytes_getElem m' a' 32 d hd]
+    simp only [h]
 
 end Rv32

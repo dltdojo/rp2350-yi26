@@ -1,0 +1,19 @@
+# exp205 — wrong kernels, and wrong claims about the right one. Each must be
+# refused by Lean. The first eight are mistakes in the 432 bytes; the rest
+# leave the bytes alone and claim something they do not do.
+#
+# <label>|<what is wrong>|<sed>
+kernel|the checksum adds 16 per digit, not 15|s/^  .op .sub A3 A3 T2, .op .sub A3 A3 T1, .opi .addi A3 A3 30,$/  .op .sub A3 A3 T2, .op .sub A3 A3 T1, .opi .addi A3 A3 32,/
+kernel|the digits are stored high nibble first|s/^  .st .sb A5 T2 0, .st .sb A5 T1 1,$/  .st .sb A5 T1 0, .st .sb A5 T2 1,/
+kernel|the third checksum digit is shifted by 9, not 8|s/^  .sh .srli T1 A3 8, .st .sb A5 T1 2 \]$/  .sh .srli T1 A3 9, .st .sb A5 T1 2 ]/
+kernel|the loop stops after 66 chains, so the last checksum chain is never checked|s/^  .opi .addi A4 S5 64, .opi .addi S7 S5 131, .opi .addi T0 0 0,$/  .opi .addi A4 S5 64, .opi .addi S7 S5 130, .opi .addi T0 0 0,/
+kernel|every chain is walked one step too far|s/^  .ld .lbu T3 A4 0, .opi .addi T2 0 15, .op .sub T3 T2 T3,$/  .ld .lbu T3 A4 0, .opi .addi T2 0 16, .op .sub T3 T2 T3,/
+kernel|a digit of 15 branches into the middle of the walk|s/^  .br .beq T3 0 8,$/  .br .beq T3 0 6,/
+kernel|the words are folded with and, so one matching word is enough|s/^     .op .xor T2 T2 T3, .op .or S6 S6 T2\]$/     .op .xor T2 T2 T3, .op .and S6 S6 T2]/
+kernel|the public key pointer moves 64 bytes per chain|s/^  .opi .addi S1 S1 32, .opi .addi S2 S2 32,/  .opi .addi S1 S1 32, .opi .addi S2 S2 64,/
+count|the count is claimed not to depend on the message|s/^    ∃ s', run env (4142 + 3 \* steps s.mem base) s$/    ∃ s', run env 4142 s/
+count|each HASH is claimed to cost two instructions, not three|s/^    ∃ s', run env (4142 + 3 \* steps s.mem base) s$/    ∃ s', run env (4142 + 2 * steps s.mem base) s/
+count|it is claimed still to be running one instruction later|s/^    ∃ s1, run env (4141 + 3 \* steps s.mem base) s = .running s1 := by$/    ∃ s1, run env (4142 + 3 * steps s.mem base) s = .running s1 := by/
+verdict|the checksum's three chains are claimed not to be checked|s/^  ∀ i < 67, Good H m base i$/  ∀ i < 64, Good H m base i/
+verdict|the message's digits are read high nibble first|s/\/ 16 ^ (i % 2) % 16$/\/ 16 ^ (1 - i % 2) % 16/
+scratch|it is claimed to write only the 64-byte buffer|s/^      ∧ Keeps (base + BitVec.ofNat 32 SCR) 131 s.mem s'.mem := by$/      ∧ Keeps (base + BitVec.ofNat 32 SCR) 64 s.mem s'.mem := by/

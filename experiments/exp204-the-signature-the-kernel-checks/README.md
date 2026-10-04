@@ -156,7 +156,7 @@ on scratch being zero would pass every test that starts scratch as zero.
 | the Hazard3 RTL, `minstret` | 17690, on all ten |
 
 17690 = 16663 + 3 + 256 × 4. The 3 is exp203's harness constant. The 4 is
-what one HASH costs. [`accounting/measure.sh`](./accounting/measure.sh)
+what one HASH costs. [`tools/hazard3/hash-cost.sh`](../../tools/hazard3/hash-cost.sh)
 measures both, without any of this kernel: payloads that make `k` HASH calls
 in a row and then HALT, for `k` from 0 to 7. The model counts `k + 8`, and the
 RTL counts `k + 8 + 3 + 4k`, every time. Three of the 4 are what exp203's table
