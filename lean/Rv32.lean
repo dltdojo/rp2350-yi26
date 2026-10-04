@@ -4,3 +4,5 @@ import Rv32.Asm
 import Rv32.Load
 import Rv32.Proof
 import Rv32.Place
+import Rv32.Kernel
+import Rv32.Blocks
