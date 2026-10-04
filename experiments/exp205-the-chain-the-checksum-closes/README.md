@@ -193,7 +193,7 @@ mutant checks it again, so `check.sh` takes about ten minutes.
 
 ```text
 === exp205 — the chain the checksum closes ===
-recorded at 2026-10-04T05:46:57Z from commit e4b2b1f (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-04T06:37:11Z from commit 66a09c2
 
 >>> the kernel, as the proof states it and as kernel.bin holds it
   0000  00000417  auipc x8, 0
@@ -336,7 +336,7 @@ kernel   the words are folded with and, so one matching word is enough          
 kernel   the public key pointer moves 64 bytes per chain                               refused in chain_iter
 count    the count is claimed not to depend on the message                             refused in verifies
 count    each HASH is claimed to cost two instructions, not three                      refused in verifies
-count    it is claimed still to be running one instruction later                       refused in verifies
+count    it is claimed still to be running one instruction later                       refused in exactly
 verdict  the checksum's three chains are claimed not to be checked                     refused in halt
 verdict  the message's digits are read high nibble first                               refused in md_lo
 scratch  it is claimed to write only the 64-byte buffer                                refused in verifies
