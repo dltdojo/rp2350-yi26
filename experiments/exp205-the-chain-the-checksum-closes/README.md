@@ -79,6 +79,14 @@ whole input before it writes the digest. The arguments `a0`, `a1`, `a2` and
 [`proof/Wots.lean`](./proof/Wots.lean), against the model exp202 tested. `H` is
 `env.hash`, and **nothing is assumed about it**.
 
+Since exp206, the blocks for the first 69 instructions — setup, the digits and
+their checksum, each chain's copy and walk — live in
+[`lean/Rv32/Wots.lean`](../../lean/Rv32/Wots.lean), proved for any program that
+starts with them, because exp206's MSS verifier starts with the same 69. What
+`proof/Wots.lean` keeps is the compare, the chain loop and the verdict. The
+move changed no byte of `kernel.bin`, and the fourteen mutants are refused as
+before; the seven that edit those instructions now edit the library.
+
 | Theorem | Says |
 | --- | --- |
 | `verifies` | it halts after `4142 + 3 · steps` instructions with `if Verifies H m base then 0 else 1`, and every byte outside the 131 of scratch is what it was |
