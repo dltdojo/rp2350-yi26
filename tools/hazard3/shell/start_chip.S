@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// exp209 — where the chip starts, in flash at 0x10000000.
+// tools/hazard3/shell — where the chip starts, in flash at 0x10000000.
 //
 // The first word jumps to _start, and the IMAGE_DEF block right after it also
 // names _start as the entry point: whichever of the two the bootrom goes by,
@@ -16,9 +16,8 @@
 //   0x00000000   link to the next block: a one-block loop links to itself
 //   0xab123579   end marker
 //
-// The whole image must fit in flash sector 0 (link_chip.ld refuses more),
-// which is what makes the `absolute` UF2 family land the same way on a stock
-// board and on one exp139 left a partition table on.
+// MSTACK is the build's (-DMSTACK): the top of the Machine-mode stack, which
+// the shell's builds put at the region's base.
 
 .section .text.entry, "ax"
 .globl _entry

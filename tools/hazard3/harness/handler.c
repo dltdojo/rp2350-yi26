@@ -34,11 +34,8 @@
 #define csrr(name) ({ uint32_t v; __asm__ volatile ("csrr %0, " #name : "=r"(v)); v; })
 #define csrw(name, v) __asm__ volatile ("csrw " #name ", %0" :: "r"(v))
 
+#include "hashcall.h"
 #include "sha256.h"
-
-static int inside(uint32_t a, uint32_t n) {
-    return a >= REGION && n <= REGION_SIZE && a - REGION <= REGION_SIZE - n;
-}
 
 static void halt(uint32_t code) {
     IO_EXIT = code;
@@ -51,7 +48,7 @@ void handle(uint32_t *x) {
     uint32_t cycles = csrr(mcycle);
     if (cause == 8 && x[5] == 0) {
         uint32_t src = x[10], len = x[11], dst = x[12];
-        if (len % 64 == 0 && src % 4 == 0 && dst % 4 == 0 && inside(src, len) && inside(dst, 32)) {
+        if (hash_args_ok(src, len, dst)) {
             sha256((const uint8_t *)src, len, (uint8_t *)dst);
             csrw(mepc, csrr(mepc) + 4);
             return;

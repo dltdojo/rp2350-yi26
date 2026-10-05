@@ -40,6 +40,7 @@ USB_RUNS_ON="none"
 usb_check
 
 SIM=../../tools/hazard3/sim.sh
+source ../../tools/hazard3/shell/shell.sh
 if [[ "$(../../tools/lean/lean.sh version 2>&1)" != Lean* ]] || ! $SIM ready; then
     echo "SKIP  the shell: needs tools/lean/setup.sh and tools/hazard3/setup.sh"
     exit "$FAILED"
@@ -58,7 +59,7 @@ else
     fail "the shell builds"
     exit 1
 fi
-python3 host/uf2check.py build/exp209.uf2 build/exp209.bin \
+python3 ../../tools/hazard3/shell/uf2check.py build/exp209.uf2 build/exp209.bin \
     "$(llvm-nm build/chip.elf | awk '$3 == "_start" {print $1}')" || FAILED=1
 
 if [[ "$(clang --version | head -1)" == "$(cat build-toolchain.txt)" ]]; then
@@ -72,8 +73,7 @@ else
 fi
 
 # The RTL: REPT ok failed minstret pmpcfg0 pmpaddr0^want a0 cause.
-words() { $SIM bare "$1" --cycles 200000000 | tr '\n' ' '; }
-got="$(words build/sim.bin)"
+got="$(shell_words build/sim.bin)"
 harness="$($SIM run ../exp203-the-count-the-proof-promised/kernel.bin | sed -n 's/.*instret=\([0-9]*\).*/\1/p')"
 if [[ "$got" == "52455054 00000001 00000000 0000006c 0000001f 00000000 "*"exit=0 " && "$harness" == 108 ]]; then
     pass "on the RTL the shell's verdict is ok: all six checks pass, PMP reads back as written, minstret = 108"
@@ -82,115 +82,22 @@ else
 fi
 
 # Wrong shells: each must be caught by the check it breaks.
-mutant() { # what file sed expected-words
-    local work; work="$(mktemp -d)"
-    cp -r shell "$work/shell"; cp build/expect.h "$work/"
-    local target="$work/shell/$2"; [[ "$2" == expect.h ]] && target="$work/expect.h"
-    sed -i "$3" "$target"
-    if cmp -s "$target" "$([[ "$2" == expect.h ]] && echo build/expect.h || echo "shell/$2")"; then
-        fail "the shell catches a version where $1" "the sed changed nothing"
-    elif ./build.sh sim "$work/shell" "$work" "$work/sim.bin" 2> /dev/null && [[ "$(words "$work/sim.bin")" == "$4"* ]]; then
-        pass "the shell catches a version where $1"
-    else
-        fail "the shell catches a version where $1" "$(words "$work/sim.bin" 2>/dev/null)"
-    fi
-    rm -rf -- "$work"
-}
 NOT_OK="52455054 00000000 "
-mutant "kernel.sha256 is not kernel.bin's hash — not ok" expect.h \
+shell_mutant "kernel.sha256 is not kernel.bin's hash — not ok" expect.h \
     's/KERNEL_SHA\[32\] = {0x[0-9a-f][0-9a-f]/KERNEL_SHA[32] = {0x00/' "$NOT_OK"
-mutant "HALT is looked for under t0 = 2 — not ok" shell.c \
+shell_mutant "HALT is looked for under t0 = 2 — not ok" shell.c \
     's/int halted = cause == 8 \&\& x\[5\] == 1;/int halted = cause == 8 \&\& x[5] == 2;/' "$NOT_OK"
-mutant "the result is expected to be 1 — not ok" shell.c \
+shell_mutant "the result is expected to be 1 — not ok" shell.c \
     's/halted \&\& x\[10\] == 0,/halted \&\& x[10] == 1,/' "$NOT_OK"
-mutant "the source is looked for 64 bytes late — not ok" expect.h \
+shell_mutant "the source is looked for 64 bytes late — not ok" expect.h \
     's/#define SRC_OFF 0x1000/#define SRC_OFF 0x1040/' "$NOT_OK"
-mutant "the model's region hash is not the model's — not ok" expect.h \
+shell_mutant "the model's region hash is not the model's — not ok" expect.h \
     's/REGION_SHA\[32\] = {0x[0-9a-f][0-9a-f]/REGION_SHA[32] = {0x00/' "$NOT_OK"
-mutant "the chip is asked to count 107 — not ok" expect.h \
+shell_mutant "the chip is asked to count 107 — not ok" expect.h \
     's/#define EXPECT_INSTRET 108u/#define EXPECT_INSTRET 107u/' "$NOT_OK"
-mutant "PMP entry 0 is expected to say something else — reported as check 2, still ok" shell.c \
+shell_mutant "PMP entry 0 is expected to say something else — reported as check 2, still ok" shell.c \
     's/res.pmpcfg == 0x1f \&\& res.pmpaddr_xor == 0/res.pmpcfg == 0x1e \&\& res.pmpaddr_xor == 0/' "52455054 00000001 00000002 "
-mutant "the shell itself traps in step 2 — a fault, not a verdict" shell.c \
+shell_mutant "the shell itself traps in step 2 — a fault, not a verdict" shell.c \
     's/^    step = 2;$/    step = 2;\n    __asm__ volatile (".word 0");/' "4641554c 00000002 00000002 "
-
-exit "$FAILED"
-fi
-
-../../tools/hazard3/sha256-test.sh || FAILED=1
-if cargo test -q --offline --manifest-path ../../tools/partimg/Cargo.toml > /dev/null 2>&1; then
-    pass "partimg's tests pass, its bin mode among them"
-else
-    fail "partimg's tests pass"
-fi
-
-if ./build.sh > /dev/null; then
-    pass "the shell builds for the chip and for the RTL, the chip's in $(stat -c %s build/exp209.bin) of sector 0's 4096 bytes"
-else
-    fail "the shell builds"
-    exit 1
-fi
-python3 host/uf2check.py build/exp209.uf2 build/exp209.bin \
-    "$(llvm-nm build/chip.elf | awk '$3 == "_start" {print $1}')" || FAILED=1
-
-if [[ "$(clang --version | head -1)" == "$(cat build-toolchain.txt)" ]]; then
-    if [[ "$(sha256sum build/exp209.uf2 | cut -d' ' -f1)" == "$(cat exp209.uf2.sha256)" ]]; then
-        pass "the UF2 is byte for byte the committed one: $(cut -c1-16 exp209.uf2.sha256)…"
-    else
-        fail "the UF2 is byte for byte the committed one" "same toolchain, different bytes"
-    fi
-else
-    echo "SKIP  the UF2 against the committed hash: built with $(clang --version | head -1), recorded with $(cat build-toolchain.txt)"
-fi
-
-# The RTL: REPT ok failed minstret pmpcfg0 pmpaddr0^want a0 cause.
-words() { $SIM bare "$1" --cycles 200000000 | tr '\n' ' '; }
-got="$(words build/sim.bin)"
-harness="$($SIM run ../exp203-the-count-the-proof-promised/kernel.bin | sed -n 's/.*instret=\([0-9]*\).*/\1/p')"
-if [[ "$got" == "52455054 00000001 00000000 0000006c 0000001f 00000000 "*"exit=0 " && "$harness" == 108 ]]; then
-    pass "on the RTL the shell's verdict is ok: all six checks pass, PMP reads back as written, minstret = 108"
-else
-    fail "on the RTL the shell's verdict is ok, minstret 108" "$got; harness $harness"
-fi
-
-# Wrong shells: each must be caught by the check it breaks.
-mutant() { # what file sed expected-words
-    local work; work="$(mktemp -d)"
-    cp -r shell "$work/shell"; cp build/expect.h "$work/"
-    local target="$work/shell/$2"; [[ "$2" == expect.h ]] && target="$work/expect.h"
-    sed -i "$3" "$target"
-    if cmp -s "$target" "$([[ "$2" == expect.h ]] && echo build/expect.h || echo "shell/$2")"; then
-        fail "the shell catches a version where $1" "the sed changed nothing"
-    elif ./build.sh sim "$work/shell" "$work" "$work/sim.bin" 2> /dev/null && [[ "$(words "$work/sim.bin")" == "$4"* ]]; then
-        pass "the shell catches a version where $1"
-    else
-        fail "the shell catches a version where $1" "$(words "$work/sim.bin" 2>/dev/null)"
-    fi
-    rm -rf -- "$work"
-}
-NOT_OK="52455054 00000000 "
-mutant "kernel.sha256 is not kernel.bin's hash — not ok" expect.h \
-    's/KERNEL_SHA\[32\] = {0x[0-9a-f][0-9a-f]/KERNEL_SHA[32] = {0x00/' "$NOT_OK"
-mutant "HALT is looked for under t0 = 2 — not ok" shell.c \
-    's/int halted = cause == 8 \&\& x\[5\] == 1;/int halted = cause == 8 \&\& x[5] == 2;/' "$NOT_OK"
-mutant "the result is expected to be 1 — not ok" shell.c \
-    's/halted \&\& x\[10\] == 0,/halted \&\& x[10] == 1,/' "$NOT_OK"
-mutant "the source is looked for 64 bytes late — not ok" expect.h \
-    's/#define SRC_OFF 0x1000/#define SRC_OFF 0x1040/' "$NOT_OK"
-mutant "the model's region hash is not the model's — not ok" expect.h \
-    's/REGION_SHA\[32\] = {0x[0-9a-f][0-9a-f]/REGION_SHA[32] = {0x00/' "$NOT_OK"
-mutant "the chip is asked to count 107 — not ok" expect.h \
-    's/#define EXPECT_INSTRET 108u/#define EXPECT_INSTRET 107u/' "$NOT_OK"
-mutant "PMP entry 0 is expected to say something else — reported as check 2, still ok" shell.c \
-    's/res.pmpcfg == 0x1f \&\& res.pmpaddr_xor == 0/res.pmpcfg == 0x1e \&\& res.pmpaddr_xor == 0/' "52455054 00000001 00000002 "
-mutant "the shell itself traps in step 2 — a fault, not a verdict" shell.c \
-    's/^    step = 2;$/    step = 2;\n    __asm__ volatile (".word 0");/' "4641554c 00000002 00000002 "
-
-if cc -O2 -Wall -Werror -I shell -o build/blinktest host/blinktest.c shell/blink.c; then
-    python3 host/blinktest.py build/blinktest | grep -E '^(PASS|FAIL)' || FAILED=1
-    [[ ${PIPESTATUS[0]} -eq 0 ]] || FAILED=1
-else
-    fail "the LED's patterns build for this machine"
-fi
 
 exit "$FAILED"

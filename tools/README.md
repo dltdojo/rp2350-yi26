@@ -570,4 +570,17 @@ and `MSTACK` of its own, it drops the testbench's reset layout and exports
 `enter_payload`, and exp209's shell includes it on the Pico 2 — so the
 instructions around a payload, the ones `minstret` counts, are the same on
 silicon as here. `harness/sha256.c` is the SHA-256 both use, for any length;
-`sha256-test.sh` holds it against hashlib on this machine.
+`sha256-test.sh` holds it against hashlib on this machine. `harness/hashcall.h`
+is the rule a HASH call's arguments are held to, shared by `handler.c` and the
+chip shells so that it cannot differ between them.
+
+`shell/` is the rest of a chip shell, which exp209 wrote and exp210 is the
+second user of: `start_chip.S` (a jump, then the IMAGE_DEF block that makes the
+bootrom start a RISC-V image), `start_sim.S`, the two linker scripts, `led.h`
+(GPIO25 through SIO, and the one-bit verdict: slow or fast blinking, steady on
+for a trap in the shell), `uf2check.py` (an `absolute` UF2 read back without
+`partimg`), `expect.py` (a case run on the Lean model at the chip's region and
+on the RTL, for a shell's `gen.py`) and `shell.sh`, which a shell's `build.sh`
+and `check.sh` source to build both halves and to run wrong shells on the RTL.
+exp209's UF2 came out of the extraction byte for byte the one that ran on the
+board, which is what says the move changed nothing.

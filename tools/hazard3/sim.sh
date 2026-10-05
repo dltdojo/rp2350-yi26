@@ -37,7 +37,7 @@ ready() { [[ -x "$TB" ]]; }
 
 harness() {
     local src="$HERE/harness" out="$BUILD/harness.bin"
-    if [[ ! -f "$out" || "$src/harness.S" -nt "$out" || "$src/handler.c" -nt "$out" || "$src/link.ld" -nt "$out" || "$src/sha256.c" -nt "$out" ]]; then
+    if [[ ! -f "$out" || "$src/harness.S" -nt "$out" || "$src/handler.c" -nt "$out" || "$src/link.ld" -nt "$out" || "$src/sha256.c" -nt "$out" || "$src/hashcall.h" -nt "$out" ]]; then
         mkdir -p "$BUILD"
         clang --target=riscv32-unknown-elf -march=rv32im_zicsr -mabi=ilp32 -O2 -nostdlib \
             -ffreestanding -fno-pic -mno-relax -fuse-ld=lld -Wl,-T,"$src/link.ld" \
