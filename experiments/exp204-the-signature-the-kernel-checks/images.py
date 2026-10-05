@@ -6,7 +6,6 @@ verdict come from Python and hashlib, so a check here is a third party's.
 
   images.py build DIR        write DIR/<name>.bin for each case, and print
                              each name with the verdict Python expects
-  images.py expect NAME      the verdict Python expects: 0 accept, 1 reject
   images.py verify NAME SIG  check a region dump (one little-endian word per
                              line, the testbench's --sigfile format): the
                              message, signature and public key are untouched,
@@ -35,7 +34,7 @@ import random
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "hazard3"))
-from sigfile import read_sig  # noqa: E402
+from kernelimages import command  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MSG, SIG, PK, SCR = 0x1000, 0x2000, 0x4000, 0x8000
@@ -66,7 +65,7 @@ def verdict(pk, m, sig):
     return 0 if all(H(sig[i] + ZERO) == pk[i][bit(m, i)] for i in range(256)) else 1
 
 
-def cases():
+def lamport_cases():
     rng = random.Random(204)
     sk, pk = keygen(rng)
     m = bytes(rng.getrandbits(8) for _ in range(32))
@@ -98,7 +97,7 @@ def cases():
     }
 
 
-def region(pk, m, sig):
+def lamport_image(pk, m, sig):
     kernel = open(os.path.join(HERE, "kernel.bin"), "rb").read()
     img = bytearray(SCR + 96)
     img[:len(kernel)] = kernel
@@ -111,32 +110,8 @@ def region(pk, m, sig):
     return bytes(img)
 
 
-# Not called `main`: duplication.sh counts every Python `main` under
-# experiments/ as a possible copy, and this one builds exp204's own images.
-def build_expect_or_verify():
-    every = cases()
-    if sys.argv[1:2] == ["build"]:
-        d = sys.argv[2]
-        os.makedirs(d, exist_ok=True)
-        for name, (pk, m, sig) in every.items():
-            with open(os.path.join(d, name + ".bin"), "wb") as f:
-                f.write(region(pk, m, sig))
-            print(name, verdict(pk, m, sig))
-        return 0
-    if sys.argv[1:2] == ["expect"]:
-        print(verdict(*every[sys.argv[2]]))
-        return 0
-    if sys.argv[1:2] == ["verify"]:
-        before = region(*every[sys.argv[2]])
-        after = read_sig(sys.argv[3])
-        changed = [a for a in range(len(before)) if after[a] != before[a] and not SCR <= a < SCR + 96]
-        if changed:
-            print(f"{len(changed)} bytes outside the scratch changed, first at {changed[0]:#x}")
-            return 1
-        return 0
-    print(__doc__)
-    return 2
-
-
+# The command line — build, verify — is tools/hazard3/kernelimages.py's, as
+# every kernel experiment's is; what is here is only this experiment's cases.
 if __name__ == "__main__":
-    sys.exit(build_expect_or_verify())
+    sys.exit(command(__doc__, lamport_cases(), lambda case: lamport_image(*case), SCR, SCR + 96,
+                     describe=lambda case: (verdict(*case),)))

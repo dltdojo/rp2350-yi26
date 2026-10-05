@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp204 — what one HASH costs in minstret, measured.
+# tools/hazard3 — what one HASH costs in minstret, measured. exp204 wrote it;
+# exp205 needed the same number second.
 #
-#   measure.sh            the table, then PASS/FAIL lines; exit 0 = as claimed
-#   measure.sh --quiet    only the PASS/FAIL lines
+#   hash-cost.sh            the table, then PASS/FAIL lines; exit 0 = as claimed
+#   hash-cost.sh --quiet    only the PASS/FAIL lines
 #
 # Payloads that make k HASH calls in a row and then HALT, for k = 0..7, through
-# the same harness as the kernel. The model counts each `ecall` as one
+# the same harness as every kernel. The model counts each `ecall` as one
 # instruction, so it counts k + 8. The claim is that the RTL counts exactly
 #
 #     model + C + k × P
@@ -22,12 +23,12 @@
 #   behind   the word right after the HALT `ecall` is a `nop` instead of zero
 #            — and it does move, by one: exp203's "what lies behind" again,
 #            this time behind an ecall rather than an mret
-# The kernel's image has zeros behind its last ecall, as `zeros` does.
+# A kernel's image with zeros behind its last ecall counts as `zeros` does.
 
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
-SIM=../../../tools/hazard3/sim.sh
-RUN="$(../../../tools/lean/lean.sh exe rv32run)" || exit 2
+SIM=./sim.sh
+RUN="$(../lean/lean.sh exe rv32run)" || exit 2
 read -r BASE SIZE < <($SIM region)
 quiet="${1-}"
 work="$(mktemp -d)"

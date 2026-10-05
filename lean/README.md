@@ -13,8 +13,10 @@ that kernel is asking about.
 | [`Rv32/Load.lean`](./Rv32/Load.lean) | `boot`: the calling convention, the state the shell builds | the harness in `tools/hazard3`, which builds it |
 | [`Rv32/Proof.lean`](./Rv32/Proof.lean) | runs compose; a loaded program fetches; registers and memory after a write | — it is lemmas about the model, and is checked by Lean |
 | [`Rv32/Place.lean`](./Rv32/Place.lean) | a kernel at `base` in the 64 KiB region: `Placed`, address arithmetic that never wraps, the `lbu` and HASH steps, `readBytes`, and `code_of_image` — the bridge from a file's bytes to `CodeAt` | — lemmas, checked by Lean; exp203 wrote the first half, exp204 needed it second |
+| [`Rv32/Kernel.lean`](./Rv32/Kernel.lean) | one instruction of any program at a time — `stepK`, `regStep`, `loadStep`, `lbuStep`, `storeStep`, `sbStep` — `overlay`, and the word lemmas | — lemmas; exp204 wrote them for itself, exp205 needed them second |
+| [`Rv32/Blocks.lean`](./Rv32/Blocks.lean) | eight words zeroed, copied and compared, registers and offsets as parameters; `Keeps`, memory changed in one place only; `se_neg` and `dec_one`, which `decide` and `omega` run out of memory on | — lemmas; used by exp204 and exp205 |
 | [`Rv32/Asm.lean`](./Rv32/Asm.lean) | instructions as text, the way LLVM writes them | used by exp201's differential |
-| [`Run.lean`](./Run.lean) | `rv32run`: the model, compiled, for running a binary; memory held in an array, so 6000 stores take a fraction of a second | exp202, exp203 and exp204 run it beside the RTL |
+| [`Run.lean`](./Run.lean) | `rv32run`: the model, compiled, for running a binary; memory held in an array, so 6000 stores take a fraction of a second | exp202 to exp205 run it beside the RTL |
 | [`Sha256.lean`](./Sha256.lean) | SHA-256, for `rv32run`'s HASH only — no theorem mentions it, so it can make a run disagree but never a proof wrong | `hashlib` at ten lengths, and the harness's C, in [exp204](../experiments/exp204-the-signature-the-kernel-checks/) |
 
 ```sh

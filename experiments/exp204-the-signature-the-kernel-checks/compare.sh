@@ -11,7 +11,7 @@
 #     after exactly the number the proof states, valid signature or not;
 #   - the RTL halts with the same verdict, and its minstret is that number plus
 #     the harness's constant plus 256 HASH calls at the per-call cost, both
-#     measured by accounting/measure.sh;
+#     measured by tools/hazard3/hash-cost.sh;
 #   - the whole region is byte for byte the same on both, and Python — not the
 #     model — agrees that only the 96 bytes of scratch changed.
 # And once more on the model alone, at 0x20070000, where the chip's shell is
@@ -24,7 +24,7 @@ RUN="$(../../tools/lean/lean.sh exe rv32run)" || exit 2
 read -r BASE SIZE < <($SIM region)
 # The number the theorems state, read from the proof rather than repeated here.
 PROVED="$(sed -n 's/.*run env \([0-9]*\) s = \.halted (if Verifies.*/\1/p' proof/Lamport.lean | head -1)"
-read -r C P < <(accounting/measure.sh --quiet | sed -n 's/.*RTL − model = \([0-9]*\) + \([0-9]*\) × .*/\1 \2/p')
+read -r C P < <(../../tools/hazard3/hash-cost.sh --quiet | sed -n 's/.*RTL − model = \([0-9]*\) + \([0-9]*\) × .*/\1 \2/p')
 EXPECT_RTL=$((PROVED + C + 256 * P))
 work="$(mktemp -d)"
 trap 'rm -rf -- "$work"' EXIT
