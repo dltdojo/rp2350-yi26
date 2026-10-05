@@ -103,9 +103,9 @@ a different shell's.
 
 | | |
 | --- | --- |
-| [`shell/start_chip.S`](./shell/start_chip.S) | `j _start`, then the IMAGE_DEF block, its words those of embassy-rp's `block.rs`: RISC-V EXE for RP2350, with an ENTRY_POINT that also names `_start` — whichever the bootrom goes by, it lands there |
+| [`start_chip.S`](../../tools/hazard3/shell/start_chip.S) | `j _start`, then the IMAGE_DEF block, its words those of embassy-rp's `block.rs`: RISC-V EXE for RP2350, with an ENTRY_POINT that also names `_start` — whichever the bootrom goes by, it lands there |
 | [`shell/shell.c`](./shell/shell.c) | zero the region at `0x20070000`, write exp203's `counting` image, hash the kernel, enter it, then the six checks |
-| [`shell/board_chip.c`](./shell/board_chip.c) | GPIO25 through SIO, every address rp-pac's for the RP235x; slow or fast blinking for the verdict; nothing else on the chip is touched, the clock included |
+| [`shell/board_chip.c`](./shell/board_chip.c), [`led.h`](../../tools/hazard3/shell/led.h) | GPIO25 through SIO, every address rp-pac's for the RP235x; slow or fast blinking for the verdict; nothing else on the chip is touched, the clock included |
 | [`gen.py`](./gen.py) | everything compared against, from exp203's own files and two runs: the image, `kernel.sha256`, the hash of the region the Lean model leaves at `0x20070000`, and the RTL harness's minstret for the same image |
 
 **Why the UF2 family is `absolute`, and why the image must fit in sector 0.**
@@ -116,10 +116,17 @@ measured that a stock board's unpartitioned space accepts the `absolute`
 family, and exp139's table keeps that same word. So an absolute image confined
 to sector 0, which no partition covers, lands at `0x10000000` either way, and
 the table it overwrites in sector 0 is no longer there to redirect the boot.
-`link_chip.ld` refuses an image over 4096 bytes. `tools/partimg` gained a
-`bin` mode to write it, and `host/uf2check.py` reads the UF2 back without it.
+The link refuses an image over 4096 bytes. `tools/partimg` gained a
+`bin` mode to write it, and `uf2check.py` reads the UF2 back without it.
 `yi26` refuses RISC-V UF2s (the briefing noted it) but is not needed here: the
 drag goes straight to the bootrom.
+
+**Where the shell lives now.** Everything in it that is not about exp203 —
+the start files, the linker scripts, the LED, the UF2 check and the build
+steps — moved to [`tools/hazard3/shell/`](../../tools/hazard3/shell/) when
+exp210 became the second shell. The UF2 built from there is byte for byte the
+one the board ran (`check.sh` holds it to `exp209.uf2.sha256`), so the move
+changed nothing the board saw.
 
 ## What is checked without the board
 
@@ -137,10 +144,7 @@ drag goes straight to the bootrom.
   **minstret = 108**, what the RTL harness counts for exp203; its verdict is
   ok. So the RTL does not show the PMP readback the board showed in run 1;
 - seven wrong shells, each run on the RTL and each caught by the check it
-  breaks, the last a shell that traps in step 2 and reports a fault;
-- the LED's patterns, compiled for the host with a recorder in place of the
-  LED and decoded the way a person counts: eight rounds, each read back as
-  what was blinked.
+  breaks, the last a shell that traps in step 2 and reports a fault.
 
 ## What only the board can say, and what it cannot
 

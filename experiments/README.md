@@ -113,6 +113,7 @@ Per experiment:
 | exp204 | **No board at all**, and no USB anywhere in it. The same as exp203, and `python3` for the images. A few minutes, most of it eleven mutants of the proof. |
 | exp205 | **No board at all**, and no USB anywhere in it. The same as exp204. About ten minutes, most of it fourteen mutants of the proof. |
 | exp209 | A **Pico 2** (not a Pico 2 W — its LED is not on a GPIO), a USB cable, a hand on **BOOTSEL** to drag `exp209.uf2` on, and **an eye on the LED** for a few seconds: slow blinking or fast. No UART, no USB, no `yi26`. The cloud half needs clang, lld, llvm-objcopy, cargo, Lean and the Hazard3 testbench. |
+| exp210 | The same as exp209, and exp209's UF2 flashed first on a board that ever ran exp139–exp145 (their partition table lives in sector 0, and this image does not fit there). The cloud half is the same as exp209's and a host C compiler; about ten minutes the first time, three of them `gen.py` running 21 cases on the model and the RTL. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -499,7 +500,7 @@ awake — and because most of these experiments cost nothing.
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204, exp205 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
-| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209, exp210 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
 somebody to a bench for no reason:
@@ -763,6 +764,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp204 | `none` | `none` | `none` | `none` |
 | exp205 | `none` | `none` | `none` | `none` |
 | exp209 | `none` | `none` | `none` | `none` |
+| exp210 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -948,6 +950,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp204-the-signature-the-kernel-checks](./exp204-the-signature-the-kernel-checks/) | 0 · none | **352 bytes of RV32IM proved to check a Lamport one-time signature: they halt with 0 when all 256 preimages hash to the key halves the message's bits select and with 1 otherwise, at exactly instruction 16663 either way, writing nothing outside 96 bytes of scratch — for every input and for every function HASH might be.** The model, the Hazard3 RTL and Python agree on ten cases, region byte for byte. One HASH costs the RTL 4 `minstret` the model does not count; and the count also depends on the word behind the last `ecall`, which never runs — so on the chip, on what the shell leaves after `kernel.bin` |
 | [exp205-the-chain-the-checksum-closes](./exp205-the-chain-the-checksum-closes/) | 0 · none | **432 bytes of RV32IM proved to verify a WOTS (w = 16) signature — 67 hash chains, the last three the checksum's — for every input and every HASH, in exactly `4142 + 3·S` instructions, where S is the number of HASH calls: the first kernel whose count depends on its input, so the theorem states it as a formula.** The proof carries a loop invariant over the hash chain and the checksum's arithmetic; fourteen wrong versions are refused, among them a kernel that never checks the last checksum chain. The model, the RTL and Python agree on eleven cases from 45 HASH calls to 990, and the RTL counts exactly `3 + 4·S` more, as exp204 measured. Lean's kernel runs out of memory on `decide` of a negative immediate's sign-extension — written down |
 | [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here, and the verified-kernel road's first contact with silicon: a shell in flash sector 0 of a Pico 2 runs exp203's proved kernel in User mode, through the RTL harness's own `harness.S`, and on the board everything matched. The kernel halted with 0, made its copy, left the whole 64 KiB region byte for byte as the Lean model predicted, and the RP2350 counted minstret = 108, the RTL's number.** PMP entry 0 reads back differently from what was written, which the RTL never shows. It took three builds: a person read a verdict and one number, could not read four, and reads one bit — slow or fast — without fail |
+| [exp210-the-hash-the-chip-computes](./exp210-the-hash-the-chip-computes/) | 3 · a person | **exp204's Lamport and exp205's WOTS verifiers, proved for every HASH, on a Pico 2 with the RP2350's SHA-256 block as HASH: all 21 cases in one UF2, each checked on the chip against the Lean model's verdict and every byte of its region, and against the RTL's minstret — and on the board it blinked slowly: every case matched. The SHA-256 block computed all 8,155 HASH calls as the model's SHA-256 does, every region came out byte for byte the model's, and silicon counted each case's minstret as the RTL does, HASH traps included.** On the RTL the same shell passes every case. The block's driver is held against a fake made from the datasheet, which four wrong drivers fail, and that is as far as the cloud can take it. exp209's shell moved to `tools/hazard3/shell/` for it, and still builds to the UF2 its board ran |
 
 ## The browser track, finished
 
@@ -2736,12 +2739,18 @@ they can settle is settled before anybody walks to a bench.**
   region as the Lean model predicted, and minstret = 108, as the RTL counts.**
   PMP entry 0 reads back differently from what was written, which the RTL
   never showed.
+- [exp210](./exp210-the-hash-the-chip-computes/) — exp204's and exp205's
+  kernels on the Pico 2 with the RP2350's SHA-256 block as HASH: 21 cases,
+  each held on the chip against the model's verdict and region and the RTL's
+  minstret. **Slow blinking: every case matched — model, RTL and chip byte
+  for byte, and minstret `count + 3 + 4·S` on silicon as on the RTL.** Needs 3
+  rather than the 1 planned: the shell has no USB, so the verdict is still a
+  person reading the LED.
 
 **Planned on a board:**
 
 | | Needs | What only silicon can say |
 | --- | --- | --- |
-| exp210 | 1 | exp204's and exp205's kernels with the hardware SHA-256 as HASH: model, RTL and chip byte for byte |
 | exp211 | 2 | MSS with its counter in flash: power pulled and firmware reflashed mid-sequence, and the counter never going back |
 | exp212 | 1 (3 with an analyser) | `mcycle` across secret keys on silicon; a logic analyser would be this repository's first extra instrument, and is optional |
 
@@ -2749,7 +2758,10 @@ they can settle is settled before anybody walks to a bench.**
 
 - **That silicon counts as the RTL does** — answered for exp203's kernel under
   exp209's shell: the RP2350 counted 108, the RTL's number. Each kernel that
-  calls HASH brings a per-call cost of its own to measure there (exp210).
+  calls HASH brings a per-call cost of its own to measure there, and for
+  exp204's and exp205's it is answered too: under exp210's shell, silicon
+  counted `count + 3 + 4·S` on all 21 cases, 8,155 HASH calls, as the RTL
+  does.
 - **That the RISC-V shell can reuse `crates/`.** Everything here so far is Arm
   and Embassy. Which crates build for `riscv32imac-unknown-none-elf` is a fact
   to establish by compiling, before exp209 is planned in detail.

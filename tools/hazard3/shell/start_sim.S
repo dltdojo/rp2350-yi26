@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// exp209 — where the shell starts on the Hazard3 RTL, at the testbench's
+// tools/hazard3/shell — where the shell starts on the Hazard3 RTL, at the testbench's
 // reset vector: the same shell, with the print port for an LED.
 
 .section .text.entry, "ax"

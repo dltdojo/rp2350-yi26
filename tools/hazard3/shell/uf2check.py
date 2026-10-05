@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""exp209 — the UF2, read back independently of the tool that wrote it.
+"""tools/hazard3/shell — a shell's UF2, read back independently of the tool
+that wrote it.
 
-  uf2check.py UF2 BIN START      PASS/FAIL lines; exit 0 = as claimed
+  uf2check.py UF2 BIN START [FLASH]    PASS/FAIL lines; exit 0 = as claimed
 
-START is _start's address from the ELF's symbol table. The claims: every block
-is family `absolute` and lies in flash sector 0, together they are exactly BIN,
+START is _start's address from the ELF's symbol table; FLASH is how many bytes
+from 0x10000000 the image may use, 4096 (flash sector 0) unless given. The
+claims: every block is family `absolute` and lies in those bytes, together
+they are exactly BIN,
 the image starts with a jump to START, and the IMAGE_DEF block after it is the
 eight words start_chip.S documents — with START as its entry point and the
 region's base as its stack.
@@ -13,7 +16,7 @@ region's base as its stack.
 import struct
 import sys
 
-ABSOLUTE, SECTOR0 = 0xE48BFF57, (0x10000000, 0x10001000)
+ABSOLUTE, FLASH = 0xE48BFF57, 0x10000000
 MSTACK = 0x20070000
 
 
@@ -29,6 +32,8 @@ def blocks(uf2):
 
 def main():
     uf2, image, start = open(sys.argv[1], "rb").read(), open(sys.argv[2], "rb").read(), int(sys.argv[3], 16)
+    limit = int(sys.argv[4], 0) if len(sys.argv) > 4 else 4096
+    where = "flash sector 0" if limit == 4096 else f"the first {limit // 1024} KiB of flash"
     bad = 0
 
     def check(ok, what):
@@ -39,15 +44,15 @@ def main():
     bs = list(blocks(uf2))
     check(all(f == 0x2000 and fam == ABSOLUTE for f, _, _, _, _, fam, _ in bs),
           f"all {len(bs)} blocks carry family {ABSOLUTE:#010x}, absolute")
-    check(all(SECTOR0[0] <= a and a + s <= SECTOR0[1] for _, a, s, _, _, _, _ in bs),
-          "every block lies in flash sector 0, 0x10000000..0x10001000")
+    check(all(FLASH <= a and a + s <= FLASH + limit for _, a, s, _, _, _, _ in bs),
+          f"every block lies in {where}, {FLASH:#x}..{FLASH + limit:#x}")
     flat = bytearray()
     for _, a, s, no, total, _, data in bs:
-        flat[a - SECTOR0[0]:a - SECTOR0[0] + s] = data
+        flat[a - FLASH:a - FLASH + s] = data
     check(bytes(flat[:len(image)]) == image and not any(flat[len(image):]),
           f"together they are exactly the {len(image)}-byte image")
     # j _start: a JAL x0 with the offset to START.
-    off = start - SECTOR0[0]
+    off = start - FLASH
     jal = (((off >> 20) & 1) << 31) | (((off >> 1) & 0x3FF) << 21) | (((off >> 11) & 1) << 20) \
         | (((off >> 12) & 0xFF) << 12) | 0x6F
     words = struct.unpack_from("<9I", image, 0)
