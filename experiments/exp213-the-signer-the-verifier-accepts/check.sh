@@ -18,7 +18,8 @@
 #
 # Needs Lean (tools/lean/setup.sh); (4) also the Hazard3 testbench
 # (tools/hazard3/setup.sh) and clang, lld and llvm-objcopy. Without either it
-# says SKIP for what it cannot run. Over an hour, most of it (2).
+# says SKIP for what it cannot run. About an hour: twenty minutes of (2), and
+# six minutes for each key generation on the RTL in (4).
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 
