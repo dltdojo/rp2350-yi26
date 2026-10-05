@@ -950,7 +950,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp204-the-signature-the-kernel-checks](./exp204-the-signature-the-kernel-checks/) | 0 · none | **352 bytes of RV32IM proved to check a Lamport one-time signature: they halt with 0 when all 256 preimages hash to the key halves the message's bits select and with 1 otherwise, at exactly instruction 16663 either way, writing nothing outside 96 bytes of scratch — for every input and for every function HASH might be.** The model, the Hazard3 RTL and Python agree on ten cases, region byte for byte. One HASH costs the RTL 4 `minstret` the model does not count; and the count also depends on the word behind the last `ecall`, which never runs — so on the chip, on what the shell leaves after `kernel.bin` |
 | [exp205-the-chain-the-checksum-closes](./exp205-the-chain-the-checksum-closes/) | 0 · none | **432 bytes of RV32IM proved to verify a WOTS (w = 16) signature — 67 hash chains, the last three the checksum's — for every input and every HASH, in exactly `4142 + 3·S` instructions, where S is the number of HASH calls: the first kernel whose count depends on its input, so the theorem states it as a formula.** The proof carries a loop invariant over the hash chain and the checksum's arithmetic; fourteen wrong versions are refused, among them a kernel that never checks the last checksum chain. The model, the RTL and Python agree on eleven cases from 45 HASH calls to 990, and the RTL counts exactly `3 + 4·S` more, as exp204 measured. Lean's kernel runs out of memory on `decide` of a negative immediate's sign-extension — written down |
 | [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here, and the verified-kernel road's first contact with silicon: a shell in flash sector 0 of a Pico 2 runs exp203's proved kernel in User mode, through the RTL harness's own `harness.S`, and on the board everything matched. The kernel halted with 0, made its copy, left the whole 64 KiB region byte for byte as the Lean model predicted, and the RP2350 counted minstret = 108, the RTL's number.** PMP entry 0 reads back differently from what was written, which the RTL never shows. It took three builds: a person read a verdict and one number, could not read four, and reads one bit — slow or fast — without fail |
-| [exp210-the-hash-the-chip-computes](./exp210-the-hash-the-chip-computes/) | 3 · a person | **exp204's Lamport and exp205's WOTS verifiers, proved for every HASH, on a Pico 2 with the RP2350's SHA-256 block as HASH: all 21 cases in one UF2, each checked on the chip against the Lean model's verdict and every byte of its region, and against the RTL's minstret — slow blinking if every one matched. Not yet run on a board.** On the RTL the same shell passes every case. The block's driver is held against a fake made from the datasheet, which four wrong drivers fail, and that is as far as the cloud can take it. exp209's shell moved to `tools/hazard3/shell/` for it, and still builds to the UF2 its board ran |
+| [exp210-the-hash-the-chip-computes](./exp210-the-hash-the-chip-computes/) | 3 · a person | **exp204's Lamport and exp205's WOTS verifiers, proved for every HASH, on a Pico 2 with the RP2350's SHA-256 block as HASH: all 21 cases in one UF2, each checked on the chip against the Lean model's verdict and every byte of its region, and against the RTL's minstret — and on the board it blinked slowly: every case matched. The SHA-256 block computed all 8,155 HASH calls as the model's SHA-256 does, every region came out byte for byte the model's, and silicon counted each case's minstret as the RTL does, HASH traps included.** On the RTL the same shell passes every case. The block's driver is held against a fake made from the datasheet, which four wrong drivers fail, and that is as far as the cloud can take it. exp209's shell moved to `tools/hazard3/shell/` for it, and still builds to the UF2 its board ran |
 
 ## The browser track, finished
 
@@ -2739,14 +2739,13 @@ they can settle is settled before anybody walks to a bench.**
   region as the Lean model predicted, and minstret = 108, as the RTL counts.**
   PMP entry 0 reads back differently from what was written, which the RTL
   never showed.
-
-**Built, waiting for the board:**
-
 - [exp210](./exp210-the-hash-the-chip-computes/) — exp204's and exp205's
   kernels on the Pico 2 with the RP2350's SHA-256 block as HASH: 21 cases,
   each held on the chip against the model's verdict and region and the RTL's
-  minstret. Needs 3 rather than the 1 planned: the shell has no USB, so the
-  verdict is still a person reading the LED.
+  minstret. **Slow blinking: every case matched — model, RTL and chip byte
+  for byte, and minstret `count + 3 + 4·S` on silicon as on the RTL.** Needs 3
+  rather than the 1 planned: the shell has no USB, so the verdict is still a
+  person reading the LED.
 
 **Planned on a board:**
 
@@ -2759,8 +2758,10 @@ they can settle is settled before anybody walks to a bench.**
 
 - **That silicon counts as the RTL does** — answered for exp203's kernel under
   exp209's shell: the RP2350 counted 108, the RTL's number. Each kernel that
-  calls HASH brings a per-call cost of its own to measure there: exp210 asks
-  it of 8,155 calls, and its board run is the answer.
+  calls HASH brings a per-call cost of its own to measure there, and for
+  exp204's and exp205's it is answered too: under exp210's shell, silicon
+  counted `count + 3 + 4·S` on all 21 cases, 8,155 HASH calls, as the RTL
+  does.
 - **That the RISC-V shell can reuse `crates/`.** Everything here so far is Arm
   and Embassy. Which crates build for `riscv32imac-unknown-none-elf` is a fact
   to establish by compiling, before exp209 is planned in detail.

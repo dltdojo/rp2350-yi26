@@ -114,6 +114,8 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 
 **板子上跑過的**：[exp209](../experiments/exp209-the-count-the-led-blinks/)——Pico 2 的 RISC-V 殼層（組語＋C，全在 flash 第 0 磁區），直接沿用 RTL 的 `harness.S` 跑 exp203 的核心，六項自我檢查，用 LED 閃出 `minstret`。RTL 上同一個殼層六項全過、計數 108；UF2 用 `absolute` 家族，不必先改 `yi26`。板子第一次執行閃出「2 次長閃，1-0-8」：核心停機，晶片計數 **108，與 RTL 相同**；但 PMP entry 0 讀回值與寫入不同（RTL 上沒有這個現象）。第二版試圖閃出四個數字，人眼無法可靠判讀（使用者原話已記錄）；第三版改成晶片上自行比對、LED 只給一個位元——**板子回報「慢閃」：全部吻合**。證明過的核心在晶片上停機、結果 0、拷貝正確、64 KiB 記憶體與 Lean 模型逐位元組相同、`minstret` = 108 與 RTL 相同。
 
+[exp210](../experiments/exp210-the-hash-the-chip-computes/)：exp204（Lamport）與 exp205（WOTS）的核心在 Pico 2 上執行，HASH 交給 RP2350 的 SHA-256 加速器；21 個案例放在同一個 UF2，殼層移到 `tools/hazard3/shell/` 共用（exp209 的 UF2 仍逐位元組相同）。**板子回報「慢閃」：全部吻合**——加速器回答的 8,155 次 HASH 與模型的 SHA-256 一致，21 個區域與 Lean 模型逐位元組相同，每個案例的 `minstret` 都等於 RTL 的 `count + 3 + 4·S`，連進出殼層的 trap 也一樣計數。三方（Lean、RTL、晶片）一致。
+
 新增的共用部分：`lean/Rv32/`（`Isa`、`Machine`、`Load`、`Asm`、`Proof`、`Place`、`Kernel`、`Blocks`）、`lean/Run.lean`
 （模型編譯成 `rv32run`，記憶體改用陣列）、`lean/Sha256.lean`（只供執行）、`tools/hazard3/`（`setup.sh`、`sim.sh`、harness）、
 `tools/lean/lean.sh` 能檢查引用函式庫的證明、能讓 mutant 改函式庫本身。
@@ -138,7 +140,7 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 | 編號（暫定） | 內容 | Needs | 雲端能先做的半邊 |
 | --- | --- | --- | --- |
 | exp209 | **晶片上的殼層**：RP2350 以 RISC-V 模式開機；Rust 殼層（`rp235x-hal`，`riscv32imac-unknown-none-elf`）把 `kernel.bin` 複製到 `0x20070000`，用 SHA-256 加速器算雜湊並與 `kernel.sha256` 比對，設 PMP、`mret` 進 User、處理 `ecall`，USB 回報 `minstret`／`mcycle`。跑 exp203 的核心：**晶片上的計數是不是也是 108？** | 1（若殼層實作 1200 baud 重開機）／2（否則每次燒錄要按 BOOTSEL） | 殼層編譯、UF2 家族 `rp2350-riscv`、`yi26` 接受 RISC-V UF2、harness 的行為在 RTL 上先對過 |
-| exp210 | **三方一致**：exp204／205 的核心在晶片上用加速器當 HASH；Lean、RTL、晶片三方記憶體逐位元組相同；每次 HASH 呼叫的計數成本在晶片上重量。**已建好、等板子**：一個 UF2 跑 21 個案例，晶片上逐案比對模型的判決與整塊區域、RTL 的 `minstret`，LED 只給一個位元。沒有 USB，所以 Needs 是 3 而不是原訂的 1 | 3 | 全部（雲端半邊已完成） |
+| exp210 | **三方一致**：exp204／205 的核心在晶片上用加速器當 HASH；Lean、RTL、晶片三方記憶體逐位元組相同；每次 HASH 呼叫的計數成本在晶片上重量。一個 UF2 跑 21 個案例，晶片上逐案比對模型的判決與整塊區域、RTL 的 `minstret`，LED 只給一個位元。沒有 USB，所以 Needs 是 3 而不是原訂的 1。**板子回報「慢閃」：21 個案例全部吻合** | 3 | 已完成 |
 | exp211 | **不能倒退的計數器**：MSS 計數器存在 flash，由殼層管理；斷電、重燒韌體後觀察是否倒退；第 17 次簽章必須被殼層拒絕 | 2（要有人拔電） | 計數器的 flash 配置與原子寫入可以先用模型（像 exp197 的 P4）檢查 |
 | exp212 | **晶片上的時間**：不同秘密金鑰下 `mcycle` 的分佈；GPIO 翻轉 + 邏輯分析儀 | `mcycle` 半邊 1；邏輯分析儀半邊 3，而且**多一項硬體需求**，與 repo「一塊板子一條線」的前提不同，要先決定 | 無 |
 
@@ -171,7 +173,7 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 | --- | --- |
 | RP2350 上 Hazard3 的 PMP 區域數與比對模式 | RTL 的預設組態（依 Hazard3 README 即 RP2350 的組態，另加 Zbc）有 4 個區域、TOR 與 NAPOT 都支援；harness 用 NAPOT 一個區域。**晶片上（exp209）**：entry 0 讀回值與寫入不同，但核心仍在 User mode 受限執行並停機；原因未查 |
 | `minstret`、`mcycle` 的存取與 `mcountinhibit` | RTL 上已回答：寫 `mcountinhibit` 的指令，開始計數那條不算、停止計數那條算；`mret` 計 2；`ecall` 會計；結果與記憶體位置有關（exp203）。**晶片上（exp209）**：同一份殼層下 `minstret` = 108，與 RTL 相同（v1.0-rc1） |
-| SHA-256 加速器的暫存器介面，trap handler 中同步使用的限制 | exp210 依 rp-pac 寫好驅動（`START`、`BSWAP`、逐字等 `WDATA_RDY`、補位由軟體做一整個區塊、等 `SUM_VLD`），在 trap handler 裡同步使用、不用 DMA；雲端只能對照依資料手冊寫的假周邊測試，**晶片上未執行** |
+| SHA-256 加速器的暫存器介面，trap handler 中同步使用的限制 | exp210 依 rp-pac 寫好驅動（`START`、`BSWAP`、逐字等 `WDATA_RDY`、補位由軟體做一整個區塊、等 `SUM_VLD`），在 trap handler 裡同步使用、不用 DMA；雲端對照依資料手冊寫的假周邊測試；**晶片上已執行（exp210 慢閃）**，驅動對加速器的理解正確 |
 | `rp235x-hal` 在 RISC-V 模式下的中斷支援 | 核心不需要中斷；殼層進核心前關掉。殼層自己是否需要中斷（USB）在 exp209 建置時確認 |
 | Embassy 是否支援 RP2350 的 RISC-V 模式 | 未處理；exp209 的第一步就是在雲端編譯看看 |
 | 可借用的 Lean RISC-V 語意 | 沒有借：自己寫的 `lean/Rv32`（語意 `Machine.lean` 264 行、編碼 `Isa.lean` 的定義部分約 250 行，皆含註解），以 LLVM（exp201）、riscv-tests 與 RTL（exp202）檢驗。借 Sail 的 Lean 輸出會帶進一個比整個實驗還大的信任對象 |

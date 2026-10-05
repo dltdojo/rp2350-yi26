@@ -6,8 +6,11 @@
 function HASH might be, run on a Pico 2 with the RP2350's own SHA-256 block as
 HASH: all 21 of their cases, each held on the chip against what the Lean model
 and the Hazard3 RTL did with the same bytes — the verdict, every byte of the
-64 KiB region, and minstret. On the RTL the same shell passes every case.
-Not yet run on a board.**
+64 KiB region, and minstret. On a Pico 2 it blinked slowly: every case
+matched. The SHA-256 block answered 8,155 HASH calls as the model's SHA-256
+does, the 21 regions came out byte for byte as the Lean model left them, and
+the RP2350 counted each case's minstret as the RTL does — the trap into the
+shell and the `mret` back included.**
 
 This is the briefing's "three executors agree" step on the
 [verified-kernel road](../README.md#the-verified-kernel-road), and the first
@@ -59,6 +62,19 @@ reliably, and nothing more. For each of the 21 cases, "matched" is all six of:
 
 and the shell must have run all 21. Fast blinking says one of these failed
 somewhere and nothing more; the next build would split the cases in half.
+
+## What the board has said
+
+| Run | UF2 (SHA-256) | Reported, as said | Read as |
+| --- | --- | --- | --- |
+| 1 | `bba43c353e4328793760c385ca1f86441129d810b503fc88967b02d4b9a557e5`, on a board that last ran exp209 | **"慢閃"** — slow blinking | **every case matched**: on all 21, the kernel in SRAM was the proved one, it halted with the model's verdict, all 65,536 bytes of the region were the model's, minstret was the RTL's, and the block never flagged a write while busy. So the driver in `sha_hw.h` gives the block what it wants, the block computes SHA-256 as `lean/Sha256.lean` and hashlib do, and a HASH call costs silicon the 4 counted instructions it costs the RTL |
+
+One run, one board, as with exp209: what it settles is these 21 cases under
+this shell on this Pico 2. It answers the road's open question about the
+per-call cost for these two kernels — silicon's minstret is
+`count + 3 + 4·S`, as the RTL's is — and it closes the briefing's
+"three executors agree" step: model, RTL and chip, byte for byte. It says
+nothing about time; `mcycle` was not read.
 
 ## The question
 
@@ -159,7 +175,8 @@ Needs clang, lld, llvm-objcopy, cargo, a host C compiler, Lean
 
 ## Expected output
 
-The board half has not been run. The cloud half:
+The board half is in **What the board has said** above, as reported. The
+cloud half:
 
 ```text
 === exp210 — the hash the chip computes (cloud half) ===
