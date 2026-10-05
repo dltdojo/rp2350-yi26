@@ -4,14 +4,15 @@
 
 **The first RISC-V firmware in this repository: a shell, in flash sector 0 of a
 Pico 2, that runs exp203's proved 60-byte kernel in User mode and checks what
-it did. The proof says 105 instructions, and the Hazard3 RTL counts 108 under
-the same shell. On a Pico 2, revision 1 blinked "2 long flashes, 1-0-8": the
-kernel halted, and the RP2350's own core, an older Hazard3 than the RTL,
-counted 108, the RTL's number. Revision 2 tried to blink four numbers, and a
-person could not read them. So revision 3 answers one question with one bit:
-slow blinking if everything matched (the kernel, its result, the copy, the
-whole region against the Lean model, and 108), fast blinking if anything did
-not. It has not been run yet.**
+it did. On a Pico 2, revision 3 blinked slowly: everything matched. On
+silicon the proved kernel was in SRAM, halted with result 0, and copied its
+64 bytes. The whole 64 KiB region came out byte for byte what the Lean model
+predicted, and the RP2350's own core, an older Hazard3 than the RTL, counted
+`minstret` = 108, the RTL's number. So the proof's count plus the harness's
+measured 3 holds on the chip. One thing does not match the RTL: PMP entry 0
+reads back differently from what the shell wrote (run 1), though the kernel
+still ran confined. It took three builds to get there, because a person
+cannot read numbers off an LED: one bit, slow or fast, is what works.**
 
 This is the board half of the verified-kernel road (see its
 [briefing](../../docs/2026-10-02-0930-verified-kernel-road-briefing-zh-tw.md)),
@@ -79,11 +80,13 @@ their verdict is blinked.
 | --- | --- | --- | --- |
 | 1 | `09e9219984f37b21640f4e1b70990d7cb502131503af24c1f5e51bbbe0a0eddb` — revision 1, which blinked the first failed check and then minstret | **"2 次長閃，1-0-8"** — two long flashes, then 1, 0, 8 | check 1 passed, so SRAM held the proved kernel; check 2 failed, so PMP entry 0 did not read back as written; the number is minstret, because revision 1 blinked minstret only when the kernel had halted (otherwise mcause, never 108). So **the kernel halted, and the RP2350 counted 108, as the RTL does**. Checks 4, 5 and 6 were not reported |
 | 2 | `4b3f3dff1983d6d34084561bdd8ba7236031f670862653e67dee52ae6068f2a2` — revision 2, four numbers | **"無法回報四個數字，這個驗證太複雜必須簡化，這種長度對於人眼識別計算太難"** | unreadable by design: the instrument, not the chip, failed. Nothing about the chip is learned from it |
-| 3 | see `exp209.uf2.sha256` — revision 3, one bit | not yet run | |
+| 3 | `35f7e1d932bddac2485bba0ada9689c679a109e1cbbed2457f8e41c92e6f016e` — revision 3, one bit | **"慢閃"** — slow blinking | **everything matched**: checks 1, 3, 4, 5 and 6 passed and minstret = 108. The proved kernel ran on silicon, halted with 0, made its copy, left the region exactly as the Lean model says, and was counted as the RTL counts it |
 
-Run 1 settles the question this experiment was built for, for this kernel and
-this shell: silicon's `minstret` is the RTL's, so exp203's accounting (the
-proved count plus 3) holds on the chip. It also raises one this repository had
+Runs 1 and 3 settle the question this experiment was built for, for this
+kernel and this shell. Silicon's `minstret` is the RTL's, so exp203's
+accounting (the proved count plus 3) holds on the chip. Run 3 adds that
+everything else the model predicted holds there too, down to every byte of
+the region. It also raises one this repository had
 not asked: what does the RP2350's Hazard3 do with PMP entry 0? The kernel
 still ran in User mode inside the region, so User mode had the access it
 needed, whatever entry 0 holds.

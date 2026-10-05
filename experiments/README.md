@@ -947,7 +947,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp203-the-count-the-proof-promised](./exp203-the-count-the-proof-promised/) | 0 · none | **Sixty bytes of RV32IM — `kernel.bin`, SHA-256 committed beside it — proved to copy 64 bytes and halt with 0 at exactly instruction 105, for every base address, every input and every register; the model runs them in 105 and the Hazard3 RTL retires 108.** The 3 is the harness's, constant across every payload length measured, and spent in a way the privileged specification says it should not be: Hazard3 counts `ecall`, counts `mret` twice, and counts the same instructions differently depending on what lies in memory behind an `mret`. So a count from `minstret` is a proof's count plus a constant that must be measured for the exact shell |
 | [exp204-the-signature-the-kernel-checks](./exp204-the-signature-the-kernel-checks/) | 0 · none | **352 bytes of RV32IM proved to check a Lamport one-time signature: they halt with 0 when all 256 preimages hash to the key halves the message's bits select and with 1 otherwise, at exactly instruction 16663 either way, writing nothing outside 96 bytes of scratch — for every input and for every function HASH might be.** The model, the Hazard3 RTL and Python agree on ten cases, region byte for byte. One HASH costs the RTL 4 `minstret` the model does not count; and the count also depends on the word behind the last `ecall`, which never runs — so on the chip, on what the shell leaves after `kernel.bin` |
 | [exp205-the-chain-the-checksum-closes](./exp205-the-chain-the-checksum-closes/) | 0 · none | **432 bytes of RV32IM proved to verify a WOTS (w = 16) signature — 67 hash chains, the last three the checksum's — for every input and every HASH, in exactly `4142 + 3·S` instructions, where S is the number of HASH calls: the first kernel whose count depends on its input, so the theorem states it as a formula.** The proof carries a loop invariant over the hash chain and the checksum's arithmetic; fourteen wrong versions are refused, among them a kernel that never checks the last checksum chain. The model, the RTL and Python agree on eleven cases from 45 HASH calls to 990, and the RTL counts exactly `3 + 4·S` more, as exp204 measured. Lean's kernel runs out of memory on `decide` of a negative immediate's sign-extension — written down |
-| [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here: a shell in flash sector 0 of a Pico 2 that runs exp203's proved kernel in User mode, through the RTL harness's own `harness.S` so the counted instructions are the same. On the board, run 1 blinked "2 long flashes, 1-0-8": the kernel halted and the RP2350 counted 108, the RTL's number, so exp203's accounting holds on silicon. Run 2's four blinked numbers could not be read by a person, and that is recorded as the finding about the instrument: an LED gives a person one bit reliably, not a number.** Revision 3 compares on the chip and blinks one bit, slow if the kernel, its result, the copy, the whole region against the Lean model and the count all match; not yet run |
+| [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here, and the verified-kernel road's first contact with silicon: a shell in flash sector 0 of a Pico 2 runs exp203's proved kernel in User mode, through the RTL harness's own `harness.S`, and on the board everything matched. The kernel halted with 0, made its copy, left the whole 64 KiB region byte for byte as the Lean model predicted, and the RP2350 counted minstret = 108, the RTL's number.** PMP entry 0 reads back differently from what was written, which the RTL never shows. It took three builds: a person read a verdict and one number, could not read four, and reads one bit — slow or fast — without fail |
 
 ## The browser track, finished
 
@@ -2728,14 +2728,14 @@ they can settle is settled before anybody walks to a bench.**
 | exp207 | sign and keygen, again | constant time as a relational proof: two runs with the same public input and different secrets fetch the same PCs and touch the same addresses |
 | exp208 | SHA-256's compression function in RV32IM | optional: HASH stops being an assumption |
 
-**Built, waiting for a board:**
+**Run on a board:**
 
 - [exp209](./exp209-the-count-the-led-blinks/) — the shell on a Pico 2 in
-  RISC-V mode, running exp203's bytes under the RTL harness's own `harness.S`,
-  minstret blinked out on the LED. **The board counted 108, as the RTL does.**
-  PMP entry 0 read back differently from what was written, which the RTL
-  never showed. A person cannot read numbers off an LED reliably, so revision
-  3 compares everything on the chip and blinks one bit.
+  RISC-V mode, running exp203's bytes under the RTL harness's own `harness.S`.
+  **On silicon everything matched: the kernel's result and copy, the whole
+  region as the Lean model predicted, and minstret = 108, as the RTL counts.**
+  PMP entry 0 reads back differently from what was written, which the RTL
+  never showed.
 
 **Planned on a board:**
 
