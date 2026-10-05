@@ -156,7 +156,7 @@ Needs Lean (`tools/lean/setup.sh`) and the Hazard3 testbench
 
 ```text
 === exp206 — the root the path climbs ===
-recorded at 2026-10-05T06:07:26Z from commit 94e652f
+recorded at 2026-10-05T08:15:06Z from commit f3b3a31
 
 >>> the kernel, as the proof states it and as kernel.bin holds it
   0000  00000417  auipc x8, 0
@@ -353,22 +353,22 @@ recorded at 2026-10-05T06:07:26Z from commit 94e652f
 >>> the theorems, and what they rest on
     Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
 
-'Exp206.bytes_words' depends on axioms: [propext]
-'Exp206.code_of_image' depends on axioms: [propext, Quot.sound]
-'Exp206.chain_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.chain_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.to_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.level_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.level_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.root_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.halt' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.verifies' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.exactly' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.wots_complete' depends on axioms: [propext, Quot.sound]
-'Exp206.path_climbs' depends on axioms: [propext, Quot.sound]
-'Exp206.accepts_signed' depends on axioms: [propext, Quot.sound]
-'Exp206.signed_halts_with_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.bytes_words' depends on axioms: [propext]
+'Rv32.Mss.code_of_image' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.chain_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.chain_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.to_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.level_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.level_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.root_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.verifies' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.exactly' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.wots_complete' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.path_climbs' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.accepts_signed' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.signed_halts_with_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
