@@ -438,6 +438,15 @@ refuses an image not linked at `0x10000000` so the mistake cannot be made twice.
 The eight table words come from the [`partition-table`](../crates/partition-table/)
 crate, so they stay defined and tested in one place.
 
+Its `bin` mode is exp209's: a flat binary at `0x10000000`, 256 bytes a block,
+in a named family — `absolute` there, so that an image confined to sector 0
+lands the same on a stock board and on one an earlier experiment left a table
+on (exp138 measured that unpartitioned space accepts `absolute`).
+
+```sh
+cargo run --manifest-path tools/partimg/Cargo.toml -- bin image.bin absolute out.uf2
+```
+
 ## `vctaphid`
 
 A CTAP-HID device with no board behind it, so that
@@ -555,3 +564,10 @@ same format. `hash-cost.sh` is the sweep that measures the HASH cost and the
 harness constant, which exp204 and exp205 both read. `kernelimages.py` is the command line
 every kernel experiment's `images.py` has — `build DIR`, `verify NAME SIG` —
 so that what is left in an experiment is only its own cases.
+
+`harness/harness.S` is also the chip's. Built with `-DSHELL` and a `REGION`
+and `MSTACK` of its own, it drops the testbench's reset layout and exports
+`enter_payload`, and exp209's shell includes it on the Pico 2 — so the
+instructions around a payload, the ones `minstret` counts, are the same on
+silicon as here. `harness/sha256.c` is the SHA-256 both use, for any length;
+`sha256-test.sh` holds it against hashlib on this machine.
