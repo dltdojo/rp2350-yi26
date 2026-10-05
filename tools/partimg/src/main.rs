@@ -19,7 +19,17 @@
 //!       [A/B table]    @ 0x10000000  (sector 0)
 //!       [image A]      @ 0x10001000  (sector 1)
 //!       [image B]      @ 0x10011000  (sector 17)
+//!
+//!   partimg bin <image.bin> <family> <out.uf2>   exp209: a flat binary
+//!       [image]        @ 0x10000000, 256 bytes a block, in family
+//!                      `absolute`, `rp2350-arm-s` or `rp2350-riscv`
 //! ```
+//!
+//! `bin` exists because exp209's image is not Rust and has no UF2 of its own.
+//! It writes `absolute` there on purpose: exp138 measured that a stock board's
+//! unpartitioned space accepts that family, and exp139's table keeps the same
+//! word — so an image that fits in sector 0 lands at the same place whether or
+//! not an earlier experiment left a table behind.
 //!
 //! `yi26 pflash` writes those absolute addresses raw, so table and images land
 //! exactly where addressed; `REBOOT2` then boots the partition (for `ab`, the
@@ -51,6 +61,35 @@ const UF2_MAGIC1: u32 = 0x9E5D_5157;
 const UF2_MAGIC_END: u32 = 0x0AB1_6F30;
 const UF2_FLAG_FAMILY: u32 = 0x0000_2000;
 const FAMILY_RP2350_ARM_S: u32 = 0xe48b_ff59;
+const FAMILY_RP2350_RISCV: u32 = 0xe48b_ff5a;
+const FAMILY_ABSOLUTE: u32 = 0xe48b_ff57;
+
+/// A flat binary at the XIP base, cut into 256-byte blocks: the size every
+/// RP2350 UF2 uses, one flash page each.
+fn bin_blocks(image: &[u8], family: u32) -> Vec<Block> {
+    image
+        .chunks(256)
+        .enumerate()
+        .map(|(i, chunk)| {
+            let mut data = chunk.to_vec();
+            data.resize(256, 0);
+            Block {
+                addr: XIP_BASE + 256 * i as u32,
+                data,
+                family,
+            }
+        })
+        .collect()
+}
+
+fn family_named(name: &str) -> Result<u32, String> {
+    match name {
+        "absolute" => Ok(FAMILY_ABSOLUTE),
+        "rp2350-arm-s" => Ok(FAMILY_RP2350_ARM_S),
+        "rp2350-riscv" => Ok(FAMILY_RP2350_RISCV),
+        _ => Err(format!("unknown family {name}: absolute, rp2350-arm-s or rp2350-riscv")),
+    }
+}
 
 /// exp139's table: one partition over sectors 1..1023.
 fn one_table_bytes() -> Vec<u8> {
@@ -252,6 +291,20 @@ fn run(args: &[String]) -> Result<String, String> {
                 out.len()
             ))
         }
+        Some("bin") if args.len() == 4 => {
+            let image = std::fs::read(&args[1]).map_err(|e| format!("cannot read {}: {e}", args[1]))?;
+            let family = family_named(&args[2])?;
+            let out = bin_blocks(&image, family);
+            write_out(&args[3], &out)?;
+            Ok(format!(
+                "wrote {}: {} bytes at {:#010x} as {} blocks of family {:#010x}.",
+                args[3],
+                image.len(),
+                XIP_BASE,
+                out.len(),
+                family
+            ))
+        }
         _ => Err("usage".into()),
     }
 }
@@ -266,6 +319,7 @@ fn main() -> ExitCode {
         Err(e) if e == "usage" => {
             eprintln!("usage: partimg one <image.uf2> <out.uf2>       # exp139: one partition");
             eprintln!("       partimg ab <a.uf2> <b.uf2> <out.uf2>    # exp142: an A/B pair");
+            eprintln!("       partimg bin <image.bin> <family> <out.uf2>  # exp209: a flat binary");
             eprintln!("both take images linked at 0x10000000; the table and placement are added here.");
             ExitCode::from(2)
         }
@@ -360,5 +414,21 @@ mod tests {
         // B's flags word is the 7th u32 (index 6); the link-to-A bit is 0x2.
         let b_flags = u32::from_le_bytes(t[24..28].try_into().unwrap());
         assert_eq!(b_flags & 0x2, 0x2, "B links to A");
+    }
+
+    #[test]
+    fn bin_cuts_pages_at_the_xip_base_in_the_family_asked_for() {
+        let image: Vec<u8> = (0..600u32).map(|i| i as u8).collect();
+        let uf2 = write_uf2(&bin_blocks(&image, family_named("absolute").unwrap()));
+        let blocks = read_uf2(&uf2).unwrap();
+        assert_eq!(blocks.len(), 3);
+        for (i, b) in blocks.iter().enumerate() {
+            assert_eq!(b.addr, 0x1000_0000 + 256 * i as u32);
+            assert_eq!(b.data.len(), 256);
+            assert_eq!(b.family, 0xe48b_ff57);
+        }
+        assert_eq!(&blocks[2].data[..88], &image[512..]);
+        assert!(blocks[2].data[88..].iter().all(|&x| x == 0));
+        assert!(family_named("rp2040").is_err());
     }
 }

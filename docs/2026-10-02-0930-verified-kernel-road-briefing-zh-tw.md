@@ -110,7 +110,9 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 | [exp202](../experiments/exp202-the-tests-the-chip-passes/) | Lean 語意模型通過 48 個 riscv-tests；Hazard3 RTL 用同樣的位元組也通過；53 支程式之後兩者 64 KiB 記憶體逐位元組相同。14 個錯誤模型全被擋下，其中 4 個只有自寫的探針擋得住 | 已提交、已錄製 |
 | [exp203](../experiments/exp203-the-count-the-proof-promised/) | 60 位元組的拷貝核心，證明正確且恰好 105 條指令；`kernel.bin` 與 SHA-256 已提交；RTL 退休 108，差的 3 逐條拆解 | 已提交、已錄製 |
 | [exp204](../experiments/exp204-the-signature-the-kernel-checks/) | 352 位元組的 Lamport verify 核心：對**任何** HASH 函數，簽章全對回 0、任一錯回 1，無論結果都恰好 16663 條指令，只寫 96 位元組暫存區。模型、RTL、Python 在 10 個案例上判決一致、記憶體逐位元組相同。每次 HASH 在 RTL 上多計 4；最後一個 `ecall` 後面那個不會執行的字組也會讓計數差 1 | 已提交、已錄製 |
-| [exp205](../experiments/exp205-the-chain-the-checksum-closes/) | 432 位元組的 WOTS（w = 16）verify 核心：67 條雜湊鏈（後 3 條是 checksum 的），對**任何** HASH 函數證明判決正確，且恰好 `4142 + 3·S` 條指令（S 是 HASH 呼叫次數）——第一個指令數隨輸入而變的核心，所以定理把它寫成公式。模型、RTL、Python 在 11 個案例（S 從 45 到 990）上一致，RTL 多出的正好是 `3 + 4·S` | 本輪提交 |
+| [exp205](../experiments/exp205-the-chain-the-checksum-closes/) | 432 位元組的 WOTS（w = 16）verify 核心：67 條雜湊鏈（後 3 條是 checksum 的），對**任何** HASH 函數證明判決正確，且恰好 `4142 + 3·S` 條指令（S 是 HASH 呼叫次數）——第一個指令數隨輸入而變的核心，所以定理把它寫成公式。模型、RTL、Python 在 11 個案例（S 從 45 到 990）上一致，RTL 多出的正好是 `3 + 4·S` | 已提交、已錄製 |
+
+**等板子的**：[exp209](../experiments/exp209-the-count-the-led-blinks/)——Pico 2 的 RISC-V 殼層（組語＋C，3960 位元組，全在 flash 第 0 磁區），直接沿用 RTL 的 `harness.S` 跑 exp203 的核心，六項自我檢查，用 LED 閃出 `minstret`。RTL 上同一個殼層六項全過、計數 108；UF2 用 `absolute` 家族，不必先改 `yi26`。晶片上的數字等人來數。
 
 新增的共用部分：`lean/Rv32/`（`Isa`、`Machine`、`Load`、`Asm`、`Proof`、`Place`、`Kernel`、`Blocks`）、`lean/Run.lean`
 （模型編譯成 `rv32run`，記憶體改用陣列）、`lean/Sha256.lean`（只供執行）、`tools/hazard3/`（`setup.sh`、`sim.sh`、harness）、

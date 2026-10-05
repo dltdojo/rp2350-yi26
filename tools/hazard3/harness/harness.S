@@ -21,10 +21,19 @@
 //
 // The image is this, padded to REGION - MEM_BASE bytes, then the payload.
 
-.equ REGION,      0x80010000
-.equ REGION_SIZE, 0x00010000
-.equ MSTACK,      0x80010000      // M-mode stack: grows down from the region's base
+// The addresses are the testbench's unless a build says otherwise: exp209's
+// chip shell includes this file with -DSHELL and its own REGION and MSTACK, so
+// that the instructions around the payload — the ones minstret counts — are
+// these exact ones on silicon too.
+#ifndef REGION
+#define REGION      0x80010000
+#endif
+#define REGION_SIZE 0x00010000
+#ifndef MSTACK
+#define MSTACK      REGION        // M-mode stack: grows down from the region's base
+#endif
 
+#ifndef SHELL
 .section .text.entry, "ax"
 .globl _reset
 
@@ -36,6 +45,16 @@
 // The reset vector of the testbench's configuration.
 .org 0x40
 _reset:
+#else
+// Under a shell, its own startup has run first and calls this; it does not
+// return. The payload's first trap lands in `trap` and calls the shell's
+// `handle`.
+.section .text.harness, "ax"
+.globl enter_payload
+.globl trap
+.balign 4
+enter_payload:
+#endif
     la    t0, trap
     csrw  mtvec, t0
     li    sp, MSTACK
