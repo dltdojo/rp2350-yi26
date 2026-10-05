@@ -169,34 +169,34 @@ cloud half:
 
 ```text
 === exp209 — the count the LED blinks (cloud half) ===
-recorded at 2026-10-05T01:47:55Z from commit 61437c1
+recorded at 2026-10-05T02:00:10Z from commit b0d183e
 
 >>> the build
-build/expect.h: 5 image blocks, kernel a23ae89b0c8e2eaa…, region 76c6dc347213530b…
-build/exp209.bin  4076 bytes, flash sector 0 holds 4096
-build/exp209.uf2  8192 bytes  sha256 4b3f3dff1983d6d34084561bdd8ba7236031f670862653e67dee52ae6068f2a2
+build/expect.h: 5 image blocks, kernel a23ae89b0c8e2eaa…, region 76c6dc347213530b…, RTL minstret 108
+build/exp209.bin  3476 bytes, flash sector 0 holds 4096
+build/exp209.uf2  7168 bytes  sha256 35f7e1d932bddac2485bba0ada9689c679a109e1cbbed2457f8e41c92e6f016e
 
 >>> the shell on the Hazard3 RTL: REPT failed number instret cycles a0 cause
-52455054 00000000 0000006c 0000001f 00000000 00000071 00000000 00000008 exit=0 
+52455054 00000001 00000000 0000006c 0000001f 00000000 00000000 00000008 exit=0 
 
 >>> every check
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
 PASS  the harness's SHA-256 agrees with hashlib at 14 lengths, 0 to 65536
 PASS  partimg's tests pass, its bin mode among them
-PASS  the shell builds for the chip and for the RTL, the chip's in 4076 of sector 0's 4096 bytes
-PASS  all 16 blocks carry family 0xe48bff57, absolute
+PASS  the shell builds for the chip and for the RTL, the chip's in 3476 of sector 0's 4096 bytes
+PASS  all 14 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in flash sector 0, 0x10000000..0x10001000
-PASS  together they are exactly the 4076-byte image
+PASS  together they are exactly the 3476-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: 4b3f3dff1983d6d3…
-PASS  on the RTL the shell passes all six checks, PMP reads back 0x1f and as written, and minstret = 108, as the RTL harness counts
-PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
-PASS  the shell catches a version where PMP entry 0 is expected to say something else — check 2 alone
-PASS  the shell catches a version where HALT is looked for under t0 = 2 — checks 3 and 4, and mcause 8 for minstret
-PASS  the shell catches a version where the result is expected to be 1 — check 4
-PASS  the shell catches a version where the source is looked for 64 bytes late — check 5
-PASS  the shell catches a version where the model's region hash is not the model's — check 6
-PASS  the shell catches a version where the shell itself traps in step 2 — a fault, not a failed check
-PASS  every round reads back as what was blinked, each number after as many long flashes as its place: 5 reports, 3 faults
+PASS  the UF2 is byte for byte the committed one: 35f7e1d932bddac2…
+PASS  on the RTL the shell's verdict is ok: all six checks pass, PMP reads back as written, minstret = 108
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — not ok
+PASS  the shell catches a version where HALT is looked for under t0 = 2 — not ok
+PASS  the shell catches a version where the result is expected to be 1 — not ok
+PASS  the shell catches a version where the source is looked for 64 bytes late — not ok
+PASS  the shell catches a version where the model's region hash is not the model's — not ok
+PASS  the shell catches a version where the chip is asked to count 107 — not ok
+PASS  the shell catches a version where PMP entry 0 is expected to say something else — reported as check 2, still ok
+PASS  the shell catches a version where the shell itself traps in step 2 — a fault, not a verdict
 ```
