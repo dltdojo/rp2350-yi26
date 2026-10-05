@@ -947,7 +947,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp203-the-count-the-proof-promised](./exp203-the-count-the-proof-promised/) | 0 · none | **Sixty bytes of RV32IM — `kernel.bin`, SHA-256 committed beside it — proved to copy 64 bytes and halt with 0 at exactly instruction 105, for every base address, every input and every register; the model runs them in 105 and the Hazard3 RTL retires 108.** The 3 is the harness's, constant across every payload length measured, and spent in a way the privileged specification says it should not be: Hazard3 counts `ecall`, counts `mret` twice, and counts the same instructions differently depending on what lies in memory behind an `mret`. So a count from `minstret` is a proof's count plus a constant that must be measured for the exact shell |
 | [exp204-the-signature-the-kernel-checks](./exp204-the-signature-the-kernel-checks/) | 0 · none | **352 bytes of RV32IM proved to check a Lamport one-time signature: they halt with 0 when all 256 preimages hash to the key halves the message's bits select and with 1 otherwise, at exactly instruction 16663 either way, writing nothing outside 96 bytes of scratch — for every input and for every function HASH might be.** The model, the Hazard3 RTL and Python agree on ten cases, region byte for byte. One HASH costs the RTL 4 `minstret` the model does not count; and the count also depends on the word behind the last `ecall`, which never runs — so on the chip, on what the shell leaves after `kernel.bin` |
 | [exp205-the-chain-the-checksum-closes](./exp205-the-chain-the-checksum-closes/) | 0 · none | **432 bytes of RV32IM proved to verify a WOTS (w = 16) signature — 67 hash chains, the last three the checksum's — for every input and every HASH, in exactly `4142 + 3·S` instructions, where S is the number of HASH calls: the first kernel whose count depends on its input, so the theorem states it as a formula.** The proof carries a loop invariant over the hash chain and the checksum's arithmetic; fourteen wrong versions are refused, among them a kernel that never checks the last checksum chain. The model, the RTL and Python agree on eleven cases from 45 HASH calls to 990, and the RTL counts exactly `3 + 4·S` more, as exp204 measured. Lean's kernel runs out of memory on `decide` of a negative immediate's sign-extension — written down |
-| [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here: a 3960-byte shell in flash sector 0 of a Pico 2 that runs exp203's proved kernel in User mode — through the RTL harness's own `harness.S`, so the counted instructions are the same — checks six things, and blinks out minstret on the LED, the only channel.** The same shell on the Hazard3 RTL passes all six and counts 108; seven wrong shells are each caught; the UF2 is family `absolute` and confined to sector 0, so it lands the same on a stock board and on one exp139 left a partition table on. **Board half not yet run** — whether silicon counts 108 is the question |
+| [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here: a shell in flash sector 0 of a Pico 2 that runs exp203's proved kernel in User mode — through the RTL harness's own `harness.S`, so the counted instructions are the same — and blinks its checks and minstret out on the LED, the only channel. On the board, run 1 blinked "2 long flashes, 1-0-8": the kernel halted and the RP2350 counted 108, the RTL's number, so exp203's accounting holds on silicon — but PMP entry 0 did not read back as written, which the RTL never showed.** Revision 2 reports every check and what PMP read back; not yet run |
 
 ## The browser track, finished
 
@@ -2732,10 +2732,9 @@ they can settle is settled before anybody walks to a bench.**
 
 - [exp209](./exp209-the-count-the-led-blinks/) — the shell on a Pico 2 in
   RISC-V mode, running exp203's bytes under the RTL harness's own `harness.S`,
-  minstret blinked out on the LED. In assembly and C rather than Rust, so the
-  counted instructions are the RTL's; a drag of an `absolute` UF2, so `yi26`
-  need not learn RISC-V first. Checked on the RTL (108); the chip's number is
-  for a person to count.
+  minstret blinked out on the LED. **The board counted 108, as the RTL does.**
+  PMP entry 0 read back differently from what was written, which the RTL
+  never showed; revision 2 asks what it read.
 
 **Planned on a board:**
 
@@ -2747,9 +2746,9 @@ they can settle is settled before anybody walks to a bench.**
 
 #### Questions this road has not answered, and must not assume
 
-- **That silicon counts as the RTL does.** exp203's accounting is the RTL at a
-  2026 commit; the chip's core is older. The constant is to be measured again,
-  on the chip, for the chip's shell.
+- **That silicon counts as the RTL does** — answered for exp203's kernel under
+  exp209's shell: the RP2350 counted 108, the RTL's number. Each kernel that
+  calls HASH brings a per-call cost of its own to measure there (exp210).
 - **That the RISC-V shell can reuse `crates/`.** Everything here so far is Arm
   and Embassy. Which crates build for `riscv32imac-unknown-none-elf` is a fact
   to establish by compiling, before exp209 is planned in detail.

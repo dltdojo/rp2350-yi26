@@ -52,7 +52,7 @@ static void count_cycles(void) { __asm__ volatile ("csrwi mcountinhibit, 4"); }
 
 void board_report(const struct result *r) {
     count_cycles();
-    for (;;) blink_report(hold, r->failed, r->number);
+    for (;;) blink_report(hold, r->number, NUMBERS);
 }
 
 void board_fault(uint32_t step, uint32_t cause) {

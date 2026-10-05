@@ -4,7 +4,7 @@
 // of the LED: prints one round as a line of holds, `+n` on and `-n` off, with
 // neighbouring holds of the same state merged, which is what an eye sees.
 //
-//   blinktest report FAILED NUMBER
+//   blinktest report NUMBER...
 //   blinktest fault STEP
 
 #include <stdio.h>
@@ -31,8 +31,11 @@ static void record(int on, uint32_t units) {
 }
 
 int main(int argc, char **argv) {
-    if (argc == 4 && !strcmp(argv[1], "report"))
-        blink_report(record, (uint32_t)atoi(argv[2]), (uint32_t)atoi(argv[3]));
+    if (argc >= 3 && !strcmp(argv[1], "report")) {
+        uint32_t n[8], k = 0;
+        for (int i = 2; i < argc && k < 8; i++) n[k++] = (uint32_t)atoi(argv[i]);
+        blink_report(record, n, k);
+    }
     else if (argc == 3 && !strcmp(argv[1], "fault"))
         blink_fault(record, (uint32_t)atoi(argv[2]));
     else

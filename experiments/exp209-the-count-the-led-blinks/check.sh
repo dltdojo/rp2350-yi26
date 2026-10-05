@@ -10,8 +10,9 @@
 #      starts with a jump to _start and the IMAGE_DEF block that names it;
 #   3. with the toolchain recorded in build-toolchain.txt, the UF2 is byte for
 #      byte the one whose SHA-256 is committed — the file that was handed over;
-#   4. the same shell, built for the Hazard3 RTL, passes all six of its checks
-#      and counts minstret = 108, what the RTL harness counts for exp203;
+#   4. the same shell, built for the Hazard3 RTL, passes all six of its checks,
+#      reads PMP entry 0 back as written, and counts minstret = 108, what the
+#      RTL harness counts for exp203;
 #   5. seven wrong shells are each caught by the check they break;
 #   6. the LED's patterns read back, counted as a person counts, as what was
 #      blinked.
@@ -71,12 +72,12 @@ else
     echo "SKIP  the UF2 against the committed hash: built with $(clang --version | head -1), recorded with $(cat build-toolchain.txt)"
 fi
 
-# The RTL: REPT failed number instret cycles a0 cause.
+# The RTL: REPT failed minstret pmpcfg0 pmpaddr0^want cycles a0 cause.
 words() { $SIM bare "$1" --cycles 200000000 | tr '\n' ' '; }
 got="$(words build/sim.bin)"
 harness="$($SIM run ../exp203-the-count-the-proof-promised/kernel.bin | sed -n 's/.*instret=\([0-9]*\).*/\1/p')"
-if [[ "$got" == "52455054 00000000 0000006c 0000006c "*"exit=0 " && "$harness" == 108 ]]; then
-    pass "on the RTL the shell passes all six checks and counts minstret = 108, as the RTL harness does"
+if [[ "$got" == "52455054 00000000 0000006c 0000001f 00000000 "*"exit=0 " && "$harness" == 108 ]]; then
+    pass "on the RTL the shell passes all six checks, PMP reads back 0x1f and as written, and minstret = 108, as the RTL harness counts"
 else
     fail "on the RTL the shell passes all six checks and counts 108" "$got; harness $harness"
 fi
@@ -98,12 +99,12 @@ mutant() { # what file sed expected-words
 }
 mutant "kernel.sha256 is not kernel.bin's hash — check 1" expect.h \
     's/KERNEL_SHA\[32\] = {0x[0-9a-f][0-9a-f]/KERNEL_SHA[32] = {0x00/' "52455054 00000001 "
-mutant "PMP entry 0 is expected to say something else — check 2" shell.c \
-    's/(csrr(pmpcfg0) \& 0xff) == 0x1f/(csrr(pmpcfg0) \& 0xff) == 0x1e/' "52455054 00000002 "
-mutant "HALT is looked for under t0 = 2 — check 3, mcause 8" shell.c \
-    's/int halted = cause == 8 \&\& x\[5\] == 1;/int halted = cause == 8 \&\& x[5] == 2;/' "52455054 00000003 00000008 "
+mutant "PMP entry 0 is expected to say something else — check 2 alone" shell.c \
+    's/cfg == 0x1f \&\& addr == want/cfg == 0x1e \&\& addr == want/' "52455054 00000002 0000006c 0000001f 00000000 "
+mutant "HALT is looked for under t0 = 2 — checks 3 and 4, and mcause 8 for minstret" shell.c \
+    's/int halted = cause == 8 \&\& x\[5\] == 1;/int halted = cause == 8 \&\& x[5] == 2;/' "52455054 00000022 00000008 "
 mutant "the result is expected to be 1 — check 4" shell.c \
-    's/else if (x\[10\] != 0) res.failed = 4;/else if (x[10] != 1) res.failed = 4;/' "52455054 00000004 "
+    's/halted \&\& x\[10\] == 0,/halted \&\& x[10] == 1,/' "52455054 00000004 "
 mutant "the source is looked for 64 bytes late — check 5" expect.h \
     's/#define SRC_OFF 0x1000/#define SRC_OFF 0x1040/' "52455054 00000005 "
 mutant "the model's region hash is not the model's — check 6" expect.h \

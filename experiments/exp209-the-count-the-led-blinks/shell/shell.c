@@ -4,7 +4,7 @@
 // SHA-256, run it in User mode under tools/hazard3/harness/harness.S — the
 // same instructions around the payload as on the RTL — and check what it left.
 //
-// Checks, in order; the first that fails is the one reported:
+// Checks; every one is run, and every one that fails is reported:
 //
 //   1  kernel.bin's bytes in SRAM hash to kernel.sha256
 //   2  PMP entry 0 reads back as the harness wrote it
@@ -15,6 +15,10 @@
 //
 // A step counter is written before each step and never after, so a trap in
 // the shell itself names the step that did not come back.
+//
+// Revision 2. Revision 1 reported only the first failed check, and on the
+// board that was check 2 — so whether 4, 5 and 6 held was never said. This one
+// runs all six and also reports what PMP entry 0 read back as.
 
 #include <stdint.h>
 
@@ -63,7 +67,6 @@ void handle(uint32_t *x) {
 
     step = 5;
     struct result res = {0};
-    res.instret = instret;
     res.cycles = cycles;
     res.a0 = x[10];
     res.cause = cause;
@@ -71,15 +74,15 @@ void handle(uint32_t *x) {
     const uint8_t *r = (const uint8_t *)REGION;
     uint8_t d[32];
     sha256(r, REGION_SIZE, d);
-    int pmp_ok = (csrr(pmpcfg0) & 0xff) == 0x1f
-        && csrr(pmpaddr0) == ((REGION >> 2) | ((REGION_SIZE >> 3) - 1));
+    uint32_t cfg = csrr(pmpcfg0) & 0xff, addr = csrr(pmpaddr0);
+    uint32_t want = (REGION >> 2) | ((REGION_SIZE >> 3) - 1);
 
-    if (!kernel_ok) res.failed = 1;
-    else if (!pmp_ok) res.failed = 2;
-    else if (!halted) res.failed = 3;
-    else if (x[10] != 0) res.failed = 4;
-    else if (!same(r + DST_OFF, r + SRC_OFF, 64)) res.failed = 5;
-    else if (!same(d, REGION_SHA, 32)) res.failed = 6;
-    res.number = halted ? instret : cause;
+    int ok[7] = {0, kernel_ok, cfg == 0x1f && addr == want, halted, halted && x[10] == 0,
+                 same(r + DST_OFF, r + SRC_OFF, 64), same(d, REGION_SHA, 32)};
+    for (uint32_t k = 1; k <= 6; k++)
+        if (!ok[k]) res.number[0] = res.number[0] * 10 + k;
+    res.number[1] = halted ? instret : cause;
+    res.number[2] = cfg;
+    res.number[3] = addr ^ want;
     board_report(&res);
 }

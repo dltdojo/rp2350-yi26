@@ -2,13 +2,14 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**The first RISC-V firmware in this repository: a shell, 3960 bytes in flash
-sector 0 of a Pico 2, that runs exp203's proved 60-byte kernel in User mode
-and blinks out on the LED how many instructions the chip counted. The proof
-says 105, and the Hazard3 RTL counts 108 under the same shell. Whether the
-RP2350's own core, an older Hazard3, counts 108 too is the question this
-experiment exists to answer. Its board half needs a person to count flashes,
-and has not been run yet.**
+**The first RISC-V firmware in this repository: a shell, in flash sector 0 of a
+Pico 2, that runs exp203's proved 60-byte kernel in User mode and blinks out
+on the LED what the chip counted. The proof says 105 instructions, and the
+Hazard3 RTL counts 108 under the same shell. On a Pico 2, revision 1 blinked
+"2 long flashes, 1-0-8": the kernel halted, and the RP2350's own core — an
+older Hazard3 than the RTL — counted 108, the RTL's number. But check 2
+failed: PMP entry 0 did not read back as the shell wrote it. Revision 2
+reports every check and what PMP read back, and has not been run yet.**
 
 This is the board half of the verified-kernel road (see its
 [briefing](../../docs/2026-10-02-0930-verified-kernel-road-briefing-zh-tw.md)),
@@ -33,34 +34,46 @@ this shell cannot reach), a USB cable, and a computer. A phone camera helps.
 To go back to anything else afterwards: hold BOOTSEL, plug in, and copy that
 UF2. The shell writes nothing to flash.
 
-### What the LED says
+### What the LED says (revision 2)
 
 | You see | It means |
 | --- | --- |
 | dark from the start | the shell never ran, or failed before the LED came up (step 1) |
 | on, and staying on for over a minute | the shell hung without trapping, somewhere in steps 1–4 |
-| **one long glow**, then groups of short blinks | **PASS**: all six checks passed; the groups are minstret |
-| **K long flashes**, then groups of short blinks | **FAIL**: check K failed; the groups are minstret, or mcause if K = 3 |
+| long flashes and short blinks, repeating | **a report: four numbers** — read them as below |
 | fast flicker, then groups of short blinks | the shell itself trapped; the groups are the step it was in |
 
-**Reading a number.** One group of short blinks per decimal digit, most
-significant first, with a longer dark gap between groups. Ten blinks mean 0.
-After the last digit comes a long dark gap, then the whole round starts again.
-108 looks like this:
+**A report is four numbers.** Number *i* is announced by *i* long flashes,
+then given as groups of short blinks, one group per decimal digit, most
+significant first, with ten blinks meaning 0. A long dark gap ends the round,
+and the whole thing repeats. If you start watching midway, count the long
+flashes before a number to know which one it is.
+
+| Long flashes before it | The number | If all is well |
+| --- | --- | --- |
+| 1 | the checks that failed, as digits (`26`: checks 2 and 6), or `0` for none | 0 |
+| 2 | minstret, or mcause if the kernel did not halt | 108 on the RTL |
+| 3 | the low byte of `pmpcfg0`, as read back — the shell wrote 31 (`0x1f`) | 31 |
+| 4 | `pmpaddr0` as read back XOR as written | 0 |
+
+A clean run looks like this:
 
 ```text
-▬▬▬▬▬▬▬▬▬▬   •   ••••••••••   ••••••••            (repeat)
-  PASS       1       0            8
+▬  ··········              ← 1 flash: failed checks, "0"
+▬▬  •  ··········  ••••••••    ← 2 flashes: minstret, "1 0 8"
+▬▬▬  •••  •                ← 3 flashes: pmpcfg0, "3 1"
+▬▬▬▬  ··········           ← 4 flashes: pmpaddr0 XOR, "0"
+                 (long dark, then again)
 ```
 
-**The six checks**, in order; the first one that fails is the one reported:
+**The six checks:**
 
-| K | Check |
+| Check | What it says |
 | --- | --- |
 | 1 | the 60 bytes copied into SRAM hash to `kernel.sha256`: it is the proved kernel |
-| 2 | PMP entry 0 reads back as the shell wrote it |
+| 2 | PMP entry 0 reads back as the shell wrote it (numbers 3 and 4 say how it read back) |
 | 3 | the kernel halted: `ecall` with `t0 = 1` |
-| 4 | its result, `a0`, is 0 |
+| 4 | it halted with result `a0 = 0` |
 | 5 | the 64 bytes at the destination are the 64 at the source |
 | 6 | the whole 64 KiB region hashes to what the Lean model left there |
 
@@ -69,17 +82,32 @@ The steps, for a fault: 1 the LED, 2 placing the image, 3 hashing the kernel,
 
 ### What to send back
 
-The verdict and the number, for example **"PASS, 1-0-8"**, and if you can,
-**how long the glow lasted** (from the video). The glow is 60,000,000 cycles of
-a clock the shell never touches, so its length gives the clock's speed:
-about `60 / seconds` MHz. That is the one assumption in this experiment. One
-blink unit is 2,000,000 cycles, which is about 0.18 s if the bootrom leaves
-the ring oscillator at its usual ~11 MHz. If it left something much faster,
-the blinks are short, and the video is how to count them.
+The four numbers, for example **"0, 108, 31, 0"**. If you can, also say how
+long one long flash lasts in the video. A long flash is 24,000,000 cycles of a
+clock the shell never touches, so its length gives the clock's speed: about
+`24 / seconds` MHz. That is the one assumption in this experiment. One blink
+unit is 2,000,000 cycles, about 0.18 s if the bootrom leaves the ring
+oscillator at its usual ~11 MHz. If the clock is much faster the blinks are
+short, and the video is how to count them.
+
+## What the board has said
+
+| Run | UF2 (SHA-256) | Reported, as counted | Read as |
+| --- | --- | --- | --- |
+| 1 | `09e9219984f37b21640f4e1b70990d7cb502131503af24c1f5e51bbbe0a0eddb` — revision 1, which reported only the first failed check | **"2 次長閃，1-0-8"** — two long flashes, then 1, 0, 8 | check 1 passed, so SRAM held the proved kernel; check 2 failed, so PMP entry 0 did not read back as written; the number is minstret, because revision 1 blinked minstret only when the kernel had halted (otherwise mcause, never 108) — so **the kernel halted, and the RP2350 counted 108, as the RTL does**. Checks 4, 5 and 6 were not reported |
+| 2 | see `exp209.uf2.sha256` | not yet run | |
+
+Run 1 settles the question this experiment was built for, for this kernel and
+this shell: silicon's `minstret` is the RTL's, so exp203's accounting, proved
+count plus 3, holds on the chip. It also raises one this repository had not
+asked: what does the RP2350's Hazard3 do with PMP entry 0? The kernel still
+ran in User mode inside the region, so whatever entry 0 holds, User mode had
+the access it needed. Whether that is the shell's entry or something else is
+what revision 2's numbers 3 and 4 will say.
 
 ## What the shell is
 
-Plain assembly and C, 3960 bytes. It is not the Rust shell the briefing
+Plain assembly and C, 4076 bytes. It is not the Rust shell the briefing
 planned, and the reason is the count: the instructions around the kernel,
 from the write that starts the counters to the trap that stops them, are
 [`tools/hazard3/harness/harness.S`](../../tools/hazard3/harness/harness.S)
@@ -119,8 +147,10 @@ drag goes straight to the bootrom.
 - with the recorded toolchain (`build-toolchain.txt`), the UF2 byte for byte
   the committed hash;
 - **the same shell built for the Hazard3 RTL**, with the print port in place
-  of the LED: it passes all six checks, the region hashes to the model's, and
-  it counts **minstret = 108**, what the RTL harness counts for exp203;
+  of the LED: it passes all six checks, PMP entry 0 reads back as written
+  (`0x1f`, XOR 0), the region hashes to the model's, and it counts
+  **minstret = 108**, what the RTL harness counts for exp203. So the RTL does
+  not show what the board showed in run 1;
 - seven wrong shells, each run on the RTL and each caught by the check it
   breaks, the last a shell that traps in step 2 and reports a fault;
 - the LED's patterns, compiled for the host with a recorder in place of the
@@ -129,10 +159,10 @@ drag goes straight to the bootrom.
 
 ## What only the board can say, and what it cannot
 
-- **The count.** 108 means silicon counts as the RTL does under this shell.
-  Any other number is the finding: the RP2350's Hazard3 is v1.0-rc1, the RTL a
-  2026 v1.1 commit, and exp203 already found the count depends on what is in
-  memory behind an `mret`.
+- **The count.** Run 1 says 108: silicon counts as the RTL does under this
+  shell, though the RP2350's Hazard3 is v1.0-rc1 and the RTL a 2026 v1.1
+  commit. exp203 found the count depends on what lies in memory behind an
+  `mret`; here that is the same `harness.S`, in flash rather than RAM.
 - **Whether everything around the count holds on silicon**: PMP, `mret` into
   User mode, the trap, the region the model predicted.
 - **Not the time.** `mcycle` is not reported, because the clock is not set up.
@@ -152,39 +182,7 @@ Needs clang, lld, llvm-objcopy, cargo, a host C compiler, Lean
 
 ## Expected output
 
-The board half has **not been run**. What the LED shows is to be pasted here
-once someone has counted it. The cloud half:
+The board half is in **What the board has said** above, as reported. The
+cloud half:
 
-```text
-=== exp209 — the count the LED blinks (cloud half) ===
-recorded at 2026-10-05T01:30:01Z from commit 4c2fdb0
-
->>> the build
-build/expect.h: 5 image blocks, kernel a23ae89b0c8e2eaa…, region 76c6dc347213530b…
-build/exp209.bin  3960 bytes, flash sector 0 holds 4096
-build/exp209.uf2  8192 bytes  sha256 09e9219984f37b21640f4e1b70990d7cb502131503af24c1f5e51bbbe0a0eddb
-
->>> the shell on the Hazard3 RTL: REPT failed number instret cycles a0 cause
-52455054 00000000 0000006c 0000006c 00000071 00000000 00000008 exit=0 
-
->>> every check
-PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
-PASS  the harness's SHA-256 agrees with hashlib at 14 lengths, 0 to 65536
-PASS  partimg's tests pass, its bin mode among them
-PASS  the shell builds for the chip and for the RTL, the chip's in 3960 of sector 0's 4096 bytes
-PASS  all 16 blocks carry family 0xe48bff57, absolute
-PASS  every block lies in flash sector 0, 0x10000000..0x10001000
-PASS  together they are exactly the 3960-byte image
-PASS  the image starts with a jump to _start at 0x10000024
-PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: 09e9219984f37b21…
-PASS  on the RTL the shell passes all six checks and counts minstret = 108, as the RTL harness does
-PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
-PASS  the shell catches a version where PMP entry 0 is expected to say something else — check 2
-PASS  the shell catches a version where HALT is looked for under t0 = 2 — check 3, mcause 8
-PASS  the shell catches a version where the result is expected to be 1 — check 4
-PASS  the shell catches a version where the source is looked for 64 bytes late — check 5
-PASS  the shell catches a version where the model's region hash is not the model's — check 6
-PASS  the shell catches a version where the shell itself traps in step 2 — a fault, not a failed check
-PASS  every round reads back as what was blinked: 8 cases, pass, fail and fault
-```
+CAPTURE

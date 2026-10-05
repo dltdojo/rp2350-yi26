@@ -13,7 +13,7 @@ one another.
 import subprocess
 import sys
 
-LONG = 12       # an `on` at least this long is a flash or a glow, not a blink
+LONG = 12       # an `on` at least this long is a flash, not a blink
 
 
 def holds(binary, *args):
@@ -21,50 +21,56 @@ def holds(binary, *args):
     return [(h[0] == "+", int(h[1:])) for h in out]
 
 
-def read(seq):
-    """Decode one round as a person counting would."""
-    ons = [(i, n) for i, (on, n) in enumerate(seq) if on]
-    first = ons[0][1]
-    if first == 1:
-        kind, k = "fault", None
-        body = [(i, n) for i, n in ons if n > 1]
-    elif first >= 30:
-        kind, k = "pass", None
-        body = ons[1:]
-    else:
-        flashes = [n for _, n in ons if n >= LONG]
-        kind, k = "fail", len(flashes)
-        body = [(i, n) for i, n in ons if n < LONG]
-    # Blinks after the prefix; a dark gap of 10 or more ends a digit.
+def digits_of(seq, idx):
+    """Short blinks at positions idx in seq, cut into digits at dark gaps of 10 or more."""
     digits, count = [], 0
-    for i, _ in body:
+    for i in idx:
         count += 1
-        if i + 1 < len(seq) and not seq[i + 1][0] and seq[i + 1][1] >= 10:
+        if i + 1 >= len(seq) or (not seq[i + 1][0] and seq[i + 1][1] >= 10):
             digits.append(0 if count == 10 else count)
             count = 0
-    return kind, k, int("".join(map(str, digits)))
+    return int("".join(map(str, digits)))
+
+
+def read(seq):
+    """Decode one round as a person counting would: ("fault", step) or
+    ("report", [(flashes, number), ...])."""
+    ons = [(i, n) for i, (on, n) in enumerate(seq) if on]
+    if ons[0][1] == 1:
+        return "fault", digits_of(seq, [i for i, n in ons if n > 1])
+    out, flashes, short = [], 0, []
+    for i, n in ons:
+        if n >= LONG:
+            if short:
+                out.append((flashes, digits_of(seq, short)))
+                flashes, short = 0, []
+            flashes += 1
+        else:
+            short.append(i)
+    out.append((flashes, digits_of(seq, short)))
+    return "report", out
 
 
 def main():
     binary = sys.argv[1]
     bad = 0
-    cases = [(("report", 0, 108), ("pass", None, 108)),
-             (("report", 0, 105), ("pass", None, 105)),
-             (("report", 0, 1000), ("pass", None, 1000)),
-             (("report", 3, 2), ("fail", 3, 2)),
-             (("report", 6, 110), ("fail", 6, 110)),
-             (("report", 1, 0), ("fail", 1, 0)),
-             (("fault", 2), ("fault", None, 2)),
-             (("fault", 5), ("fault", None, 5))]
-    for args, want in cases:
-        got = read(holds(binary, *args))
+    reports = [[0, 108, 31, 0], [2, 108, 159, 0], [26, 105, 0, 4294967295], [34, 8, 31, 0], [1, 0, 0, 10]]
+    for nums in reports:
+        got = read(holds(binary, "report", *nums))
+        want = ("report", [(i + 1, n) for i, n in enumerate(nums)])
         if got != want:
-            print(f"FAIL  {args} reads back as {got}, not {want}")
+            print(f"FAIL  report {nums} reads back as {got}")
+            bad = 1
+    for step in (1, 2, 5):
+        got = read(holds(binary, "fault", step))
+        if got != ("fault", step):
+            print(f"FAIL  fault {step} reads back as {got}")
             bad = 1
     if not bad:
-        print(f"PASS  every round reads back as what was blinked: {len(cases)} cases, pass, fail and fault")
-    pas = holds(binary, "report", 0, 108)
-    print("      PASS 108 is   " + " ".join(f"{'+' if on else '-'}{n}" for on, n in pas))
+        print(f"PASS  every round reads back as what was blinked, each number after as many long flashes "
+              f"as its place: {len(reports)} reports, 3 faults")
+    seq = holds(binary, "report", 0, 108, 31, 0)
+    print("      0 108 31 0 is   " + " ".join(f"{'+' if on else '-'}{n}" for on, n in seq))
     return bad
 
 
