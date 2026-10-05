@@ -50,7 +50,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "hazard3"))
 from kernelimages import command  # noqa: E402
-from wots import H, F, chain, digits, hashes  # noqa: E402,F401
+from wots import H, F, chain, digits, hashes, secret  # noqa: E402,F401
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MSG, IDX, SIG, WORK, AUTH, ROOT, SCR = 0x1000, 0x1020, 0x2000, 0x3000, 0x4000, 0x4080, 0x8000
@@ -64,10 +64,6 @@ ZERO = bytes(32)
 
 
 
-
-
-def secret(seed, leaf, i):
-    return H(seed + bytes([leaf, i]) + bytes(30))
 
 
 def leaf_of(ends):

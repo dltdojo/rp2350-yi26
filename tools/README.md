@@ -562,8 +562,10 @@ on the word behind the payload's last `ecall`: a word that never runs.
 `sigfile.py`'s `read_sig` reads a `--dump` back as bytes; `rv32run` writes the
 same format. `hash-cost.sh` is the sweep that measures the HASH cost and the
 harness constant, which exp204, exp205 and exp206 read. `kernelcompare.sh` is the
-loop exp205 and exp206 share: every case on the model and the RTL against
-Python, the count read from the proof. `kernelimages.py` is the command line
+loop exp205, exp206 and exp213 share: every case on the model and the RTL
+against Python, the count read from the proof; `STEPS` and `CYCLES` raise its
+limits for a kernel that runs longer, as exp213's key generator does. `wots.py`
+is the WOTS and MSS reference the images are built from. `kernelimages.py` is the command line
 every kernel experiment's `images.py` has — `build DIR`, `verify NAME SIG` —
 so that what is left in an experiment is only its own cases.
 

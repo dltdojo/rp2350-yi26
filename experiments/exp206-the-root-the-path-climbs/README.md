@@ -77,8 +77,13 @@ at `0x38c0`) and exp205's 131 bytes of scratch at `0x8000`.
 
 ## What is proved
 
-[`proof/Mss.lean`](./proof/Mss.lean), with `lean/Rv32/Wots.lean` for the
-first 69 instructions. `H` is `env.hash`, and **nothing is assumed about it**.
+[`lean/Rv32/Mss.lean`](../../lean/Rv32/Mss.lean), with `lean/Rv32/Wots.lean`
+for the first 69 instructions. The proof began here, in `proof/Mss.lean`, and
+moved to the library when exp213 needed it: a proof file imports the library
+and nothing else, and exp213's theorem joins this kernel to its key generator
+and signer. `proof/Mss.lean` now prints what the theorems rest on and writes
+`kernel.bin`, and the mutants edit the library file. `H` is `env.hash`, and
+**nothing is assumed about it**.
 
 | Theorem | Says |
 | --- | --- |
@@ -102,7 +107,8 @@ whatever `H` is, memory holding what that signer would put there verifies. Then
 `signed_halts_with_zero` says the bytes accept it. What it does not say is
 that a *kernel* produced the signature, because there is no signer kernel yet.
 That is the next experiment, and with it the theorem becomes keygen binary,
-sign binary, verify binary, accept.
+sign binary, verify binary, accept. [exp213](../exp213-the-signer-the-verifier-accepts/)
+is that experiment, and its `three_binaries` ends in this kernel's bytes.
 
 Sixteen wrong versions in [`proof/mutants.txt`](./proof/mutants.txt) are each
 refused:
@@ -127,7 +133,8 @@ checksum modulo 15, so the 67 digits sum to `960 ≡ 0`.
 
 ## What it does not prove
 
-- **That the signer is a binary.** See *Completeness*, above.
+- **That the signer is a binary.** See *Completeness*, above; exp213 proves
+  it.
 - **Security.** Unforgeability is the design's optional item and is not here.
   Neither is any property of HASH; every theorem holds for any function.
 - **The chip.** Nothing here has run on a board. The verifier would run under

@@ -41,3 +41,9 @@ def digits(m):
 
 def hashes(m):
     return sum(15 - d for d in digits(m))
+
+
+def secret(seed, leaf, i):
+    """MSS: the secret of chain i of one-time key `leaf`, H(seed || leaf || i ||
+    30 zero bytes) — 32 secret bytes give all 16 keys. exp206's and exp213's."""
+    return H(seed + bytes([leaf, i]) + bytes(30))

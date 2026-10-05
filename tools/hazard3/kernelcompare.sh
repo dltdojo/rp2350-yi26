@@ -20,11 +20,16 @@
 #     in words;
 # and once more on the model alone, at 0x20070000. One line per case, then
 # PASS/FAIL lines; exit 0 when every one passes.
+#
+# STEPS and CYCLES in the environment raise the model's step limit (20000)
+# and the testbench's cycle limit (100000000), for a kernel that runs longer:
+# exp213's key generator takes 76456 instructions and 17183 HASH calls.
 
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIM="$HERE/sim.sh"
 A="$1" B="$2" EXTRA="$3" KEPT="$4"
+STEPS="${STEPS:-20000}" CYCLES="${CYCLES:-100000000}"
 RUN="$("$HERE/../lean/lean.sh" exe rv32run)" || exit 2
 read -r BASE SIZE < <("$SIM" region)
 read -r C P < <("$HERE/hash-cost.sh" --quiet | sed -n 's/.*RTL − model = \([0-9]*\) + \([0-9]*\) × .*/\1 \2/p')
@@ -35,9 +40,9 @@ status=0; n=0; ok_l=0; ok_r=0; same=0; kept=0; far=0
 printf '%-24s %-9s %-26s %-34s %s\n' case "python S" "model at $BASE" "RTL" "model at 0x20070000"
 while read -r name want steps; do
     img="build/$name.bin"; n=$((n + 1))
-    l="$($RUN "$img" "$BASE" "$SIZE" 20000 $((SIZE)) "$work/l.sig")"
-    r="$("$SIM" run "$img" --dump $((SIZE)) "$work/r.sig" --cycles 100000000)"
-    f="$($RUN "$img" 0x20070000 "$SIZE" 20000)"
+    l="$($RUN "$img" "$BASE" "$SIZE" "$STEPS" $((SIZE)) "$work/l.sig")"
+    r="$("$SIM" run "$img" --dump $((SIZE)) "$work/r.sig" --cycles "$CYCLES")"
+    f="$($RUN "$img" 0x20070000 "$SIZE" "$STEPS")"
     printf '%-24s %-9s %-26s %-34s %s\n' "$name" "$want $steps" "$l" "$r" "$f"
     code="$(printf '%08x' "$want")"
     count=$((A + B * steps))

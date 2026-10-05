@@ -17,6 +17,6 @@
 
 set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
-read -r A B < <(sed -n "s/.*∃ s', run env (\([0-9]*\) + \([0-9]*\) \* steps s.mem base) s\$/\1 \2/p" proof/Mss.lean | head -1)
+read -r A B < <(sed -n "s/.*∃ s', run env (\([0-9]*\) + \([0-9]*\) \* steps s.mem base) s\$/\1 \2/p" ../../lean/Rv32/Mss.lean | head -1)
 exec ../../tools/hazard3/kernelcompare.sh "$A" "$B" 5 \
     "only the two scratch areas changed, and the digits and the chain ends there are right"

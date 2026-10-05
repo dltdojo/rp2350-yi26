@@ -40,7 +40,7 @@ theorem kernel_length : kernel.length = 108 := by rfl
 
 /-- The kernel starts with `head`, so everything `lean/Rv32/Wots.lean` proves
 of the first 69 instructions holds of it. -/
-theorem starts : Starts kernel where
+theorem starts : Starts 69 kernel where
   pre := fun k hk => by
     simp only [kernel, List.append_assoc, List.getD_eq_getElem?_getD,
       List.getElem?_append_left (show k < head.length by rw [head_length]; exact hk)]
@@ -281,11 +281,11 @@ theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) (s : Machi
     ∃ s1 s2, run env (4141 + 3 * steps s.mem base) s = .running s1
       ∧ run env 1 s1 = .halted (if Verifies env.hash s.mem base then 0 else 1) s2
       ∧ Keeps (base + BitVec.ofNat 32 SCR) 131 s.mem s2.mem := by
-  obtain ⟨s22, e22, dinv, rg, h1, h2, h6⟩ := front starts hp s hpc hcode
-  obtain ⟨sd, ed, dinv'⟩ := digits_loop starts hp
+  obtain ⟨s22, e22, dinv, rg, h1, h2, h6⟩ := front (starts.down (by decide)) hp s hpc hcode
+  obtain ⟨sd, ed, dinv'⟩ := digits_loop (starts.down (by decide)) hp
     (keeps_overlay hp.fit _ _ (by omega) (by simp only [SCR]; omega) (by simp only [SCR]; omega))
     (code_of_overlay hp.fit hcode (by decide) (by decide) _) dinv 32 (Nat.le_refl _)
-  obtain ⟨sm, em, pm, chm, frm⟩ := middle starts hp hcode dinv' rg h1
+  obtain ⟨sm, em, pm, chm, frm⟩ := middle (starts.down (by decide)) hp hcode dinv' rg h1
   have cinv : CInv env.hash base s.mem 0 sm :=
     ⟨by rw [pm]; rfl, chm,
      by rw [frm _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
