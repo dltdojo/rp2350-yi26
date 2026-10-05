@@ -3,13 +3,15 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
 **The first RISC-V firmware in this repository: a shell, in flash sector 0 of a
-Pico 2, that runs exp203's proved 60-byte kernel in User mode and blinks out
-on the LED what the chip counted. The proof says 105 instructions, and the
-Hazard3 RTL counts 108 under the same shell. On a Pico 2, revision 1 blinked
-"2 long flashes, 1-0-8": the kernel halted, and the RP2350's own core — an
-older Hazard3 than the RTL — counted 108, the RTL's number. But check 2
-failed: PMP entry 0 did not read back as the shell wrote it. Revision 2
-reports every check and what PMP read back, and has not been run yet.**
+Pico 2, that runs exp203's proved 60-byte kernel in User mode and checks what
+it did. The proof says 105 instructions, and the Hazard3 RTL counts 108 under
+the same shell. On a Pico 2, revision 1 blinked "2 long flashes, 1-0-8": the
+kernel halted, and the RP2350's own core, an older Hazard3 than the RTL,
+counted 108, the RTL's number. Revision 2 tried to blink four numbers, and a
+person could not read them. So revision 3 answers one question with one bit:
+slow blinking if everything matched (the kernel, its result, the copy, the
+whole region against the Lean model, and 108), fast blinking if anything did
+not. It has not been run yet.**
 
 This is the board half of the verified-kernel road (see its
 [briefing](../../docs/2026-10-02-0930-verified-kernel-road-briefing-zh-tw.md)),
@@ -19,7 +21,7 @@ anything gets out.
 ## Running it on the board
 
 You need a **Pico 2** (not a Pico 2 W: its LED is on the wireless chip, which
-this shell cannot reach), a USB cable, and a computer. A phone camera helps.
+this shell cannot reach), a USB cable, and a computer.
 
 1. Check the file: its SHA-256 must be the one in
    [`exp209.uf2.sha256`](./exp209.uf2.sha256).
@@ -27,87 +29,68 @@ this shell cannot reach), a USB cable, and a computer. A phone camera helps.
    appears.
 3. Copy `exp209.uf2` onto it. The drive disappears and the board restarts,
    this time as a RISC-V machine.
-4. Watch the LED, ideally **filming it with a phone**: you count flashes
-   rather than time them, and a video can be counted at leisure. The pattern
-   repeats forever, so there is no hurry.
+4. Look at the LED for a few seconds: is it blinking **slowly** or **fast**?
+   Nothing needs counting, and it keeps going forever.
 
 To go back to anything else afterwards: hold BOOTSEL, plug in, and copy that
 UF2. The shell writes nothing to flash.
 
-### What the LED says (revision 2)
+### What the LED says (revision 3)
 
 | You see | It means |
 | --- | --- |
-| dark from the start | the shell never ran, or failed before the LED came up (step 1) |
-| on, and staying on for over a minute | the shell hung without trapping, somewhere in steps 1–4 |
-| long flashes and short blinks, repeating | **a report: four numbers** — read them as below |
-| fast flicker, then groups of short blinks | the shell itself trapped; the groups are the step it was in |
+| **slow blinking**, about 2 s on, 2 s off | **everything matched** |
+| **fast blinking**, several times a second | something did not |
+| on, steady | the shell hung, or trapped itself |
+| dark | the shell never ran |
 
-**A report is four numbers.** Number *i* is announced by *i* long flashes,
-then given as groups of short blinks, one group per decimal digit, most
-significant first, with ten blinks meaning 0. A long dark gap ends the round,
-and the whole thing repeats. If you start watching midway, count the long
-flashes before a number to know which one it is.
+That is the whole report: **say "slow" or "fast"**. Slow and fast are 24 to 1
+apart, so they cannot be mistaken for each other whatever the chip's clock
+is. "Everything" is:
 
-| Long flashes before it | The number | If all is well |
-| --- | --- | --- |
-| 1 | the checks that failed, as digits (`26`: checks 2 and 6), or `0` for none | 0 |
-| 2 | minstret, or mcause if the kernel did not halt | 108 on the RTL |
-| 3 | the low byte of `pmpcfg0`, as read back — the shell wrote 31 (`0x1f`) | 31 |
-| 4 | `pmpaddr0` as read back XOR as written | 0 |
+- **check 1:** the 60 bytes copied into SRAM hash to `kernel.sha256`, so it is
+  the proved kernel;
+- **check 3:** the kernel halted (`ecall` with `t0 = 1`);
+- **check 4:** it halted with result `a0 = 0`;
+- **check 5:** the 64 bytes at the destination are the 64 at the source;
+- **check 6:** the whole 64 KiB region hashes to what the Lean model left
+  there;
+- **minstret = 108**, the count the Hazard3 RTL gives for the same image under
+  the same shell. `gen.py` takes it from an RTL run, not from a person.
 
-A clean run looks like this:
+Check 2, PMP entry 0 reading back as written, is computed but left out of the
+verdict. Run 1 already showed that it does not hold on silicon while the
+kernel still ran confined and halted. That is a question of its own, for its
+own one-bit build if it is ever asked.
 
-```text
-▬  ··········              ← 1 flash: failed checks, "0"
-▬▬  •  ··········  ••••••••    ← 2 flashes: minstret, "1 0 8"
-▬▬▬  •••  •                ← 3 flashes: pmpcfg0, "3 1"
-▬▬▬▬  ··········           ← 4 flashes: pmpaddr0 XOR, "0"
-                 (long dark, then again)
-```
-
-**The six checks:**
-
-| Check | What it says |
-| --- | --- |
-| 1 | the 60 bytes copied into SRAM hash to `kernel.sha256`: it is the proved kernel |
-| 2 | PMP entry 0 reads back as the shell wrote it (numbers 3 and 4 say how it read back) |
-| 3 | the kernel halted: `ecall` with `t0 = 1` |
-| 4 | it halted with result `a0 = 0` |
-| 5 | the 64 bytes at the destination are the 64 at the source |
-| 6 | the whole 64 KiB region hashes to what the Lean model left there |
-
-The steps, for a fault: 1 the LED, 2 placing the image, 3 hashing the kernel,
-4 entering it, 5 checking what it left.
-
-### What to send back
-
-The four numbers, for example **"0, 108, 31, 0"**. If you can, also say how
-long one long flash lasts in the video. A long flash is 24,000,000 cycles of a
-clock the shell never touches, so its length gives the clock's speed: about
-`24 / seconds` MHz. That is the one assumption in this experiment. One blink
-unit is 2,000,000 cycles, about 0.18 s if the bootrom leaves the ring
-oscillator at its usual ~11 MHz. If the clock is much faster the blinks are
-short, and the video is how to count them.
+**Why one bit.** Revision 1 blinked a verdict and one number, and was read.
+Revision 2 blinked four numbers, each announced by long flashes, with decimal
+digits as groups of up to ten short blinks, and the person at the board
+reported: *"無法回報四個數字，這個驗證太複雜必須簡化，這種長度對於人眼識別計算太難"*
+(the four numbers cannot be reported; this is too complicated; lengths like
+these are too hard for a human eye to count). That is the finding about the
+instrument: **a person reads one bit from an LED reliably, not a number**. So
+the comparisons happen on the chip, against values computed here, and only
+their verdict is blinked.
 
 ## What the board has said
 
-| Run | UF2 (SHA-256) | Reported, as counted | Read as |
+| Run | UF2 (SHA-256) | Reported, as said | Read as |
 | --- | --- | --- | --- |
-| 1 | `09e9219984f37b21640f4e1b70990d7cb502131503af24c1f5e51bbbe0a0eddb` — revision 1, which reported only the first failed check | **"2 次長閃，1-0-8"** — two long flashes, then 1, 0, 8 | check 1 passed, so SRAM held the proved kernel; check 2 failed, so PMP entry 0 did not read back as written; the number is minstret, because revision 1 blinked minstret only when the kernel had halted (otherwise mcause, never 108) — so **the kernel halted, and the RP2350 counted 108, as the RTL does**. Checks 4, 5 and 6 were not reported |
-| 2 | see `exp209.uf2.sha256` | not yet run | |
+| 1 | `09e9219984f37b21640f4e1b70990d7cb502131503af24c1f5e51bbbe0a0eddb` — revision 1, which blinked the first failed check and then minstret | **"2 次長閃，1-0-8"** — two long flashes, then 1, 0, 8 | check 1 passed, so SRAM held the proved kernel; check 2 failed, so PMP entry 0 did not read back as written; the number is minstret, because revision 1 blinked minstret only when the kernel had halted (otherwise mcause, never 108). So **the kernel halted, and the RP2350 counted 108, as the RTL does**. Checks 4, 5 and 6 were not reported |
+| 2 | `4b3f3dff1983d6d34084561bdd8ba7236031f670862653e67dee52ae6068f2a2` — revision 2, four numbers | **"無法回報四個數字，這個驗證太複雜必須簡化，這種長度對於人眼識別計算太難"** | unreadable by design: the instrument, not the chip, failed. Nothing about the chip is learned from it |
+| 3 | see `exp209.uf2.sha256` — revision 3, one bit | not yet run | |
 
 Run 1 settles the question this experiment was built for, for this kernel and
-this shell: silicon's `minstret` is the RTL's, so exp203's accounting, proved
-count plus 3, holds on the chip. It also raises one this repository had not
-asked: what does the RP2350's Hazard3 do with PMP entry 0? The kernel still
-ran in User mode inside the region, so whatever entry 0 holds, User mode had
-the access it needed. Whether that is the shell's entry or something else is
-what revision 2's numbers 3 and 4 will say.
+this shell: silicon's `minstret` is the RTL's, so exp203's accounting (the
+proved count plus 3) holds on the chip. It also raises one this repository had
+not asked: what does the RP2350's Hazard3 do with PMP entry 0? The kernel
+still ran in User mode inside the region, so User mode had the access it
+needed, whatever entry 0 holds.
 
 ## What the shell is
 
-Plain assembly and C, 4076 bytes. It is not the Rust shell the briefing
+Plain assembly and C, 3476 bytes. It is not the Rust shell the briefing
 planned, and the reason is the count: the instructions around the kernel,
 from the write that starts the counters to the trap that stops them, are
 [`tools/hazard3/harness/harness.S`](../../tools/hazard3/harness/harness.S)
@@ -119,9 +102,8 @@ a different shell's.
 | --- | --- |
 | [`shell/start_chip.S`](./shell/start_chip.S) | `j _start`, then the IMAGE_DEF block, its words those of embassy-rp's `block.rs`: RISC-V EXE for RP2350, with an ENTRY_POINT that also names `_start` — whichever the bootrom goes by, it lands there |
 | [`shell/shell.c`](./shell/shell.c) | zero the region at `0x20070000`, write exp203's `counting` image, hash the kernel, enter it, then the six checks |
-| [`shell/board_chip.c`](./shell/board_chip.c) | GPIO25 through SIO, every address rp-pac's for the RP235x; nothing else on the chip is touched, the clock included |
-| [`shell/blink.c`](./shell/blink.c) | the LED's language |
-| [`gen.py`](./gen.py) | everything compared against, from exp203's own files: the image, `kernel.sha256`, and the hash of the region the Lean model leaves at `0x20070000` |
+| [`shell/board_chip.c`](./shell/board_chip.c) | GPIO25 through SIO, every address rp-pac's for the RP235x; slow or fast blinking for the verdict; nothing else on the chip is touched, the clock included |
+| [`gen.py`](./gen.py) | everything compared against, from exp203's own files and two runs: the image, `kernel.sha256`, the hash of the region the Lean model leaves at `0x20070000`, and the RTL harness's minstret for the same image |
 
 **Why the UF2 family is `absolute`, and why the image must fit in sector 0.**
 Experiments exp139 to exp145 wrote partition tables, and exp139's
@@ -149,8 +131,8 @@ drag goes straight to the bootrom.
 - **the same shell built for the Hazard3 RTL**, with the print port in place
   of the LED: it passes all six checks, PMP entry 0 reads back as written
   (`0x1f`, XOR 0), the region hashes to the model's, and it counts
-  **minstret = 108**, what the RTL harness counts for exp203. So the RTL does
-  not show what the board showed in run 1;
+  **minstret = 108**, what the RTL harness counts for exp203; its verdict is
+  ok. So the RTL does not show the PMP readback the board showed in run 1;
 - seven wrong shells, each run on the RTL and each caught by the check it
   breaks, the last a shell that traps in step 2 and reports a fault;
 - the LED's patterns, compiled for the host with a recorder in place of the

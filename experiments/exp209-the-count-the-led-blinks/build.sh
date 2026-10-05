@@ -24,7 +24,7 @@ cc() { clang --target=riscv32-unknown-elf -march=rv32im_zicsr -mabi=ilp32 -Os -n
 
 sim() { # shell-dir include-dir out.bin
     cc -I "$2" -I "$1" -DSHELL -DREGION=0x80010000 -DMSTACK=0x80010000 -Wl,-T,"$1/link_sim.ld" \
-        -o "$3.elf" "$1/start_sim.S" "$H/harness.S" "$1/shell.c" "$1/board_sim.c" "$1/blink.c" "$H/sha256.c"
+        -o "$3.elf" "$1/start_sim.S" "$H/harness.S" "$1/shell.c" "$1/board_sim.c" "$H/sha256.c"
     llvm-objcopy -O binary "$3.elf" "$3"
 }
 
@@ -38,7 +38,7 @@ RUN="$(../../tools/lean/lean.sh exe rv32run)"
 python3 gen.py build/expect.h "$RUN"
 
 cc -I build -I shell -DSHELL -DREGION=0x20070000 -DMSTACK=0x20070000 -Wl,-T,shell/link_chip.ld \
-    -o build/chip.elf shell/start_chip.S "$H/harness.S" shell/shell.c shell/board_chip.c shell/blink.c "$H/sha256.c"
+    -o build/chip.elf shell/start_chip.S "$H/harness.S" shell/shell.c shell/board_chip.c "$H/sha256.c"
 llvm-objcopy -O binary build/chip.elf build/exp209.bin
 cargo run -q --offline --manifest-path ../../tools/partimg/Cargo.toml -- bin build/exp209.bin absolute build/exp209.uf2 > /dev/null
 sim shell build build/sim.bin

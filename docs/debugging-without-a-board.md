@@ -117,6 +117,19 @@ and no clock.
 > When the only channel is one bit, the design question is not whether it
 > reports. It is **how many distinct things it can say**.
 
+### But a person reads one bit, not a number
+
+exp209 pushed the other way and found the limit. Its first build blinked a
+verdict and one three-digit number, and was read. Its second blinked four
+numbers, each digit a group of up to ten short blinks, and the person at the
+board answered that it could not be reported at all: the lengths were too
+much for an eye to count. The fix was not a better encoding. It was to
+compare on the chip, against values computed beforehand, and blink only the
+verdict, as slow or fast blinking 24 to 1 apart.
+
+> More distinct things are worth saying only while a person can still tell
+> them apart at a glance. Past that, do the reading on the chip.
+
 ### Steps must be spread far enough apart to be told apart
 
 A step that does three things inside a millisecond is three things the LED

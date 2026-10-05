@@ -112,7 +112,7 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 | [exp204](../experiments/exp204-the-signature-the-kernel-checks/) | 352 位元組的 Lamport verify 核心：對**任何** HASH 函數，簽章全對回 0、任一錯回 1，無論結果都恰好 16663 條指令，只寫 96 位元組暫存區。模型、RTL、Python 在 10 個案例上判決一致、記憶體逐位元組相同。每次 HASH 在 RTL 上多計 4；最後一個 `ecall` 後面那個不會執行的字組也會讓計數差 1 | 已提交、已錄製 |
 | [exp205](../experiments/exp205-the-chain-the-checksum-closes/) | 432 位元組的 WOTS（w = 16）verify 核心：67 條雜湊鏈（後 3 條是 checksum 的），對**任何** HASH 函數證明判決正確，且恰好 `4142 + 3·S` 條指令（S 是 HASH 呼叫次數）——第一個指令數隨輸入而變的核心，所以定理把它寫成公式。模型、RTL、Python 在 11 個案例（S 從 45 到 990）上一致，RTL 多出的正好是 `3 + 4·S` | 已提交、已錄製 |
 
-**等板子的**：[exp209](../experiments/exp209-the-count-the-led-blinks/)——Pico 2 的 RISC-V 殼層（組語＋C，3960 位元組，全在 flash 第 0 磁區），直接沿用 RTL 的 `harness.S` 跑 exp203 的核心，六項自我檢查，用 LED 閃出 `minstret`。RTL 上同一個殼層六項全過、計數 108；UF2 用 `absolute` 家族，不必先改 `yi26`。板子第一次執行閃出「2 次長閃，1-0-8」：核心停機，晶片計數 **108，與 RTL 相同**；但 PMP entry 0 讀回值與寫入不同（RTL 上沒有這個現象）。第二版會把每項檢查和 PMP 讀回值都閃出來。
+**等板子的**：[exp209](../experiments/exp209-the-count-the-led-blinks/)——Pico 2 的 RISC-V 殼層（組語＋C，3960 位元組，全在 flash 第 0 磁區），直接沿用 RTL 的 `harness.S` 跑 exp203 的核心，六項自我檢查，用 LED 閃出 `minstret`。RTL 上同一個殼層六項全過、計數 108；UF2 用 `absolute` 家族，不必先改 `yi26`。板子第一次執行閃出「2 次長閃，1-0-8」：核心停機，晶片計數 **108，與 RTL 相同**；但 PMP entry 0 讀回值與寫入不同（RTL 上沒有這個現象）。第二版試圖閃出四個數字，人眼無法可靠判讀（使用者原話已記錄）；第三版改成晶片上自行比對、LED 只給一個位元：慢閃＝全部吻合，快閃＝有不符。
 
 新增的共用部分：`lean/Rv32/`（`Isa`、`Machine`、`Load`、`Asm`、`Proof`、`Place`、`Kernel`、`Blocks`）、`lean/Run.lean`
 （模型編譯成 `rv32run`，記憶體改用陣列）、`lean/Sha256.lean`（只供執行）、`tools/hazard3/`（`setup.sh`、`sim.sh`、harness）、

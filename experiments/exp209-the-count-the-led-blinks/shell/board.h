@@ -3,14 +3,14 @@
 #pragma once
 #include <stdint.h>
 
-// What a run reports, in the order the LED blinks it.
-enum { NUMBERS = 4 };
+// What a run found. Only `ok` leaves the chip — as slow or fast blinking —
+// because a person reading an LED reliably reads one bit (see the README:
+// revision 2's four numbers could not be read). The rest is for the RTL's
+// print port, where it costs nothing to say.
 struct result {
-    // [0] the failed checks as decimal digits, ascending (26: checks 2 and 6;
-    //     0: none); [1] minstret; [2] pmpcfg0's low byte as read back;
-    //     [3] pmpaddr0 as read back XOR as written (0: the same)
-    uint32_t number[NUMBERS];
-    uint32_t cycles, a0, cause;
+    uint32_t ok;         // checks 1, 3, 4, 5 and 6 passed, and minstret matched
+    uint32_t failed;     // the failed checks as decimal digits, ascending
+    uint32_t instret, pmpcfg, pmpaddr_xor, a0, cause;
 };
 
 void board_init(void);                                   // the LED on: alive
