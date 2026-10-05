@@ -110,6 +110,7 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 | [exp202](../experiments/exp202-the-tests-the-chip-passes/) | Lean 語意模型通過 48 個 riscv-tests；Hazard3 RTL 用同樣的位元組也通過；53 支程式之後兩者 64 KiB 記憶體逐位元組相同。14 個錯誤模型全被擋下，其中 4 個只有自寫的探針擋得住 | 已提交、已錄製 |
 | [exp203](../experiments/exp203-the-count-the-proof-promised/) | 60 位元組的拷貝核心，證明正確且恰好 105 條指令；`kernel.bin` 與 SHA-256 已提交；RTL 退休 108，差的 3 逐條拆解 | 已提交、已錄製 |
 | [exp204](../experiments/exp204-the-signature-the-kernel-checks/) | 352 位元組的 Lamport verify 核心：對**任何** HASH 函數，簽章全對回 0、任一錯回 1，無論結果都恰好 16663 條指令，只寫 96 位元組暫存區。模型、RTL、Python 在 10 個案例上判決一致、記憶體逐位元組相同。每次 HASH 在 RTL 上多計 4；最後一個 `ecall` 後面那個不會執行的字組也會讓計數差 1 | 已提交、已錄製 |
+| [exp206](../experiments/exp206-the-root-the-path-climbs/) | 752 位元組的 MSS（WOTS + 樹高 4 的 Merkle）verify 核心：對**任何** HASH 證明判決正確，恰好 `3295 + 3·S` 條指令，只寫兩塊工作區；完整性證明到 binary——參考實作簽出的任一葉簽章，核心一定回 0。前 69 條指令就是 exp205 的，證明移入 `lean/Rv32/Wots.lean`，exp205 改用它而 `kernel.bin` 一位元組不變。模型、RTL、Python 在 29 個案例上一致 | 已提交、已錄製 |
 | [exp205](../experiments/exp205-the-chain-the-checksum-closes/) | 432 位元組的 WOTS（w = 16）verify 核心：67 條雜湊鏈（後 3 條是 checksum 的），對**任何** HASH 函數證明判決正確，且恰好 `4142 + 3·S` 條指令（S 是 HASH 呼叫次數）——第一個指令數隨輸入而變的核心，所以定理把它寫成公式。模型、RTL、Python 在 11 個案例（S 從 45 到 990）上一致，RTL 多出的正好是 `3 + 4·S` | 已提交、已錄製 |
 
 **板子上跑過的**：[exp209](../experiments/exp209-the-count-the-led-blinks/)——Pico 2 的 RISC-V 殼層（組語＋C，全在 flash 第 0 磁區），直接沿用 RTL 的 `harness.S` 跑 exp203 的核心，六項自我檢查，用 LED 閃出 `minstret`。RTL 上同一個殼層六項全過、計數 108；UF2 用 `absolute` 家族，不必先改 `yi26`。板子第一次執行閃出「2 次長閃，1-0-8」：核心停機，晶片計數 **108，與 RTL 相同**；但 PMP entry 0 讀回值與寫入不同（RTL 上沒有這個現象）。第二版試圖閃出四個數字，人眼無法可靠判讀（使用者原話已記錄）；第三版改成晶片上自行比對、LED 只給一個位元——**板子回報「慢閃」：全部吻合**。證明過的核心在晶片上停機、結果 0、拷貝正確、64 KiB 記憶體與 Lean 模型逐位元組相同、`minstret` = 108 與 RTL 相同。
@@ -129,7 +130,8 @@ Hazard3 會計 `ecall`、把 `mret` 算兩次，還會因為 `mret` 後面記憶
 
 | 編號（暫定） | 內容 | 新增的證明重點 | 雲端完成條件 |
 | --- | --- | --- | --- |
-| exp206 | **MSS（WOTS + Merkle，樹高 4）** keygen／sign／verify | 驗證路徑、葉節點索引；**完整性** verify(sign(m)) 在參考實作層證明，經功能正確性傳到 binary | 16 個葉全部簽／驗成功（計數器此時由測試平台扮演） |
+| exp206 | **MSS（WOTS + Merkle，樹高 4）verify**——**已完成**：752 位元組的核心，證明對任何輸入、任何 HASH 判決正確、恰好 `3295 + 3·S` 條指令；完整性在參考實作層證明並傳到 verify 的 binary（任一葉的簽章都被接受）。前 69 條指令與 exp205 相同，證明移到 `lean/Rv32/Wots.lean` 兩邊共用 | 驗證路徑、葉節點索引；**完整性** | 已完成：16 個葉全部驗證成功，另 13 個案例，模型／RTL／Python 一致 |
+| exp213 | **MSS keygen／sign 核心**（由 exp206 拆出，使用者決定） | 簽章與金鑰產生也是 binary：keygen → sign → verify 三個 binary 串起來一定接受；秘密金鑰由種子以 HASH 推導（使用者決定） | 16 個葉由 sign 核心簽出、verify 核心全部接受 |
 | exp207 | **常數時間** | sign 與 keygen 的「兩次執行」關係型證明：公開輸入相同、秘密不同 → PC 序列與存取位址序列相同 | 證明通過；RTL 上不同秘密金鑰的 `mcycle` 完全相同（exp203 已看到 113 個週期與資料無關，但那是觀察，不是定理） |
 | exp208 | **（選做）RV32IM 的 SHA-256 壓縮函數**，證明符合 Lean 寫的 SHA-256 規格 | 取代加速器後，HASH 不再是抽象 | 前面的證明換上具體雜湊後仍成立 |
 

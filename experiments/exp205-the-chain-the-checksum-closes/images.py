@@ -42,6 +42,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "hazard3"))
 from kernelimages import command  # noqa: E402
+from wots import F, chain, digits, hashes  # noqa: E402,F401
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MSG, SIG, PK, SCR = 0x1000, 0x2000, 0x3000, 0x8000
@@ -49,22 +50,10 @@ N = 67
 ZERO = bytes(32)
 
 
-def F(x):
-    return hashlib.sha256(x + ZERO).digest()
 
 
-def chain(x, k):
-    for _ in range(k):
-        x = F(x)
-    return x
 
 
-def digits(m):
-    a = []
-    for b in m:
-        a += [b & 15, b >> 4]
-    c = sum(15 - d for d in a)
-    return a + [c & 15, (c >> 4) & 15, c >> 8]
 
 
 def keygen(rng):
@@ -81,8 +70,6 @@ def verdict(pk, m, sig):
     return 0 if ok else 1
 
 
-def hashes(m):
-    return sum(15 - d for d in digits(m))
 
 
 def wots_cases():

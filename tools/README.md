@@ -561,7 +561,9 @@ where they go — and four more per HASH, which exp204 measures. Both also depen
 on the word behind the payload's last `ecall`: a word that never runs.
 `sigfile.py`'s `read_sig` reads a `--dump` back as bytes; `rv32run` writes the
 same format. `hash-cost.sh` is the sweep that measures the HASH cost and the
-harness constant, which exp204 and exp205 both read. `kernelimages.py` is the command line
+harness constant, which exp204, exp205 and exp206 read. `kernelcompare.sh` is the
+loop exp205 and exp206 share: every case on the model and the RTL against
+Python, the count read from the proof. `kernelimages.py` is the command line
 every kernel experiment's `images.py` has — `build DIR`, `verify NAME SIG` —
 so that what is left in an experiment is only its own cases.
 

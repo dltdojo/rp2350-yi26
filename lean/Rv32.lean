@@ -6,3 +6,4 @@ import Rv32.Proof
 import Rv32.Place
 import Rv32.Kernel
 import Rv32.Blocks
+import Rv32.Wots
