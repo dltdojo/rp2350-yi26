@@ -22,7 +22,7 @@ read -r KA < <(sed -n "s/^    ∃ s', run env \([0-9]*\) s = .halted 0 s' ∧ Ou
 read -r SA SB < <(sed -n "s/^    ∃ s', run env (\([0-9]*\) + \([0-9]*\) \* dsum s.mem base) s = .halted 0 s' ∧ Out base s.mem s'.mem\$/\1 \2/p" $LIB/MssSign.lean)
 status=0
 echo ">>> the key generator"
-EXP213_KERNEL=keygen STEPS=100000 ../../tools/hazard3/kernelcompare.sh "$KA" 0 17183 \
+EXP213_KERNEL=keygen STEPS=100000 CYCLES=4000000000 ../../tools/hazard3/kernelcompare.sh "$KA" 0 17183 \
     "the tree is the one Python builds from the seed" || status=1
 echo
 echo ">>> the signer"

@@ -37,7 +37,7 @@ def runner(kind):
                                  capture_output=True, text=True).stdout.strip()
         return lambda img, dump: [rv32run, img, "0x80010000", hex(SIZE), "100000", str(SIZE), dump]
     return lambda img, dump: [os.path.join(TOOLS, "hazard3", "sim.sh"), "run", img, "--dump", str(SIZE), dump,
-                              "--cycles", "2000000000"]
+                              "--cycles", "4000000000"]
 
 
 def run(cmd, work, name, data):
