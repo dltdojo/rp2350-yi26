@@ -7,7 +7,8 @@ hashlib, and the specification against hashlib.
 
 RUN is rv32run's path, SHA_BIN the kernel (Lean writes it from proof/Sha.lean),
 SPEC a command that prints the specification's digest of a hex message
-(`lean.sh exec proof/Sha.lean digest`, as one string). For each message, one
+(`lean.sh exec proof/Sha.lean digest`, as one string), on its last line of
+output. For each message, one
 line: its length, then whether the model's and the RTL's 32 bytes at
 R + 0x140 are hashlib's SHA-256, with each one's count; and whether the
 specification says the same. The model's count must be the one the theorem
@@ -91,7 +92,8 @@ def compare():
                    and read_sig(dm)[R + 0x140:R + 0x160] == want)
             rok = (r.startswith("halt code=00000000") and f"instret={count + 3}" in r.split()
                    and read_sig(dr)[R + 0x140:R + 0x160] == want)
-            sok = run(spec + [msg.hex()]) == want.hex()
+            # the digest is the last line: Lean prints the proof file's `#print axioms` first
+            sok = (run(spec + [msg.hex()]).splitlines() or [""])[-1] == want.hex()
             bad |= not (mok and rok and sok)
             print(f"{len(msg):5}  {('ok ' if mok else 'NO ') + m:40}  {('ok ' if rok else 'NO ') + r:44}  "
                   f"{'ok' if sok else 'NO'}", flush=True)
