@@ -1465,4 +1465,80 @@ theorem hs_succ (m : Word → Byte) (a : Word) (L i : Nat) (hi : 64 * i + 64 ≤
 theorem hs_all (msg : List Byte) : hs msg (msg.length / 64) = (blocks msg).foldl compress IV := by
   unfold hs; rw [List.take_of_length_le (by rw [blocks_length]; exact Nat.le_refl _)]
 
+/-! ## Setup -/
+
+theorem readBytes_eq_of {m : Word → Byte} {a : Word} {n : Nat} {l : List Byte} (hl : l.length = n)
+    (h : ∀ d < n, m (a + BitVec.ofNat 32 d) = l.getD d 0) : readBytes m a n = l := by
+  apply List.ext_getElem (by rw [readBytes_length, hl])
+  intro d h1 h2
+  rw [readBytes_getElem _ _ _ _ (by rw [readBytes_length] at h1; exact h1), h d (by rw [readBytes_length] at h1; exact h1),
+    List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h2]
+  rfl
+
+/-- A byte written, read back at any address in the region. -/
+theorem wb_at {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (m : Word → Byte) {c c' : Nat}
+    (hc : c < 0x10000) (hc' : c' < 0x10000) (v : Byte) :
+    writeByte m (base + BitVec.ofNat 32 c) v (base + BitVec.ofNat 32 c') =
+      if c' = c then v else m (base + BitVec.ofNat 32 c') := by
+  unfold writeByte
+  by_cases h : c' = c
+  · subst h; simp
+  · have : base + BitVec.ofNat 32 c' ≠ base + BitVec.ofNat 32 c := fun e => h (by
+      have := congrArg BitVec.toNat e; rw [toNat_off hfit _ hc', toNat_off hfit _ hc] at this; omega)
+    simp [h, this]
+
+theorem padBlock_mid (L d : Nat) (h1 : 1 ≤ d) (h2 : d < 60) : (padBlock L).getD d 0 = 0 := by
+  unfold padBlock
+  rw [List.getD_eq_getElem?_getD, List.getElem?_append_left (by simp; omega), List.getElem?_append_right (by simp; omega),
+    List.getElem?_replicate]
+  simp
+  rw [ifT (show d - 1 < 59 by omega)]
+  rfl
+
+theorem at_ivCopy : ∀ j < 8,
+    kernel.getD (4 + 2 * j) .ecall = .ld .lw T0 S1 (BitVec.ofNat 12 (0x100 + 4 * j)) ∧
+    kernel.getD (4 + 2 * j + 1) .ecall = .st .sw S1 T0 (BitVec.ofNat 12 (0x200 + 4 * j)) := by
+  decide
+
+/-- **H from IV**: `lw t0, 0x100 + 4j(s1); sw t0, 0x200 + 4j(s1)` for `j < 8`. -/
+theorem ivCopy_run {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 4))
+    (h1 : s.reg S1 = base + BitVec.ofNat 32 0x1000) :
+    ∀ j ≤ 8, ∃ s', run env (2 * j) s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * (4 + 2 * j)) ∧
+      Keeps (base + BitVec.ofNat 32 0x1200) 32 s.mem s'.mem ∧
+      (∀ i < j, wordAt s'.mem (base + BitVec.ofNat 32 (0x1200 + 4 * i)) =
+        wordAt s.mem (base + BitVec.ofNat 32 (0x1100 + 4 * i))) ∧
+      (∀ r, r ≠ T0 → s'.reg r = s.reg r) := by
+  have fit := hp.fit
+  intro j hj
+  induction j with
+  | zero => exact ⟨s, rfl, by simpa using hpc, Keeps.refl _ _ _, fun i h => absurd h (Nat.not_lt_zero _), fun r _ => rfl⟩
+  | succ j ih =>
+    obtain ⟨s1, e1, p1, k1, w1, f1⟩ := ih (by omega)
+    obtain ⟨a1, a2⟩ := at_ivCopy j (by omega)
+    have c0 : CodeAt s1.mem base kernel := k1.code fit (by decide) (by decide) hcode
+    have hS1 : s1.reg S1 = base + BitVec.ofNat 32 0x1000 := by rw [f1 _ (by decide), h1]
+    obtain ⟨s2, e2, p2, m2, r2⟩ := loadStep hp (4 + 2 * j) (by rw [kernel_length]; omega) c0 p1 a1
+      (0x1100 + 4 * j) (by rw [hS1, se_small _ (by omega), off_add fit _ _ (by omega)]; congr 2; omega)
+      (by omega) (by omega)
+    obtain ⟨s3, e3, p3, m3, r3⟩ := storeStep hp (4 + 2 * j + 1) (by rw [kernel_length]; omega)
+      (by rw [m2]; exact c0) p2 a2 (0x1200 + 4 * j)
+      (by rw [reg_kept r2 (by decide), hS1, se_small _ (by omega), off_add fit _ _ (by omega)]; congr 2; omega)
+      (by omega) (by omega)
+    have vt : s2.reg T0 = wordAt s.mem (base + BitVec.ofNat 32 (0x1100 + 4 * j)) := by
+      rw [reg_wrote r2 (by decide)]
+      exact wordAt_keeps fit k1 (by decide) (by omega) (by omega)
+    have mm : s3.mem = writeLE s1.mem (base + BitVec.ofNat 32 (0x1200 + 4 * j)) (s2.reg T0).toNat 4 := by
+      rw [m3, m2]
+    refine ⟨s3, ?_, by rw [p3]; congr 2, ?_, ?_, ?_⟩
+    · rw [show 2 * (j + 1) = 2 * j + (1 + 1) by omega, run_add_running e1, run_cons e2 e3]
+    · rw [mm]; exact k1.trans (keeps_writeLE fit _ _ (by omega) (by omega) (by decide))
+    · intro i hi
+      rw [mm]
+      rcases (by omega : i = j ∨ i < j) with h | h
+      · subst h; rw [wordAt_same, vt]
+      · rw [wordAt_other fit _ _ (by omega) (by omega) (by omega), w1 i h]
+    · intro r hr
+      rw [r3, reg_kept r2 hr, f1 r hr]
+
 end Rv32.Sha
