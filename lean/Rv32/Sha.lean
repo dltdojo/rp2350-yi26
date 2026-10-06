@@ -1387,4 +1387,82 @@ theorem block_step {env : Env} {base : Word} (hp : Placed env base) {s : Machine
       k6 r hs9 hs10 hs8, k5 r (fun i hi => (hA i hi).symm), k4 r h0 h1 h2 h3 h4 hs8 hs9, k3 r hs8,
       k2 r h0 h1 hs4 hs8 hs9, k1 r hs9 hs8]
 
+/-! ## The specification, for a message of whole blocks -/
+
+/-- The block of padding the kernel builds, for a message of `L` bytes. -/
+def padBlock (L : Nat) : List Byte :=
+  [0x80] ++ List.replicate 59 0 ++
+    [BitVec.ofNat 8 (8 * L / 2 ^ 24), BitVec.ofNat 8 (8 * L / 2 ^ 16), BitVec.ofNat 8 (8 * L / 2 ^ 8),
+      BitVec.ofNat 8 (8 * L)]
+
+theorem padBlock_length (L : Nat) : (padBlock L).length = 64 := by simp [padBlock]
+
+set_option linter.unusedSimpArgs false in
+/-- A message of whole blocks is padded with one block more. -/
+theorem pad_whole (msg : List Byte) (h : msg.length % 64 = 0) (h32 : 8 * msg.length < 2 ^ 32) :
+    pad msg = msg ++ padBlock msg.length := by
+  simp only [pad, padBlock, h, Nat.sub_zero, List.append_assoc]
+  congr 1
+  simp only [List.range_succ, List.range_zero, List.nil_append, List.map_append, List.map_cons, List.map_nil,
+    List.cons_append, List.singleton_append]
+  rw [Nat.div_eq_of_lt (by omega : 8 * msg.length < 2 ^ (8 * (7 - 0))),
+    Nat.div_eq_of_lt (by omega : 8 * msg.length < 2 ^ (8 * (7 - 1))),
+    Nat.div_eq_of_lt (by omega : 8 * msg.length < 2 ^ (8 * (7 - 2))),
+    Nat.div_eq_of_lt (by omega : 8 * msg.length < 2 ^ (8 * (7 - 3)))]
+  simp only [show (55 + 64) % 64 = 55 from rfl, show 7 - 4 = 3 from rfl, show 7 - 5 = 2 from rfl,
+    show 7 - 6 = 1 from rfl, show 7 - 7 = 0 from rfl, Nat.mul_zero, Nat.pow_zero, Nat.div_one]
+  rfl
+
+theorem blocks_length (m : List Byte) : (blocks m).length = m.length / 64 := by simp [blocks]
+
+/-- The blocks of a message and one block more. -/
+theorem blocks_snoc (a b : List Byte) (ha : a.length % 64 = 0) (hb : b.length = 64) :
+    blocks (a ++ b) = blocks a ++ [b] := by
+  simp only [blocks, List.length_append, hb]
+  rw [show (a.length + 64) / 64 = a.length / 64 + 1 by omega, List.range_succ, List.map_append]
+  congr 1
+  · apply List.map_congr_left
+    intro i hi
+    rw [List.mem_range] at hi
+    rw [List.drop_append_of_le_length (by omega), List.take_append_of_le_length (by simp; omega)]
+  · simp only [List.map_cons, List.map_nil]
+    rw [show 64 * (a.length / 64) = a.length by omega, List.drop_left, List.take_of_length_le (by omega)]
+
+/-- **SHA-256 of whole blocks**: the message's blocks, then the padding block. -/
+theorem sha256_whole (msg : List Byte) (h : msg.length % 64 = 0) (h32 : 8 * msg.length < 2 ^ 32) :
+    sha256 msg = (compress ((blocks msg).foldl compress IV) (padBlock msg.length)).flatMap beBytes := by
+  rw [sha256, pad_whole msg h h32, blocks_snoc _ _ h (padBlock_length _), List.foldl_append]
+  rfl
+
+/-- H after the first `i` blocks. -/
+def hs (msg : List Byte) (i : Nat) : List W32 := ((blocks msg).take i).foldl compress IV
+
+theorem compress_length (h : List W32) (b : List Byte) (hl : h.length = 8) : (compress h b).length = 8 := by
+  simp [compress, St.toList, hl]
+
+theorem hs_length (msg : List Byte) (i : Nat) : (hs msg i).length = 8 := by
+  unfold hs
+  generalize (blocks msg).take i = l
+  suffices ∀ h : List W32, h.length = 8 → (l.foldl compress h).length = 8 from this IV rfl
+  induction l with
+  | nil => intro h hh; exact hh
+  | cons b l ih => intro h hh; exact ih _ (compress_length h b hh)
+
+/-- The block `i` of a message in memory is the 64 bytes at `64 i`. -/
+theorem blocks_mem (m : Word → Byte) (a : Word) (L i : Nat) (hi : 64 * i + 64 ≤ L) :
+    (blocks (readBytes m a L))[i]'(by rw [blocks_length, readBytes_length]; omega) =
+      readBytes m (a + BitVec.ofNat 32 (64 * i)) 64 := by
+  simp only [blocks, List.getElem_map, List.getElem_range]
+  rw [show L = 64 * i + (64 + (L - 64 * i - 64)) by omega, readBytes_append, List.drop_left' (readBytes_length _ _ _),
+    readBytes_append, List.take_left' (readBytes_length _ _ _)]
+
+theorem hs_succ (m : Word → Byte) (a : Word) (L i : Nat) (hi : 64 * i + 64 ≤ L) :
+    hs (readBytes m a L) (i + 1) = compress (hs (readBytes m a L) i) (readBytes m (a + BitVec.ofNat 32 (64 * i)) 64) := by
+  unfold hs
+  rw [List.take_add_one, List.getElem?_eq_getElem (by rw [blocks_length, readBytes_length]; omega), blocks_mem m a L i hi]
+  simp [List.foldl_append]
+
+theorem hs_all (msg : List Byte) : hs msg (msg.length / 64) = (blocks msg).foldl compress IV := by
+  unfold hs; rw [List.take_of_length_le (by rw [blocks_length]; exact Nat.le_refl _)]
+
 end Rv32.Sha
