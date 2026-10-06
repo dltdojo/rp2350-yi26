@@ -2017,4 +2017,100 @@ theorem flatMap_words (l : List W32) (hl : l.length = 8) :
   conv => lhs; rw [this]
   rw [List.flatMap_map]
 
+/-! ## The whole kernel -/
+
+/-- **SHA-256, computed.** From `base`, with the kernel there, K and IV as
+words at `R` and `R + 0x100`, and a message of `n` whole blocks at
+`base + 0x2000` with its length in bytes at `R + 0x120`, the kernel halts with
+0 after exactly `4990 + 4873 n` instructions, and the 32 bytes at `R + 0x140`
+are `sha256` of the message. Nothing outside `R + 0x140 … R + 0x440` changes. -/
+theorem computes {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+    (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel)
+    (hK : ∀ t < 64, wordAt s.mem (base + BitVec.ofNat 32 (0x1000 + 4 * t)) = K.getD t 0)
+    (hIV : ∀ j < 8, wordAt s.mem (base + BitVec.ofNat 32 (0x1100 + 4 * j)) = IV.getD j 0)
+    {n : Nat} (hlen : wordAt s.mem (base + BitVec.ofNat 32 0x1120) = BitVec.ofNat 32 (64 * n))
+    (hn : 0x2000 + 64 * n ≤ 0x10000) :
+    ∃ s', run env (4990 + 4873 * n) s = .halted 0 s' ∧
+      readBytes s'.mem (base + BitVec.ofNat 32 0x1140) 32 =
+        sha256 (readBytes s.mem (base + BitVec.ofNat 32 0x2000) (64 * n)) ∧
+      Keeps (base + BitVec.ofNat 32 0x1140) 0x300 s.mem s'.mem := by
+  have fit := hp.fit
+  obtain ⟨s0, e0, p0, h1, h4, h5, h6, k0, w0, pad0⟩ := setup_run hp s hpc hcode hlen (by omega)
+  have hc1 : CodeAt s0.mem base kernel := k0.code fit (by decide) (by decide) hcode
+  have hK1 : ∀ t < 64, wordAt s0.mem (base + BitVec.ofNat 32 (0x1000 + 4 * t)) = K.getD t 0 := fun t ht => by
+    rw [wordAt_keeps fit k0 (by decide) (by omega) (by omega), hK t ht]
+  have hmsg : readBytes s0.mem (base + BitVec.ofNat 32 0x2000) (64 * n) =
+      readBytes s.mem (base + BitVec.ofNat 32 0x2000) (64 * n) := Keeps.bytes fit k0 (by decide) hn (by omega)
+  generalize hm : readBytes s0.mem (base + BitVec.ofNat 32 0x2000) (64 * n) = msg at hmsg
+  have B0 : BInv base s0.mem (readBytes s0.mem (base + BitVec.ofNat 32 0x2000) (64 * n)) n 0 s0 :=
+    { pc := p0, s1 := h1, s4 := h4, s5 := h5
+      s6 := by rw [h6, Nat.mul_div_cancel_left n (by decide)]
+      keeps := Keeps.refl _ _ _
+      h := fun j hj => by rw [w0 j hj, hIV j hj]; rfl }
+  rw [hm] at B0
+  obtain ⟨s2, e2, B⟩ := block_loop hp hc1 hK1 hn (by rw [hm]; exact B0) n (Nat.le_refl _)
+  rw [hm] at B
+  -- the padding block
+  have c2 : CodeAt s2.mem base kernel := B.keeps.code fit (by decide) (by decide) hc1
+  obtain ⟨sa, ea, pa, ma, s4a, fa⟩ := choose_pad hp c2 B.pc B.s5 B.s6 B.s1
+  have ka : Keeps (base + BitVec.ofNat 32 0x1200) 0x200 s0.mem sa.mem := by rw [ma]; exact B.keeps
+  obtain ⟨sb, eb, pb, kb, wb, _, fb⟩ := block_step hp (by rw [ma]; exact c2) pa
+    (by rw [fa _ (by decide), B.s1]) (P := 0x1400) s4a (by decide) (by decide)
+    (fun t ht => by rw [wordAt_keeps fit ka (by decide) (by omega) (by omega), hK1 t ht])
+    (hs_length msg n) (fun j hj => by rw [ma]; exact B.h j hj)
+  have hpad : readBytes sa.mem (base + BitVec.ofNat 32 0x1400) 64 = padBlock (64 * n) := by
+    rw [Keeps.bytes fit ka (by decide) (by decide) (by decide), pad0]
+  rw [hpad] at wb
+  have ar : ∀ r : Reg, r.toNat < 10 ∨ 18 ≤ r.toNat → ∀ i < 8, BitVec.ofNat 5 (10 + i) ≠ r :=
+    fun r hr i hi => areg_ne_of r hr hi
+  have fb' : ∀ r : Reg, r ≠ T0 → r ≠ T1 → r ≠ T2 → r ≠ T3 → r ≠ T4 → r ≠ S4 → r ≠ S8 → r ≠ S9 → r ≠ S10 →
+      (r.toNat < 10 ∨ 18 ≤ r.toNat) → sb.reg r = s2.reg r := fun r a b c d e f g h i j => by
+    rw [fb r a b c d e f g h i (ar r j), fa r f]
+  have hcb : CodeAt sb.mem base kernel := (ka.trans kb).code fit (by decide) (by decide) hc1
+  obtain ⟨sc, ec, pc, mc, _, fc⟩ := next_run hp hcb pb (i := n) (n := n)
+    (by rw [fb' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide), B.s5])
+    (by rw [fb' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide), B.s6]) (by omega) (by omega)
+  have kc : Keeps (base + BitVec.ofNat 32 0x1200) 0x200 s0.mem sc.mem := by rw [mc]; exact ka.trans kb
+  have hcc : CodeAt sc.mem base kernel := kc.code fit (by decide) (by decide) hc1
+  -- the digest
+  obtain ⟨so, eo, po, ko, wo, fo⟩ := output_run hp hcc (by rw [pc, ifF (by omega)])
+    (by rw [fc _ (by decide), fb' _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide), B.s1]) 8 (Nat.le_refl _)
+  have hco : CodeAt so.mem base kernel := ko.code fit (by decide) (by decide) hcc
+  obtain ⟨u1, g1, o1, l1, v1⟩ := regStep (prog := kernel) hp 249 (by decide) hco po
+    (i := .opi .addi A0 0 0) (by decide) rfl
+  obtain ⟨u2, g2, o2, l2, v2⟩ := regStep (prog := kernel) hp 250 (by decide) (by rw [l1]; exact hco) o1
+    (i := .opi .addi T0 0 1) (by decide) rfl
+  have t0 : u2.reg T0 = 1 := by rw [reg_wrote v2 (by decide)]; simp only [aluI, reg_zero]; decide
+  have a0 : u2.reg A0 = 0 := by
+    rw [reg_kept v2 (by decide), reg_wrote v1 (by decide)]; simp only [aluI, reg_zero]; decide
+  have halt : run env 1 u2 = .halted 0 u2 := by
+    rw [← a0]
+    exact (step_of_code (k := 251) (by rw [kernel_length]; decide) (by rw [l2, l1]; exact hco)
+      (by rw [o2])
+      (by rw [o2]; exact align_off hp.align hp.fit _ (by decide) (by decide))
+      (by rw [o2]; exact ok_off hp _ 4 (by decide) (by decide)) |> fun e => by
+        rw [run, e, show kernel[251]'(by rw [kernel_length]; decide) = .ecall by decide, exec_halt t0])
+  refine ⟨u2, ?_, ?_, ?_⟩
+  · rw [show 4990 + 4873 * n = 49 + (4873 * n + (2 + (4870 + (2 + (8 * 8 + (1 + (1 + 1))))))) by omega,
+      run_add_running e0, run_add_running e2, run_add_running ea, run_add_running eb, run_add_running ec,
+      run_add_running eo, run_add_running g1, run_add_running g2]
+    exact halt
+  · have hl : msg.length = 64 * n := by rw [hmsg, readBytes_length]
+    rw [← hmsg, sha256_whole msg (by rw [hl]; omega) (by rw [hl]; omega), ← hs_all, hl,
+      Nat.mul_div_cancel_left n (by decide), flatMap_words _ (compress_length _ _ (hs_length msg n)),
+      l2, l1, show readBytes so.mem (base + BitVec.ofNat 32 0x1140) 32 =
+        readBytes so.mem (base + BitVec.ofNat 32 0x1140) (4 * 8) from rfl, readBytes_words]
+    simp only [List.flatMap_def]
+    congr 1
+    apply List.map_congr_left
+    intro i hi
+    rw [List.mem_range] at hi
+    rw [off_add fit _ _ (by omega), wo i hi, mc, wb i hi]
+  · rw [l2, l1]
+    exact (((k0.widen fit (by decide) (by decide) (by decide)).trans
+      ((kc).widen fit (by decide) (by decide) (by decide))).trans (ko.widen fit (Nat.le_refl _) (by decide) (by decide)))
+
 end Rv32.Sha
