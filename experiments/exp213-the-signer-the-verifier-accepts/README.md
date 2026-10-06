@@ -130,9 +130,9 @@ All of it rests on `propext`, `Classical.choice` and `Quot.sound`.
 | | key generator | signer |
 | --- | --- | --- |
 | the proof | `76456` | `2284 + 3 S` |
-| the model, run | the same, at `0x80010000` and at `0x20070000` | the same, on all 6 cases, at both |
+| the model, run | the same, on all 3 seeds, at `0x80010000` and at `0x20070000` | the same, on all 6 cases, at both |
 | HASH calls | `16 · 67 · 16 + 16 + 15 = 17183` | `S + 67` |
-| the Hazard3 RTL, `minstret` | `76456 + 3 + 4 · 17183` | `2284 + 3 S + 3 + 4 (S + 67)` |
+| the Hazard3 RTL, `minstret` | `76456 + 3 + 4 · 17183` = 145191, on the first seed — the count is proved not to depend on it, and a run takes six minutes there | `2284 + 3 S + 3 + 4 (S + 67)` |
 
 `S` is the signer's walks, `Σ dᵢ`; the 67 more are the secrets. The key
 generator's count is the same for every seed: nothing it does branches on a
@@ -166,7 +166,7 @@ Needs Lean (`tools/lean/setup.sh`) and the Hazard3 testbench
 
 ```text
 === exp213 — the signer the verifier accepts ===
-recorded at 2026-10-05T08:37:32Z from commit f3b3a31
+recorded at 2026-10-06T01:45:22Z from commit 21d73bb
 
 >>> the kernels, as the proof states them and as keygen.bin and sign.bin hold them
 keygen:
@@ -505,12 +505,12 @@ PASS  the bytes hashed do not move the count; a nop behind the HALT ecall, never
 >>> the key generator
 case                     python S  model at 0x80010000        RTL                                model at 0x20070000
 keygen-0                 0 0       halt code=00000000 count=76456 halt code=00000000 instret=145191 cycles=195653 halt code=00000000 count=76456
-keygen-1                 0 0       halt code=00000000 count=76456 halt code=00000000 instret=145191 cycles=195653 halt code=00000000 count=76456
-keygen-2                 0 0       halt code=00000000 count=76456 halt code=00000000 instret=145191 cycles=195653 halt code=00000000 count=76456
+keygen-1                 0 0       halt code=00000000 count=76456 model only                         halt code=00000000 count=76456
+keygen-2                 0 0       halt code=00000000 count=76456 model only                         halt code=00000000 count=76456
 
 PASS  the model gives Python's verdict after exactly 76456 + 0 S instructions, the count proved, on all 3 cases
-PASS  the RTL gives the same verdict and counts 76456 + 0 S proved + 3 for the harness + 4 (S + 17183) for HASH, on all 3
-PASS  the whole region is byte for byte the same on both, on all 3
+PASS  the RTL gives the same verdict and counts 76456 + 0 S proved + 3 for the harness + 4 (S + 17183) for HASH, on the 1 of 3 run on the RTL
+PASS  the whole region is byte for byte the same on both, on the 1 of 3 run on the RTL
 PASS  Python agrees: the tree is the one Python builds from the seed, on all 3
 PASS  at 0x20070000 the same bytes give the same verdict after the same count, on all 3
 
@@ -536,7 +536,7 @@ leaf  5  sign halt code=00000000 count=4624  verify halt code=00000000 count=397
 leaf 10  sign halt code=00000000 count=3364  verify halt code=00000000 count=5230
 leaf 15  sign halt code=00000000 count=4399  verify halt code=00000000 count=4195
 PASS  keygen, sign and exp206's verify in a row on the model: the verifier accepts leaves 0, 5, 10, 15
-keygen         halt code=00000000 instret=145191 cycles=195653  tree is Python's
+keygen         (its region from keygen-0.sig)  tree is Python's
 leaf  0  sign halt code=00000000 instret=7280 cycles=9546  verify halt code=00000000 instret=5628 cycles=6675
 leaf 15  sign halt code=00000000 instret=7490 cycles=9848  verify halt code=00000000 instret=5418 cycles=6407
 PASS  keygen, sign and exp206's verify in a row on the rtl: the verifier accepts leaves 0, 15
