@@ -1,0 +1,20 @@
+# exp207 — kernels that are not constant time, claims that are wrong, and a
+# checker that is not sound. Each must be refused by Lean. A sed with a
+# library file as its last field edits lean/Rv32/Ct.lean, the checker and its
+# soundness proof; one without edits proof/Trace.lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+kernel|the key generator reads how far to walk each chain from the seed|s/^theorem accepted : check Rv32.Mss.Keygen.kernel P heads = true := by decide$/theorem accepted : check (Rv32.Mss.Keygen.kernel.set 62 (.ld .lbu T3 S4 0)) P heads = true := by decide/
+kernel|the signer reads each chain's digit from the PRF input, which holds the seed|s/^theorem accepted : check Rv32.Mss.Sign.kernel P heads = true := by decide$/theorem accepted : check (Rv32.Mss.Sign.kernel.set 79 (.ld .lbu T3 S4 0)) P heads = true := by decide/
+kernel|the signer picks the path's node by a byte of the seed|s/^theorem accepted : check Rv32.Mss.Sign.kernel P heads = true := by decide$/theorem accepted : check (Rv32.Mss.Sign.kernel.set 109 (.ld .lbu A3 S4 0)) P heads = true := by decide/
+claim|the message is claimed secret: the signer's walks would leak it|s/^def P : List (Nat × Nat) := \[(MSG, IDX + 1), (SCR + 64, SCR + 131)\]$/def P : List (Nat × Nat) := [(IDX, IDX + 1), (SCR + 64, SCR + 131)]/
+claim|the leaf index is claimed secret: the signer's path reads would leak it|s/^def P : List (Nat × Nat) := \[(MSG, IDX + 1), (SCR + 64, SCR + 131)\]$/def P : List (Nat × Nat) := [(MSG, IDX), (SCR + 64, SCR + 131)]/
+checker|a branch on a secret register is let through|s/^    if isPub (get A r1.toNat) ∧ isPub (get A r2.toNat) ∧ 0 ≤ 4 \* (k : Int) + boff off$/    if isPub (get A r2.toNat) ∧ 0 ≤ 4 * (k : Int) + boff off/|lean/Rv32/Ct.lean
+checker|a load from a secret address is let through|s/^    if isPub (get A r1.toNat) then$/    if true then/|lean/Rv32/Ct.lean
+checker|a secret may be stored into a public place|s/(isPub (get A r2.toNat) ∨ apart P lo hi) then some/(true ∨ apart P lo hi) then some/|lean/Rv32/Ct.lean
+checker|a store may land in the program itself|s/^      if 4 \* len ≤ lo ∧ hi ≤ 0x10000 ∧/      if 0 ≤ lo ∧ hi ≤ 0x10000 ∧/|lean/Rv32/Ct.lean
+checker|a load is public even when it may read a secret byte|s/^  | none => \.sec$/  | none => .pub/|lean/Rv32/Ct.lean
+checker|a value stays affine in a counter that was written over|s/| none => \.pub) else w$/| none => .aff r k c) else w/|lean/Rv32/Ct.lean
+checker|a not-equal comparison narrows the top of a range whatever the other value is|s/       else A.set r1.toNat (.num (if e = lo then lo + 1 else lo) (if e = hi then hi - 1 else hi)))/       else A.set r1.toNat (.num (if e = lo then lo + 1 else lo) (hi - 1)))/|lean/Rv32/Ct.lean
+claim|the observer is claimed to see the value a store writes, not only where|s/^  | \.st _ r1 _ imm => \[s.reg r1 + imm.signExtend 32\]$/  | .st _ r1 r2 imm => [s.reg r1 + imm.signExtend 32, s.reg r2]/|lean/Rv32/Ct.lean
+claim|the two runs are claimed to start from any registers at all|s/(hpc2 : s2.pc = base) (hregs : ∀ r, s1.reg r = s2.reg r)$/(hpc2 : s2.pc = base) (hregs : True)/|lean/Rv32/Ct.lean
