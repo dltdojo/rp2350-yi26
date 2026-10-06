@@ -1095,4 +1095,134 @@ theorem map_range_eq (f : Nat → W32) (l : List W32) (hl : l.length = 64) (h : 
 
 theorem K_length : K.length = 64 := by rfl
 
+theorem zipWith_getD (a b : List W32) (i : Nat) (ha : i < a.length) (hb : i < b.length) :
+    (List.zipWith (· + ·) a b).getD i 0 = a.getD i 0 + b.getD i 0 := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simp; omega), List.getElem_zipWith]
+  simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem ha, List.getElem?_eq_getElem hb]
+
+/-- A word outside what a run kept to is the word that was there. -/
+theorem wordAt_keeps {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {S N c : Nat} {m m' : Word → Byte}
+    (h : Keeps (base + BitVec.ofNat 32 S) N m m') (hSN : S + N < 0x10000) (hc : c + 4 ≤ 0x10000)
+    (hout : c + 4 ≤ S ∨ S + N ≤ c) :
+    wordAt m' (base + BitVec.ofNat 32 c) = wordAt m (base + BitVec.ofNat 32 c) := by
+  unfold wordAt
+  congr 1
+  apply readLE_four_congr
+  intro d hd
+  rw [off_add hfit _ _ (by omega)]
+  exact h.off hfit hSN (by omega) (by omega)
+
+/-- a0 … a7 are registers 10 … 17. -/
+theorem areg_ne {i j : Nat} (hi : i < 8) (hj : j < 8) (h : i ≠ j) :
+    BitVec.ofNat 5 (10 + i) ≠ BitVec.ofNat 5 (10 + j) := by
+  intro e; have := congrArg BitVec.toNat e; simp at this; omega
+
+theorem areg_nz {i : Nat} (hi : i < 8) : BitVec.ofNat 5 (10 + i) ≠ 0 := by
+  intro e; have := congrArg BitVec.toNat e; simp at this; omega
+
+theorem holds_getD {s : Machine} {st : St} (h : Holds s st) :
+    ∀ i < 8, s.reg (BitVec.ofNat 5 (10 + i)) = st.toList.getD i 0 := by
+  obtain ⟨ha, hb, hc, hd, he, hf, hg, hh⟩ := h
+  intro i hi
+  rcases i with _ | _ | _ | _ | _ | _ | _ | _ | i
+  · exact ha
+  · exact hb
+  · exact hc
+  · exact hd
+  · exact he
+  · exact hf
+  · exact hg
+  · exact hh
+  · omega
+
+theorem at_loadState : ∀ j < 8,
+    kernel.getD (98 + j) .ecall = .ld .lw (BitVec.ofNat 5 (10 + j)) S1 (BitVec.ofNat 12 (0x200 + 4 * j)) := by
+  decide
+
+/-- **a … h from H**: `lw a_j, 0x200 + 4j(s1)` for `j < 8`. -/
+theorem loadState_run {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 98))
+    (h1 : s.reg S1 = base + BitVec.ofNat 32 0x1000) :
+    ∀ j ≤ 8, ∃ s', run env j s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * (98 + j)) ∧
+      s'.mem = s.mem ∧
+      (∀ i < j, s'.reg (BitVec.ofNat 5 (10 + i)) = wordAt s.mem (base + BitVec.ofNat 32 (0x1200 + 4 * i))) ∧
+      (∀ r, (∀ i < 8, r ≠ BitVec.ofNat 5 (10 + i)) → s'.reg r = s.reg r) := by
+  intro j hj
+  induction j with
+  | zero => exact ⟨s, rfl, by simpa using hpc, rfl, fun i h => absurd h (Nat.not_lt_zero _), fun r _ => rfl⟩
+  | succ j ih =>
+    obtain ⟨s1, e1, p1, m1, v1, k1⟩ := ih (by omega)
+    have hS1 : s1.reg S1 = base + BitVec.ofNat 32 0x1000 := by
+      rw [k1 _ (fun i hi e => by have := congrArg BitVec.toNat e; simp [S1] at this; omega), h1]
+    obtain ⟨s2, e2, p2, m2, r2⟩ := loadStep hp (98 + j) (by rw [kernel_length]; omega) (by rw [m1]; exact hcode)
+      p1 (at_loadState j (by omega)) (0x1200 + 4 * j)
+      (by rw [hS1, se_small _ (by omega), off_add hp.fit _ _ (by omega)]; congr 2; omega) (by omega) (by omega)
+    refine ⟨s2, by rw [run_add_running e1]; exact e2, by rw [p2]; rfl, by rw [m2, m1], ?_, ?_⟩
+    · intro i hi
+      rcases (by omega : i < j ∨ i = j) with h | h
+      · rw [reg_kept r2 (areg_ne (by omega) (by omega) (by omega)), v1 i h]
+      · subst h; rw [reg_wrote r2 (areg_nz (by omega)), m1]; rfl
+    · intro r hr; rw [reg_kept r2 (hr j (by omega)), k1 r hr]
+
+theorem at_addBack : ∀ j < 8,
+    kernel.getD (159 + 3 * j) .ecall = .ld .lw T0 S1 (BitVec.ofNat 12 (0x200 + 4 * j)) ∧
+    kernel.getD (159 + 3 * j + 1) .ecall = .op .add T0 T0 (BitVec.ofNat 5 (10 + j)) ∧
+    kernel.getD (159 + 3 * j + 2) .ecall = .st .sw S1 T0 (BitVec.ofNat 12 (0x200 + 4 * j)) := by
+  decide
+
+/-- **H += a … h**: `lw t0; add t0, t0, a_j; sw t0` for `j < 8`. -/
+theorem addBack_run {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 159))
+    (h1 : s.reg S1 = base + BitVec.ofNat 32 0x1000) (v : Nat → W32)
+    (hv : ∀ i < 8, s.reg (BitVec.ofNat 5 (10 + i)) = v i) :
+    ∀ j ≤ 8, ∃ s', run env (3 * j) s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * (159 + 3 * j)) ∧
+      Keeps (base + BitVec.ofNat 32 0x1200) 32 s.mem s'.mem ∧
+      (∀ i < 8, wordAt s'.mem (base + BitVec.ofNat 32 (0x1200 + 4 * i)) =
+        if i < j then wordAt s.mem (base + BitVec.ofNat 32 (0x1200 + 4 * i)) + v i
+        else wordAt s.mem (base + BitVec.ofNat 32 (0x1200 + 4 * i))) ∧
+      (∀ r, r ≠ T0 → s'.reg r = s.reg r) := by
+  have fit := hp.fit
+  intro j hj
+  induction j with
+  | zero => exact ⟨s, rfl, by simpa using hpc, Keeps.refl _ _ _, fun i _ => by simp, fun r _ => rfl⟩
+  | succ j ih =>
+    obtain ⟨s1, e1, p1, k1, w1, f1⟩ := ih (by omega)
+    obtain ⟨a1, a2, a3⟩ := at_addBack j (by omega)
+    have c0 : CodeAt s1.mem base kernel := k1.code fit (by decide) (by decide) hcode
+    have hS1 : s1.reg S1 = base + BitVec.ofNat 32 0x1000 := by rw [f1 _ (by decide), h1]
+    have ad : s1.reg S1 + (BitVec.ofNat 12 (0x200 + 4 * j)).signExtend 32 =
+        base + BitVec.ofNat 32 (0x1200 + 4 * j) := by
+      rw [hS1, se_small _ (by omega), off_add fit _ _ (by omega)]; congr 2; omega
+    obtain ⟨s2, e2, p2, m2, r2⟩ := loadStep hp (159 + 3 * j) (by rw [kernel_length]; omega) c0 p1 a1
+      (0x1200 + 4 * j) ad (by omega) (by omega)
+    obtain ⟨s3, e3, p3, m3, r3⟩ := regStep hp (159 + 3 * j + 1) (by rw [kernel_length]; omega)
+      (by rw [m2]; exact c0) p2 a2 rfl
+    obtain ⟨s4, e4, p4, m4, r4⟩ := storeStep hp (159 + 3 * j + 2) (by rw [kernel_length]; omega)
+      (by rw [m3, m2]; exact c0) p3 a3 (0x1200 + 4 * j)
+      (by rw [r3, ifF (by decide), reg_kept r2 (by decide)]; exact ad) (by omega) (by omega)
+    have vt : s3.reg T0 = wordAt s.mem (base + BitVec.ofNat 32 (0x1200 + 4 * j)) + v j := by
+      rw [reg_wrote r3 (by decide)]
+      simp only [aluR]
+      have n0 : BitVec.ofNat 5 (10 + j) ≠ T0 := by
+        intro e; have := congrArg BitVec.toNat e; simp [T0] at this; omega
+      rw [reg_wrote r2 (by decide), reg_kept r2 n0, f1 _ n0, hv j (by omega)]
+      have := w1 j (by omega)
+      rw [ifF (by omega)] at this
+      rw [← this]; rfl
+    have mm : s4.mem = writeLE s1.mem (base + BitVec.ofNat 32 (0x1200 + 4 * j)) (s3.reg T0).toNat 4 := by
+      rw [m4, m3, m2]
+    refine ⟨s4, ?_, by rw [p4]; congr 2, ?_, ?_, ?_⟩
+    · rw [show 3 * (j + 1) = 3 * j + (1 + (1 + 1)) by omega, run_add_running e1, run_cons e2 (run_cons e3 e4)]
+    · rw [mm]; exact k1.trans (keeps_writeLE fit _ _ (by omega) (by omega) (by decide))
+    · intro i hi
+      rw [mm]
+      rcases (by omega : i = j ∨ i ≠ j) with h | h
+      · subst h; rw [wordAt_same, vt, ifT (by omega)]
+      · rw [wordAt_other fit _ _ (by omega) (by omega) (by omega), w1 i hi]
+        by_cases hij : i < j
+        · rw [ifT hij, ifT (by omega)]
+        · rw [ifF hij, ifF (by omega)]
+    · intro r hr
+      rw [r4, r3, ifF (by simp [hr]), reg_kept r2 hr, f1 r hr]
+
 end Rv32.Sha
