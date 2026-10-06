@@ -1,0 +1,49 @@
+=== exp207 — the trace the seed cannot move ===
+recorded at 2026-10-06T03:02:18Z from commit 36d004f (working tree dirty — this recording is not reproducible from the commit alone)
+
+>>> the theorems, and what they rest on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'Rv32.Ct.rel_mono' depends on axioms: [propext, Quot.sound]
+'Rv32.Ct.regs_write' depends on axioms: [propext, Quot.sound]
+'Rv32.Ct.range_addr' depends on axioms: [propext, Quot.sound]
+'Rv32.Ct.rel_refine' depends on axioms: [propext, Quot.sound]
+'Rv32.Ct.step_lock' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Ct.obs_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Ct.run_lock' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Ct.constant_time' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Ct.constant_time_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp207.Keygen.accepted' depends on axioms: [propext, Quot.sound]
+'Exp207.Sign.accepted' depends on axioms: [propext, Quot.sound]
+'Exp207.keygen_constant_time' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp207.sign_constant_time' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> kernels that are not constant time, wrong claims, unsound checker rules: each must be refused
+kernel   the key generator reads how far to walk each chain from the seed                refused in accepted
+kernel   the signer reads each chain's digit from the PRF input, which holds the seed    refused in accepted
+kernel   the signer picks the path's node by a byte of the seed                          refused in accepted
+claim    the message is claimed secret: the signer's walks would leak it                 refused in accepted
+claim    the leaf index is claimed secret: the signer's path reads would leak it         refused in accepted
+checker  a branch on a secret register is let through                                    refused in lock_br
+checker  a load from a secret address is let through                                     refused in lock_ld
+checker  a secret may be stored into a public place                                      refused in lock_st
+checker  a store may land in the program itself                                          refused in lock_st
+checker  a load is public even when it may read a secret byte                            refused in lock_ld
+checker  a value stays affine in a counter that was written over                         refused in regs_write
+checker  a not-equal comparison narrows the top of a range whatever the other value is   refused in rel_refine
+claim    the observer is claimed to see the value a store writes, not only where         refused in obs_eq
+claim    the two runs are claimed to start from any registers at all                     refused in constant_time
+
+>>> the two runs, on the model and on the RTL
+run                    model at 0x80010000              RTL
+keygen-seed-0          halt code=00000000 count=76456   halt code=00000000 instret=145191 cycles=195653
+keygen-seed-1          halt code=00000000 count=76456   halt code=00000000 instret=145191 cycles=195653
+sign-seed-0            halt code=00000000 count=3859    halt code=00000000 instret=6230 cycles=8050
+sign-seed-1            halt code=00000000 count=3859    halt code=00000000 instret=6230 cycles=8050
+sign-seed-2            halt code=00000000 count=3859    halt code=00000000 instret=6230 cycles=8050
+sign-other-message     halt code=00000000 count=3544    halt code=00000000 instret=5495 cycles=7002
+
+PASS  the key generator under two seeds: the same count on the model, the same minstret and mcycle on the RTL
+PASS  the signer under three seeds, each with its tree: the same count, minstret and mcycle
+PASS  another message — a public input — does move them: the measurement can see a difference
