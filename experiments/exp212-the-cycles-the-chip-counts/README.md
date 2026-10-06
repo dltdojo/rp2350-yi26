@@ -262,50 +262,47 @@ cloud half:
 
 ```text
 === exp212 — the cycles the chip counts (cloud half) ===
-recorded at 2026-10-06T04:45:42Z from commit b8cce4a (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-06T05:41:50Z from commit 4e1e232 (working tree dirty — this recording is not reproducible from the commit alone)
 
 >>> every check
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
 PASS  slow: every run as the RTL counted it
 PASS  slow: the warm-up alone long: the cold shell, as revision 2 saw
-PASS  2 flashes: the warm-up long, every timed run off the RTL's
-PASS  1 flash: the warm-up's region not the model's
-PASS  1 flash: the last run's region not the model's
-PASS  1 flash: a run with the wrong minstret
-PASS  1 flash: one run missing
-PASS  2 flashes: every seed alike, but every number off the RTL's
-PASS  2 flashes: every seed alike, only the key generator off the RTL's
-PASS  2 flashes: every seed alike, only the other message off the RTL's
-PASS  3 flashes: the first key generation alone one cycle longer
-PASS  3 flashes: the first key generation alone longer, and the rest all off the RTL's
-PASS  4 flashes: the second seed's key generation one cycle longer
-PASS  4 flashes: the last seed's key generation one cycle longer
-PASS  4 flashes: the first key generation longer, and a signature too: not only the first
-PASS  5 flashes: the last seed's signature one cycle shorter
-PASS  5 flashes: the first seed's signature one cycle longer
+PASS  2 flashes: 3 more cycles for every HASH call
+PASS  2 flashes: 11 more per run and 3 per HASH call, the warm-up longer still
+PASS  2 flashes: fewer, 2 per run and 1 per HASH call
+PASS  3 flashes: 1 more cycle for every instruction
+PASS  3 flashes: 5 more per run and 2 per instruction
+PASS  4 flashes: 7 more cycles on every run, whatever it did
+PASS  5 flashes: 3 per HASH call, and one more on every key generation: on no line
+PASS  5 flashes: 3 per HASH call and 1 per instruction: on neither line alone
+PASS  6 flashes: the last seed's key generation one cycle longer
+PASS  6 flashes: the last seed's signature one cycle shorter
+PASS  6 flashes: seed 0's timed key generation alone one cycle longer
 PASS  6 flashes: the other message as long as the signer's: blind
+PASS  1 flash: the last run's region not the model's
+PASS  1 flash: the warm-up's region not the model's
+PASS  1 flash: one run missing
 PASS  1 flash: a schedule with no other message
 PASS  verdict.h is caught when it does not count the runs
 PASS  verdict.h is caught when it ignores a failed check
-PASS  verdict.h is caught when it does not ask that every kind ran
-PASS  verdict.h is caught when it does not compare the key generations
-PASS  verdict.h is caught when it blames the first key generation when the others differ too
-PASS  verdict.h is caught when it blames the first key generation when a signature differs too
-PASS  verdict.h is caught when it does not compare the signatures
-PASS  verdict.h is caught when it does not compare with the RTL
-PASS  verdict.h is caught when it lets a blind measurement through
-PASS  verdict.h is caught when it compares one run short
-PASS  verdict.h is caught when it says slow off the RTL's numbers
-PASS  verdict.h is caught when it times the warm-up too
 PASS  verdict.h is caught when it does not check the warm-up
-PASS  the shell builds for the chip and for the RTL, the chip's 8076 bytes in its 32 KiB
+PASS  verdict.h is caught when it times the warm-up as a key generation
+PASS  verdict.h is caught when it does not ask that every kind ran
+PASS  verdict.h is caught when it does not compare the seeds
+PASS  verdict.h is caught when it lets a blind measurement through
+PASS  verdict.h is caught when it says slow for any constant difference
+PASS  verdict.h is caught when it does not tell a constant difference apart first
+PASS  verdict.h is caught when it puts the HASH line through minstret
+PASS  verdict.h is caught when its line test has a sign wrong
+PASS  the shell builds for the chip and for the RTL, the chip's 8424 bytes in its 32 KiB
 PASS  gen.py: 16 seeds and a warm-up, 34 runs on the model — code 0, one count per kind, the tree mss.py's — and the RTL's minstret count + 3 + 4 S
-PASS  all 32 blocks carry family 0xe48bff57, absolute
+PASS  all 33 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
-PASS  together they are exactly the 8076-byte image
+PASS  together they are exactly the 8424-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: 9d4e60b0282a4b47…
+PASS  the UF2 is byte for byte the committed one: c60bce35e2e65db7…
 PASS  on the RTL the shell passes every check of all 6 runs, reads the RTL harness's mcycle on each, and says slow
 
 >>> the RTL harness, once per kind of run
