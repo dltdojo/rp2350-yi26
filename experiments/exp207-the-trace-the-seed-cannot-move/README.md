@@ -126,7 +126,21 @@ refused:
 two seeds, the signer under three — each seed with its own tree — signing one
 message under one leaf, and then the signer once more with another message.
 
-(pending)
+| Run | Model steps | RTL `minstret` | RTL `mcycle` |
+| --- | ---: | ---: | ---: |
+| key generator, seed 0 | 76456 | 145191 | 195653 |
+| key generator, seed 1 | 76456 | 145191 | 195653 |
+| signer, seed 0 | 3859 | 6230 | 8050 |
+| signer, seed 1 | 3859 | 6230 | 8050 |
+| signer, seed 2 | 3859 | 6230 | 8050 |
+| signer, another message | 3544 | 5495 | 7002 |
+
+Every seed retires the same instructions in the same cycles, on the model and
+on the RTL. The last row is the control: the message is public, the walks'
+lengths come from it, and a different message moves all three numbers — so
+the measurement can see a difference when there is one. The RTL's
+`minstret` is the model's count plus 3 for the harness's entry and exit and
+4 for each HASH call — 76456 + 3 + 4 · 17183, and 3859 + 3 + 4 · 592.
 
 ## What it does not prove
 
