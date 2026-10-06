@@ -1,0 +1,84 @@
+=== exp212 — the cycles the chip counts (cloud half) ===
+recorded at 2026-10-06T03:50:47Z from commit 7395d5e
+
+>>> every check
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  slow: every run as the RTL counted it
+PASS  double: every seed alike, but every number off the RTL's
+PASS  double: every seed alike, only the key generator off the RTL's
+PASS  double: every seed alike, only the other message off the RTL's
+PASS  fast: the second seed's key generation one cycle longer
+PASS  fast: the last seed's signature one cycle shorter
+PASS  fast: the first seed's key generation alone one cycle longer
+PASS  fast: the other message as long as the signer's: blind
+PASS  fast: the last run's region not the model's
+PASS  fast: a run with the wrong minstret
+PASS  fast: one run missing
+PASS  fast: a schedule with no other message
+PASS  verdict.h is caught when it does not count the runs
+PASS  verdict.h is caught when it ignores a failed check
+PASS  verdict.h is caught when it does not compare the seeds
+PASS  verdict.h is caught when it does not compare with the RTL
+PASS  verdict.h is caught when it lets a blind measurement through
+PASS  verdict.h is caught when it stops one run short
+PASS  verdict.h is caught when it does not ask that every kind ran
+PASS  verdict.h is caught when it says slow off the RTL's numbers
+PASS  the shell builds for the chip and for the RTL, the chip's 7792 bytes in its 32 KiB
+PASS  gen.py: 16 seeds, 33 runs on the model — code 0, one count per kind, the tree mss.py's — and the RTL's minstret count + 3 + 4 S
+PASS  all 31 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
+PASS  together they are exactly the 7792-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 24846d1362f8dbb6…
+PASS  on the RTL the shell passes every check of all 5 runs, reads the RTL harness's mcycle on each, and says slow
+
+>>> the RTL harness, once per kind of run
+keygen halt code=00000000 instret=145191 cycles=195653
+sign halt code=00000000 instret=5915 cycles=7600
+sign-other halt code=00000000 instret=5705 cycles=7314
+
+>>> every run the chip will make, as gen.py found it on the Lean model
+keygen     seed  0  model count 76456  region 2bf0995d341fde7a…  RTL minstret 145191  mcycle 195653
+sign       seed  0  model count  3724  region 77f82e763ab65377…  RTL minstret   5915  mcycle   7600
+sign-other seed  0  model count  3634  region 80923f9d4ca56ce6…  RTL minstret   5705  mcycle   7314
+keygen     seed  1  model count 76456  region dd0abecb658d6322…  RTL minstret 145191  mcycle 195653
+sign       seed  1  model count  3724  region 954a3e1cb331c580…  RTL minstret   5915  mcycle   7600
+keygen     seed  2  model count 76456  region 6c2abdbb833f3932…  RTL minstret 145191  mcycle 195653
+sign       seed  2  model count  3724  region 716e29cdd985a3c0…  RTL minstret   5915  mcycle   7600
+keygen     seed  3  model count 76456  region b548c65d1f386677…  RTL minstret 145191  mcycle 195653
+sign       seed  3  model count  3724  region aca4639e23769d05…  RTL minstret   5915  mcycle   7600
+keygen     seed  4  model count 76456  region 51f7b5219cfba323…  RTL minstret 145191  mcycle 195653
+sign       seed  4  model count  3724  region e62e4009b9bfb5cf…  RTL minstret   5915  mcycle   7600
+keygen     seed  5  model count 76456  region 48f8e05b35a20c6f…  RTL minstret 145191  mcycle 195653
+sign       seed  5  model count  3724  region 3fb70a4c9cd2e492…  RTL minstret   5915  mcycle   7600
+keygen     seed  6  model count 76456  region 8696def983b4d684…  RTL minstret 145191  mcycle 195653
+sign       seed  6  model count  3724  region fe0392800f149b5b…  RTL minstret   5915  mcycle   7600
+keygen     seed  7  model count 76456  region ea8249ae028f3688…  RTL minstret 145191  mcycle 195653
+sign       seed  7  model count  3724  region 339a2219be8788b8…  RTL minstret   5915  mcycle   7600
+keygen     seed  8  model count 76456  region 7e4937698262a3e6…  RTL minstret 145191  mcycle 195653
+sign       seed  8  model count  3724  region d7c7b0869e871ff4…  RTL minstret   5915  mcycle   7600
+keygen     seed  9  model count 76456  region bb9fe6e58aba993f…  RTL minstret 145191  mcycle 195653
+sign       seed  9  model count  3724  region d5a5aa581c6dd075…  RTL minstret   5915  mcycle   7600
+keygen     seed 10  model count 76456  region 1d55925215cec136…  RTL minstret 145191  mcycle 195653
+sign       seed 10  model count  3724  region df4afeeda15b2931…  RTL minstret   5915  mcycle   7600
+keygen     seed 11  model count 76456  region bca03e3c9ad0cf27…  RTL minstret 145191  mcycle 195653
+sign       seed 11  model count  3724  region 28d1a9680ccd76c2…  RTL minstret   5915  mcycle   7600
+keygen     seed 12  model count 76456  region cdcaac0e97243db9…  RTL minstret 145191  mcycle 195653
+sign       seed 12  model count  3724  region 194f24ced5e3c217…  RTL minstret   5915  mcycle   7600
+keygen     seed 13  model count 76456  region a30ca1c25ce63f3a…  RTL minstret 145191  mcycle 195653
+sign       seed 13  model count  3724  region c7864c773335946e…  RTL minstret   5915  mcycle   7600
+keygen     seed 14  model count 76456  region 8a6a76ba226ff960…  RTL minstret 145191  mcycle 195653
+sign       seed 14  model count  3724  region 23ede6692e812e3b…  RTL minstret   5915  mcycle   7600
+keygen     seed 15  model count 76456  region b6bdb3ebfd9658c7…  RTL minstret 145191  mcycle 195653
+sign       seed 15  model count  3724  region bedd1fdcad52cc41…  RTL minstret   5915  mcycle   7600
+expect.h: 16 seeds, 33 runs
+
+>>> the same shell on the Hazard3 RTL, two seeds (HASH in software)
+run                failed  mcycle  minstret
+keygen seed 0      -       195653  145191
+sign seed 0        -         7600  5915
+sign-other seed 0  -         7314  5705
+keygen seed 1      -       195653  145191
+sign seed 1        -         7600  5915
+52455054 00000002 exit=0
