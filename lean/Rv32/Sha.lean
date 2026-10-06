@@ -1062,4 +1062,37 @@ theorem expand_loop {env : Env} {base : Word} (hp : Placed env base) {s : Machin
     intro r a b c d e f g
     rw [k2 r a b c d e f g, k1 r a b c d e f g]
 
+
+/-! ## One block -/
+
+theorem readBytes_getD (m : Word → Byte) (a : Word) (n d : Nat) (hd : d < n) :
+    (readBytes m a n).getD d 0 = m (a + BitVec.ofNat 32 d) := by
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by rw [readBytes_length]; exact hd)]
+  exact readBytes_getElem m a n d hd
+
+/-- The block's words, as the specification takes them from its bytes, are
+the words the load loop puts together. -/
+theorem blockWords_bw {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (m : Word → Byte) {P : Nat}
+    (hP : P + 64 ≤ 0x10000) (i : Nat) (hi : i < 16) :
+    (blockWords (readBytes m (base + BitVec.ofNat 32 P) 64)).getD i 0 = bw base m P i := by
+  simp only [blockWords, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hi, Option.map_some,
+    Option.getD_some]
+  rw [← List.getD_eq_getElem?_getD, ← List.getD_eq_getElem?_getD, ← List.getD_eq_getElem?_getD,
+    ← List.getD_eq_getElem?_getD, readBytes_getD _ _ _ _ (by omega), readBytes_getD _ _ _ _ (by omega),
+    readBytes_getD _ _ _ _ (by omega), readBytes_getD _ _ _ _ (by omega), off_add hfit _ _ (by omega),
+    off_add hfit _ _ (by omega), off_add hfit _ _ (by omega), off_add hfit _ _ (by omega)]
+  rfl
+
+theorem blockWords_length (b : List Byte) : (blockWords b).length = 16 := by simp [blockWords]
+
+/-- A list of 64 is the map over 0 … 63 of what its words are. -/
+theorem map_range_eq (f : Nat → W32) (l : List W32) (hl : l.length = 64) (h : ∀ t < 64, f t = l.getD t 0) :
+    (List.range 64).map f = l := by
+  apply List.ext_getElem (by simp [hl])
+  intro t h1 h2
+  simp only [List.getElem_map, List.getElem_range]
+  rw [h t (by simpa using h1), List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h2]; rfl
+
+theorem K_length : K.length = 64 := by rfl
+
 end Rv32.Sha
