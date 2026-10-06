@@ -206,5 +206,101 @@ The board half is in **What the board has said** above, as reported. The
 cloud half:
 
 ```text
-(pending)
+=== exp211 — the leaf signed once (cloud half) ===
+recorded at 2026-10-06T06:44:35Z from commit 787611f (working tree dirty — this recording is not reproducible from the commit alone)
+
+>>> every check
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  MssCounter.tla parses
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/counter.h:54 is still: if (flash_word(CTR_MARK) == CTR_MAGIC) return;
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/counter.h:58 is still: flash_program_word(CTR_MARK, CTR_MAGIC);
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/counter.h:70 is still: uint32_t claimed = flash_word(ctr_claim_at(i)) != CTR_FREE;
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/counter.h:73 is still: if (gap) return CTR_CORRUPT;
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/counter.h:88 is still: flash_program_word(ctr_claim_at(c->used), 0);
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/counter.h:89 is still: != CTR_FREE ? CTR_SIGN : CTR_UNWRITTEN
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/counter.h:33 is still: #define CTR_MARK   0x00380000u
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/shell.c:58 is still: uint32_t s = ctr_begin(&c);
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/shell.c:65 is still: board_window(leaf);
+PASS  the citation experiments/exp211-the-leaf-signed-once/shell/shell.c:70 is still: put(0, SIGN_BIN, SIGN_LEN);
+PASS  unary-power-NoLeafTwice: holds
+PASS  unary-reflash-NoLeafTwice: holds
+PASS  unary-eraser-NoLeafTwice: violated
+PASS  signfirst-power-NoLeafTwice: violated
+PASS  number-power-NoLeafTwice: violated
+PASS  inimage-power-NoLeafTwice: holds
+PASS  inimage-reflash-NoLeafTwice: violated
+PASS  no cut: every leaf signed once, 52 steps
+PASS  from flash all ones: a cut at each of 60 steps, three ways a write tears — 180 runs, no leaf twice, every run exhausts
+PASS  from flash all zeros: a cut at each of 60 steps, three ways a write tears — 180 runs, no leaf twice, every run exhausts
+PASS  from flash random: a cut at each of 60 steps, three ways a write tears — 180 runs, no leaf twice, every run exhausts
+PASS  two cuts at every pair of steps, three ways a write tears — 8112 runs, no leaf twice, every run exhausts
+PASS  a flash that silently takes no program: four boots, 0 signatures — a claim the flash does not show is never signed under
+PASS  a flash that silently takes only part of each program: 200 runs, no leaf twice
+PASS  a flash holding a claim after a free slot: four boots, 0 signatures — what this code never writes, it never signs under
+PASS  the host test catches a counter where a part-written claim reads as free
+PASS  the host test catches a counter where the claim is not read back
+PASS  the host test catches a counter where the marker is written before the claims are erased
+PASS  the host test catches a counter where formatting does not erase the claims
+PASS  the host test catches a counter where the claims need not be a prefix
+PASS  the host test catches a counter where the leaf claimed is not the next one
+PASS  the shell builds for the chip and for the RTL, the chip's 7984 bytes in its 32 KiB
+PASS  gen.py: on the Lean model keygen writes mss.py's tree, and all 16 leaves sign and are accepted by exp206's verifier
+PASS  all 32 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
+PASS  together they are exactly the 7984-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 65ddb23249c387cf…
+PASS  on the RTL, 18 boots over one flash: cut in the first erase, in a window and mid-claim, 14 leaves signed once and each accepted, 2 wasted, the 17th claim refused
+
+>>> the model, design by attacker
+MssCounter unary-power-NoLeafTwice                  holds       236 states  
+MssCounter unary-reflash-NoLeafTwice                holds       236 states  
+MssCounter unary-eraser-NoLeafTwice                 violated    204 states  Next -> Cut -> Next -> Next -> Next -> EraseAll -> Next -> Cut -> Next -> Next -> Next
+MssCounter signfirst-power-NoLeafTwice              violated     17 states  Next -> Cut -> Next -> Next -> Cut -> Next -> Next
+MssCounter number-power-NoLeafTwice                 violated     76 states  Next -> Next -> Next -> Cut -> Next -> TornClaim -> Next -> Next -> Next
+MssCounter inimage-power-NoLeafTwice                holds       236 states  
+MssCounter inimage-reflash-NoLeafTwice              violated    204 states  Next -> Cut -> Next -> Next -> Next -> Reflash -> Next -> Cut -> Next -> Next -> Next
+
+>>> every leaf on the Lean model, as gen.py found it
+keygen     halt code=00000000 count=76456  tree is mss.py's
+leaf  0    sign halt code=00000000 count=3859     verify halt code=00000000 count=4735
+leaf  1    sign halt code=00000000 count=3499     verify halt code=00000000 count=5095
+leaf  2    sign halt code=00000000 count=4039     verify halt code=00000000 count=4555
+leaf  3    sign halt code=00000000 count=3634     verify halt code=00000000 count=4960
+leaf  4    sign halt code=00000000 count=3634     verify halt code=00000000 count=4960
+leaf  5    sign halt code=00000000 count=3724     verify halt code=00000000 count=4870
+leaf  6    sign halt code=00000000 count=3589     verify halt code=00000000 count=5005
+leaf  7    sign halt code=00000000 count=3859     verify halt code=00000000 count=4735
+leaf  8    sign halt code=00000000 count=3589     verify halt code=00000000 count=5005
+leaf  9    sign halt code=00000000 count=3814     verify halt code=00000000 count=4780
+leaf 10    sign halt code=00000000 count=3769     verify halt code=00000000 count=4825
+leaf 11    sign halt code=00000000 count=3814     verify halt code=00000000 count=4780
+leaf 12    sign halt code=00000000 count=3724     verify halt code=00000000 count=4870
+leaf 13    sign halt code=00000000 count=3814     verify halt code=00000000 count=4780
+leaf 14    sign halt code=00000000 count=3724     verify halt code=00000000 count=4870
+leaf 15    sign halt code=00000000 count=3544     verify halt code=00000000 count=5050
+expect.h: 16 leaves, each signed and accepted on the model
+
+>>> the shell on the Hazard3 RTL, booted 18 times over one flash
+boot  what happened                leaf  used  done  wasted
+0     power cut in a flash write  
+1     signed                       0     0     0     0
+2     power cut in the window     
+3     power cut in a flash write  
+4     signed                       3     3     1     2
+5     signed                       4     4     2     2
+6     signed                       5     5     3     2
+7     signed                       6     6     4     2
+8     signed                       7     7     5     2
+9     signed                       8     8     6     2
+10    signed                       9     9     7     2
+11    signed                       10    10    8     2
+12    signed                       11    11    9     2
+13    signed                       12    12    10    2
+14    signed                       13    13    11    2
+15    signed                       14    14    12    2
+16    signed                       15    15    13    2
+17    exhausted                    -     16    14    2
+52455054 00000001 exit=0
 ```
