@@ -5,7 +5,7 @@
 // LED.
 //
 //   RUN_ i failed mcycle minstret    each run, as it ends
-//   REPT verdict                     2 slow, 1 double, 0 fast
+//   REPT verdict                     0 slow, else verdict.h's count
 //   FAUL step mcause                 the shell itself trapped
 
 #include "board.h"
@@ -32,7 +32,7 @@ void board_run(uint32_t i, const struct result *r, uint32_t instret) {
 void board_report(uint32_t v) {
     IO_PRINT_U32 = 0x52455054u;   // "REPT"
     IO_PRINT_U32 = v;
-    IO_EXIT = v != SLOW;
+    IO_EXIT = v != V_SLOW;
     for (;;) {}
 }
 

@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # exp212 quick check — everything that can be checked without the board. The
-# board half is a person saying "slow", "double" or "fast"; see the README.
+# board half is a person saying "slow", or how many flashes; see the README.
 #
-#   1. verdict.h, the LED's decision, gives each of its three answers on the
-#      results that must give it — and eight wrong versions of it are caught;
+#   1. verdict.h, the LED's decision, gives each of its seven answers on the
+#      results that must give it — and eleven wrong versions of it are caught;
 #   2. gen.py ran every seed on the Lean model and three runs on the RTL, and
 #      they agreed: code 0, one count per kind, keygen's tree mss.py's, and
 #      minstret = count + 3 + 4 S;
@@ -63,16 +63,21 @@ verdict_mutant() { # what sed
     fi
     rm -rf -- "$work"
 }
-verdict_mutant "it does not count the runs" 's/    if (ran != n) return FAST;//'
-verdict_mutant "it ignores a failed check" 's/        if (res\[i\].failed) return FAST;//'
-verdict_mutant "it does not compare the seeds" \
-    's/else if (res\[i\].cycles != res\[first\[k\]\].cycles) return FAST;/else if (0) return FAST;/'
-verdict_mutant "it does not compare with the RTL" 's/if (res\[i\].cycles != runs\[i\].cycles) rtl = 0;//'
-verdict_mutant "it lets a blind measurement through" \
-    's/    if (res\[first\[SIGN_OTHER\]\].cycles == res\[first\[SIGN\]\].cycles) return FAST;//'
-verdict_mutant "it stops one run short" 's/for (uint32_t i = 0; i < n; i++) {/for (uint32_t i = 0; i + 1 < n; i++) {/'
-verdict_mutant "it does not ask that every kind ran" 's/        if (first\[k\] == NONE) return FAST;//'
-verdict_mutant "it says slow off the RTL's numbers" 's/return rtl ? SLOW : DOUBLE;/return SLOW;/'
+verdict_mutant "it does not count the runs" 's/    if (ran != n) return V_CHECK;//'
+verdict_mutant "it ignores a failed check" 's/        if (res\[i\].failed) return V_CHECK;//'
+verdict_mutant "it does not ask that every kind ran" 's/        if (first\[k\] == NONE) return V_CHECK;//'
+verdict_mutant "it does not compare the key generations" 's/if (c != res\[first\[KEYGEN\]\].cycles) keygen_all = 0;//'
+verdict_mutant "it blames the first key generation when the others differ too" \
+    's/!keygen_all \&\& keygen_rest \&\& sign_all/!keygen_all \&\& sign_all/'
+verdict_mutant "it blames the first key generation when a signature differs too" \
+    's/keygen_rest \&\& sign_all \&\& moved/keygen_rest \&\& moved/'
+verdict_mutant "it does not compare the signatures" \
+    's/} else if (k == SIGN \&\& c != res\[first\[SIGN\]\].cycles) {/} else if (0) {/'
+verdict_mutant "it does not compare with the RTL" 's/        if (c != runs\[i\].cycles) rtl = 0;//'
+verdict_mutant "it lets a blind measurement through" 's/    if (!moved) return V_BLIND;//'
+verdict_mutant "it compares one run short" \
+    '0,/for (uint32_t i = 0; i < n; i++)/!s/for (uint32_t i = 0; i < n; i++)/for (uint32_t i = 0; i + 1 < n; i++)/'
+verdict_mutant "it says slow off the RTL's numbers" 's/return rtl ? V_SLOW : V_NOT_RTL;/return V_SLOW;/'
 
 source ../../tools/hazard3/shell/shell.sh
 if [[ "$(../../tools/lean/lean.sh version 2>&1)" != Lean* ]] || ! "$SHELL_SIM" ready; then
@@ -114,7 +119,7 @@ while read -r _ _ _ _ _ _ _ _ _ _ instret _ cycles; do
     want+="$(printf '52554e5f %08x 00000000 %08x %08x ' "$i" "$cycles" "$instret")"
     i=$((i + 1))
 done < <(grep ' seed ' build/sim/gen.txt)
-want+="52455054 00000002 exit=0 "
+want+="52455054 00000000 exit=0 "
 if [[ "$got" == "$want" ]]; then
     pass "on the RTL the shell passes every check of all $i runs, reads the RTL harness's mcycle on each, and says slow"
 else

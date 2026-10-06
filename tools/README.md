@@ -597,6 +597,6 @@ board, which is what says the move changed nothing.
 
 exp212 is the third, and brought two things with it: `sha_hw.h` and
 `sha_chip.h`, exp210's driver for the RP2350's SHA-256 block and the
-registers under it, now shared; and a third LED answer in `led.h`, a double
-flash, which is a shape rather than a speed so that it cannot be mistaken for
-either. exp209's and exp210's UF2s still build byte for byte.
+registers under it, now shared; and more LED answers in `led.h`, a count of
+slow flashes and a pause, which is a shape rather than a speed so that it
+cannot be mistaken for either. exp209's and exp210's UF2s still build byte for byte.

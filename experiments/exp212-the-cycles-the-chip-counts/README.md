@@ -29,21 +29,28 @@ as exp210.
    appears.
 4. Copy `exp212.uf2` onto it. The drive disappears and the board restarts.
 5. The LED comes on and stays on while the runs go. **Wait until it starts
-   to blink** — give it three minutes — then say which of these it is.
+   to blink** — give it three minutes — then say which of these it is. This
+   is revision 2; *What the board has said* below is why.
 
 ### What the LED says
 
 | You see | It means |
 | --- | --- |
-| **slow blinking**, about 2 s on, 2 s off | **every seed took the same cycles, and they are the RTL's** |
-| **double flash**: two quick flashes, then about 2 s dark | every seed took the same cycles, **but not the RTL's number** |
-| **fast blinking**, several times a second | something failed, or two seeds took different times |
+| **slow blinking**, about 2 s on, 2 s off, without pause | **every seed took the same cycles, and they are the RTL's** |
+| **1 flash**, then about 2 s dark, repeated | a check failed: the kernel, its halt, its region, its `minstret` or the SHA-256 block |
+| **2 flashes**, then dark | every seed took the same cycles, **but not the RTL's number** |
+| **3 flashes**, then dark | **only the first key generation** took a different time; every other one, and every signature, agreed |
+| **4 flashes**, then dark | the key generations differ, beyond the first |
+| **5 flashes**, then dark | the signatures differ |
+| **6 flashes**, then dark | the other message took the signer's time: the measurement cannot see a difference |
 | on, steady, after three minutes | the shell hung, or trapped itself |
 | dark | the shell never ran |
 
-**Say "slow", "double" or "fast".** Slow and double both mean the seed did
-not move the time; double adds that silicon counts cycles differently from
-the RTL, which is a finding, not a failure.
+Each flash is about 0.36 s on and 0.36 s off, and the dark between groups
+about 2 s. **Say "slow", or how many flashes.** Slow and 2 both mean the
+seed did not move the time; 2 adds that silicon counts cycles differently
+from the RTL, which is a finding, not a failure. 3 says the same about the
+seed, and names the shell's own first run as the thing that moved.
 
 ## What the shell does
 
@@ -72,13 +79,17 @@ cycles cannot come from a run that did something else:
 5. the SHA-256 block never flagged a write while busy.
 
 and its `mcycle` is kept. [`shell/verdict.h`](./shell/verdict.h) then
-decides, from all 33 runs:
+decides, from all 33 runs, the first of these that applies:
 
 | | |
 | --- | --- |
 | **slow** | every check passed; the 16 key generations took one number of cycles, the 16 signatures one number; the other message did not take the signatures' number; and all three are the RTL's |
-| **double** | all of that, except that at least one of the three is not the RTL's |
-| **fast** | anything else |
+| **1** | a check failed, or a run is missing |
+| **2** | every seed alike and the other message moved, but at least one of the three numbers is not the RTL's |
+| **3** | the first key generation alone is out of line: the other fifteen agree with each other, every signature agrees, the other message moved |
+| **4** | the key generations differ otherwise |
+| **5** | the signatures differ |
+| **6** | the other message took the signatures' number |
 
 ## What is counted
 
@@ -95,12 +106,17 @@ ones the theorem's observer cannot see: an instruction whose time depends on
 its operands, and a memory whose time depends on the data. Neither kernel
 multiplies or divides, and Hazard3 has no cache in front of SRAM.
 
-**Why double is a possible answer.** On the chip the shell runs from flash,
+**Why 2 is a possible answer.** On the chip the shell runs from flash,
 through the XIP cache, and the harness's trap entry and its `csrwi
 mcountinhibit, 0; mret` are among the instructions inside the counted window.
 On the RTL they come from RAM. A per-trap difference there would make every
-seed's number equal and every one different from the RTL's — the double
-flash. The LED cannot say by how much; a USB report could, and was decided
+seed's number equal and every one different from the RTL's — two flashes.
+
+**Why 3 is.** The same window, the first time. Before the first key
+generation's first HASH call, the harness's `trap` has never run, so its
+first instruction is a miss in the XIP cache, inside the count; after it the
+whole shell, under 8 KiB, sits in the 16 KiB cache. If that is what moved,
+only run 0 is long — the seed had nothing to do with it. The LED cannot say by how much; a USB report could, and was decided
 against (exp210's reasoning: the person is needed to read the LED anyway, and
 a USB stack would multiply the shell's trust base).
 
@@ -108,9 +124,10 @@ a USB stack would multiply the shell's trust base).
 
 `check.sh`:
 
-- **`verdict.h` on the host**, fed made-up results: each of the three
-  answers from the results that must give it, twelve cases; and eight wrong
-  versions of it, each caught;
+- **`verdict.h` on the host**, fed made-up results: each of its seven
+  answers from the results that must give it, sixteen cases; and eleven
+  wrong versions of it, each caught — among them one that blames the first
+  key generation when the others differ too;
 - `gen.py`: 33 runs on the Lean model, each halting with code 0 at one count
   per kind; the key generator's tree is `mss.py`'s `tree_of` (so the signer's
   image the chip builds from it is `sign_image`); and the RTL's three runs at
@@ -126,7 +143,8 @@ a USB stack would multiply the shell's trust base).
 The SHA-256 block's driver is exp210's, moved to
 [`tools/hazard3/shell/sha_hw.h`](../../tools/hazard3/shell/sha_hw.h) for
 its second user; exp210's check still holds it against the fake, and
-exp210's board ran it. exp209's and exp210's UF2s still build byte for byte.
+exp210's board ran it. `led.h` gained the counted flashes. exp209's and
+exp210's UF2s still build byte for byte.
 
 ## What only the board can say, and what it cannot
 
@@ -142,7 +160,17 @@ exp210's board ran it. exp209's and exp210's UF2s still build byte for byte.
 
 ## What the board has said
 
-(pending — no board has run this yet)
+| Run | UF2 (SHA-256) | Reported, as said | Read as |
+| --- | --- | --- | --- |
+| 1 | revision 1, `24846d1362f8dbb6f28c673a6c5e68617abdbe19bf36a79abcdc8381755c02b3` | **「快閃」** — fast blinking | **something did not hold, and revision 1 could not say what**: its fast blinking was a check failing, any two seeds of a kind differing, and the other message taking the signer's time, all at once |
+
+Revision 1 answered slow, a double flash, or fast, and fast was five
+different things. Revision 2 runs the same 33 runs with the same checks and
+says which of the five came first, as a count — 3 being the one that
+separates the leading suspect, the shell's own cold XIP cache on run 0,
+from the seed. Nothing else changed: `verdict.h` and the LED's last word.
+
+Not yet run on a board: revision 2.
 
 ## Running it
 

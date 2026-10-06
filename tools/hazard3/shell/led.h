@@ -13,13 +13,14 @@
 //   on, steady      the shell hung, or trapped itself
 //   dark            the shell never ran, or failed before the LED came up
 //
-// and a shell that needs a third answer has one more shape, which is not a
-// speed and so cannot be mistaken for either (exp212's):
+// and a shell that needs more answers than that has one more shape, which is
+// not a speed and so cannot be mistaken for either (exp212's):
 //
-//   double flash    two quick flashes, then about two seconds dark
+//   N flashes       N slow flashes, then about two seconds dark, repeated —
+//                   N small enough to count at a glance
 //
 // The clock is whatever the bootrom left running; the shell never touches it.
-// Slow and fast are 24 to 1 apart, so they cannot be confused whatever it is.
+// Slow and fast are 12 to 1 apart, so they cannot be confused whatever it is.
 // One bit, because a person reading an LED reliably reads one bit: exp209's
 // revision 2 blinked four numbers and could not be read.
 #pragma once
@@ -78,23 +79,25 @@ static inline __attribute__((always_inline)) void led_init(void) {
         blink((ok) ? 12 : 1); \
     } while (0)
 
-// Two quick flashes, a long dark, forever: the third answer. Inline, so that a
-// shell which never says it costs nothing and warns nothing.
-__attribute__((noreturn)) static inline void blink_double(void) {
+// N flashes, a long dark, forever: an answer a person counts. Each flash is
+// twice as long as fast blinking's, so that six of them can still be counted.
+// Inline, so that a shell which never says it costs nothing and warns
+// nothing.
+__attribute__((noreturn)) static inline void blink_count(uint32_t n) {
     for (;;) {
-        for (uint32_t i = 0; i < 2; i++) {
+        for (uint32_t i = 0; i < n; i++) {
             REG(SIO_OUT_SET) = LED;
-            wait(1);
+            wait(2);
             REG(SIO_OUT_CLR) = LED;
-            wait(1);
+            wait(2);
         }
         wait(10);
     }
 }
 
-#define led_double() do { \
+#define led_count(n) do { \
         __asm__ volatile ("csrwi mcountinhibit, 4"); \
-        blink_double(); \
+        blink_count(n); \
     } while (0)
 
 // Steady on: a trap in the shell itself. It cannot say which step — the RTL

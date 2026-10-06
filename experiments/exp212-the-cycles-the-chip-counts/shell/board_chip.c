@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // exp212 — the Pico 2: HASH on the SHA-256 block (tools/hazard3/shell/
-// sha_chip.h), and the verdict on the LED: slow, double flash, or fast
-// (led.h). Nothing per run leaves the chip; the RTL build prints that.
+// sha_chip.h), and the verdict on the LED: slow blinking, or a count of
+// flashes naming what went wrong (led.h, verdict.h). Nothing per run leaves the chip; the RTL build prints that.
 
 #include "board.h"
 #include "led.h"
@@ -22,8 +22,8 @@ void board_run(uint32_t i, const struct result *r, uint32_t instret) {
 }
 
 void board_report(uint32_t v) {
-    if (v == DOUBLE) led_double();
-    led_verdict(v == SLOW);
+    if (v == V_SLOW) led_verdict(1);
+    led_count(v);
 }
 
 void board_fault(uint32_t step, uint32_t cause) {
