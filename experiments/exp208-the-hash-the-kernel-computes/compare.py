@@ -10,7 +10,10 @@ SPEC a command that prints the specification's digest of a hex message
 (`lean.sh exec proof/Sha.lean digest`, as one string). For each message, one
 line: its length, then whether the model's and the RTL's 32 bytes at
 R + 0x140 are hashlib's SHA-256, with each one's count; and whether the
-specification says the same. Exit 0 when every one of them does.
+specification says the same. The model's count must be the one the theorem
+`computes` states, A + B n for n blocks — A and B read from
+lean/Rv32/Sha.lean, not written here — and the RTL's minstret that plus the
+harness's 3. Exit 0 when every one of them holds.
 
 The image: the kernel at 0, K and IV at 0x1000 and 0x1100, the length at
 0x1120, the message at 0x2000 — proof/Sha.lean's layout.
@@ -18,6 +21,7 @@ The image: the kernel at 0, K and IV at 0x1000 and 0x1100, the length at
 import hashlib
 import os
 import random
+import re
 import struct
 import subprocess
 import sys
@@ -42,7 +46,7 @@ K = [
 IV = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]
 
 
-def image(kernel, msg):
+def sha_image(kernel, msg):
     img = bytearray(0x2000 + len(msg))
     img[:len(kernel)] = kernel
     img[R:R + 256] = struct.pack("<64I", *K)
@@ -59,6 +63,12 @@ def messages():
     return out
 
 
+def theorem_count():
+    lib = open(os.path.join(HERE, "..", "..", "lean", "Rv32", "Sha.lean")).read()
+    a, b = re.search(r"run env \((\d+) \+ (\d+) \* n\) s = \.halted 0 s'", lib).groups()
+    return int(a), int(b)
+
+
 def run(cmd):
     return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
 
@@ -66,23 +76,28 @@ def run(cmd):
 def compare():
     rv32run, kernel = sys.argv[1], open(sys.argv[2], "rb").read()
     spec = sys.argv[3].split()
+    a, b = theorem_count()
     bad = 0
     print(f"{'bytes':>5}  {'model':40}  {'RTL':44}  spec")
     with tempfile.TemporaryDirectory() as work:
         for msg in messages():
             want = hashlib.sha256(msg).digest()
             path, dm, dr = (os.path.join(work, f) for f in ("img.bin", "model.sig", "rtl.sig"))
-            open(path, "wb").write(image(kernel, msg))
+            open(path, "wb").write(sha_image(kernel, msg))
             m = run([rv32run, path, "0x80010000", hex(SIZE), "10000000", str(SIZE), dm])
             r = run([os.path.join(TOOLS, "sim.sh"), "run", path, "--dump", str(SIZE), dr, "--cycles", "200000000"])
-            mok = m.startswith("halt code=00000000") and read_sig(dm)[R + 0x140:R + 0x160] == want
-            rok = r.startswith("halt code=00000000") and read_sig(dr)[R + 0x140:R + 0x160] == want
+            count = a + b * (len(msg) // 64)
+            mok = (m.startswith("halt code=00000000") and f"count={count}" in m.split()
+                   and read_sig(dm)[R + 0x140:R + 0x160] == want)
+            rok = (r.startswith("halt code=00000000") and f"instret={count + 3}" in r.split()
+                   and read_sig(dr)[R + 0x140:R + 0x160] == want)
             sok = run(spec + [msg.hex()]) == want.hex()
             bad |= not (mok and rok and sok)
             print(f"{len(msg):5}  {('ok ' if mok else 'NO ') + m:40}  {('ok ' if rok else 'NO ') + r:44}  "
                   f"{'ok' if sok else 'NO'}", flush=True)
     print(("FAIL  " if bad else "PASS  ") + f"the kernel on the model and the RTL, and the specification, give "
-          f"hashlib's SHA-256 of all {len(messages())} messages")
+          f"hashlib's SHA-256 of all {len(messages())} messages; the model in exactly {a} + {b} n instructions, "
+          f"as computes states, and the RTL retiring 3 more")
     return bad
 
 

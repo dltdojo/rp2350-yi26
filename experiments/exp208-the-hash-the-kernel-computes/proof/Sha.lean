@@ -4,9 +4,9 @@ SPDX-License-Identifier: Apache-2.0
 # exp208 — the hash the kernel computes
 
 The specification, the kernel and what is proved of them are in
-`lean/Rv32/Sha.lean`. This file writes the kernel's bytes, `sha.bin`, and
-runs the specification on any message, for compare.py to hold against
-hashlib.
+`lean/Rv32/Sha.lean`; the theorem is `computes`. This file lists what each
+step of the proof rests on, writes the kernel's bytes, `sha.bin`, and runs
+the specification on any message, for compare.py to hold against hashlib.
 -/
 import Rv32.Sha
 import Rv32.Asm
@@ -23,6 +23,17 @@ def unhex (s : String) : List Byte :=
   (List.range (cs.length / 2)).map fun i => BitVec.ofNat 8 (16 * v (cs.getD (2 * i) '0') + v (cs.getD (2 * i + 1) '0'))
 
 end Rv32.Sha
+
+#print axioms Rv32.Sha.round_step
+#print axioms Rv32.Sha.rounds_loop
+#print axioms Rv32.Sha.load_loop
+#print axioms Rv32.Sha.expand_loop
+#print axioms Rv32.Sha.block_step
+#print axioms Rv32.Sha.setup_run
+#print axioms Rv32.Sha.block_loop
+#print axioms Rv32.Sha.output_run
+#print axioms Rv32.Sha.sha256_whole
+#print axioms Rv32.Sha.computes
 
 /-- `kernel OUT` writes `sha.bin` and prints the listing; `digest HEX` prints
 the specification's SHA-256 of the message given in hex. -/
