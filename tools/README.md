@@ -600,3 +600,7 @@ exp212 is the third, and brought two things with it: `sha_hw.h` and
 registers under it, now shared; and more LED answers in `led.h`, a count of
 slow flashes and a pause, which is a shape rather than a speed so that it
 cannot be mistaken for either. exp209's and exp210's UF2s still build byte for byte.
+
+exp211 is the fourth, and took `region.h` — writing an image into the region
+and comparing bytes, which exp212 wrote — for its second user; exp212's UF2
+still builds byte for byte.

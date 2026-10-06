@@ -24,14 +24,12 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.join(HERE, "..", "..", "tools")
 sys.path.insert(0, os.path.join(TOOLS, "hazard3"))
+sys.path.insert(0, os.path.join(TOOLS, "hazard3", "shell"))
+from expect import kernel_bin  # noqa: E402
 from mss import keygen_image, sign_image, tree_of  # noqa: E402
 
 KERNELS = os.path.join(HERE, "..", "exp213-the-signer-the-verifier-accepts")
 SIZE = 0x10000
-
-
-def kernel(name):
-    return open(os.path.join(KERNELS, name + ".bin"), "rb").read()
 
 
 def runs(images, work):
@@ -66,11 +64,11 @@ def timing():
     ok = True
     print(f"{'run':22} {'model at 0x80010000':32} RTL")
     with tempfile.TemporaryDirectory() as work:
-        k = runs([(f"keygen-seed-{i}", keygen_image(kernel("keygen"), seeds[i])) for i in range(2)], work)
+        k = runs([(f"keygen-seed-{i}", keygen_image(kernel_bin(os.path.join(KERNELS, "keygen"))[0], seeds[i])) for i in range(2)], work)
         trees = [tree_of(s) for s in seeds]
-        s = runs([(f"sign-seed-{i}", sign_image(kernel("sign"), seeds[i], trees[i], leaf, m)) for i in range(3)],
+        s = runs([(f"sign-seed-{i}", sign_image(kernel_bin(os.path.join(KERNELS, "sign"))[0], seeds[i], trees[i], leaf, m)) for i in range(3)],
                  work)
-        c = runs([("sign-other-message", sign_image(kernel("sign"), seeds[0], trees[0], leaf, other))], work)
+        c = runs([("sign-other-message", sign_image(kernel_bin(os.path.join(KERNELS, "sign"))[0], seeds[0], trees[0], leaf, other))], work)
     print()
     ok &= same("the key generator under two seeds: the same count on the model, the same minstret and mcycle "
                "on the RTL", k)

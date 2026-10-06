@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# What TLC says about each configuration: the claim of exp211, as data.
+# Design, attacker, property.
+#
+# --- exp211: one word per leaf, claim first, never erased -------------------
+MssCounter unary-power-NoLeafTwice        holds
+MssCounter unary-reflash-NoLeafTwice      holds
+MssCounter unary-eraser-NoLeafTwice       violated
+#
+# --- what each other choice would have cost ----------------------------------
+MssCounter signfirst-power-NoLeafTwice    violated
+MssCounter number-power-NoLeafTwice       violated
+MssCounter inimage-power-NoLeafTwice      holds
+MssCounter inimage-reflash-NoLeafTwice    violated

@@ -30,6 +30,7 @@
 
 #include "board.h"
 #include "hashcall.h"
+#include "region.h"
 #include "sha256.h"
 
 #define csrr(name) ({ uint32_t v; __asm__ volatile ("csrr %0, " #name : "=r"(v)); v; })
@@ -41,23 +42,6 @@ static volatile uint32_t step;
 static uint32_t current, kernel_ok, hash_ok, ran;
 static struct result results[NRUNS];
 static uint8_t tree[TREE_LEN];   // the last key generator's, for the signer after it
-
-static int same(const uint8_t *a, const uint8_t *b, uint32_t n) {
-    for (uint32_t i = 0; i < n; i++)
-        if (a[i] != b[i]) return 0;
-    return 1;
-}
-
-static void put(uint32_t at, const uint8_t *b, uint32_t n) {
-    volatile uint8_t *r = (volatile uint8_t *)REGION;
-    for (uint32_t i = 0; i < n; i++) r[at + i] = b[i];
-}
-
-static void fill(const struct fill *f, uint32_t n) {
-    volatile uint8_t *r = (volatile uint8_t *)REGION;
-    for (uint32_t k = 0; k < n; k++)
-        for (uint32_t i = 0; i < f[k].len; i++) r[f[k].at + i] = 0xee;
-}
 
 // Build run `current`'s image in the region and enter it; after the last,
 // report.

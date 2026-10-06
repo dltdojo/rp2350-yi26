@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Every line of code the model translates: <path>:<line>|<a piece of that line>.
+# tools/tlc/tlc.sh cited re-reads each one.
+#
+# Format: only when the marker is not whole, and the marker written last.
+experiments/exp211-the-leaf-signed-once/shell/counter.h:54|if (flash_word(CTR_MARK) == CTR_MAGIC) return;
+experiments/exp211-the-leaf-signed-once/shell/counter.h:58|flash_program_word(CTR_MARK, CTR_MAGIC);
+# Read: a word with any bit cleared is used, and the used ones are a prefix.
+experiments/exp211-the-leaf-signed-once/shell/counter.h:70|uint32_t claimed = flash_word(ctr_claim_at(i)) != CTR_FREE;
+experiments/exp211-the-leaf-signed-once/shell/counter.h:73|if (gap) return CTR_CORRUPT;
+# Claim: the next leaf's word, then read back.
+experiments/exp211-the-leaf-signed-once/shell/counter.h:88|flash_program_word(ctr_claim_at(c->used), 0);
+experiments/exp211-the-leaf-signed-once/shell/counter.h:89|!= CTR_FREE ? CTR_SIGN : CTR_UNWRITTEN
+# Design "unary", not "in_image": 3.5 MiB into flash, past any image here.
+experiments/exp211-the-leaf-signed-once/shell/counter.h:33|#define CTR_MARK   0x00380000u
+# Design "unary", not "sign_first": claim, then the window, then the signer.
+experiments/exp211-the-leaf-signed-once/shell/shell.c:58|uint32_t s = ctr_begin(&c);
+experiments/exp211-the-leaf-signed-once/shell/shell.c:65|board_window(leaf);
+experiments/exp211-the-leaf-signed-once/shell/shell.c:70|put(0, SIGN_BIN, SIGN_LEN);
