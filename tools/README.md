@@ -520,7 +520,10 @@ From exp201 on, a proof may be about the shared library in
 RV32IM encoding, the machine model and the lemmas every kernel proof uses, and
 `lake` — which ships with Lean — builds it. A file that imports `Rv32` is checked
 against that build, and a line in `mutants.txt` may end with the library file it
-edits, in which case the mutant is a rebuilt copy of the library:
+edits, in which case the mutant is a rebuilt copy of the library. Each
+mutant has its own copy, so `mutants` and `table` judge them side by side —
+`LEAN_JOBS` at a time, the cores up to four by default — and print them in the
+file's order:
 
 ```sh
 tools/lean/lean.sh check   experiments/exp203-*/proof/Copy64.lean
@@ -564,7 +567,8 @@ same format. `hash-cost.sh` is the sweep that measures the HASH cost and the
 harness constant, which exp204, exp205 and exp206 read. `kernelcompare.sh` is the
 loop exp205, exp206 and exp213 share: every case on the model and the RTL
 against Python, the count read from the proof; `STEPS` and `CYCLES` raise its
-limits for a kernel that runs longer, as exp213's key generator does. `wots.py`
+limits for a kernel that runs longer, as exp213's key generator does;
+`RTL_CASES` runs only some cases on the RTL, and `DUMPS` keeps their regions. `wots.py`
 is the WOTS and MSS reference the images are built from. `kernelimages.py` is the command line
 every kernel experiment's `images.py` has — `build DIR`, `verify NAME SIG` —
 so that what is left in an experiment is only its own cases.

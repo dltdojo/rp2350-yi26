@@ -19,11 +19,6 @@ set_option maxRecDepth 20000
 namespace Rv32.Mss
 open Rv32 Rv32.Wots
 
-def S8 : Reg := 24
-def S9 : Reg := 25
-def S10 : Reg := 26
-def S11 : Reg := 27
-
 namespace Keygen
 
 /-- Where everything is, from `auipc`; the seed into the PRF input; the zero

@@ -11,7 +11,9 @@ of key `l` walked `dᵢ` steps at `0x2000 + 32 i`, the path's four siblings at
 setup, the message's digits and the checksum's, the chains' registers — so
 the digits it signs are the ones the verifier computes.
 -/
-import Rv32.MssKeygen
+import Rv32.Mss
+import Rv32.Walk
+import Rv32.Frame
 
 set_option maxRecDepth 20000
 

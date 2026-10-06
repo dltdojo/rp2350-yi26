@@ -16,6 +16,13 @@ import Rv32.Wots
 namespace Rv32.Wots
 open Rv32
 
+/-- The saved registers past `s7`, which `head` leaves alone: exp213's key
+generator and signer count and point with them. -/
+def S8 : Reg := 24
+def S9 : Reg := 25
+def S10 : Reg := 26
+def S11 : Reg := 27
+
 variable {env : Env} {base : Word} {prog : List Instr}
 
 /-- The 64 bytes at `B`: the buffer's value, then 32 zeros. HASH of them is one

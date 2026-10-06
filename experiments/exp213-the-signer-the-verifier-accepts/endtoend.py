@@ -4,14 +4,17 @@
 theorem has them: keygen's tree into sign's image, sign's region into
 exp206's verifier with only the code replaced.
 
-  endtoend.py RUN LEAF...
+  endtoend.py RUN [--keygen SIG] LEAF...
 
 RUN is `model` (rv32run at the RTL's base) or `rtl` (tools/hazard3/sim.sh).
 For each leaf, one line: keygen's, sign's and verify's outcomes; then one
 PASS/FAIL line, and exit 0 when keygen and sign halt with 0, verify accepts
 every leaf, and the tree is what Python makes of the seed. It is
 proof/Complete.lean's `three_binaries`, run: the same images, the same
-copying.
+copying. The seed is images.py's first keygen seed; with --keygen, the key
+generator's region is read from SIG — an earlier run of that case, as
+compare.sh keeps the RTL's — instead of running the key generator again,
+which on the RTL takes minutes.
 Only the copying between runs is this script's — the shell's job on a chip,
 and outside every theorem.
 """
@@ -48,16 +51,23 @@ def run(cmd, work, name, data):
 
 
 def endtoend():
-    cmd, leaves = runner(sys.argv[1]), [int(a) for a in sys.argv[2:]]
-    seed = bytes(random.Random(2130).getrandbits(8) for _ in range(32))
+    args = sys.argv[2:]
+    keygen_sig = None
+    if args[:1] == ["--keygen"]:
+        keygen_sig, args = args[1], args[2:]
+    cmd, leaves = runner(sys.argv[1]), [int(a) for a in args]
+    seed = images.seeds()[1][0]
     bad = 0
     with tempfile.TemporaryDirectory() as work:
-        k_out, k_reg = run(cmd, work, "keygen", images.image(("keygen", seed)))
+        if keygen_sig:
+            k_out, k_reg = f"(its region from {os.path.basename(keygen_sig)})", read_sig(keygen_sig)[:SIZE]
+        else:
+            k_out, k_reg = run(cmd, work, "keygen", images.image(("keygen", seed)))
         tree = bytes(k_reg[images.K_TREE:images.K_TREE + 31 * 32])
         nodes = [tree[32 * n:32 * n + 32] for n in range(31)]
         ok_tree = nodes == images.tree_of(seed)
         print(f"keygen         {k_out}  tree {'is' if ok_tree else 'is NOT'} Python's")
-        bad |= not (k_out.startswith("halt code=00000000") and ok_tree)
+        bad |= not ((keygen_sig or k_out.startswith("halt code=00000000")) and ok_tree)
         for leaf in leaves:
             m = bytes(random.Random(leaf).getrandbits(8) for _ in range(32))
             s_out, s_reg = run(cmd, work, f"sign{leaf}", images.image(("sign", seed, nodes, leaf, m)))

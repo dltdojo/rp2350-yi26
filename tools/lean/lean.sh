@@ -111,28 +111,43 @@ drop_lib() { # lib
     fi
 }
 
+# Each mutant is judged on its own copy, so they run side by side: LEAN_JOBS
+# at a time (the cores, at most four — each is a Lean build), their lines
+# printed in mutants.txt's order once all are done.
+JOBS="${LEAN_JOBS:-$(n="$(nproc 2>/dev/null || echo 1)"; echo $(( n < 4 ? n : 4 )))}"
+
+one_mutant() { # callback label what expr dir
+    local cb="$1" label="$2" what="$3" expr="$4" dir="$5" target="" lib
+    # A sed may itself contain `|`, so the target is recognised by its
+    # shape, last on the line, and only that.
+    if [[ "$expr" =~ ^(.*)\|(lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
+        expr="${BASH_REMATCH[1]}"; target="${BASH_REMATCH[2]}"
+    fi
+    if [[ -n "$target" ]]; then
+        lib="$(mutant_lib "$expr" "$target")"
+        if [[ $? -eq 3 ]]; then "$cb" "$label" "$what" "$file" no "$lib"
+        else "$cb" "$label" "$what" "$file" yes "$lib"; fi
+        drop_lib "$lib"
+    else
+        sed "$expr" "$file" > "$dir/Mutant.lean"
+        if cmp -s "$file" "$dir/Mutant.lean"; then "$cb" "$label" "$what" "$dir/Mutant.lean" no ""
+        else "$cb" "$label" "$what" "$dir/Mutant.lean" yes ""; fi
+    fi
+}
+
 each_mutant() { # callback: label what mutant-file changed lib
-    local label what expr target scratch lib
+    local label what expr scratch n=0 running=0 i
     scratch="$(mktemp -d)"
     while IFS='|' read -r label what expr; do
         [[ -z "$label" || "$label" == \#* ]] && continue
-        # A sed may itself contain `|`, so the target is recognised by its
-        # shape, last on the line, and only that.
-        target=""
-        if [[ "$expr" =~ ^(.*)\|(lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
-            expr="${BASH_REMATCH[1]}"; target="${BASH_REMATCH[2]}"
-        fi
-        if [[ -n "${target-}" ]]; then
-            lib="$(mutant_lib "$expr" "$target")"
-            if [[ $? -eq 3 ]]; then "$1" "$label" "$what" "$file" no "$lib"
-            else "$1" "$label" "$what" "$file" yes "$lib"; fi
-            drop_lib "$lib"
-        else
-            sed "$expr" "$file" > "$scratch/Mutant.lean"
-            if cmp -s "$file" "$scratch/Mutant.lean"; then "$1" "$label" "$what" "$scratch/Mutant.lean" no ""
-            else "$1" "$label" "$what" "$scratch/Mutant.lean" yes ""; fi
-        fi
+        n=$((n + 1)); mkdir "$scratch/$n"
+        one_mutant "$1" "$label" "$what" "$expr" "$scratch/$n" > "$scratch/$n/out" 2>&1 &
+        running=$((running + 1))
+        if [[ $running -ge $JOBS ]]; then wait -n; running=$((running - 1)); fi
     done < "$mutants"
+    wait
+    for ((i = 1; i <= n; i++)); do cat "$scratch/$i/out"; done
+    grep -q '^FAIL' "$scratch"/*/out 2>/dev/null && status=1
     rm -rf "$scratch"
 }
 

@@ -12,6 +12,7 @@ is what the next one's needs, once the shell has copied the bytes across —
 and the copying is all that is assumed. This file also writes `keygen.bin`
 and `sign.bin`.
 -/
+import Rv32.MssKeygen
 import Rv32.MssSign
 
 open Rv32 Rv32.Wots Rv32.Mss

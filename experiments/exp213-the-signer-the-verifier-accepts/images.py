@@ -60,18 +60,23 @@ def signed(seed, nodes, leaf, m):
     return sig, auth, nodes[30]
 
 
-def cases():
+def seeds():
+    """The three keygen cases' seeds; endtoend.py signs under the first."""
     rng = random.Random(213)
-    seeds = [bytes(rng.getrandbits(8) for _ in range(32)) for _ in range(3)]
+    return rng, [bytes(rng.getrandbits(8) for _ in range(32)) for _ in range(3)]
+
+
+def cases():
+    rng, seeds_ = seeds()
     if os.environ.get("EXP213_KERNEL") == "keygen":
-        return {f"keygen-{k}": ("keygen", s) for k, s in enumerate(seeds)}
-    nodes = tree_of(seeds[0])
+        return {f"keygen-{k}": ("keygen", s) for k, s in enumerate(seeds_)}
+    nodes = tree_of(seeds_[0])
     out = {}
     for l in (0, 5, 10, 15):
         m = bytes(rng.getrandbits(8) for _ in range(32))
-        out[f"sign-leaf-{l:02d}"] = ("sign", seeds[0], nodes, l, m)
-    out["sign-zero-message"] = ("sign", seeds[0], nodes, 3, bytes(32))
-    out["sign-ones-message"] = ("sign", seeds[0], nodes, 12, bytes([0xFF] * 32))
+        out[f"sign-leaf-{l:02d}"] = ("sign", seeds_[0], nodes, l, m)
+    out["sign-zero-message"] = ("sign", seeds_[0], nodes, 3, bytes(32))
+    out["sign-ones-message"] = ("sign", seeds_[0], nodes, 12, bytes([0xFF] * 32))
     return out
 
 
