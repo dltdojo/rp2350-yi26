@@ -569,7 +569,9 @@ loop exp205, exp206 and exp213 share: every case on the model and the RTL
 against Python, the count read from the proof; `STEPS` and `CYCLES` raise its
 limits for a kernel that runs longer, as exp213's key generator does;
 `RTL_CASES` runs only some cases on the RTL, and `DUMPS` keeps their regions. `wots.py`
-is the WOTS and MSS reference the images are built from. `kernelimages.py` is the command line
+is the WOTS reference the images are built from, and `mss.py` exp213's key generator
+and signer beside it — their images, the tree and the signature — which exp207
+needed second. `kernelimages.py` is the command line
 every kernel experiment's `images.py` has — `build DIR`, `verify NAME SIG` —
 so that what is left in an experiment is only its own cases.
 

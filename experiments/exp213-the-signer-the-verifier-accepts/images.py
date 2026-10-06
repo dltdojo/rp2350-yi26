@@ -36,28 +36,12 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "hazard3"))
 from kernelimages import command  # noqa: E402
-from wots import H, chain, digits, secret  # noqa: E402
+from wots import digits  # noqa: E402
+from mss import (K_PRF, K_BUF, K_ENDS, K_TREE, S_PRF, S_SIG, S_AUTH, S_ROOT, S_SCR,  # noqa: E402,F401
+                 K_SEED, S_MSG, S_IDX, S_SEED, S_TREE, keygen_image, sign_image, signed, tree_of)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-N, HEIGHT = 67, 4
-LEVEL = [0, 16, 24, 28, 30]          # where each level starts, in nodes
-K_SEED, K_PRF, K_BUF, K_ENDS, K_TREE = 0x1000, 0x1040, 0x1080, 0x2000, 0x3000
-S_MSG, S_IDX, S_SEED, S_PRF, S_SIG, S_AUTH, S_ROOT, S_TREE, S_SCR = (
-    0x1000, 0x1020, 0x1040, 0x1080, 0x2000, 0x4000, 0x4080, 0x5000, 0x8000)
-
-
-def tree_of(seed):
-    """The 31 nodes, level by level, as keygen writes them."""
-    nodes = [H(b"".join(chain(secret(seed, l, i), 15) for i in range(N)) + bytes(32)) for l in range(16)]
-    for t in range(15):
-        nodes.append(H(nodes[2 * t] + nodes[2 * t + 1]))
-    return nodes
-
-
-def signed(seed, nodes, leaf, m):
-    sig = [chain(secret(seed, leaf, i), d) for i, d in enumerate(digits(m))]
-    auth = [nodes[LEVEL[j] + ((leaf >> j) ^ 1)] for j in range(HEIGHT)]
-    return sig, auth, nodes[30]
+N = 67
 
 
 def seeds():
@@ -81,25 +65,8 @@ def cases():
 
 
 def image(case):
-    kind = case[0]
-    kernel = open(os.path.join(HERE, kind + ".bin"), "rb").read()
-    if kind == "keygen":
-        img = bytearray(K_TREE + 31 * 32)
-        img[:len(kernel)] = kernel
-        img[K_SEED:K_SEED + 32] = case[1]
-        for a, n in ((K_PRF, 64), (K_BUF, 64), (K_ENDS, 2176), (K_TREE, 31 * 32)):
-            img[a:a + n] = bytes([0xEE] * n)
-        return bytes(img)
-    _, seed, nodes, leaf, m = case
-    img = bytearray(S_SCR + 131)
-    img[:len(kernel)] = kernel
-    img[S_MSG:S_MSG + 32] = m
-    img[S_IDX] = leaf
-    img[S_SEED:S_SEED + 32] = seed
-    img[S_TREE:S_TREE + 31 * 32] = b"".join(nodes)
-    for a, n in ((S_PRF, 64), (S_SIG, 32 * N), (S_AUTH, 160), (S_SCR, 131)):
-        img[a:a + n] = bytes([0xEE] * n)
-    return bytes(img)
+    kernel = open(os.path.join(HERE, case[0] + ".bin"), "rb").read()
+    return keygen_image(kernel, case[1]) if case[0] == "keygen" else sign_image(kernel, *case[1:])
 
 
 def hashes(case):

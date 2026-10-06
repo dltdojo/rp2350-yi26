@@ -113,6 +113,7 @@ Per experiment:
 | exp204 | **No board at all**, and no USB anywhere in it. The same as exp203, and `python3` for the images. A few minutes, most of it eleven mutants of the proof. |
 | exp205 | **No board at all**, and no USB anywhere in it. The same as exp204. About ten minutes, most of it fourteen mutants of the proof. |
 | exp206 | **No board at all**, and no USB anywhere in it. The same as exp205. About twenty minutes, most of it sixteen mutants of the proof. |
+| exp207 | **No board at all**, and no USB anywhere in it. The same as exp206. About twenty minutes: fourteen mutants on four cores, and two key generations on the RTL, six minutes each. |
 | exp213 | **No board at all**, and no USB anywhere in it. The same as exp206. About fourteen minutes on four cores: twenty-seven mutants judged side by side, and the key generator once on the RTL — six minutes, because the testbench's harness computes its 17183 HASH calls on the simulated core. |
 | exp209 | A **Pico 2** (not a Pico 2 W — its LED is not on a GPIO), a USB cable, a hand on **BOOTSEL** to drag `exp209.uf2` on, and **an eye on the LED** for a few seconds: slow blinking or fast. No UART, no USB, no `yi26`. The cloud half needs clang, lld, llvm-objcopy, cargo, Lean and the Hazard3 testbench. |
 | exp210 | The same as exp209, and exp209's UF2 flashed first on a board that ever ran exp139–exp145 (their partition table lives in sector 0, and this image does not fit there). The cloud half is the same as exp209's and a host C compiler; about ten minutes the first time, three of them `gen.py` running 21 cases on the model and the RTL. |
@@ -499,7 +500,7 @@ awake — and because most of these experiments cost nothing.
 
 | | Means | Experiments |
 | --- | --- | --- |
-| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204, exp205, exp206, exp213 |
+| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204, exp205, exp206, exp207, exp213 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209, exp210 |
@@ -766,6 +767,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp204 | `none` | `none` | `none` | `none` |
 | exp205 | `none` | `none` | `none` | `none` |
 | exp206 | `none` | `none` | `none` | `none` |
+| exp207 | `none` | `none` | `none` | `none` |
 | exp213 | `none` | `none` | `none` | `none` |
 | exp209 | `none` | `none` | `none` | `none` |
 | exp210 | `none` | `none` | `none` | `none` |
@@ -954,6 +956,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp204-the-signature-the-kernel-checks](./exp204-the-signature-the-kernel-checks/) | 0 · none | **352 bytes of RV32IM proved to check a Lamport one-time signature: they halt with 0 when all 256 preimages hash to the key halves the message's bits select and with 1 otherwise, at exactly instruction 16663 either way, writing nothing outside 96 bytes of scratch — for every input and for every function HASH might be.** The model, the Hazard3 RTL and Python agree on ten cases, region byte for byte. One HASH costs the RTL 4 `minstret` the model does not count; and the count also depends on the word behind the last `ecall`, which never runs — so on the chip, on what the shell leaves after `kernel.bin` |
 | [exp205-the-chain-the-checksum-closes](./exp205-the-chain-the-checksum-closes/) | 0 · none | **432 bytes of RV32IM proved to verify a WOTS (w = 16) signature — 67 hash chains, the last three the checksum's — for every input and every HASH, in exactly `4142 + 3·S` instructions, where S is the number of HASH calls: the first kernel whose count depends on its input, so the theorem states it as a formula.** The proof carries a loop invariant over the hash chain and the checksum's arithmetic; fourteen wrong versions are refused, among them a kernel that never checks the last checksum chain. The model, the RTL and Python agree on eleven cases from 45 HASH calls to 990, and the RTL counts exactly `3 + 4·S` more, as exp204 measured. Lean's kernel runs out of memory on `decide` of a negative immediate's sign-extension — written down |
 | [exp206-the-root-the-path-climbs](./exp206-the-root-the-path-climbs/) | 0 · none | **752 bytes of RV32IM proved to verify a Merkle signature scheme of height 4 — WOTS under a tree of 16 one-time keys — for every input and every HASH, at exactly instruction `3295 + 3·S`, writing nothing outside two scratch areas; and completeness proved down to the bytes: an image holding what a signer produces under any of the 16 leaves makes the kernel halt with 0.** Its first 69 instructions are exp205's, so their proof moved to `lean/Rv32/Wots.lean` and both kernels stand on it, exp205's bytes unchanged. A tree level orders the node and its sibling with no branch. The model, the RTL and Python agree on 29 cases, all 16 leaves signing among them; sixteen wrong versions are refused |
+| [exp207-the-trace-the-seed-cannot-move](./exp207-the-trace-the-seed-cannot-move/) | 0 · none | **Constant time, proved: exp213's key generator and signer run in lock step under any two seeds — at every step the same `pc`, the same address loaded or stored, the same HASH arguments and the same end.** The proof is not per kernel: `lean/Rv32/Ct.lean` is a taint checker with ranges and counters, proved sound once, that each kernel is run through by `decide` — 108 and 155 instructions, and a handful of loop heads written by hand. On the Hazard3 RTL the seeds give the same minstret and mcycle, and another message moves them; fourteen non-constant-time kernels, wrong claims and unsound checker rules are refused |
 | [exp213-the-signer-the-verifier-accepts](./exp213-the-signer-the-verifier-accepts/) | 0 · none | **An MSS key generator and signer as kernels, proved, and one theorem that runs three binaries in a row: `keygen.bin` writes the seed's whole tree in exactly 76456 instructions, `sign.bin` writes a signature, path and root where exp206's verifier reads them in exactly `2284 + 3·Σdᵢ`, and exp206's `kernel.bin`, given what the signer left, halts with 0 — for every seed, message, index below 16 and HASH.** The signer starts with exp205's first 46 instructions, so the digits it signs are the verifier's by the same lemmas; exp206's proof moved into `lean/` so that the join could reach it. The model, the RTL and Python agree on both kernels' cases and on the three run in a row; twenty-seven wrong versions are refused |
 | [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here, and the verified-kernel road's first contact with silicon: a shell in flash sector 0 of a Pico 2 runs exp203's proved kernel in User mode, through the RTL harness's own `harness.S`, and on the board everything matched. The kernel halted with 0, made its copy, left the whole 64 KiB region byte for byte as the Lean model predicted, and the RP2350 counted minstret = 108, the RTL's number.** PMP entry 0 reads back differently from what was written, which the RTL never shows. It took three builds: a person read a verdict and one number, could not read four, and reads one bit — slow or fast — without fail |
 | [exp210-the-hash-the-chip-computes](./exp210-the-hash-the-chip-computes/) | 3 · a person | **exp204's Lamport and exp205's WOTS verifiers, proved for every HASH, on a Pico 2 with the RP2350's SHA-256 block as HASH: all 21 cases in one UF2, each checked on the chip against the Lean model's verdict and every byte of its region, and against the RTL's minstret — and on the board it blinked slowly: every case matched. The SHA-256 block computed all 8,155 HASH calls as the model's SHA-256 does, every region came out byte for byte the model's, and silicon counted each case's minstret as the RTL does, HASH traps included.** On the RTL the same shell passes every case. The block's driver is held against a fake made from the datasheet, which four wrong drivers fail, and that is as far as the cloud can take it. exp209's shell moved to `tools/hazard3/shell/` for it, and still builds to the UF2 its board ran |
@@ -2732,6 +2735,10 @@ they can settle is settled before anybody walks to a bench.**
   Merkle tree of height 4, the path and the index proved, at exactly
   `3295 + 3·S`; completeness proved at the reference level and carried to the
   verifier's bytes — every leaf's signature is accepted.
+- [exp207](./exp207-the-trace-the-seed-cannot-move/) — constant time: the
+  key generator's and the signer's traces do not depend on the seed, proved
+  through a taint checker that is itself proved sound; the RTL counts the
+  same cycles under every seed.
 - [exp213](./exp213-the-signer-the-verifier-accepts/) — MSS keygen and sign
   as kernels, proved: the key generator in exactly 76456 instructions, the
   signer in `2284 + 3·Σdᵢ`; and `three_binaries`, keygen binary, sign binary,
@@ -2741,7 +2748,6 @@ they can settle is settled before anybody walks to a bench.**
 
 | | Kernel | What the proof adds |
 | --- | --- | --- |
-| exp207 | sign and keygen, again | constant time as a relational proof: two runs with the same public input and different secrets fetch the same PCs and touch the same addresses |
 | exp208 | SHA-256's compression function in RV32IM | optional: HASH stops being an assumption |
 
 **Run on a board:**
