@@ -64,6 +64,21 @@ theorem line_pc (s : Machine) (blk : List Instr) :
     simp only [List.length_cons]
     omega
 
+/-- The register an instruction of a line writes. -/
+def rdOf : Instr → Option Reg
+  | .op _ rd _ _ | .opi _ rd _ _ | .sh _ rd _ _ => some rd
+  | _ => none
+
+/-- A register no instruction of the line writes is the same after it. -/
+theorem line_keeps (s : Machine) (blk : List Instr) (r : Reg) (h : ∀ i ∈ blk, rdOf i ≠ some r) :
+    (s.line blk).reg r = s.reg r := by
+  induction blk generalizing s with
+  | nil => rfl
+  | cons i blk ih =>
+    rw [line_cons, ih _ (fun j hj => h j (List.mem_cons_of_mem _ hj))]
+    have key : ∀ rd, rdOf i = some rd → r ≠ rd := fun rd e h' => h i (List.mem_cons_self ..) (by rw [e, h'])
+    cases i <;> simp only [Machine.alu, next_reg, reg_setReg] <;> simp [key _ rfl]
+
 variable {env : Env} {base : Word} {prog : List Instr}
 
 /-- **A straight line, run**: `blk`, sitting at instruction `k` of `prog`, all
