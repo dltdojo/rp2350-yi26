@@ -1,36 +1,43 @@
 === exp212 — the cycles the chip counts (cloud half) ===
-recorded at 2026-10-06T03:50:47Z from commit 7395d5e
+recorded at 2026-10-06T04:15:16Z from commit 096d4ba (working tree dirty — this recording is not reproducible from the commit alone)
 
 >>> every check
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
 PASS  slow: every run as the RTL counted it
-PASS  double: every seed alike, but every number off the RTL's
-PASS  double: every seed alike, only the key generator off the RTL's
-PASS  double: every seed alike, only the other message off the RTL's
-PASS  fast: the second seed's key generation one cycle longer
-PASS  fast: the last seed's signature one cycle shorter
-PASS  fast: the first seed's key generation alone one cycle longer
-PASS  fast: the other message as long as the signer's: blind
-PASS  fast: the last run's region not the model's
-PASS  fast: a run with the wrong minstret
-PASS  fast: one run missing
-PASS  fast: a schedule with no other message
+PASS  1 flash: the last run's region not the model's
+PASS  1 flash: a run with the wrong minstret
+PASS  1 flash: one run missing
+PASS  2 flashes: every seed alike, but every number off the RTL's
+PASS  2 flashes: every seed alike, only the key generator off the RTL's
+PASS  2 flashes: every seed alike, only the other message off the RTL's
+PASS  3 flashes: the first key generation alone one cycle longer
+PASS  3 flashes: the first key generation alone longer, and the rest all off the RTL's
+PASS  4 flashes: the second seed's key generation one cycle longer
+PASS  4 flashes: the last seed's key generation one cycle longer
+PASS  4 flashes: the first key generation longer, and a signature too: not only the first
+PASS  5 flashes: the last seed's signature one cycle shorter
+PASS  5 flashes: the first seed's signature one cycle longer
+PASS  6 flashes: the other message as long as the signer's: blind
+PASS  1 flash: a schedule with no other message
 PASS  verdict.h is caught when it does not count the runs
 PASS  verdict.h is caught when it ignores a failed check
-PASS  verdict.h is caught when it does not compare the seeds
+PASS  verdict.h is caught when it does not ask that every kind ran
+PASS  verdict.h is caught when it does not compare the key generations
+PASS  verdict.h is caught when it blames the first key generation when the others differ too
+PASS  verdict.h is caught when it blames the first key generation when a signature differs too
+PASS  verdict.h is caught when it does not compare the signatures
 PASS  verdict.h is caught when it does not compare with the RTL
 PASS  verdict.h is caught when it lets a blind measurement through
-PASS  verdict.h is caught when it stops one run short
-PASS  verdict.h is caught when it does not ask that every kind ran
+PASS  verdict.h is caught when it compares one run short
 PASS  verdict.h is caught when it says slow off the RTL's numbers
-PASS  the shell builds for the chip and for the RTL, the chip's 7792 bytes in its 32 KiB
+PASS  the shell builds for the chip and for the RTL, the chip's 7988 bytes in its 32 KiB
 PASS  gen.py: 16 seeds, 33 runs on the model — code 0, one count per kind, the tree mss.py's — and the RTL's minstret count + 3 + 4 S
-PASS  all 31 blocks carry family 0xe48bff57, absolute
+PASS  all 32 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
-PASS  together they are exactly the 7792-byte image
+PASS  together they are exactly the 7988-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: 24846d1362f8dbb6…
+PASS  the UF2 is byte for byte the committed one: 02107d4fc97af415…
 PASS  on the RTL the shell passes every check of all 5 runs, reads the RTL harness's mcycle on each, and says slow
 
 >>> the RTL harness, once per kind of run
@@ -81,4 +88,4 @@ sign seed 0        -         7600  5915
 sign-other seed 0  -         7314  5705
 keygen seed 1      -       195653  145191
 sign seed 1        -         7600  5915
-52455054 00000002 exit=0
+52455054 00000000 exit=0
