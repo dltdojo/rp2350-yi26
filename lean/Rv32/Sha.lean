@@ -1829,4 +1829,54 @@ theorem next_run {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
     simp only [hl, ↓reduceIte, next_pc, p1]
     exact pc_next hp.fit 184 (by decide)
 
+/-- The block loop at its top, `i` blocks of the message done. -/
+structure BInv (base : Word) (m1 : Word → Byte) (msg : List Byte) (n i : Nat) (s : Machine) : Prop where
+  pc : s.pc = base + BitVec.ofNat 32 (4 * 49)
+  s1 : s.reg S1 = base + BitVec.ofNat 32 0x1000
+  s4 : s.reg S4 = base + BitVec.ofNat 32 (0x2000 + 64 * i)
+  s5 : s.reg S5 = BitVec.ofNat 32 i
+  s6 : s.reg S6 = BitVec.ofNat 32 n
+  keeps : Keeps (base + BitVec.ofNat 32 0x1200) 0x200 m1 s.mem
+  h : ∀ j < 8, wordAt s.mem (base + BitVec.ofNat 32 (0x1200 + 4 * j)) = (hs msg i).getD j 0
+
+/-- A block, from the top of the loop to the top of the loop or past it:
+choose, compress, next. -/
+theorem block_iter {env : Env} {base : Word} (hp : Placed env base) {m1 : Word → Byte}
+    (hc1 : CodeAt m1 base kernel) (hK : ∀ t < 64, wordAt m1 (base + BitVec.ofNat 32 (0x1000 + 4 * t)) = K.getD t 0)
+    {n : Nat} (hn : 0x2000 + 64 * n ≤ 0x10000) {i : Nat} (hi : i < n) {s : Machine}
+    (h : BInv base m1 (readBytes m1 (base + BitVec.ofNat 32 0x2000) (64 * n)) n i s) :
+    ∃ s', run env 4873 s = .running s' ∧ BInv base m1 (readBytes m1 (base + BitVec.ofNat 32 0x2000) (64 * n)) n (i + 1) s' := by
+  have fit := hp.fit
+  have c0 : CodeAt s.mem base kernel := h.keeps.code fit (by decide) (by decide) hc1
+  obtain ⟨sa, ea, pa, ma, ra⟩ := choose_msg hp c0 h.pc h.s5 h.s6 hi (by omega)
+  have ka : Keeps (base + BitVec.ofNat 32 0x1200) 0x200 m1 sa.mem := by rw [ma]; exact h.keeps
+  obtain ⟨sb, eb, pb, kb, wb, s4b, fb⟩ := block_step hp (by rw [ma]; exact c0) pa (by rw [ra, h.s1])
+    (P := 0x2000 + 64 * i) (by rw [ra, h.s4]) (by omega) (by omega)
+    (fun t ht => by rw [wordAt_keeps fit ka (by decide) (by omega) (by omega), hK t ht])
+    (hs_length _ i) (fun j hj => by rw [ma]; exact h.h j hj)
+  have kb' : Keeps (base + BitVec.ofNat 32 0x1200) 0x200 m1 sb.mem := ka.trans kb
+  have hb : ∀ r, r ≠ T0 → r ≠ T1 → r ≠ T2 → r ≠ T3 → r ≠ T4 → r ≠ S4 → r ≠ S8 → r ≠ S9 → r ≠ S10 →
+      (∀ i < 8, BitVec.ofNat 5 (10 + i) ≠ r) → sb.reg r = s.reg r := fun r a b c d e f g k l m => by
+    rw [fb r a b c d e f g k l m, ra]
+  have ar : ∀ r : Reg, r.toNat < 10 ∨ 18 ≤ r.toNat → ∀ i < 8, BitVec.ofNat 5 (10 + i) ≠ r :=
+    fun r hr i hi => areg_ne_of r hr hi
+  obtain ⟨sc, ec, pc, mc, s5c, fc⟩ := next_run hp (kb'.code fit (by decide) (by decide) hc1) pb
+    (i := i) (n := n)
+    (by rw [hb _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (ar _ (by decide)), h.s5])
+    (by rw [hb _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (ar _ (by decide)), h.s6]) (by omega) (by omega)
+  refine ⟨sc, ?_, ⟨?_, ?_, ?_, s5c, ?_, ?_, ?_⟩⟩
+  · rw [show 4873 = 1 + (4870 + 2) by rfl, run_add_running ea, run_add_running eb]; exact ec
+  · rw [pc, ifT (by omega)]
+  · rw [fc _ (by decide), hb _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (ar _ (by decide)), h.s1]
+  · rw [fc _ (by decide), s4b, show 0x2000 + 64 * i + 64 = 0x2000 + 64 * (i + 1) by omega]
+  · rw [fc _ (by decide), hb _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (ar _ (by decide)), h.s6]
+  · rw [mc]; exact kb'
+  · intro j hj
+    rw [mc, wb j hj, hs_succ m1 _ (64 * n) i (by omega), off_add fit _ _ (by omega),
+      Keeps.bytes fit ka (by decide) (by omega) (by omega)]
+
 end Rv32.Sha
