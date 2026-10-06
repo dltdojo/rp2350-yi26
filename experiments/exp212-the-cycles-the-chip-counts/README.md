@@ -178,6 +178,7 @@ exp210's UF2s still build byte for byte.
 | 1 | revision 1, `24846d1362f8dbb6f28c673a6c5e68617abdbe19bf36a79abcdc8381755c02b3` | **「快閃」** — fast blinking | **something did not hold, and revision 1 could not say what**: its fast blinking was a check failing, any two seeds of a kind differing, and the other message taking the signer's time, all at once |
 | 2 | revision 2, `02107d4fc97af415ed25a6bb63b2913f1d23b71710f6ee3dc21c7c2e48780d88`, the same board | **「閃 3 下」** — three flashes | **only the first key generation was out of line.** All 33 runs passed every check — the kernel, its halt with code 0, all 65,536 bytes of its region as the Lean model left them, the RTL's minstret, the SHA-256 block's error flag. Key generations 2 to 16, under fifteen different seeds, took one number of cycles; all sixteen signatures took one number; the other message took a different one |
 | 3 | revision 3, `9d4e60b0282a4b4779b80f1f597132165bf6af4cbc3417a29f3de6df0db90c3e`, the same board | **「閃 2 下」** — two flashes | **every seed alike, and not the RTL's number.** All 34 runs passed every check. After the warm-up, all sixteen key generations — seed 0's timed run among them — took one number of cycles, all sixteen signatures another, and the other message a third; and at least one of those three is not what the RTL counted |
+| 4 | revision 4, `c60bce35e2e65db7ae7648ecc1c714cc2fc92dcd8a0ad3561c3c7d2650ba1b28`, the same board | **「閃 5 下」** — five flashes | **every seed alike again, and silicon − RTL on neither line.** All 34 runs passed every check, every seed of a kind took one number of cycles, the other message moved; and the three kinds' differences from the RTL are not the same, not `a + c·S`, and not `a + b·minstret` |
 
 Revision 1 answered slow, a double flash, or fast, and fast was five
 different things. Revision 2 runs the same 33 runs with the same checks and
@@ -222,7 +223,26 @@ whether silicon minus RTL is `a + c·S` for the same `a` and `c` across the
 three kinds of run — or `a + b·minstret`, the other explanation, which the
 three kinds tell apart from the first.
 
-Not yet run on a board: revision 4.
+**What run 4 settles.** For the third time on this board, every seed of a
+kind took one number of cycles — the claim stands. And the difference from
+the RTL is neither a fixed cost per HASH call, nor per instruction, nor per
+run: neither the XIP-cache explanation alone nor a uniformly slower memory
+explains it.
+
+**What fits, from prior work.** exp202, exp203 and exp209 each wrote it
+down: the RTL simulated here is a 2026 commit of Hazard3's v1.1 line, and
+the RP2350 runs v1.0-rc1 (`mimpid` `86fc4e3f`). exp209 and exp210 showed the
+two count the same *instructions*; nothing has said they spend the same
+*cycles* on each kind of instruction. A difference made of several
+instruction classes' costs — branches, load-use stalls, jumps, the trap
+fetched from flash — would lie on no single line through three points.
+
+**Where the LED stops.** Three kinds of run are three points, and three
+points can test a model with two parameters and no more. Splitting the
+difference further needs the numbers themselves, and a person reading an
+LED reads one answer, not a number (exp209 revision 2). That is a question
+for an instrument this experiment declined — a USB report or a logic
+analyser — and it is not this experiment's claim, which run 3 settled.
 
 ## Running it
 
