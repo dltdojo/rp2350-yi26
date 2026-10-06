@@ -1748,4 +1748,85 @@ theorem setup_run {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
       · rw [overlay_off_out fit _ _ (by omega) (by omega) (by omega), overlay_off_in fit _ _ (by omega) (by omega)
           (by omega)]
 
+/-! ## The block loop -/
+
+theorem slt_small (a b : Nat) (ha : a < 2 ^ 31) (hb : b < 2 ^ 31) :
+    (BitVec.ofNat 32 a).slt (BitVec.ofNat 32 b) = decide (a < b) := by
+  rw [BitVec.slt, BitVec.toInt_eq_toNat_cond, BitVec.toInt_eq_toNat_cond]
+  simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show a < 2 ^ 32 by omega),
+    Nat.mod_eq_of_lt (show b < 2 ^ 32 by omega)]
+  rw [ifT (by omega), ifT (by omega)]
+  simp
+
+theorem ofNat_ne (a b : Nat) (ha : a < 2 ^ 32) (hb : b < 2 ^ 32) (h : a ≠ b) :
+    BitVec.ofNat 32 a ≠ BitVec.ofNat 32 b := by
+  intro e; have := congrArg BitVec.toNat e
+  rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at this; exact h this
+
+/-- `bne s5, s6`, taken: a block of the message is next. -/
+theorem choose_msg {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 49)) {i n : Nat}
+    (h5 : s.reg S5 = BitVec.ofNat 32 i) (h6 : s.reg S6 = BitVec.ofNat 32 n) (hi : i < n) (hn : n < 2 ^ 31) :
+    ∃ s', run env 1 s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * 51) ∧ s'.mem = s.mem ∧
+      ∀ r, s'.reg r = s.reg r := by
+  have e : run env 1 s = .running (s.setPc (s.pc + ((4 : BitVec 12) ++ 0#1).signExtend 32)) :=
+    (stepK (prog := kernel) hp 49 (by decide) hcode hpc (i := .br .bne S5 S6 4) (by decide)
+      (exec_br_taken (by rw [h5, h6]; simp only [taken]; simp [ofNat_ne i n (by omega) (by omega) (by omega)])) 0).trans
+      (run_zero _ _)
+  refine ⟨_, e, ?_, setPc_mem _ _, fun r => setPc_reg _ _ r⟩
+  simp only [setPc_pc, hpc]
+  rw [BitVec.add_assoc]
+  congr 1
+
+/-- `bne s5, s6`, not taken: the padding block is next. -/
+theorem choose_pad {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 49)) {n : Nat}
+    (h5 : s.reg S5 = BitVec.ofNat 32 n) (h6 : s.reg S6 = BitVec.ofNat 32 n)
+    (h1 : s.reg S1 = base + BitVec.ofNat 32 0x1000) :
+    ∃ s', run env 2 s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * 51) ∧ s'.mem = s.mem ∧
+      s'.reg S4 = base + BitVec.ofNat 32 0x1400 ∧ ∀ r, r ≠ S4 → s'.reg r = s.reg r := by
+  have e : run env 1 s = .running s.next :=
+    (stepK (prog := kernel) hp 49 (by decide) hcode hpc (i := .br .bne S5 S6 4) (by decide)
+      (exec_br_not (by rw [h5, h6]; simp [taken])) 0).trans (run_zero _ _)
+  obtain ⟨s2, e2, p2, m2, r2⟩ := regStep (prog := kernel) hp 50 (by decide) (by rw [next_mem]; exact hcode)
+    (by rw [next_pc, hpc]; exact pc_next hp.fit 49 (by decide)) (i := .opi .addi S4 S1 0x400) (by decide) rfl
+  refine ⟨s2, run_cons e e2, p2, by rw [m2, next_mem], ?_, fun r hr => by rw [reg_kept r2 hr, next_reg]⟩
+  rw [reg_wrote r2 (by decide)]
+  simp only [aluI, next_reg, h1]
+  rw [show (0x400 : BitVec 12) = BitVec.ofNat 12 0x400 from rfl, imm_off hp.fit _ _ (by decide) (by decide)]
+
+/-- `addi s5, s5, 1; bge s6, s5`: back to the top while blocks remain. -/
+theorem next_run {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 183)) {i n : Nat}
+    (h5 : s.reg S5 = BitVec.ofNat 32 i) (h6 : s.reg S6 = BitVec.ofNat 32 n) (hi : i + 1 < 2 ^ 31)
+    (hn : n < 2 ^ 31) :
+    ∃ s', run env 2 s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * (if i + 1 ≤ n then 49 else 185)) ∧
+      s'.mem = s.mem ∧ s'.reg S5 = BitVec.ofNat 32 (i + 1) ∧ ∀ r, r ≠ S5 → s'.reg r = s.reg r := by
+  obtain ⟨s1, e1, p1, m1, r1⟩ := regStep (prog := kernel) hp 183 (by decide) hcode hpc
+    (i := .opi .addi S5 S5 1) (by decide) rfl
+  have v5 : s1.reg S5 = BitVec.ofNat 32 (i + 1) := by
+    rw [reg_wrote r1 (by decide)]; simp only [aluI, h5, se1]
+    rw [show (1 : Word) = BitVec.ofNat 32 1 from rfl, BitVec.ofNat_add_ofNat]
+  have v6 : s1.reg S6 = BitVec.ofNat 32 n := by rw [reg_kept r1 (by decide), h6]
+  have c1 : CodeAt s1.mem base kernel := by rw [m1]; exact hcode
+  have ht : taken .bge (s1.reg S6) (s1.reg S5) = decide (i + 1 ≤ n) := by
+    rw [v5, v6]; simp only [taken]; rw [slt_small n (i + 1) hn hi]; simp only [Bool.not_eq_eq_eq_not]
+    by_cases h : i + 1 ≤ n <;> simp [h] <;> omega
+  by_cases hl : i + 1 ≤ n
+  · have e2 : run env 1 s1 = .running (s1.setPc (s1.pc + ((0xef2 : BitVec 12) ++ 0#1).signExtend 32)) :=
+      (stepK (prog := kernel) hp 184 (by decide) c1 p1 (i := .br .bge S6 S5 0xef2) (by decide)
+        (exec_br_taken (by rw [ht]; simp [hl])) 0).trans (run_zero _ _)
+    refine ⟨_, run_cons e1 e2, ?_, by rw [setPc_mem, m1], by rw [setPc_reg, v5],
+      fun r hr => by rw [setPc_reg, reg_kept r1 hr]⟩
+    simp only [hl, ↓reduceIte, setPc_pc, p1]
+    rw [BitVec.add_assoc]
+    congr 1
+  · have e2 : run env 1 s1 = .running s1.next :=
+      (stepK (prog := kernel) hp 184 (by decide) c1 p1 (i := .br .bge S6 S5 0xef2) (by decide)
+        (exec_br_not (by rw [ht]; simp [hl])) 0).trans (run_zero _ _)
+    refine ⟨_, run_cons e1 e2, ?_, by rw [next_mem, m1], by rw [next_reg, v5],
+      fun r hr => by rw [next_reg, reg_kept r1 hr]⟩
+    simp only [hl, ↓reduceIte, next_pc, p1]
+    exact pc_next hp.fit 184 (by decide)
+
 end Rv32.Sha
