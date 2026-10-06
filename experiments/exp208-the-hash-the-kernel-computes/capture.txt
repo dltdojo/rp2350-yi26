@@ -1,0 +1,316 @@
+=== exp208 — the hash the kernel computes ===
+recorded at 2026-10-06T08:24:31Z from commit e9e9631
+
+>>> the kernel, as the proof states it and as sha.bin holds it
+'Rv32.Sha.round_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.rounds_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.load_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.expand_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.block_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.block_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.output_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.sha256_whole' depends on axioms: [propext, Quot.sound]
+'Rv32.Sha.computes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  0000  00000417  auipc x8, 0
+  0004  00001337  lui x6, 1
+  0008  006404b3  add x9, x8, x6
+  000c  00648a33  add x20, x9, x6
+  0010  1004a283  lw x5, 256(x9)
+  0014  2054a023  sw x5, 512(x9)
+  0018  1044a283  lw x5, 260(x9)
+  001c  2054a223  sw x5, 516(x9)
+  0020  1084a283  lw x5, 264(x9)
+  0024  2054a423  sw x5, 520(x9)
+  0028  10c4a283  lw x5, 268(x9)
+  002c  2054a623  sw x5, 524(x9)
+  0030  1104a283  lw x5, 272(x9)
+  0034  2054a823  sw x5, 528(x9)
+  0038  1144a283  lw x5, 276(x9)
+  003c  2054aa23  sw x5, 532(x9)
+  0040  1184a283  lw x5, 280(x9)
+  0044  2054ac23  sw x5, 536(x9)
+  0048  11c4a283  lw x5, 284(x9)
+  004c  2054ae23  sw x5, 540(x9)
+  0050  4004a023  sw x0, 1024(x9)
+  0054  4004a223  sw x0, 1028(x9)
+  0058  4004a423  sw x0, 1032(x9)
+  005c  4004a623  sw x0, 1036(x9)
+  0060  4004a823  sw x0, 1040(x9)
+  0064  4004aa23  sw x0, 1044(x9)
+  0068  4004ac23  sw x0, 1048(x9)
+  006c  4004ae23  sw x0, 1052(x9)
+  0070  4204a023  sw x0, 1056(x9)
+  0074  4204a223  sw x0, 1060(x9)
+  0078  4204a423  sw x0, 1064(x9)
+  007c  4204a623  sw x0, 1068(x9)
+  0080  4204a823  sw x0, 1072(x9)
+  0084  4204aa23  sw x0, 1076(x9)
+  0088  4204ac23  sw x0, 1080(x9)
+  008c  4204ae23  sw x0, 1084(x9)
+  0090  08000293  addi x5, x0, 128
+  0094  40548023  sb x5, 1024(x9)
+  0098  1204a283  lw x5, 288(x9)
+  009c  00329313  slli x6, x5, 3
+  00a0  01835393  srli x7, x6, 24
+  00a4  42748e23  sb x7, 1084(x9)
+  00a8  01035393  srli x7, x6, 16
+  00ac  42748ea3  sb x7, 1085(x9)
+  00b0  00835393  srli x7, x6, 8
+  00b4  42748f23  sb x7, 1086(x9)
+  00b8  42648fa3  sb x6, 1087(x9)
+  00bc  0062db13  srli x22, x5, 6
+  00c0  00000a93  addi x21, x0, 0
+  00c4  016a9463  bne x21, x22, 8
+  00c8  40048a13  addi x20, x9, 1024
+  00cc  30048c93  addi x25, x9, 768
+  00d0  01000c13  addi x24, x0, 16
+  00d4  000a4283  lbu x5, 0(x20)
+  00d8  01829293  slli x5, x5, 24
+  00dc  001a4303  lbu x6, 1(x20)
+  00e0  01031313  slli x6, x6, 16
+  00e4  0062e2b3  or x5, x5, x6
+  00e8  002a4303  lbu x6, 2(x20)
+  00ec  00831313  slli x6, x6, 8
+  00f0  0062e2b3  or x5, x5, x6
+  00f4  003a4303  lbu x6, 3(x20)
+  00f8  0062e2b3  or x5, x5, x6
+  00fc  005ca023  sw x5, 0(x25)
+  0100  004a0a13  addi x20, x20, 4
+  0104  004c8c93  addi x25, x25, 4
+  0108  fffc0c13  addi x24, x24, -1
+  010c  fc0c14e3  bne x24, x0, -56
+  0110  03000c13  addi x24, x0, 48
+  0114  ff8ca283  lw x5, -8(x25)
+  0118  0112d313  srli x6, x5, 17
+  011c  00f29393  slli x7, x5, 15
+  0120  00736333  or x6, x6, x7
+  0124  0132d393  srli x7, x5, 19
+  0128  00d29e13  slli x28, x5, 13
+  012c  01c3e3b3  or x7, x7, x28
+  0130  00734333  xor x6, x6, x7
+  0134  00a2d393  srli x7, x5, 10
+  0138  00734333  xor x6, x6, x7
+  013c  fe4ca283  lw x5, -28(x25)
+  0140  00530333  add x6, x6, x5
+  0144  fc4ca283  lw x5, -60(x25)
+  0148  0072d393  srli x7, x5, 7
+  014c  01929e13  slli x28, x5, 25
+  0150  01c3e3b3  or x7, x7, x28
+  0154  0122de13  srli x28, x5, 18
+  0158  00e29e93  slli x29, x5, 14
+  015c  01de6e33  or x28, x28, x29
+  0160  01c3c3b3  xor x7, x7, x28
+  0164  0032de13  srli x28, x5, 3
+  0168  01c3c3b3  xor x7, x7, x28
+  016c  00730333  add x6, x6, x7
+  0170  fc0ca283  lw x5, -64(x25)
+  0174  00530333  add x6, x6, x5
+  0178  006ca023  sw x6, 0(x25)
+  017c  004c8c93  addi x25, x25, 4
+  0180  fffc0c13  addi x24, x24, -1
+  0184  f80c18e3  bne x24, x0, -112
+  0188  2004a503  lw x10, 512(x9)
+  018c  2044a583  lw x11, 516(x9)
+  0190  2084a603  lw x12, 520(x9)
+  0194  20c4a683  lw x13, 524(x9)
+  0198  2104a703  lw x14, 528(x9)
+  019c  2144a783  lw x15, 532(x9)
+  01a0  2184a803  lw x16, 536(x9)
+  01a4  21c4a883  lw x17, 540(x9)
+  01a8  30048c93  addi x25, x9, 768
+  01ac  00048d13  addi x26, x9, 0
+  01b0  04000c13  addi x24, x0, 64
+  01b4  00675293  srli x5, x14, 6
+  01b8  01a71313  slli x6, x14, 26
+  01bc  0062e2b3  or x5, x5, x6
+  01c0  00b75313  srli x6, x14, 11
+  01c4  01571393  slli x7, x14, 21
+  01c8  00736333  or x6, x6, x7
+  01cc  0062c2b3  xor x5, x5, x6
+  01d0  01975313  srli x6, x14, 25
+  01d4  00771393  slli x7, x14, 7
+  01d8  00736333  or x6, x6, x7
+  01dc  0062c2b3  xor x5, x5, x6
+  01e0  00f77333  and x6, x14, x15
+  01e4  fff74393  xori x7, x14, -1
+  01e8  0103f3b3  and x7, x7, x16
+  01ec  00734333  xor x6, x6, x7
+  01f0  005882b3  add x5, x17, x5
+  01f4  006282b3  add x5, x5, x6
+  01f8  000d2303  lw x6, 0(x26)
+  01fc  006282b3  add x5, x5, x6
+  0200  000ca303  lw x6, 0(x25)
+  0204  006282b3  add x5, x5, x6
+  0208  00255313  srli x6, x10, 2
+  020c  01e51393  slli x7, x10, 30
+  0210  00736333  or x6, x6, x7
+  0214  00d55393  srli x7, x10, 13
+  0218  01351e13  slli x28, x10, 19
+  021c  01c3e3b3  or x7, x7, x28
+  0220  00734333  xor x6, x6, x7
+  0224  01655393  srli x7, x10, 22
+  0228  00a51e13  slli x28, x10, 10
+  022c  01c3e3b3  or x7, x7, x28
+  0230  00734333  xor x6, x6, x7
+  0234  00b573b3  and x7, x10, x11
+  0238  00c57e33  and x28, x10, x12
+  023c  01c3c3b3  xor x7, x7, x28
+  0240  00c5fe33  and x28, x11, x12
+  0244  01c3c3b3  xor x7, x7, x28
+  0248  00730333  add x6, x6, x7
+  024c  00080893  addi x17, x16, 0
+  0250  00078813  addi x16, x15, 0
+  0254  00070793  addi x15, x14, 0
+  0258  00568733  add x14, x13, x5
+  025c  00060693  addi x13, x12, 0
+  0260  00058613  addi x12, x11, 0
+  0264  00050593  addi x11, x10, 0
+  0268  00628533  add x10, x5, x6
+  026c  004c8c93  addi x25, x25, 4
+  0270  004d0d13  addi x26, x26, 4
+  0274  fffc0c13  addi x24, x24, -1
+  0278  f20c1ee3  bne x24, x0, -196
+  027c  2004a283  lw x5, 512(x9)
+  0280  00a282b3  add x5, x5, x10
+  0284  2054a023  sw x5, 512(x9)
+  0288  2044a283  lw x5, 516(x9)
+  028c  00b282b3  add x5, x5, x11
+  0290  2054a223  sw x5, 516(x9)
+  0294  2084a283  lw x5, 520(x9)
+  0298  00c282b3  add x5, x5, x12
+  029c  2054a423  sw x5, 520(x9)
+  02a0  20c4a283  lw x5, 524(x9)
+  02a4  00d282b3  add x5, x5, x13
+  02a8  2054a623  sw x5, 524(x9)
+  02ac  2104a283  lw x5, 528(x9)
+  02b0  00e282b3  add x5, x5, x14
+  02b4  2054a823  sw x5, 528(x9)
+  02b8  2144a283  lw x5, 532(x9)
+  02bc  00f282b3  add x5, x5, x15
+  02c0  2054aa23  sw x5, 532(x9)
+  02c4  2184a283  lw x5, 536(x9)
+  02c8  010282b3  add x5, x5, x16
+  02cc  2054ac23  sw x5, 536(x9)
+  02d0  21c4a283  lw x5, 540(x9)
+  02d4  011282b3  add x5, x5, x17
+  02d8  2054ae23  sw x5, 540(x9)
+  02dc  001a8a93  addi x21, x21, 1
+  02e0  df5b52e3  bge x22, x21, -540
+  02e4  2004a283  lw x5, 512(x9)
+  02e8  0182d313  srli x6, x5, 24
+  02ec  14648023  sb x6, 320(x9)
+  02f0  0102d313  srli x6, x5, 16
+  02f4  146480a3  sb x6, 321(x9)
+  02f8  0082d313  srli x6, x5, 8
+  02fc  14648123  sb x6, 322(x9)
+  0300  145481a3  sb x5, 323(x9)
+  0304  2044a283  lw x5, 516(x9)
+  0308  0182d313  srli x6, x5, 24
+  030c  14648223  sb x6, 324(x9)
+  0310  0102d313  srli x6, x5, 16
+  0314  146482a3  sb x6, 325(x9)
+  0318  0082d313  srli x6, x5, 8
+  031c  14648323  sb x6, 326(x9)
+  0320  145483a3  sb x5, 327(x9)
+  0324  2084a283  lw x5, 520(x9)
+  0328  0182d313  srli x6, x5, 24
+  032c  14648423  sb x6, 328(x9)
+  0330  0102d313  srli x6, x5, 16
+  0334  146484a3  sb x6, 329(x9)
+  0338  0082d313  srli x6, x5, 8
+  033c  14648523  sb x6, 330(x9)
+  0340  145485a3  sb x5, 331(x9)
+  0344  20c4a283  lw x5, 524(x9)
+  0348  0182d313  srli x6, x5, 24
+  034c  14648623  sb x6, 332(x9)
+  0350  0102d313  srli x6, x5, 16
+  0354  146486a3  sb x6, 333(x9)
+  0358  0082d313  srli x6, x5, 8
+  035c  14648723  sb x6, 334(x9)
+  0360  145487a3  sb x5, 335(x9)
+  0364  2104a283  lw x5, 528(x9)
+  0368  0182d313  srli x6, x5, 24
+  036c  14648823  sb x6, 336(x9)
+  0370  0102d313  srli x6, x5, 16
+  0374  146488a3  sb x6, 337(x9)
+  0378  0082d313  srli x6, x5, 8
+  037c  14648923  sb x6, 338(x9)
+  0380  145489a3  sb x5, 339(x9)
+  0384  2144a283  lw x5, 532(x9)
+  0388  0182d313  srli x6, x5, 24
+  038c  14648a23  sb x6, 340(x9)
+  0390  0102d313  srli x6, x5, 16
+  0394  14648aa3  sb x6, 341(x9)
+  0398  0082d313  srli x6, x5, 8
+  039c  14648b23  sb x6, 342(x9)
+  03a0  14548ba3  sb x5, 343(x9)
+  03a4  2184a283  lw x5, 536(x9)
+  03a8  0182d313  srli x6, x5, 24
+  03ac  14648c23  sb x6, 344(x9)
+  03b0  0102d313  srli x6, x5, 16
+  03b4  14648ca3  sb x6, 345(x9)
+  03b8  0082d313  srli x6, x5, 8
+  03bc  14648d23  sb x6, 346(x9)
+  03c0  14548da3  sb x5, 347(x9)
+  03c4  21c4a283  lw x5, 540(x9)
+  03c8  0182d313  srli x6, x5, 24
+  03cc  14648e23  sb x6, 348(x9)
+  03d0  0102d313  srli x6, x5, 16
+  03d4  14648ea3  sb x6, 349(x9)
+  03d8  0082d313  srli x6, x5, 8
+  03dc  14648f23  sb x6, 350(x9)
+  03e0  14548fa3  sb x5, 351(x9)
+  03e4  00000513  addi x10, x0, 0
+  03e8  00100293  addi x5, x0, 1
+  03ec  00000073  ecall
+    sha.bin sha256 b3d6e1b668200c62cc7e3c692908888fdd17de9893679d2dd705efaf741f381e  (1008 bytes)
+    byte for byte the committed sha.bin
+
+>>> the theorems, and what they rest on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'Rv32.Sha.round_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.rounds_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.load_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.expand_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.block_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.block_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.output_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Sha.sha256_whole' depends on axioms: [propext, Quot.sound]
+'Rv32.Sha.computes' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels, wrong claims and a wrong specification: each must be refused
+round     Σ1 rotates e by 26, not 25                                              refused in seg1_T0
+round     Ch takes ¬f, not ¬e                                                    refused in seg1_T0
+round     Maj's last term is a ∧ c again, not b ∧ c                            refused in seg3_regs
+rounds    63 rounds                                                                refused in block_step
+schedule  σ0 shifts by 4, not 3                                                   refused in ssig0_line
+schedule  the last term is W[t-15], not W[t-16]                                    refused in expand_step
+load      each word's first byte is taken from the second                          refused in load_step
+setup     H starts one word into IV                                                refused in ivCopy_run
+setup     the padding starts with 0x01, not 0x80                                   refused in setup_run
+setup     the length is written in bytes, not bits                                 refused in setup_run
+addback   each word of H gets the next working variable                            refused in at_addBack
+loop      the loop leaves before the padding block                                 refused in next_run
+output    the digest's words are written with their first and last bytes swapped   refused in at_output
+claim     it is claimed to take one instruction fewer per block                    refused in computes
+claim     it is claimed to write nothing past W, so not the padding block          refused in computes
+spec      the specification's Σ1 rotates by 26                                    refused in seg1_T0
+spec      the specification pads with the length in bytes                          refused in pad_whole
+
+>>> the kernel on the model and on the RTL, and the specification, against hashlib
+bytes  model                                     RTL                                           spec
+    0  ok halt code=00000000 count=4990          ok halt code=00000000 instret=4993 cycles=5403  ok
+   64  ok halt code=00000000 count=9863          ok halt code=00000000 instret=9866 cycles=10676  ok
+   64  ok halt code=00000000 count=9863          ok halt code=00000000 instret=9866 cycles=10676  ok
+   64  ok halt code=00000000 count=9863          ok halt code=00000000 instret=9866 cycles=10676  ok
+  128  ok halt code=00000000 count=14736         ok halt code=00000000 instret=14739 cycles=15949  ok
+   64  ok halt code=00000000 count=9863          ok halt code=00000000 instret=9866 cycles=10676  ok
+  128  ok halt code=00000000 count=14736         ok halt code=00000000 instret=14739 cycles=15949  ok
+  192  ok halt code=00000000 count=19609         ok halt code=00000000 instret=19612 cycles=21222  ok
+  320  ok halt code=00000000 count=29355         ok halt code=00000000 instret=29358 cycles=31768  ok
+  512  ok halt code=00000000 count=43974         ok halt code=00000000 instret=43977 cycles=47587  ok
+PASS  the kernel on the model and the RTL, and the specification, give hashlib's SHA-256 of all 10 messages; the model in exactly 4990 + 4873 n instructions, as computes states, and the RTL retiring 3 more

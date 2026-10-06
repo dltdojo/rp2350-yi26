@@ -1,0 +1,26 @@
+# exp208 — wrong kernels, wrong claims about the right one, and a wrong
+# specification. Each must be refused by Lean. The kernel, the specification
+# and every theorem are lean/Rv32/Sha.lean, so every sed here edits that file.
+# What Lean cannot refuse is a wrong constant in K or IV: the theorem takes
+# them from memory, as the specification's lists, so a typo there moves the
+# specification and the hypothesis together. compare.py holds the
+# specification to hashlib for that.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+round|Σ1 rotates e by 26, not 25|s/ .sh .srli T1 A4 25, .sh .slli T2 A4 7,/ .sh .srli T1 A4 26, .sh .slli T2 A4 6,/|lean/Rv32/Sha.lean
+round|Ch takes ¬f, not ¬e|s/ .opi .xori T2 A4 0xfff,/ .opi .xori T2 A5 0xfff,/|lean/Rv32/Sha.lean
+round|Maj's last term is a ∧ c again, not b ∧ c|s/ .op .and T3 A1 A2, .op .xor T2 T2 T3,/ .op .and T3 A0 A2, .op .xor T2 T2 T3,/|lean/Rv32/Sha.lean
+rounds|63 rounds|s/ .opi .addi S8 0 64 \] ++/ .opi .addi S8 0 63 ] ++/|lean/Rv32/Sha.lean
+schedule|σ0 shifts by 4, not 3|s/ .sh .srli T3 T0 3, .op .xor T2 T2 T3 \]$/ .sh .srli T3 T0 4, .op .xor T2 T2 T3 ]/|lean/Rv32/Sha.lean
+schedule|the last term is W[t-15], not W[t-16]|s/ .ld .lw T0 S9 0xfc0,/ .ld .lw T0 S9 0xfc4,/|lean/Rv32/Sha.lean
+load|each word's first byte is taken from the second|s/ .ld .lbu T0 S4 0, / .ld .lbu T0 S4 1, /|lean/Rv32/Sha.lean
+setup|H starts one word into IV|s/(BitVec.ofNat 12 (0x100 + 4 \* j))/(BitVec.ofNat 12 (0x104 + 4 * j))/|lean/Rv32/Sha.lean
+setup|the padding starts with 0x01, not 0x80|s/^  \[ .opi .addi T0 0 0x80, .st .sb S1 T0 0x400,$/  [ .opi .addi T0 0 0x01, .st .sb S1 T0 0x400,/|lean/Rv32/Sha.lean
+setup|the length is written in bytes, not bits|s/ .ld .lw T0 S1 0x120, .sh .slli T1 T0 3,$/ .ld .lw T0 S1 0x120, .sh .slli T1 T0 0,/|lean/Rv32/Sha.lean
+addback|each word of H gets the next working variable|s/ .op .add T0 T0 (BitVec.ofNat 5 (10 + j)),$/ .op .add T0 T0 (BitVec.ofNat 5 (11 + j)),/|lean/Rv32/Sha.lean
+loop|the loop leaves before the padding block|s/ .br .bge S6 S5 0xef2 \]$/ .br .blt S5 S6 0xef2 ]/|lean/Rv32/Sha.lean
+output|the digest's words are written with their first and last bytes swapped|s/(0x140 + 4 \* j)),$/(0x143 + 4 * j)),/;s/(0x143 + 4 \* j)) \]) ++$/(0x140 + 4 * j)) ]) ++/|lean/Rv32/Sha.lean
+claim|it is claimed to take one instruction fewer per block|s/^    ∃ s', run env (4990 + 4873 \* n) s = .halted 0 s' ∧$/    ∃ s', run env (4990 + 4872 * n) s = .halted 0 s' ∧/|lean/Rv32/Sha.lean
+claim|it is claimed to write nothing past W, so not the padding block|s/^      Keeps (base + BitVec.ofNat 32 0x1140) 0x300 s.mem s'.mem := by$/      Keeps (base + BitVec.ofNat 32 0x1140) 0x2c0 s.mem s'.mem := by/|lean/Rv32/Sha.lean
+spec|the specification's Σ1 rotates by 26|s/^def bsig1 (e : W32) : W32 := rotr e 6 ^^^ rotr e 11 ^^^ rotr e 25$/def bsig1 (e : W32) : W32 := rotr e 6 ^^^ rotr e 11 ^^^ rotr e 26/|lean/Rv32/Sha.lean
+spec|the specification pads with the length in bytes|s/^  let bits := 8 \* msg.length$/  let bits := msg.length/|lean/Rv32/Sha.lean
