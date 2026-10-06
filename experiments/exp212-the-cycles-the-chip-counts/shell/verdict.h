@@ -22,7 +22,12 @@
 //                   that cannot see a difference
 //
 // Revision 1 said only slow, double (2) or fast (1, 3, 4, 5 and 6 together),
-// and a board said fast.
+// and a board said fast. Revision 2 said which, and a board said 3: the
+// shell's first run alone. So revision 3 starts with a KEYGEN_WARM run —
+// seed 0's key generation, held to every check and to nothing about its
+// cycles — and every answer above is about the runs after it. 3 now means
+// the first *timed* key generation, seed 0's second, is the odd one out:
+// if the first run was the cold shell, it is not.
 #pragma once
 #include <stdint.h>
 
@@ -44,6 +49,7 @@ static inline uint32_t verdict(const struct run *runs, const struct result *res,
     for (uint32_t i = 0; i < n; i++) {
         if (res[i].failed) return V_CHECK;
         uint32_t k = runs[i].kind;
+        if (k == KEYGEN_WARM) continue;
         if (first[k] == NONE) first[k] = i;
         else if (k == KEYGEN && second_keygen == NONE) second_keygen = i;
     }
@@ -56,6 +62,7 @@ static inline uint32_t verdict(const struct run *runs, const struct result *res,
     uint32_t keygen_all = 1, keygen_rest = 1, sign_all = 1, rtl = 1;
     for (uint32_t i = 0; i < n; i++) {
         uint32_t k = runs[i].kind, c = res[i].cycles;
+        if (k == KEYGEN_WARM) continue;
         if (k == KEYGEN) {
             if (c != res[first[KEYGEN]].cycles) keygen_all = 0;
             if (i != first[KEYGEN] && c != res[second_keygen].cycles) keygen_rest = 0;

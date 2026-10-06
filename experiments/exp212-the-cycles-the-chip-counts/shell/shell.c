@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// exp212 — the shell: for each seed, run exp213's key generator in User mode
+// exp212 — the shell: first, seed 0's key generation once to warm the shell
+// up (checked, not timed: see verdict.h); then for each seed, run exp213's
+// key generator in User mode
 // under tools/hazard3/harness/harness.S, then its signer on the tree the key
 // generator just wrote; and once, the signer on another message. HASH calls
 // are answered by board_hash (the SHA-256 block on the chip). harness.S holds
@@ -68,7 +70,7 @@ __attribute__((noreturn)) static void next_run(void) {
     for (uint32_t i = 0; i < REGION_SIZE / 4; i++) w[i] = 0;
     const uint8_t *k, *sha;
     uint32_t len;
-    if (e->kind == KEYGEN) {
+    if (e->kind == KEYGEN || e->kind == KEYGEN_WARM) {
         k = KEYGEN_BIN, len = KEYGEN_LEN, sha = KEYGEN_SHA;
         put(0, k, len);
         put(K_SEED, SEED[e->seed], 32);
@@ -123,7 +125,7 @@ void handle(uint32_t *x) {
     r->cycles = cycles;
     for (uint32_t c = 1; c <= 5; c++)
         if (!ok[c]) r->failed = r->failed * 10 + c;
-    if (e->kind == KEYGEN)
+    if (e->kind == KEYGEN || e->kind == KEYGEN_WARM)
         for (uint32_t i = 0; i < TREE_LEN; i++) tree[i] = ((const uint8_t *)REGION)[K_TREE + i];
     ran++;
     board_run(current, r, instret);

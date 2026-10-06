@@ -30,7 +30,7 @@ as exp210.
 4. Copy `exp212.uf2` onto it. The drive disappears and the board restarts.
 5. The LED comes on and stays on while the runs go. **Wait until it starts
    to blink** — give it three minutes — then say which of these it is. This
-   is revision 2; *What the board has said* below is why.
+   is revision 3; *What the board has said* below is why.
 
 ### What the LED says
 
@@ -39,7 +39,7 @@ as exp210.
 | **slow blinking**, about 2 s on, 2 s off, without pause | **every seed took the same cycles, and they are the RTL's** |
 | **1 flash**, then about 2 s dark, repeated | a check failed: the kernel, its halt, its region, its `minstret` or the SHA-256 block |
 | **2 flashes**, then dark | every seed took the same cycles, **but not the RTL's number** |
-| **3 flashes**, then dark | **only the first key generation** took a different time; every other one, and every signature, agreed |
+| **3 flashes**, then dark | **only seed 0's timed key generation** took a different time; every other one, and every signature, agreed — after a warm-up run, so this is seed 0, not the shell's first run |
 | **4 flashes**, then dark | the key generations differ, beyond the first |
 | **5 flashes**, then dark | the signatures differ |
 | **6 flashes**, then dark | the other message took the signer's time: the measurement cannot see a difference |
@@ -50,7 +50,7 @@ Each flash is about 0.36 s on and 0.36 s off, and the dark between groups
 about 2 s. **Say "slow", or how many flashes.** Slow and 2 both mean the
 seed did not move the time; 2 adds that silicon counts cycles differently
 from the RTL, which is a finding, not a failure. 3 says the same about the
-seed, and names the shell's own first run as the thing that moved.
+seed of the fifteen others, and singles out seed 0 itself.
 
 ## What the shell does
 
@@ -61,6 +61,11 @@ For each of 16 seeds, from `random.Random(212)`:
    `keygen_image` does, and run it; keep the 992-byte tree it wrote;
 2. **the signer**: zero the region, write `sign.bin`, the message, leaf 5,
    the seed and *that tree* as `sign_image` does, and run it.
+
+Before all of it, seed 0's key generation once, as a **warm-up**: held to
+every check below, but its cycles are not compared with anything. Revision 2
+found the shell's first run out of line on the board (*What the board has
+said*), and the warm-up is there so that no timed run is the first.
 
 After the first seed's signature, the signer once more on another message,
 under the same seed and tree. The message is public: it sets how far each
@@ -79,14 +84,15 @@ cycles cannot come from a run that did something else:
 5. the SHA-256 block never flagged a write while busy.
 
 and its `mcycle` is kept. [`shell/verdict.h`](./shell/verdict.h) then
-decides, from all 33 runs, the first of these that applies:
+decides, from all 34 runs — the warm-up's checks, and the other 33's checks
+and cycles — the first of these that applies:
 
 | | |
 | --- | --- |
 | **slow** | every check passed; the 16 key generations took one number of cycles, the 16 signatures one number; the other message did not take the signatures' number; and all three are the RTL's |
 | **1** | a check failed, or a run is missing |
 | **2** | every seed alike and the other message moved, but at least one of the three numbers is not the RTL's |
-| **3** | the first key generation alone is out of line: the other fifteen agree with each other, every signature agrees, the other message moved |
+| **3** | seed 0's timed key generation alone is out of line: the other fifteen agree with each other, every signature agrees, the other message moved |
 | **4** | the key generations differ otherwise |
 | **5** | the signatures differ |
 | **6** | the other message took the signatures' number |
@@ -125,10 +131,10 @@ a USB stack would multiply the shell's trust base).
 `check.sh`:
 
 - **`verdict.h` on the host**, fed made-up results: each of its seven
-  answers from the results that must give it, sixteen cases; and eleven
-  wrong versions of it, each caught — among them one that blames the first
-  key generation when the others differ too;
-- `gen.py`: 33 runs on the Lean model, each halting with code 0 at one count
+  answers from the results that must give it, nineteen cases — three of
+  them about the warm-up; and thirteen wrong versions of it, each caught —
+  among them one that times the warm-up and one that does not check it;
+- `gen.py`: 34 runs on the Lean model, each halting with code 0 at one count
   per kind; the key generator's tree is `mss.py`'s `tree_of` (so the signer's
   image the chip builds from it is `sign_image`); and the RTL's three runs at
   `minstret = count + 3 + 4·S`;
@@ -183,10 +189,13 @@ single it out — seed 0 also ran only once, first. And whether silicon's
 numbers are the RTL's: answer 3 is decided before the RTL is consulted, so
 that question is still open.
 
-A revision 3 would settle both in one flash: run the first key generation
-twice, judge only the second, and compare every number with the RTL's. If
-seed 0's second run joins the others, it was the cache; the answer is then
-slow or 2.
+Revision 3 settles both in one flash: it runs seed 0's key generation twice,
+times only the second, and compares every number with the RTL's. If the
+second joins the others, the first run's difference was the shell's cold
+start, and the answer is slow or 2; if it is 3 again, seed 0 itself is
+different, which is a finding about the seed.
+
+Not yet run on a board: revision 3.
 
 ## Running it
 

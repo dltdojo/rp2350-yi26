@@ -5,7 +5,7 @@
 # board half is a person saying "slow", or how many flashes; see the README.
 #
 #   1. verdict.h, the LED's decision, gives each of its seven answers on the
-#      results that must give it — and eleven wrong versions of it are caught;
+#      results that must give it — and thirteen wrong versions of it are caught;
 #   2. gen.py ran every seed on the Lean model and three runs on the RTL, and
 #      they agreed: code 0, one count per kind, keygen's tree mss.py's, and
 #      minstret = count + 3 + 4 S;
@@ -78,6 +78,10 @@ verdict_mutant "it lets a blind measurement through" 's/    if (!moved) return V
 verdict_mutant "it compares one run short" \
     '0,/for (uint32_t i = 0; i < n; i++)/!s/for (uint32_t i = 0; i < n; i++)/for (uint32_t i = 0; i + 1 < n; i++)/'
 verdict_mutant "it says slow off the RTL's numbers" 's/return rtl ? V_SLOW : V_NOT_RTL;/return V_SLOW;/'
+verdict_mutant "it times the warm-up too" \
+    '0,/if (k == KEYGEN_WARM) continue;/!s/        if (k == KEYGEN_WARM) continue;//'
+verdict_mutant "it does not check the warm-up" \
+    's/        if (res\[i\].failed) return V_CHECK;/        if (res[i].failed \&\& runs[i].kind != KEYGEN_WARM) return V_CHECK;/'
 
 source ../../tools/hazard3/shell/shell.sh
 if [[ "$(../../tools/lean/lean.sh version 2>&1)" != Lean* ]] || ! "$SHELL_SIM" ready; then
@@ -92,10 +96,10 @@ else
     exit 1
 fi
 runs="$(grep -c ' seed ' build/chip/gen.txt)"
-if [[ "$runs" == 33 ]]; then
-    pass "gen.py: 16 seeds, 33 runs on the model — code 0, one count per kind, the tree mss.py's — and the RTL's minstret count + 3 + 4 S"
+if [[ "$runs" == 34 ]]; then
+    pass "gen.py: 16 seeds and a warm-up, 34 runs on the model — code 0, one count per kind, the tree mss.py's — and the RTL's minstret count + 3 + 4 S"
 else
-    fail "gen.py ran 33 runs" "$runs"
+    fail "gen.py ran 34 runs" "$runs"
 fi
 python3 ../../tools/hazard3/shell/uf2check.py build/exp212.uf2 build/exp212.bin \
     "$(llvm-nm build/chip/shell.elf | awk '$3 == "_start" {print $1}')" 32768 || FAILED=1

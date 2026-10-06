@@ -8,16 +8,17 @@
 #include <stdint.h>
 #include <stdio.h>
 
-enum kind { KEYGEN, SIGN, SIGN_OTHER };
+enum kind { KEYGEN, SIGN, SIGN_OTHER, KEYGEN_WARM };
 struct run { uint32_t kind, seed, instret, cycles; uint8_t region[32]; };
 
 #include "verdict.h"
 
-// Three seeds, the schedule gen.py writes: K0 S0 O0 K1 S1 K2 S2. The RTL's
-// numbers: 100 for the key generator, 50 for the signer, 40 for the other
-// message.
-#define N 7
+// Three seeds, the schedule gen.py writes: W0 K0 S0 O0 K1 S1 K2 S2, W0 the
+// warm-up. The RTL's numbers: 100 for the key generator, 50 for the signer,
+// 40 for the other message.
+#define N 8
 static const struct run RUNS[N] = {
+    {KEYGEN_WARM, 0, 0, 100, {0}},
     {KEYGEN, 0, 0, 100, {0}}, {SIGN, 0, 0, 50, {0}}, {SIGN_OTHER, 0, 0, 40, {0}},
     {KEYGEN, 1, 0, 100, {0}}, {SIGN, 1, 0, 50, {0}}, {KEYGEN, 2, 0, 100, {0}}, {SIGN, 2, 0, 50, {0}},
 };
@@ -46,11 +47,24 @@ int main(void) {
     expect("every run as the RTL counted it", RUNS, r, N, V_SLOW);
 
     as_rtl(r);
-    r[6].failed = 3;
+    r[0].cycles += 40;
+    expect("the warm-up alone long: the cold shell, as revision 2 saw", RUNS, r, N, V_SLOW);
+
+    as_rtl(r);
+    r[0].cycles += 40;
+    for (int i = 1; i < N; i++) r[i].cycles += 2;
+    expect("the warm-up long, every timed run off the RTL's", RUNS, r, N, V_NOT_RTL);
+
+    as_rtl(r);
+    r[0].failed = 3;
+    expect("the warm-up's region not the model's", RUNS, r, N, V_CHECK);
+
+    as_rtl(r);
+    r[7].failed = 3;
     expect("the last run's region not the model's", RUNS, r, N, V_CHECK);
 
     as_rtl(r);
-    r[1].failed = 4;
+    r[2].failed = 4;
     expect("a run with the wrong minstret", RUNS, r, N, V_CHECK);
 
     as_rtl(r);
@@ -61,51 +75,51 @@ int main(void) {
     expect("every seed alike, but every number off the RTL's", RUNS, r, N, V_NOT_RTL);
 
     as_rtl(r);
-    r[0].cycles += 1, r[3].cycles += 1, r[5].cycles += 1;
+    r[1].cycles += 1, r[4].cycles += 1, r[6].cycles += 1;
     expect("every seed alike, only the key generator off the RTL's", RUNS, r, N, V_NOT_RTL);
 
     as_rtl(r);
-    r[2].cycles += 1;
+    r[3].cycles += 1;
     expect("every seed alike, only the other message off the RTL's", RUNS, r, N, V_NOT_RTL);
 
     as_rtl(r);
-    r[0].cycles += 1;
+    r[1].cycles += 1;
     expect("the first key generation alone one cycle longer", RUNS, r, N, V_FIRST);
 
     as_rtl(r);
-    r[0].cycles += 9;
+    r[1].cycles += 9;
     for (int i = 1; i < N; i++) r[i].cycles += 2;
     expect("the first key generation alone longer, and the rest all off the RTL's", RUNS, r, N, V_FIRST);
 
     as_rtl(r);
-    r[3].cycles += 1;
+    r[4].cycles += 1;
     expect("the second seed's key generation one cycle longer", RUNS, r, N, V_KEYGEN);
 
     as_rtl(r);
-    r[5].cycles += 1;
+    r[6].cycles += 1;
     expect("the last seed's key generation one cycle longer", RUNS, r, N, V_KEYGEN);
 
     as_rtl(r);
-    r[0].cycles += 1, r[6].cycles += 1;
+    r[1].cycles += 1, r[7].cycles += 1;
     expect("the first key generation longer, and a signature too: not only the first", RUNS, r, N, V_KEYGEN);
 
     as_rtl(r);
-    r[6].cycles -= 1;
+    r[7].cycles -= 1;
     expect("the last seed's signature one cycle shorter", RUNS, r, N, V_SIGN);
 
     as_rtl(r);
-    r[1].cycles += 1;
+    r[2].cycles += 1;
     expect("the first seed's signature one cycle longer", RUNS, r, N, V_SIGN);
 
     as_rtl(r);
-    r[2].cycles = r[1].cycles;
+    r[3].cycles = r[2].cycles;
     expect("the other message as long as the signer's: blind", RUNS, r, N, V_BLIND);
 
     struct run no_other[N];
     for (int i = 0; i < N; i++) no_other[i] = RUNS[i];
-    no_other[2].kind = SIGN, no_other[2].cycles = 50;
+    no_other[3].kind = SIGN, no_other[3].cycles = 50;
     as_rtl(r);
-    r[2].cycles = 50;
+    r[3].cycles = 50;
     expect("a schedule with no other message", no_other, r, N, V_CHECK);
 
     return failures != 0;

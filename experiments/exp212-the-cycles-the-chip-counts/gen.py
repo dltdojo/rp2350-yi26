@@ -17,9 +17,12 @@ minutes, most of it the key generator; build.sh keeps the file.
 
 `expect` writes the schedule for NSEEDS seeds:
 
-  keygen(0), sign(0), sign-other(0), keygen(1), sign(1), ..., keygen(N-1), sign(N-1)
+  keygen-warm(0), keygen(0), sign(0), sign-other(0), keygen(1), sign(1), ..., keygen(N-1), sign(N-1)
 
-and for every run what the chip must find afterwards: the SHA-256 of the
+preceded by keygen-warm(0): seed 0's key generation once more, first, held
+to every check but not to the cycles — the shell's first run, which revision
+2 found out of line on a board. Then for every run what the chip must find
+afterwards: the SHA-256 of the
 whole region as the Lean model (rv32run, at 0x20070000) left it, and the
 RTL's minstret and mcycle for that kind. Before writing anything:
 
@@ -75,7 +78,7 @@ def hashes(kind, m, other):
 
 
 def image(kind, seed, m, other):
-    if kind == "keygen":
+    if kind.startswith("keygen"):
         return mss.keygen_image(kernel("keygen")[0], seed)
     return mss.sign_image(kernel("sign")[0], seed, mss.tree_of(seed), LEAF, m if kind == "sign" else other)
 
@@ -101,7 +104,7 @@ def read_rtl(path):
 
 
 def schedule(nseeds):
-    runs = []
+    runs = [("keygen-warm", 0)]
     for i in range(nseeds):
         runs.append(("keygen", i))
         runs.append(("sign", i))
@@ -114,7 +117,8 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
     seeds, m, other = inputs(nseeds)
     measured = read_rtl(rtl_txt)
     rows, counts = [], {}
-    for kind, i in schedule(nseeds):
+    for name, i in schedule(nseeds):
+        kind = "keygen" if name == "keygen-warm" else name
         img = image(kind, seeds[i], m, other)
         ran, region = model(rv32run, img.ljust(REGION_SIZE, b"\0"), 100000)
         if not ran.startswith("halt code=00000000 count="):
@@ -129,8 +133,8 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
         if instret != count + 3 + 4 * s:
             sys.exit(f"gen.py: {kind}: the RTL's minstret {instret} is not {count} + 3 + 4·{s}")
         digest = hashlib.sha256(region).digest()
-        rows.append((kind, i, instret, cycles, digest))
-        print(f"{kind:10} seed {i:2}  model count {count:5}  region {digest.hex()[:16]}…  "
+        rows.append((name, i, instret, cycles, digest))
+        print(f"{name:11} seed {i:2}  model count {count:5}  region {digest.hex()[:16]}…  "
               f"RTL minstret {instret:6}  mcycle {cycles:6}", flush=True)
 
     keygen, keygen_sha = kernel("keygen")
@@ -142,7 +146,7 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
         f.write(f"#define TREE_LEN {31 * 32}\n")
         for name in ("K_SEED", "K_TREE", "S_MSG", "S_IDX", "S_SEED", "S_TREE"):
             f.write(f"#define {name} 0x{getattr(mss, name):04x}u\n")
-        f.write("\nenum kind { KEYGEN, SIGN, SIGN_OTHER };\n")
+        f.write("\nenum kind { KEYGEN, SIGN, SIGN_OTHER, KEYGEN_WARM };\n")
         f.write("struct fill { uint16_t at, len; };     // 0xee before the kernel runs\n")
         f.write("struct run { uint32_t kind, seed, instret, cycles; uint8_t region[32]; };\n\n")
         for name, fill in (("K_FILL", mss.K_FILL), ("S_FILL", mss.S_FILL)):
@@ -162,7 +166,7 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
             f.write(f"    {{{c_bytes(s)}}},\n")
         f.write("};\n\nstatic const struct run RUNS[NRUNS] = {\n")
         for kind, i, instret, cycles, digest in rows:
-            enum = {"keygen": "KEYGEN", "sign": "SIGN", "sign-other": "SIGN_OTHER"}[kind]
+            enum = {"keygen": "KEYGEN", "sign": "SIGN", "sign-other": "SIGN_OTHER", "keygen-warm": "KEYGEN_WARM"}[kind]
             f.write(f"    {{{enum}, {i}, {instret}u, {cycles}u, {{{c_bytes(digest)}}}}},\n")
         f.write("};\n")
     print(f"expect.h: {nseeds} seeds, {len(rows)} runs")
