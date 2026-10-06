@@ -192,7 +192,13 @@ testbench (`tools/hazard3/setup.sh`).
 
 ## What the board has said
 
-(pending — no board has run this yet)
+**Nothing yet: this experiment has not been run on a board.** It was merged
+with its cloud half complete — the model, the host test, the Lean model's
+16 leaves and the RTL's 18 boots — and the board run deferred, because it
+takes a person about twenty boots and two well-timed pulls of the cable.
+Everything under *What only the board can say* is still open, the first of
+it most of all: this shell's flash writes through the bootrom have never
+run on silicon.
 
 ## Expected output
 
