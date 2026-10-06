@@ -125,7 +125,7 @@ numbers, each digit a group of up to ten short blinks, and the person at the
 board answered that it could not be reported at all: the lengths were too
 much for an eye to count. The fix was not a better encoding. It was to
 compare on the chip, against values computed beforehand, and blink only the
-verdict, as slow or fast blinking 24 to 1 apart.
+verdict, as slow or fast blinking 12 to 1 apart.
 
 > More distinct things are worth saying only while a person can still tell
 > them apart at a glance. Past that, do the reading on the chip.

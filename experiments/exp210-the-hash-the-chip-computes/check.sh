@@ -52,17 +52,18 @@ fi
 
 # The driver against the fake block, and three wrong drivers it must refuse.
 mkdir -p build
-shatest() { # shell-dir
+shatest() { # dir holding sha_hw.h
     cc -O2 -Wall -Werror -I "$1" -o build/shafake host/shafake.c && python3 host/shatest.py build/shafake
 }
-shatest shell || FAILED=1
+SHA_HW=../../tools/hazard3/shell/sha_hw.h
+shatest "$(dirname "$SHA_HW")" || FAILED=1
 driver_mutant() { # what sed
     local work; work="$(mktemp -d)"
-    cp -r shell "$work/shell"
-    sed -i "$2" "$work/shell/sha_hw.h"
-    if cmp -s "$work/shell/sha_hw.h" shell/sha_hw.h; then
+    cp "$SHA_HW" "$work/sha_hw.h"
+    sed -i "$2" "$work/sha_hw.h"
+    if cmp -s "$work/sha_hw.h" "$SHA_HW"; then
         fail "the fake catches a driver that $1" "the sed changed nothing"
-    elif shatest "$work/shell" > /dev/null; then
+    elif shatest "$work" > /dev/null; then
         fail "the fake catches a driver that $1" "it passed"
     else
         pass "the fake catches a driver that $1"

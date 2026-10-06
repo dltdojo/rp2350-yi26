@@ -13,8 +13,14 @@
 //   on, steady      the shell hung, or trapped itself
 //   dark            the shell never ran, or failed before the LED came up
 //
+// and a shell that needs more answers than that has one more shape, which is
+// not a speed and so cannot be mistaken for either (exp212's):
+//
+//   N flashes       N slow flashes, then about two seconds dark, repeated —
+//                   N small enough to count at a glance
+//
 // The clock is whatever the bootrom left running; the shell never touches it.
-// Slow and fast are 24 to 1 apart, so they cannot be confused whatever it is.
+// Slow and fast are 12 to 1 apart, so they cannot be confused whatever it is.
 // One bit, because a person reading an LED reliably reads one bit: exp209's
 // revision 2 blinked four numbers and could not be read.
 #pragma once
@@ -71,6 +77,27 @@ static inline __attribute__((always_inline)) void led_init(void) {
 #define led_verdict(ok) do { \
         __asm__ volatile ("csrwi mcountinhibit, 4"); \
         blink((ok) ? 12 : 1); \
+    } while (0)
+
+// N flashes, a long dark, forever: an answer a person counts. Each flash is
+// twice as long as fast blinking's, so that six of them can still be counted.
+// Inline, so that a shell which never says it costs nothing and warns
+// nothing.
+__attribute__((noreturn)) static inline void blink_count(uint32_t n) {
+    for (;;) {
+        for (uint32_t i = 0; i < n; i++) {
+            REG(SIO_OUT_SET) = LED;
+            wait(2);
+            REG(SIO_OUT_CLR) = LED;
+            wait(2);
+        }
+        wait(10);
+    }
+}
+
+#define led_count(n) do { \
+        __asm__ volatile ("csrwi mcountinhibit, 4"); \
+        blink_count(n); \
     } while (0)
 
 // Steady on: a trap in the shell itself. It cannot say which step — the RTL
