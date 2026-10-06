@@ -117,6 +117,7 @@ Per experiment:
 | exp213 | **No board at all**, and no USB anywhere in it. The same as exp206. About fourteen minutes on four cores: twenty-seven mutants judged side by side, and the key generator once on the RTL — six minutes, because the testbench's harness computes its 17183 HASH calls on the simulated core. |
 | exp209 | A **Pico 2** (not a Pico 2 W — its LED is not on a GPIO), a USB cable, a hand on **BOOTSEL** to drag `exp209.uf2` on, and **an eye on the LED** for a few seconds: slow blinking or fast. No UART, no USB, no `yi26`. The cloud half needs clang, lld, llvm-objcopy, cargo, Lean and the Hazard3 testbench. |
 | exp210 | The same as exp209, and exp209's UF2 flashed first on a board that ever ran exp139–exp145 (their partition table lives in sector 0, and this image does not fit there). The cloud half is the same as exp209's and a host C compiler; about ten minutes the first time, three of them `gen.py` running 21 cases on the model and the RTL. |
+| exp212 | The same as exp210, and up to three minutes of the LED staying on before it answers: slow, a double flash, or fast. The cloud half is the same as exp210's; about fifteen minutes, most of it two key generations on the RTL, and ten more the first time. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -503,7 +504,7 @@ awake — and because most of these experiments cost nothing.
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204, exp205, exp206, exp207, exp213 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
-| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209, exp210 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209, exp210, exp212 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
 somebody to a bench for no reason:
@@ -771,6 +772,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp213 | `none` | `none` | `none` | `none` |
 | exp209 | `none` | `none` | `none` | `none` |
 | exp210 | `none` | `none` | `none` | `none` |
+| exp212 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -960,6 +962,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp213-the-signer-the-verifier-accepts](./exp213-the-signer-the-verifier-accepts/) | 0 · none | **An MSS key generator and signer as kernels, proved, and one theorem that runs three binaries in a row: `keygen.bin` writes the seed's whole tree in exactly 76456 instructions, `sign.bin` writes a signature, path and root where exp206's verifier reads them in exactly `2284 + 3·Σdᵢ`, and exp206's `kernel.bin`, given what the signer left, halts with 0 — for every seed, message, index below 16 and HASH.** The signer starts with exp205's first 46 instructions, so the digits it signs are the verifier's by the same lemmas; exp206's proof moved into `lean/` so that the join could reach it. The model, the RTL and Python agree on both kernels' cases and on the three run in a row; twenty-seven wrong versions are refused |
 | [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here, and the verified-kernel road's first contact with silicon: a shell in flash sector 0 of a Pico 2 runs exp203's proved kernel in User mode, through the RTL harness's own `harness.S`, and on the board everything matched. The kernel halted with 0, made its copy, left the whole 64 KiB region byte for byte as the Lean model predicted, and the RP2350 counted minstret = 108, the RTL's number.** PMP entry 0 reads back differently from what was written, which the RTL never shows. It took three builds: a person read a verdict and one number, could not read four, and reads one bit — slow or fast — without fail |
 | [exp210-the-hash-the-chip-computes](./exp210-the-hash-the-chip-computes/) | 3 · a person | **exp204's Lamport and exp205's WOTS verifiers, proved for every HASH, on a Pico 2 with the RP2350's SHA-256 block as HASH: all 21 cases in one UF2, each checked on the chip against the Lean model's verdict and every byte of its region, and against the RTL's minstret — and on the board it blinked slowly: every case matched. The SHA-256 block computed all 8,155 HASH calls as the model's SHA-256 does, every region came out byte for byte the model's, and silicon counted each case's minstret as the RTL does, HASH traps included.** On the RTL the same shell passes every case. The block's driver is held against a fake made from the datasheet, which four wrong drivers fail, and that is as far as the cloud can take it. exp209's shell moved to `tools/hazard3/shell/` for it, and still builds to the UF2 its board ran |
+| [exp212-the-cycles-the-chip-counts](./exp212-the-cycles-the-chip-counts/) | 3 · a person | **The first `mcycle` read on silicon: exp213's key generator and signer on a Pico 2 under sixteen seeds — each seed's key generation, then a signature with the tree it made — and the signer once on another message. The LED says slow if every seed took the same cycles and they are the RTL's, a double flash if every seed took the same cycles but not the RTL's, and fast otherwise.** Every run is also held to the Lean model's whole region and the RTL's minstret, so equal cycles cannot come from a run that did something else. On the RTL the same shell, with two seeds, says slow. No board has run it yet |
 
 ## The browser track, finished
 
@@ -2766,12 +2769,21 @@ they can settle is settled before anybody walks to a bench.**
   rather than the 1 planned: the shell has no USB, so the verdict is still a
   person reading the LED.
 
+**Built, waiting for a board:**
+
+- [exp212](./exp212-the-cycles-the-chip-counts/) — exp213's key generator and
+  signer on the Pico 2 under sixteen seeds, each seed's signature made with
+  the tree its key generation just wrote, and the signer once on another
+  message: the first `mcycle` read on silicon. Slow if every seed took the
+  same cycles and they are the RTL's, a double flash if the same but not the
+  RTL's, fast otherwise. Needs 3 rather than the 1 planned, for exp210's
+  reason; the logic analyser was left out.
+
 **Planned on a board:**
 
 | | Needs | What only silicon can say |
 | --- | --- | --- |
 | exp211 | 2 | MSS with its counter in flash: power pulled and firmware reflashed mid-sequence, and the counter never going back |
-| exp212 | 1 (3 with an analyser) | `mcycle` across secret keys on silicon; a logic analyser would be this repository's first extra instrument, and is optional |
 
 #### Questions this road has not answered, and must not assume
 

@@ -17,6 +17,9 @@ LEVEL = [0, 16, 24, 28, 30]          # where each level starts, in nodes
 K_SEED, K_PRF, K_BUF, K_ENDS, K_TREE = 0x1000, 0x1040, 0x1080, 0x2000, 0x3000
 S_MSG, S_IDX, S_SEED, S_PRF, S_SIG, S_AUTH, S_ROOT, S_TREE, S_SCR = (
     0x1000, 0x1020, 0x1040, 0x1080, 0x2000, 0x4000, 0x4080, 0x5000, 0x8000)
+# The scratch each kernel writes, as (address, length): 0xee before it runs.
+K_FILL = ((K_PRF, 64), (K_BUF, 64), (K_ENDS, 2176), (K_TREE, 31 * 32))
+S_FILL = ((S_PRF, 64), (S_SIG, 32 * N), (S_AUTH, 160), (S_SCR, 131))
 
 
 def tree_of(seed):
@@ -37,7 +40,7 @@ def keygen_image(kernel, seed):
     img = bytearray(K_TREE + 31 * 32)
     img[:len(kernel)] = kernel
     img[K_SEED:K_SEED + 32] = seed
-    for a, n in ((K_PRF, 64), (K_BUF, 64), (K_ENDS, 2176), (K_TREE, 31 * 32)):
+    for a, n in K_FILL:
         img[a:a + n] = bytes([0xEE] * n)
     return bytes(img)
 
@@ -49,6 +52,6 @@ def sign_image(kernel, seed, nodes, leaf, m):
     img[S_IDX] = leaf
     img[S_SEED:S_SEED + 32] = seed
     img[S_TREE:S_TREE + 31 * 32] = b"".join(nodes)
-    for a, n in ((S_PRF, 64), (S_SIG, 32 * N), (S_AUTH, 160), (S_SCR, 131)):
+    for a, n in S_FILL:
         img[a:a + n] = bytes([0xEE] * n)
     return bytes(img)

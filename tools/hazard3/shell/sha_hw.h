@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// exp210 — HASH on the RP2350's SHA-256 block (SHA256, 0x400f8000), the thing
-// this experiment puts under the proved kernels. The includer defines
+// tools/hazard3/shell — HASH on the RP2350's SHA-256 block (SHA256,
+// 0x400f8000): exp210 wrote it and put it under the proved kernels, exp212
+// needed it second. The includer defines
 //
 //   uint32_t sha_rd(uint32_t off)          read the register at off
 //   void sha_wr(uint32_t off, uint32_t v)  write it
 //
-// — volatile accesses on the chip (board_chip.c), and a fake made from the
-// datasheet's description on the host (host/shafake.c), which is all the
-// cloud can hold this against. Offsets and bits are rp-pac's for the RP235x.
+// — volatile accesses on the chip (sha_chip.h), and a fake made from the
+// datasheet's description on the host (exp210's host/shafake.c), which is all
+// the cloud can hold this against. Offsets and bits are rp-pac's for the RP235x.
 //
 // The block compresses 512-bit blocks; padding is ours. HASH's input is always
 // a multiple of 64 bytes, so the padding is one more whole block: 0x80, zeros,

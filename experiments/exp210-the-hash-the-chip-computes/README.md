@@ -103,7 +103,7 @@ builds byte for byte to the file that ran on its board.
 | --- | --- |
 | [`gen.py`](./gen.py) | runs every case of exp204's and exp205's `images.py` on the Lean model at `0x20070000` and on the RTL harness, refuses to go on unless the model gives Python's verdict at the proved count and the RTL counts `count + 3 + 4·S`, and writes `expect.h`: the images and the regions the model left, as 64-byte blocks each stored once |
 | [`shell/shell.c`](./shell/shell.c) | for each case: zero the region, write its blocks, hash the kernel, enter it under `harness.S`; answer HASH calls; at HALT run the six checks, then the next case |
-| [`shell/sha_hw.h`](./shell/sha_hw.h) | HASH on the SHA-256 block: `START`, the words with `BSWAP` on, one block of padding, wait for `SUM_VLD`, the sums out big-endian |
+| [`sha_hw.h`](../../tools/hazard3/shell/sha_hw.h), now in `tools/` | HASH on the SHA-256 block: `START`, the words with `BSWAP` on, one block of padding, wait for `SUM_VLD`, the sums out big-endian |
 | [`shell/board_chip.c`](./shell/board_chip.c) | takes the block out of reset after the LED is up, and blinks the verdict |
 | [`shell/board_sim.c`](./shell/board_sim.c) | the RTL's: HASH in software, as the RTL harness does it, and a line per case on the print port |
 

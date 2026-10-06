@@ -6,9 +6,10 @@ nothing the chip is compared with is typed by hand:
   model(rv32run, image, fuel)  the Lean model (rv32run) running the image at
                                CHIP_REGION, where the chip will: its one-line
                                outcome, and the whole region afterwards
-  rtl(image)                   the Hazard3 RTL running it under
-                               tools/hazard3/harness: its one-line outcome,
-                               whose minstret the chip is asked to match
+  rtl(image, cycles)           the Hazard3 RTL running it under
+                               tools/hazard3/harness, for at most cycles: its
+                               one-line outcome, whose minstret (and, for
+                               exp212, mcycle) the chip is asked to match
   c_bytes(b)                   bytes as a C initialiser list
 """
 import os
@@ -36,9 +37,9 @@ def model(rv32run, image, fuel):
         return ran, read_sig(sig)[:REGION_SIZE]
 
 
-def rtl(image):
+def rtl(image, cycles=50000000):
     with tempfile.TemporaryDirectory() as work:
         img = os.path.join(work, "image.bin")
         open(img, "wb").write(image)
-        return subprocess.run([os.path.join(HERE, "..", "sim.sh"), "run", img, "--cycles", "50000000"],
+        return subprocess.run([os.path.join(HERE, "..", "sim.sh"), "run", img, "--cycles", str(cycles)],
                               capture_output=True, text=True).stdout.strip()
