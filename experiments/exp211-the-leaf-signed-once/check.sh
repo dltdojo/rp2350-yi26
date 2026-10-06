@@ -87,7 +87,7 @@ counter_mutant "the claim is not read back" \
 counter_mutant "the marker is written before the claims are erased" \
     's/    flash_erase_sector(CTR_CLAIM);/    flash_program_word(CTR_MARK, CTR_MAGIC);\n    flash_erase_sector(CTR_CLAIM);/'
 counter_mutant "formatting does not erase the claims" 's/    flash_erase_sector(CTR_CLAIM);//'
-counter_mutant "the claims need not be a prefix" 's/            if (gap) return CTR_CORRUPT;//'
+counter_mutant "the claims need not be a prefix" 's/if (gap) return CTR_CORRUPT;/if (gap \&\& 0) return CTR_CORRUPT;/'
 counter_mutant "the leaf claimed is not the next one" \
     's/flash_program_word(ctr_claim_at(c->used), 0);/flash_program_word(ctr_claim_at(c->used + 1 < CTR_LEAVES ? c->used + 1 : c->used), 0);/'
 
