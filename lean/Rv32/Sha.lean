@@ -782,4 +782,284 @@ theorem load_loop {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
     intro r a b c d e
     rw [k2 r a b c d e, k1 r a b c d e]
 
+
+/-! ## Forty-eight words more -/
+
+theorem getD_app_left {a b : List W32} {i : Nat} (h : i < a.length) : (a ++ b).getD i 0 = a.getD i 0 := by
+  simp [List.getD_eq_getElem?_getD, List.getElem?_append_left h]
+
+theorem getD_app_right {a b : List W32} {i : Nat} (h : a.length ≤ i) :
+    (a ++ b).getD i 0 = b.getD (i - a.length) 0 := by
+  simp [List.getD_eq_getElem?_getD, List.getElem?_append_right h]
+
+theorem expand_length (w : List W32) (n : Nat) : (expand w n).length = w.length + n := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [expand, ih]; omega
+
+/-- Extending the schedule leaves the words already there. -/
+theorem expand_prefix (w : List W32) (n : Nat) : ∀ k i, i < w.length + n →
+    (expand w (n + k)).getD i 0 = (expand w n).getD i 0 := by
+  intro k
+  induction k with
+  | zero => intro i _; rfl
+  | succ k ih =>
+    intro i hi
+    rw [show n + (k + 1) = (n + k) + 1 by omega]
+    simp only [expand]
+    rw [getD_app_left (by rw [expand_length]; omega)]
+    exact ih i hi
+
+/-- Word `16 + n` of the schedule, from the four before it that FIPS 180-4 names. -/
+theorem expand_new (w : List W32) (hw : w.length = 16) (n : Nat) :
+    (expand w (n + 1)).getD (16 + n) 0 =
+      ssig1 ((expand w n).getD (14 + n) 0) + (expand w n).getD (9 + n) 0 + ssig0 ((expand w n).getD (1 + n) 0)
+        + (expand w n).getD n 0 := by
+  simp only [expand]
+  have hl : (expand w n).length = 16 + n := by rw [expand_length, hw]
+  rw [getD_app_right (by omega), hl, Nat.sub_self]
+  simp only [List.getD_cons_zero]
+  rw [show 16 + n - 2 = 14 + n by omega, show 16 + n - 7 = 9 + n by omega, show 16 + n - 15 = 1 + n by omega,
+    show 16 + n - 16 = n by omega]
+
+/-- The same, for the whole schedule: word `t` from words `t-2`, `t-7`, `t-15`, `t-16`. -/
+theorem sched_word (w : List W32) (hw : w.length = 16) (t : Nat) (h1 : 16 ≤ t) (h2 : t < 64) :
+    (expand w 48).getD t 0 = ssig1 ((expand w 48).getD (t - 2) 0) + (expand w 48).getD (t - 7) 0
+      + ssig0 ((expand w 48).getD (t - 15) 0) + (expand w 48).getD (t - 16) 0 := by
+  have pre : ∀ n i, n ≤ 48 → i < 16 + n → (expand w 48).getD i 0 = (expand w n).getD i 0 := fun n i hn hi => by
+    rw [show 48 = n + (48 - n) by omega]; exact expand_prefix w n _ i (by rw [hw]; exact hi)
+  obtain ⟨n, rfl⟩ : ∃ n, t = 16 + n := ⟨t - 16, by omega⟩
+  rw [pre (n + 1) _ (by omega) (by omega), expand_new w hw, pre n _ (by omega) (by omega),
+    pre n _ (by omega) (by omega), pre n _ (by omega) (by omega), pre n _ (by omega) (by omega),
+    show 16 + n - 2 = 14 + n by omega, show 16 + n - 7 = 9 + n by omega, show 16 + n - 15 = 1 + n by omega,
+    show 16 + n - 16 = n by omega]
+
+/-- An address `d` bytes below one past `base`, from a negative 12-bit offset. -/
+theorem off_back (base : Word) (c d : Nat) (h0 : 1 ≤ d) (h1 : d ≤ c) (h2 : d ≤ 2048) (hc : c < 2 ^ 32) :
+    base + BitVec.ofNat 32 c + (BitVec.ofNat 12 (4096 - d)).signExtend 32 = base + BitVec.ofNat 32 (c - d) := by
+  rw [se_neg _ (by omega) (by omega), BitVec.add_assoc]
+  congr 1
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  rw [Nat.mod_eq_of_lt hc, Nat.mod_eq_of_lt (show 2 ^ 32 - 4096 + (4096 - d) < 2 ^ 32 by omega),
+    Nat.mod_eq_of_lt (show c - d < 2 ^ 32 by omega), show c + (2 ^ 32 - 4096 + (4096 - d)) = (c - d) + 2 ^ 32 by omega,
+    Nat.add_mod_right, Nat.mod_eq_of_lt (show c - d < 2 ^ 32 by omega)]
+
+theorem ssig1_line (s : Machine) :
+    (s.line ssig1Code).reg T1 = ssig1 (s.reg T0) ∧
+    ∀ r, r ≠ T1 → r ≠ T2 → r ≠ T3 → (s.line ssig1Code).reg r = s.reg r := by
+  refine ⟨by simp [Machine.line, ssig1Code, Machine.alu, reg_setReg, T0, T1, T2, T3, aluR, shiftI, ssig1, rotr,
+    BitVec.rotateRight, BitVec.rotateRightAux], fun r h1 h2 h3 => ?_⟩
+  exact line_keeps _ _ _ (by simp [ssig1Code, rdOf, Ne.symm h1, Ne.symm h2, Ne.symm h3])
+
+theorem ssig0_line (s : Machine) :
+    (s.line ssig0Code).reg T2 = ssig0 (s.reg T0) ∧
+    ∀ r, r ≠ T2 → r ≠ T3 → r ≠ T4 → (s.line ssig0Code).reg r = s.reg r := by
+  refine ⟨by simp [Machine.line, ssig0Code, Machine.alu, reg_setReg, T0, T2, T3, T4, aluR, shiftI, ssig0, rotr,
+    BitVec.rotateRight, BitVec.rotateRightAux], fun r h2 h3 h4 => ?_⟩
+  exact line_keeps _ _ _ (by simp [ssig0Code, rdOf, Ne.symm h2, Ne.symm h3, Ne.symm h4])
+
+
+theorem add_T1_T0_line (s : Machine) :
+    (s.line [.op .add T1 T1 T0]).reg T1 = s.reg T1 + s.reg T0 ∧
+    ∀ r, r ≠ T1 → (s.line [.op .add T1 T1 T0]).reg r = s.reg r := by
+  refine ⟨by simp [Machine.line, Machine.alu, reg_setReg, aluR, T0, T1], fun r h => ?_⟩
+  exact line_keeps _ _ _ (by simp [rdOf, Ne.symm h])
+
+/-- σ₀ of `T0`, added to `T1`. -/
+def ssig0Add : List Instr := ssig0Code ++ [.op .add T1 T1 T2]
+
+theorem ssig0_add_line (s : Machine) :
+    (s.line ssig0Add).reg T1 = s.reg T1 + ssig0 (s.reg T0) ∧
+    ∀ r, r ≠ T1 → r ≠ T2 → r ≠ T3 → r ≠ T4 → (s.line ssig0Add).reg r = s.reg r := by
+  refine ⟨by simp [Machine.line, ssig0Add, ssig0Code, Machine.alu, reg_setReg, T0, T1, T2, T3, T4, aluR, shiftI, ssig0, rotr,
+    BitVec.rotateRight, BitVec.rotateRightAux], fun r h1 h2 h3 h4 => ?_⟩
+  exact line_keeps _ _ _ (by simp [ssig0Add, ssig0Code, rdOf, Ne.symm h1, Ne.symm h2, Ne.symm h3, Ne.symm h4])
+
+theorem expand_ctr_line (s : Machine) :
+    let s' := s.line [.opi .addi S9 S9 4, .opi .addi S8 S8 0xfff]
+    s'.reg S9 = s.reg S9 + 4 ∧ s'.reg S8 = s.reg S8 + (0xfff : BitVec 12).signExtend 32 ∧
+    ∀ r, r ≠ S9 → r ≠ S8 → s'.reg r = s.reg r := by
+  refine ⟨by simp [Machine.line, Machine.alu, reg_setReg, aluI, S8, S9],
+    by simp [Machine.line, Machine.alu, reg_setReg, aluI, S8, S9], fun r h9 h8 => ?_⟩
+  exact line_keeps _ _ _ (by simp [rdOf, Ne.symm h9, Ne.symm h8])
+
+/-- The expansion loop at the top of word `t`: W[0..t) is the schedule. -/
+structure EInv (base : Word) (m0 : Word → Byte) (E : List W32) (t : Nat) (s : Machine) : Prop where
+  s9 : s.reg S9 = base + BitVec.ofNat 32 (0x1300 + 4 * t)
+  s8 : s.reg S8 = BitVec.ofNat 32 (64 - t)
+  keeps : Keeps (base + BitVec.ofNat 32 0x1300) 256 m0 s.mem
+  words : ∀ i < t, wordAt s.mem (base + BitVec.ofNat 32 (0x1300 + 4 * i)) = E.getD i 0
+
+
+/-- `lw rd, -d(S9)` with `S9` at W[t]: W[t - d/4]. -/
+theorem w_back {base : Word} (t d : Nat) (h0 : 1 ≤ d) (h1 : d ≤ 4 * t) (h2 : d ≤ 2048)
+    (h3 : 0x1300 + 4 * t < 0x10000) (hd : d % 4 = 0) :
+    base + BitVec.ofNat 32 (0x1300 + 4 * t) + (BitVec.ofNat 12 (4096 - d)).signExtend 32 =
+      base + BitVec.ofNat 32 (0x1300 + 4 * (t - d / 4)) := by
+  rw [off_back base _ d h0 (by omega) h2 (by omega)]; congr 2; omega
+
+/-- **One schedule word**: twenty-nine instructions from the top of the
+expansion loop store W[t], from W[t-2], W[t-7], W[t-15] and W[t-16]. -/
+theorem expand_step {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 69))
+    {m0 : Word → Byte} {w : List W32} (hw : w.length = 16) {t : Nat} (ht1 : 16 ≤ t) (ht : t < 64)
+    (h : EInv base m0 (expand w 48) t s) :
+    ∃ s', run env 29 s = .running s' ∧ EInv base m0 (expand w 48) (t + 1) s' ∧
+      s'.pc = base + BitVec.ofNat 32 (4 * (if t + 1 < 64 then 69 else 98)) ∧
+      (∀ r, r ≠ T0 → r ≠ T1 → r ≠ T2 → r ≠ T3 → r ≠ T4 → r ≠ S8 → r ≠ S9 → s'.reg r = s.reg r) := by
+  have fit := hp.fit
+  have rd : ∀ i < t, BitVec.ofNat 32 (readLE s.mem (base + BitVec.ofNat 32 (0x1300 + 4 * i)) 4) =
+      (expand w 48).getD i 0 := fun i hi => h.words i hi
+  -- lw T0, -8(S9)
+  obtain ⟨s1, e1, p1, m1, r1⟩ := loadStep (prog := kernel) hp 69 (by decide) hcode hpc (rd := T0) (rs1 := S9)
+    (imm := 0xff8) (by decide) (0x1300 + 4 * (t - 2))
+    (by rw [h.s9]; exact w_back t 8 (by decide) (by omega) (by decide) (by omega) (by decide)) (by omega) (by omega)
+  have c1 : CodeAt s1.mem base kernel := by rw [m1]; exact hcode
+  -- σ₁
+  have e2 : run env 9 s1 = .running (s1.line ssig1Code) :=
+    run_line (prog := kernel) hp ssig1Code (by decide) 70 s1 (by decide) (by decide) c1 p1 (by decide)
+  have p2 := line_pc_at ssig1Code p1 (by decide)
+  have mm2 := line_mem s1 ssig1Code
+  obtain ⟨v2, k2⟩ := ssig1_line s1
+  generalize s1.line ssig1Code = s2 at e2 p2 mm2 v2 k2
+  have c2 : CodeAt s2.mem base kernel := by rw [mm2]; exact c1
+  have s9_2 : s2.reg S9 = s.reg S9 := by
+    rw [k2 _ (by decide) (by decide) (by decide), r1, ifF (by decide)]
+  -- lw T0, -28(S9)
+  obtain ⟨s3, e3, p3, m3, r3⟩ := loadStep (prog := kernel) hp 79 (by decide) c2 p2 (rd := T0) (rs1 := S9)
+    (imm := 0xfe4) (by decide) (0x1300 + 4 * (t - 7))
+    (by rw [s9_2, h.s9]; exact w_back t 28 (by decide) (by omega) (by decide) (by omega) (by decide)) (by omega)
+    (by omega)
+  have c3 : CodeAt s3.mem base kernel := by rw [m3]; exact c2
+  -- add T1, T1, T0
+  have e4 : run env 1 s3 = .running (s3.line [.op .add T1 T1 T0]) :=
+    run_line (prog := kernel) hp [.op .add T1 T1 T0] (by decide) 80 s3 (by decide) (by decide) c3 p3 (by decide)
+  have p4 := line_pc_at [.op .add T1 T1 T0] p3 (by decide)
+  have mm4 := line_mem s3 [.op .add T1 T1 T0]
+  obtain ⟨v4, k4⟩ := add_T1_T0_line s3
+  generalize s3.line [.op .add T1 T1 T0] = s4 at e4 p4 mm4 v4 k4
+  have c4 : CodeAt s4.mem base kernel := by rw [mm4]; exact c3
+  have s9_4 : s4.reg S9 = s.reg S9 := by rw [k4 _ (by decide), r3, ifF (by decide), s9_2]
+  -- lw T0, -60(S9)
+  obtain ⟨s5, e5, p5, m5, r5⟩ := loadStep (prog := kernel) hp 81 (by decide) c4 p4 (rd := T0) (rs1 := S9)
+    (imm := 0xfc4) (by decide) (0x1300 + 4 * (t - 15))
+    (by rw [s9_4, h.s9]; exact w_back t 60 (by decide) (by omega) (by decide) (by omega) (by decide)) (by omega)
+    (by omega)
+  have c5 : CodeAt s5.mem base kernel := by rw [m5]; exact c4
+  -- σ₀, added
+  have e6 : run env 10 s5 = .running (s5.line ssig0Add) :=
+    run_line (prog := kernel) hp ssig0Add (by decide) 82 s5 (by decide) (by decide) c5 p5 (by decide)
+  have p6 := line_pc_at ssig0Add p5 (by decide)
+  have mm6 := line_mem s5 ssig0Add
+  obtain ⟨v6, k6⟩ := ssig0_add_line s5
+  generalize s5.line ssig0Add = s6 at e6 p6 mm6 v6 k6
+  have c6 : CodeAt s6.mem base kernel := by rw [mm6]; exact c5
+  have s9_6 : s6.reg S9 = s.reg S9 := by
+    rw [k6 _ (by decide) (by decide) (by decide) (by decide), r5, ifF (by decide), s9_4]
+  -- lw T0, -64(S9)
+  obtain ⟨s7, e7, p7, m7, r7⟩ := loadStep (prog := kernel) hp 92 (by decide) c6 p6 (rd := T0) (rs1 := S9)
+    (imm := 0xfc0) (by decide) (0x1300 + 4 * (t - 16))
+    (by rw [s9_6, h.s9]; exact w_back t 64 (by decide) (by omega) (by decide) (by omega) (by decide)) (by omega)
+    (by omega)
+  have c7 : CodeAt s7.mem base kernel := by rw [m7]; exact c6
+  -- add T1, T1, T0
+  have e8 : run env 1 s7 = .running (s7.line [.op .add T1 T1 T0]) :=
+    run_line (prog := kernel) hp [.op .add T1 T1 T0] (by decide) 93 s7 (by decide) (by decide) c7 p7 (by decide)
+  have p8 := line_pc_at [.op .add T1 T1 T0] p7 (by decide)
+  have mm8 := line_mem s7 [.op .add T1 T1 T0]
+  obtain ⟨v8, k8⟩ := add_T1_T0_line s7
+  generalize s7.line [.op .add T1 T1 T0] = s8 at e8 p8 mm8 v8 k8
+  have c8 : CodeAt s8.mem base kernel := by rw [mm8]; exact c7
+  have mem8 : s8.mem = s.mem := by rw [mm8, m7, mm6, m5, mm4, m3, mm2, m1]
+  have s9_8 : s8.reg S9 = s.reg S9 := by rw [k8 _ (by decide), r7, ifF (by decide), s9_6]
+  -- the word
+  have word : s8.reg T1 = (expand w 48).getD t 0 := by
+    rw [v8, r7, ifF (by decide), r7, ifT (by decide), v6, r5, ifF (by decide), r5, ifT (by decide), v4, r3,
+      ifF (by decide), r3, ifT (by decide), v2, r1, ifT (by decide), mm6, m5, mm4, m3, mm2, m1,
+      rd _ (by omega), rd _ (by omega), rd _ (by omega), rd _ (by omega), sched_word w hw t ht1 ht]
+  -- sw T1, 0(S9)
+  obtain ⟨s9, e9, p9, m9, r9⟩ := storeStep (prog := kernel) hp 94 (by decide) c8 p8 (rs1 := S9) (rs2 := T1)
+    (imm := 0) (by decide) (0x1300 + 4 * t) (by rw [s9_8, h.s9]; simp) (by omega) (by omega)
+  have c9 : CodeAt s9.mem base kernel := by
+    rw [m9]
+    exact (keeps_writeLE fit s8.mem _ (Nat.le_refl _) (Nat.le_refl _) (by omega)).code fit (by omega)
+      (by rw [kernel_length]; omega) c8
+  -- the counters
+  have e10 : run env 2 s9 = .running (s9.line [.opi .addi S9 S9 4, .opi .addi S8 S8 0xfff]) :=
+    run_line (prog := kernel) hp [.opi .addi S9 S9 4, .opi .addi S8 S8 0xfff] (by decide) 95 s9 (by decide)
+      (by decide) c9 p9 (by decide)
+  have p10 := line_pc_at [.opi .addi S9 S9 4, .opi .addi S8 S8 0xfff] p9 (by decide)
+  have mm10 := line_mem s9 [.opi .addi S9 S9 4, .opi .addi S8 S8 0xfff]
+  obtain ⟨g9, g8, k10⟩ := expand_ctr_line s9
+  generalize s9.line [.opi .addi S9 S9 4, .opi .addi S8 S8 0xfff] = s10 at e10 p10 mm10 g9 g8 k10
+  have c10 : CodeAt s10.mem base kernel := by rw [mm10]; exact c9
+  have k9 : ∀ r, r ≠ T0 → r ≠ T1 → r ≠ T2 → r ≠ T3 → r ≠ T4 → s9.reg r = s.reg r := by
+    intro r h0 h1 h2 h3 h4
+    rw [r9, k8 r h1, r7, ifF (by simp [h0]), k6 r h1 h2 h3 h4, r5, ifF (by simp [h0]), k4 r h1, r3,
+      ifF (by simp [h0]), k2 r h1 h2 h3, r1, ifF (by simp [h0])]
+  have v8' : s10.reg S8 = BitVec.ofNat 32 (64 - (t + 1)) := by
+    rw [g8, k9 _ (by decide) (by decide) (by decide) (by decide) (by decide), h.s8,
+      show 64 - t = 64 - (t + 1) + 1 by omega]
+    exact dec_one _ (by omega)
+  have ht' : taken .bne (s10.reg S8) (s10.reg 0) = decide (t + 1 < 64) := by
+    rw [v8', reg_zero, taken_count _ (by omega)]; simp only [decide_eq_decide]; omega
+  have finish : ∀ s11 : Machine, run env 1 s10 = .running s11 → (∀ r, s11.reg r = s10.reg r) →
+      s11.mem = s10.mem → s11.pc = base + BitVec.ofNat 32 (4 * (if t + 1 < 64 then 69 else 98)) →
+      ∃ s', run env 29 s = .running s' ∧ EInv base m0 (expand w 48) (t + 1) s' ∧
+        s'.pc = base + BitVec.ofNat 32 (4 * (if t + 1 < 64 then 69 else 98)) ∧
+        (∀ r, r ≠ T0 → r ≠ T1 → r ≠ T2 → r ≠ T3 → r ≠ T4 → r ≠ S8 → r ≠ S9 → s'.reg r = s.reg r) := by
+    intro s11 e11 b11 m11 p11
+    have mem11 : s11.mem = writeLE s.mem (base + BitVec.ofNat 32 (0x1300 + 4 * t)) (s8.reg T1).toNat 4 := by
+      rw [m11, mm10, m9, mem8]
+    refine ⟨s11, ?_, ⟨?_, ?_, ?_, ?_⟩, p11, ?_⟩
+    · rw [show 29 = 1 + (9 + (1 + (1 + (1 + (10 + (1 + (1 + (1 + (2 + 1))))))))) by rfl, run_add_running e1,
+        run_add_running e2, run_add_running e3, run_add_running e4, run_add_running e5, run_add_running e6,
+        run_add_running e7, run_add_running e8, run_add_running e9, run_add_running e10, e11]
+    · rw [b11, g9, k9 _ (by decide) (by decide) (by decide) (by decide) (by decide), h.s9, ofNat_step]; congr 2
+    · rw [b11, v8']
+    · rw [mem11]
+      exact h.keeps.trans (keeps_writeLE fit s.mem _ (by omega) (by omega) (by decide))
+    · intro i hi
+      rw [mem11]
+      rcases Nat.lt_or_ge i t with hl | hl
+      · rw [wordAt_other fit _ _ (by omega) (by omega) (by omega)]; exact h.words i hl
+      · rw [show i = t by omega, wordAt_same, word]
+    · intro r h0 h1 h2 h3 h4 h8 h9
+      rw [b11, k10 r h9 h8, k9 r h0 h1 h2 h3 h4]
+  by_cases hl : t + 1 < 64
+  · have e11 : run env 1 s10 = .running (s10.setPc (s10.pc + ((0xfc8 : BitVec 12) ++ 0#1).signExtend 32)) :=
+      (stepK (prog := kernel) hp 97 (by decide) c10 p10 (i := .br .bne S8 0 0xfc8) (by decide)
+        (exec_br_taken (by rw [ht']; simp [hl])) 0).trans (run_zero _ _)
+    refine finish _ e11 (fun r => setPc_reg _ _ r) (setPc_mem _ _) ?_
+    simp only [hl, ↓reduceIte, setPc_pc, p10]
+    rw [BitVec.add_assoc]
+    congr 1
+  · have e11 : run env 1 s10 = .running s10.next :=
+      (stepK (prog := kernel) hp 97 (by decide) c10 p10 (i := .br .bne S8 0 0xfc8) (by decide)
+        (exec_br_not (by rw [ht']; simp [hl])) 0).trans (run_zero _ _)
+    refine finish _ e11 (fun r => next_reg _ r) (next_mem _) ?_
+    simp only [hl, ↓reduceIte, next_pc, p10]
+    exact pc_next fit 97 (by decide)
+
+/-- **The schedule**, by induction on words written from W[16]. -/
+theorem expand_loop {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+    (hcode : CodeAt s.mem base kernel) (hpc : s.pc = base + BitVec.ofNat 32 (4 * 69))
+    {m0 : Word → Byte} {w : List W32} (hw : w.length = 16) (h : EInv base m0 (expand w 48) 16 s) :
+    ∀ n ≤ 48, ∃ s', run env (29 * n) s = .running s' ∧ EInv base m0 (expand w 48) (16 + n) s' ∧
+      s'.pc = base + BitVec.ofNat 32 (4 * (if 16 + n < 64 then 69 else 98)) ∧
+      (∀ r, r ≠ T0 → r ≠ T1 → r ≠ T2 → r ≠ T3 → r ≠ T4 → r ≠ S8 → r ≠ S9 → s'.reg r = s.reg r) := by
+  intro n hn
+  induction n with
+  | zero => exact ⟨s, rfl, h, by simp [hpc], fun _ _ _ _ _ _ _ _ => rfl⟩
+  | succ n ih =>
+    obtain ⟨s1, e1, h1, p1, k1⟩ := ih (by omega)
+    have c0 : CodeAt m0 base kernel := (Keeps.symm' h.keeps).code hp.fit (by decide) (by decide) hcode
+    have c1 : CodeAt s1.mem base kernel := h1.keeps.code hp.fit (by decide) (by decide) c0
+    obtain ⟨s2, e2, h2, p2, k2⟩ := expand_step hp c1 (by rw [p1, ifT (by omega)]) hw (by omega) (by omega) h1
+    refine ⟨s2, by rw [show 29 * (n + 1) = 29 * n + 29 by omega, run_add_running e1, e2],
+      by rw [show 16 + (n + 1) = 16 + n + 1 by omega]; exact h2, by rw [show 16 + (n + 1) = 16 + n + 1 by omega]; exact p2, ?_⟩
+    intro r a b c d e f g
+    rw [k2 r a b c d e f g, k1 r a b c d e f g]
+
 end Rv32.Sha
