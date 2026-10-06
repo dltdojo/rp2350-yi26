@@ -5,7 +5,7 @@
 # board half is a person saying "slow", or how many flashes; see the README.
 #
 #   1. verdict.h, the LED's decision, gives each of its seven answers on the
-#      results that must give it — and thirteen wrong versions of it are caught;
+#      results that must give it — and eleven wrong versions of it are caught;
 #   2. gen.py ran every seed on the Lean model and three runs on the RTL, and
 #      they agreed: code 0, one count per kind, keygen's tree mss.py's, and
 #      minstret = count + 3 + 4 S;
@@ -65,23 +65,18 @@ verdict_mutant() { # what sed
 }
 verdict_mutant "it does not count the runs" 's/    if (ran != n) return V_CHECK;//'
 verdict_mutant "it ignores a failed check" 's/        if (res\[i\].failed) return V_CHECK;//'
-verdict_mutant "it does not ask that every kind ran" 's/        if (first\[k\] == NONE) return V_CHECK;//'
-verdict_mutant "it does not compare the key generations" 's/if (c != res\[first\[KEYGEN\]\].cycles) keygen_all = 0;//'
-verdict_mutant "it blames the first key generation when the others differ too" \
-    's/!keygen_all \&\& keygen_rest \&\& sign_all/!keygen_all \&\& sign_all/'
-verdict_mutant "it blames the first key generation when a signature differs too" \
-    's/keygen_rest \&\& sign_all \&\& moved/keygen_rest \&\& moved/'
-verdict_mutant "it does not compare the signatures" \
-    's/} else if (k == SIGN \&\& c != res\[first\[SIGN\]\].cycles) {/} else if (0) {/'
-verdict_mutant "it does not compare with the RTL" 's/        if (c != runs\[i\].cycles) rtl = 0;//'
-verdict_mutant "it lets a blind measurement through" 's/    if (!moved) return V_BLIND;//'
-verdict_mutant "it compares one run short" \
-    '0,/for (uint32_t i = 0; i < n; i++)/!s/for (uint32_t i = 0; i < n; i++)/for (uint32_t i = 0; i + 1 < n; i++)/'
-verdict_mutant "it says slow off the RTL's numbers" 's/return rtl ? V_SLOW : V_NOT_RTL;/return V_SLOW;/'
-verdict_mutant "it times the warm-up too" \
-    '0,/if (k == KEYGEN_WARM) continue;/!s/        if (k == KEYGEN_WARM) continue;//'
 verdict_mutant "it does not check the warm-up" \
     's/        if (res\[i\].failed) return V_CHECK;/        if (res[i].failed \&\& runs[i].kind != KEYGEN_WARM) return V_CHECK;/'
+verdict_mutant "it times the warm-up as a key generation" 's/        if (k == KEYGEN_WARM) continue;/        if (k == KEYGEN_WARM) k = KEYGEN;/'
+verdict_mutant "it does not ask that every kind ran" 's/        if (first\[k\] == NONE) return V_CHECK;//'
+verdict_mutant "it does not compare the seeds" 's/        else if (res\[i\].cycles != res\[first\[k\]\].cycles) return V_SEEDS;//'
+verdict_mutant "it lets a blind measurement through" \
+    's/    if (res\[first\[SIGN_OTHER\]\].cycles == res\[first\[SIGN\]\].cycles) return V_SEEDS;//'
+verdict_mutant "it says slow for any constant difference" 's/return d\[0\] == 0 ? V_SLOW : V_OFFSET;/return V_SLOW;/'
+verdict_mutant "it does not tell a constant difference apart first" \
+    's/    if (d\[0\] == d\[1\] \&\& d\[1\] == d\[2\]) return d\[0\] == 0 ? V_SLOW : V_OFFSET;/    if (d[0] == 0 \&\& d[1] == 0 \&\& d[2] == 0) return V_SLOW;/'
+verdict_mutant "it puts the HASH line through minstret" 's/if (on_a_line(s, d)) return V_PER_HASH;/if (on_a_line(m, d)) return V_PER_HASH;/'
+verdict_mutant "its line test has a sign wrong" 's/(x\[1\] - x\[0\]);/(x[0] - x[1]);/'
 
 source ../../tools/hazard3/shell/shell.sh
 if [[ "$(../../tools/lean/lean.sh version 2>&1)" != Lean* ]] || ! "$SHELL_SIM" ready; then

@@ -24,7 +24,7 @@ to every check but not to the cycles — the shell's first run, which revision
 2 found out of line on a board. Then for every run what the chip must find
 afterwards: the SHA-256 of the
 whole region as the Lean model (rv32run, at 0x20070000) left it, and the
-RTL's minstret and mcycle for that kind. Before writing anything:
+RTL's minstret and mcycle for that kind, and its HASH calls. Before writing anything:
 
   - every run halts with code 0 on the model, at the same count for every
     seed of a kind;
@@ -133,7 +133,7 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
         if instret != count + 3 + 4 * s:
             sys.exit(f"gen.py: {kind}: the RTL's minstret {instret} is not {count} + 3 + 4·{s}")
         digest = hashlib.sha256(region).digest()
-        rows.append((name, i, instret, cycles, digest))
+        rows.append((name, i, instret, cycles, s, digest))
         print(f"{name:11} seed {i:2}  model count {count:5}  region {digest.hex()[:16]}…  "
               f"RTL minstret {instret:6}  mcycle {cycles:6}", flush=True)
 
@@ -148,7 +148,7 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
             f.write(f"#define {name} 0x{getattr(mss, name):04x}u\n")
         f.write("\nenum kind { KEYGEN, SIGN, SIGN_OTHER, KEYGEN_WARM };\n")
         f.write("struct fill { uint16_t at, len; };     // 0xee before the kernel runs\n")
-        f.write("struct run { uint32_t kind, seed, instret, cycles; uint8_t region[32]; };\n\n")
+        f.write("struct run { uint32_t kind, seed, instret, cycles, hashes; uint8_t region[32]; };\n\n")
         for name, fill in (("K_FILL", mss.K_FILL), ("S_FILL", mss.S_FILL)):
             f.write(f"static const struct fill {name}[{len(fill)}] = {{" +
                     ", ".join(f"{{0x{a:04x}, {n}}}" for a, n in fill) + "};\n")
@@ -165,9 +165,9 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
         for s in seeds:
             f.write(f"    {{{c_bytes(s)}}},\n")
         f.write("};\n\nstatic const struct run RUNS[NRUNS] = {\n")
-        for kind, i, instret, cycles, digest in rows:
+        for kind, i, instret, cycles, calls, digest in rows:
             enum = {"keygen": "KEYGEN", "sign": "SIGN", "sign-other": "SIGN_OTHER", "keygen-warm": "KEYGEN_WARM"}[kind]
-            f.write(f"    {{{enum}, {i}, {instret}u, {cycles}u, {{{c_bytes(digest)}}}}},\n")
+            f.write(f"    {{{enum}, {i}, {instret}u, {cycles}u, {calls}u, {{{c_bytes(digest)}}}}},\n")
         f.write("};\n")
     print(f"expect.h: {nseeds} seeds, {len(rows)} runs")
 

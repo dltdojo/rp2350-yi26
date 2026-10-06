@@ -30,27 +30,26 @@ as exp210.
 4. Copy `exp212.uf2` onto it. The drive disappears and the board restarts.
 5. The LED comes on and stays on while the runs go. **Wait until it starts
    to blink** — give it three minutes — then say which of these it is. This
-   is revision 3; *What the board has said* below is why.
+   is revision 4; *What the board has said* below is why.
 
 ### What the LED says
 
 | You see | It means |
 | --- | --- |
-| **slow blinking**, about 2 s on, 2 s off, without pause | **every seed took the same cycles, and they are the RTL's** |
+| **slow blinking**, about 2 s on, 2 s off, without pause | every seed took the same cycles, and they are the RTL's |
 | **1 flash**, then about 2 s dark, repeated | a check failed: the kernel, its halt, its region, its `minstret` or the SHA-256 block |
-| **2 flashes**, then dark | every seed took the same cycles, **but not the RTL's number** |
-| **3 flashes**, then dark | **only seed 0's timed key generation** took a different time; every other one, and every signature, agreed — after a warm-up run, so this is seed 0, not the shell's first run |
-| **4 flashes**, then dark | the key generations differ, beyond the first |
-| **5 flashes**, then dark | the signatures differ |
-| **6 flashes**, then dark | the other message took the signer's time: the measurement cannot see a difference |
+| **2 flashes**, then dark | **silicon − RTL = a + c·S**: a fixed cost per HASH call (and per run) — the trap in and out |
+| **3 flashes**, then dark | **silicon − RTL = a + b·minstret**: a fixed cost per instruction — the memory |
+| **4 flashes**, then dark | the same difference on every kind of run: a fixed cost per run only |
+| **5 flashes**, then dark | the difference is on neither line |
+| **6 flashes**, then dark | two seeds of a kind took different times, or the other message took the signer's |
 | on, steady, after three minutes | the shell hung, or trapped itself |
 | dark | the shell never ran |
 
 Each flash is about 0.36 s on and 0.36 s off, and the dark between groups
-about 2 s. **Say "slow", or how many flashes.** Slow and 2 both mean the
-seed did not move the time; 2 adds that silicon counts cycles differently
-from the RTL, which is a finding, not a failure. 3 says the same about the
-seed of the fifteen others, and singles out seed 0 itself.
+about 2 s. **Say "slow", or how many flashes.** Every answer but 1 and 6
+says again that the seed did not move the time; 2 to 5 say how silicon's
+cycles differ from the RTL's, which revision 3 found that they do.
 
 ## What the shell does
 
@@ -89,13 +88,20 @@ and cycles — the first of these that applies:
 
 | | |
 | --- | --- |
-| **slow** | every check passed; the 16 key generations took one number of cycles, the 16 signatures one number; the other message did not take the signatures' number; and all three are the RTL's |
-| **1** | a check failed, or a run is missing |
-| **2** | every seed alike and the other message moved, but at least one of the three numbers is not the RTL's |
-| **3** | seed 0's timed key generation alone is out of line: the other fifteen agree with each other, every signature agrees, the other message moved |
-| **4** | the key generations differ otherwise |
-| **5** | the signatures differ |
-| **6** | the other message took the signatures' number |
+| **slow** | every check passed; the 16 key generations took one number of cycles, the 16 signatures one number, the other message another; and all three are the RTL's |
+| **6** | two seeds of a kind took different numbers, or the other message took the signatures' |
+| then, with d = silicon − RTL for each of the three kinds: | |
+| **4** | d the same for all three, and not 0 |
+| **2** | d = a + c·S, S the kind's HASH calls (17183, 547, 517) |
+| **3** | d = a + b·minstret (145191, 5915, 5705) |
+| **5** | neither |
+
+**1**, a failed check or a missing run, comes before all of them. A line
+through three points is tested exactly, in 64-bit integers:
+`(d₁ − d₀)(x₂ − x₁) = (d₂ − d₁)(x₁ − x₀)`. The three kinds' (S, minstret)
+points are not on one line themselves, so a d that is not constant can fit
+only one of the two — and a constant one fits both, which is why 4 is asked
+first.
 
 ## What is counted
 
@@ -130,10 +136,11 @@ a USB stack would multiply the shell's trust base).
 
 `check.sh`:
 
-- **`verdict.h` on the host**, fed made-up results: each of its seven
-  answers from the results that must give it, nineteen cases — three of
-  them about the warm-up; and thirteen wrong versions of it, each caught —
-  among them one that times the warm-up and one that does not check it;
+- **`verdict.h` on the host**, fed made-up results built on the real HASH
+  calls, minstret and RTL cycles: each of its seven answers from the
+  results that must give it, eighteen cases; and eleven wrong versions of
+  it, each caught — among them a HASH line drawn through minstret, a sign
+  wrong in the line test, and a warm-up timed as a key generation;
 - `gen.py`: 34 runs on the Lean model, each halting with code 0 at one count
   per kind; the key generator's tree is `mss.py`'s `tree_of` (so the signer's
   image the chip builds from it is `sign_image`); and the RTL's three runs at
@@ -210,9 +217,12 @@ cannot say. The explanation already written above fits: the harness's trap
 entry and `mret` are fetched from flash through the XIP cache inside the
 counted window on the chip, from RAM on the RTL — a per-trap cost would move
 every number and no seed. It would also make the difference grow with the
-HASH calls, which is what a next revision could test without reading a
-number off the LED: whether silicon minus RTL is `a + c·S` for the same `a`
-and `c` across the three kinds of run.
+HASH calls, which revision 4 tests without reading a number off the LED:
+whether silicon minus RTL is `a + c·S` for the same `a` and `c` across the
+three kinds of run — or `a + b·minstret`, the other explanation, which the
+three kinds tell apart from the first.
+
+Not yet run on a board: revision 4.
 
 ## Running it
 
