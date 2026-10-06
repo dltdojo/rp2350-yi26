@@ -201,7 +201,7 @@ mutant checks it again, so `check.sh` takes about ten minutes.
 
 ```text
 === exp205 — the chain the checksum closes ===
-recorded at 2026-10-04T06:37:11Z from commit 66a09c2
+recorded at 2026-10-05T08:08:58Z from commit ae87e4c
 
 >>> the kernel, as the proof states it and as kernel.bin holds it
   0000  00000417  auipc x8, 0
@@ -320,9 +320,9 @@ recorded at 2026-10-04T06:37:11Z from commit 66a09c2
 
 'Exp205.bytes_words' depends on axioms: [propext]
 'Exp205.code_of_image' depends on axioms: [propext, Quot.sound]
-'Exp205.digit_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp205.middle' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp205.walk_chain' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Wots.digit_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Wots.middle' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Wots.walk_chain' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp205.good_iff' depends on axioms: [propext, Quot.sound]
 'Exp205.chain_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp205.chain_loop' depends on axioms: [propext, Classical.choice, Quot.sound]

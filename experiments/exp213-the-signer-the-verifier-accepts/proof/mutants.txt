@@ -1,0 +1,34 @@
+# exp213 — wrong kernels, and wrong claims about the right ones. Each must be
+# refused by Lean. The key generator and the signer are lean/Rv32/MssKeygen.lean
+# and lean/Rv32/MssSign.lean, so a sed with a library file as its last field
+# edits that file; one without edits proof/Complete.lean, the join. The
+# signer's first 46 instructions are exp205's, and exp205's mutants hold them.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+keygen|chain i's number goes into byte 34 of the PRF input, not 33|s/^  .st .sb S4 S8 33, .opi .addi A0 S4 0, .opi .addi A2 S5 0, .ecall,$/  .st .sb S4 S8 34, .opi .addi A0 S4 0, .opi .addi A2 S5 0, .ecall,/|lean/Rv32/MssKeygen.lean
+keygen|each chain is walked 14 steps, not 15|s/^  .opi .addi A0 S5 0, .opi .addi T3 0 15,$/  .opi .addi A0 S5 0, .opi .addi T3 0 14,/|lean/Rv32/MssKeygen.lean
+keygen|the ends are written 64 bytes apart|s/^  \[ .opi .addi S9 S9 32, .opi .addi S8 S8 1,/  [ .opi .addi S9 S9 64, .opi .addi S8 S8 1,/|lean/Rv32/MssKeygen.lean
+keygen|a leaf has 66 chains|s/ .opi .addi T2 0 67, .br .bne S8 T2 0xfc8 \]$/ .opi .addi T2 0 66, .br .bne S8 T2 0xfc8 ]/|lean/Rv32/MssKeygen.lean
+keygen|the leaf hashes 1088 bytes, not 2176|s/^  .opi .addi A0 S2 0, .opi .addi A1 0 1088, .op .add A1 A1 A1,/  .opi .addi A0 S2 0, .opi .addi A1 0 1088, .op .add A1 A1 0,/|lean/Rv32/MssKeygen.lean
+keygen|there are 15 leaves|s/ .opi .addi T2 0 16, .br .bne S7 T2 0xfae \]$/ .opi .addi T2 0 15, .br .bne S7 T2 0xfae ]/|lean/Rv32/MssKeygen.lean
+keygen|the tree stops one node short of the root|s/^  .lui T1 3, .op .add A0 S0 T1, .opi .addi A2 S3 0, .opi .addi S8 0 15,$/  .lui T1 3, .op .add A0 S0 T1, .opi .addi A2 S3 0, .opi .addi S8 0 14,/|lean/Rv32/MssKeygen.lean
+keygen|a tree step's input moves 32 bytes, so it hashes each node with its neighbour|s/^  .ecall, .opi .addi A0 A0 64, .opi .addi A2 A2 32,/  .ecall, .opi .addi A0 A0 32, .opi .addi A2 A2 32,/|lean/Rv32/MssKeygen.lean
+keygen|the zeros after the ends are seven words, so four bytes of each leaf's input are whatever was there|s/^  (List.range 8).map (fun j => .st .sw S6 0 (BitVec.ofNat 12 (4 \* j))) ++$/  (List.range 7).map (fun j => .st .sw S6 0 (BitVec.ofNat 12 (4 * j))) ++/|lean/Rv32/MssKeygen.lean
+keygen|it is claimed to halt one instruction sooner|s/^    ∃ s', run env 76456 s = .halted 0 s' ∧ Out base s.mem s'.mem$/    ∃ s', run env 76455 s = .halted 0 s' ∧ Out base s.mem s'.mem/|lean/Rv32/MssKeygen.lean
+keygen|it is claimed to write only the PRF input, not the chain buffer after it|s/^abbrev Out (base : Word) (m m' : Word → Byte) : Prop := Within base PRF 128 ENDS 0x13e0 m m'$/abbrev Out (base : Word) (m m' : Word → Byte) : Prop := Within base PRF 64 ENDS 0x13e0 m m'/|lean/Rv32/MssKeygen.lean
+keygen|level 1 is claimed to start at node 17|s/^  else if n < 24 then node H seed 1 (n - 16)$/  else if n < 24 then node H seed 1 (n - 17)/|lean/Rv32/MssKeygen.lean
+keygen|the secret is claimed to hash i before l|s/^  hashL H (seed ++ \[BitVec.ofNat 8 l, BitVec.ofNat 8 i\] ++ List.replicate 30 0)$/  hashL H (seed ++ [BitVec.ofNat 8 i, BitVec.ofNat 8 l] ++ List.replicate 30 0)/|lean/Rv32/Mss.lean
+sign|the index is read one byte late|s/^  \[ .ld .lbu S9 S3 32, .st .sb S4 S9 32, .opi .addi S8 0 0 \]$/  [ .ld .lbu S9 S3 33, .st .sb S4 S9 32, .opi .addi S8 0 0 ]/|lean/Rv32/MssSign.lean
+sign|chain i is walked by the next chain's digit|s/^  .ld .lbu T3 A4 0, .br .beq T3 0 8,$/  .ld .lbu T3 A4 1, .br .beq T3 0 8,/|lean/Rv32/MssSign.lean
+sign|a digit of 0 branches into the middle of the walk|s/^  .ld .lbu T3 A4 0, .br .beq T3 0 8,$/  .ld .lbu T3 A4 0, .br .beq T3 0 6,/|lean/Rv32/MssSign.lean
+sign|the signature's values are written 64 bytes apart|s/^  \[ .opi .addi S1 S1 32, .opi .addi A4 A4 1,/  [ .opi .addi S1 S1 64, .opi .addi A4 A4 1,/|lean/Rv32/MssSign.lean
+sign|the path takes the ancestor itself, not its sibling|s/^  .opi .xori T1 A3 1, .sh .slli T1 T1 5, .op .add A5 S10 T1 \] ++$/  .opi .xori T1 A3 0, .sh .slli T1 T1 5, .op .add A5 S10 T1 ] ++/|lean/Rv32/MssSign.lean
+sign|each level is taken to be a quarter of the one below|s/ .sh .srli S11 S11 1, .sh .srli A3 A3 1,$/ .sh .srli S11 S11 2, .sh .srli A3 A3 1,/|lean/Rv32/MssSign.lean
+sign|the path has three nodes|s/^  .opi .addi A3 S9 0, .opi .addi A6 0 4,$/  .opi .addi A3 S9 0, .opi .addi A6 0 3,/|lean/Rv32/MssSign.lean
+sign|each chain is claimed to cost two instructions per HASH, not three|s/^    ∃ s', run env (2284 + 3 \* dsum s.mem base) s = .halted 0 s' ∧ Out base s.mem s'.mem$/    ∃ s', run env (2284 + 2 * dsum s.mem base) s = .halted 0 s' ∧ Out base s.mem s'.mem/|lean/Rv32/MssSign.lean
+sign|it is claimed still to be running one instruction later|s/^    (∃ s1, run env (2283 + 3 \* dsum s.mem base) s = .running s1) ∧$/    (∃ s1, run env (2284 + 3 * dsum s.mem base) s = .running s1) ∧/|lean/Rv32/MssSign.lean
+sign|it is claimed to write nothing past the path, so not the root|s/^abbrev Out (base : Word) (m m' : Word → Byte) : Prop := Within base PRF 0x3080 SCR 131 m m'$/abbrev Out (base : Word) (m m' : Word → Byte) : Prop := Within base PRF 0x3000 SCR 131 m m'/|lean/Rv32/MssSign.lean
+sign|the path is claimed to take the ancestor, not its sibling|s/^  readBytes m (base + BitVec.ofNat 32 (TREE + 32 \* (lvl j + sib (l \/ 2 ^ j)))) 32$/  readBytes m (base + BitVec.ofNat 32 (TREE + 32 * (lvl j + l \/ 2 ^ j))) 32/|lean/Rv32/MssSign.lean
+join|the verifier is claimed to accept a seventeenth leaf|s/^      idx s.mem base < 16 →$/      idx s.mem base < 17 →/
+join|the shell is taken to copy the signer's region only up to the root|s/^      (∀ c, 0x1000 ≤ c → c < 0x4100 → v.mem/      (∀ c, 0x1000 ≤ c → c < 0x4080 → v.mem/
+join|the shell is taken to copy the tree without its root|s/^      (∀ d < 992, s.mem (base + BitVec.ofNat 32 (Sign.TREE + d))$/      (∀ d < 960, s.mem (base + BitVec.ofNat 32 (Sign.TREE + d))/

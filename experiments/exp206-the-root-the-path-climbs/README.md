@@ -77,8 +77,13 @@ at `0x38c0`) and exp205's 131 bytes of scratch at `0x8000`.
 
 ## What is proved
 
-[`proof/Mss.lean`](./proof/Mss.lean), with `lean/Rv32/Wots.lean` for the
-first 69 instructions. `H` is `env.hash`, and **nothing is assumed about it**.
+[`lean/Rv32/Mss.lean`](../../lean/Rv32/Mss.lean), with `lean/Rv32/Wots.lean`
+for the first 69 instructions. The proof began here, in `proof/Mss.lean`, and
+moved to the library when exp213 needed it: a proof file imports the library
+and nothing else, and exp213's theorem joins this kernel to its key generator
+and signer. `proof/Mss.lean` now prints what the theorems rest on and writes
+`kernel.bin`, and the mutants edit the library file. `H` is `env.hash`, and
+**nothing is assumed about it**.
 
 | Theorem | Says |
 | --- | --- |
@@ -102,7 +107,8 @@ whatever `H` is, memory holding what that signer would put there verifies. Then
 `signed_halts_with_zero` says the bytes accept it. What it does not say is
 that a *kernel* produced the signature, because there is no signer kernel yet.
 That is the next experiment, and with it the theorem becomes keygen binary,
-sign binary, verify binary, accept.
+sign binary, verify binary, accept. [exp213](../exp213-the-signer-the-verifier-accepts/)
+is that experiment, and its `three_binaries` ends in this kernel's bytes.
 
 Sixteen wrong versions in [`proof/mutants.txt`](./proof/mutants.txt) are each
 refused:
@@ -127,7 +133,8 @@ checksum modulo 15, so the 67 digits sum to `960 ≡ 0`.
 
 ## What it does not prove
 
-- **That the signer is a binary.** See *Completeness*, above.
+- **That the signer is a binary.** See *Completeness*, above; exp213 proves
+  it.
 - **Security.** Unforgeability is the design's optional item and is not here.
   Neither is any property of HASH; every theorem holds for any function.
 - **The chip.** Nothing here has run on a board. The verifier would run under
@@ -149,7 +156,7 @@ Needs Lean (`tools/lean/setup.sh`) and the Hazard3 testbench
 
 ```text
 === exp206 — the root the path climbs ===
-recorded at 2026-10-05T06:07:26Z from commit 94e652f
+recorded at 2026-10-05T08:15:06Z from commit f3b3a31
 
 >>> the kernel, as the proof states it and as kernel.bin holds it
   0000  00000417  auipc x8, 0
@@ -346,22 +353,22 @@ recorded at 2026-10-05T06:07:26Z from commit 94e652f
 >>> the theorems, and what they rest on
     Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
 
-'Exp206.bytes_words' depends on axioms: [propext]
-'Exp206.code_of_image' depends on axioms: [propext, Quot.sound]
-'Exp206.chain_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.chain_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.to_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.level_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.level_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.root_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.halt' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.verifies' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.exactly' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp206.wots_complete' depends on axioms: [propext, Quot.sound]
-'Exp206.path_climbs' depends on axioms: [propext, Quot.sound]
-'Exp206.accepts_signed' depends on axioms: [propext, Quot.sound]
-'Exp206.signed_halts_with_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.bytes_words' depends on axioms: [propext]
+'Rv32.Mss.code_of_image' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.chain_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.chain_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.to_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.level_iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.level_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.root_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.verifies' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.exactly' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Mss.wots_complete' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.path_climbs' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.accepts_signed' depends on axioms: [propext, Quot.sound]
+'Rv32.Mss.signed_halts_with_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused

@@ -88,10 +88,13 @@ def head : List Instr := setup ++ digits ++ checksum ++ start ++ copy ++ walk
 
 theorem head_length : head.length = 69 := by decide
 
-/-- `prog` starts with `head`, and leaves the scratch above its code alone. -/
-structure Starts (prog : List Instr) : Prop where
-  pre : ∀ k < 69, prog.getD k .ecall = head.getD k .ecall
-  long : 69 ≤ prog.length
+/-- `prog` starts with the first `n` instructions of `head`, and leaves the
+scratch above its code alone. A verifier starts with all 69; exp213's signer
+starts with the first 46 — setup, the digits, the checksum, the chains'
+registers — and walks its chains its own way. -/
+structure Starts (n : Nat) (prog : List Instr) : Prop where
+  pre : ∀ k < n, prog.getD k .ecall = head.getD k .ecall
+  long : n ≤ prog.length
   below : 4 * prog.length ≤ 0x1000
 
 /-! ## Where everything is
@@ -151,12 +154,18 @@ room. -/
 section
 variable {prog : List Instr}
 
-theorem Starts.hlen (hP : Starts prog) : 4 * prog.length < 0x10000 := by have := hP.below; omega
+variable {n : Nat}
 
-theorem Starts.lt (hP : Starts prog) {k : Nat} (hk : k < 69) : k < prog.length := by
+theorem Starts.hlen (hP : Starts n prog) : 4 * prog.length < 0x10000 := by have := hP.below; omega
+
+theorem Starts.lt (hP : Starts n prog) {k : Nat} (hk : k < n) : k < prog.length := by
   have := hP.long; omega
 
-theorem Starts.at (hP : Starts prog) {k : Nat} {i : Instr} (h : head.getD k .ecall = i) (hk : k < 69) :
+/-- Starting with `n` of them is starting with fewer. -/
+theorem Starts.down (hP : Starts n prog) {m : Nat} (hm : m ≤ n) : Starts m prog :=
+  ⟨fun k hk => hP.pre k (by omega), by have := hP.long; omega, hP.below⟩
+
+theorem Starts.at (hP : Starts n prog) {k : Nat} {i : Instr} (h : head.getD k .ecall = i) (hk : k < n) :
     prog.getD k .ecall = i := (hP.pre k hk).trans h
 
 theorem head_zero : ∀ j < 8, head.getD (10 + j) .ecall = .st .sw S5 0 (BitVec.ofNat 12 (32 + 4 * j)) := by
@@ -165,10 +174,10 @@ theorem head_copy : ∀ j < 8, head.getD (46 + 2 * j) .ecall = .ld .lw T4 S1 (Bi
     ∧ head.getD (46 + 2 * j + 1) .ecall = .st .sw S5 T4 (BitVec.ofNat 12 (4 * j)) := by
   decide
 
-theorem Starts.at_zero (hP : Starts prog) :
+theorem Starts.at_zero (hP : Starts 46 prog) :
     ∀ j < 8, prog.getD (10 + j) .ecall = .st .sw S5 0 (BitVec.ofNat 12 (32 + 4 * j)) :=
   fun j hj => (hP.pre _ (by omega)).trans (head_zero j hj)
-theorem Starts.at_copy (hP : Starts prog) :
+theorem Starts.at_copy (hP : Starts 69 prog) :
     ∀ j < 8, prog.getD (46 + 2 * j) .ecall = .ld .lw T4 S1 (BitVec.ofNat 12 (4 * j))
       ∧ prog.getD (46 + 2 * j + 1) .ecall = .st .sw S5 T4 (BitVec.ofNat 12 (4 * j)) :=
   fun j hj => ⟨(hP.pre _ (by omega)).trans (head_copy j hj).1, (hP.pre _ (by omega)).trans (head_copy j hj).2⟩
@@ -351,7 +360,7 @@ theorem hash_in_place {H : List Byte → Fin 32 → Byte} {base : Word} (hfit : 
 
 
 section
-variable {prog : List Instr} (hP : Starts prog)
+variable {prog : List Instr} (hP : Starts 46 prog)
 include hP
 
 /-- Ten instructions that only set registers: the pointers, from `auipc`. -/
@@ -747,6 +756,12 @@ theorem middle {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → B
       show SCR + 64 + d - (SCR + 64) = d by omega]
   · intro r a b c d e f g h' i' j'
     rw [k6 r b f g h' i' j', fromR r a b c d e]
+
+end
+
+section
+variable {prog : List Instr} (hP : Starts 69 prog)
+include hP
 
 /-- Sixteen instructions copy chain `i`'s value into the buffer; three more
 load its digit `d` and leave `t3 = 15 - d`. -/
