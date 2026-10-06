@@ -1541,4 +1541,211 @@ theorem ivCopy_run {env : Env} {base : Word} (hp : Placed env base) {s : Machine
     · intro r hr
       rw [r3, reg_kept r2 hr, f1 r hr]
 
+theorem at_zeroA : ∀ j < 8, kernel.getD (20 + j) .ecall = .st .sw S1 0 (BitVec.ofNat 12 (0x400 + 4 * j)) := by
+  decide
+theorem at_zeroB : ∀ j < 8, kernel.getD (28 + j) .ecall = .st .sw S1 0 (BitVec.ofNat 12 (0x420 + 4 * j)) := by
+  decide
+
+theorem imm_off {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (d c : Nat) (hc : c < 2048)
+    (hd : d + c < 0x10000) :
+    base + BitVec.ofNat 32 d + (BitVec.ofNat 12 c).signExtend 32 = base + BitVec.ofNat 32 (d + c) := by
+  rw [se_small c hc, off_add hfit _ _ hd]
+
+theorem len_bits (L : Nat) (hL : 8 * L < 2 ^ 32) : (BitVec.ofNat 32 L <<< (3 : BitVec 5).toNat).toNat = 8 * L := by
+  rw [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
+  simp only [show (3 : BitVec 5).toNat = 3 from rfl]
+  rw [Nat.mod_eq_of_lt (show L < 2 ^ 32 by omega)]
+  omega
+
+theorem len_blocks (L : Nat) (hL : L < 2 ^ 32) :
+    BitVec.ofNat 32 L >>> (6 : BitVec 5).toNat = BitVec.ofNat 32 (L / 64) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow,
+    show (6 : BitVec 5).toNat = 6 from rfl]
+  rw [Nat.mod_eq_of_lt hL, Nat.mod_eq_of_lt (by omega)]
+
+theorem shr_bits (x : Word) (n : BitVec 5) : (x >>> n.toNat).toNat = x.toNat / 2 ^ n.toNat := by
+  simp [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+
+/-- **Setup**, 49 instructions: `s1` at `R`, `s4` at the message, H from IV,
+the padding block built, `s5 = 0` and `s6` the message's block count. -/
+theorem setup_run {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+    (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) {L : Nat}
+    (hlen : wordAt s.mem (base + BitVec.ofNat 32 0x1120) = BitVec.ofNat 32 L) (hL : 8 * L < 2 ^ 32) :
+    ∃ s', run env 49 s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * 49) ∧
+      s'.reg S1 = base + BitVec.ofNat 32 0x1000 ∧ s'.reg S4 = base + BitVec.ofNat 32 0x2000 ∧
+      s'.reg S5 = BitVec.ofNat 32 0 ∧ s'.reg S6 = BitVec.ofNat 32 (L / 64) ∧
+      Keeps (base + BitVec.ofNat 32 0x1200) 0x240 s.mem s'.mem ∧
+      (∀ j < 8, wordAt s'.mem (base + BitVec.ofNat 32 (0x1200 + 4 * j)) =
+        wordAt s.mem (base + BitVec.ofNat 32 (0x1100 + 4 * j))) ∧
+      readBytes s'.mem (base + BitVec.ofNat 32 0x1400) 64 = padBlock L := by
+  have fit := hp.fit
+  -- the registers
+  obtain ⟨s1, e1, p1, m1, r1⟩ := regStep (prog := kernel) hp 0 (by decide) hcode (by simp [hpc])
+      (i := .auipc S0 0) (by decide) rfl
+  obtain ⟨s2, e2, p2, m2, r2⟩ := regStep (prog := kernel) hp 1 (by decide) (by rw [m1]; exact hcode) p1
+      (i := .lui T1 1) (by decide) rfl
+  obtain ⟨s3, e3, p3, m3, r3⟩ := regStep (prog := kernel) hp 2 (by decide) (by rw [m2, m1]; exact hcode) p2
+      (i := .op .add S1 S0 T1) (by decide) rfl
+  obtain ⟨s4, e4, p4, m4, r4⟩ := regStep (prog := kernel) hp 3 (by decide) (by rw [m3, m2, m1]; exact hcode) p3
+      (i := .op .add S4 S1 T1) (by decide) rfl
+  have mem4 : s4.mem = s.mem := by rw [m4, m3, m2, m1]
+  have v1 : s4.reg S1 = base + BitVec.ofNat 32 0x1000 := by
+    simp [r4, r3, r2, r1, hpc, S0, S1, S4, T1, aluR]
+  have v4 : s4.reg S4 = base + BitVec.ofNat 32 0x2000 := by
+    simp [r4, r3, r2, r1, hpc, S0, S1, S4, T1, aluR, BitVec.add_assoc]
+  -- H from IV
+  obtain ⟨sc, ec, pc, kc, wc, fc⟩ := ivCopy_run hp (by rw [mem4]; exact hcode) p4 v1 8 (Nat.le_refl _)
+  have cc : CodeAt sc.mem base kernel := kc.code fit (by decide) (by decide) (by rw [mem4]; exact hcode)
+  have vc1 : sc.reg S1 = base + BitVec.ofNat 32 0x1000 := by rw [fc _ (by decide), v1]
+  -- the padding block, zeroed
+  obtain ⟨z1, ez1, pz1, mz1, rz1⟩ := (zero_words (prog := kernel) hp (k0 := 20) (rd := S1) (o := 0x400)
+    (a := 0x1000) at_zeroA (by rw [kernel_length]; decide) (by decide) (by decide) (by decide)
+    (by rw [kernel_length]; decide) pc cc vc1) 8 (Nat.le_refl _)
+  have cz1 : CodeAt z1.mem base kernel := by
+    rw [mz1]; exact code_of_overlay fit cc (by rw [kernel_length]; decide) (by decide) _
+  obtain ⟨z2, ez2, pz2, mz2, rz2⟩ := (zero_words (prog := kernel) hp (k0 := 28) (rd := S1) (o := 0x420)
+    (a := 0x1000) at_zeroB (by rw [kernel_length]; decide) (by decide) (by decide) (by decide)
+    (by rw [kernel_length]; decide) pz1 cz1 (by rw [rz1, vc1])) 8 (Nat.le_refl _)
+  have cz2 : CodeAt z2.mem base kernel := by
+    rw [mz2]; exact code_of_overlay fit cz1 (by rw [kernel_length]; decide) (by decide) _
+  have vz1 : z2.reg S1 = base + BitVec.ofNat 32 0x1000 := by rw [rz2, rz1, vc1]
+  -- 0x80
+  obtain ⟨t1, et1, pt1, mt1, rt1⟩ := regStep (prog := kernel) hp 36 (by decide) cz2 pz2
+      (i := .opi .addi T0 0 0x80) (by decide) rfl
+  obtain ⟨t2, et2, pt2, mt2, rt2⟩ := sbStep (prog := kernel) hp 37 (by decide) (by rw [mt1]; exact cz2) pt1
+      (rs1 := S1) (rs2 := T0) (imm := BitVec.ofNat 12 0x400) (by decide) 0x1400
+      (by rw [reg_kept rt1 (by decide), vz1, imm_off fit _ _ (by decide) (by decide)]) (by decide)
+  have b80 : BitVec.ofNat 8 (t1.reg T0).toNat = 0x80 := by
+    rw [reg_wrote rt1 (by decide)]; simp only [aluI, reg_zero]; decide
+  have ct2 : CodeAt t2.mem base kernel := by
+    rw [mt2, mt1]; exact code_of_writeByte fit cz2 (by rw [kernel_length]; decide) (by decide) _
+  -- the length, in bits
+  obtain ⟨t3, et3, pt3, mt3, rt3⟩ := loadStep (prog := kernel) hp 38 (by decide) ct2 pt2
+      (rd := T0) (rs1 := S1) (imm := BitVec.ofNat 12 0x120) (by decide) 0x1120
+      (by rw [rt2, reg_kept rt1 (by decide), vz1, imm_off fit _ _ (by decide) (by decide)]) (by decide) (by decide)
+  obtain ⟨t4, et4, pt4, mt4, rt4⟩ := regStep (prog := kernel) hp 39 (by decide) (by rw [mt3]; exact ct2) pt3
+      (i := .sh .slli T1 T0 3) (by decide) rfl
+  -- the memory so far, against s's
+  have kz : Keeps (base + BitVec.ofNat 32 0x1400) 0x40 sc.mem t2.mem := by
+    rw [mt2, mt1, mz2, mz1]
+    exact ((keeps_overlay fit _ _ (by decide) (by decide) (by decide)).trans
+      (keeps_overlay fit _ _ (by decide) (by decide) (by decide))).trans
+      (keeps_writeByte fit _ _ (by decide) (by decide) (by decide))
+  have kall : Keeps (base + BitVec.ofNat 32 0x1200) 0x240 s.mem t2.mem := by
+    rw [← mem4]
+    exact (kc.widen fit (Nat.le_refl _) (by decide) (by decide)).trans (kz.widen fit (by decide) (by decide) (by decide))
+  have v0 : t3.reg T0 = BitVec.ofNat 32 L := by
+    rw [reg_wrote rt3 (by decide)]
+    have := wordAt_keeps fit kall (c := 0x1120) (by decide) (by decide) (by decide)
+    unfold wordAt at this hlen
+    rw [this, hlen]
+  have vbits : (t4.reg T1).toNat = 8 * L := by
+    rw [reg_wrote rt4 (by decide)]; simp only [shiftI]; rw [v0]; exact len_bits L hL
+  have k4 : ∀ r, r ≠ T0 → r ≠ T1 → t4.reg r = z2.reg r := fun r h0 h1 => by
+    rw [reg_kept rt4 h1, reg_kept rt3 h0, rt2, reg_kept rt1 h0]
+  have ct4 : CodeAt t4.mem base kernel := by rw [mt4, mt3]; exact ct2
+  -- the length's four bytes
+  obtain ⟨t5, et5, pt5, mt5, rt5⟩ := regStep (prog := kernel) hp 40 (by decide) ct4 pt4
+      (i := .sh .srli T2 T1 24) (by decide) rfl
+  obtain ⟨t6, et6, pt6, mt6, rt6⟩ := sbStep (prog := kernel) hp 41 (by decide) (by rw [mt5]; exact ct4) pt5
+      (rs1 := S1) (rs2 := T2) (imm := BitVec.ofNat 12 0x43c) (by decide) 0x143c
+      (by rw [reg_kept rt5 (by decide), k4 _ (by decide) (by decide), vz1, imm_off fit _ _ (by decide) (by decide)])
+      (by decide)
+  obtain ⟨t7, et7, pt7, mt7, rt7⟩ := regStep (prog := kernel) hp 42 (by decide)
+      (by rw [mt6, mt5]; exact code_of_writeByte fit ct4 (by rw [kernel_length]; decide) (by decide) _) pt6
+      (i := .sh .srli T2 T1 16) (by decide) rfl
+  have ct7 : CodeAt t7.mem base kernel := by
+    rw [mt7, mt6, mt5]; exact code_of_writeByte fit ct4 (by rw [kernel_length]; decide) (by decide) _
+  obtain ⟨t8, et8, pt8, mt8, rt8⟩ := sbStep (prog := kernel) hp 43 (by decide) ct7 pt7
+      (rs1 := S1) (rs2 := T2) (imm := BitVec.ofNat 12 0x43d) (by decide) 0x143d
+      (by rw [reg_kept rt7 (by decide), rt6, reg_kept rt5 (by decide), k4 _ (by decide) (by decide), vz1,
+        imm_off fit _ _ (by decide) (by decide)]) (by decide)
+  have ct8 : CodeAt t8.mem base kernel := by
+    rw [mt8]; exact code_of_writeByte fit ct7 (by rw [kernel_length]; decide) (by decide) _
+  obtain ⟨t9, et9, pt9, mt9, rt9⟩ := regStep (prog := kernel) hp 44 (by decide) ct8 pt8
+      (i := .sh .srli T2 T1 8) (by decide) rfl
+  obtain ⟨t10, et10, pt10, mt10, rt10⟩ := sbStep (prog := kernel) hp 45 (by decide) (by rw [mt9]; exact ct8) pt9
+      (rs1 := S1) (rs2 := T2) (imm := BitVec.ofNat 12 0x43e) (by decide) 0x143e
+      (by rw [reg_kept rt9 (by decide), rt8, reg_kept rt7 (by decide), rt6, reg_kept rt5 (by decide),
+        k4 _ (by decide) (by decide), vz1, imm_off fit _ _ (by decide) (by decide)]) (by decide)
+  have ct10 : CodeAt t10.mem base kernel := by
+    rw [mt10, mt9]; exact code_of_writeByte fit ct8 (by rw [kernel_length]; decide) (by decide) _
+  -- the regs t5 … t10 leave alone
+  have k10 : ∀ r, r ≠ T2 → t10.reg r = t4.reg r := fun r h => by
+    rw [rt10, reg_kept rt9 h, rt8, reg_kept rt7 h, rt6, reg_kept rt5 h]
+  obtain ⟨t11, et11, pt11, mt11, rt11⟩ := sbStep (prog := kernel) hp 46 (by decide) ct10 pt10
+      (rs1 := S1) (rs2 := T1) (imm := BitVec.ofNat 12 0x43f) (by decide) 0x143f
+      (by rw [k10 _ (by decide), k4 _ (by decide) (by decide), vz1, imm_off fit _ _ (by decide) (by decide)])
+      (by decide)
+  have ct11 : CodeAt t11.mem base kernel := by
+    rw [mt11]; exact code_of_writeByte fit ct10 (by rw [kernel_length]; decide) (by decide) _
+  -- s6, s5
+  obtain ⟨t12, et12, pt12, mt12, rt12⟩ := regStep (prog := kernel) hp 47 (by decide) ct11 pt11
+      (i := .sh .srli S6 T0 6) (by decide) rfl
+  obtain ⟨t13, et13, pt13, mt13, rt13⟩ := regStep (prog := kernel) hp 48 (by decide)
+      (by rw [mt12]; exact ct11) pt12 (i := .opi .addi S5 0 0) (by decide) rfl
+  have b24 : BitVec.ofNat 8 (t5.reg T2).toNat = BitVec.ofNat 8 (8 * L / 2 ^ 24) := by
+    rw [reg_wrote rt5 (by decide)]; simp only [shiftI]; rw [shr_bits, vbits]; rfl
+  have b16 : BitVec.ofNat 8 (t7.reg T2).toNat = BitVec.ofNat 8 (8 * L / 2 ^ 16) := by
+    rw [reg_wrote rt7 (by decide)]; simp only [shiftI]; rw [rt6, reg_kept rt5 (by decide), shr_bits, vbits]; rfl
+  have b8 : BitVec.ofNat 8 (t9.reg T2).toNat = BitVec.ofNat 8 (8 * L / 2 ^ 8) := by
+    rw [reg_wrote rt9 (by decide)]; simp only [shiftI]
+    rw [rt8, reg_kept rt7 (by decide), rt6, reg_kept rt5 (by decide), shr_bits, vbits]; rfl
+  have b0 : BitVec.ofNat 8 (t10.reg T1).toNat = BitVec.ofNat 8 (8 * L) := by
+    rw [k10 _ (by decide), vbits]
+  have memF : t13.mem = writeByte (writeByte (writeByte (writeByte (writeByte z2.mem
+      (base + BitVec.ofNat 32 0x1400) 0x80)
+      (base + BitVec.ofNat 32 0x143c) (BitVec.ofNat 8 (8 * L / 2 ^ 24)))
+      (base + BitVec.ofNat 32 0x143d) (BitVec.ofNat 8 (8 * L / 2 ^ 16)))
+      (base + BitVec.ofNat 32 0x143e) (BitVec.ofNat 8 (8 * L / 2 ^ 8)))
+      (base + BitVec.ofNat 32 0x143f) (BitVec.ofNat 8 (8 * L)) := by
+    rw [mt13, mt12, mt11, mt10, mt9, mt8, mt7, mt6, mt5, mt4, mt3, mt2, mt1, b80, ← b24, ← b16, ← b8, ← b0]
+  have kF : Keeps (base + BitVec.ofNat 32 0x1400) 0x40 sc.mem t13.mem := by
+    rw [memF, mz2, mz1]
+    exact ((((((keeps_overlay fit _ _ (by decide) (by decide) (by decide)).trans
+      (keeps_overlay fit _ _ (by decide) (by decide) (by decide))).trans
+      (keeps_writeByte fit _ _ (by decide) (by decide) (by decide))).trans
+      (keeps_writeByte fit _ _ (by decide) (by decide) (by decide))).trans
+      (keeps_writeByte fit _ _ (by decide) (by decide) (by decide))).trans
+      (keeps_writeByte fit _ _ (by decide) (by decide) (by decide))).trans
+      (keeps_writeByte fit _ _ (by decide) (by decide) (by decide))
+  have tail : run env 13 z2 = .running t13 :=
+    run_cons et1 (run_cons et2 (run_cons et3 (run_cons et4 (run_cons et5 (run_cons et6 (run_cons et7
+      (run_cons et8 (run_cons et9 (run_cons et10 (run_cons et11 (run_cons et12 et13)))))))))))
+  have kt : ∀ r, r ≠ T0 → r ≠ T1 → r ≠ T2 → r ≠ S5 → r ≠ S6 → t13.reg r = z2.reg r := fun r h0 h1 h2 h5 h6 => by
+    rw [reg_kept rt13 h5, reg_kept rt12 h6, rt11, k10 r h2, k4 r h0 h1]
+  refine ⟨t13, ?_, by rw [pt13], ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · refine run_cons e1 (run_cons e2 (run_cons e3 (run_cons e4 ?_)))
+    rw [show 45 = 2 * 8 + (8 + (8 + 13)) by rfl, run_add_running ec, run_add_running ez1, run_add_running ez2]
+    exact tail
+  · rw [kt _ (by decide) (by decide) (by decide) (by decide) (by decide), vz1]
+  · rw [kt _ (by decide) (by decide) (by decide) (by decide) (by decide), rz2, rz1, fc _ (by decide), v4]
+  · rw [reg_wrote rt13 (by decide)]; simp only [aluI, reg_zero]; decide
+  · rw [reg_kept rt13 (by decide), reg_wrote rt12 (by decide)]
+    simp only [shiftI]
+    rw [rt11, k10 _ (by decide), reg_kept rt4 (by decide), v0, len_blocks L (by omega)]
+  · rw [← mem4]
+    exact (kc.widen fit (by decide) (by decide) (by decide)).trans (kF.widen fit (by decide) (by decide) (by decide))
+  · intro j hj
+    rw [wordAt_keeps fit kF (by decide) (by omega) (by omega), wc j hj, mem4]
+  · rw [memF]
+    apply readBytes_eq_of (padBlock_length L)
+    intro d hd
+    rw [off_add fit _ _ (by omega), wb_at fit _ (c := 0x143f) (by decide) (by omega),
+      wb_at fit _ (c := 0x143e) (by decide) (by omega), wb_at fit _ (c := 0x143d) (by decide) (by omega),
+      wb_at fit _ (c := 0x143c) (by decide) (by omega), wb_at fit _ (c := 0x1400) (by decide) (by omega)]
+    rcases (by omega : d = 63 ∨ d = 62 ∨ d = 61 ∨ d = 60 ∨ d = 0 ∨ (1 ≤ d ∧ d < 60)) with h | h | h | h | h | h
+    · subst h; rfl
+    · subst h; rfl
+    · subst h; rfl
+    · subst h; rfl
+    · subst h; rfl
+    · rw [ifF (by omega), ifF (by omega), ifF (by omega), ifF (by omega), ifF (by omega), mz2, mz1,
+        padBlock_mid L d h.1 h.2]
+      by_cases h32 : 32 ≤ d
+      · rw [overlay_off_in fit _ _ (by omega) (by omega) (by omega)]
+      · rw [overlay_off_out fit _ _ (by omega) (by omega) (by omega), overlay_off_in fit _ _ (by omega) (by omega)
+          (by omega)]
+
 end Rv32.Sha
