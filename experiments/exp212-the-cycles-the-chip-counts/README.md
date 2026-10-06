@@ -170,6 +170,7 @@ exp210's UF2s still build byte for byte.
 | --- | --- | --- | --- |
 | 1 | revision 1, `24846d1362f8dbb6f28c673a6c5e68617abdbe19bf36a79abcdc8381755c02b3` | **「快閃」** — fast blinking | **something did not hold, and revision 1 could not say what**: its fast blinking was a check failing, any two seeds of a kind differing, and the other message taking the signer's time, all at once |
 | 2 | revision 2, `02107d4fc97af415ed25a6bb63b2913f1d23b71710f6ee3dc21c7c2e48780d88`, the same board | **「閃 3 下」** — three flashes | **only the first key generation was out of line.** All 33 runs passed every check — the kernel, its halt with code 0, all 65,536 bytes of its region as the Lean model left them, the RTL's minstret, the SHA-256 block's error flag. Key generations 2 to 16, under fifteen different seeds, took one number of cycles; all sixteen signatures took one number; the other message took a different one |
+| 3 | revision 3, `9d4e60b0282a4b4779b80f1f597132165bf6af4cbc3417a29f3de6df0db90c3e`, the same board | **「閃 2 下」** — two flashes | **every seed alike, and not the RTL's number.** All 34 runs passed every check. After the warm-up, all sixteen key generations — seed 0's timed run among them — took one number of cycles, all sixteen signatures another, and the other message a third; and at least one of those three is not what the RTL counted |
 
 Revision 1 answered slow, a double flash, or fast, and fast was five
 different things. Revision 2 runs the same 33 runs with the same checks and
@@ -195,7 +196,23 @@ second joins the others, the first run's difference was the shell's cold
 start, and the answer is slow or 2; if it is 3 again, seed 0 itself is
 different, which is a finding about the seed.
 
-Not yet run on a board: revision 3.
+**What run 3 settles.** Seed 0's timed key generation joined the other
+fifteen, so revision 2's odd run was the shell's own first run, not the
+seed: once nothing timed is first, **sixteen seeds of the key generator and
+sixteen of the signer take the same `mcycle` on silicon, to the cycle**, and
+a public input still moves it. That is the claim this experiment set out to
+check, and exp207's theorem predicted it.
+
+**What it adds, and leaves open.** Silicon does not count the RTL's cycles
+for these kernels, though it counts the RTL's instructions (check 4 held on
+every run). Which of the three numbers differ, and by how much, one LED
+cannot say. The explanation already written above fits: the harness's trap
+entry and `mret` are fetched from flash through the XIP cache inside the
+counted window on the chip, from RAM on the RTL — a per-trap cost would move
+every number and no seed. It would also make the difference grow with the
+HASH calls, which is what a next revision could test without reading a
+number off the LED: whether silicon minus RTL is `a + c·S` for the same `a`
+and `c` across the three kinds of run.
 
 ## Running it
 
