@@ -163,6 +163,7 @@ exp210's UF2s still build byte for byte.
 | Run | UF2 (SHA-256) | Reported, as said | Read as |
 | --- | --- | --- | --- |
 | 1 | revision 1, `24846d1362f8dbb6f28c673a6c5e68617abdbe19bf36a79abcdc8381755c02b3` | **「快閃」** — fast blinking | **something did not hold, and revision 1 could not say what**: its fast blinking was a check failing, any two seeds of a kind differing, and the other message taking the signer's time, all at once |
+| 2 | revision 2, `02107d4fc97af415ed25a6bb63b2913f1d23b71710f6ee3dc21c7c2e48780d88`, the same board | **「閃 3 下」** — three flashes | **only the first key generation was out of line.** All 33 runs passed every check — the kernel, its halt with code 0, all 65,536 bytes of its region as the Lean model left them, the RTL's minstret, the SHA-256 block's error flag. Key generations 2 to 16, under fifteen different seeds, took one number of cycles; all sixteen signatures took one number; the other message took a different one |
 
 Revision 1 answered slow, a double flash, or fast, and fast was five
 different things. Revision 2 runs the same 33 runs with the same checks and
@@ -170,7 +171,22 @@ says which of the five came first, as a count — 3 being the one that
 separates the leading suspect, the shell's own cold XIP cache on run 0,
 from the seed. Nothing else changed: `verdict.h` and the LED's last word.
 
-Not yet run on a board: revision 2.
+**What run 2 settles.** On silicon, fifteen seeds of the key generator and
+sixteen of the signer could not be told apart by `mcycle` — each one exact to
+the cycle, not within a tolerance — and the measurement was not blind: a
+public input moved it. That is what exp207's theorem predicts, measured.
+
+**What it does not.** Why run 0 was different. It came first, under seed 0,
+and only it: the cold XIP cache on the harness's `trap` is the explanation
+that fits, and it is consistent with this answer, but the answer does not
+single it out — seed 0 also ran only once, first. And whether silicon's
+numbers are the RTL's: answer 3 is decided before the RTL is consulted, so
+that question is still open.
+
+A revision 3 would settle both in one flash: run the first key generation
+twice, judge only the second, and compare every number with the RTL's. If
+seed 0's second run joins the others, it was the cache; the answer is then
+slow or 2.
 
 ## Running it
 
