@@ -69,12 +69,12 @@ __attribute__((noreturn)) static void next_run(void) {
     const uint8_t *k, *sha;
     uint32_t len;
     if (e->kind == KEYGEN) {
-        k = KEYGEN, len = KEYGEN_LEN, sha = KEYGEN_SHA;
+        k = KEYGEN_BIN, len = KEYGEN_LEN, sha = KEYGEN_SHA;
         put(0, k, len);
         put(K_SEED, SEED[e->seed], 32);
         fill(K_FILL, sizeof K_FILL / sizeof K_FILL[0]);
     } else {
-        k = SIGN, len = SIGN_LEN, sha = SIGN_SHA;
+        k = SIGN_BIN, len = SIGN_LEN, sha = SIGN_SHA;
         put(0, k, len);
         put(S_MSG, e->kind == SIGN ? MSG : OTHER, 32);
         ((volatile uint8_t *)REGION)[S_IDX] = LEAF;

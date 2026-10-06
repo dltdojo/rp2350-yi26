@@ -151,7 +151,7 @@ def gen_expect(out, rv32run, rtl_txt, nseeds):
         for name, b, sha in (("KEYGEN", keygen, keygen_sha), ("SIGN", sign, sign_sha)):
             f.write(f"\n#define {name}_LEN {len(b)}\n")
             f.write(f"static const uint8_t {name}_SHA[32] = {{{c_bytes(bytes.fromhex(sha))}}};\n")
-            f.write(f"static const uint8_t {name}[{len(b)}] = {{\n")
+            f.write(f"static const uint8_t {name}_BIN[{len(b)}] = {{\n")
             for o in range(0, len(b), 16):
                 f.write(f"    {c_bytes(b[o:o + 16])},\n")
             f.write("};\n")

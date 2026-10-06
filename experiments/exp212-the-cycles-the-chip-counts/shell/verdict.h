@@ -25,7 +25,7 @@ struct result { uint32_t failed, cycles; };
 
 // runs[i].kind and runs[i].cycles (the RTL's) for each of n runs; ran is how
 // many results the shell filled.
-static uint32_t verdict(const struct run *runs, const struct result *res, uint32_t n, uint32_t ran) {
+static inline uint32_t verdict(const struct run *runs, const struct result *res, uint32_t n, uint32_t ran) {
     if (ran != n) return FAST;
     uint32_t first[NKINDS] = {NONE, NONE, NONE};
     uint32_t rtl = 1;
