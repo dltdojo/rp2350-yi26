@@ -118,6 +118,7 @@ Per experiment:
 | exp209 | A **Pico 2** (not a Pico 2 W — its LED is not on a GPIO), a USB cable, a hand on **BOOTSEL** to drag `exp209.uf2` on, and **an eye on the LED** for a few seconds: slow blinking or fast. No UART, no USB, no `yi26`. The cloud half needs clang, lld, llvm-objcopy, cargo, Lean and the Hazard3 testbench. |
 | exp210 | The same as exp209, and exp209's UF2 flashed first on a board that ever ran exp139–exp145 (their partition table lives in sector 0, and this image does not fit there). The cloud half is the same as exp209's and a host C compiler; about ten minutes the first time, three of them `gen.py` running 21 cases on the model and the RTL. |
 | exp212 | The same as exp210, and up to three minutes of the LED staying on before it answers: slow blinking, or a count of one to six flashes. The cloud half is the same as exp210's; about fifteen minutes, most of it two key generations on the RTL, and ten more the first time. |
+| exp211 | The same as exp210, and about twenty boots: the cable pulled out and back in after each, twice in the middle of a fast-blinking window, and the UF2 flashed a second time partway through. Then count the flashes. The cloud half is the same as exp210's, java for the model, and about fifteen minutes, nearly all of it 18 boots on the RTL. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -504,7 +505,7 @@ awake — and because most of these experiments cost nothing.
 | **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204, exp205, exp206, exp207, exp213 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192 |
-| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209, exp210, exp212 |
+| **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209, exp210, exp211, exp212 |
 
 Three things the number means precisely, because a wrong "nobody needed" sends
 somebody to a bench for no reason:
@@ -773,6 +774,7 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp209 | `none` | `none` | `none` | `none` |
 | exp210 | `none` | `none` | `none` | `none` |
 | exp212 | `none` | `none` | `none` | `none` |
+| exp211 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -963,6 +965,7 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp209-the-count-the-led-blinks](./exp209-the-count-the-led-blinks/) | 3 · a person | **The first RISC-V firmware here, and the verified-kernel road's first contact with silicon: a shell in flash sector 0 of a Pico 2 runs exp203's proved kernel in User mode, through the RTL harness's own `harness.S`, and on the board everything matched. The kernel halted with 0, made its copy, left the whole 64 KiB region byte for byte as the Lean model predicted, and the RP2350 counted minstret = 108, the RTL's number.** PMP entry 0 reads back differently from what was written, which the RTL never shows. It took three builds: a person read a verdict and one number, could not read four, and reads one bit — slow or fast — without fail |
 | [exp210-the-hash-the-chip-computes](./exp210-the-hash-the-chip-computes/) | 3 · a person | **exp204's Lamport and exp205's WOTS verifiers, proved for every HASH, on a Pico 2 with the RP2350's SHA-256 block as HASH: all 21 cases in one UF2, each checked on the chip against the Lean model's verdict and every byte of its region, and against the RTL's minstret — and on the board it blinked slowly: every case matched. The SHA-256 block computed all 8,155 HASH calls as the model's SHA-256 does, every region came out byte for byte the model's, and silicon counted each case's minstret as the RTL does, HASH traps included.** On the RTL the same shell passes every case. The block's driver is held against a fake made from the datasheet, which four wrong drivers fail, and that is as far as the cloud can take it. exp209's shell moved to `tools/hazard3/shell/` for it, and still builds to the UF2 its board ran |
 | [exp212-the-cycles-the-chip-counts](./exp212-the-cycles-the-chip-counts/) | 3 · a person | **The first `mcycle` read on silicon: exp213's key generator and signer on a Pico 2 under sixteen seeds — each seed's key generation, then a signature with the tree it made — and the signer once on another message. On the board, after a warm-up run (revision 3), it flashed 2: sixteen seeds of the key generator took one number of cycles to the cycle, sixteen of the signer another, another message moved it, and every run's region and minstret held — but the numbers are not the RTL's.** Revision 2 had flashed 3, the shell's own cold first run; revision 1, fast. Revision 4 asked how silicon differs and flashed 5: silicon − RTL is not a fixed cost per HASH call, per instruction or per run — consistent with the RP2350's Hazard3 being v1.0-rc1 and the RTL a v1.1 commit, which exp202 recorded. The answers: slow if every seed took the same cycles and they are the RTL's, else 1 to 6 flashes — a failed check, the same but not the RTL's, only the first key generation out of line (the shell's cold XIP cache, the leading suspect), key generations differing, signatures differing, or a blind measurement. Every run is also held to the Lean model's whole region and the RTL's minstret. On the RTL the same shell, with two seeds, says slow |
+| [exp211-the-leaf-signed-once](./exp211-the-leaf-signed-once/) | 3 · a person | **exp213's signer on a Pico 2, one MSS leaf per boot, with the leaf counter in the board's own flash: claimed before anything is signed, one word a leaf that only ever loses bits, and outside every firmware image — so a power cut can waste a leaf but never hand one out twice, and flashing again leaves it as it was. Each boot's signature is accepted on the chip by exp206's verifier; the boot after the sixteenth claim refuses.** A TLA+ model finds the cut that beats signing first, the cut that beats a rewritten number and the flash that beats a counter inside the image, and leaves one row open: erasing all flash through BOOTSEL. A host test cuts the power at every step and pair of steps of the real counter; the RTL boots the shell 18 times over one flash. The flash is written through the bootrom from SRAM, from RISC-V C, for the first time here. **Not yet run on a board**: merged with the cloud half complete, the board run deferred |
 
 ## The browser track, finished
 
@@ -2783,11 +2786,13 @@ they can settle is settled before anybody walks to a bench.**
   splitting it further needs numbers, not an LED. Needs 3 rather than the 1 planned, for
   exp210's reason; the logic analyser was left out.
 
-**Planned on a board:**
+- [exp211](./exp211-the-leaf-signed-once/) — exp213's signer on the Pico 2,
+  one leaf per boot, the counter in the board's flash: claimed first, one
+  word a leaf, outside every image. A person pulls the cable in two windows
+  and flashes again partway; the answer is how many boots signed and how
+  many flashes the refusal shows. Needs 3 rather than the 2 planned: the
+  verdict is still read off the LED. **Not yet run on a board.**
 
-| | Needs | What only silicon can say |
-| --- | --- | --- |
-| exp211 | 2 | MSS with its counter in flash: power pulled and firmware reflashed mid-sequence, and the counter never going back |
 
 #### Questions this road has not answered, and must not assume
 

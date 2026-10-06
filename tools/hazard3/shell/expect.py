@@ -11,7 +11,11 @@ nothing the chip is compared with is typed by hand:
                                one-line outcome, whose minstret (and, for
                                exp212, mcycle) the chip is asked to match
   c_bytes(b)                   bytes as a C initialiser list
+  kernel_bin(path)             PATH.bin, checked against PATH.sha256 beside
+                               it: (its bytes, the hash) — exp212 wrote it,
+                               exp211 needed it second, exp207 a third time
 """
+import hashlib
 import os
 import subprocess
 import sys
@@ -22,6 +26,14 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 from sigfile import read_sig  # noqa: E402
 
 CHIP_REGION, REGION_SIZE = 0x20070000, 0x10000
+
+
+def kernel_bin(path):
+    b = open(path + ".bin", "rb").read()
+    want = open(path + ".sha256").read().split()[0]
+    if hashlib.sha256(b).hexdigest() != want:
+        sys.exit(f"{os.path.basename(path)}.sha256 is not {os.path.basename(path)}.bin's hash")
+    return b, want
 
 
 def c_bytes(b):
