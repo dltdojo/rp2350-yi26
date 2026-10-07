@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""exp214 — what the RTL build printed, against expected.txt.
+"""tools/hazard3/shell — what a shell's RTL build printed, against its
+expected.txt: the register writes it made, in order. A shell for a
+peripheral the RTL does not have (exp214's PIO) prints each write instead of
+making it; exp214 wrote this, exp216 needed it second.
 
   writes.py EXPECTED < WORDS     one line: `writes ok` or `writes differ at N`,
                                  then what the shell reported

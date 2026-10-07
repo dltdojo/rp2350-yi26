@@ -29,6 +29,18 @@
 #                                 MUTANT_EXPECT, if set, is the expect.h to
 #                                 copy instead of build/expect.h
 #
+#   shell_stand_ins DIR EXPECTED DEVICE...
+#                                 for a shell that prints its register writes
+#                                 (exp214, exp216): build DIR's sources with
+#                                 `./build.sh sim DIR DEVICE OUT` for each
+#                                 stand-in DEVICE, run each, and print one line
+#                                 per DEVICE — writes.py's verdict on the writes
+#                                 against EXPECTED, then what the shell said
+#   shell_caught WHAT FILE SED BASELINE EXPECTED DEVICE...
+#                                 a wrong shell: copy shell/, apply SED to
+#                                 FILE in it, and pass when shell_stand_ins on
+#                                 the copy says anything other than BASELINE
+#
 # SRC may include -I and -D flags. Needs clang, lld, llvm-objcopy and cargo
 # (for tools/partimg); shell_words and shell_mutant need the Hazard3 testbench,
 # and shell_mutant needs ../lib.sh's pass and fail.
@@ -74,6 +86,33 @@ shell_mutant() { # what file sed want
         pass "the shell catches a version where $1"
     else
         fail "the shell catches a version where $1" "$(shell_words "$work/sim.bin" 2> /dev/null)"
+    fi
+    rm -rf -- "$work"
+}
+
+shell_stand_ins() { # dir expected device...
+    local dir="$1" expected="$2" work d
+    shift 2
+    work="$(mktemp -d)"
+    for d in "$@"; do
+        ./build.sh sim "$dir" "$d" "$work/sim$d" 2> /dev/null &&
+            echo "$d: $(shell_words "$work/sim$d.bin" | python3 "$SHELL_TOOLS/writes.py" "$expected")"
+    done
+    rm -rf -- "$work"
+}
+
+shell_caught() { # what file sed baseline expected device...
+    local what="$1" file="$2" expr="$3" baseline="$4" expected="$5" work
+    shift 5
+    work="$(mktemp -d)"
+    cp -r shell "$work/shell"
+    sed -i "$expr" "$work/shell/$file"
+    if cmp -s "$work/shell/$file" "shell/$file"; then
+        fail "the RTL runs catch a shell where $what" "the sed changed nothing"
+    elif [[ "$(shell_stand_ins "$work/shell" "$expected" "$@")" != "$baseline" ]]; then
+        pass "the RTL runs catch a shell where $what"
+    else
+        fail "the RTL runs catch a shell where $what" "every run said the same as the right shell's"
     fi
     rm -rf -- "$work"
 }

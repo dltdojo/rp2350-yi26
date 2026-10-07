@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// exp214 — PIO0 on the RP2350, as much of it as the shell touches, and the
-// program. Every address and field is rp-pac 7.0.0's for the RP235x
-// (src/rp235x/mod.rs, pio.rs, pio/regs.rs, resets/regs.rs), written out
-// rather than pulled in, as tools/hazard3/shell/led.h does.
+// tools/hazard3/shell — PIO0 on the RP2350, as much of it as a shell touches,
+// and the GPIO and SIO registers that hand a pin to it. Every address and
+// field is rp-pac 7.0.0's for the RP235x (src/rp235x/mod.rs, pio.rs,
+// pio/regs.rs, resets/regs.rs, io/vals.rs, sio.rs), written out rather than
+// pulled in, as led.h does. exp214 wrote these for itself; exp216 needed them
+// second.
 #pragma once
 #include <stdint.h>
 
 #define RESETS_RESET_CLR   0x40023000u        // RESETS + 0x3000: atomic clear
 #define RESETS_RESET_DONE  0x40020008u
 #define RESET_PIO0         (1u << 11)
+#define RESET_PIO1         (1u << 12)
 
 #define PIO0               0x50200000u
 #define PIO_CTRL           (PIO0 + 0x000u)
@@ -27,19 +30,9 @@
 #define FSTAT_SM0_TXFULL   (1u << 16)         // TXFULL, bits 19:16
 #define FSTAT_SM0_TXEMPTY  (1u << 24)         // TXEMPTY, bits 27:24
 #define EXECCTRL_WRAP(bottom, top) (((uint32_t)(top) << 12) | ((uint32_t)(bottom) << 7))
+#define PIO_SM0_PINCTRL    (PIO0 + 0x0c8u + 0x14u)
+#define PINCTRL_SET(base, count) (((uint32_t)(count) << 26) | ((uint32_t)(base) << 5))   // SET_COUNT 28:26, SET_BASE 9:5
 
-// invert.pio, encoded by hand from the RP2350 datasheet's PIO instruction
-// table; check.sh holds these words to what pioasm makes of invert.pio.
-//
-//                   op  delay pull IfE/IfF Block
-//   pull block      100 00000  1      0     1    00000   0x80a0
-//   push block      100 00000  0      0     1    00000   0x8020
-//                   op  delay  dest     op   src
-//   mov isr, ~osr   101 00000  110 ISR  01 ~ 111 OSR     0xa0cf
-//
-// and the one instruction the shell executes directly, to start at 0:
-//
-//   jmp 0           000 00000 000 00000             0x0000
-#define PROGRAM_LEN 3
-static const uint16_t PROGRAM[PROGRAM_LEN] = {0x80a0, 0xa0cf, 0x8020};   // pull, mov, push
-#define JMP_0 0x0000u
+#define GPIO_CTRL(n)       (0x40028000u + 8u * (n) + 4u)   // IO_BANK0 GPIOn_CTRL
+#define FUNCSEL_PIO0       6u                              // io/vals.rs: PIO0_n = 0x06
+#define SIO_GPIO_IN        0xd0000004u                     // SIO + 0x004: GPIO0..31 as read at the pad
