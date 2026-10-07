@@ -1,0 +1,9 @@
+# exp220 — wrong versions of the program or of the model. Each must be
+# refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+words_invert|the middle instruction moves from X, not from OSR|s/^def middle (o : MovOp) : Instr := ⟨.mov .isr o .osr, 0⟩$/def middle (o : MovOp) : Instr := ⟨.mov .isr o .x, 0⟩/
+words_reverse|PIO1's words are claimed to be the invert program's|s/^theorem words_reverse : prog .reverse = \[0x80a0, 0xa0d7, 0x8020\]/theorem words_reverse : prog .reverse = [0x80a0, 0xa0cf, 0x8020]/
+step1|mov's bit-reverse is a plain copy, as rp2040-pio-emulator has it|s/| .invert => ~~~v | .reverse => reverse32 v/| .invert => ~~~v | .reverse => v/|lean/Pio/Machine.lean
+commute|the bit-reverse also shifts by one, so that it no longer commutes with the complement|s/^def reverse32 (v : W) : W := v.reverse$/def reverse32 (v : W) : W := v.reverse <<< 1/|lean/Pio/Machine.lean
+waits|a blocking pull on an empty FIFO goes on with X|s/      | \[\] => if block then .stall s else .next { s with osr := s.x, osrCount := 0 }/      | [] => .next { s with osr := s.x, osrCount := 0 }/|lean/Pio/Machine.lean

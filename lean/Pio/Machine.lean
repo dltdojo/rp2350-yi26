@@ -103,8 +103,9 @@ def shiftOut (cfg : Config) (osr : W) (n : Nat) : W × W :=
 
 def bitCount (n : BitVec 5) : Nat := if n.toNat = 0 then 32 else n.toNat
 
-def reverse32 (v : W) : W := BitVec.ofNat 32 ((List.range 32).foldl
-  (fun acc i => if v.getLsbD i then acc + 2 ^ (31 - i) else acc) 0)
+/-- `mov`'s bit-reverse: bit `i` to bit `31 - i`. Lean's own `BitVec.reverse`,
+so that what is known of it (`BitVec.getElem_reverse`) is known of this. -/
+def reverse32 (v : W) : W := v.reverse
 
 /-- The flag an IRQ index names, for machine 0; `none` for `prev`/`next`. -/
 def irqFlag (m : IrqIdx) (n : BitVec 3) : Option Nat :=

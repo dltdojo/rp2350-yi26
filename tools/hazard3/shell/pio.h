@@ -5,7 +5,8 @@
 // field is rp-pac 7.0.0's for the RP235x (src/rp235x/mod.rs, pio.rs,
 // pio/regs.rs, resets/regs.rs, io/vals.rs, sio.rs), written out rather than
 // pulled in, as led.h does. exp214 wrote these for itself; exp216 needed them
-// second; exp218 added what it reads a stopped state machine through.
+// second; exp218 added what it reads a stopped state machine through; exp220,
+// PIO1, and the same registers for either block.
 #pragma once
 #include <stdint.h>
 
@@ -16,6 +17,15 @@
 #define RESET_PIO1         (1u << 12)
 
 #define PIO0               0x50200000u
+#define PIO1               0x50300000u
+// The same registers in either block B, PIO0 or PIO1 (exp220).
+#define PIOB_CTRL(b)          ((b) + 0x000u)
+#define PIOB_FSTAT(b)         ((b) + 0x004u)
+#define PIOB_TXF0(b)          ((b) + 0x010u)
+#define PIOB_RXF0(b)          ((b) + 0x020u)
+#define PIOB_INSTR_MEM(b, n)  ((b) + 0x048u + 4u * (n))
+#define PIOB_SM0_EXECCTRL(b)  ((b) + 0x0c8u + 0x04u)
+#define PIOB_SM0_INSTR(b)     ((b) + 0x0c8u + 0x10u)
 #define PIO_CTRL           (PIO0 + 0x000u)
 #define PIO_FSTAT          (PIO0 + 0x004u)
 #define PIO_FLEVEL         (PIO0 + 0x00cu)    // TX0 bits 3:0, RX0 bits 7:4
