@@ -1,8 +1,12 @@
 name = "yi26"
-defaultTargets = ["Rv32"]
+defaultTargets = ["Rv32", "Pio"]
 
 [[lean_lib]]
 name = "Rv32"
+
+# The RP2350's PIO instructions; no Rv32 module imports it.
+[[lean_lib]]
+name = "Pio"
 
 # SHA-256 for running the model; no proof imports it (see Sha256.lean).
 [[lean_lib]]
