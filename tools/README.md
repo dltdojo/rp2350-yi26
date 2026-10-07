@@ -649,6 +649,12 @@ registers under it, now shared; and more LED answers in `led.h`, a count of
 slow flashes and a pause, which is a shape rather than a speed so that it
 cannot be mistaken for either. exp209's and exp210's UF2s still build byte for byte.
 
+exp219 put exp203's copy kernel beside a PIO program, and exp220 did it a
+second time, so `copyrun.py` holds what both `gen.py`s computed for the CPU
+side: exp203's image with a 64-byte message as its source, the model's and
+the RTL's runs of it, and the lines of `expect.h` they give. exp219's UF2
+came out of the move byte for byte the one that ran on the board.
+
 exp211 is the fourth, and took `region.h` — writing an image into the region
 and comparing bytes, which exp212 wrote — for its second user; exp212's UF2
 still builds byte for byte.
