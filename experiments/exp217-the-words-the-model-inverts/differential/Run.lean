@@ -4,14 +4,14 @@ SPDX-License-Identifier: Apache-2.0
 exp217's model side of the differential: `lean/Pio/Machine.lean`, run on
 each case `cases.py` writes, one per line on stdin:
 
-  <config> | <program words> | <state> | <tx words> | <ext> | <steps>
+  <family> # <config> | <program words> | <state> | <tx words> | <ext> | <steps>
 
   config  wrapBottom wrapTop inBase outBase outCount setBase setCount jmpPin
           inRight outRight pushThresh pullThresh statusN   (Bools as 0/1)
   state   pc x y isr isrCount osr osrCount
 
 and for each, one line per step — the state after it, in the format all
-three runners print (trace.py reads them) — or `NONE` where the model
+three runners print (differential.py reads them) — or `NONE` where the model
 refuses an instruction.
 -/
 import Pio.Machine
@@ -26,7 +26,7 @@ def showState (s : Sm) : String :=
   s!"{s.pins.toNat} {s.dirs.toNat} {s.irq.toNat} [{l s.tx}] [{l s.rx}]"
 
 def runCase (line : String) : List String := Id.run do
-  let parts := line.splitOn "|"
+  let parts := ((line.splitOn "#").getLast!).splitOn "|"
   let c := nums (parts.getD 0 "")
   let prog := (nums (parts.getD 1 "")).map (BitVec.ofNat 16)
   let st := nums (parts.getD 2 "")

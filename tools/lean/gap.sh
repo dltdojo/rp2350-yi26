@@ -16,26 +16,35 @@
 #   NAME      who JUDGE is, for the messages: LLVM, pioasm
 #   --show    also print the FAIL lines JUDGE gave for each mutant
 #
+#   GAP_INPUT   a file GEN reads on stdin (otherwise it reads nothing)
+#   GAP_PROOF   a proof outside the library that must still check against
+#               each mutant: what "passes" names, in place of both theorems
+#
 # Run from the directory MUTANTS and GEN are in. Each mutant rebuilds the
 # library in a copy (tools/lean/lean.sh mutant-lib). exp201 wrote this for
-# LLVM; exp215 needed it second, for pioasm.
+# LLVM; exp215 needed it second, for pioasm; exp217 added a proof outside the
+# library, and cases for GEN to run.
 
 set -u
 LEAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lean.sh"
 mutants="$1" gen="$2" judge="$3" name="$4" show="${5-}"
 status=0
+passes="both theorems"
+[[ -n "${GAP_PROOF-}" ]] && passes="$(basename "$GAP_PROOF")"
 
 while IFS='|' read -r label what expr; do
     [[ -z "$label" || "$label" == \#* ]] && continue
-    claim="$label: a version where $what passes both theorems and fails against $name"
+    claim="$label: a version where $what passes $passes and fails against $name"
     if [[ ! "$expr" =~ ^(.*)\|(lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
         echo "FAIL  $claim — no target file named"; status=1; continue
     fi
     lib="$($LEAN mutant-lib "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}")"; built=$?
     if [[ $built -eq 3 ]]; then echo "FAIL  $claim — the sed no longer matches its file"; status=1
     elif [[ $built -ne 0 ]]; then echo "FAIL  $claim — Lean refused it, so it is not the gap this shows"; status=1
+    elif [[ -n "${GAP_PROOF-}" ]] && ! $LEAN holds "$GAP_PROOF" "$lib"; then
+        echo "FAIL  $claim — $passes refused it, so it is not the gap this shows"; status=1
     else
-        said="$($LEAN exec "$gen" "$lib" | $judge)"
+        said="$($LEAN exec "$gen" "$lib" < "${GAP_INPUT:-/dev/null}" | $judge)"
         if [[ $? -eq 0 ]]; then echo "FAIL  $claim — $name agreed with it"; status=1
         else echo "PASS  $claim"; fi
         [[ "$show" == --show ]] && grep '^FAIL' <<< "$said" | sed "s/^FAIL /      $name:/"

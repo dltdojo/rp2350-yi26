@@ -53,21 +53,22 @@ theorem step2 (ext : W) (s : Sm) (hpc : s.pc = 2) (hd : s.delay = 0) (he : s.exe
 
 /-- **One word**: from the top, with `w` first in TX and room in RX, three
 steps later `w` is gone from TX, `~w` is last in RX, and the machine is back
-at the top. -/
+at the top. Room is said as 4, the RX FIFO's depth on the chip, not as the
+model's constant: a model with another depth does not prove this. -/
 theorem one_word (ext : W) (s : Sm) (hs : Top s) (w : W) (rest : List W) (htx : s.tx = w :: rest)
-    (hrx : s.rx.length < FIFO_DEPTH) :
+    (hrx : s.rx.length < 4) :
     ∃ s', run cfg prog ext 3 s = some s' ∧ Top s' ∧ s'.tx = rest ∧ s'.rx = s.rx ++ [~~~w] := by
   obtain ⟨hpc, hd, he⟩ := hs
   refine ⟨{ s with pc := 0, osr := w, osrCount := 0, tx := rest, isr := 0, isrCount := 0, rx := s.rx ++ [~~~w], delay := 0, exec := none }, ?_, ⟨rfl, rfl, rfl⟩, rfl, rfl⟩
   simp only [run]
   rw [step0 ext s hpc hd he w rest htx, Option.bind_some, step1 ext _ (by rfl) (by rfl) (by rfl),
-    Option.bind_some, step2 ext _ (by rfl) (by rfl) (by rfl) (by exact hrx), Option.bind_some]
+    Option.bind_some, step2 ext _ (by rfl) (by rfl) (by rfl) (by simp only [FIFO_DEPTH]; exact hrx), Option.bind_some]
 
 /-- **Every word, in order**: from the top with RX empty and `ws` in TX —
 no more than the FIFO holds — `3 |ws|` steps later TX is empty and RX holds
 the complement of each word, in the order they went in. -/
 theorem every_word (ext : W) : ∀ (ws : List W) (s : Sm), Top s → s.tx = ws →
-    s.rx.length + ws.length ≤ FIFO_DEPTH →
+    s.rx.length + ws.length ≤ 4 →
     ∃ s', run cfg prog ext (3 * ws.length) s = some s' ∧ Top s' ∧ s'.tx = [] ∧
       s'.rx = s.rx ++ ws.map (~~~·)
   | [], s, hs, htx, _ => ⟨s, rfl, hs, htx, by simp⟩

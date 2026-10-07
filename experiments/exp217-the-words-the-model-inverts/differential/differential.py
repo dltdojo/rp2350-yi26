@@ -4,6 +4,9 @@
 
   differential.py CASES LEAN JS PY     PASS/FAIL lines; exit 0 = all pass
 
+Any of the traces may be `-`, stdin: gap.sh runs Run.lean against each wrong
+model and pipes it here, against the emulators' traces made once.
+
 CASES is what cases.py printed; LEAN, JS and PY are the traces Run.lean,
 rp2040js_run.js and pioemu_run.py printed for it: per case, the state after
 each step.
@@ -18,8 +21,8 @@ FAIL: either the model is wrong, or a new deviation has to be named here,
 with its reason. So is a step the model refuses, since every case is drawn
 from what the model has.
 
-Both emulators model the RP2040. Where the RP2040 and RP2350 differ the model
-follows the RP2350 (GPIO30 and 31), and that is a deviation too.
+Both emulators model the RP2040, and the RP2350's additions are left out of
+the cases. The model keeps all 32 bits of pin state, which rp2040js does not.
 """
 import collections
 import sys
@@ -39,7 +42,7 @@ def parse(line):
 
 def traces(path):
     out, cur = {}, None
-    for line in open(path):
+    for line in (sys.stdin if path == "-" else open(path)):
         line = line.rstrip("\n")
         if line.startswith("case "):
             cur = int(line[5:])
@@ -53,33 +56,33 @@ def traces(path):
 DEVIATIONS = {
     "js": [
         ("push iffull and pull ifempty are ignored without autopush and autopull",
-         "§11.4.6/7: IfFull and IfEmpty compare the shift count with the threshold whatever autopush and autopull are"),
+         "IfFull and IfEmpty compare the shift count with the threshold whatever autopush and autopull are"),
         ("a pull block that waits empties OSR's count",
-         "§11.4.7: a blocking pull on an empty FIFO stalls, and a stalled instruction changes nothing"),
+         "a blocking pull on an empty FIFO stalls, and a stalled instruction changes nothing"),
         ("a push block that waits empties ISR",
-         "§11.4.6: a blocking push on a full FIFO stalls, and a stalled instruction changes nothing"),
+         "a blocking push on a full FIFO stalls, and a stalled instruction changes nothing"),
         ("out of 32 bits leaves OSR as it was",
-         "§11.4.5: a bit count of 0 means 32, and OSR shifts by it like any other"),
+         "a bit count of 0 means 32, and OSR shifts by it like any other"),
         ("pin writes past GPIO31 stop there",
-         "§11.5.6: the OUT and SET pin ranges wrap from 31 to 0"),
-        ("no GPIO30 or GPIO31",
-         "an RP2040 has 30; an RP2350B's PIO sees 32 pins per window, and the model writes all 32"),
+         "the OUT and SET pin ranges wrap from 31 to 0"),
+        ("only GPIO0 to GPIO29 are kept",
+         "a state machine's pin state is 32 bits on either chip; how many of them reach a pad is the package's (30 on an RP2040 or an RP2350A)"),
     ],
     "py": [
         ("mov's bit-reverse is a plain copy",
-         "§11.4.8: operation 2 reverses the bit order"),
+         "operation 2 reverses the bit order"),
         ("push iffull and pull ifempty compare the count with 32, not the threshold",
-         "§11.4.6/7: IfFull and IfEmpty compare the shift count with PUSH_THRESH and PULL_THRESH"),
+         "IfFull and IfEmpty compare the shift count with PUSH_THRESH and PULL_THRESH"),
         ("jmp !osre compares the count with 32, not the threshold",
-         "§11.4.2: !OSRE is the output shift count below PULL_THRESH"),
+         "!OSRE is the output shift count below PULL_THRESH"),
         ("a wrap top of 0 is taken as the end of the program",
-         "§11.5.2: WRAP_TOP is any instruction, 0 included"),
+         "WRAP_TOP is any instruction, 0 included"),
         ("in, mov and wait read pins from GPIO0 whatever IN_BASE is",
-         "§11.5.6: IN, MOV and WAIT PIN read from IN_BASE"),
+         "IN, MOV and WAIT PIN read from IN_BASE"),
         ("pin writes past GPIO31 stop there",
-         "§11.5.6: the OUT and SET pin ranges wrap from 31 to 0"),
+         "the OUT and SET pin ranges wrap from 31 to 0"),
         ("mov pins writes 32 pins from GPIO0",
-         "§11.4.8: MOV to PINS uses the OUT pin mapping"),
+         "MOV to PINS uses the OUT pin mapping"),
     ],
 }
 
@@ -189,16 +192,16 @@ def main():
         reasons = dict(DEVIATIONS[emu])
         for name in [n for n, _ in DEVIATIONS[emu]] + ["the emulator has no emulation for an instruction"]:
             if per[name]:
-                print(f"  {per[name]:4d}  part where it {name}" if name in reasons
-                      else f"  {per[name]:4d}  stop where {name}")
+                print(f"  {per[name]:4d}  part at a deviation: {name}" if name in reasons
+                      else f"  {per[name]:4d}  stop comparing where {name}")
                 if name in reasons:
-                    print(f"        the model: {reasons[name]}; e.g. case {first[name]}")
+                    print(f"        the datasheet: {reasons[name]}; e.g. case {first[name]}")
         for o, n in sorted(bad.items()):
             print(f"  {n:4d}  {o}; e.g. case {first[o]}")
         if bad:
             failed = True
             print(f"FAIL  every disagreement with {title} is one of its named deviations — "
-                  f"{sum(bad.values())} are not")
+                  f"{sum(bad.values())} of {len(cases)} cases are not")
         else:
             print(f"PASS  every disagreement with {title} is one of its named deviations, "
                   f"and {agree} of {len(cases)} cases agree on every step")

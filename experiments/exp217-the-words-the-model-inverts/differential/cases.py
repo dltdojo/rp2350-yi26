@@ -72,10 +72,13 @@ def pinr(r, n):
 def irqs(r, n):
     if r.random() < 0.5:
         return core(r, n)
+    # Flags 0 and 1 most of the time, so that a wait often finds a flag
+    # something before it set.
+    flag = lambda: r.choice([0, 1, r.randrange(8)])
     return r.choice([
-        lambda: irq(r.randrange(2), 0, r.randrange(8)),
-        lambda: irq(0, 1, r.randrange(8)),
-        lambda: wait(r.randrange(2), 2, r.randrange(8)),
+        lambda: irq(r.randrange(2), 0, flag()),
+        lambda: irq(0, 1, flag()),
+        lambda: wait(r.randrange(2), 2, flag()),
         lambda: mov(r.choice([1, 2]), r.randrange(2), 5),
     ])()
 

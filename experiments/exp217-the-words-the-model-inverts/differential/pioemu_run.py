@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """exp217 — the same cases on rp2040-pio-emulator (tools/pio-emulators), one
-state per clock. Reads Run.lean's case format on stdin, prints Run.lean's
+state per clock. Reads cases.py's lines on stdin, prints Run.lean's
 trace format; `NONE` where the emulator has no emulation for an instruction
 (it raises, or its generator just ends). IRQ flags are not in it, so that
 field is printed 0 and not compared.
@@ -24,7 +24,7 @@ def nums(s):
 
 
 def run_case(line):
-    c, prog, st, tx, ext, steps = (nums(p) for p in line.split("|"))
+    c, prog, st, tx, ext, steps = (nums(p) for p in line.split("#")[-1].split("|"))
     prog = prog + [0] * (32 - len(prog))
     wb, wt, in_base, out_base, out_count, set_base, set_count, jmp_pin, in_right, out_right, push_t, pull_t, _ = c
     state = State(program_counter=st[0], x_register=st[1], y_register=st[2],

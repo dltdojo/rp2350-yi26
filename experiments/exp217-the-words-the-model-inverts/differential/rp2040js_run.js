@@ -2,7 +2,7 @@
 //
 // exp217 — the same cases on rp2040js (tools/pio-emulators), Wokwi's RP2040
 // emulator: its PIO0 state machine 0, configured through its own register
-// fields and stepped one call at a time. Reads Run.lean's case format on
+// fields and stepped one call at a time. Reads cases.py's lines on
 // stdin, prints Run.lean's trace format.
 //
 //   node rp2040js_run.js < cases
@@ -13,7 +13,7 @@ const { RP2040 } = require(path.join(__dirname, '../../../tools/pio-emulators/no
 const nums = (s) => s.trim().split(/\s+/).filter((t) => t.length).map(Number);
 
 function runCase(line) {
-  const [c, prog, st, tx, ext, steps] = line.split('|').map(nums);
+  const [c, prog, st, tx, ext, steps] = line.replace(/^.*#/, '').split('|').map(nums);
   const mcu = new RP2040();
   const pio = mcu.pio[0];
   const sm = pio.machines[0];

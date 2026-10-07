@@ -1,0 +1,12 @@
+# exp217 — wrong versions of lean/Pio/Machine.lean, the model the proof is
+# about. Each must be refused by Lean: Invert.lean's theorems say what the
+# three instructions do, so a model that has any of them do something else
+# no longer proves them.
+#
+# <label>|<what is wrong>|<sed>|<file>
+every_word|pull reads the TX FIFO's front word but leaves it there|s/      | w :: rest => .next { s with osr := w, osrCount := 0, tx := rest }/      | w :: rest => .next { s with osr := w, osrCount := 0 }/|lean/Pio/Machine.lean
+every_word|push puts ISR at the front of the RX FIFO, not the back|s/then .next { s with rx := s.rx ++ \[s.isr\], isr := 0, isrCount := 0 }/then .next { s with rx := s.isr :: s.rx, isr := 0, isrCount := 0 }/|lean/Pio/Machine.lean
+every_word|mov's invert reverses the bits instead|s/| .invert => ~~~v | .reverse => reverse32 v/| .invert => reverse32 v | .reverse => ~~~v/|lean/Pio/Machine.lean
+every_word|the wrap goes to the instruction after the top, not to the bottom|s/  if pc = cfg.wrapTop then cfg.wrapBottom else (pc + 1) % 32/  (pc + 1) % 32/|lean/Pio/Machine.lean
+every_word|push has room for three words, not four|s/^def FIFO_DEPTH : Nat := 4$/def FIFO_DEPTH : Nat := 3/|lean/Pio/Machine.lean
+waits|a blocking pull on an empty FIFO goes on with X, as a non-blocking one does|s/      | \[\] => if block then .stall s else .next { s with osr := s.x, osrCount := 0 }/      | [] => .next { s with osr := s.x, osrCount := 0 }/|lean/Pio/Machine.lean
