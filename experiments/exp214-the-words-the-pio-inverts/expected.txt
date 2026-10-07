@@ -1,0 +1,22 @@
+# exp214 — every register write the shell makes, in order, and why. check.sh
+# holds the RTL build's printed writes to these lines, address and value.
+# Addresses and fields are rp-pac 7.0.0's for the RP235x (shell/pio.h).
+#
+# <address> <value>   <why>
+40023000 00000800   RESETS clear alias: PIO0 (bit 11) out of reset
+50200048 000080a0   INSTR_MEM0: pull block
+5020004c 0000a0cf   INSTR_MEM1: mov isr, ~osr
+50200050 00008020   INSTR_MEM2: push block
+502000cc 00002000   SM0_EXECCTRL: wrap from 2 (WRAP_TOP, bits 16:12) back to 0 (WRAP_BOTTOM, bits 11:7)
+50200000 00000110   CTRL: SM0_RESTART (bit 4) and CLKDIV_RESTART for SM0 (bit 8)
+502000d8 00000000   SM0_INSTR: jmp 0, executed at once, so SM0 starts at instruction 0
+50200000 00000001   CTRL: SM0_ENABLE (bit 0)
+50200010 00000000   TXF0: word 1
+50200010 ffffffff   TXF0: word 2
+50200010 12345678   TXF0: word 3
+50200010 80000001   TXF0: word 4
+50200010 55555555   TXF0: word 5
+50200010 aaaaaaaa   TXF0: word 6
+50200010 0000ffff   TXF0: word 7
+50200010 deadbeef   TXF0: word 8
+50200000 00000000   CTRL: SM0 stopped

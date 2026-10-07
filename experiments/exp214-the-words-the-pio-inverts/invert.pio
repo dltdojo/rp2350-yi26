@@ -1,0 +1,11 @@
+; SPDX-License-Identifier: Apache-2.0
+;
+; exp214 — the PIO program: take a word from the TX FIFO, give back its
+; bitwise complement through the RX FIFO, forever. The complement is so that
+; a word read back unchanged cannot pass for one the state machine handled.
+.program invert
+.wrap_target
+    pull block          ; OSR <- TX FIFO, waiting while it is empty
+    mov isr, ~osr       ; ISR <- ~OSR
+    push block          ; RX FIFO <- ISR, waiting while it is full
+.wrap
