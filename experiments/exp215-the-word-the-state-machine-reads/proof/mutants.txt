@@ -1,0 +1,11 @@
+# exp215 — wrong versions of lean/Pio/Isa.lean. Each must be refused: the
+# library's own build checks both theorems, so a refusal names the step of
+# the proof that stopped holding.
+#
+# <label>|<what is wrong>|<sed>|<file>
+decode_encode|jmp's conditions 6 and 7 are read the other way round|s/| 6 => some .pin | 7 => some .notOsre/| 6 => some .notOsre | 7 => some .pin/|lean/Pio/Isa.lean
+decode_encode|pull's IfEmpty and Block bits are written in each other's places|s/  | .pull e b => 128 + e.toNat \* 64 + b.toNat \* 32/  | .pull e b => 128 + e.toNat * 32 + b.toNat * 64/|lean/Pio/Isa.lean
+encode_decode|wait jmppin is read with offsets up to 7, which the datasheet reserves|s/if i < 4 then some (.jmppin/if i < 8 then some (.jmppin/|lean/Pio/Isa.lean
+encode_decode|mov rxfifo[y] is read whatever the index bits beside it hold|s/  else if l % 8 = 0 then some none/  else if True then some none/|lean/Pio/Isa.lean
+encode_decode|irq is read with bit 7 set, which the datasheet reserves|s/^    if l \/ 128 = 0 then$/    if l \/ 128 < 2 then/|lean/Pio/Isa.lean
+encode_decode|irq clear is also read with the wait bit set — sloppyDecode's second word|s/  | 0 => some .set | 1 => some .wait | 2 => some .clear | _ => none/  | 0 => some .set | 1 => some .wait | 2 => some .clear | 3 => some .clear | _ => none/|lean/Pio/Isa.lean

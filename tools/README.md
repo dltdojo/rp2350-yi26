@@ -551,6 +551,16 @@ tools/lean/lean.sh exec    experiments/exp203-*/proof/Copy64.lean kernel.bin   #
 `native_decide` and `bv_decide` leave behind: a proof that runs compiled code
 trusts the compiler, and none here does.
 
+`gap.sh` shows what a round-trip proof cannot see: wrong versions of the
+library that make the same mistake in an encoder and its decoder, so both
+theorems still hold, must each be accepted by Lean and refused by an
+assembler written by somebody else. exp201 wrote it for LLVM; exp215 needed
+it second, for `pioasm`.
+
+```sh
+tools/lean/gap.sh mutants.txt Gen.lean "python3 differential.py" pioasm --show
+```
+
 ## `hazard3/`
 
 The RISC-V core in the RP2350, as RTL, simulated — the second of the three

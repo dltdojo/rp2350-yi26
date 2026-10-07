@@ -1,0 +1,10 @@
+# exp215 — wrong versions of lean/Pio/Isa.lean that Lean ACCEPTS: both
+# theorems still hold, because the mistake is the same in the encoder and the
+# decoder. Each must be accepted by the build and refused by the pioasm
+# differential. This is the gap the two theorems cannot close, kept honest.
+#
+# <label>|<what is wrong>|<sed>|<file>
+differential|jmp x-- and y-- trade codes, in both tables|s/| .xDec => 2 | .notY => 3 | .yDec => 4/| .xDec => 4 | .notY => 3 | .yDec => 2/; s/| 2 => some .xDec | 3 => some .notY/| 2 => some .yDec | 3 => some .notY/; s/  | 4 => some .yDec | 5 => some .xNeY/  | 4 => some .xDec | 5 => some .xNeY/|lean/Pio/Isa.lean
+differential|mov's status source is given the reserved code 4, in both tables|s/| .null => 3 | .status => 5 | .isr => 6/| .null => 3 | .status => 4 | .isr => 6/; s/^  | 5 => some .status/  | 4 => some .status/|lean/Pio/Isa.lean
+differential|the IRQ index modes prev and next trade codes, in both tables|s/| .prev => 1 | .rel => 2 | .next => 3/| .prev => 3 | .rel => 2 | .next => 1/; s/| 1 => some .prev | 2 => some .rel | 3 => some .next/| 1 => some .next | 2 => some .rel | 3 => some .prev/|lean/Pio/Isa.lean
+differential|set's pindirs is given the reserved code 3, in both tables|s/  | .pins => 0 | .x => 1 | .y => 2 | .pindirs => 4$/  | .pins => 0 | .x => 1 | .y => 2 | .pindirs => 3/; s/  | 0 => some .pins | 1 => some .x | 2 => some .y | 4 => some .pindirs | _ => none/  | 0 => some .pins | 1 => some .x | 2 => some .y | 3 => some .pindirs | _ => none/|lean/Pio/Isa.lean

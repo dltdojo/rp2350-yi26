@@ -35,7 +35,7 @@
 #   lean.sh drop-lib LIB    remove a copy mutant-lib made, and nothing else
 #   lean.sh version         the pinned Lean's own version line
 #
-# A FILE that imports `Rv32` is about the shared library in lean/ (from exp201
+# A FILE that imports `Rv32` or `Pio` is about the shared library in lean/ (from exp201
 # on): the library is built with `lake` first, and FILE is checked against it.
 # The library's own theorems are checked by that build, so a mutant of the
 # library can be refused by the build before FILE is ever read.
@@ -67,7 +67,7 @@ if [[ ! -x "$LEAN" ]]; then
     esac
 fi
 
-uses_lib() { grep -q '^import Rv32' "$1"; }
+uses_lib() { grep -qE '^import (Rv32|Pio)' "$1"; }
 
 # Lean on FILE, against the library in LIB when FILE imports it. A library that
 # does not build is reported the way a proof that does not check is: Lean's

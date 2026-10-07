@@ -1,0 +1,41 @@
+=== exp215 — the word the state machine reads ===
+recorded at 2026-10-07T01:19:54Z from commit f64a247
+
+>>> the two theorems, and what they rest on
+    Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
+
+'Exp215.round_trip' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp215.no_alias' depends on axioms: [propext, Quot.sound]
+'Pio.encode_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp215.one_reading' depends on axioms: [propext, Quot.sound]
+'Exp215.sloppy_round_trips' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp215.a_round_trip_allows_a_second_reading' depends on axioms: [propext]
+exit 0
+
+>>> wrong versions of the library: each must be refused
+decode_encode  jmp's conditions 6 and 7 are read the other way round                         refused in Cond.ofCode_code
+decode_encode  pull's IfEmpty and Block bits are written in each other's places              refused in decodeOp_low
+encode_decode  wait jmppin is read with offsets up to 7, which the datasheet reserves        refused in decodeWait_bits
+encode_decode  mov rxfifo[y] is read whatever the index bits beside it hold                  refused in rxIdx_decodeRxIdx
+encode_decode  irq is read with bit 7 set, which the datasheet reserves                      refused in low_decodeOp
+encode_decode  irq clear is also read with the wait bit set — sloppyDecode's second word   refused in IrqOp.code_ofCode
+
+>>> pioasm's reading against Lean's, over all 65536 words
+    pioasm version: 2.3.1
+PASS  pioasm reads each of the 42304 words Lean decodes as Lean does: its text assembles back to the word
+PASS  Lean decodes every word pioasm makes from 1322 instructions at 32 delays each (42304 texts, 42304 distinct words)
+PASS  and those are exactly the 42304 words Lean decodes; the other 23232 it refuses, and pioasm made none of them
+
+>>> wrong versions Lean cannot see: each must be accepted by Lean and refused by pioasm
+PASS  differential: a version where jmp x-- and y-- trade codes, in both tables passes both theorems and fails against pioasm
+      pioasm: pioasm reads each of the 42304 words Lean decodes as Lean does — 2048 differ, e.g. 0040 'jmp y--, 0' is 0080 to pioasm; 0041 'jmp y--, 1' is 0081 to pioasm; 0042 'jmp y--, 2' is 0082 to pioasm; 0043 'jmp y--, 3' is 0083 to pioasm
+PASS  differential: a version where mov's status source is given the reserved code 4, in both tables passes both theorems and fails against pioasm
+      pioasm: pioasm reads each of the 42304 words Lean decodes as Lean does — 768 differ, e.g. a004 'mov pins, status' is a005 to pioasm; a00c 'mov pins, ~status' is a00d to pioasm; a014 'mov pins, ::status' is a015 to pioasm; a024 'mov x, status' is a025 to pioasm
+      pioasm: Lean decodes every word pioasm makes — it refuses 768, e.g. a005, a00d, a015, a025, a02d, a035
+      pioasm: the words pioasm makes are exactly the ones Lean decodes — Lean decodes 768 pioasm did not make, e.g. a004 'mov pins, status', a00c 'mov pins, ~status', a014 'mov pins, ::status', a024 'mov x, status'
+PASS  differential: a version where the IRQ index modes prev and next trade codes, in both tables passes both theorems and fails against pioasm
+      pioasm: pioasm reads each of the 42304 words Lean decodes as Lean does — 2560 differ, e.g. 2048 'wait 0 irq next 0' is 2058 to pioasm; 2049 'wait 0 irq next 1' is 2059 to pioasm; 204a 'wait 0 irq next 2' is 205a to pioasm; 204b 'wait 0 irq next 3' is 205b to pioasm
+PASS  differential: a version where set's pindirs is given the reserved code 3, in both tables passes both theorems and fails against pioasm
+      pioasm: pioasm reads each of the 42304 words Lean decodes as Lean does — 1024 differ, e.g. e060 'set pindirs, 0' is e080 to pioasm; e061 'set pindirs, 1' is e081 to pioasm; e062 'set pindirs, 2' is e082 to pioasm; e063 'set pindirs, 3' is e083 to pioasm
+      pioasm: Lean decodes every word pioasm makes — it refuses 1024, e.g. e080, e081, e082, e083, e084, e085
+      pioasm: the words pioasm makes are exactly the ones Lean decodes — Lean decodes 1024 pioasm did not make, e.g. e060 'set pindirs, 0', e061 'set pindirs, 1', e062 'set pindirs, 2', e063 'set pindirs, 3'
