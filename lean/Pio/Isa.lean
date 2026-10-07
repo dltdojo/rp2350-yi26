@@ -440,4 +440,113 @@ theorem decode_encode (i : Instr) : decode (encode i) = some i := by
     decodeOp_low]
   simp
 
+/-! ## A word has one reading -/
+
+theorem bits_decodeWait {l : Nat} {s : WaitSrc} (h : decodeWait l = some s) : s.bits = l % 128 := by
+  unfold decodeWait at h
+  split at h
+  · cases h; simp only [WaitSrc.bits, BitVec.toNat_ofNat]; omega
+  · cases h; simp only [WaitSrc.bits, BitVec.toNat_ofNat]; omega
+  · simp only [Option.map_eq_some_iff] at h
+    obtain ⟨m, hm, rfl⟩ := h
+    have := IrqIdx.code_ofCode hm
+    simp only [WaitSrc.bits, BitVec.toNat_ofNat]; omega
+  · rename_i h0 h1 h2
+    simp only [imp_false] at h0 h1 h2
+    by_cases hi : l % 32 < 4
+    · simp only [hi, ↓reduceIte, Option.some.injEq] at h
+      subst h; simp only [WaitSrc.bits, BitVec.toNat_ofNat]; omega
+    · simp [hi] at h
+
+theorem rxIdx_decodeRxIdx {l : Nat} {k : Option (BitVec 3)} (h : decodeRxIdx l = some k) :
+    rxIdx k = l % 16 := by
+  unfold decodeRxIdx at h
+  split at h
+  · cases h; simp only [rxIdx, BitVec.toNat_ofNat]; omega
+  · split at h
+    · cases h; simp only [rxIdx]; omega
+    · cases h
+
+theorem low_decode4 {l : Nat} {o : Op} (hl : l < 256) (h : decode4 l = some o) :
+    o.opcode = 4 ∧ o.low = l := by
+  unfold decode4 at h
+  split at h
+  · split at h
+    · cases h; refine ⟨rfl, ?_⟩; simp only [Op.low]
+      by_cases a : l / 64 % 2 = 1 <;> by_cases b : l / 32 % 2 = 1 <;> simp [a, b] <;> omega
+    · cases h; refine ⟨rfl, ?_⟩; simp only [Op.low]
+      by_cases a : l / 64 % 2 = 1 <;> by_cases b : l / 32 % 2 = 1 <;> simp [a, b] <;> omega
+  · split at h
+    · split at h
+      · simp only [Option.map_eq_some_iff] at h
+        obtain ⟨k, hk, rfl⟩ := h
+        have := rxIdx_decodeRxIdx hk
+        refine ⟨rfl, ?_⟩; simp only [Op.low]; omega
+      · simp only [Option.map_eq_some_iff] at h
+        obtain ⟨k, hk, rfl⟩ := h
+        have := rxIdx_decodeRxIdx hk
+        refine ⟨rfl, ?_⟩; simp only [Op.low]; omega
+    · cases h
+
+theorem low_decodeOp {opc l : Nat} {o : Op} (hopc : opc < 8) (hl : l < 256) (h : decodeOp opc l = some o) :
+    o.opcode = opc ∧ o.low = l := by
+  rcases (by omega : opc = 0 ∨ opc = 1 ∨ opc = 2 ∨ opc = 3 ∨ opc = 4 ∨ opc = 5 ∨ opc = 6 ∨ opc = 7)
+    with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · simp only [decodeOp, Option.map_eq_some_iff] at h
+    obtain ⟨c, hc, rfl⟩ := h
+    have := Cond.code_ofCode hc
+    refine ⟨rfl, ?_⟩; simp only [Op.low, BitVec.toNat_ofNat]; omega
+  · simp only [decodeOp, Option.map_eq_some_iff] at h
+    obtain ⟨s, hs, rfl⟩ := h
+    have := bits_decodeWait hs
+    refine ⟨rfl, ?_⟩; simp only [Op.low]
+    by_cases a : l / 128 = 1 <;> simp [a] <;> omega
+  · simp only [decodeOp, Option.map_eq_some_iff] at h
+    obtain ⟨c, hc, rfl⟩ := h
+    have := InSrc.code_ofCode hc
+    refine ⟨rfl, ?_⟩; simp only [Op.low, BitVec.toNat_ofNat]; omega
+  · simp only [decodeOp, Option.map_eq_some_iff] at h
+    obtain ⟨c, hc, rfl⟩ := h
+    have := OutDst.code_ofCode hc
+    refine ⟨rfl, ?_⟩; simp only [Op.low, BitVec.toNat_ofNat]; omega
+  · exact low_decode4 hl h
+  · simp only [decodeOp] at h
+    split at h
+    · rename_i d op s hd ho hs
+      cases h
+      have := MovDst.code_ofCode hd; have := MovOp.code_ofCode ho; have := MovSrc.code_ofCode hs
+      refine ⟨rfl, ?_⟩; simp only [Op.low]; omega
+    · cases h
+  · simp only [decodeOp] at h
+    split at h
+    · split at h
+      · rename_i op m ho hm
+        cases h
+        have := IrqOp.code_ofCode ho; have := IrqIdx.code_ofCode hm
+        refine ⟨rfl, ?_⟩; simp only [Op.low, BitVec.toNat_ofNat]; omega
+      · cases h
+    · cases h
+  · simp only [decodeOp, Option.map_eq_some_iff] at h
+    obtain ⟨c, hc, rfl⟩ := h
+    have := SetDst.code_ofCode hc
+    refine ⟨rfl, ?_⟩; simp only [Op.low, BitVec.toNat_ofNat]; omega
+
+/-- **A word has one reading**: `decode` accepts no word that is not exactly
+the encoding of what it returns. -/
+theorem encode_decode {w : BitVec 16} {i : Instr} (h : decode w = some i) : encode i = w := by
+  apply BitVec.eq_of_toNat_eq
+  rw [toNat_encode]
+  have hw := w.isLt
+  simp only [decode, decodeNat, Option.map_eq_some_iff] at h
+  obtain ⟨o, ho, rfl⟩ := h
+  obtain ⟨h1, h2⟩ := low_decodeOp (by omega) (by omega) ho
+  simp only [encodeNat, h1, h2, BitVec.toNat_ofNat]
+  omega
+
+/-- Two instructions never share a word. -/
+theorem encode_injective {i j : Instr} (h : encode i = encode j) : i = j := by
+  have := decode_encode i
+  rw [h, decode_encode j] at this
+  exact (Option.some.inj this).symm
+
 end Pio
