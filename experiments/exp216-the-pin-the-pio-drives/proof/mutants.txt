@@ -1,0 +1,9 @@
+# exp216 — wrong versions of the program or the encoder. Each must be refused
+# by Lean: `words` states the nine words the chip will run, so a change to
+# either shows there.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+words|the low branch jumps to the instruction after `set pins, 0`|s/  ⟨.jmp .notX 6, 0⟩,/  ⟨.jmp .notX 7, 0⟩,/
+words|the pin is set with `set x` instead of `set pins`|s/  ⟨.set .pins 1, 0⟩,/  ⟨.set .x 1, 0⟩,/
+words|the encoder puts SET's destination one bit lower, in both directions|s/  | .set d v => d.code \* 32 + v.toNat/  | .set d v => d.code * 16 + v.toNat/; s/  | _ => (SetDst.ofCode (l \/ 32)).map fun d => .set d (.ofNat 5 (l % 32))/  | _ => (SetDst.ofCode (l \/ 16)).map fun d => .set d (.ofNat 5 (l % 16))/|lean/Pio/Isa.lean
+jumps_inside|the wrap's top is past the program|s/^def wrapTop : Nat := 8$/def wrapTop : Nat := 9/

@@ -14,6 +14,7 @@
 
 #include "board.h"
 #include "pio.h"
+#include "program.h"
 
 #define csrr(name) ({ uint32_t v; __asm__ volatile ("csrr %0, " #name : "=r"(v)); v; })
 #define PATIENCE 1000000u      // mcycle ticks to wait for any one thing: ~0.1 s at ~11 MHz

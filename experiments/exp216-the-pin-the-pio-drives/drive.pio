@@ -1,0 +1,20 @@
+; SPDX-License-Identifier: Apache-2.0
+;
+; exp216 — the program, as pioasm reads it. proof/Program.lean is the same
+; program as Lean instructions; check.sh holds the words of the two to each
+; other. A word from the TX FIFO sets the pin: zero to 0, anything else to 1;
+; the same word goes back through RX once the pin is set.
+.program drive
+    set pindirs, 1      ; the pin is an output, once
+.wrap_target
+    pull block          ; wait for a command
+    out x, 32
+    jmp !x, low
+    set pins, 1
+    jmp done
+low:
+    set pins, 0
+done:
+    mov isr, x
+    push block          ; the answer: the pin is set
+.wrap

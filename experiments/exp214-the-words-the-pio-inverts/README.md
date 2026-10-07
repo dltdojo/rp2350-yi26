@@ -41,7 +41,7 @@ The complement can only come from `mov isr, ~osr` having run.
 .wrap
 ```
 
-[`invert.pio`](./invert.pio). [`shell/pio.h`](./shell/pio.h) encodes the
+[`invert.pio`](./invert.pio). [`shell/program.h`](./shell/program.h) encodes the
 three instructions by hand from the datasheet's instruction table, field by
 field. `check.sh` holds them to what `pioasm` assembles from `invert.pio`:
 `80a0 a0cf 8020`. `pioasm` comes from [`tools/pioasm/`](../../tools/pioasm/),
@@ -64,7 +64,9 @@ every trap is the shell's own.
 
 Every wait gives up after about 0.1 s of `mcycle`, so a PIO that never
 answers gives a verdict, not a hang. Every address and field is rp-pac
-7.0.0's for the RP235x, written out in `shell/pio.h` as `led.h` writes out
+7.0.0's for the RP235x, written out in
+[`tools/hazard3/shell/pio.h`](../../tools/hazard3/shell/pio.h) (`shell/pio.h` until exp216
+needed it too) as `led.h` writes out
 the LED's.
 
 ## Running it on the board
@@ -151,7 +153,7 @@ instruction 0. Each of the eight words came back through RX as its
 complement, within the timeout, in order. Both FIFOs were then empty. So on
 silicon:
 - PIO0 is reachable from Machine mode as the bootrom leaves the chip;
-- the addresses and fields in `shell/pio.h` are the chip's, and so are the
+- the addresses and fields in `shell/pio.h`, now `tools/hazard3/shell/pio.h`, are the chip's, and so are the
   three encodings `pioasm` agreed with;
 - the state machine runs at whatever clock the bootrom left.
 
@@ -184,7 +186,7 @@ Under a minute.
 
 ```text
 === exp214 — the words the PIO inverts ===
-recorded at 2026-10-07T00:44:38Z from commit d2ac4d1
+recorded at 2026-10-07T01:48:54Z from commit d989518
 
 >>> invert.pio, as pioasm assembles it
 pioasm version: 2.3.1
@@ -219,7 +221,7 @@ REPT 00000000 00000000 exit=0
 
 >>> the checks
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
-PASS  invert.pio is the words shell/pio.h encodes by hand: pioasm says 80a0 a0cf 8020
+PASS  invert.pio is the words shell/program.h encodes by hand: pioasm says 80a0 a0cf 8020
 PASS  the shell builds for the chip and for the RTL, the chip's in 1576 of sector 0's 4096 bytes
 PASS  all 7 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in flash sector 0, 0x10000000..0x10001000
