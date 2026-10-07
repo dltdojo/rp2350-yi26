@@ -159,4 +159,61 @@ Under a minute.
 
 ## Expected output
 
-CAPTURE
+```text
+=== exp214 — the words the PIO inverts ===
+recorded at 2026-10-07T00:44:38Z from commit d2ac4d1
+
+>>> invert.pio, as pioasm assembles it
+pioasm version: 2.3.1
+80a0
+a0cf
+8020
+
+>>> the shell, for the chip and for the RTL
+build/exp214.bin  1576 bytes, flash sector 0 holds 4096
+build/exp214.uf2  3584 bytes  sha256 0512ba5475593f5a53d92bbe20b4157ba4bb8c3485bc6da1bed2530a583f8cb4
+
+>>> on the RTL, against a stand-in PIO that works: every write, then the verdict
+
+WRIT 40023000 00000800 
+WRIT 50200048 000080a0 
+WRIT 5020004c 0000a0cf 
+WRIT 50200050 00008020 
+WRIT 502000cc 00002000 
+WRIT 50200000 00000110 
+WRIT 502000d8 00000000 
+WRIT 50200000 00000001 
+WRIT 50200010 00000000 
+WRIT 50200010 ffffffff 
+WRIT 50200010 12345678 
+WRIT 50200010 80000001 
+WRIT 50200010 55555555 
+WRIT 50200010 aaaaaaaa 
+WRIT 50200010 0000ffff 
+WRIT 50200010 deadbeef 
+WRIT 50200000 00000000 
+REPT 00000000 00000000 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  invert.pio is the words shell/pio.h encodes by hand: pioasm says 80a0 a0cf 8020
+PASS  the shell builds for the chip and for the RTL, the chip's in 1576 of sector 0's 4096 bytes
+PASS  all 7 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in flash sector 0, 0x10000000..0x10001000
+PASS  together they are exactly the 1576-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 0512ba5475593f5a…
+PASS  on the RTL, against a PIO that works: every register written as expected.txt says, in order, and ok
+PASS  on the RTL, against one that never leaves reset: verdict 1, after the reset write and nothing more
+PASS  on the RTL, against one that never answers: verdict 2 on the first word
+PASS  on the RTL, against one that hands the word back unchanged: verdict 3 on the first word
+PASS  on the RTL, against one that answers the last word wrongly: verdict 4 on deadbeef
+PASS  on the RTL, against one that leaves a word in RX: verdict 5, FSTAT showing it
+PASS  the RTL runs catch a shell where PIO1 is taken out of reset, not PIO0
+PASS  the RTL runs catch a shell where the program wraps after its second instruction
+PASS  the RTL runs catch a shell where SM0 is not sent to instruction 0 before it starts
+PASS  the RTL runs catch a shell where mov isr, osr is loaded, without the complement
+PASS  the RTL runs catch a shell where a wrong answer is not looked for
+PASS  the RTL runs catch a shell where the FIFOs are not looked at at the end
+```
