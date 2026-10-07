@@ -256,6 +256,202 @@ theorem agree_le (m : Word → Byte) (base : Word) (n : Nat) : agree m base n �
   | zero => simp [agree, bits]
   | succ n ih => rw [agree_succ]; split <;> omega
 
+
+/-! ## Where the kernel is, instruction by instruction -/
+
+def setupLine : List Instr := [
+  .opi .andi S7 S7 1, .opi .addi S4 0 2, .opi .addi S5 0 0, .opi .addi S6 0 0,
+  .opi .addi S8 0 0, .opi .addi S3 0 1024 ]
+
+theorem seg_setupLine : (kernel.drop 6).take setupLine.length = setupLine := by decide
+theorem seg_body : (kernel.drop 13).take body.length = body := by decide
+
+/-- At the top of sample `i`, or once `i` is 1024 at the verdict: memory as
+the shell left it, the pointer and the counter `i` on, and the four values
+the tests carry as the specification has them after `i` samples. -/
+structure Inv (m0 : Word → Byte) (base : Word) (i : Nat) (s : Machine) : Prop where
+  pc : s.pc = base + BitVec.ofNat 32 (4 * if i < N then 12 else 29)
+  mem : s.mem = m0
+  s0 : s.reg S0 = base
+  s1 : s.reg S1 = base + BitVec.ofNat 32 (SAMPLES + 4 * i)
+  s2 : s.reg S2 = base + BitVec.ofNat 32 OUT
+  s3 : s.reg S3 = BitVec.ofNat 32 (N - i)
+  s4 : s.reg S4 = BitVec.ofNat 32 (rct m0 base i).last
+  s5 : s.reg S5 = BitVec.ofNat 32 (rct m0 base i).run
+  s6 : s.reg S6 = BitVec.ofNat 32 (if (rct m0 base i).bad then 1 else 0)
+  s7 : s.reg S7 = BitVec.ofNat 32 (bit m0 base 0)
+  s8 : s.reg S8 = BitVec.ofNat 32 (agree m0 base i)
+
+theorem read_bit (m : Word → Byte) (base : Word) (i : Nat) :
+    (BitVec.ofNat 32 (readLE m (base + BitVec.ofNat 32 (SAMPLES + 4 * i)) 4)).toNat % 2 = bit m base i := by
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (readLE_four_lt _ _)]; rfl
+
+/-- Twelve instructions: the pointers, the reference bit, and the four values
+at their starts. -/
+theorem setup_run {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+    (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
+    ∃ s', run env 12 s = .running s' ∧ Inv s.mem base 0 s' := by
+  obtain ⟨s1, e1, p1, m1, r1⟩ := regStep (prog := kernel) hp 0 (by decide) hcode (by simp [hpc])
+      (i := .auipc S0 0) (by decide) rfl
+  obtain ⟨s2, e2, p2, m2, r2⟩ := regStep (prog := kernel) hp 1 (by decide) (by rw [m1]; exact hcode) p1
+      (i := .lui T1 1) (by decide) rfl
+  obtain ⟨s3, e3, p3, m3, r3⟩ := regStep (prog := kernel) hp 2 (by decide) (by rw [m2, m1]; exact hcode) p2
+      (i := .op .add S1 S0 T1) (by decide) rfl
+  obtain ⟨s4, e4, p4, m4, r4⟩ := regStep (prog := kernel) hp 3 (by decide) (by rw [m3, m2, m1]; exact hcode) p3
+      (i := .lui T1 2) (by decide) rfl
+  obtain ⟨s5, e5, p5, m5, r5⟩ := regStep (prog := kernel) hp 4 (by decide)
+      (by rw [m4, m3, m2, m1]; exact hcode) p4 (i := .op .add S2 S0 T1) (by decide) rfl
+  have b0 : s5.reg S0 = base := by
+    rw [reg_kept r5 (by decide), reg_kept r4 (by decide), reg_kept r3 (by decide), reg_kept r2 (by decide),
+      reg_wrote r1 (by decide), hpc]; simp
+  have b1 : s5.reg S1 = base + BitVec.ofNat 32 SAMPLES := by
+    rw [reg_kept r5 (by decide), reg_kept r4 (by decide), reg_wrote r3 (by decide)]
+    simp only [aluR]; rw [reg_kept r2 (by decide), reg_wrote r1 (by decide), reg_wrote r2 (by decide), hpc]
+    simp [SAMPLES]
+  have b2 : s5.reg S2 = base + BitVec.ofNat 32 OUT := by
+    rw [reg_wrote r5 (by decide)]
+    simp only [aluR]; rw [reg_kept r4 (by decide), reg_kept r3 (by decide), reg_kept r2 (by decide),
+      reg_wrote r1 (by decide), reg_wrote r4 (by decide), hpc]
+    simp [OUT]
+  have mm : s5.mem = s.mem := by rw [m5, m4, m3, m2, m1]
+  have hc5 : CodeAt s5.mem base kernel := by rw [mm]; exact hcode
+  obtain ⟨s6, e6, p6, m6, r6⟩ := loadStep (prog := kernel) hp 5 (by decide) hc5 p5
+    (rd := S7) (rs1 := S1) (imm := 0) (by decide) SAMPLES (by rw [b1]; simp) (by decide) (by decide)
+  have hc6 : CodeAt s6.mem base kernel := by rw [m6]; exact hc5
+  have e7 := run_line (prog := kernel) hp setupLine (by decide) 6 s6 seg_setupLine (by decide) hc6 p6 (by decide)
+  refine ⟨s6.line setupLine, ?_, ?_⟩
+  · rw [show 12 = 1 + (1 + (1 + (1 + (1 + (1 + 6))))) by rfl]
+    exact run_cons e1 (run_cons e2 (run_cons e3 (run_cons e4 (run_cons e5 (run_cons e6 e7)))))
+  have k6 : ∀ r, r ≠ S7 → r ≠ S4 → r ≠ S5 → r ≠ S6 → r ≠ S8 → r ≠ S3 → (s6.line setupLine).reg r = s5.reg r := by
+    intro r h7 h4 h5 h6 h8 h3
+    rw [line_keeps _ _ r (by simp [setupLine, rdOf]; exact ⟨fun e => h7 e.symm, fun e => h4 e.symm,
+      fun e => h5 e.symm, fun e => h6 e.symm, fun e => h8 e.symm, fun e => h3 e.symm⟩),
+      reg_kept r6 h7]
+  constructor
+  · rw [line_pc_at setupLine p6 (by decide)]; rfl
+  · rw [line_mem, m6, mm]
+  · rw [k6 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), b0]
+  · rw [k6 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), b1]; simp
+  · rw [k6 _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), b2]
+  · simp [Machine.line, setupLine, Machine.alu, reg_setReg, aluI, S7, S4, S5, S6, S8, S3, N]
+  · simp [Machine.line, setupLine, Machine.alu, reg_setReg, aluI, S7, S4, S5, S6, S8, S3, rct, bits, rctInit]
+  · simp [Machine.line, setupLine, Machine.alu, reg_setReg, aluI, S7, S4, S5, S6, S8, S3, rct, bits, rctInit]
+  · simp [Machine.line, setupLine, Machine.alu, reg_setReg, aluI, S7, S4, S5, S6, S8, S3, rct, bits, rctInit]
+  · have v : (s6.line setupLine).reg S7 = s6.reg S7 &&& 1#32 := by
+      simp [Machine.line, setupLine, Machine.alu, reg_setReg, aluI, S7, S4, S5, S6, S8, S3]
+    rw [v, reg_wrote r6 (by decide), and_one, mm, show SAMPLES = SAMPLES + 4 * 0 by rfl, read_bit]
+  · simp [Machine.line, setupLine, Machine.alu, reg_setReg, aluI, S7, S4, S5, S6, S8, S3, agree, bits]
+
+/-! ## The health loop -/
+
+/-- `addi s3, s3, -1`, counting down from 1024. -/
+theorem countdown {i : Nat} (hi : i < N) :
+    BitVec.ofNat 32 (N - i) + (0xfff : BitVec 12).signExtend 32 = BitVec.ofNat 32 (N - (i + 1)) := by
+  have : (0xfff : BitVec 12).signExtend 32 = BitVec.ofNat 32 (2^32 - 1) := by decide
+  rw [this]
+  apply BitVec.eq_of_toNat_eq
+  simp only [N] at hi ⊢
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  omega
+
+/-- And whether `bne s3, x0` goes round again. -/
+theorem round_again {i : Nat} (hi : i < N) :
+    taken .bne (BitVec.ofNat 32 (N - (i + 1))) 0 = decide (i + 1 < N) := by
+  simp only [taken, N] at hi ⊢
+  by_cases h : i + 1 < 1024
+  · simp only [h, decide_true, bne_iff_ne, ne_eq]
+    intro e; have := congrArg BitVec.toNat e; simp at this; omega
+  · simp only [h, decide_false, bne_eq_false_iff_eq]
+    apply BitVec.eq_of_toNat_eq; simp; omega
+
+theorem back_to_12 (base : Word) :
+    base + BitVec.ofNat 32 (4 * 28) + ((0xfe0 : BitVec 12) ++ 0#1).signExtend 32 = base + BitVec.ofNat 32 (4 * 12) := by
+  rw [BitVec.add_assoc]; congr 1
+
+theorem on_to_29 (hfit : base.toNat + 0x10000 ≤ 2^32) :
+    base + BitVec.ofNat 32 (4 * 28) + 4 = base + BitVec.ofNat 32 (4 * 29) := pc_next hfit 28 (by decide)
+
+/-- **One sample**: seventeen instructions take the invariant from `i` to `i + 1`. -/
+theorem health_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+    (hc0 : CodeAt m0 base kernel) {i : Nat} (hi : i < N) {s : Machine} (h : Inv m0 base i s) :
+    ∃ s', run env 17 s = .running s' ∧ Inv m0 base (i + 1) s' := by
+  have hpc : s.pc = base + BitVec.ofNat 32 (4 * 12) := by rw [h.pc]; simp [hi]
+  have hcode : CodeAt s.mem base kernel := by rw [h.mem]; exact hc0
+  have hi' : i < 1024 := hi
+  obtain ⟨s1, e1, p1, m1, r1⟩ := loadStep (prog := kernel) hp 12 (by decide) hcode hpc
+    (rd := T1) (rs1 := S1) (imm := 0) (by decide) (SAMPLES + 4 * i) (by rw [h.s1]; simp)
+    (by simp only [SAMPLES]; omega) (by simp only [SAMPLES]; omega)
+  have hc1 : CodeAt s1.mem base kernel := by rw [m1]; exact hcode
+  have e2 := run_line (prog := kernel) hp body (by decide) 13 s1 seg_body (by decide) hc1 p1 (by decide)
+  have bT1 : (s1.reg T1).toNat % 2 = bit m0 base i := by
+    rw [reg_wrote r1 (by decide), h.mem]; exact read_bit m0 base i
+  have hb := rct_bounds m0 base i
+  have hag := agree_le m0 base i
+  obtain ⟨g4, g5, g6, g8, g1, g3⟩ := body_regs s1 (rct m0 base i).last (rct m0 base i).run
+    (if (rct m0 base i).bad then 1 else 0) (agree m0 base i) (bit m0 base 0) hb.1 (by omega)
+    (by split <;> omega) (bit_le m0 base 0)
+    (by rw [reg_kept r1 (by decide), h.s4]) (by rw [reg_kept r1 (by decide), h.s5])
+    (by rw [reg_kept r1 (by decide), h.s6]) (by rw [reg_kept r1 (by decide), h.s7])
+    (by rw [reg_kept r1 (by decide), h.s8])
+  simp only [bT1] at g4 g5 g6 g8
+  have p2 : (s1.line body).pc = base + BitVec.ofNat 32 (4 * 28) := line_pc_at body p1 (by decide)
+  have hc2 : CodeAt (s1.line body).mem base kernel := by rw [line_mem]; exact hc1
+  have keep : ∀ r, r = S0 ∨ r = S2 ∨ r = S7 → (s1.line body).reg r = s.reg r := by
+    intro r hr
+    rw [line_keeps _ _ r (by rcases hr with rfl | rfl | rfl <;> decide), reg_kept r1]
+    rcases hr with rfl | rfl | rfl <;> decide
+  have c3 : (s1.line body).reg S3 = BitVec.ofNat 32 (N - (i + 1)) := by
+    rw [g3, reg_kept r1 (by decide), h.s3]; exact countdown hi
+  have c1 : (s1.line body).reg S1 = base + BitVec.ofNat 32 (SAMPLES + 4 * (i + 1)) := by
+    rw [g1, reg_kept r1 (by decide), h.s1, show (4 : Word) = BitVec.ofNat 32 4 from rfl,
+      off_add hp.fit _ _ (by simp only [SAMPLES]; omega)]
+    congr 2
+  have tk : taken .bne ((s1.line body).reg S3) ((s1.line body).reg 0) = decide (i + 1 < N) := by
+    rw [c3, reg_zero]; exact round_again hi
+  have mem2 : (s1.line body).mem = m0 := by rw [line_mem, m1, h.mem]
+  have regs : ∀ s' : Machine, s'.mem = m0 → (∀ r, s'.reg r = (s1.line body).reg r) →
+      s'.pc = base + BitVec.ofNat 32 (4 * if i + 1 < N then 12 else 29) → Inv m0 base (i + 1) s' := by
+    intro s' hm hr hp'
+    refine ⟨hp', hm, by rw [hr, keep _ (.inl rfl), h.s0], by rw [hr, c1],
+      by rw [hr, keep _ (.inr (.inl rfl)), h.s2], by rw [hr, c3], ?_, ?_, ?_,
+      by rw [hr, keep _ (.inr (.inr rfl)), h.s7], ?_⟩
+    · rw [hr, g4, rct_succ]; rfl
+    · rw [hr, g5, rct_succ]; rfl
+    · rw [hr, g6, rct_succ]
+      simp only [rctStep, RCT_CUTOFF]
+      by_cases hbd : (rct m0 base i).bad = true
+      · simp [hbd]
+      · simp only [Bool.not_eq_true] at hbd
+        simp only [hbd, Bool.false_eq_true, ↓reduceIte, Bool.false_or]
+        generalize (if bit m0 base i = (rct m0 base i).last then (rct m0 base i).run + 1 else 1) = X
+        by_cases h21 : 21 ≤ X <;> simp [h21]
+    · rw [hr, g8, agree_succ]
+  by_cases hl : i + 1 < N
+  · refine ⟨(s1.line body).setPc ((s1.line body).pc + ((0xfe0 : BitVec 12) ++ 0#1).signExtend 32), ?_, ?_⟩
+    · rw [show 17 = 1 + (body.length + 1) by decide, run_add_running e1, run_add_running e2]
+      exact (stepK hp 28 (by decide) hc2 p2 (i := .br .bne S3 0 0xfe0) (by decide)
+        (exec_br_taken (by rw [tk]; simp [hl])) 0).trans (run_zero _ _)
+    · exact regs _ (by rw [setPc_mem, mem2]) (fun r => by rw [setPc_reg])
+        (by rw [setPc_pc, p2, back_to_12]; simp [hl])
+  · refine ⟨(s1.line body).next, ?_, ?_⟩
+    · rw [show 17 = 1 + (body.length + 1) by decide, run_add_running e1, run_add_running e2]
+      exact (stepK hp 28 (by decide) hc2 p2 (i := .br .bne S3 0 0xfe0) (by decide)
+        (exec_br_not (by rw [tk]; simp [hl])) 0).trans (run_zero _ _)
+    · exact regs _ (by rw [next_mem, mem2]) (fun r => by rw [next_reg])
+        (by rw [next_pc, p2, on_to_29 hp.fit]; simp [hl])
+
+/-- 1024 samples, by induction. -/
+theorem health_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+    (hc0 : CodeAt m0 base kernel) {s : Machine} (h : Inv m0 base 0 s) :
+    ∀ j ≤ N, ∃ s', run env (17 * j) s = .running s' ∧ Inv m0 base j s' := by
+  intro j hj
+  induction j with
+  | zero => exact ⟨s, rfl, h⟩
+  | succ j ih =>
+    obtain ⟨s', e, hs'⟩ := ih (by omega)
+    obtain ⟨s'', e', hs''⟩ := health_iter hp hc0 (by omega) hs'
+    exact ⟨s'', by rw [show 17 * (j + 1) = 17 * j + 17 by omega, run_add_running e, e'], hs''⟩
+
 end Exp222
 
 def main (args : List String) : IO Unit := do
