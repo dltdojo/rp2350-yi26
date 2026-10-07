@@ -1,0 +1,8 @@
+{
+  "name": "yi26-pio-emulators",
+  "private": true,
+  "description": "rp2040js, pinned, for exp217's differential against lean/Pio/Machine.lean",
+  "dependencies": {
+    "rp2040js": "1.4.0"
+  }
+}
