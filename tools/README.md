@@ -6,7 +6,8 @@ Two of them talk to the board, and they are for two different hosts (five
 others touch no board at all: the build-time helper [`partimg`](#partimg), the
 conformance client [`ctaphid/`](./ctaphid/), the device it can be pointed at
 instead of hardware, [`vctaphid`](#vctaphid), the model checker's wrapper,
-[`tlc/`](#tlc), and the proof checker's setup, [`lean/`](#lean)):
+[`tlc/`](#tlc), the proof checker's setup, [`lean/`](#lean), and the PIO
+assembler's, [`pioasm/`](#pioasm)):
 
 | | For a host with | Opened by |
 | --- | --- | --- |
@@ -489,6 +490,21 @@ second.
 
 `tlc.sh cited` only reads text, so it runs without the jar: exp198 holds its
 Lean proof to the Rust it transcribes the same way.
+
+## `pioasm/`
+
+Raspberry Pi's PIO assembler, the reference for what a PIO program's bytes
+are. `setup.sh` takes pico-sdk 2.3.1, pinned by tag and by commit, checks out
+only `tools/pioasm`, and builds it with cmake and the host's C++ compiler;
+nothing but the script is committed.
+
+```sh
+tools/pioasm/setup.sh                                        # once, needs the network
+tools/pioasm/pioasm-2.3.1/pioasm -o hex experiments/exp214-*/invert.pio
+```
+
+exp214 encodes its program by hand from the datasheet and holds those words
+to this. Nothing here simulates PIO.
 
 ## `lean/`
 
