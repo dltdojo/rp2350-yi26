@@ -12,7 +12,9 @@
 The kernel copies a fixed 64-byte message while PIO0 waits beside it. The
 shell then carries the 16 copied words through PIO0. What comes back must
 be the message, complemented word by word. That prediction comes from the
-two theorems together; nothing new is proved here. Not yet run on a board.
+two theorems together; nothing new is proved here. On a Pico 2 it blinked
+slowly: the kernel copied the message and halted with 0 in 108 counted
+instructions, and all 16 words came back from PIO0 complemented.
 
 exp209 ran exp203's kernel on silicon, and exp214 ran `invert` there, but
 each ran alone. Here both run in one firmware, with the words from one
@@ -67,6 +69,31 @@ You need a **Pico 2** (not a Pico 2 W), a USB cable, and a computer.
 | **6 flashes** | a FIFO still held something at the end |
 | **on, steady** | the shell trapped |
 | **dark** | the shell never ran |
+
+## On the board
+
+| | |
+| --- | --- |
+| UF2 | `exp219.uf2`, SHA-256 `79c319d2b2aaf494cd280e71d7da1b4c275cd123d951f58648367190bf40a70d`, the committed one, built at 86ab6b4 |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+The shell reaches slow blinking in only one way:
+- PIO0 came out of reset, started `80a0 a0cf 8020`, and was waiting with
+  both FIFOs empty when the kernel was about to run.
+- The 60 bytes in SRAM were exp203's kernel, by `kernel.sha256`.
+- The kernel halted with 0, with PIO0 running beside it. The destination
+  held the message, the whole 64 KiB region was what the Lean model left
+  there, and `minstret` was 108, the RTL's number.
+- The 16 words the kernel wrote went through PIO0. Each came back as the
+  copied word complemented, in order, and both FIFOs were empty at the end.
+
+So on one chip, the CPU's proved bytes and PIO0's proved bytes each did
+what their theorem says, and what came out of the two together is what the
+two theorems together predict. The shell between them is not proved, and
+the LED is one bit, read after everything. One run; nothing beyond it was
+recorded.
 
 ## What the RTL checks, and what it cannot
 
