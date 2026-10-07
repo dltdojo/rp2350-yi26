@@ -35,4 +35,7 @@
 
 #define GPIO_CTRL(n)       (0x40028000u + 8u * (n) + 4u)   // IO_BANK0 GPIOn_CTRL
 #define FUNCSEL_PIO0       6u                              // io/vals.rs: PIO0_n = 0x06
+#ifndef FUNCSEL_SIO
+#define FUNCSEL_SIO        5u                              // SIOB_PROC_n = 0x05, as led.h has it
+#endif
 #define SIO_GPIO_IN        0xd0000004u                     // SIO + 0x004: GPIO0..31 as read at the pad

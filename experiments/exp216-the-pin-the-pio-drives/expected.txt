@@ -1,0 +1,32 @@
+# exp216 — every register write the shell makes, in order, and why. check.sh
+# holds the RTL build's printed writes to these lines, address and value.
+# Addresses and fields are rp-pac 7.0.0's for the RP235x
+# (tools/hazard3/shell/pio.h); the program's words are proof/Program.lean's.
+#
+# <address> <value>   <why>
+40023000 00000800   RESETS clear alias: PIO0 (bit 11) out of reset
+50200048 0000e081   INSTR_MEM0: set pindirs, 1
+5020004c 000080a0   INSTR_MEM1: pull block
+50200050 00006020   INSTR_MEM2: out x, 32
+50200054 00000026   INSTR_MEM3: jmp !x, 6
+50200058 0000e001   INSTR_MEM4: set pins, 1
+5020005c 00000007   INSTR_MEM5: jmp 7
+50200060 0000e000   INSTR_MEM6: set pins, 0
+50200064 0000a0c1   INSTR_MEM7: mov isr, x
+50200068 00008020   INSTR_MEM8: push block
+502000cc 00008080   SM0_EXECCTRL: wrap from 8 (WRAP_TOP, bits 16:12) back to 1 (WRAP_BOTTOM, bits 11:7), so 0 runs once
+502000dc 04000320   SM0_PINCTRL: SET pins from GPIO25 (SET_BASE, bits 9:5), one of them (SET_COUNT, bits 28:26)
+400280cc 00000006   GPIO25_CTRL: FUNCSEL 6, PIO0
+50200000 00000110   CTRL: SM0_RESTART (bit 4) and CLKDIV_RESTART for SM0 (bit 8)
+502000d8 00000000   SM0_INSTR: jmp 0, executed at once, so SM0 starts at instruction 0
+50200000 00000001   CTRL: SM0_ENABLE (bit 0)
+50200010 00000000   TXF0: command 1, pin to 0
+50200010 00000001   TXF0: command 2, pin to 1
+50200010 00000001   TXF0: command 3, pin to 1 again
+50200010 00000000   TXF0: command 4, pin to 0
+50200010 00000001   TXF0: command 5, pin to 1
+50200010 00000000   TXF0: command 6, pin to 0
+50200010 00000000   TXF0: command 7, pin to 0 again
+50200010 00000001   TXF0: command 8, pin to 1
+50200000 00000000   CTRL: SM0 stopped
+400280cc 00000005   GPIO25_CTRL: FUNCSEL 5, back to SIO for the verdict
