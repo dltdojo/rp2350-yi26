@@ -33,6 +33,8 @@
 #   lean.sh exe NAME [LIB]  build the library's executable NAME, in LIB if
 #                           given, and print its path
 #   lean.sh drop-lib LIB    remove a copy mutant-lib made, and nothing else
+#   lean.sh holds FILE LIB  exit 0 if FILE checks against the library copy LIB,
+#                           with no errors and no warnings
 #   lean.sh version         the pinned Lean's own version line
 #
 # A FILE that imports `Rv32` or `Pio` is about the shared library in lean/ (from exp201
@@ -204,6 +206,8 @@ case "$mode" in
         status=$?;;
     drop-lib)
         drop_lib "$file"; status=$?;;
+    holds)
+        out="$(lean_on "$file" "$3" 2>&1)" && ! grep -qE 'error|warning' <<< "$out"; status=$?;;
     exe)
         lib="${3:-$REPO/lean}"
         if (cd "$lib" && PATH="$BIN:$PATH" lake build -q "$file" > /dev/null 2>&1); then

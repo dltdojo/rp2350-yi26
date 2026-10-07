@@ -1,0 +1,16 @@
+# exp217 — wrong versions of lean/Pio/Machine.lean that the proof ACCEPTS:
+# Invert.lean still checks, because exp214's program never runs what each
+# one breaks. Each must build, pass the proof, and be refused by the
+# differential against the two emulators. A theorem about one program says
+# nothing about the instructions it does not use; this is what does.
+#
+# <label>|<what is wrong>|<sed>|<file>
+differential|jmp x-- counts X up|s/    | .xDec => go { s with x := s.x - 1 } (s.x ≠ 0)/    | .xDec => go { s with x := s.x + 1 } (s.x ≠ 0)/|lean/Pio/Machine.lean
+differential|out leaves OSR's shift count where it was|s/    let s := { s with osr := osr, osrCount := min 32 (s.osrCount + b) }/    let s := { s with osr := osr }/|lean/Pio/Machine.lean
+differential|in, shifting left, takes the top bits of the source|s/  else (isr <<< n) ||| (v \&\&\& mask n)/  else (isr <<< n) ||| (v >>> (32 - n))/|lean/Pio/Machine.lean
+differential|a non-blocking pull on an empty FIFO loads 0, not X|s/else .next { s with osr := s.x, osrCount := 0 }/else .next { s with osr := 0, osrCount := 0 }/|lean/Pio/Machine.lean
+differential|set pins writes from OUT_BASE|s/    | .pins => .next { s with pins := writePins s.pins cfg.setBase cfg.setCount v }/    | .pins => .next { s with pins := writePins s.pins cfg.outBase cfg.setCount v }/|lean/Pio/Machine.lean
+differential|jmp !osre compares with 32, as one of the emulators does|s/    | .notOsre => go s (s.osrCount < cfg.pullThresh)/    | .notOsre => go s (s.osrCount < 32)/|lean/Pio/Machine.lean
+differential|wait irq 1 leaves the flag set|s/          .next (if p then { s with irq := s.irq \&\&\& ~~~(1#8 <<< k) } else s)/          .next s/|lean/Pio/Machine.lean
+differential|mov from STATUS is all ones when the TX level is at or above N|s/      | .status => if s.tx.length < cfg.statusN then/      | .status => if s.tx.length >= cfg.statusN then/|lean/Pio/Machine.lean
+differential|pin writes past GPIO31 stop there, as in both emulators,|s/    let m : W := 1#32 <<< ((base + i) % 32)/    let m : W := 1#32 <<< (base + i)/|lean/Pio/Machine.lean

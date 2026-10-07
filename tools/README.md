@@ -504,7 +504,27 @@ tools/pioasm/pioasm-2.3.1/pioasm -o hex experiments/exp214-*/invert.pio
 ```
 
 exp214 encodes its program by hand from the datasheet and holds those words
-to this. Nothing here simulates PIO.
+to this. Nothing here simulates PIO; `pio-emulators/` does.
+
+## `pio-emulators/`
+
+Two PIO emulators written by others, for holding
+[`lean/Pio/Machine.lean`](../lean/Pio/Machine.lean) against something that is
+not itself: Wokwi's **rp2040js** 1.4.0, from npm, refused unless the tarball
+matches `package-lock.json`'s sha512; and **rp2040-pio-emulator** 0.88.0, from
+pip with `--require-hashes` against the wheel's sha256 in `setup.sh`, into a
+venv here. Its one declared dependency, pytest, is for its own tests and is
+not installed. Needs node, npm and python3; nothing but the scripts and the
+lockfile is committed.
+
+```sh
+tools/pio-emulators/setup.sh                 # once, needs the network
+tools/pio-emulators/setup.sh ready && echo yes
+```
+
+Both model the RP2040's PIO, and neither is the datasheet: exp217 names
+thirteen places where one of them and the datasheet part, and the RP2350's
+additions are in neither.
 
 ## `lean/`
 
@@ -555,7 +575,9 @@ trusts the compiler, and none here does.
 library that make the same mistake in an encoder and its decoder, so both
 theorems still hold, must each be accepted by Lean and refused by an
 assembler written by somebody else. exp201 wrote it for LLVM; exp215 needed
-it second, for `pioasm`.
+it second, for `pioasm`. exp217 uses it for a proof about one program: wrong
+models that the proof, named by `GAP_PROOF`, still accepts, refused by two
+emulators running the cases in `GAP_INPUT`.
 
 ```sh
 tools/lean/gap.sh mutants.txt Gen.lean "python3 differential.py" pioasm --show
