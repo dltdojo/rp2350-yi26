@@ -11,7 +11,9 @@ is about:**
 The kernel copies a fixed 64-byte message. Each of the 16 copied words then
 goes through PIO0 and PIO1 in both orders. Both orders must give the same
 word, because complementing a word and reversing its bits commute. That
-fact is new here, proved as `either_order`. Not yet run on a board.
+fact is new here, proved as `either_order`. On a Pico 2 it blinked
+slowly: every word came back the same both ways, and each block gave what
+its theorem says on the way.
 
 exp219 put proved bytes on the CPU and on one PIO block. This one adds a
 second block, and with it a question about how the two compose. The answer
@@ -105,6 +107,39 @@ You need a **Pico 2** (not a Pico 2 W), a USB cable, and a computer.
 | **9 flashes** | a FIFO still held something at the end |
 | **on, steady** | the shell trapped |
 | **dark** | the shell never ran |
+
+## On the board
+
+| | |
+| --- | --- |
+| UF2 | `exp220.uf2`, SHA-256 `b52032400a7ce553237989f8e256e8e4dc10b88ff94a1000d64ee3a482831cce`, the committed one, built at b1ef8fa |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+The shell reaches slow blinking in only one way:
+- **Both blocks started.** PIO0 and PIO1 came out of reset, each with its
+  program, and both were waiting with their FIFOs empty before the kernel
+  ran.
+- **The kernel did what exp203 proves.** It halted with 0 and copied the
+  message. The region was what the Lean model left there, and `minstret`
+  was 108.
+- **Each block gave what its theorem says.** For every one of the 16
+  copied words, PIO0 gave back the word complemented and PIO1 the word
+  reversed.
+- **Both orders agreed.** Each word came back as the word reversed and
+  complemented, whichever block it went through first.
+- **Nothing was left behind.** All four FIFOs were empty at the end.
+
+That also rules out the two mistakes the RTL could not catch:
+- PIO0 and PIO1 running each other's programs would have given 6 flashes;
+- a second order never taken is impossible for this shell, which checks
+  both on every word.
+
+One CPU and two PIO blocks each ran the bytes their theorems are about. The
+words came out as `either_order` says, and so as `commute` says. The shell
+between them is not proved, and the LED is one bit, read after everything.
+One run; nothing beyond it was recorded.
 
 ## What the RTL checks, and what it cannot
 
