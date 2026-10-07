@@ -1,5 +1,5 @@
 === exp217 — the words the model inverts ===
-recorded at 2026-10-07T03:09:03Z from commit cfe13fa (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-07T03:12:35Z from commit 27b6e34
 
 >>> the theorems, and what they rest on
     Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)
