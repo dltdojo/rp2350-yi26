@@ -15,3 +15,4 @@ import Rv32.MssSign
 import Rv32.Ct
 import Rv32.Line
 import Rv32.Sha
+import Rv32.Copy

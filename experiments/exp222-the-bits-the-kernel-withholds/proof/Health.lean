@@ -34,6 +34,7 @@ has no branch but its own: each sample is the same seventeen instructions.
 -/
 import Rv32.Blocks
 import Rv32.Line
+import Rv32.Copy
 import Rv32.Asm
 
 namespace Exp222
@@ -135,6 +136,125 @@ def Healthy (m : Word → Byte) (base : Word) : Prop :=
 
 instance (m : Word → Byte) (base : Word) : Decidable (Healthy m base) := by
   unfold Healthy; infer_instance
+
+/-! ## One sample's line -/
+
+theorem and_one (x : Word) : x &&& 1#32 = BitVec.ofNat 32 (x.toNat % 2) := by
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_and, Nat.and_one_is_mod]; omega
+
+theorem and_ones (x : Word) : x &&& 4294967295#32 = x := by
+  rw [show (4294967295#32 : Word) = BitVec.allOnes 32 from rfl, BitVec.and_allOnes]
+
+/-- The new run, from the bit, the last bit and the old run. -/
+theorem run_word (b l run : Nat) (hb : b ≤ 1) (hl : l ≤ 2) :
+    (BitVec.ofNat 32 run &&& -if BitVec.ult (BitVec.ofNat 32 b ^^^ BitVec.ofNat 32 l) 1#32 = true then 1#32 else 0#32)
+      + 1#32 = BitVec.ofNat 32 (if b = l then run + 1 else 1) := by
+  have hb' : b = 0 ∨ b = 1 := by omega
+  have hl' : l = 0 ∨ l = 1 ∨ l = 2 := by omega
+  rcases hb' with rfl | rfl <;> rcases hl' with rfl | rfl | rfl <;>
+    simp [and_ones] <;> (apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add]; try omega)
+
+/-- Whether anything has failed, after a count is held to a cutoff: `sltiu;
+xori 1; or`, for the run against 21 and for the agreements against 589. -/
+theorem bad_word (c bad r : Nat) (hc : c < 2 ^ 32) (hbad : bad ≤ 1) (hr : r ≤ 1024) :
+    BitVec.ofNat 32 bad ||| (if BitVec.ult (BitVec.ofNat 32 r) (BitVec.ofNat 32 c) = true then 1#32 else 0#32) ^^^ 1#32
+      = BitVec.ofNat 32 (if bad = 1 ∨ c ≤ r then 1 else 0) := by
+  have hu : BitVec.ult (BitVec.ofNat 32 r) (BitVec.ofNat 32 c) = decide (r < c) := by
+    simp [BitVec.ult, Nat.mod_eq_of_lt (show r < 2 ^ 32 by omega), Nat.mod_eq_of_lt hc]
+  rw [hu]
+  have hb' : bad = 0 ∨ bad = 1 := by omega
+  by_cases h : r < c
+  · have h' : ¬ c ≤ r := by omega
+    rcases hb' with rfl | rfl <;> simp [h, h']
+  · have h' : c ≤ r := by omega
+    rcases hb' with rfl | rfl <;> simp [h, h']
+
+/-- How many agree, after this bit. -/
+theorem agree_word (ag b rf : Nat) (hb : b ≤ 1) (hrf : rf ≤ 1) :
+    BitVec.ofNat 32 ag + (BitVec.ofNat 32 b ^^^ BitVec.ofNat 32 rf ^^^ 1#32)
+      = BitVec.ofNat 32 (ag + if b = rf then 1 else 0) := by
+  have hb' : b = 0 ∨ b = 1 := by omega
+  have hr' : rf = 0 ∨ rf = 1 := by omega
+  rcases hb' with rfl | rfl <;> rcases hr' with rfl | rfl <;> simp <;>
+    (apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add]; try omega)
+
+/-- What one sample's line — after its load into `t1` — leaves, in the
+specification's terms: the bit, the run, whether anything has failed, how
+many agreed with the reference; and the pointer and the counter moved on. -/
+theorem body_regs (s : Machine) (l run bad ag rf : Nat) (hl : l ≤ 2) (hrun : run < 1024)
+    (hbad : bad ≤ 1) (hrf : rf ≤ 1)
+    (h4 : s.reg S4 = BitVec.ofNat 32 l) (h5 : s.reg S5 = BitVec.ofNat 32 run)
+    (h6 : s.reg S6 = BitVec.ofNat 32 bad) (h7 : s.reg S7 = BitVec.ofNat 32 rf)
+    (h8 : s.reg S8 = BitVec.ofNat 32 ag) :
+    let b := (s.reg T1).toNat % 2
+    let run' := if b = l then run + 1 else 1
+    (s.line body).reg S4 = BitVec.ofNat 32 b ∧
+    (s.line body).reg S5 = BitVec.ofNat 32 run' ∧
+    (s.line body).reg S6 = BitVec.ofNat 32 (if bad = 1 ∨ 21 ≤ run' then 1 else 0) ∧
+    (s.line body).reg S8 = BitVec.ofNat 32 (ag + if b = rf then 1 else 0) ∧
+    (s.line body).reg S1 = s.reg S1 + 4 ∧
+    (s.line body).reg S3 = s.reg S3 + (0xfff : BitVec 12).signExtend 32 := by
+  intro b run'
+  have hb : b ≤ 1 := by omega
+  have g4 : (s.line body).reg S4 = s.reg T1 &&& 1#32 := by
+    simp [Machine.line, body, Machine.alu, reg_setReg, aluR, aluI, T1, T2, S4, S5, S6, S8, S1, S3]
+  have g5 : (s.line body).reg S5 =
+      (s.reg S5 &&& -if BitVec.ult ((s.reg T1 &&& 1#32) ^^^ s.reg S4) 1#32 = true then 1#32 else 0#32)
+        + 1#32 := by
+    simp [Machine.line, body, Machine.alu, reg_setReg, aluR, aluI, T1, T2, S4, S5, S6, S8, S1, S3]; rfl
+  have g6 : (s.line body).reg S6 = s.reg S6 |||
+      (if BitVec.ult ((s.reg S5 &&& -if BitVec.ult ((s.reg T1 &&& 1#32) ^^^ s.reg S4) 1#32 = true then 1#32
+          else 0#32) + 1#32) 21#32 = true then 1#32 else 0#32) ^^^ 1#32 := by
+    simp [Machine.line, body, Machine.alu, reg_setReg, aluR, aluI, T1, T2, S4, S5, S6, S8, S1, S3]; rfl
+  have g8 : (s.line body).reg S8 = s.reg S8 + ((s.reg T1 &&& 1#32) ^^^ s.reg S7 ^^^ 1#32) := by
+    simp [Machine.line, body, Machine.alu, reg_setReg, aluR, aluI, T1, T2, S4, S5, S6, S7, S8, S1, S3]
+  have g1 : (s.line body).reg S1 = s.reg S1 + 4 := by
+    simp [Machine.line, body, Machine.alu, reg_setReg, aluR, aluI, T1, T2, S4, S5, S6, S7, S8, S1, S3]
+  have g3 : (s.line body).reg S3 = s.reg S3 + (0xfff : BitVec 12).signExtend 32 := by
+    simp [Machine.line, body, Machine.alu, reg_setReg, aluR, aluI, T1, T2, S4, S5, S6, S7, S8, S1, S3]
+  have r5 := run_word b l run hb hl
+  rw [and_one] at g4 g5 g6 g8
+  rw [h4, h5] at g5 g6
+  refine ⟨g4, by rw [g5]; exact r5, ?_, ?_, g1, g3⟩
+  · rw [g6, h6, r5]
+    exact bad_word 21 bad run' (by decide) hbad (by simp only [run']; split <;> omega)
+  · rw [g8, h8, h7]; exact agree_word ag b rf hb hrf
+
+/-! ## The specification, a sample at a time -/
+
+theorem bits_succ (m : Word → Byte) (base : Word) (n : Nat) :
+    bits m base (n + 1) = bits m base n ++ [bit m base n] := by
+  simp [bits, List.range_succ]
+
+theorem rct_succ (m : Word → Byte) (base : Word) (n : Nat) :
+    rct m base (n + 1) = rctStep (rct m base n) (bit m base n) := by
+  simp [rct, bits_succ, List.foldl_append]
+
+theorem agree_succ (m : Word → Byte) (base : Word) (n : Nat) :
+    agree m base (n + 1) = agree m base n + if bit m base n = bit m base 0 then 1 else 0 := by
+  simp only [agree, bits_succ, List.filter_append, List.length_append]
+  by_cases h : bit m base n = bit m base 0 <;> simp [h]
+
+theorem bit_le (m : Word → Byte) (base : Word) (n : Nat) : bit m base n ≤ 1 := by
+  simp only [bit]; omega
+
+theorem rct_bounds (m : Word → Byte) (base : Word) (n : Nat) :
+    (rct m base n).last ≤ 2 ∧ (rct m base n).run ≤ n := by
+  induction n with
+  | zero => simp [rct, bits, rctInit]
+  | succ n ih =>
+    rw [rct_succ]
+    simp only [rctStep]
+    have := bit_le m base n
+    constructor
+    · omega
+    · split <;> omega
+
+theorem agree_le (m : Word → Byte) (base : Word) (n : Nat) : agree m base n ≤ n := by
+  induction n with
+  | zero => simp [agree, bits]
+  | succ n ih => rw [agree_succ]; split <;> omega
 
 end Exp222
 
