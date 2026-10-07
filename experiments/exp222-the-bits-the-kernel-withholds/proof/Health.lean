@@ -52,14 +52,15 @@ def S8 : Reg := 24
 def T1 : Reg := 6
 def T2 : Reg := 7
 
+def setupLine : List Instr := [
+  .opi .andi S7 S7 1, .opi .addi S4 0 2, .opi .addi S5 0 0, .opi .addi S6 0 0,
+  .opi .addi S8 0 0, .opi .addi S3 0 1024 ]
+
 def setup : List Instr := [
   .auipc S0 0,
   .lui T1 1, .op .add S1 S0 T1,
   .lui T1 2, .op .add S2 S0 T1,
-  .ld .lw S7 S1 0, .opi .andi S7 S7 1,
-  .opi .addi S4 0 2,
-  .opi .addi S5 0 0, .opi .addi S6 0 0, .opi .addi S8 0 0,
-  .opi .addi S3 0 1024 ]
+  .ld .lw S7 S1 0 ] ++ setupLine
 
 /-- One sample's straight line, after its load: no branch. -/
 def body : List Instr := [
@@ -72,14 +73,15 @@ def body : List Instr := [
 
 def health : List Instr := [.ld .lw T1 S1 0] ++ body ++ [.br .bne S3 0 0xfe0]
 
-def verdict : List Instr := [
-  .opi .sltiu T2 S8 589, .opi .xori T2 T2 1, .op .or S6 S6 T2,
-  .br .bne S6 0 0x01a ]
+def verdictLine : List Instr := [ .opi .sltiu T2 S8 589, .opi .xori T2 T2 1, .op .or S6 S6 T2 ]
 
-def copy : List Instr := [
-  .lui T1 1, .op .add S1 S0 T1, .opi .addi S3 0 1024,
-  .ld .lw T2 S1 0, .st .sw S2 T2 0, .opi .addi S1 S1 4, .opi .addi S2 S2 4,
-  .opi .addi S3 S3 0xfff, .br .bne S3 0 0xff6 ]
+def verdict : List Instr := verdictLine ++ [ .br .bne S6 0 0x01a ]
+
+def startLine : List Instr := [ .op .add S1 S0 T1, .opi .addi S3 0 1024 ]
+def stepLine : List Instr := [ .opi .addi S1 S1 4, .opi .addi S2 S2 4, .opi .addi S3 S3 0xfff ]
+
+def copy : List Instr :=
+  [ .lui T1 1 ] ++ startLine ++ [ .ld .lw T2 S1 0, .st .sw S2 T2 0 ] ++ stepLine ++ [ .br .bne S3 0 0xff6 ]
 
 def finish : List Instr := [
   .opi .addi A0 0 0, .opi .addi T0 0 1, .ecall,
@@ -258,10 +260,6 @@ theorem agree_le (m : Word â†’ Byte) (base : Word) (n : Nat) : agree m base n â‰
 
 
 /-! ## Where the kernel is, instruction by instruction -/
-
-def setupLine : List Instr := [
-  .opi .andi S7 S7 1, .opi .addi S4 0 2, .opi .addi S5 0 0, .opi .addi S6 0 0,
-  .opi .addi S8 0 0, .opi .addi S3 0 1024 ]
 
 theorem seg_setupLine : (kernel.drop 6).take setupLine.length = setupLine := by decide
 theorem seg_body : (kernel.drop 13).take body.length = body := by decide
@@ -454,8 +452,6 @@ theorem health_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word 
 
 /-! ## The verdict -/
 
-def verdictLine : List Instr := [ .opi .sltiu T2 S8 589, .opi .xori T2 T2 1, .op .or S6 S6 T2 ]
-
 theorem seg_verdictLine : (kernel.drop 29).take verdictLine.length = verdictLine := by decide
 
 /-- HALT, at an `ecall` of the kernel with `t0 = 1`. -/
@@ -539,9 +535,6 @@ theorem verdict_run {env : Env} {base : Word} (hp : Placed env base) {m0 : Word 
       (run_zero _ _)
 
 /-! ## The copy, when healthy -/
-
-def startLine : List Instr := [ .op .add S1 S0 T1, .opi .addi S3 0 1024 ]
-def stepLine : List Instr := [ .opi .addi S1 S1 4, .opi .addi S2 S2 4, .opi .addi S3 S3 0xfff ]
 
 theorem seg_startLine : (kernel.drop 34).take startLine.length = startLine := by decide
 theorem seg_stepLine : (kernel.drop 38).take stepLine.length = stepLine := by decide
