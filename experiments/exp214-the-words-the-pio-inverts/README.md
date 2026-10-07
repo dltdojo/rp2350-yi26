@@ -9,8 +9,9 @@ time. Each must come back through the RX FIFO as its bitwise complement.
 Then both FIFOs must be empty. The program's bytes are checked against
 Raspberry Pi's own assembler. On the Hazard3 RTL, which has no PIO, every
 register the shell writes is checked in order against what the datasheet
-asks for, and every way the PIO could fail gives its own verdict. Not yet run
-on a board.**
+asks for, and every way the PIO could fail gives its own verdict. On a
+Pico 2 it blinked slowly: all eight words came back complemented, and both
+FIFOs were empty at the end.**
 
 This is a foundation, and it is deliberately one thing. Nothing here has
 driven a PIO before. Later work on PIO, including anything that proves
@@ -124,7 +125,7 @@ The stand-in is not a model of PIO, and nothing here simulates one.
   start, `mov isr, osr` without the complement, no check for a wrong
   answer, and no check of the FIFOs at the end.
 
-What only the board can say:
+What only the board could say, and on the board it did (below):
 - whether PIO0 is reachable from Machine mode as the bootrom leaves it;
 - whether the encodings and fields above are the chip's;
 - whether the state machine runs at the clock the bootrom left.
@@ -135,6 +136,28 @@ The timeouts are measured with `mcycle`, which Hazard3 holds at reset. The
 steady LED where 2 flashes were meant. The shell now lets `mcycle` run
 first.
 
+## On the board
+
+| | |
+| --- | --- |
+| UF2 | `exp214.uf2`, SHA-256 `0512ba5475593f5a53d92bbe20b4157ba4bb8c3485bc6da1bed2530a583f8cb4`, the committed one, built at d2ac4d1 |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+Slow blinking is verdict 0, and the shell reaches it in only one way. PIO0
+came out of reset. The three words of `invert.pio` loaded and ran from
+instruction 0. Each of the eight words came back through RX as its
+complement, within the timeout, in order. Both FIFOs were then empty. So on
+silicon:
+- PIO0 is reachable from Machine mode as the bootrom leaves the chip;
+- the addresses and fields in `shell/pio.h` are the chip's, and so are the
+  three encodings `pioasm` agreed with;
+- the state machine runs at whatever clock the bootrom left.
+
+What the LED cannot say is how fast it ran: one bit, and the timeout is
+about 0.1 s a word. One run; nothing beyond it was recorded.
+
 ## What it does not do
 
 - **Pins.** No GPIO is given to PIO0. Driving a pin is the next thing, not
@@ -143,7 +166,7 @@ first.
   division.** All at their reset values.
 - **Proofs.** Nothing here is proved; the program's bytes are compared with
   `pioasm`, and the shell's writes with a list written from the datasheet.
-- **The chip.** **Not yet run on a board.**
+- **More than once.** One Pico 2, one run, read off the LED.
 
 ## Running it
 
