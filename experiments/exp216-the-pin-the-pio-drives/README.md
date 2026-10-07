@@ -149,4 +149,94 @@ cargo and python3. About a minute.
 
 ## Expected output
 
-CAPTURE
+```text
+=== exp216 — the pin the PIO drives ===
+recorded at 2026-10-07T01:53:39Z from commit 94b8e42
+
+>>> the program, as Lean instructions and the words Lean's encode makes
+  0  e081  set pindirs, 1
+  1  80a0  pull block
+  2  6020  out x, 32
+  3  0026  jmp !x, 6
+  4  e001  set pins, 1
+  5  0007  jmp 7
+  6  e000  set pins, 0
+  7  a0c1  mov isr, x
+  8  8020  push block
+
+>>> drive.pio, as pioasm assembles it
+e081
+80a0
+6020
+0026
+e001
+0007
+e000
+a0c1
+8020
+
+>>> the shell, for the chip and for the RTL
+build/exp216.bin  1708 bytes, flash sector 0 holds 4096
+build/exp216.uf2  3584 bytes  sha256 feab5be40be304d741a1f3b69cad2f264c2d99b71860afa9e3cc5c8bdb14217c
+
+>>> on the RTL, against a stand-in PIO and pin that work: every write, then the verdict
+
+WRIT 40023000 00000800 
+WRIT 50200048 0000e081 
+WRIT 5020004c 000080a0 
+WRIT 50200050 00006020 
+WRIT 50200054 00000026 
+WRIT 50200058 0000e001 
+WRIT 5020005c 00000007 
+WRIT 50200060 0000e000 
+WRIT 50200064 0000a0c1 
+WRIT 50200068 00008020 
+WRIT 502000cc 00008080 
+WRIT 502000dc 04000320 
+WRIT 400280cc 00000006 
+WRIT 50200000 00000110 
+WRIT 502000d8 00000000 
+WRIT 50200000 00000001 
+WRIT 50200010 00000000 
+WRIT 50200010 00000001 
+WRIT 50200010 00000001 
+WRIT 50200010 00000000 
+WRIT 50200010 00000001 
+WRIT 50200010 00000000 
+WRIT 50200010 00000000 
+WRIT 50200010 00000001 
+WRIT 50200000 00000000 
+WRIT 400280cc 00000005 
+REPT 00000000 00000000 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  Program.lean checks, with no errors and no warnings
+PASS  all 3 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  words: the proof refuses a version where the low branch jumps to the instruction after `set pins, 0`
+PASS  words: the proof refuses a version where the pin is set with `set x` instead of `set pins`
+PASS  words: the proof refuses a version where the encoder puts SET's destination one bit lower, in both directions
+PASS  jumps_inside: the proof refuses a version where the wrap's top is past the program
+PASS  shell/program.h is what proof/Program.lean writes through Lean's encode
+PASS  pioasm makes the same nine words of drive.pio as Lean's encode: e081 80a0 6020 0026 e001 0007 e000 a0c1 8020
+PASS  the shell builds for the chip and for the RTL, the chip's in 1708 of sector 0's 4096 bytes
+PASS  all 7 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in flash sector 0, 0x10000000..0x10001000
+PASS  together they are exactly the 1708-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: feab5be40be304d7…
+PASS  on the RTL, against a PIO and pin that work: every register written as expected.txt says, in order, and ok
+PASS  on the RTL, against a PIO that never leaves reset: verdict 1, after the reset write and nothing more
+PASS  on the RTL, against one that never answers: verdict 2 on the first command
+PASS  on the RTL, against one that answers the second command wrongly: verdict 3 on command 1 (from 0)
+PASS  on the RTL, against a pin that stays at SIO's 1: verdict 4 on the first command, told 0
+PASS  on the RTL, against a pin that stays at 0: verdict 5 on the second command, told 1
+PASS  on the RTL, against one that leaves a word in RX: verdict 6, FSTAT showing it
+PASS  the RTL runs catch a shell where the pin is never handed to PIO0
+PASS  the RTL runs catch a shell where SET pins are mapped from GPIO24, not GPIO25
+PASS  the RTL runs catch a shell where the wrap starts at 0, so set pindirs runs every time round
+PASS  the RTL runs catch a shell where the pin is not read back
+PASS  the RTL runs catch a shell where the answer is not looked at
+PASS  the RTL runs catch a shell where the pin is not given back to SIO at the end
+```
