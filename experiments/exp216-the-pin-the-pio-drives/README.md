@@ -10,7 +10,9 @@ high throughout, so a pin that reads 0 when told 0 is one that PIO is
 driving. The program is written as exp215's Lean instructions, and its nine
 words come out of the proved `encode`. They are the first words on the chip
 made by the proved encoder: stated in a theorem, and the same as `pioasm`'s
-reading of `drive.pio`. Not yet run on a board.**
+reading of `drive.pio`. On a Pico 2 it blinked slowly: all eight levels
+read back as commanded, including the 0s that SIO's high output would have
+hidden.**
 
 exp214 showed PIO0 running a program and talking through its FIFOs, with no
 pin involved. exp215 proved that a PIO word has one reading. This puts the
@@ -120,10 +122,38 @@ of a pad.
   - the answer not looked at;
   - the pin not given back to SIO at the end.
 
-What only the board can say:
+What only the board could say, and on the board it did (below):
 - whether handing GPIO25 to PIO0 takes it away from SIO;
 - whether `set pins` drives the pad;
 - whether `GPIO_IN` reads the level PIO drives.
+
+## On the board
+
+| | |
+| --- | --- |
+| UF2 | `exp216.uf2`, SHA-256 `feab5be40be304d741a1f3b69cad2f264c2d99b71860afa9e3cc5c8bdb14217c`, the committed one, built at 94b8e42 |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+The shell reaches slow blinking in only one way:
+- PIO0 came out of reset, and the nine words from Lean's `encode` loaded and
+  ran from instruction 0.
+- Each of the eight commands was answered through RX with itself.
+- After each answer, GPIO25 read at the pad was the level commanded.
+- Both FIFOs were empty at the end.
+
+The four commands of 0 are the ones that matter. SIO's output for GPIO25 was
+high the whole time, so a pin still SIO's would have read 1 and given 4
+flashes. On silicon:
+- handing GPIO25's function to PIO0 takes the pin from SIO;
+- `set pins` and `set pindirs`, as Lean encodes them, drive the pad;
+- `GPIO_IN` reads the level PIO drives;
+- the program's words, made by the proved encoder, run on the chip as the
+  instructions they were made from.
+
+What the LED cannot say is anything about timing: one bit, read after all
+eight. One run; nothing beyond it was recorded.
 
 ## What it does not do
 
@@ -133,7 +163,7 @@ What only the board can say:
 - **A proof of what the program does.** The words are proved to be these
   instructions; what the instructions do to the pin is a model of PIO, which
   is not here. The board is the evidence for that.
-- **The chip.** **Not yet run on a board.**
+- **More than once.** One Pico 2, one run, read off the LED.
 
 ## Running it
 
