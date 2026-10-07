@@ -1,0 +1,8 @@
+# exp221 — wrong versions of the kernel. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>
+at_cmp|the second block compares the first eight words again|s/^def kernel : List Instr := setup ++ compare 0 ++ compare 32 ++ finish$/def kernel : List Instr := setup ++ compare 0 ++ compare 0 ++ finish/
+setup_regs|the second list is looked for 0x1000 bytes late|s/  .lui T1 2, .op .add S2 S0 T1,/  .lui T1 3, .op .add S2 S0 T1,/
+at_cmp|differences are combined with and, so one matching word hides the rest|s/     .op .xor T2 T2 T3, .op .or S6 S6 T2\]/     .op .xor T2 T2 T3, .op .and S6 S6 T2]/
+judges|the verdict is tested the wrong way round|s/^def finish : List Instr := \[ .op .sltu A0 0 S6,/def finish : List Instr := [ .op .sltu A0 S6 0,/
+judges|the ecall asks for HASH, not HALT|s/ .opi .addi T0 0 1, .ecall \]/ .opi .addi T0 0 0, .ecall ]/
