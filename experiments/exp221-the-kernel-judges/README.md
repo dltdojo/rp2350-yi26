@@ -8,7 +8,8 @@ ways. The shell no longer decides whether the two orders agreed. It writes
 the first order's 16 words and the second order's 16 into memory, and a new
 RV32IM kernel, proved in Lean, compares them and halts with its verdict.
 That gives one CPU and two PIO blocks, each running proved bytes, and the
-proved CPU bytes have the last word. Not yet run on a board.**
+proved CPU bytes have the last word. On a Pico 2 it blinked slowly: the
+kernel judged the two orders the same.**
 
 ## The kernel
 
@@ -116,6 +117,39 @@ Four wrong shells or expectations are caught:
 - the chip is asked to count 75;
 - the shell flips a bit in the first list, which the kernel finds;
 - the shell traps itself.
+
+## On the board
+
+| | |
+| --- | --- |
+| UF2 | `exp221.uf2`, SHA-256 `0e63a9b5e59eb7b19edaabce6700e4b9a9a6663540cc1c02c4ed436a2dc01109`, the committed one, built at 9003644 |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+The shell reaches slow blinking in only one way:
+- **Both blocks started.** PIO0 and PIO1 came out of reset and ran their
+  programs.
+- **Each block answered as proved.** For each of the 16 words, PIO0 gave
+  back the word complemented and PIO1 the word reversed.
+- **Both lists went into memory.** Both orders' sixteen words were written
+  where the kernel reads them, and all four FIFOs were empty.
+- **The kernel's own conditions held.** The 292 bytes in SRAM were
+  `kernel.bin`, by `kernel.sha256`. The kernel halted, and the region was
+  byte for byte what it was before it ran, as `judges` says. `minstret` was
+  76, the RTL's number.
+- **The verdict.** The kernel halted with 0. By `judges` that means the two
+  lists were the same, word by word.
+
+So on one chip, three pieces of proved bytes did their parts, and the last
+word was the proved CPU bytes':
+- PIO0 ran `invert`;
+- PIO1 ran `reverse`;
+- the CPU ran the judge.
+
+The two orders agreed, as `either_order` predicts. The shell carried every
+word and is not proved. The LED is one bit, read after everything. One run;
+nothing beyond it was recorded.
 
 ## What it does not say
 
