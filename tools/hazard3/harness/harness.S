@@ -6,7 +6,8 @@
 // will do it, so that a payload runs on the Hazard3 RTL under exactly the
 // conditions the Lean model assumes:
 //
-//   - the payload is at REGION, 64 KiB, and PMP entry 0 gives User mode read,
+//   - the payload is at REGION, REGION_SIZE bytes (64 KiB unless the build
+//     says otherwise: exp223's is 128 KiB), and PMP entry 0 gives User mode read,
 //     write and execute there and nowhere else (no matching entry is a fault
 //     for User mode);
 //   - it is entered with `mret` into User mode, every register zero except
@@ -22,13 +23,16 @@
 // The image is this, padded to REGION - MEM_BASE bytes, then the payload.
 
 // The addresses are the testbench's unless a build says otherwise: exp209's
-// chip shell includes this file with -DSHELL and its own REGION and MSTACK, so
+// chip shell includes this file with -DSHELL and its own REGION and MSTACK (and
+// exp223's its own REGION_SIZE), so
 // that the instructions around the payload — the ones minstret counts — are
 // these exact ones on silicon too.
 #ifndef REGION
 #define REGION      0x80010000
 #endif
+#ifndef REGION_SIZE
 #define REGION_SIZE 0x00010000
+#endif
 #ifndef MSTACK
 #define MSTACK      REGION        // M-mode stack: grows down from the region's base
 #endif
@@ -62,7 +66,7 @@ enter_payload:
     // Hold both counters while the shell runs.
     csrwi mcountinhibit, 5
 
-    // PMP entry 0: NAPOT over the 64 KiB region, R|W|X, not locked — so it
+    // PMP entry 0: NAPOT over the region, R|W|X, not locked — so it
     // binds User mode and leaves Machine mode alone.
     li    t0, (REGION >> 2) | ((REGION_SIZE >> 3) - 1)
     csrw  pmpaddr0, t0

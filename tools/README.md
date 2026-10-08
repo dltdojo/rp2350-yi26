@@ -658,3 +658,15 @@ came out of the move byte for byte the one that ran on the board.
 exp211 is the fourth, and took `region.h` — writing an image into the region
 and comparing bytes, which exp212 wrote — for its second user; exp212's UF2
 still builds byte for byte.
+
+exp223 is exp222's second user, and took five of its pieces: `trng.h`, the
+RP2350's TRNG driver; `trng_sim.h`, the RTL's stand-in for it; `sources.h`,
+the three sources of 1024 health-test samples; `report_chip.h` and
+`report_sim.h`, a health verdict on the LED or printed; `healthexpect.py`,
+the expect.h a health-test shell's gen.py writes; and `streams.py`,
+the fourteen streams and exp114's tests in Python. exp222's UF2 still builds
+byte for byte. exp223's kernel needs a 128 KiB region, so `harness.S` and
+`handler.c` take `REGION_SIZE` from the build, `sim.sh run --wide` and
+`shell.sh`'s `SHELL_WIDE=1` give the region at 0x80040000 on the RTL and
+0x20060000 on the chip, and `expect.py`'s `model` and `rtl` take `wide=True`;
+without them every build is byte for byte what it was.

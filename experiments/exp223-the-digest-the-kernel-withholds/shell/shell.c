@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// exp222 — the shell: three sources of 1024 samples, each judged by
-// proof/Health.lean's kernel in User mode under tools/hazard3/harness.
+// exp223 — the shell: three sources of 1024 samples (tools/hazard3/shell/
+// sources.h), each conditioned or withheld by proof/Condition.lean's kernel in
+// User mode under tools/hazard3/harness, in a 128 KiB region.
 //
-//   0  the TRNG: 32 words from it, each split into 32 samples, bit by bit
-//   1  a source stuck at 1, which the repetition count must catch
-//   2  nine ones then a zero, over and over: exp114's broken source, which
-//      the adaptive proportion test must catch
-//
-// For each: the region zeroed, the kernel's 192 bytes at its start (checked
-// against kernel.sha256), the samples at 0x1000, and the region hashed; then
-// the kernel runs. When it halts, the shell checks what `withholds` says:
-// it halted, minstret is the RTL's count for the code it halted with, and
-//   HALT 1: the region is exactly as it was — not a byte written;
-//   HALT 0: the output at 0x2000 is the samples, word for word, and with it
-//           cleared the region is exactly as it was.
+// For each: the region zeroed, kernel.bin's 8484 bytes at its start (checked
+// against kernel.sha256), the samples at 0x3000; SHA-256 of the samples' 4096
+// bytes taken by board_sha — the chip's SHA-256 block, or sha256.c on the
+// RTL — and the region hashed. Then the kernel runs. When it halts, the shell
+// checks what `conditions` says: it halted, minstret is the RTL's count for
+// the code it halted with, and
+//   HALT 1: the region is exactly as it was — no digest, not a byte written;
+//   HALT 0: the 32 bytes at 0x2140 are board_sha's digest of the samples, and
+//           with the digest and SHA-256's scratch (0x2140 to 0x2440) cleared,
+//           the region is exactly as it was.
 // Then the code itself: the TRNG's samples should pass (0) and both broken
 // sources should be withheld (1).
 //
@@ -29,17 +28,17 @@
 #include "sha256.h"
 
 #define csrr(name) ({ uint32_t v; __asm__ volatile ("csrr %0, " #name : "=r"(v)); v; })
-#define REGION_SIZE 0x10000u
-#define SAMPLES_OFF 0x1000u
-#define OUT_OFF     0x2000u
+#define SAMPLES_OFF 0x3000u
+#define DIGEST_OFF  0x2140u
+#define SCRATCH_END 0x2440u
 #define N           1024u
 #define NSOURCES    3u
 
 extern void enter_payload(void) __attribute__((noreturn));
 
 static volatile uint32_t step;
-static uint32_t source, kernel_ok;
-static uint8_t before[32];
+static uint32_t source, kernel_ok, sha_ok;
+static uint8_t before[32], want[32];
 static uint32_t samples[N];
 
 static int same(const uint8_t *a, const uint8_t *b, uint32_t n) {
@@ -76,7 +75,8 @@ __attribute__((noreturn)) static void next_source(void) {
     uint8_t d[32];
     sha256(r, KERNEL_LEN, d);
     kernel_ok = same(d, KERNEL_SHA, 32);
-    sha256(r, REGION_SIZE, before);
+    sha_ok = board_sha(r + SAMPLES_OFF, 4 * N, want);
+    sha_ok &= board_sha(r, REGION_SIZE, before);
     enter_payload();
 }
 
@@ -101,20 +101,20 @@ void handle(uint32_t *x) {
     res.cause = cause;
     int halted = cause == 8 && x[5] == 1;
     uint32_t a0 = x[10];
-    volatile uint32_t *w = (volatile uint32_t *)REGION;
+    uint8_t *r = (uint8_t *)REGION;
+    volatile uint8_t *v = (volatile uint8_t *)REGION;
 
     // 1 the kernel's bytes, 2 it halted, with 0 or 1, 3 minstret for that code,
-    // 4 the output is the samples (HALT 0 only), 5 the rest of the region as it was
-    int out_ok = 1;
-    if (halted && a0 == 0)
-        for (uint32_t i = 0; i < N; i++) {
-            if (w[OUT_OFF / 4 + i] != samples[i]) out_ok = 0;
-            w[OUT_OFF / 4 + i] = 0;
-        }
+    // 4 the digest is SHA-256's (HALT 0 only), 5 the rest of the region as it was
+    int digest_ok = 1;
+    if (halted && a0 == 0) {
+        digest_ok = same(r + DIGEST_OFF, want, 32);
+        for (uint32_t i = DIGEST_OFF; i < SCRATCH_END; i++) v[i] = 0;
+    }
     uint8_t d[32];
-    sha256((const uint8_t *)REGION, REGION_SIZE, d);
-    int ok[6] = {0, kernel_ok, halted && a0 <= 1, instret == (a0 == 0 ? INSTRET_PASS : INSTRET_FAIL),
-                 out_ok, same(d, before, 32)};
+    int region_ok = board_sha(r, REGION_SIZE, d) && same(d, before, 32);
+    int ok[6] = {0, kernel_ok && sha_ok, halted && a0 <= 1,
+                 instret == (a0 == 0 ? INSTRET_PASS : INSTRET_FAIL), digest_ok, region_ok};
     for (uint32_t k = 1; k <= 5; k++)
         if (!ok[k]) res.failed = res.failed * 10 + k;
     if (res.failed) report(V_KERNEL, &res);

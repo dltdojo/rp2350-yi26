@@ -3,10 +3,12 @@
 that are not the chip. A shell's gen.py writes these into its expect.h, so
 nothing the chip is compared with is typed by hand:
 
-  model(rv32run, image, fuel)  the Lean model (rv32run) running the image at
+  model(rv32run, image, fuel, wide=False)
+                               the Lean model (rv32run) running the image at
                                CHIP_REGION, where the chip will: its one-line
                                outcome, and the whole region afterwards
-  rtl(image, cycles)           the Hazard3 RTL running it under
+  rtl(image, cycles, wide=False)
+                               the Hazard3 RTL running it under
                                tools/hazard3/harness, for at most cycles: its
                                one-line outcome, whose minstret (and, for
                                exp212, mcycle) the chip is asked to match
@@ -26,6 +28,8 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 from sigfile import read_sig  # noqa: E402
 
 CHIP_REGION, REGION_SIZE = 0x20070000, 0x10000
+# wide=True: the 128 KiB region of shell.sh's SHELL_WIDE=1, as exp223 has it
+WIDE_REGION, WIDE_SIZE = 0x20060000, 0x20000
 
 
 def kernel_bin(path):
@@ -40,18 +44,20 @@ def c_bytes(b):
     return ", ".join(f"0x{x:02x}" for x in b)
 
 
-def model(rv32run, image, fuel):
+def model(rv32run, image, fuel, wide=False):
+    base, size = (WIDE_REGION, WIDE_SIZE) if wide else (CHIP_REGION, REGION_SIZE)
     with tempfile.TemporaryDirectory() as work:
         img, sig = os.path.join(work, "image.bin"), os.path.join(work, "region.sig")
         open(img, "wb").write(image)
-        ran = subprocess.run([rv32run, img, hex(CHIP_REGION), hex(REGION_SIZE), str(fuel), str(REGION_SIZE), sig],
+        ran = subprocess.run([rv32run, img, hex(base), hex(size), str(fuel), str(size), sig],
                              capture_output=True, text=True).stdout.strip()
-        return ran, read_sig(sig)[:REGION_SIZE]
+        return ran, read_sig(sig)[:size]
 
 
-def rtl(image, cycles=50000000):
+def rtl(image, cycles=50000000, wide=False):
     with tempfile.TemporaryDirectory() as work:
         img = os.path.join(work, "image.bin")
         open(img, "wb").write(image)
-        return subprocess.run([os.path.join(HERE, "..", "sim.sh"), "run", img, "--cycles", str(cycles)],
+        return subprocess.run([os.path.join(HERE, "..", "sim.sh"), "run", img, "--cycles", str(cycles)]
+                              + (["--wide"] if wide else []),
                               capture_output=True, text=True).stdout.strip()

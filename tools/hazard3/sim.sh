@@ -3,7 +3,7 @@
 #
 # tools/hazard3 — run a payload on the Hazard3 RTL, under the harness.
 #
-#   sim.sh run PAYLOAD.bin [--dump BYTES FILE] [--cycles N]
+#   sim.sh run PAYLOAD.bin [--dump BYTES FILE] [--cycles N] [--wide]
 #       One line on stdout:
 #         halt code=<hex> instret=<n> cycles=<n>
 #         fault mcause=<hex> mepc=<hex> mtval=<hex> instret=<n>
@@ -20,7 +20,9 @@
 #   sim.sh region     the region's base and size, as two hex numbers
 #
 # The payload is a flat binary linked to run at the region's base,
-# 0x80010000. On the chip the region is in SRAM at another address; a kernel
+# 0x80010000, in 64 KiB. With --wide the region is 128 KiB at 0x80040000
+# (NAPOT wants it aligned to its size): exp223's, whose kernel is two kernels
+# each proved in a 64 KiB of its own, the second starting 4 KiB in. On the chip the region is in SRAM at another address; a kernel
 # that is to run on both must not depend on where it is, which is the
 # kernel's problem and not this tool's.
 #
@@ -35,14 +37,15 @@ REGION_SIZE=0x10000
 
 ready() { [[ -x "$TB" ]]; }
 
-harness() {
-    local src="$HERE/harness" out="$BUILD/harness.bin"
+harness() { # [name -Dflags...]
+    local src="$HERE/harness" name="${1:-harness}"; shift || true
+    local out="$BUILD/$name.bin"
     if [[ ! -f "$out" || "$src/harness.S" -nt "$out" || "$src/handler.c" -nt "$out" || "$src/link.ld" -nt "$out" || "$src/sha256.c" -nt "$out" || "$src/hashcall.h" -nt "$out" ]]; then
         mkdir -p "$BUILD"
         clang --target=riscv32-unknown-elf -march=rv32im_zicsr -mabi=ilp32 -O2 -nostdlib \
-            -ffreestanding -fno-pic -mno-relax -fuse-ld=lld -Wl,-T,"$src/link.ld" \
-            -o "$BUILD/harness.elf" "$src/harness.S" "$src/handler.c" "$src/sha256.c" || return 1
-        llvm-objcopy -O binary "$BUILD/harness.elf" "$out" || return 1
+            -ffreestanding -fno-pic -mno-relax -fuse-ld=lld -Wl,-T,"$src/link.ld" "$@" \
+            -o "$BUILD/$name.elf" "$src/harness.S" "$src/handler.c" "$src/sha256.c" || return 1
+        llvm-objcopy -O binary "$BUILD/$name.elf" "$out" || return 1
     fi
     echo "$out"
 }
@@ -61,23 +64,30 @@ case "${1-}" in
         exit 0;;
     region) echo "$REGION $REGION_SIZE"; exit 0;;
     run) ;;
-    *) sed -n '3,22p' "${BASH_SOURCE[0]}"; exit 2;;
+    *) sed -n '3,25p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 payload="${2-}"
 [[ -f "$payload" ]] || { echo "no payload '$payload'" >&2; exit 2; }
 ready || { echo "the testbench is not built — run tools/hazard3/setup.sh" >&2; exit 2; }
 shift 2
-dump_bytes=""; dump_file=""; cycles=2000000
+dump_bytes=""; dump_file=""; cycles=2000000; wide=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dump) dump_bytes="$2"; dump_file="$3"; shift 3;;
         --cycles) cycles="$2"; shift 2;;
+        --wide) wide=1; shift;;
         *) echo "unknown option $1" >&2; exit 2;;
     esac
 done
 
-hbin="$(harness)" || { echo "the harness did not build" >&2; exit 2; }
+if [[ $wide == 1 ]]; then
+    REGION=0x80040000 REGION_SIZE=0x20000
+    hbin="$(harness harness-wide -DREGION=$REGION -DREGION_SIZE=$REGION_SIZE -DMSTACK=0x80010000)"
+else
+    hbin="$(harness)"
+fi
+[[ -n "$hbin" ]] || { echo "the harness did not build" >&2; exit 2; }
 work="$(mktemp -d)"
 trap 'rm -rf -- "$work"' EXIT
 size=$(( REGION - 0x80000000 ))
