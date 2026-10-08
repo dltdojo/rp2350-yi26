@@ -1,0 +1,140 @@
+=== exp222 — the bits the kernel withholds ===
+recorded at 2026-10-07T09:27:37Z from commit 5063a73
+
+>>> the kernel, as proof/Health.lean writes it
+  0000  00000417  auipc x8, 0
+  0004  00001337  lui x6, 1
+  0008  006404b3  add x9, x8, x6
+  000c  00002337  lui x6, 2
+  0010  00640933  add x18, x8, x6
+  0014  0004ab83  lw x23, 0(x9)
+  0018  001bfb93  andi x23, x23, 1
+  001c  00200a13  addi x20, x0, 2
+  0020  00000a93  addi x21, x0, 0
+  0024  00000b13  addi x22, x0, 0
+  0028  00000c13  addi x24, x0, 0
+  002c  40000993  addi x19, x0, 1024
+  0030  0004a303  lw x6, 0(x9)
+  0034  00137313  andi x6, x6, 1
+  0038  014343b3  xor x7, x6, x20
+  003c  0013b393  sltiu x7, x7, 1
+  0040  407003b3  sub x7, x0, x7
+  0044  007afab3  and x21, x21, x7
+  0048  001a8a93  addi x21, x21, 1
+  004c  00030a13  addi x20, x6, 0
+  0050  015ab393  sltiu x7, x21, 21
+  0054  0013c393  xori x7, x7, 1
+  0058  007b6b33  or x22, x22, x7
+  005c  017343b3  xor x7, x6, x23
+  0060  0013c393  xori x7, x7, 1
+  0064  007c0c33  add x24, x24, x7
+  0068  00448493  addi x9, x9, 4
+  006c  fff98993  addi x19, x19, -1
+  0070  fc0990e3  bne x19, x0, -64
+  0074  24dc3393  sltiu x7, x24, 589
+  0078  0013c393  xori x7, x7, 1
+  007c  007b6b33  or x22, x22, x7
+  0080  020b1a63  bne x22, x0, 52
+  0084  00001337  lui x6, 1
+  0088  006404b3  add x9, x8, x6
+  008c  40000993  addi x19, x0, 1024
+  0090  0004a383  lw x7, 0(x9)
+  0094  00792023  sw x7, 0(x18)
+  0098  00448493  addi x9, x9, 4
+  009c  00490913  addi x18, x18, 4
+  00a0  fff98993  addi x19, x19, -1
+  00a4  fe0996e3  bne x19, x0, -20
+  00a8  00000513  addi x10, x0, 0
+  00ac  00100293  addi x5, x0, 1
+  00b0  00000073  ecall
+  00b4  00100513  addi x10, x0, 1
+  00b8  00100293  addi x5, x0, 1
+  00bc  00000073  ecall
+
+>>> the theorems, and what they rest on
+'Exp222.body_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp222.health_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp222.verdict_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp222.copy_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp222.withholds' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp222.output' depends on axioms: [propext, Quot.sound]
+'Exp222.bytes_words' depends on axioms: [propext]
+'Exp222.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels: each must be refused
+body_regs    the repetition count fails at 22, not 21                          refused in body_regs
+verdict_run  the adaptive proportion fails at 590, not 589                     refused in verdict_run
+body_regs    a change of bit does not reset the run                            refused in body_regs
+body_regs    the proportion counts the bits that differ from the reference     refused in body_regs
+setup_run    the reference is bit 1 of the first sample, not bit 0             refused in setup_run
+verdict_run  a sample that fails goes to the copy, one that passes to HALT 1   refused in verdict_run
+verdict_run  a failure halts with 0                                            refused in verdict_run
+copy_iter    the copy writes each word to the output one word late             refused in copy_iter
+
+>>> the differential: the Lean model and the Hazard3 RTL against exp114's tests
+PASS  random 0: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 1: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 2: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 3: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 4: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 5: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  stuck at 1: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  stuck at 0: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  runs of 20: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  runs of 21: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  a run of 21 at the end: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  588 agree: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  589 agree: exp114 says withheld: adaptive proportion 589; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  nine ones then a zero: exp114 says withheld: adaptive proportion 922; the model and the RTL halt with 1, the model after 17427, its region as said
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: kernel 39587b4ec6bd48b2…, RTL minstret 23578 healthy, 17430 withheld
+build/exp222.bin  4116 bytes, the build allows 8192
+build/exp222.uf2  8704 bytes  sha256 ae820a7b32585ca44e22c6f0c27c351c68f13f0e68b79aebd1c86f0510ead3bf
+
+>>> on the RTL, the kernel for real on three sources: REPT verdict source failed a0 minstret cause
+52455054 00000000 00000003 00000000 00000000 00000000 00000000 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  Health.lean checks, with no errors and no warnings
+PASS  all 8 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  body_regs: the proof refuses a version where the repetition count fails at 22, not 21
+PASS  verdict_run: the proof refuses a version where the adaptive proportion fails at 590, not 589
+PASS  body_regs: the proof refuses a version where a change of bit does not reset the run
+PASS  body_regs: the proof refuses a version where the proportion counts the bits that differ from the reference
+PASS  setup_run: the proof refuses a version where the reference is bit 1 of the first sample, not bit 0
+PASS  verdict_run: the proof refuses a version where a sample that fails goes to the copy, one that passes to HALT 1
+PASS  verdict_run: the proof refuses a version where a failure halts with 0
+PASS  copy_iter: the proof refuses a version where the copy writes each word to the output one word late
+PASS  kernel.bin is what proof/Health.lean writes, 192 bytes, and kernel.sha256 is its hash
+PASS  random 0: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 1: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 2: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 3: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 4: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  random 5: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  stuck at 1: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  stuck at 0: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  runs of 20: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  runs of 21: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  a run of 21 at the end: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  588 agree: exp114 says healthy; the model and the RTL halt with 0, the model after 23574, its region as said
+PASS  589 agree: exp114 says withheld: adaptive proportion 589; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  nine ones then a zero: exp114 says withheld: adaptive proportion 922; the model and the RTL halt with 1, the model after 17427, its region as said
+PASS  the shell builds for the chip and for the RTL, the chip's in 4116 of the 8192 bytes it may use
+PASS  all 17 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 8 KiB of flash, 0x10000000..0x10002000
+PASS  together they are exactly the 4116-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: ae820a7b32585ca4…
+PASS  on the RTL, against a stand-in TRNG that works: its samples pass and are copied, both broken sources are withheld, each check as withholds says — ok
+PASS  on the RTL, against a stand-in TRNG giving all ones: the kernel, run for real, withholds its samples at minstret 17430 — verdict 3
+PASS  on the RTL, against a stand-in TRNG giving nothing: verdict 2, before the kernel runs
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — verdict 1, check 1
+PASS  the shell catches a version where the chip is asked to count one more when healthy — verdict 1, check 3
+PASS  the shell catches a version where the broken source is nine ones then a zero no longer, but a fair alternation — it passes: verdict 4
+PASS  the shell catches a version where the output is not cleared before the region is hashed again — the region differs: verdict 1, check 5
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a verdict
