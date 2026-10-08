@@ -18,8 +18,12 @@ experiment adds; each half was proved before.
 
 On the chip the kernel conditions or withholds three sources: the RP2350's
 TRNG, a source stuck at 1, and exp114's "nine ones then a zero". The
-kernel's digest is held against the chip's own SHA-256 block. Not yet run
-on a board.**
+kernel's digest is held against the chip's own SHA-256 block. On a Pico 2
+it blinked slowly:
+- the TRNG's samples passed, and the proved kernel's digest of them was the
+  SHA-256 block's;
+- both broken sources were withheld with memory untouched;
+- every count was the RTL's.**
 
 ## Why it is not part of exp222
 
@@ -184,7 +188,45 @@ You need a **Pico 2** (not a Pico 2 W), a USB cable, and a computer.
 
 ## On the board
 
-Not yet run.
+| | |
+| --- | --- |
+| UF2 | `exp223.uf2`, SHA-256 `5c1c1a1e16816e4717eea9ed3c8e41ca14073acb7d059eac253891f1c5fd68ba`, the committed one, built at 012a8c3 and unchanged since |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+The shell reaches slow blinking in only one way. All of these held, for
+each of the three sources in turn:
+- **The kernel.** The 8484 bytes in SRAM were `kernel.bin`, by
+  `kernel.sha256`, and the kernel halted in User mode, in the 128 KiB
+  region at 0x20060000.
+- **The TRNG.** It gave 32 words within its timeout. The kernel halted with
+  0 at `minstret` 334287, the RTL's count. The 32 bytes at 0x2140 were the
+  digest the RP2350's SHA-256 block gave for the same 4096 bytes. With the
+  digest and SHA-256's scratch cleared, the region was byte for byte what
+  it was before the run.
+- **Stuck at 1.** The kernel halted with 1 at `minstret` 17428, the RTL's
+  count, and the region was byte for byte what it was. No digest was
+  written.
+- **Nine ones then a zero.** The same: HALT 1 at 17428, the region
+  untouched.
+
+So on silicon, three SHA-256s agreed:
+- the specification the kernel is proved against, through the theorem;
+- the kernel's 1008 bytes, run in User mode;
+- the chip's own SHA-256 block.
+
+The digest came out only for the source that passed both tests. It was the
+digest of exactly the samples the tests judged.
+
+`minstret` matched the RTL's numbers both ways. The proof's two counts,
+17425 and 334284, plus the harness's 3, are what the chip counts.
+
+What this run cannot say:
+- how often the TRNG fails the tests;
+- how much entropy the digest carries.
+
+It was one run, read off the LED as one bit.
 
 ## What the RTL checks, and what it cannot
 
