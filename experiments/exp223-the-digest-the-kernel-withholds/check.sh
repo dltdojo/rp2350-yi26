@@ -124,6 +124,8 @@ shell_mutant "kernel.sha256 is not kernel.bin's hash — verdict 1, check 1" exp
     's/KERNEL_SHA\[32\] = {0x[0-9a-f][0-9a-f]/KERNEL_SHA[32] = {0x00/' "52455054 00000001 00000000 00000001 "
 shell_mutant "the chip is asked to count one more when healthy — verdict 1, check 3" expect.h \
     's/#define INSTRET_PASS 334287u/#define INSTRET_PASS 334288u/' "52455054 00000001 00000000 00000003 "
+shell_mutant "the broken source is nine ones then a zero no longer, but a fair alternation — it passes: verdict 4" shell.c \
+    's/^    gather();$/    gather();\n    if (source == 2) for (uint32_t i = 0; i < N; i++) samples[i] = i % 2;/' "52455054 00000004 00000002 "
 shell_mutant "the digest is held against SHA-256 of one block fewer — verdict 1, check 4" shell.c \
     's/sha_ok = board_sha(r + SAMPLES_OFF, 4 \* N, want);/sha_ok = board_sha(r + SAMPLES_OFF, 4 * N - 64, want);/' \
     "52455054 00000001 00000000 00000004 "

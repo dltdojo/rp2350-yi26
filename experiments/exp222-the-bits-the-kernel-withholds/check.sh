@@ -109,7 +109,7 @@ shell_mutant "kernel.sha256 is not kernel.bin's hash — verdict 1, check 1" exp
 shell_mutant "the chip is asked to count one more when healthy — verdict 1, check 3" expect.h \
     's/#define INSTRET_PASS 23578u/#define INSTRET_PASS 23579u/' "52455054 00000001 00000000 00000003 "
 shell_mutant "the broken source is nine ones then a zero no longer, but a fair alternation — it passes: verdict 4" shell.c \
-    's/samples\[i\] = i % 10 < 9;/samples[i] = i % 2;/' "52455054 00000004 00000002 "
+    's/^    gather();$/    gather();\n    if (source == 2) for (uint32_t i = 0; i < N; i++) samples[i] = i % 2;/' "52455054 00000004 00000002 "
 shell_mutant "the output is not cleared before the region is hashed again — the region differs: verdict 1, check 5" shell.c \
     's/^            w\[OUT_OFF \/ 4 + i\] = 0;$/            (void)0;/' "52455054 00000001 00000000 00000005 "
 shell_mutant "the shell itself traps in step 3 — a fault, not a verdict" shell.c \

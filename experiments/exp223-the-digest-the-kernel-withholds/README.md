@@ -198,9 +198,10 @@ stand-in gives the TRNG's words
 | all ones | 3: the kernel, run for real, withholds them at `minstret` 17428 |
 | nothing | 2 |
 
-Five wrong shells or expectations are caught:
+Six wrong shells or expectations are caught:
 - the kernel's hash is wrong;
 - the healthy count is off by one;
+- the broken source is made fair, and the kernel lets it through: 4;
 - the digest is held against SHA-256 of one block fewer;
 - the digest and its scratch are not cleared before the region is hashed
   again;
