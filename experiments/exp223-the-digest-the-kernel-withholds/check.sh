@@ -49,6 +49,9 @@ USB_RUNS_ON="none"
 usb_check
 
 LEAN=../../tools/lean/lean.sh
+# One mutant at a time: each loads SHA-256's proof, and four side by side run
+# out of memory, which tools/lean/lean.sh now says rather than counting.
+export LEAN_JOBS=1
 
 $LEAN check proof/Condition.lean || FAILED=1
 $LEAN mutants proof/Condition.lean || FAILED=1

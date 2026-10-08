@@ -157,18 +157,31 @@ status=0
 
 # A wrong version must not check. The sed has to change something, or the
 # mutant has drifted away from the file and is testing nothing.
+#
+# Lean running out of memory is not a refusal: it says nothing about the
+# mutant. exp223 found it, four mutants side by side each loading SHA-256's
+# proof, and a crash counted as a PASS. So a crash is a FAIL, inconclusive.
+starved() { # output status
+    [[ "$2" -eq 137 || "$2" -eq 134 ]] || grep -qE 'out of memory|INTERNAL PANIC' <<< "$1"
+}
+
 judge_mutant() {
-    local claim="$1: the proof refuses a version where $2"
-    if [[ "$4" == no ]]; then echo "FAIL  $claim — the sed no longer matches its file"; status=1
-    elif lean_on "$3" "$5" > /dev/null 2>&1; then echo "FAIL  $claim — Lean accepted it"; status=1
+    local claim="$1: the proof refuses a version where $2" out code
+    if [[ "$4" == no ]]; then echo "FAIL  $claim — the sed no longer matches its file"; status=1; return; fi
+    out="$(lean_on "$3" "$5" 2>&1)"; code=$?
+    if [[ $code -eq 0 ]]; then echo "FAIL  $claim — Lean accepted it"; status=1
+    elif starved "$out" "$code"; then echo "FAIL  $claim — inconclusive: Lean ran out of memory (try LEAN_JOBS=1)"; status=1
     else echo "PASS  $claim"; fi
 }
 
 # Where the checker stopped, as the theorem it stopped in: the first step that
 # no longer holds, which is rarely the headline theorem.
 where_refused() {
-    local out loc path line where src
-    out="$(lean_on "$3" "$5" 2>&1)"
+    local out loc path line where src code
+    out="$(lean_on "$3" "$5" 2>&1)"; code=$?
+    if starved "$out" "$code"; then
+        printf "%-${lw}s  %-${width}s INCONCLUSIVE: Lean ran out of memory\n" "$1" "$2"; return
+    fi
     # Lean says `F.lean:L:C: error`; lake, building the library, `error: F.lean:L:C:`.
     loc="$(grep -m1 -oE '^error: [A-Za-z0-9_./-]+\.lean:[0-9]+:[0-9]+|[A-Za-z0-9_./-]+\.lean:[0-9]+:[0-9]+: error' <<< "$out" | sed 's/^error: //')"
     if [[ -n "$loc" ]]; then

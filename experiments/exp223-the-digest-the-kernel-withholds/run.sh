@@ -11,6 +11,9 @@ source ../lib.sh
 source ../../tools/hazard3/shell/shell.sh
 
 LEAN=../../tools/lean/lean.sh
+# One mutant at a time: each loads SHA-256's proof, and four side by side run
+# out of memory, which tools/lean/lean.sh now says rather than counting.
+export LEAN_JOBS=1
 
 {
 capture_header "exp223 — the digest the kernel withholds"
