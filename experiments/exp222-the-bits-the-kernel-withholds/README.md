@@ -15,8 +15,10 @@ every input:
   word for word, and nothing else changed.
 
 On the chip the kernel judges three sources: the RP2350's own TRNG, a
-source stuck at 1, and exp114's "nine ones then a zero". Not yet run on a
-board.**
+source stuck at 1, and exp114's "nine ones then a zero". On a Pico 2 it
+blinked slowly. The TRNG's samples passed and came out as the output. Both
+broken sources were withheld with memory untouched, every count as the
+RTL's.**
 
 exp114 put the two tests in a dependency-free crate and said why: *the
 cutoffs are the part most likely to be wrong, and a wrong threshold still
@@ -139,6 +141,43 @@ You need a **Pico 2** (not a Pico 2 W), a USB cable, and a computer.
 | **4 flashes** | a source built to fail was let through: HALT 0 |
 | **on, steady** | the shell trapped |
 | **dark** | the shell never ran |
+
+## On the board
+
+| | |
+| --- | --- |
+| UF2 | `exp222.uf2`, SHA-256 `ae820a7b32585ca44e22c6f0c27c351c68f13f0e68b79aebd1c86f0510ead3bf`, the committed one, built at 5063a73 |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+The shell reaches slow blinking in only one way. All of these held, for
+each of the three sources in turn:
+- **The kernel.** The 192 bytes in SRAM were `kernel.bin`, by
+  `kernel.sha256`, and the kernel halted in User mode.
+- **The TRNG.** It gave 32 words within its timeout. The kernel halted
+  with 0 at `minstret` 23578, the RTL's count, and the output at 0x2000 was
+  the 1024 samples word for word. With the output cleared, the region was
+  byte for byte what it was before the run.
+- **Stuck at 1.** The kernel halted with 1 at `minstret` 17430, the RTL's
+  count, and the region was byte for byte what it was. The repetition count
+  caught it, and nothing was written.
+- **Nine ones then a zero.** The same: HALT 1 at 17430, the region
+  untouched. The adaptive proportion caught it.
+
+So on silicon:
+- the RP2350's TRNG, read through the C driver at exp109's sample count,
+  passed both tests on its 1024 samples;
+- the proved kernel let them through, copied exactly;
+- the two sources built to fail were withheld exactly as `withholds` says:
+  HALT 1 after a fixed count, not a byte written.
+
+`minstret` matched the RTL's numbers both ways. The proof's two counts
+(17427 and 23574), plus the harness's own instructions, are what the chip
+counts.
+
+What this run cannot say is how often the TRNG fails these tests. One run,
+1024 samples, read off the LED as one bit.
 
 ## What the RTL checks, and what it cannot
 
