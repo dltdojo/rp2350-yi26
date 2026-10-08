@@ -1,5 +1,5 @@
 === exp222 — the bits the kernel withholds ===
-recorded at 2026-10-07T09:27:37Z from commit 5063a73
+recorded at 2026-10-08T12:23:17Z from commit e6d624d
 
 >>> the kernel, as proof/Health.lean writes it
   0000  00000417  auipc x8, 0
@@ -52,8 +52,7 @@ recorded at 2026-10-07T09:27:37Z from commit 5063a73
   00bc  00000073  ecall
 
 >>> the theorems, and what they rest on
-'Exp222.body_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp222.health_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp222.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp222.verdict_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp222.copy_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp222.withholds' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -67,7 +66,7 @@ body_regs    the repetition count fails at 22, not 21                          r
 verdict_run  the adaptive proportion fails at 590, not 589                     refused in verdict_run
 body_regs    a change of bit does not reset the run                            refused in body_regs
 body_regs    the proportion counts the bits that differ from the reference     refused in body_regs
-setup_run    the reference is bit 1 of the first sample, not bit 0             refused in setup_run
+start_run    the reference is bit 1 of the first sample, not bit 0             refused in start_run
 verdict_run  a sample that fails goes to the copy, one that passes to HALT 1   refused in verdict_run
 verdict_run  a failure halts with 0                                            refused in verdict_run
 copy_iter    the copy writes each word to the output one word late             refused in copy_iter
@@ -99,12 +98,12 @@ build/exp222.uf2  8704 bytes  sha256 ae820a7b32585ca44e22c6f0c27c351c68f13f0e68b
 >>> the checks
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
 PASS  Health.lean checks, with no errors and no warnings
-PASS  all 8 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 7 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  body_regs: the proof refuses a version where the repetition count fails at 22, not 21
 PASS  verdict_run: the proof refuses a version where the adaptive proportion fails at 590, not 589
 PASS  body_regs: the proof refuses a version where a change of bit does not reset the run
 PASS  body_regs: the proof refuses a version where the proportion counts the bits that differ from the reference
-PASS  setup_run: the proof refuses a version where the reference is bit 1 of the first sample, not bit 0
+PASS  start_run: the proof refuses a version where the reference is bit 1 of the first sample, not bit 0
 PASS  verdict_run: the proof refuses a version where a sample that fails goes to the copy, one that passes to HALT 1
 PASS  verdict_run: the proof refuses a version where a failure halts with 0
 PASS  copy_iter: the proof refuses a version where the copy writes each word to the output one word late

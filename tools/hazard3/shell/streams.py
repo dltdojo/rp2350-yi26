@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""exp222 — sample streams for the differential and for the chip's known
-answers, and the health tests they are judged by: exp114's
-crates/entropy-health `Health::push`, line for line, in Python.
+"""tools/hazard3/shell — sample streams for a health-test kernel's
+differential and for the chip's known answers, and the health tests they are
+judged by: exp114's crates/entropy-health `Health::push`, line for line, in
+Python. exp222 wrote it, exp223 needed it second.
 
   streams()     name -> 1024 sample words (bit 0 is the sample; the rest of
                 each word is noise, which the tests must ignore)

@@ -176,10 +176,61 @@ def toBytes (prog : List Instr) : List UInt8 :=
     let n := (encode i).toNat
     [n % 256, n / 256 % 256, n / 65536 % 256, n / 16777216].map UInt8.ofNat
 
-/-- **Any image that starts with `bytes`, loaded at `base`, holds `prog`** —
-given that word `k` of `bytes`, put back together, is the encoding of
-instruction `k`. A kernel discharges that by `decide`, once per word; this is
-the bridge from the file `check.sh` holds byte-equal to the theorems. -/
+/-- A word of an image, loaded at `base`: its four bytes, little-endian. -/
+theorem readLE_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (img : ByteArray) (d : Nat)
+    (hd : d + 4 ≤ 0x10000) (hsize : d + 4 ≤ img.size) :
+    readLE (memOfImage base img) (base + BitVec.ofNat 32 d) 4
+      = (img.get d (by omega)).toNat + 256 * (img.get (d + 1) (by omega)).toNat
+        + 65536 * (img.get (d + 2) (by omega)).toNat + 16777216 * (img.get (d + 3) (by omega)).toNat := by
+  rw [readLE_four]
+  have at_ : ∀ j (hj : j < 4), memOfImage base img (base + BitVec.ofNat 32 d + BitVec.ofNat 32 j)
+      = BitVec.ofNat 8 (img.get (d + j) (by omega)).toNat := by
+    intro j hj
+    unfold memOfImage
+    have hd' : (base + BitVec.ofNat 32 d + BitVec.ofNat 32 j - base).toNat = d + j := by
+      rw [off_add hfit _ _ (by omega), BitVec.toNat_sub, toNat_off hfit _ (by omega)]
+      omega
+    simp only [hd', show d + j < img.size by omega, ↓reduceDIte]
+  have e0 := at_ 0 (by decide); have e1 := at_ 1 (by decide)
+  have e2 := at_ 2 (by decide); have e3 := at_ 3 (by decide)
+  simp only [show base + BitVec.ofNat 32 d + BitVec.ofNat 32 0 = base + BitVec.ofNat 32 d
+    by simp, Nat.add_zero] at e0
+  rw [e0, show base + BitVec.ofNat 32 d + 1 = base + BitVec.ofNat 32 d + BitVec.ofNat 32 1
+    from rfl, e1, show base + BitVec.ofNat 32 d + 2 = base + BitVec.ofNat 32 d + BitVec.ofNat 32 2
+    from rfl, e2, show base + BitVec.ofNat 32 d + 3 = base + BitVec.ofNat 32 d + BitVec.ofNat 32 3
+    from rfl, e3]
+  simp only [BitVec.toNat_ofNat]
+  have := (img.get d (by omega)).toNat_lt
+  have := (img.get (d + 1) (by omega)).toNat_lt
+  have := (img.get (d + 2) (by omega)).toNat_lt
+  have := (img.get (d + 3) (by omega)).toNat_lt
+  omega
+
+/-- **Any image that has `bytes` at `o`, loaded at `base`, holds `prog` at
+`base + o`** — given that word `k` of `bytes`, put back together, is the
+encoding of instruction `k`. A kernel discharges that by `decide`, once per
+word; this is the bridge from the file `check.sh` holds byte-equal to the
+theorems. exp223 needed `o`, for a second program at 0x1000 of its image. -/
+theorem code_of_image_at {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {prog : List Instr}
+    {bytes : List UInt8} (o : Nat) (hlen : o + 4 * prog.length ≤ 0x10000)
+    (hwords : ∀ k (h : k < prog.length),
+      (bytes.getD (4 * k) 0).toNat + 256 * (bytes.getD (4 * k + 1) 0).toNat
+        + 65536 * (bytes.getD (4 * k + 2) 0).toNat + 16777216 * (bytes.getD (4 * k + 3) 0).toNat
+        = (encode prog[k]).toNat)
+    (img : ByteArray) (hsize : o + 4 * prog.length ≤ img.size)
+    (himg : ∀ d (h : d < 4 * prog.length), img.get (o + d) (by omega) = bytes.getD d 0) :
+    CodeAt (memOfImage base img) (base + BitVec.ofNat 32 o) prog := by
+  intro k hk
+  rw [off_add hfit _ _ (by omega), readLE_image hfit img _ (by omega) (by omega), ← hwords k hk]
+  have g : ∀ j (hj : j < 4) (h' : o + 4 * k + j < img.size),
+      img.get (o + 4 * k + j) h' = bytes.getD (4 * k + j) 0 := by
+    intro j hj h'
+    rw [← himg (4 * k + j) (by omega)]
+    congr 1; omega
+  rw [g 1 (by decide), g 2 (by decide), g 3 (by decide), himg (4 * k) (by omega)]
+
+/-- **Any image that starts with `bytes`, loaded at `base`, holds `prog`**:
+`code_of_image_at`, at 0. -/
 theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {prog : List Instr}
     {bytes : List UInt8} (hlen : 4 * prog.length ≤ 0x10000)
     (hwords : ∀ k (h : k < prog.length),
@@ -189,30 +240,7 @@ theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {prog
     (img : ByteArray) (hsize : 4 * prog.length ≤ img.size)
     (himg : ∀ d (h : d < 4 * prog.length), img.get d (by omega) = bytes.getD d 0) :
     CodeAt (memOfImage base img) base prog := by
-  intro k hk
-  rw [readLE_four, ← hwords k hk]
-  have at_ : ∀ j (hj : j < 4), memOfImage base img (base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 j)
-      = BitVec.ofNat 8 (bytes.getD (4 * k + j) 0).toNat := by
-    intro j hj
-    unfold memOfImage
-    have hd : (base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 j - base).toNat = 4 * k + j := by
-      rw [off_add hfit _ _ (by omega), BitVec.toNat_sub, toNat_off hfit _ (by omega)]
-      omega
-    simp only [hd, show 4 * k + j < img.size by omega, ↓reduceDIte]
-    rw [himg _ (by omega)]
-  have e0 := at_ 0 (by decide); have e1 := at_ 1 (by decide)
-  have e2 := at_ 2 (by decide); have e3 := at_ 3 (by decide)
-  simp only [show base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 0 = base + BitVec.ofNat 32 (4 * k)
-    by simp, Nat.add_zero] at e0
-  rw [e0, show base + BitVec.ofNat 32 (4 * k) + 1 = base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 1
-    from rfl, e1, show base + BitVec.ofNat 32 (4 * k) + 2 = base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 2
-    from rfl, e2, show base + BitVec.ofNat 32 (4 * k) + 3 = base + BitVec.ofNat 32 (4 * k) + BitVec.ofNat 32 3
-    from rfl, e3]
-  simp only [BitVec.toNat_ofNat]
-  have := (bytes.getD (4 * k) 0).toNat_lt
-  have := (bytes.getD (4 * k + 1) 0).toNat_lt
-  have := (bytes.getD (4 * k + 2) 0).toNat_lt
-  have := (bytes.getD (4 * k + 3) 0).toNat_lt
-  omega
+  have h := code_of_image_at hfit 0 (by omega) hwords img (by omega) (fun d hd => by simpa using himg d hd)
+  simpa using h
 
 end Rv32

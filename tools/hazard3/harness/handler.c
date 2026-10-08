@@ -28,8 +28,12 @@
 #define TAG_HALT  0x48414c54u   // "HALT"
 #define TAG_FAULT 0x4641554cu   // "FAUL"
 
+#ifndef REGION
 #define REGION      0x80010000u
+#endif
+#ifndef REGION_SIZE
 #define REGION_SIZE 0x00010000u
+#endif
 
 #define csrr(name) ({ uint32_t v; __asm__ volatile ("csrr %0, " #name : "=r"(v)); v; })
 #define csrw(name, v) __asm__ volatile ("csrw " #name ", %0" :: "r"(v))

@@ -1,11 +1,14 @@
 # exp222 — wrong versions of the kernel. Each must be refused by Lean.
 #
-# <label>|<what is wrong>|<sed>
-body_regs|the repetition count fails at 22, not 21|s/.opi .sltiu T2 S5 21, .opi .xori T2 T2 1, .op .or S6 S6 T2,/.opi .sltiu T2 S5 22, .opi .xori T2 T2 1, .op .or S6 S6 T2,/
-verdict_run|the adaptive proportion fails at 590, not 589|s/def verdictLine : List Instr := \[ .opi .sltiu T2 S8 589,/def verdictLine : List Instr := [ .opi .sltiu T2 S8 590,/
-body_regs|a change of bit does not reset the run|s/.op .xor T2 T1 S4, .opi .sltiu T2 T2 1, .op .sub T2 0 T2, .op .and S5 S5 T2,/.op .xor T2 T1 S4, .opi .sltiu T2 T2 1, .op .sub T2 0 0, .op .and S5 S5 T2,/
-body_regs|the proportion counts the bits that differ from the reference|s/  .op .xor T2 T1 S7, .opi .xori T2 T2 1, .op .add S8 S8 T2,/  .op .xor T2 T1 S7, .opi .xori T2 T2 0, .op .add S8 S8 T2,/
-setup_run|the reference is bit 1 of the first sample, not bit 0|s/  .opi .andi S7 S7 1, .opi .addi S4 0 2,/  .opi .andi S7 S7 2, .opi .addi S4 0 2,/
+# The tests themselves — the first five — are lean/Rv32/Health.lean's since
+# exp223, so those seds edit that file of the library.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+body_regs|the repetition count fails at 22, not 21|s/.opi .sltiu T2 S5 21, .opi .xori T2 T2 1, .op .or S6 S6 T2,/.opi .sltiu T2 S5 22, .opi .xori T2 T2 1, .op .or S6 S6 T2,/|lean/Rv32/Health.lean
+verdict_run|the adaptive proportion fails at 590, not 589|s/def verdictLine : List Instr := \[ .opi .sltiu T2 S8 589,/def verdictLine : List Instr := [ .opi .sltiu T2 S8 590,/|lean/Rv32/Health.lean
+body_regs|a change of bit does not reset the run|s/.op .xor T2 T1 S4, .opi .sltiu T2 T2 1, .op .sub T2 0 T2, .op .and S5 S5 T2,/.op .xor T2 T1 S4, .opi .sltiu T2 T2 1, .op .sub T2 0 0, .op .and S5 S5 T2,/|lean/Rv32/Health.lean
+body_regs|the proportion counts the bits that differ from the reference|s/  .op .xor T2 T1 S7, .opi .xori T2 T2 1, .op .add S8 S8 T2,/  .op .xor T2 T1 S7, .opi .xori T2 T2 0, .op .add S8 S8 T2,/|lean/Rv32/Health.lean
+start_run|the reference is bit 1 of the first sample, not bit 0|s/  .opi .andi S7 S7 1, .opi .addi S4 0 2,/  .opi .andi S7 S7 2, .opi .addi S4 0 2,/|lean/Rv32/Health.lean
 verdict_run|a sample that fails goes to the copy, one that passes to HALT 1|s/\[ .br .bne S6 0 0x01a \]/[ .br .beq S6 0 0x01a ]/
 verdict_run|a failure halts with 0|s/  .opi .addi A0 0 1, .opi .addi T0 0 1, .ecall \]/  .opi .addi A0 0 0, .opi .addi T0 0 1, .ecall ]/
 copy_iter|the copy writes each word to the output one word late|s/\[ .ld .lw T2 S1 0, .st .sw S2 T2 0 \]/[ .ld .lw T2 S1 0, .st .sw S2 T2 4 ]/

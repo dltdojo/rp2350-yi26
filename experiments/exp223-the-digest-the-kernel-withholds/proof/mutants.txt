@@ -1,0 +1,16 @@
+# exp223 — wrong versions of the kernel, and wrong claims about the right one.
+# Each must be refused by Lean. The tests themselves are exp222's, in
+# lean/Rv32/Health.lean, and exp222's mutants already hold them; SHA-256 is
+# exp208's, whose mutants hold it. These are the joins that are exp223's own.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+setup_run|the tests read 0x2000, the data, not the samples SHA-256 hashes|s/def setup : List Instr := \[ .auipc S0 0, .lui T1 3,/def setup : List Instr := [ .auipc S0 0, .lui T1 2,/
+front_decides|the branch is inverted: a failure goes on to SHA-256|s/def verdict : List Instr := \[ .br .beq S6 0 0x7c4 \]/def verdict : List Instr := [ .br .bne S6 0 0x7c4 ]/
+front_decides|a pass lands one instruction into SHA-256, past its auipc|s/def verdict : List Instr := \[ .br .beq S6 0 0x7c4 \]/def verdict : List Instr := [ .br .beq S6 0 0x7c6 ]/
+front_decides|a failure halts with 0|s/def fail : List Instr := \[ .opi .addi A0 0 1,/def fail : List Instr := [ .opi .addi A0 0 0,/
+from_boot|the length SHA-256 is given is 4032, one block short|s/(Sha.K ++ Sha.IV ++ \[4096\])/(Sha.K ++ Sha.IV ++ [4032])/
+conditions|the count when healthy is one short|s/(Healthy s.mem base → ∃ s', run env 334284 s/(Healthy s.mem base → ∃ s', run env 334283 s/
+conditions|the digest is of the samples' first 4092 bytes|s/readBytes m (base + BitVec.ofNat 32 SAMPLES) 4096/readBytes m (base + BitVec.ofNat 32 SAMPLES) 4092/
+conditions|nothing but the digest's 32 bytes changed, SHA-256's scratch left out|s/Keeps (base + BitVec.ofNat 32 DIGEST) 0x300 s.mem s'.mem) := by/Keeps (base + BitVec.ofNat 32 DIGEST) 0x20 s.mem s'.mem) := by/
+placed1|the region is 64 KiB, as every kernel before it had|s/  region : env.region = ⟨base.toNat, base.toNat + 0x20000⟩/  region : env.region = ⟨base.toNat, base.toNat + 0x10000⟩/
+Region.ok_within|a region inside another is one that starts no later|s/def Region.within (r r' : Region) : Prop := r'.lo ≤ r.lo ∧ r.hi ≤ r'.hi/def Region.within (r r' : Region) : Prop := r'.lo ≤ r.lo/|lean/Rv32/Within.lean

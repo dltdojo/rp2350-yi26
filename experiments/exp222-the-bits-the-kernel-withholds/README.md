@@ -57,9 +57,11 @@ The specification is three Lean definitions, read off exp114's crate:
 
 | Theorem | Says |
 | --- | --- |
-| `body_regs` | one sample's seventeen instructions leave the last bit, the run, the failure flag and the agreement count exactly as the specification advances them |
-| `health_loop` | after `j` samples, the kernel's registers hold the specification's state after `j` bits |
-| `verdict_run` | unhealthy: HALT 1 seven instructions on, memory untouched. Healthy: on to the copy |
+| `Health.body_regs` | one sample's seventeen instructions leave the last bit, the run, the failure flag and the agreement count exactly as the specification advances them |
+| `Health.health_loop` | after `j` samples, the kernel's registers hold the specification's state after `j` bits |
+| `Health.front_run` | the tests, instructions 5 to 31: `s6` is zero exactly when the samples are healthy, and nothing is written |
+| `setup_run` | the pointers to the samples and the output |
+| `verdict_run` | unhealthy: HALT 1 four instructions after the tests, memory untouched. Healthy: on to the copy |
 | `copy_run` | the copy of 1024 words, then HALT 0 |
 | **`withholds`** | the whole kernel: unhealthy means HALT 1 after exactly 17427 instructions with memory exactly as it was; healthy means HALT 0 after exactly 23574 with the samples copied to the output and nothing else changed |
 | `output` | when healthy, output word `j` is sample `j` |
@@ -67,6 +69,11 @@ The specification is three Lean definitions, read off exp114's crate:
 
 All rest on Lean's own axioms. The proof is built from the library's
 `run_line` and from `lean/Rv32/Copy.lean`, which this experiment added.
+Since exp223, which runs the same tests second, the specification and the
+tests' 27 instructions are [`lean/Rv32/Health.lean`](../../lean/Rv32/Health.lean),
+for any place in a kernel and any place for the samples; the five mutants
+that break the tests edit that file. `kernel.bin` is byte for byte what it
+was.
 `Copy.lean` is exp203's copy-loop memory lemma with the source, the
 destination and the count made parameters; exp203 itself is unchanged.
 
@@ -116,8 +123,12 @@ For each, the shell runs these steps:
      region is byte for byte what it was.
 
 The TRNG driver is embassy-rp's blocking path in C, with exp109's sample
-count of 1000. It is in [`shell/board_chip.c`](./shell/board_chip.c), and
-like the rest of the shell it is not proved.
+count of 1000. It is in [`tools/hazard3/shell/trng.h`](../../tools/hazard3/shell/trng.h)
+since exp223 needed it second, as are the three sources
+([`sources.h`](../../tools/hazard3/shell/sources.h)), the RTL's stand-in
+([`trng_sim.h`](../../tools/hazard3/shell/trng_sim.h)) and the streams
+([`streams.py`](../../tools/hazard3/shell/streams.py)); the UF2 is byte for
+byte the one the board ran. Like the rest of the shell, it is not proved.
 
 ## Running it on the board
 
@@ -182,7 +193,7 @@ What this run cannot say is how often the TRNG fails these tests. One run,
 ## What the RTL checks, and what it cannot
 
 On the Hazard3 RTL the kernel runs for real. A stand-in gives the TRNG's
-words ([`shell/board_sim.c`](./shell/board_sim.c)):
+words ([`tools/hazard3/shell/trng_sim.h`](../../tools/hazard3/shell/trng_sim.h)):
 
 | Stand-in | Verdict |
 | --- | --- |
@@ -227,7 +238,7 @@ A few minutes, most of it the mutants rebuilding.
 
 ```text
 === exp222 — the bits the kernel withholds ===
-recorded at 2026-10-07T09:27:37Z from commit 5063a73
+recorded at 2026-10-08T12:23:17Z from commit e6d624d
 
 >>> the kernel, as proof/Health.lean writes it
   0000  00000417  auipc x8, 0
@@ -280,8 +291,7 @@ recorded at 2026-10-07T09:27:37Z from commit 5063a73
   00bc  00000073  ecall
 
 >>> the theorems, and what they rest on
-'Exp222.body_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp222.health_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp222.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp222.verdict_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp222.copy_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp222.withholds' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -295,7 +305,7 @@ body_regs    the repetition count fails at 22, not 21                          r
 verdict_run  the adaptive proportion fails at 590, not 589                     refused in verdict_run
 body_regs    a change of bit does not reset the run                            refused in body_regs
 body_regs    the proportion counts the bits that differ from the reference     refused in body_regs
-setup_run    the reference is bit 1 of the first sample, not bit 0             refused in setup_run
+start_run    the reference is bit 1 of the first sample, not bit 0             refused in start_run
 verdict_run  a sample that fails goes to the copy, one that passes to HALT 1   refused in verdict_run
 verdict_run  a failure halts with 0                                            refused in verdict_run
 copy_iter    the copy writes each word to the output one word late             refused in copy_iter
@@ -327,12 +337,12 @@ build/exp222.uf2  8704 bytes  sha256 ae820a7b32585ca44e22c6f0c27c351c68f13f0e68b
 >>> the checks
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
 PASS  Health.lean checks, with no errors and no warnings
-PASS  all 8 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 7 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  body_regs: the proof refuses a version where the repetition count fails at 22, not 21
 PASS  verdict_run: the proof refuses a version where the adaptive proportion fails at 590, not 589
 PASS  body_regs: the proof refuses a version where a change of bit does not reset the run
 PASS  body_regs: the proof refuses a version where the proportion counts the bits that differ from the reference
-PASS  setup_run: the proof refuses a version where the reference is bit 1 of the first sample, not bit 0
+PASS  start_run: the proof refuses a version where the reference is bit 1 of the first sample, not bit 0
 PASS  verdict_run: the proof refuses a version where a sample that fails goes to the copy, one that passes to HALT 1
 PASS  verdict_run: the proof refuses a version where a failure halts with 0
 PASS  copy_iter: the proof refuses a version where the copy writes each word to the output one word late

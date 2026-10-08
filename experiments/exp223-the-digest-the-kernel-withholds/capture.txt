@@ -1,0 +1,129 @@
+=== exp223 — the digest the kernel withholds ===
+recorded at 2026-10-08T12:37:24Z from commit b97edc1
+
+>>> the front, as proof/Condition.lean writes it (exp208's SHA-256 follows at 0x1000)
+  0000  00000417  auipc x8, 0
+  0004  00003337  lui x6, 3
+  0008  006404b3  add x9, x8, x6
+  000c  0004ab83  lw x23, 0(x9)
+  0010  001bfb93  andi x23, x23, 1
+  0014  00200a13  addi x20, x0, 2
+  0018  00000a93  addi x21, x0, 0
+  001c  00000b13  addi x22, x0, 0
+  0020  00000c13  addi x24, x0, 0
+  0024  40000993  addi x19, x0, 1024
+  0028  0004a303  lw x6, 0(x9)
+  002c  00137313  andi x6, x6, 1
+  0030  014343b3  xor x7, x6, x20
+  0034  0013b393  sltiu x7, x7, 1
+  0038  407003b3  sub x7, x0, x7
+  003c  007afab3  and x21, x21, x7
+  0040  001a8a93  addi x21, x21, 1
+  0044  00030a13  addi x20, x6, 0
+  0048  015ab393  sltiu x7, x21, 21
+  004c  0013c393  xori x7, x7, 1
+  0050  007b6b33  or x22, x22, x7
+  0054  017343b3  xor x7, x6, x23
+  0058  0013c393  xori x7, x7, 1
+  005c  007c0c33  add x24, x24, x7
+  0060  00448493  addi x9, x9, 4
+  0064  fff98993  addi x19, x19, -1
+  0068  fc0990e3  bne x19, x0, -64
+  006c  24dc3393  sltiu x7, x24, 589
+  0070  0013c393  xori x7, x7, 1
+  0074  007b6b33  or x22, x22, x7
+  0078  780b04e3  beq x22, x0, 3976
+  007c  00100513  addi x10, x0, 1
+  0080  00100293  addi x5, x0, 1
+  0084  00000073  ecall
+
+>>> the theorems, and what they rest on
+'Exp223.front_decides' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp223.conditions' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp223.bytes_words' depends on axioms: [propext]
+'Exp223.sha_words' depends on axioms: [propext]
+'Exp223.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+setup_run         the tests read 0x2000, the data, not the samples SHA-256 hashes         refused in setup_run
+front_decides     the branch is inverted: a failure goes on to SHA-256                    refused in front_decides
+front_decides     a pass lands one instruction into SHA-256, past its auipc               refused in front_decides
+front_decides     a failure halts with 0                                                  refused in front_decides
+from_boot         the length SHA-256 is given is 4032, one block short                    refused in data_len
+conditions        the count when healthy is one short                                     refused in conditions
+conditions        the digest is of the samples' first 4092 bytes                          refused in conditions
+conditions        nothing but the digest's 32 bytes changed, SHA-256's scratch left out   refused in conditions
+placed1           the region is 64 KiB, as every kernel before it had                     refused in within1
+Region.ok_within  a region inside another is one that starts no later                     refused in Region.ok_within
+
+>>> the differential: the Lean model and the Hazard3 RTL against exp114's tests and hashlib
+PASS  random 0: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 16f4a129e8c494a2…
+PASS  random 1: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 8e7512dca87142b8…
+PASS  random 2: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 18ee5926ccd3fbdb…
+PASS  random 3: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 426a52747a09e302…
+PASS  random 4: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, b79e08f3e9dc3633…
+PASS  random 5: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 4cdfa162b7cf60cf…
+PASS  stuck at 1: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  stuck at 0: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  runs of 20: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, f897635874145497…
+PASS  runs of 21: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  a run of 21 at the end: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  588 agree: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 089372c1cc190e2b…
+PASS  589 agree: exp114 says withheld: adaptive proportion 589; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  nine ones then a zero: exp114 says withheld: adaptive proportion 922; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: kernel 8995effdbd2aba7a…, RTL minstret 334287 conditioned, 17428 withheld
+build/exp223.bin  12852 bytes, the build allows 16384
+build/exp223.uf2  26112 bytes  sha256 5c1c1a1e16816e4717eea9ed3c8e41ca14073acb7d059eac253891f1c5fd68ba
+
+>>> on the RTL, the kernel for real on three sources: REPT verdict source failed a0 minstret cause
+52455054 00000000 00000003 00000000 00000000 00000000 00000000 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  Condition.lean checks, with no errors and no warnings
+PASS  all 5 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  setup_run: the proof refuses a version where the tests read 0x2000, the data, not the samples SHA-256 hashes
+PASS  front_decides: the proof refuses a version where the branch is inverted: a failure goes on to SHA-256
+PASS  front_decides: the proof refuses a version where a pass lands one instruction into SHA-256, past its auipc
+PASS  front_decides: the proof refuses a version where a failure halts with 0
+PASS  from_boot: the proof refuses a version where the length SHA-256 is given is 4032, one block short
+PASS  conditions: the proof refuses a version where the count when healthy is one short
+PASS  conditions: the proof refuses a version where the digest is of the samples' first 4092 bytes
+PASS  conditions: the proof refuses a version where nothing but the digest's 32 bytes changed, SHA-256's scratch left out
+PASS  placed1: the proof refuses a version where the region is 64 KiB, as every kernel before it had
+PASS  Region.ok_within: the proof refuses a version where a region inside another is one that starts no later
+PASS  kernel.bin is what proof/Condition.lean writes, 8484 bytes, and kernel.sha256 is its hash
+PASS  kernel.bin holds exp208's sha.bin, byte for byte, at 0x1000, and zeros between the pieces
+PASS  random 0: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 16f4a129e8c494a2…
+PASS  random 1: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 8e7512dca87142b8…
+PASS  random 2: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 18ee5926ccd3fbdb…
+PASS  random 3: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 426a52747a09e302…
+PASS  random 4: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, b79e08f3e9dc3633…
+PASS  random 5: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 4cdfa162b7cf60cf…
+PASS  stuck at 1: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  stuck at 0: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  runs of 20: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, f897635874145497…
+PASS  runs of 21: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  a run of 21 at the end: exp114 says withheld: repetition count 21; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  588 agree: exp114 says healthy; the model and the RTL halt with 0, the model after 334284; both digests hashlib's, 089372c1cc190e2b…
+PASS  589 agree: exp114 says withheld: adaptive proportion 589; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  nine ones then a zero: exp114 says withheld: adaptive proportion 922; the model and the RTL halt with 1, the model after 17425; no digest, the model's region untouched
+PASS  the shell builds for the chip and for the RTL, the chip's in 12852 of the 16384 bytes it may use
+PASS  all 51 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 12852-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20060000
+PASS  the UF2 is byte for byte the committed one: 5c1c1a1e16816e47…
+PASS  on the RTL, against a stand-in TRNG that works: its samples pass and their digest is sha256.c's, both broken sources are withheld, each check as conditions says — ok
+PASS  on the RTL, against a stand-in TRNG giving all ones: the kernel, run for real, withholds its digest at minstret 17428 — verdict 3
+PASS  on the RTL, against a stand-in TRNG giving nothing: verdict 2, before the kernel runs
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — verdict 1, check 1
+PASS  the shell catches a version where the chip is asked to count one more when healthy — verdict 1, check 3
+PASS  the shell catches a version where the broken source is nine ones then a zero no longer, but a fair alternation — it passes: verdict 4
+PASS  the shell catches a version where the digest is held against SHA-256 of one block fewer — verdict 1, check 4
+PASS  the shell catches a version where the digest and its scratch are not cleared before the region is hashed again — verdict 1, check 5
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a verdict

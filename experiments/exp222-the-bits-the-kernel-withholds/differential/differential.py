@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """exp222 — kernel.bin on the Lean model (rv32run) and on the Hazard3 RTL,
-against exp114's health tests in Python, over every stream in streams.py.
+against exp114's health tests in Python, over every stream in
+tools/hazard3/shell/streams.py.
 
   differential.py RV32RUN      PASS/FAIL lines; exit 0 = all pass
 
@@ -15,7 +16,6 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools", "hazard3", "shell"))
 from expect import model, rtl  # noqa: E402
 from streams import N, healthy, streams  # noqa: E402

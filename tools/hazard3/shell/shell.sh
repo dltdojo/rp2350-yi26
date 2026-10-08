@@ -15,6 +15,11 @@
 # instructions around the payload — the ones minstret counts — are the RTL
 # harness's own.
 #
+# The region is 64 KiB unless SHELL_WIDE=1 is set when a build function is
+# called: then it is 128 KiB, at 0x20060000 on the chip and 0x80040000 on the
+# RTL (NAPOT wants it aligned to its size) — exp223's, whose kernel is two
+# kernels each proved in a 64 KiB of its own, the second starting 4 KiB in.
+#
 #   shell_chip FLASH OUT SRC...   OUT.elf, OUT.bin, OUT.uf2; the link refuses
 #                                 an image over FLASH bytes
 #   shell_sim OUT SRC...          OUT.elf, OUT.bin, for `sim.sh bare`
@@ -54,9 +59,18 @@ shell_cc() {
         -fno-pic -mno-relax -fuse-ld=lld -Wall -Werror -I "$SHELL_HARNESS" -I "$SHELL_TOOLS" "$@"
 }
 
+shell_region() { # chip|sim -> the -D flags for the region
+    if [[ "${SHELL_WIDE:-0}" == 1 ]]; then
+        if [[ "$1" == chip ]]; then echo "-DREGION=0x20060000 -DREGION_SIZE=0x20000 -DMSTACK=0x20060000"
+        else echo "-DREGION=0x80040000 -DREGION_SIZE=0x20000 -DMSTACK=0x80010000"; fi
+    elif [[ "$1" == chip ]]; then echo "-DREGION=0x20070000 -DMSTACK=0x20070000"
+    else echo "-DREGION=0x80010000 -DMSTACK=0x80010000"; fi
+}
+
 shell_chip() { # flash-bytes out src...
     local flash="$1" out="$2"; shift 2
-    shell_cc -DSHELL -DREGION=0x20070000 -DMSTACK=0x20070000 \
+    # shellcheck disable=SC2046
+    shell_cc -DSHELL $(shell_region chip) \
         -Wl,-T,"$SHELL_TOOLS/link_chip.ld" -Wl,--defsym=FLASH_SIZE="$flash" \
         -o "$out.elf" "$SHELL_TOOLS/start_chip.S" "$SHELL_HARNESS/harness.S" "$@" &&
     llvm-objcopy -O binary "$out.elf" "$out.bin" &&
@@ -66,7 +80,8 @@ shell_chip() { # flash-bytes out src...
 
 shell_sim() { # out src...
     local out="$1"; shift
-    shell_cc -DSHELL -DREGION=0x80010000 -DMSTACK=0x80010000 -Wl,-T,"$SHELL_TOOLS/link_sim.ld" \
+    # shellcheck disable=SC2046
+    shell_cc -DSHELL $(shell_region sim) -Wl,-T,"$SHELL_TOOLS/link_sim.ld" \
         -o "$out.elf" "$SHELL_TOOLS/start_sim.S" "$SHELL_HARNESS/harness.S" "$@" &&
     llvm-objcopy -O binary "$out.elf" "$out.bin"
 }
