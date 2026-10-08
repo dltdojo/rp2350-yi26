@@ -89,7 +89,7 @@ else
     exit 1
 fi
 python3 ../../tools/hazard3/shell/uf2check.py build/exp223.uf2 build/exp223.bin \
-    "$(llvm-nm build/chip.elf | awk '$3 == "_start" {print $1}')" 16384 || FAILED=1
+    "$(llvm-nm build/chip.elf | awk '$3 == "_start" {print $1}')" 16384 0x20060000 || FAILED=1
 if [[ "$(clang --version | head -1)" == "$(cat build-toolchain.txt)" ]]; then
     if [[ "$(sha256sum build/exp223.uf2 | cut -d' ' -f1)" == "$(cat exp223.uf2.sha256)" ]]; then
         pass "the UF2 is byte for byte the committed one: $(cut -c1-16 exp223.uf2.sha256)…"

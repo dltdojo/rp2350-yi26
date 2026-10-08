@@ -3,7 +3,7 @@
 """tools/hazard3/shell — a shell's UF2, read back independently of the tool
 that wrote it.
 
-  uf2check.py UF2 BIN START [FLASH]    PASS/FAIL lines; exit 0 = as claimed
+  uf2check.py UF2 BIN START [FLASH [STACK]]    PASS/FAIL lines; exit 0 = as claimed
 
 START is _start's address from the ELF's symbol table; FLASH is how many bytes
 from 0x10000000 the image may use, 4096 (flash sector 0) unless given. The
@@ -11,7 +11,8 @@ claims: every block is family `absolute` and lies in those bytes, together
 they are exactly BIN,
 the image starts with a jump to START, and the IMAGE_DEF block after it is the
 eight words start_chip.S documents — with START as its entry point and the
-region's base as its stack.
+region's base as its stack: STACK, 0x20070000 unless given (0x20060000 for
+shell.sh's SHELL_WIDE=1, exp223's 128 KiB region).
 """
 import struct
 import sys
@@ -33,6 +34,7 @@ def blocks(uf2):
 def main():
     uf2, image, start = open(sys.argv[1], "rb").read(), open(sys.argv[2], "rb").read(), int(sys.argv[3], 16)
     limit = int(sys.argv[4], 0) if len(sys.argv) > 4 else 4096
+    stack = int(sys.argv[5], 0) if len(sys.argv) > 5 else MSTACK
     where = "flash sector 0" if limit == 4096 else f"the first {limit // 1024} KiB of flash"
     bad = 0
 
@@ -57,8 +59,8 @@ def main():
         | (((off >> 12) & 0xFF) << 12) | 0x6F
     words = struct.unpack_from("<9I", image, 0)
     check(words[0] == jal, f"the image starts with a jump to _start at {start:#010x}")
-    want = (0xFFFFDED3, 0x11010142, 0x00000344, start, MSTACK, 0x000004FF, 0, 0xAB123579)
-    check(words[1:] == want, "the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000")
+    want = (0xFFFFDED3, 0x11010142, 0x00000344, start, stack, 0x000004FF, 0, 0xAB123579)
+    check(words[1:] == want, f"the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack {stack:#010x}")
     return bad
 
 
