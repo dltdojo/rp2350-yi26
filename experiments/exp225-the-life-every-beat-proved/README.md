@@ -9,7 +9,8 @@ seed it halts with 0 after exactly 3079 instructions, having written
 generations 1 to 256 and nothing else. The shell plays each generation's
 centre cell on the Pico 2's LED, a beat at a time, and seeds the next life
 with the last generation, so the LED beats forever. Every beat of it was
-written by the proved bytes. Not yet run on a board.**
+written by the proved bytes. On a Pico 2, flashed from an iPhone in the
+gallery: an irregular beat.**
 
 It was made in a gallery: Daito Manabe's *Relational Time — Life Beyond
 Simulation*, at the Taichung Art Museum, with a Pico 2 in a pocket and a phone
@@ -129,7 +130,25 @@ The beat's length assumes the clock the bootrom leaves running, as
 
 ## On the board
 
-Not yet run.
+| | |
+| --- | --- |
+| UF2 | `exp225.uf2`, SHA-256 `f8d447b2bbd780582b8f5269c5118aea91ada85d4330d3cf6f30b0fd79f5f408`, the committed one, built at a5927c7 and unchanged since |
+| Board | Pico 2 |
+| How | in the gallery, BOOTSEL, the UF2 copied on from an iPhone, the LED watched |
+| The LED | **an irregular beat** |
+
+The shell reaches the beat in only one way: all four checks held on the first
+life. The 76 bytes in SRAM were `kernel.bin`; the kernel halted in User mode
+with 0; `minstret` was 3082, the RTL's count; and the 1024 bytes of the first
+life hashed to `rule30.py`'s. So on silicon the first life is the one the
+proof says and Python computes. Every life after it plays only if its
+`minstret` is 3082 again.
+
+This is also the first time a firmware from this repository was flashed from
+an iPhone. Until now that had been done only from Ubuntu and Android.
+
+What was not recorded: whether the opening beats matched the pattern above by
+eye, and how long the board ran.
 
 ## What the RTL checks, and what it cannot
 
@@ -157,7 +176,8 @@ written.
   against lives after the first.
 - **How long a beat is.** The beat is counted in `mcycle`, at whatever clock
   the bootrom left.
-- **More than one board, or a long run.** Not run on a board yet.
+- **More than one board, or a long run.** One Pico 2, watched in a gallery for
+  an unrecorded time.
 
 ## Running it
 
