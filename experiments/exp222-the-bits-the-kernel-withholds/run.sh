@@ -11,6 +11,9 @@ source ../lib.sh
 source ../../tools/hazard3/shell/shell.sh
 
 LEAN=../../tools/lean/lean.sh
+# check.sh reads the mutants' verdicts from the table above rather than refusing
+# each a second time (tools/lean/lean.sh says how).
+export LEAN_VERDICTS="$PWD/build/verdicts"; rm -rf -- "$LEAN_VERDICTS"
 
 {
 capture_header "exp222 — the bits the kernel withholds"
@@ -42,4 +45,4 @@ echo
 
 echo ">>> the checks"
 ./check.sh
-} 2>&1 | tee capture.txt
+} 2>&1 | capture_tee

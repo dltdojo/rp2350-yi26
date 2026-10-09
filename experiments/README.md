@@ -129,7 +129,7 @@ Per experiment:
 | exp220 | The same as exp214: a **Pico 2**, a hand on **BOOTSEL** to drag `exp220.uf2` on, and **an eye on the LED** — slow blinking, or a count of one to nine flashes. No UART, no USB, no `yi26`. The cloud half needs Lean, the Hazard3 testbench, clang, lld, llvm-objcopy, cargo and python3; a few minutes. |
 | exp221 | The same as exp214: a **Pico 2**, a hand on **BOOTSEL** to drag `exp221.uf2` on, and **an eye on the LED** — slow blinking, or a count of one to eight flashes. No UART, no USB, no `yi26`. The cloud half needs Lean, the Hazard3 testbench, clang, lld, llvm-objcopy, cargo and python3; a few minutes. |
 | exp222 | The same as exp214: a **Pico 2**, a hand on **BOOTSEL** to drag `exp222.uf2` on, and **an eye on the LED** — slow blinking, or a count of one to four flashes. No UART, no USB, no `yi26`. The cloud half needs Lean, the Hazard3 testbench, clang, lld, llvm-objcopy, cargo and python3; a few minutes. |
-| exp223 | The same as exp214: a **Pico 2**, a hand on **BOOTSEL** to drag `exp223.uf2` on, and **an eye on the LED** for about ten seconds — slow blinking, or a count of one to four flashes. No UART, no USB, no `yi26`. The cloud half needs Lean, the Hazard3 testbench, clang, lld, llvm-objcopy, cargo and python3; half an hour, most of it the mutants and the RTL hashing its 128 KiB region. |
+| exp223 | The same as exp214: a **Pico 2**, a hand on **BOOTSEL** to drag `exp223.uf2` on, and **an eye on the LED** for about ten seconds — slow blinking, or a count of one to four flashes. No UART, no USB, no `yi26`. The cloud half needs Lean, the Hazard3 testbench, clang, lld, llvm-objcopy, cargo and python3; thirty-nine minutes, measured, twenty-three of them the wrong kernels one at a time. |
 | exp224 | The same as exp214: a **Pico 2**, a hand on **BOOTSEL** to drag `exp224.uf2` on, and **an eye on the LED** for about ten seconds — slow blinking, or a count of one to five flashes. No UART, no USB, no `yi26`. The cloud half needs Lean, the Hazard3 testbench, clang, lld, llvm-objcopy, cargo and python3; seventeen minutes on four cores, measured: five the wrong judges, five the RTL runs side by side. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
@@ -476,6 +476,27 @@ experiment by experiment, and the run that teaches an experiment to somebody is
 the run that produces its capture; a number taken outside that order arrives
 with no walkthrough attached to it. Whoever next works through one of those
 experiments replaces its block with what their board actually printed.
+
+### A capture takes time, and how much is measured
+
+exp224 recorded its capture four times in one round, and a recording was half
+an hour that nobody had broken down. So from exp224 on, a `run.sh` ends with
+`} 2>&1 | capture_tee` instead of `tee capture.txt`, and every recording leaves
+`build/capture-timing.txt` beside it: each `>>>` section, longest first. The
+capture is byte for byte what `tee` would have written.
+
+The first timing found two costs that were not the experiment's:
+- **The wrong proofs were refused twice**, once by `lean.sh table` in `run.sh`
+  and again by `lean.sh mutants` in `check.sh`. A `run.sh` exports
+  `LEAN_VERDICTS`, and `check.sh` reads the table's verdicts back instead.
+- **The RTL ran one shell at a time** on a machine with four cores.
+  `side_by_side` in `lib.sh` runs independent checks four at a time and prints
+  them in order.
+
+exp224 went from 33 to 17 minutes. exp222, exp223 and exp224 use all three; a
+new experiment should start from them. Older experiments are not converted
+ahead of need: they are rarely recorded again, and whoever records one next
+adds the two lines to its `run.sh` then.
 
 ### Of the two sizes in every capture, only one is the firmware
 

@@ -280,7 +280,10 @@ the board.
 
 Needs Lean (`tools/lean/setup.sh`), the Hazard3 testbench
 (`tools/hazard3/setup.sh`), and clang, lld, llvm-objcopy, cargo and python3.
-Half an hour, most of it the mutants and the RTL hashing its region.
+`./run.sh` took 39 minutes on four cores, measured by `capture_tee` into
+`build/capture-timing.txt`: 23 for the wrong kernels, one at a time because
+four side by side run out of memory, refused once and read again by
+`check.sh`; nine for the checks, the RTL runs side by side among them.
 
 ## Expected output
 
