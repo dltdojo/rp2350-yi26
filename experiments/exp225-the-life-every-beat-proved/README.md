@@ -18,6 +18,10 @@ to flash it. The exhibition is about artificial life that is generated, not
 recorded. This is the same question asked at a smaller scale: a rhythm that
 looks alive, where every beat can be checked, and has been.
 
+What comes next, B (a visitor's presses on BOOTSEL as the seed) and C (a fly's
+motion detector, watching this life), is planned in Taiwanese Mandarin in
+[NEXT.zh-TW.md](./NEXT.zh-TW.md).
+
 ## The rule
 
 Each cell becomes **left XOR (centre OR right)**. That is Wolfram's Rule 30.
