@@ -24,7 +24,7 @@
 #
 # Needs Lean (tools/lean/setup.sh), the Hazard3 testbench
 # (tools/hazard3/setup.sh), clang, lld, llvm-objcopy, cargo and python3.
-# Without them it says SKIP. A few minutes, most of it the mutants.
+# Without them it says SKIP. A few minutes, half of it the RTL runs.
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 

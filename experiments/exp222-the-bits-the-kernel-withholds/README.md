@@ -232,7 +232,8 @@ Five wrong shells or expectations are caught:
 
 Needs Lean (`tools/lean/setup.sh`), the Hazard3 testbench
 (`tools/hazard3/setup.sh`), and clang, lld, llvm-objcopy, cargo and python3.
-A few minutes, most of it the mutants rebuilding.
+`./run.sh` took 3m37s on four cores, measured by `capture_tee` into
+`build/capture-timing.txt`: half of it the RTL runs, a tenth the mutants.
 
 ## Expected output
 
