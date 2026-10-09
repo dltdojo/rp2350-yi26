@@ -320,6 +320,26 @@ capture_header() { # title
     echo
 }
 
+# ---------- how long did each part of this recording take? -------------------
+#
+# A capture takes half an hour, and until this existed nothing said which half.
+# exp224 recorded its capture four times in one round, about two and a half
+# hours of waiting, with no number to say what to make faster.
+#
+# In `run.sh`, in place of `tee capture.txt`:
+#
+#   } 2>&1 | capture_tee
+#
+# `capture.txt` comes out byte for byte as `tee` would write it. The times go
+# to `build/capture-timing.txt`, never into the capture: a capture is compared
+# across recordings, and a number that differs every run would be noise in it.
+# Each `>>>` line opens a section. `tools/capture/tee.py` says how the time is
+# charged, and when a line's time cannot be trusted.
+capture_tee() {
+    mkdir -p build
+    python3 "$(dirname "${BASH_SOURCE[0]}")/../tools/capture/tee.py" capture.txt build/capture-timing.txt
+}
+
 # ---------- is this firmware able to bring itself back? ----------------------
 #
 # [exp190](./exp190-the-board-that-brings-itself-back/) measured what a firmware
