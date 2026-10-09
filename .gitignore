@@ -23,3 +23,6 @@ target
 # Zips built by experiments/pack.sh — artifacts, not sources
 dist
 __pycache__/
+
+# Times of a capture recording, by experiments/lib.sh capture_tee
+capture-timing.txt

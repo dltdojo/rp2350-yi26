@@ -675,3 +675,20 @@ exp224 is exp223's second user, and took its board: `health_chip.c` (the
 TRNG, the SHA-256 block for `board_sha`, the LED) and `health_sim.c` (the
 stand-ins and `sha256.c`), each compiled against the experiment's own
 `board.h`. exp223's UF2 still builds byte for byte.
+
+## `capture/`
+
+`tee.py` is `tee` that also writes down when each line arrived. A `run.sh`
+uses it through `capture_tee` in `experiments/lib.sh`, in place of
+`tee capture.txt`:
+
+```sh
+{ ... } 2>&1 | capture_tee      # capture.txt as tee writes it; the times in build/capture-timing.txt
+```
+
+The capture is byte for byte what `tee` would have written; the times never go
+into it, since a capture is compared across recordings. The timing file has
+the `>>>` sections longest first, the twenty lines that waited longest, and
+every line. A line is charged with the wait since the line before it, so the
+output of a program that buffers into a pipe arrives as one long wait on its
+first line; the sections are right regardless. exp224 is its first user.

@@ -20,6 +20,13 @@
 #   lean.sh mutants FILE    PASS/FAIL per line of mutants.txt beside FILE
 #   lean.sh run FILE        what Lean prints, and its exit status
 #   lean.sh table FILE      one line per mutant: refused in which theorem
+#
+#   LEAN_VERDICTS=DIR       `table` also keeps, in DIR, the PASS/FAIL lines
+#                           `mutants` would print, and `mutants` prints those
+#                           instead of running Lean again on the same inputs:
+#                           FILE, its mutants.txt and every .lean in lean/,
+#                           by their bytes. A run.sh sets it, so its check.sh
+#                           does not refuse every mutant a second time.
 #   lean.sh exec FILE [LIB] [ARGS...]
 #                           `lean --run FILE ARGS...`: run its `main`, against
 #                           the library copy LIB if given (a directory with a
@@ -120,6 +127,7 @@ JOBS="${LEAN_JOBS:-$(n="$(nproc 2>/dev/null || echo 1)"; echo $(( n < 4 ? n : 4 
 
 one_mutant() { # callback label what expr dir
     local cb="$1" label="$2" what="$3" expr="$4" dir="$5" target="" lib
+    [[ "$mode" == table && -n "${LEAN_VERDICTS-}" ]] && VERDICT_OUT="$dir/verdict"
     # A sed may itself contain `|`, so the target is recognised by its
     # shape, last on the line, and only that.
     if [[ "$expr" =~ ^(.*)\|(lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
@@ -149,6 +157,10 @@ each_mutant() { # callback: label what mutant-file changed lib
     done < "$mutants"
     wait
     for ((i = 1; i <= n; i++)); do cat "$scratch/$i/out"; done
+    if [[ "$mode" == table && -n "${LEAN_VERDICTS-}" ]]; then
+        mkdir -p "$LEAN_VERDICTS"
+        for ((i = 1; i <= n; i++)); do cat "$scratch/$i/verdict"; done > "$LEAN_VERDICTS/$(verdicts_key)"
+    fi
     grep -q '^FAIL' "$scratch"/*/out 2>/dev/null && status=1
     rm -rf "$scratch"
 }
@@ -165,13 +177,25 @@ starved() { # output status
     [[ "$2" -eq 137 || "$2" -eq 134 ]] || grep -qE 'out of memory|INTERNAL PANIC' <<< "$1"
 }
 
-judge_mutant() {
-    local claim="$1: the proof refuses a version where $2" out code
-    if [[ "$4" == no ]]; then echo "FAIL  $claim — the sed no longer matches its file"; status=1; return; fi
-    out="$(lean_on "$3" "$5" 2>&1)"; code=$?
-    if [[ $code -eq 0 ]]; then echo "FAIL  $claim — Lean accepted it"; status=1
-    elif starved "$out" "$code"; then echo "FAIL  $claim — inconclusive: Lean ran out of memory (try LEAN_JOBS=1)"; status=1
+verdict() { # label what changed code out — the line `mutants` prints
+    local claim="$1: the proof refuses a version where $2"
+    if [[ "$3" == no ]]; then echo "FAIL  $claim — the sed no longer matches its file"
+    elif [[ $4 -eq 0 ]]; then echo "FAIL  $claim — Lean accepted it"
+    elif starved "$5" "$4"; then echo "FAIL  $claim — inconclusive: Lean ran out of memory (try LEAN_JOBS=1)"
     else echo "PASS  $claim"; fi
+}
+
+judge_mutant() {
+    local out="" code=1
+    [[ "$4" == no ]] || { out="$(lean_on "$3" "$5" 2>&1)"; code=$?; }
+    verdict "$1" "$2" "$4" "$code" "$out"
+}
+
+# What LEAN_VERDICTS keeps verdicts under: FILE, its mutants and the library,
+# by their bytes, so that a verdict is reused only for the inputs it judged.
+verdicts_key() {
+    { realpath "$file"; cat "$file" "$mutants"
+      find "$REPO/lean" -name '*.lean' -not -path '*/.lake/*' | sort | xargs cat; } | sha256sum | cut -c1-32
 }
 
 # Where the checker stopped, as the theorem it stopped in: the first step that
@@ -179,6 +203,7 @@ judge_mutant() {
 where_refused() {
     local out loc path line where src code
     out="$(lean_on "$3" "$5" 2>&1)"; code=$?
+    [[ -z "${VERDICT_OUT-}" ]] || verdict "$1" "$2" "$4" "$code" "$out" > "$VERDICT_OUT"
     if starved "$out" "$code"; then
         printf "%-${lw}s  %-${width}s INCONCLUSIVE: Lean ran out of memory\n" "$1" "$2"; return
     fi
@@ -256,7 +281,12 @@ case "$mode" in
             status=1
         fi;;
     mutants)
-        each_mutant judge_mutant;;
+        kept="${LEAN_VERDICTS:+$LEAN_VERDICTS/$(verdicts_key)}"
+        if [[ -n "$kept" && -s "$kept" ]]; then
+            cat "$kept"; ! grep -q '^FAIL' "$kept" || status=1
+        else
+            each_mutant judge_mutant
+        fi;;
     table)
         width="$(awk -F'|' '!/^#/ && NF >= 3 { if (length($2) > w) w = length($2) } END { print (w + 2 > 54 ? w + 2 : 54) }' "$mutants")"
         lw="$(awk -F'|' '!/^#/ && NF >= 3 { if (length($1) > w) w = length($1) } END { print w }' "$mutants")"
