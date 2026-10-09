@@ -95,24 +95,31 @@ want=(
     "52455054 00000003 00000000 00000000 00000001 00004416 00000008 exit=3 "
     "52455054 00000002 00000000 00000000 00000000 00000000 00000000 exit=2 "
 )
-for d in 0 1 2; do
+stand_in() { # device
+    local d="$1" got
     ./build.sh sim shell build "$work/s$d" "$d" 2> /dev/null
     got="$(shell_words "$work/s$d.bin")"
     if [[ "$got" == "${want[$d]}" ]]; then pass "on the RTL, against ${said[$d]}"
     else fail "on the RTL, against ${said[$d]}" "$got"; fi
-done
-rm -rf -- "$work"
+}
+
+# Every RTL run below is on its own copy, so they run side by side; the lines
+# come out in this order regardless.
+side_by_side_begin
+for d in 0 1 2; do side_by_side stand_in "$d"; done
 
 # Wrong shells and wrong expectations, against the stand-in that works.
-shell_mutant "kernel.sha256 is not kernel.bin's hash — verdict 1, check 1" expect.h \
+side_by_side shell_mutant "kernel.sha256 is not kernel.bin's hash — verdict 1, check 1" expect.h \
     's/KERNEL_SHA\[32\] = {0x[0-9a-f][0-9a-f]/KERNEL_SHA[32] = {0x00/' "52455054 00000001 00000000 00000001 "
-shell_mutant "the chip is asked to count one more when healthy — verdict 1, check 3" expect.h \
+side_by_side shell_mutant "the chip is asked to count one more when healthy — verdict 1, check 3" expect.h \
     's/#define INSTRET_PASS 23578u/#define INSTRET_PASS 23579u/' "52455054 00000001 00000000 00000003 "
-shell_mutant "the broken source is nine ones then a zero no longer, but a fair alternation — it passes: verdict 4" shell.c \
+side_by_side shell_mutant "the broken source is nine ones then a zero no longer, but a fair alternation — it passes: verdict 4" shell.c \
     's/^    gather();$/    gather();\n    if (source == 2) for (uint32_t i = 0; i < N; i++) samples[i] = i % 2;/' "52455054 00000004 00000002 "
-shell_mutant "the output is not cleared before the region is hashed again — the region differs: verdict 1, check 5" shell.c \
+side_by_side shell_mutant "the output is not cleared before the region is hashed again — the region differs: verdict 1, check 5" shell.c \
     's/^            w\[OUT_OFF \/ 4 + i\] = 0;$/            (void)0;/' "52455054 00000001 00000000 00000005 "
-shell_mutant "the shell itself traps in step 3 — a fault, not a verdict" shell.c \
+side_by_side shell_mutant "the shell itself traps in step 3 — a fault, not a verdict" shell.c \
     's/^    step = 3;$/    step = 3;\n    __asm__ volatile (".word 0");/' "4641554c 00000003 00000002 "
+side_by_side_end
+rm -rf -- "$work"
 
 exit "$FAILED"

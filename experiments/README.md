@@ -477,6 +477,27 @@ the run that produces its capture; a number taken outside that order arrives
 with no walkthrough attached to it. Whoever next works through one of those
 experiments replaces its block with what their board actually printed.
 
+### A capture takes time, and how much is measured
+
+exp224 recorded its capture four times in one round, and a recording was half
+an hour that nobody had broken down. So from exp224 on, a `run.sh` ends with
+`} 2>&1 | capture_tee` instead of `tee capture.txt`, and every recording leaves
+`build/capture-timing.txt` beside it: each `>>>` section, longest first. The
+capture is byte for byte what `tee` would have written.
+
+The first timing found two costs that were not the experiment's:
+- **The wrong proofs were refused twice**, once by `lean.sh table` in `run.sh`
+  and again by `lean.sh mutants` in `check.sh`. A `run.sh` exports
+  `LEAN_VERDICTS`, and `check.sh` reads the table's verdicts back instead.
+- **The RTL ran one shell at a time** on a machine with four cores.
+  `side_by_side` in `lib.sh` runs independent checks four at a time and prints
+  them in order.
+
+exp224 went from 33 to 17 minutes. exp222, exp223 and exp224 use all three; a
+new experiment should start from them. Older experiments are not converted
+ahead of need: they are rarely recorded again, and whoever records one next
+adds the two lines to its `run.sh` then.
+
 ### Of the two sizes in every capture, only one is the firmware
 
 Each `Expected output` carries a pair of lines like these, and they do not mean
