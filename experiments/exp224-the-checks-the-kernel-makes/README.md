@@ -246,4 +246,368 @@ shell.
 
 ## Expected output
 
-To be pasted from `capture.txt` once `run.sh` has recorded it.
+`run.sh`'s recording, [`capture.txt`](./capture.txt), pasted:
+
+```text
+=== exp224 — the checks the kernel makes ===
+recorded at 2026-10-09T03:34:11Z from commit a2160f1
+
+>>> the judge, as proof/Judge.lean writes it
+  0000  00000417  auipc x8, 0
+  0004  00001337  lui x6, 1
+  0008  006404b3  add x9, x8, x6
+  000c  00000913  addi x18, x0, 0
+  0010  00000a13  addi x20, x0, 0
+  0014  0204a303  lw x6, 32(x9)
+  0018  0404a383  lw x7, 64(x9)
+  001c  00734333  xor x6, x6, x7
+  0020  006a6a33  or x20, x20, x6
+  0024  0244a303  lw x6, 36(x9)
+  0028  0444a383  lw x7, 68(x9)
+  002c  00734333  xor x6, x6, x7
+  0030  006a6a33  or x20, x20, x6
+  0034  0284a303  lw x6, 40(x9)
+  0038  0484a383  lw x7, 72(x9)
+  003c  00734333  xor x6, x6, x7
+  0040  006a6a33  or x20, x20, x6
+  0044  02c4a303  lw x6, 44(x9)
+  0048  04c4a383  lw x7, 76(x9)
+  004c  00734333  xor x6, x6, x7
+  0050  006a6a33  or x20, x20, x6
+  0054  0304a303  lw x6, 48(x9)
+  0058  0504a383  lw x7, 80(x9)
+  005c  00734333  xor x6, x6, x7
+  0060  006a6a33  or x20, x20, x6
+  0064  0344a303  lw x6, 52(x9)
+  0068  0544a383  lw x7, 84(x9)
+  006c  00734333  xor x6, x6, x7
+  0070  006a6a33  or x20, x20, x6
+  0074  0384a303  lw x6, 56(x9)
+  0078  0584a383  lw x7, 88(x9)
+  007c  00734333  xor x6, x6, x7
+  0080  006a6a33  or x20, x20, x6
+  0084  03c4a303  lw x6, 60(x9)
+  0088  05c4a383  lw x7, 92(x9)
+  008c  00734333  xor x6, x6, x7
+  0090  006a6a33  or x20, x20, x6
+  0094  00000a93  addi x21, x0, 0
+  0098  0604a303  lw x6, 96(x9)
+  009c  0804a383  lw x7, 128(x9)
+  00a0  00734333  xor x6, x6, x7
+  00a4  006aeab3  or x21, x21, x6
+  00a8  0644a303  lw x6, 100(x9)
+  00ac  0844a383  lw x7, 132(x9)
+  00b0  00734333  xor x6, x6, x7
+  00b4  006aeab3  or x21, x21, x6
+  00b8  0684a303  lw x6, 104(x9)
+  00bc  0884a383  lw x7, 136(x9)
+  00c0  00734333  xor x6, x6, x7
+  00c4  006aeab3  or x21, x21, x6
+  00c8  06c4a303  lw x6, 108(x9)
+  00cc  08c4a383  lw x7, 140(x9)
+  00d0  00734333  xor x6, x6, x7
+  00d4  006aeab3  or x21, x21, x6
+  00d8  0704a303  lw x6, 112(x9)
+  00dc  0904a383  lw x7, 144(x9)
+  00e0  00734333  xor x6, x6, x7
+  00e4  006aeab3  or x21, x21, x6
+  00e8  0744a303  lw x6, 116(x9)
+  00ec  0944a383  lw x7, 148(x9)
+  00f0  00734333  xor x6, x6, x7
+  00f4  006aeab3  or x21, x21, x6
+  00f8  0784a303  lw x6, 120(x9)
+  00fc  0984a383  lw x7, 152(x9)
+  0100  00734333  xor x6, x6, x7
+  0104  006aeab3  or x21, x21, x6
+  0108  07c4a303  lw x6, 124(x9)
+  010c  09c4a383  lw x7, 156(x9)
+  0110  00734333  xor x6, x6, x7
+  0114  006aeab3  or x21, x21, x6
+  0118  00000b13  addi x22, x0, 0
+  011c  0a04a303  lw x6, 160(x9)
+  0120  0c04a383  lw x7, 192(x9)
+  0124  00734333  xor x6, x6, x7
+  0128  006b6b33  or x22, x22, x6
+  012c  0a44a303  lw x6, 164(x9)
+  0130  0c44a383  lw x7, 196(x9)
+  0134  00734333  xor x6, x6, x7
+  0138  006b6b33  or x22, x22, x6
+  013c  0a84a303  lw x6, 168(x9)
+  0140  0c84a383  lw x7, 200(x9)
+  0144  00734333  xor x6, x6, x7
+  0148  006b6b33  or x22, x22, x6
+  014c  0ac4a303  lw x6, 172(x9)
+  0150  0cc4a383  lw x7, 204(x9)
+  0154  00734333  xor x6, x6, x7
+  0158  006b6b33  or x22, x22, x6
+  015c  0b04a303  lw x6, 176(x9)
+  0160  0d04a383  lw x7, 208(x9)
+  0164  00734333  xor x6, x6, x7
+  0168  006b6b33  or x22, x22, x6
+  016c  0b44a303  lw x6, 180(x9)
+  0170  0d44a383  lw x7, 212(x9)
+  0174  00734333  xor x6, x6, x7
+  0178  006b6b33  or x22, x22, x6
+  017c  0b84a303  lw x6, 184(x9)
+  0180  0d84a383  lw x7, 216(x9)
+  0184  00734333  xor x6, x6, x7
+  0188  006b6b33  or x22, x22, x6
+  018c  0bc4a303  lw x6, 188(x9)
+  0190  0dc4a383  lw x7, 220(x9)
+  0194  00734333  xor x6, x6, x7
+  0198  006b6b33  or x22, x22, x6
+  019c  0004ae03  lw x28, 0(x9)
+  01a0  0044ae83  lw x29, 4(x9)
+  01a4  0084af03  lw x30, 8(x9)
+  01a8  00c4af83  lw x31, 12(x9)
+  01ac  0104a583  lw x11, 16(x9)
+  01b0  0144a603  lw x12, 20(x9)
+  01b4  0184a683  lw x13, 24(x9)
+  01b8  008e4713  xori x14, x28, 8
+  01bc  00173713  sltiu x14, x14, 1
+  01c0  001ec793  xori x15, x29, 1
+  01c4  0017b793  sltiu x15, x15, 1
+  01c8  00f77733  and x14, x14, x15
+  01cc  001f3793  sltiu x15, x30, 1
+  01d0  01403833  sltu x16, x0, x20
+  01d4  0016b893  sltiu x17, x13, 1
+  01d8  01186833  or x16, x16, x17
+  01dc  002f3893  sltiu x17, x30, 2
+  01e0  00e8f8b3  and x17, x17, x14
+  01e4  0018c893  xori x17, x17, 1
+  01e8  00bfc333  xor x6, x31, x11
+  01ec  00603333  sltu x6, x0, x6
+  01f0  00f37333  and x6, x6, x15
+  01f4  00cfc3b3  xor x7, x31, x12
+  01f8  007033b3  sltu x7, x0, x7
+  01fc  0017ce13  xori x28, x15, 1
+  0200  01c3f3b3  and x7, x7, x28
+  0204  00736333  or x6, x6, x7
+  0208  015033b3  sltu x7, x0, x21
+  020c  00e3f3b3  and x7, x7, x14
+  0210  00f3f3b3  and x7, x7, x15
+  0214  01603e33  sltu x28, x0, x22
+  0218  00189893  slli x17, x17, 1
+  021c  00231313  slli x6, x6, 2
+  0220  00339393  slli x7, x7, 3
+  0224  004e1e13  slli x28, x28, 4
+  0228  01186833  or x16, x16, x17
+  022c  00686833  or x16, x16, x6
+  0230  00786833  or x16, x16, x7
+  0234  01c86833  or x16, x16, x28
+  0238  00080e63  beq x16, x0, 28
+  023c  00681513  slli x10, x16, 6
+  0240  00391313  slli x6, x18, 3
+  0244  00656533  or x10, x10, x6
+  0248  00156513  ori x10, x10, 1
+  024c  00100293  addi x5, x0, 1
+  0250  00000073  ecall
+  0254  00091a63  bne x18, x0, 20
+  0258  020f0463  beq x30, x0, 40
+  025c  00300513  addi x10, x0, 3
+  0260  00100293  addi x5, x0, 1
+  0264  00000073  ecall
+  0268  ffff0313  addi x6, x30, -1
+  026c  00030a63  beq x6, x0, 20
+  0270  00391513  slli x10, x18, 3
+  0274  00456513  ori x10, x10, 4
+  0278  00100293  addi x5, x0, 1
+  027c  00000073  ecall
+  0280  10048493  addi x9, x9, 256
+  0284  00190913  addi x18, x18, 1
+  0288  00300313  addi x6, x0, 3
+  028c  d86912e3  bne x18, x6, -636
+  0290  00000513  addi x10, x0, 0
+  0294  00100293  addi x5, x0, 1
+  0298  00000073  ecall
+
+>>> the theorems, and what they rest on
+'Exp224.checks_spec' depends on axioms: [propext, Quot.sound]
+'Exp224.iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp224.judges' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp224.bytes_words' depends on axioms: [propext]
+'Exp224.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+checks_spec  check 1 forgets the SHA-256 block's error flag             refused in checks_spec
+checks_spec  t0 = 3 counts as HALT                                      refused in checks_spec
+checks_spec  halting with 2 passes check 2                              refused in checks_spec
+checks_spec  minstret is held to the HALT 0 count whatever the code     refused in checks_spec
+checks_spec  the digest is checked after HALT 1 too                     refused in checks_spec
+body_run     the digest is compared with itself                         refused in body_run
+body_run     the region's hash after is compared with itself            refused in body_run
+iter         a failure's code puts the source one bit too high          refused in iter
+iter         the TRNG withheld is reported as 4                         refused in iter
+iter         a broken source counts as withheld when it halted with 0   refused in iter
+next_run     only two records are judged                                refused in next_run
+setup_run    the records are said to start at 0x1100                    refused in setup_run
+judges       a later record's verdict is said to come first             refused in judges
+
+>>> the differential: the Lean model and the Hazard3 RTL against the specification in Python
+PASS  as on the chip: the TRNG passed, both broken sources withheld: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  source 0: the kernel's hash is not kernel.sha256's: the model and the RTL halt with 0x41 (verdict 1, source 0, failures 00001), the model's region untouched
+PASS  source 0: the SHA-256 block reported an error: the model and the RTL halt with 0x41 (verdict 1, source 0, failures 00001), the model's region untouched
+PASS  source 0: it faulted, mcause 5: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  source 0: an ecall that was not HALT, t0 0: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  source 0: it halted with 2: the model and the RTL halt with 0x181 (verdict 1, source 0, failures 00110), the model's region untouched
+PASS  source 0: one instruction more than the RTL's: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  source 0: the region's hash changed: the model and the RTL halt with 0x401 (verdict 1, source 0, failures 10000), the model's region untouched
+PASS  source 1: the kernel's hash is not kernel.sha256's: the model and the RTL halt with 0x49 (verdict 1, source 1, failures 00001), the model's region untouched
+PASS  source 1: the SHA-256 block reported an error: the model and the RTL halt with 0x49 (verdict 1, source 1, failures 00001), the model's region untouched
+PASS  source 1: it faulted, mcause 5: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  source 1: an ecall that was not HALT, t0 0: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  source 1: it halted with 2: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  source 1: one instruction more than the RTL's: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  source 1: the region's hash changed: the model and the RTL halt with 0x409 (verdict 1, source 1, failures 10000), the model's region untouched
+PASS  source 2: the kernel's hash is not kernel.sha256's: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  source 2: the SHA-256 block reported an error: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  source 2: it faulted, mcause 5: the model and the RTL halt with 0x91 (verdict 1, source 2, failures 00010), the model's region untouched
+PASS  source 2: an ecall that was not HALT, t0 0: the model and the RTL halt with 0x91 (verdict 1, source 2, failures 00010), the model's region untouched
+PASS  source 2: it halted with 2: the model and the RTL halt with 0x91 (verdict 1, source 2, failures 00010), the model's region untouched
+PASS  source 2: one instruction more than the RTL's: the model and the RTL halt with 0x111 (verdict 1, source 2, failures 00100), the model's region untouched
+PASS  source 2: the region's hash changed: the model and the RTL halt with 0x411 (verdict 1, source 2, failures 10000), the model's region untouched
+PASS  source 0: the digest is not the samples' SHA-256: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  source 1: a wrong digest, but it halted with 1, so check 4 does not apply: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  source 0: the TRNG's samples withheld, HALT 1: the model and the RTL halt with 0x3 (verdict 3, source 0, failures 00000), the model's region untouched
+PASS  source 1: let through, HALT 0: the model and the RTL halt with 0xc (verdict 4, source 1, failures 00000), the model's region untouched
+PASS  source 2: let through, HALT 0: the model and the RTL halt with 0x14 (verdict 4, source 2, failures 00000), the model's region untouched
+PASS  source 0: withheld and a wrong count: the failure wins: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  source 1 let through, source 2 faulted: the first one wins: the model and the RTL halt with 0xc (verdict 4, source 1, failures 00000), the model's region untouched
+PASS  source 0: every check fails: the model and the RTL halt with 0x741 (verdict 1, source 0, failures 11101), the model's region untouched
+PASS  random 0: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 1: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  random 2: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  random 3: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  random 4: the model and the RTL halt with 0x241 (verdict 1, source 0, failures 01001), the model's region untouched
+PASS  random 5: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 6: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 7: the model and the RTL halt with 0x401 (verdict 1, source 0, failures 10000), the model's region untouched
+PASS  random 8: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  random 9: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  random 10: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  random 11: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 12: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  random 13: the model and the RTL halt with 0x411 (verdict 1, source 2, failures 10000), the model's region untouched
+PASS  random 14: the model and the RTL halt with 0x41 (verdict 1, source 0, failures 00001), the model's region untouched
+PASS  random 15: the model and the RTL halt with 0x491 (verdict 1, source 2, failures 10010), the model's region untouched
+PASS  random 16: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  random 17: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  random 18: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  random 19: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  random 20: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  random 21: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 22: the model and the RTL halt with 0x49 (verdict 1, source 1, failures 00001), the model's region untouched
+PASS  random 23: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  random 24: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  random 25: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  random 26: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  random 27: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  random 28: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  random 29: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: exp223's kernel 8995effdbd2aba7a…, RTL minstret 334287 conditioned, 17428 withheld; judge cf2b695c8d26a562…
+build/exp224.bin  13508 bytes, the build allows 16384
+build/exp224.uf2  27136 bytes  sha256 2ae0e1cf75d240be498a3bae453680870135dad44b9a71e1b30b00af791eed89
+
+>>> on the RTL, exp223's kernel and the judge for real: REPT verdict source failed code minstret cause
+52455054 00000000 00000000 00000000 00000000 000001bf 00000008 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  Judge.lean checks, with no errors and no warnings
+PASS  all 5 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  checks_spec: the proof refuses a version where check 1 forgets the SHA-256 block's error flag
+PASS  checks_spec: the proof refuses a version where t0 = 3 counts as HALT
+PASS  checks_spec: the proof refuses a version where halting with 2 passes check 2
+PASS  checks_spec: the proof refuses a version where minstret is held to the HALT 0 count whatever the code
+PASS  checks_spec: the proof refuses a version where the digest is checked after HALT 1 too
+PASS  body_run: the proof refuses a version where the digest is compared with itself
+PASS  body_run: the proof refuses a version where the region's hash after is compared with itself
+PASS  iter: the proof refuses a version where a failure's code puts the source one bit too high
+PASS  iter: the proof refuses a version where the TRNG withheld is reported as 4
+PASS  iter: the proof refuses a version where a broken source counts as withheld when it halted with 0
+PASS  next_run: the proof refuses a version where only two records are judged
+PASS  setup_run: the proof refuses a version where the records are said to start at 0x1100
+PASS  judges: the proof refuses a version where a later record's verdict is said to come first
+PASS  judge.bin is what proof/Judge.lean writes, 668 bytes, and judge.sha256 is its hash
+PASS  as on the chip: the TRNG passed, both broken sources withheld: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  source 0: the kernel's hash is not kernel.sha256's: the model and the RTL halt with 0x41 (verdict 1, source 0, failures 00001), the model's region untouched
+PASS  source 0: the SHA-256 block reported an error: the model and the RTL halt with 0x41 (verdict 1, source 0, failures 00001), the model's region untouched
+PASS  source 0: it faulted, mcause 5: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  source 0: an ecall that was not HALT, t0 0: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  source 0: it halted with 2: the model and the RTL halt with 0x181 (verdict 1, source 0, failures 00110), the model's region untouched
+PASS  source 0: one instruction more than the RTL's: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  source 0: the region's hash changed: the model and the RTL halt with 0x401 (verdict 1, source 0, failures 10000), the model's region untouched
+PASS  source 1: the kernel's hash is not kernel.sha256's: the model and the RTL halt with 0x49 (verdict 1, source 1, failures 00001), the model's region untouched
+PASS  source 1: the SHA-256 block reported an error: the model and the RTL halt with 0x49 (verdict 1, source 1, failures 00001), the model's region untouched
+PASS  source 1: it faulted, mcause 5: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  source 1: an ecall that was not HALT, t0 0: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  source 1: it halted with 2: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  source 1: one instruction more than the RTL's: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  source 1: the region's hash changed: the model and the RTL halt with 0x409 (verdict 1, source 1, failures 10000), the model's region untouched
+PASS  source 2: the kernel's hash is not kernel.sha256's: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  source 2: the SHA-256 block reported an error: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  source 2: it faulted, mcause 5: the model and the RTL halt with 0x91 (verdict 1, source 2, failures 00010), the model's region untouched
+PASS  source 2: an ecall that was not HALT, t0 0: the model and the RTL halt with 0x91 (verdict 1, source 2, failures 00010), the model's region untouched
+PASS  source 2: it halted with 2: the model and the RTL halt with 0x91 (verdict 1, source 2, failures 00010), the model's region untouched
+PASS  source 2: one instruction more than the RTL's: the model and the RTL halt with 0x111 (verdict 1, source 2, failures 00100), the model's region untouched
+PASS  source 2: the region's hash changed: the model and the RTL halt with 0x411 (verdict 1, source 2, failures 10000), the model's region untouched
+PASS  source 0: the digest is not the samples' SHA-256: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  source 1: a wrong digest, but it halted with 1, so check 4 does not apply: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  source 0: the TRNG's samples withheld, HALT 1: the model and the RTL halt with 0x3 (verdict 3, source 0, failures 00000), the model's region untouched
+PASS  source 1: let through, HALT 0: the model and the RTL halt with 0xc (verdict 4, source 1, failures 00000), the model's region untouched
+PASS  source 2: let through, HALT 0: the model and the RTL halt with 0x14 (verdict 4, source 2, failures 00000), the model's region untouched
+PASS  source 0: withheld and a wrong count: the failure wins: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  source 1 let through, source 2 faulted: the first one wins: the model and the RTL halt with 0xc (verdict 4, source 1, failures 00000), the model's region untouched
+PASS  source 0: every check fails: the model and the RTL halt with 0x741 (verdict 1, source 0, failures 11101), the model's region untouched
+PASS  random 0: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 1: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  random 2: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  random 3: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  random 4: the model and the RTL halt with 0x241 (verdict 1, source 0, failures 01001), the model's region untouched
+PASS  random 5: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 6: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 7: the model and the RTL halt with 0x401 (verdict 1, source 0, failures 10000), the model's region untouched
+PASS  random 8: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  random 9: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  random 10: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  random 11: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 12: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  random 13: the model and the RTL halt with 0x411 (verdict 1, source 2, failures 10000), the model's region untouched
+PASS  random 14: the model and the RTL halt with 0x41 (verdict 1, source 0, failures 00001), the model's region untouched
+PASS  random 15: the model and the RTL halt with 0x491 (verdict 1, source 2, failures 10010), the model's region untouched
+PASS  random 16: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  random 17: the model and the RTL halt with 0x89 (verdict 1, source 1, failures 00010), the model's region untouched
+PASS  random 18: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  random 19: the model and the RTL halt with 0x51 (verdict 1, source 2, failures 00001), the model's region untouched
+PASS  random 20: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  random 21: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  random 22: the model and the RTL halt with 0x49 (verdict 1, source 1, failures 00001), the model's region untouched
+PASS  random 23: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  random 24: the model and the RTL halt with 0x109 (verdict 1, source 1, failures 00100), the model's region untouched
+PASS  random 25: the model and the RTL halt with 0x201 (verdict 1, source 0, failures 01000), the model's region untouched
+PASS  random 26: the model and the RTL halt with 0x81 (verdict 1, source 0, failures 00010), the model's region untouched
+PASS  random 27: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
+PASS  random 28: the model and the RTL halt with 0x101 (verdict 1, source 0, failures 00100), the model's region untouched
+PASS  random 29: the model and the RTL halt with 0xc1 (verdict 1, source 0, failures 00011), the model's region untouched
+PASS  the shell builds for the chip and for the RTL, the chip's in 13508 of the 16384 bytes it may use
+PASS  all 53 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 13508-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20060000
+PASS  the UF2 is byte for byte the committed one: 2ae0e1cf75d240be…
+PASS  on the RTL, against a stand-in TRNG that works: the judge halts with 0 — ok
+PASS  on the RTL, against a stand-in TRNG giving all ones: exp223's kernel withholds, and the judge says so — verdict 3, source 0
+PASS  on the RTL, against a stand-in TRNG giving nothing: verdict 2, from the shell, before anything runs
+PASS  the shell catches a version where kernel.sha256 is not exp223's kernel's hash — the judge: source 0, check 1 (code 0x41)
+PASS  the shell catches a version where the chip is asked to count one more when healthy — the judge: source 0, check 3 (code 0x101)
+PASS  the shell catches a version where the broken source is made fair, and exp223's kernel lets it through — the judge: verdict 4, source 2 (code 0x14)
+PASS  the shell catches a version where the digest is held against SHA-256 of one block fewer — the judge: source 0, check 4 (code 0x201)
+PASS  the shell catches a version where the digest and its scratch are not cleared before the region is hashed again — the judge: source 0, check 5 (code 0x401)
+PASS  the shell catches a version where judge.sha256 is not judge.bin's hash — verdict 5, the one check left in the shell
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a verdict
+PASS  a shell that lies — scribbles on the region, then hands the judge the hash from before — is NOT caught: verdict 0. The judge can only judge the facts it is given
+```

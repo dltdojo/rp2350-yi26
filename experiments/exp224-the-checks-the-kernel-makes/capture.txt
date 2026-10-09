@@ -1,5 +1,5 @@
 === exp224 — the checks the kernel makes ===
-recorded at 2026-10-09T01:57:04Z from commit d973c53
+recorded at 2026-10-09T03:34:11Z from commit a2160f1
 
 >>> the judge, as proof/Judge.lean writes it
   0000  00000417  auipc x8, 0
@@ -179,18 +179,18 @@ recorded at 2026-10-09T01:57:04Z from commit d973c53
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
-checks_spec  check 1 forgets the SHA-256 block's error flag             refused in checks_a6
-checks_spec  t0 = 3 counts as HALT                                      refused in checks_a6
-checks_spec  halting with 2 passes check 2                              refused in checks_a6
-checks_spec  minstret is held to the HALT 0 count whatever the code     refused in checks_a6
-checks_spec  the digest is checked after HALT 1 too                     refused in checks_a6
+checks_spec  check 1 forgets the SHA-256 block's error flag             refused in checks_spec
+checks_spec  t0 = 3 counts as HALT                                      refused in checks_spec
+checks_spec  halting with 2 passes check 2                              refused in checks_spec
+checks_spec  minstret is held to the HALT 0 count whatever the code     refused in checks_spec
+checks_spec  the digest is checked after HALT 1 too                     refused in checks_spec
 body_run     the digest is compared with itself                         refused in body_run
 body_run     the region's hash after is compared with itself            refused in body_run
-iter         a failure's code puts the source one bit too high          refused in seg_fail1
-iter         the TRNG withheld is reported as 4                         refused in seg_fail3
+iter         a failure's code puts the source one bit too high          refused in iter
+iter         the TRNG withheld is reported as 4                         refused in iter
 iter         a broken source counts as withheld when it halted with 0   refused in iter
-next_run     only two records are judged                                refused in seg_next
-judges       the records are said to start at 0x1100                    refused in setup_run
+next_run     only two records are judged                                refused in next_run
+setup_run    the records are said to start at 0x1100                    refused in setup_run
 judges       a later record's verdict is said to come first             refused in judges
 
 >>> the differential: the Lean model and the Hazard3 RTL against the specification in Python
@@ -278,7 +278,7 @@ PASS  iter: the proof refuses a version where a failure's code puts the source o
 PASS  iter: the proof refuses a version where the TRNG withheld is reported as 4
 PASS  iter: the proof refuses a version where a broken source counts as withheld when it halted with 0
 PASS  next_run: the proof refuses a version where only two records are judged
-PASS  judges: the proof refuses a version where the records are said to start at 0x1100
+PASS  setup_run: the proof refuses a version where the records are said to start at 0x1100
 PASS  judges: the proof refuses a version where a later record's verdict is said to come first
 PASS  judge.bin is what proof/Judge.lean writes, 668 bytes, and judge.sha256 is its hash
 PASS  as on the chip: the TRNG passed, both broken sources withheld: the model and the RTL halt with 0x0 (verdict 0, source 0, failures 00000), the model's region untouched
