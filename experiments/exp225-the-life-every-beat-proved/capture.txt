@@ -1,0 +1,91 @@
+=== exp225 — the life every beat proved ===
+recorded at 2026-10-09T08:01:03Z from commit f24df95
+
+>>> the kernel, as proof/Life.lean writes it
+  0000  00000317  auipc x6, 0
+  0004  10032283  lw x5, 256(x6)
+  0008  20030313  addi x6, x6, 512
+  000c  10000393  addi x7, x0, 256
+  0010  0012de13  srli x28, x5, 1
+  0014  01f29e93  slli x29, x5, 31
+  0018  01de6e33  or x28, x28, x29
+  001c  00129e93  slli x29, x5, 1
+  0020  01f2df13  srli x30, x5, 31
+  0024  01eeeeb3  or x29, x29, x30
+  0028  005eeeb3  or x29, x29, x5
+  002c  01de42b3  xor x5, x28, x29
+  0030  00532023  sw x5, 0(x6)
+  0034  00430313  addi x6, x6, 4
+  0038  fff38393  addi x7, x7, -1
+  003c  fc039ae3  bne x7, x0, -44
+  0040  00100293  addi x5, x0, 1
+  0044  00000513  addi x10, x0, 0
+  0048  00000073  ecall
+
+>>> the theorems, and what they rest on
+'Exp225.rule30' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp225.iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp225.lives' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp225.not_before' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp225.bytes_words' depends on axioms: [propext]
+'Exp225.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+body_x      the right neighbour is taken from the left                       refused in body_x
+body_x      the centre is left out: Rule 90, not Rule 30                     refused in body_x
+body_x      the ring is broken: the top cell's left is not the bottom cell   refused in body_x
+rule30      the specification forgets the centre                             refused in rule30
+iter        each generation is stored a word too far on                      refused in iter
+iter        the history skips every other word                               refused in iter
+setup_run   only 255 generations                                             refused in setup_run
+setup_run   the seed is read a word late                                     refused in setup_run
+finish_run  it halts with 1                                                  refused in finish_run
+lives       it is claimed to halt one instruction sooner                     refused in lives
+not_before  it is claimed still to be running after 3079                     refused in not_before
+
+>>> the first life's centre column, from rule30.py: what the LED plays, a beat each
+█·███··██···█·██··█··███·█·███·████···█·██████·█····████·····█·█
+···███████·█·█··█████··██·█·██·███·█···█·█·█··█·█··█·██··██·██·█
+··█····█·██····██··██·██·██···█·█████·██████···██··█████····██··
+█·██·██·█····█████··███·█·██··█·██·██·██·······█·██······██·█·██
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: kernel 559d70d93ee6242d…, model 3079, RTL minstret 3082, first life 8c3f6e7f0f4aa2dc…
+build/exp225.bin  3272 bytes, the build allows 8192
+build/exp225.uf2  6656 bytes  sha256 f8d447b2bbd780582b8f5269c5118aea91ada85d4330d3cf6f30b0fd79f5f408
+
+>>> on the RTL, two lives: LIFE round minstret gen1 gen256 centre-column
+4c494645 00000000 00000c0a 00038000 02bb07b0 bae4d19d 4c494645 00000001 00000c0a 06a28c28 27266abc bd221e08 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
+PASS  Life.lean checks, with no errors and no warnings
+PASS  all 6 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  body_x: the proof refuses a version where the right neighbour is taken from the left
+PASS  body_x: the proof refuses a version where the centre is left out: Rule 90, not Rule 30
+PASS  body_x: the proof refuses a version where the ring is broken: the top cell's left is not the bottom cell
+PASS  rule30: the proof refuses a version where the specification forgets the centre
+PASS  iter: the proof refuses a version where each generation is stored a word too far on
+PASS  iter: the proof refuses a version where the history skips every other word
+PASS  setup_run: the proof refuses a version where only 255 generations
+PASS  setup_run: the proof refuses a version where the seed is read a word late
+PASS  finish_run: the proof refuses a version where it halts with 1
+PASS  lives: the proof refuses a version where it is claimed to halt one instruction sooner
+PASS  not_before: the proof refuses a version where it is claimed still to be running after 3079
+PASS  kernel.bin is what proof/Life.lean writes, 76 bytes, and kernel.sha256 is its hash
+PASS  on 20 seeds the Lean model halts with 0 after exactly 3079 and the RTL with 0, each leaving exactly rule30.py's 256 generations and nothing else
+PASS  the shell builds for the chip and for the RTL, the chip's in 3272 of the 8192 bytes it may use
+PASS  all 13 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 8 KiB of flash, 0x10000000..0x10002000
+PASS  together they are exactly the 3272-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: f8d447b2bbd78058…
+PASS  on the RTL the shell lives two lives, each exactly rule30.py's, the second seeded by the first's last generation
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
+PASS  the shell catches a version where the halt is held to 1 instead of 0 — check 2
+PASS  the shell catches a version where the chip is asked to count one more — check 3
+PASS  the shell catches a version where the first life is held against a hash that is not rule30.py's — check 4
+PASS  the shell catches a version where the first life starts from two live cells, not one — check 4
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check
