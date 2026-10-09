@@ -1,0 +1,15 @@
+# exp225 — wrong versions of the kernel, and wrong claims about the right one.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+body_x|the right neighbour is taken from the left|s/^  .sh .slli T4 T0 1, .sh .srli T5 T0 31, /  .sh .srli T4 T0 1, .sh .srli T5 T0 31, /
+body_x|the centre is left out: Rule 90, not Rule 30|s/^  .op .or T4 T4 T0, .op .xor T0 T3 T4 \]/  .op .or T4 T4 0, .op .xor T0 T3 T4 ]/
+body_x|the ring is broken: the top cell's left is not the bottom cell|s/^  .sh .srli T3 T0 1, .sh .slli T4 T0 31, /  .sh .srli T3 T0 1, .sh .slli T4 T0 30, /
+rule30|the specification forgets the centre|s/^def life (x : Word) : Word := (x >>> 1 ||| x <<< 31) ^^^ ((x <<< 1 ||| x >>> 31) ||| x)$/def life (x : Word) : Word := (x >>> 1 ||| x <<< 31) ^^^ (x <<< 1 ||| x >>> 31)/
+iter|each generation is stored a word too far on|s/\[ .st .sw T1 T0 0 \]/[ .st .sw T1 T0 4 ]/
+iter|the history skips every other word|s/^def stepLine : List Instr := \[ .opi .addi T1 T1 4, /def stepLine : List Instr := [ .opi .addi T1 T1 8, /
+setup_run|only 255 generations|s/.opi .addi T2 0 256 \]/.opi .addi T2 0 255 ]/
+setup_run|the seed is read a word late|s/.ld .lw T0 T1 0x100,/.ld .lw T0 T1 0x104,/
+finish_run|it halts with 1|s/^def finishLine : List Instr := \[ .opi .addi T0 0 1, .opi .addi A0 0 0 \]/def finishLine : List Instr := [ .opi .addi T0 0 1, .opi .addi A0 0 1 ]/
+lives|it is claimed to halt one instruction sooner|s/    ∃ st', run env 3079 st = .halted 0 st' ∧ st'.mem = lived st.mem base N := by/    ∃ st', run env 3078 st = .halted 0 st' ∧ st'.mem = lived st.mem base N := by/
+not_before|it is claimed still to be running after 3079|s/    ∃ s1, run env 3078 st = .running s1 := by/    ∃ s1, run env 3079 st = .running s1 := by/
