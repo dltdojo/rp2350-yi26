@@ -1,0 +1,17 @@
+# exp224 — wrong versions of the judge, and wrong claims about the right one.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+checks_spec|check 1 forgets the SHA-256 block's error flag|s/  .op .sltu A6 0 S4, .opi .sltiu A7 A3 1, .op .or A6 A6 A7, /  .op .sltu A6 0 S4, .opi .sltiu A7 A3 1, .op .or A6 A6 0, /
+checks_spec|t0 = 3 counts as HALT|s/  .opi .xori A5 T4 1, .opi .sltiu A5 A5 1, /  .opi .xori A5 T4 3, .opi .sltiu A5 A5 1, /
+checks_spec|halting with 2 passes check 2|s/  .opi .sltiu A7 T5 2, .op .and A7 A7 A4, /  .opi .sltiu A7 T5 3, .op .and A7 A7 A4, /
+checks_spec|minstret is held to the HALT 0 count whatever the code|s/  .op .xor T2 T6 A2, .op .sltu T2 0 T2, /  .op .xor T2 T6 A1, .op .sltu T2 0 T2, /
+checks_spec|the digest is checked after HALT 1 too|s/  .op .sltu T2 0 S5, .op .and T2 T2 A4, .op .and T2 T2 A5, /  .op .sltu T2 0 S5, .op .and T2 T2 A4, .op .and T2 T2 A4, /
+body_run|the digest is compared with itself|s/compare S5 0x60 0x80/compare S5 0x60 0x60/
+body_run|the region's hash after is compared with itself|s/compare S6 0xa0 0xc0/compare S6 0xa0 0xa0/
+iter|a failure's code puts the source one bit too high|s/  .sh .slli A0 A6 6, .sh .slli T1 S2 3, /  .sh .slli A0 A6 6, .sh .slli T1 S2 4, /
+iter|the TRNG withheld is reported as 4|s/  .opi .addi A0 0 3, .opi .addi T0 0 1, .ecall,  /  .opi .addi A0 0 4, .opi .addi T0 0 1, .ecall,  /
+iter|a broken source counts as withheld when it halted with 0|s/  .opi .addi T1 T5 0xfff, .br .beq T1 0 10, /  .opi .addi T1 T5 0, .br .beq T1 0 10, /
+next_run|only two records are judged|s/.opi .addi S2 S2 1, .opi .addi T1 0 3, .br .bne S2 T1 0xec2/.opi .addi S2 S2 1, .opi .addi T1 0 2, .br .bne S2 T1 0xec2/
+judges|the records are said to start at 0x1100|s/^def RECORDS : Nat := 0x1000$/def RECORDS : Nat := 0x1100/
+judges|a later record's verdict is said to come first|s/^  match verdictOf m base 0 with$/  match verdictOf m base 1 with/
