@@ -13,7 +13,8 @@ the three records and halts with the verdict:
 
 The theorem `judges` covers every input: whatever the records hold, the judge
 halts with exactly the verdict its specification gives, and writes nothing.
-Thirteen wrong judges and wrong claims are refused. Not yet run on a board.**
+Thirteen wrong judges and wrong claims are refused. On a Pico 2: slow
+blinking — the judge, on the chip's own facts, found nothing wrong.**
 
 Why this direction, and what it costs, is written up for students in
 Taiwanese Mandarin: [WHY.zh-TW.md](./WHY.zh-TW.md).
@@ -188,7 +189,29 @@ You need a **Pico 2** (not a Pico 2 W), a USB cable, and a computer.
 
 ## On the board
 
-Not yet run.
+| | |
+| --- | --- |
+| UF2 | `exp224.uf2`, SHA-256 `2ae0e1cf75d240be498a3bae453680870135dad44b9a71e1b30b00af791eed89`, the committed one, built at d973c53 and unchanged since |
+| Board | Pico 2 |
+| How | BOOTSEL, the UF2 copied on, the LED watched |
+| The LED | **slow blinking** |
+
+The shell reaches slow blinking in only one way:
+- **The facts.** exp223's kernel ran on all three sources, and the shell wrote
+  a record for each: the trap, `minstret`, and the hashes the chip gave — the
+  kernel's bytes by `sha256.c`, the samples' digest and the region before and
+  after by the RP2350's SHA-256 block.
+- **The judge's bytes.** The 668 bytes in SRAM were `judge.bin`, by
+  `judge.sha256` — the one comparison still made in C.
+- **The verdict.** The judge halted in User mode, by `ecall` with t0 = 1, and
+  its code was 0: on every record, all five checks held, the TRNG's samples
+  were conditioned, and both broken sources were withheld.
+
+By `judges`, that 0 is what the specification gives for those three records.
+So the checks exp223 made in C on the chip, the judge now makes on the chip,
+and they agree with exp223's result on the same board. What this does not
+show is that the records were true: the shell gathered them, and
+[a shell that lies](#what-the-rtl-checks-and-what-it-cannot) is not caught.
 
 ## What the RTL checks, and what it cannot
 
