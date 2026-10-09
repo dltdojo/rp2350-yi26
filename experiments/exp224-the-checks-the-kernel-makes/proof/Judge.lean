@@ -101,20 +101,25 @@ def checks : List Instr := [
   .sh .slli A7 A7 1, .sh .slli T1 T1 2, .sh .slli T2 T2 3, .sh .slli T3 T3 4,
   .op .or A6 A6 A7, .op .or A6 A6 T1, .op .or A6 A6 T2, .op .or A6 A6 T3 ]
 
-def exits : List Instr := [
-  .br .beq A6 0 14,                                                       -- 142: no failure → 149
-  .sh .slli A0 A6 6, .sh .slli T1 S2 3, .op .or A0 A0 T1, .opi .ori A0 A0 1,
-  .opi .addi T0 0 1, .ecall,                                              -- 143-148
-  .br .bne S2 0 10,                                                       -- 149: a broken source → 154
-  .br .beq T5 0 20,                                                       -- 150: the TRNG passed → 160
-  .opi .addi A0 0 3, .opi .addi T0 0 1, .ecall,                           -- 151-153
-  .opi .addi T1 T5 0xfff, .br .beq T1 0 10,                               -- 154-155: withheld → 160
-  .sh .slli A0 S2 3, .opi .ori A0 A0 4, .opi .addi T0 0 1, .ecall ]       -- 156-159
+/-- A failure: HALT 1 | s << 3 | failures << 6, but for the `ecall`. -/
+def fail1 : List Instr := [ .sh .slli A0 A6 6, .sh .slli T1 S2 3, .op .or A0 A0 T1, .opi .ori A0 A0 1, .opi .addi T0 0 1 ]
+/-- The TRNG's samples withheld: HALT 3. -/
+def fail3 : List Instr := [ .opi .addi A0 0 3, .opi .addi T0 0 1 ]
+/-- A broken source let through: HALT 4 | s << 3. -/
+def fail4 : List Instr := [ .sh .slli A0 S2 3, .opi .ori A0 A0 4, .opi .addi T0 0 1 ]
 
-def next : List Instr := [
-  .opi .addi S1 S1 0x100, .opi .addi S2 S2 1, .opi .addi T1 0 3, .br .bne S2 T1 0xec2 ]
+def exits : List Instr :=
+  [ .br .beq A6 0 14 ] ++ fail1 ++ [ .ecall ] ++                         -- 142: no failure → 149; 143-148
+  [ .br .bne S2 0 10, .br .beq T5 0 20 ] ++ fail3 ++ [ .ecall ] ++        -- 149: a broken source → 154; 150: passed → 160
+  [ .opi .addi T1 T5 0xfff, .br .beq T1 0 10 ] ++ fail4 ++ [ .ecall ]     -- 154-155: withheld → 160; 156-159
 
-def finish : List Instr := [ .opi .addi A0 0 0, .opi .addi T0 0 1, .ecall ]
+def nextLine : List Instr := [ .opi .addi S1 S1 0x100, .opi .addi S2 S2 1, .opi .addi T1 0 3 ]
+
+def next : List Instr := nextLine ++ [ .br .bne S2 T1 0xec2 ]
+
+def finishLine : List Instr := [ .opi .addi A0 0 0, .opi .addi T0 0 1 ]
+
+def finish : List Instr := finishLine ++ [ .ecall ]
 
 def kernel : List Instr := setup ++ compares ++ loads ++ checks ++ exits ++ next ++ finish
 
@@ -479,10 +484,6 @@ theorem back4 (base : Word) :
     base + BitVec.ofNat 32 (4 * 163) + ((0xec2 : BitVec 12) ++ 0#1).signExtend 32 = base + BitVec.ofNat 32 (4 * 4) := by
   rw [BitVec.add_assoc]; congr 1
 
-def fail1 : List Instr := [ .sh .slli A0 A6 6, .sh .slli T1 S2 3, .op .or A0 A0 T1, .opi .ori A0 A0 1, .opi .addi T0 0 1 ]
-def fail3 : List Instr := [ .opi .addi A0 0 3, .opi .addi T0 0 1 ]
-def fail4 : List Instr := [ .sh .slli A0 S2 3, .opi .ori A0 A0 4, .opi .addi T0 0 1 ]
-def nextLine : List Instr := [ .opi .addi S1 S1 0x100, .opi .addi S2 S2 1, .opi .addi T1 0 3 ]
 
 theorem seg_fail1 : (kernel.drop 143).take fail1.length = fail1 := by decide
 theorem seg_fail3 : (kernel.drop 151).take fail3.length = fail3 := by decide
@@ -707,7 +708,6 @@ theorem setup_run (hp : Placed env base) (st : Machine) (hpc : st.pc = base) (hc
     simp [at_, RECORDS]
   · rw [reg_wrote r4 (by decide)]; simp [aluI]
 
-def finishLine : List Instr := [ .opi .addi A0 0 0, .opi .addi T0 0 1 ]
 
 theorem seg_finish : (kernel.drop 164).take finishLine.length = finishLine := by decide
 

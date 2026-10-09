@@ -1,5 +1,5 @@
 === exp223 — the digest the kernel withholds ===
-recorded at 2026-10-08T12:37:24Z from commit b97edc1
+recorded at 2026-10-09T02:28:40Z from commit d973c53
 
 >>> the front, as proof/Condition.lean writes it (exp208's SHA-256 follows at 0x1000)
   0000  00000417  auipc x8, 0
@@ -54,7 +54,7 @@ from_boot         the length SHA-256 is given is 4032, one block short          
 conditions        the count when healthy is one short                                     refused in conditions
 conditions        the digest is of the samples' first 4092 bytes                          refused in conditions
 conditions        nothing but the digest's 32 bytes changed, SHA-256's scratch left out   refused in conditions
-placed1           the region is 64 KiB, as every kernel before it had                     refused in within1
+Wide.within       the region is 64 KiB, as every kernel before it had                     refused in within1
 Region.ok_within  a region inside another is one that starts no later                     refused in Region.ok_within
 
 >>> the differential: the Lean model and the Hazard3 RTL against exp114's tests and hashlib
@@ -93,7 +93,7 @@ PASS  from_boot: the proof refuses a version where the length SHA-256 is given i
 PASS  conditions: the proof refuses a version where the count when healthy is one short
 PASS  conditions: the proof refuses a version where the digest is of the samples' first 4092 bytes
 PASS  conditions: the proof refuses a version where nothing but the digest's 32 bytes changed, SHA-256's scratch left out
-PASS  placed1: the proof refuses a version where the region is 64 KiB, as every kernel before it had
+PASS  Wide.within: the proof refuses a version where the region is 64 KiB, as every kernel before it had
 PASS  Region.ok_within: the proof refuses a version where a region inside another is one that starts no later
 PASS  kernel.bin is what proof/Condition.lean writes, 8484 bytes, and kernel.sha256 is its hash
 PASS  kernel.bin holds exp208's sha.bin, byte for byte, at 0x1000, and zeros between the pieces

@@ -102,7 +102,10 @@ gives no exact instruction count. How many instructions run depends on where
 the first verdict is.
 
 Thirteen wrong versions in [`proof/mutants.txt`](./proof/mutants.txt) are each
-refused.
+refused, each by the theorem about the part it breaks. The five that break a
+check change `checks` and, in the same sed, `checksOf`, the formula
+`checks_a6` reads the instructions into. So `checks_a6` still holds, and it
+is `checks_spec`, the comparison with the specification, that refuses them.
 - **Eleven wrong judges:**
   - check 1 forgets the SHA-256 block's error flag;
   - t0 = 3 counts as HALT;
