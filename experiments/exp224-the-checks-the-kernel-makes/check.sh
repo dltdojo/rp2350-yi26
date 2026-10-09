@@ -95,49 +95,61 @@ want=(
     "52455054 00000003 00000000 00000000 00000003 "
     "52455054 00000002 00000000 00000000 00000000 00000000 00000000 exit=2 "
 )
-for d in 0 1 2; do
+stand_in() { # device
+    local d="$1" got
     ./build.sh sim shell build "$work/s$d" "$d" 2> /dev/null
     got="$(shell_words "$work/s$d.bin")"
     if [[ "$got" == "${want[$d]}"* ]]; then pass "on the RTL, against ${said[$d]}"
     else fail "on the RTL, against ${said[$d]}" "$got"; fi
-done
+}
+
+# Every RTL run below is on its own copy, so they run side by side; the lines
+# come out in this order regardless.
+side_by_side_begin
+for d in 0 1 2; do side_by_side stand_in "$d"; done
 
 # Wrong shells and wrong expectations, against the stand-in that works. The
 # shell no longer checks anything: each is caught by the judge, whose code
 # names the source and the check.
-shell_mutant "kernel.sha256 is not exp223's kernel's hash — the judge: source 0, check 1 (code 0x41)" expect.h \
+side_by_side shell_mutant "kernel.sha256 is not exp223's kernel's hash — the judge: source 0, check 1 (code 0x41)" expect.h \
     's/KERNEL_SHA\[32\] = {0x[0-9a-f][0-9a-f]/KERNEL_SHA[32] = {0x00/' "52455054 00000001 00000000 00000001 00000041 "
-shell_mutant "the chip is asked to count one more when healthy — the judge: source 0, check 3 (code 0x101)" expect.h \
+side_by_side shell_mutant "the chip is asked to count one more when healthy — the judge: source 0, check 3 (code 0x101)" expect.h \
     's/#define INSTRET_PASS 334287u/#define INSTRET_PASS 334288u/' "52455054 00000001 00000000 00000004 00000101 "
-shell_mutant "the broken source is made fair, and exp223's kernel lets it through — the judge: verdict 4, source 2 (code 0x14)" shell.c \
+side_by_side shell_mutant "the broken source is made fair, and exp223's kernel lets it through — the judge: verdict 4, source 2 (code 0x14)" shell.c \
     's/^    gather();$/    gather();\n    if (source == 2) for (uint32_t i = 0; i < N; i++) samples[i] = i % 2;/' \
     "52455054 00000004 00000002 00000000 00000014 "
-shell_mutant "the digest is held against SHA-256 of one block fewer — the judge: source 0, check 4 (code 0x201)" shell.c \
+side_by_side shell_mutant "the digest is held against SHA-256 of one block fewer — the judge: source 0, check 4 (code 0x201)" shell.c \
     's/rec->shaok = board_sha(r + SAMPLES_OFF, 4 \* N, rec->want);/rec->shaok = board_sha(r + SAMPLES_OFF, 4 * N - 64, rec->want);/' \
     "52455054 00000001 00000000 00000008 00000201 "
-shell_mutant "the digest and its scratch are not cleared before the region is hashed again — the judge: source 0, check 5 (code 0x401)" shell.c \
+side_by_side shell_mutant "the digest and its scratch are not cleared before the region is hashed again — the judge: source 0, check 5 (code 0x401)" shell.c \
     's/^        for (uint32_t i = DIGEST_OFF; i < SCRATCH_END; i++) v\[i\] = 0;$/        (void)v;/' \
     "52455054 00000001 00000000 00000010 00000401 "
-shell_mutant "judge.sha256 is not judge.bin's hash — verdict 5, the one check left in the shell" expect.h \
+side_by_side shell_mutant "judge.sha256 is not judge.bin's hash — verdict 5, the one check left in the shell" expect.h \
     's/JUDGE_SHA\[32\] = {0x[0-9a-f][0-9a-f]/JUDGE_SHA[32] = {0x00/' "52455054 00000005 00000000 00000000 00000000 "
-shell_mutant "the shell itself traps in step 3 — a fault, not a verdict" shell.c \
+side_by_side shell_mutant "the shell itself traps in step 3 — a fault, not a verdict" shell.c \
     's/^    step = 3;$/    step = 3;\n    __asm__ volatile (".word 0");/' "4641554c 00000003 00000002 "
 
 # The boundary: a shell that lies. It writes a byte into the region after
 # exp223's kernel has run — memory the theorem says is untouched — and then
 # gives the judge the hash from before instead of the hash after. The judge
 # believes its facts, so this comes out ok. It is here to say so.
-lie="$(mktemp -d)"
-cp -r shell "$lie/shell"; cp build/expect.h "$lie/expect.h"
-sed -i 's/^    rec->shaok &= board_sha(r, REGION_SIZE, rec->after);$/    v[0x5000] = 1;\n    copy(rec->after, rec->before, 32);/' "$lie/shell/shell.c"
-if cmp -s "$lie/shell/shell.c" shell/shell.c; then
-    fail "a shell that lies is not caught" "the sed changed nothing"
-elif ./build.sh sim "$lie/shell" "$lie" "$lie/sim" 2> /dev/null \
-        && [[ "$(shell_words "$lie/sim.bin")" == "52455054 00000000 00000000 00000000 00000000 "* ]]; then
-    pass "a shell that lies — scribbles on the region, then hands the judge the hash from before — is NOT caught: verdict 0. The judge can only judge the facts it is given"
-else
-    fail "a shell that lies is not caught" "$(shell_words "$lie/sim.bin" 2> /dev/null)"
-fi
-rm -rf -- "$lie" "$work"
+lying_shell() {
+    local lie
+    lie="$(mktemp -d)"
+    cp -r shell "$lie/shell"; cp build/expect.h "$lie/expect.h"
+    sed -i 's/^    rec->shaok &= board_sha(r, REGION_SIZE, rec->after);$/    v[0x5000] = 1;\n    copy(rec->after, rec->before, 32);/' "$lie/shell/shell.c"
+    if cmp -s "$lie/shell/shell.c" shell/shell.c; then
+        fail "a shell that lies is not caught" "the sed changed nothing"
+    elif ./build.sh sim "$lie/shell" "$lie" "$lie/sim" 2> /dev/null \
+            && [[ "$(shell_words "$lie/sim.bin")" == "52455054 00000000 00000000 00000000 00000000 "* ]]; then
+        pass "a shell that lies — scribbles on the region, then hands the judge the hash from before — is NOT caught: verdict 0. The judge can only judge the facts it is given"
+    else
+        fail "a shell that lies is not caught" "$(shell_words "$lie/sim.bin" 2> /dev/null)"
+    fi
+    rm -rf -- "$lie"
+}
+side_by_side lying_shell
+side_by_side_end
+rm -rf -- "$work"
 
 exit "$FAILED"

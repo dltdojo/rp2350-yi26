@@ -340,6 +340,42 @@ capture_tee() {
     python3 "$(dirname "${BASH_SOURCE[0]}")/../tools/capture/tee.py" capture.txt build/capture-timing.txt
 }
 
+# ---------- checks that can run side by side --------------------------------
+#
+# exp224's check.sh runs the RTL nine times, two minutes each, one after
+# another, on a machine with four cores: three quarters of its half hour. The
+# runs share nothing, so they need not wait for each other.
+#
+#   side_by_side_begin
+#   side_by_side shell_mutant "..." shell.c 's/.../.../' "..."
+#   side_by_side my_check 2
+#   side_by_side_end
+#
+# Each command runs in the background, SIDE_BY_SIDE_JOBS at a time (the cores,
+# at most four). side_by_side_end waits for all of them and prints what each
+# printed in the order they were given, so the output is what running them one
+# by one would print. A command runs in a subshell, where `fail` cannot set
+# FAILED for the caller, so a FAIL line in its output is what sets it.
+side_by_side_begin() {
+    SBS_DIR="$(mktemp -d)"; SBS_N=0; SBS_RUNNING=0
+    SBS_JOBS="${SIDE_BY_SIDE_JOBS:-$(n="$(nproc 2>/dev/null || echo 1)"; echo $(( n < 4 ? n : 4 )))}"
+}
+
+side_by_side() { # command...
+    SBS_N=$((SBS_N + 1))
+    "$@" > "$SBS_DIR/$SBS_N" 2>&1 &
+    SBS_RUNNING=$((SBS_RUNNING + 1))
+    if [[ $SBS_RUNNING -ge $SBS_JOBS ]]; then wait -n; SBS_RUNNING=$((SBS_RUNNING - 1)); fi
+}
+
+side_by_side_end() {
+    local i
+    wait
+    for ((i = 1; i <= SBS_N; i++)); do cat "$SBS_DIR/$i"; done
+    if grep -q '^FAIL' "$SBS_DIR"/* 2>/dev/null; then FAILED=1; fi
+    rm -rf -- "$SBS_DIR"
+}
+
 # ---------- is this firmware able to bring itself back? ----------------------
 #
 # [exp190](./exp190-the-board-that-brings-itself-back/) measured what a firmware
