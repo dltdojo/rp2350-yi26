@@ -24,7 +24,7 @@ from expect import c_bytes, kernel_bin, model, rtl  # noqa: E402
 from rule30 import HIST_OFF, SEED0, history_bytes, image  # noqa: E402
 
 
-def write_header(out, rv32run):
+def life_header(out, rv32run):
     kernel, sha = kernel_bin(os.path.join(HERE, "kernel"))
     img = image(kernel, SEED0)
     ran, region = model(rv32run, img, 4000)
@@ -57,4 +57,4 @@ def write_header(out, rv32run):
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         sys.exit(__doc__)
-    write_header(sys.argv[1], sys.argv[2])
+    life_header(sys.argv[1], sys.argv[2])
