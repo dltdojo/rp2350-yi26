@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# exp223 — build the shell twice, from the same sources
-# (tools/hazard3/shell/shell.sh says how), each with the 128 KiB region:
+# exp224 — build the shell twice, from the same sources
+# (tools/hazard3/shell/shell.sh says how), each with exp223's 128 KiB region:
 #
-#   build/exp223.uf2   the Pico 2: the first 16 KiB of flash, family `absolute`, LED out
-#   build/sim.bin      the Hazard3 RTL: the kernel for real, a stand-in TRNG
-#                      that works
+#   build/exp224.uf2   the Pico 2: the first 16 KiB of flash, family `absolute`, LED out
+#   build/sim.bin      the Hazard3 RTL: exp223's kernel and the judge for real, a
+#                      stand-in TRNG that works
 #
 # Needs clang, lld, llvm-objcopy, Lean (for the model's region), the Hazard3
 # testbench (for minstret) and cargo (for partimg).
@@ -37,9 +37,9 @@ RUN="$(../../tools/lean/lean.sh exe rv32run)"
 python3 gen.py build/expect.h "$RUN"
 
 shell_chip 16384 build/chip -I build -I shell shell/shell.c "$S/health_chip.c" "$H/sha256.c"
-mv build/chip.bin build/exp223.bin
-mv build/chip.uf2 build/exp223.uf2
+mv build/chip.bin build/exp224.bin
+mv build/chip.uf2 build/exp224.uf2
 sim shell build build/sim
 
-echo "build/exp223.bin  $(stat -c %s build/exp223.bin) bytes, the build allows 16384"
-echo "build/exp223.uf2  $(stat -c %s build/exp223.uf2) bytes  sha256 $(sha256sum build/exp223.uf2 | cut -d' ' -f1)"
+echo "build/exp224.bin  $(stat -c %s build/exp224.bin) bytes, the build allows 16384"
+echo "build/exp224.uf2  $(stat -c %s build/exp224.uf2) bytes  sha256 $(sha256sum build/exp224.uf2 | cut -d' ' -f1)"

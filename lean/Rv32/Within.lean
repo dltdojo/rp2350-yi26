@@ -12,7 +12,7 @@ That is what lets two kernels proved each in its own 64 KiB — each from its
 own first instruction, as `Placed` has it — run as one, in a region holding
 both (exp223: exp222's health tests, then exp208's SHA-256 at 0x1000).
 -/
-import Rv32.Proof
+import Rv32.Place
 
 namespace Rv32
 
@@ -104,6 +104,44 @@ theorem run_within (hh : env.hash = env'.hash) (hr : env.region.within env'.regi
       rw [hhalt c s1 hs]
       exact ⟨fun _ h => h, fun _ _ h => h⟩
     | fault f s1 => exact ⟨nofun, nofun⟩
+
+/-! ## A 128 KiB region, holding a kernel's 64 KiB
+
+exp223 wrote these for its two kernels in one region, and exp224's judge,
+run in the same region, needed them second. -/
+
+/-- What the theorems assume about where the kernel is: `Placed`, with the
+region 128 KiB. -/
+structure Wide (env : Env) (base : Word) : Prop where
+  align : base.toNat % 4 = 0
+  fit : base.toNat + 0x20000 ≤ 2^32
+  region : env.region = ⟨base.toNat, base.toNat + 0x20000⟩
+
+/-- The same world with only the region's first 64 KiB: where `Placed`
+proofs are about. -/
+def low (env : Env) (base : Word) : Env := { env with region := ⟨base.toNat, base.toNat + 0x10000⟩ }
+
+namespace Wide
+
+variable {env : Env} {base : Word}
+
+theorem fit64 (hw : Wide env base) : base.toNat + 0x10000 ≤ 2^32 := by have := hw.fit; omega
+
+theorem placed (hw : Wide env base) : Placed (low env base) base := ⟨hw.align, hw.fit64, rfl⟩
+
+theorem within (hw : Wide env base) : (low env base).region.within env.region := by
+  simp only [low, Region.within, hw.region]; omega
+
+/-- A run in the first 64 KiB that is still going is the same run in the 128. -/
+theorem running (hw : Wide env base) {n : Nat} {s s' : Machine} (h : run (low env base) n s = .running s') :
+    run env n s = .running s' := (run_within (env := low env base) (env' := env) rfl hw.within n s).1 s' h
+
+/-- And one that halted. -/
+theorem halted (hw : Wide env base) {n : Nat} {c : Word} {s s' : Machine}
+    (h : run (low env base) n s = .halted c s') : run env n s = .halted c s' :=
+  (run_within (env := low env base) (env' := env) rfl hw.within n s).2 c s' h
+
+end Wide
 
 #print axioms run_within
 

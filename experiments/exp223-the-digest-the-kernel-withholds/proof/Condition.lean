@@ -72,46 +72,24 @@ abbrev Healthy (m : Word → Byte) (base : Word) : Prop := Health.Healthy m base
 /-- The samples as SHA-256 sees them: the 4096 bytes of the 1024 words. -/
 def samples (m : Word → Byte) (base : Word) : List Byte := readBytes m (base + BitVec.ofNat 32 SAMPLES) 4096
 
-/-! ## The region: 128 KiB, holding each half's 64 KiB -/
+/-! ## The region: 128 KiB, holding each half's 64 KiB
 
-/-- What the theorems assume about where the kernel is: `Placed`, with the
-region 128 KiB. -/
-structure Wide (env : Env) (base : Word) : Prop where
-  align : base.toNat % 4 = 0
-  fit : base.toNat + 0x20000 ≤ 2^32
-  region : env.region = ⟨base.toNat, base.toNat + 0x20000⟩
-
-/-- The tests' region: the first 64 KiB. -/
-def env0 (env : Env) (base : Word) : Env := { env with region := ⟨base.toNat, base.toNat + 0x10000⟩ }
+`Wide` and `low`, the first 64 KiB, are lean/Rv32/Within.lean's. -/
 
 /-- SHA-256's region: the 64 KiB from its first instruction. -/
 def env1 (env : Env) (base : Word) : Env := ⟨⟨base.toNat + SHA, base.toNat + SHA + 0x10000⟩, env.hash⟩
 
 variable {env : Env} {base : Word}
 
-theorem fit64 (hw : Wide env base) : base.toNat + 0x10000 ≤ 2^32 := by have := hw.fit; omega
-
 theorem sha_toNat (hw : Wide env base) : (base + BitVec.ofNat 32 SHA).toNat = base.toNat + SHA :=
-  toNat_off (fit64 hw) SHA (by decide)
-
-theorem placed0 (hw : Wide env base) : Placed (env0 env base) base := ⟨hw.align, fit64 hw, rfl⟩
+  toNat_off hw.fit64 SHA (by decide)
 
 theorem placed1 (hw : Wide env base) : Placed (env1 env base) (base + BitVec.ofNat 32 SHA) :=
   ⟨by rw [sha_toNat hw]; have := hw.align; simp only [SHA]; omega,
    by rw [sha_toNat hw]; have := hw.fit; simp only [SHA]; omega, by rw [sha_toNat hw]; rfl⟩
 
-theorem within0 (hw : Wide env base) : (env0 env base).region.within env.region := by
-  simp only [env0, Region.within, hw.region]; omega
-
 theorem within1 (hw : Wide env base) : (env1 env base).region.within env.region := by
   simp only [env1, Region.within, hw.region]; have := hw.fit; simp only [SHA]; omega
-
-theorem running0 (hw : Wide env base) {n : Nat} {s s' : Machine} (h : run (env0 env base) n s = .running s') :
-    run env n s = .running s' := (run_within (env := env0 env base) (env' := env) rfl (within0 hw) n s).1 s' h
-
-theorem halted0 (hw : Wide env base) {n : Nat} {c : Word} {s s' : Machine}
-    (h : run (env0 env base) n s = .halted c s') : run env n s = .halted c s' :=
-  (run_within (env := env0 env base) (env' := env) rfl (within0 hw) n s).2 c s' h
 
 theorem halted1 (hw : Wide env base) {n : Nat} {c : Word} {s s' : Machine}
     (h : run (env1 env base) n s = .halted c s') : run env n s = .halted c s' :=
@@ -195,7 +173,7 @@ theorem front_decides {e : Env} (hp : Placed e base) (s : Machine) (hpc : s.pc =
 
 theorem off_sha (hw : Wide env base) (c : Nat) (hc : SHA + c < 0x10000) :
     base + BitVec.ofNat 32 SHA + BitVec.ofNat 32 c = base + BitVec.ofNat 32 (SHA + c) :=
-  off_add (fit64 hw) SHA c hc
+  off_add (hw.fit64) SHA c hc
 
 /-- **The kernel conditions what it does not withhold.** From `base`, in a
 128 KiB region, with the front at `base`, exp208's SHA-256 kernel at
@@ -215,10 +193,10 @@ theorem conditions (hw : Wide env base) (s : Machine) (hpc : s.pc = base)
     (Healthy s.mem base → ∃ s', run env 334284 s = .halted 0 s' ∧
       readBytes s'.mem (base + BitVec.ofNat 32 DIGEST) 32 = Sha.sha256 (samples s.mem base) ∧
       Keeps (base + BitVec.ofNat 32 DIGEST) 0x300 s.mem s'.mem) := by
-  obtain ⟨fn, fy⟩ := front_decides (placed0 hw) s hpc hfront
+  obtain ⟨fn, fy⟩ := front_decides hw.placed s hpc hfront
   refine ⟨fun hn => ?_, fun hy => ?_⟩
   · obtain ⟨s', e', m'⟩ := fn hn
-    exact ⟨s', halted0 hw e', m'⟩
+    exact ⟨s', hw.halted e', m'⟩
   · obtain ⟨sB, eB, pB, mB⟩ := fy hy
     have hp1 := placed1 hw
     obtain ⟨s', e', d', k'⟩ := Sha.computes hp1 sB pB (by rw [mB]; exact hsha)
@@ -232,7 +210,7 @@ theorem conditions (hw : Wide env base) (s : Machine) (hpc : s.pc = base)
     rw [off_sha hw _ (by decide), off_sha hw _ (by decide), mB] at d'
     rw [off_sha hw _ (by decide), mB] at k'
     refine ⟨s', ?_, d', k'⟩
-    rw [show 334284 = 17422 + (4990 + 4873 * 64) by decide, run_add_running (running0 hw eB)]
+    rw [show 334284 = 17422 + (4990 + 4873 * 64) by decide, run_add_running (hw.running eB)]
     exact halted1 hw e'
 
 /-! ## The bytes are the kernel -/
@@ -286,7 +264,7 @@ theorem from_boot (hw : Wide env base) (img : ByteArray) (hsize : DATA + 292 ≤
       readBytes s'.mem (base + BitVec.ofNat 32 DIGEST) 32 = Sha.sha256 (samples m0 base) ∧
       Keeps (base + BitVec.ofNat 32 DIGEST) 0x300 m0 s'.mem) := by
   intro m0
-  have hfit := fit64 hw
+  have hfit := hw.fit64
   have hpc : (boot env.region img).pc = base := by simp [boot, hw.region]
   have hmem : (boot env.region img).mem = m0 := by simp [boot, hw.region, m0]
   have c0 : CodeAt m0 base kernel :=

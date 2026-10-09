@@ -670,3 +670,8 @@ byte for byte. exp223's kernel needs a 128 KiB region, so `harness.S` and
 `shell.sh`'s `SHELL_WIDE=1` give the region at 0x80040000 on the RTL and
 0x20060000 on the chip, and `expect.py`'s `model` and `rtl` take `wide=True`;
 without them every build is byte for byte what it was.
+
+exp224 is exp223's second user, and took its board: `health_chip.c` (the
+TRNG, the SHA-256 block for `board_sha`, the LED) and `health_sim.c` (the
+stand-ins and `sha256.c`), each compiled against the experiment's own
+`board.h`. exp223's UF2 still builds byte for byte.
