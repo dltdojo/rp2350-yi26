@@ -264,8 +264,10 @@ experiment draws that line rather than hiding it.
 
 Needs Lean (`tools/lean/setup.sh`), the Hazard3 testbench
 (`tools/hazard3/setup.sh`), and clang, lld, llvm-objcopy, cargo and python3.
-Half an hour, most of it the RTL hashing the 128 KiB region for each wrong
-shell.
+`./run.sh` took 17 minutes on four cores, measured by `capture_tee` into
+`build/capture-timing.txt`: five for the wrong judges, refused once and read
+again by `check.sh`; five for its RTL runs side by side, two minutes each; two
+for the RTL run before them; four for Lean reading `Judge.lean`.
 
 ## Expected output
 

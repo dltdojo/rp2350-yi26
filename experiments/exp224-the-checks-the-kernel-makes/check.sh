@@ -23,8 +23,8 @@
 #
 # Needs Lean (tools/lean/setup.sh), the Hazard3 testbench
 # (tools/hazard3/setup.sh), clang, lld, llvm-objcopy, cargo and python3.
-# Without them it says SKIP. Half an hour, most of it the RTL hashing the
-# 128 KiB region for each wrong shell.
+# Without them it says SKIP. About thirteen minutes on four cores: five for
+# the wrong judges, five for the RTL runs side by side, two minutes each.
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 
