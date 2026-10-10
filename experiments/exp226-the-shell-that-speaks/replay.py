@@ -16,6 +16,10 @@ board/. Every line the shell prints is checked against what it should be:
   FAIL check got
       a failed check: always a FAIL here
 
+A file that is inspect.html's report instead (it has a "config 1" tree) is
+held against the device usbdev.c describes: 1209:0001, the product and serial,
+EF/02/01, and the interfaces and endpoints, line for line.
+
 and the clock registers and sys_khz the board reported are printed, since
 those are what nobody had measured before.
 """
@@ -33,6 +37,45 @@ STATUS = re.compile(r"exp226 usb=(\d+) setups=(\d+) stalls=(\d+) dropped=(\d+) e
 LIFE = re.compile(r"LIFE ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8})$")
 
 
+INSPECT_WANT = [
+    ("interface", 0, 0x02, 0x02, 0x00), ("endpoint", 0x81, "IN", "interrupt", 8),
+    ("interface", 1, 0x0a, 0x00, 0x00), ("endpoint", 0x01, "OUT", "bulk", 64), ("endpoint", 0x82, "IN", "bulk", 64),
+]
+
+
+def inspect_tree(text):
+    """inspect.html's report: the device line, its strings and class, and the tree under config 1."""
+    dev = re.search(r"device\s+0x([0-9a-f]+):0x([0-9a-f]+)", text)
+    strings = {k: (re.search(rf"^\s*{k}\s+(.+?)\s*$", text, re.M) or [None, None])[1]
+               for k in ("manufacturer", "product", "serial")}
+    head = text.split("config 1", 1)[0]
+    cls = [int(re.search(rf"^\s*{k}\s+0x([0-9a-f]+)", head, re.M).group(1), 16) for k in ("class", "subclass", "protocol")]
+    tree, cur = [], None
+    for line in text.split("config 1", 1)[1].splitlines():
+        m = re.match(r"\s+interface (\d+)\s+alt", line)
+        if m:
+            cur = ["interface", int(m.group(1))]
+            tree.append(cur)
+        m = re.match(r"\s+(class|subclass|protocol)\s+0x([0-9a-f]+)", line)
+        if m and cur is not None and len(cur) < 5:
+            cur.append(int(m.group(2), 16))
+        m = re.match(r"\s+endpoint (0x[0-9a-f]+)\s+(IN|OUT)\s+(\w+)\s+(\d+) bytes", line)
+        if m:
+            tree.append(("endpoint", int(m.group(1), 16), m.group(2), m.group(3), int(m.group(4))))
+    return (int(dev.group(1), 16), int(dev.group(2), 16)), strings, cls, [tuple(x) for x in tree]
+
+
+def inspect_report(path, text):
+    ids, strings, cls, tree = inspect_tree(text)
+    ok = (ids == (0x1209, 0x0001) and strings == {"manufacturer": "rp2350-yi26",
+          "product": "exp226 the shell that speaks", "serial": "226"} and cls == [0xef, 0x02, 0x01]
+          and tree == INSPECT_WANT)
+    print(("PASS  " if ok else "FAIL  ") + f"{os.path.basename(path)}: inspect.html on a phone saw the device usbdev.c "
+          f"describes — 1209:0001, {strings['product']}, serial {strings['serial']}, EF/02/01, "
+          f"0x81 interrupt 8, 0x01 and 0x82 bulk 64" + ("" if ok else f" — got {ids} {strings} {cls} {tree}"))
+    return 0 if ok else 1
+
+
 def lives(n):
     out, seed = [], SEED0
     for _ in range(n):
@@ -46,7 +89,12 @@ def replay(paths):
     failed, seen = 0, {"LIFE": 0, "exp226": 0, "FAIL": 0}
     for path in paths:
         text = open(path, encoding="utf-8", errors="replace").read()
+        if "config 1" in text:
+            failed += inspect_report(path, text)
+            seen["inspect"] = seen.get("inspect", 0) + 1
+            continue
         want = lives(64)
+        nstatus, last = 0, None
         for raw in text.splitlines():
             ln = raw.strip()
             m = LIFE.search(ln)
@@ -61,16 +109,17 @@ def replay(paths):
             m = STATUS.search(ln)
             if m:
                 seen["exp226"] += 1
+                nstatus += 1
                 last = m
                 continue
             if "FAIL" in ln and ln.startswith("FAIL"):
                 seen["FAIL"] += 1
                 failed += 1
                 print(f"FAIL  {os.path.basename(path)}: the board reported {ln}")
-        if seen["exp226"]:
+        if nstatus:
             (usb, setups, stalls, dropped, errors, ref, sys_, xosc, pll, usb_khz, sys_khz, sys48_khz, ref_khz,
              sof_khz, nl, mi) = last.groups()
-            print(f"PASS  {os.path.basename(path)}: {seen['exp226']} status lines, the last: usb={usb} setups={setups} "
+            print(f"PASS  {os.path.basename(path)}: {nstatus} status lines, the last: usb={usb} setups={setups} "
                   f"stalls={stalls} dropped={dropped} errors={errors} lives={nl} minstret={mi}")
             print(f"      the bootrom left clk_ref_ctrl={ref} clk_sys_ctrl={sys_} xosc_status={xosc} pll_usb_cs={pll}")
             print(f"      against the crystal: clk_usb {usb_khz} kHz, clk_sys {sys_khz} kHz as left and {sys48_khz} kHz "
@@ -81,7 +130,7 @@ def replay(paths):
                 print(f"FAIL  {os.path.basename(path)}: the last status should say usb=6 and minstret=3082")
     if seen["LIFE"] and not failed:
         print(f"PASS  every LIFE line ({seen['LIFE']}) is rule30.py's life, minstret 3082")
-    if not seen["LIFE"] and not seen["exp226"]:
+    if not seen["LIFE"] and not seen["exp226"] and not seen.get("inspect"):
         failed += 1
         print("FAIL  no line the shell prints was found")
     return failed

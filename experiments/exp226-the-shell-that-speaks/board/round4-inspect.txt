@@ -1,0 +1,25 @@
+Opened exp226 the shell that speaks (after the picker). Read-write access confirmed.
+device   0x1209:0x0001
+         manufacturer  rp2350-yi26
+         product       exp226 the shell that speaks
+         serial        226
+         USB           2.0
+         class         0xef  Miscellaneous (IAD composite)
+         subclass      0x02
+         protocol      0x01
+
+         ^ EF/02/01 is the IAD triple: a composite device whose
+           interfaces are grouped into functions.
+
+config 1
+  interface 0  alt 0
+    class     0x02  Communications
+    subclass  0x02  Abstract Control Model
+    protocol  0x00
+    endpoint 0x81  IN  interrupt 8 bytes
+  interface 1  alt 0
+    class     0x0a  CDC Data
+    subclass  0x00
+    protocol  0x00
+    endpoint 0x01  OUT bulk      64 bytes
+    endpoint 0x82  IN  bulk      64 bytes

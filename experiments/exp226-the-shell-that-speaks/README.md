@@ -8,9 +8,9 @@ exp225's shell and its proved Rule 30 kernel are compiled in unchanged. A new
 CDC-ACM device, written in C for the shell, brings up a 48 MHz USB clock,
 enumerates, and sends a log on a bulk IN endpoint. A phone opens that log with
 `tools/pages/log.html`, and **Copy** brings back as text what the LED could
-only blink. On a Pico 2, three rounds so far: no device; a bus reset and no further;
-clk_usb measured right and exp225's check 4 failing. Revision 4 runs clk_sys at
-48 MHz.**
+only blink. On a Pico 2, round 4, with clk_sys moved to 48 MHz: a phone enumerated
+it and read its whole descriptor tree, exactly as tested here. Rounds 1-3 had
+got no further than a bus reset.**
 
 Development here is done from a cloud session with no board. So the question
 this experiment asks has a practical edge: can a board's report come back as
@@ -113,7 +113,9 @@ files on the phone: `exp226.uf2`, plus `tools/pages/inspect.html` and
    Revision 1 played the life and showed the stage in between, and on a board
    that could not be read.
 3. **`inspect.html`**: open it with Chrome, tap the button, pick the board in
-   the dialog, then **Copy report**, and paste it back. This is the descriptor
+   the dialog, then **Copy report**, and paste it back. On a Pixel 9a, from a
+   `content://` page, Copy report gave nothing in round 4; select the report's
+   text and copy that instead. This is the descriptor
    tree as the phone sees it. **If the dialog lists nothing, say so, and press
    Any device…**: it drops the 1209:0001 filter, and what it lists, or that it
    lists nothing, tells a device that never enumerated from one that did with
@@ -153,6 +155,16 @@ line must be `rule30.py`'s life, with minstret 3082.
 | 2 | revision 2 (`64b907e9…`) | No long light, then **2 flashes**: a bus reset, and no SET_ADDRESS completed. The pull-up is seen and the host resets the bus; nothing after that worked. |
 
 | 3 | revision 3 (`2a7068dc…`) | A long light, then **4 flashes**: exp225's check 4, the first life's SHA-256 not `rule30.py`'s — which revision 2 had passed, since it showed a stage, and only board_play shows one. And clk_usb **was** measured at 48 MHz ± 0.5%, or it would have been error 7. Both choosers empty again. |
+
+| 4 | revision 4 (`dac41ee2…`) | No long light, **6 flashes**: configured. `inspect.html` connected and read the whole tree — 1209:0001, *exp226 the shell that speaks*, serial 226, EF/02/01, `0x81` interrupt 8, `0x01` and `0x82` bulk 64 — exactly what `usbdev_test.py` and exp115's recording say ([board/round4-inspect.txt](./board/round4-inspect.txt), replayed by `check.sh`). And no error, so exp225's four checks held, check 4 included. **Copy report** gave nothing on the phone; the report was selected and copied by hand. |
+
+**Round 4 is the first time a RISC-V shell on the verified-kernel road was
+seen by a host as a USB device.** The change from revision 3 that touches USB is
+clk_sys moved to 48 MHz; the rest of revision 3 — the clock measured, the finer
+stages, the SETUP kept after a reset — was already there. So the inference is
+that the controller needs clk_sys at least as fast as clk_usb. It is the
+inference of one round, not a measured threshold; no revision ran with clk_sys
+between 11 and 48 MHz.
 
 Round 2 stopped between the reset and the address, where revision 2's LED had
 one number for three different failures: no SETUP decoded, a SETUP decoded and
