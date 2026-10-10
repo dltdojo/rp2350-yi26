@@ -280,9 +280,18 @@ def run_tests(product, serial, readme=None):
         sizes = [lib.usbdev_packet(buf) for _ in range(3)]
         check(sizes == [64, 36, 0], f"100 bytes go out as 64 and 36: {sizes}")
         lib.usbdev_write(b"y" * 1100, 1100)
-        check(lib.dropped() == 76, f"1100 bytes into a 1024-byte queue: 76 dropped, the shell not stopped ({lib.dropped()})")
+        check(lib.dropped() == 1100, f"1100 bytes into a 1024-byte queue: all 1100 dropped, the shell not stopped ({lib.dropped()})")
+        for _ in range(10):
+            lib.usbdev_write(b"z" * 99 + b"\n", 100)
+        lib.usbdev_write(b"w" * 30, 30)
+        out = bytearray()
+        while (k := lib.usbdev_packet(buf)):
+            out += bytes(buf[:k])
+        check(lib.dropped() == 1130 and out == (b"z" * 99 + b"\n") * 10,
+              f"ten 100-byte lines fit and the 30 bytes after them do not: whole lines out, none cut ({lib.dropped()} dropped, {len(out)} out)")
+        lib.usbdev_write(b"v" * 1024, 1024)
         n = sum(iter(lambda: lib.usbdev_packet(buf), 0))
-        check(n == 1024, f"and the 1024 that fit come out: {n}")
+        check(n == 1024, f"a write of exactly the queue fits and comes out: {n}")
     return failed
 
 

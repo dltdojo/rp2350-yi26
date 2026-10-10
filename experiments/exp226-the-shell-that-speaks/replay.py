@@ -34,6 +34,10 @@ from rule30 import SEED0, history  # noqa: E402
 STATUS = re.compile(r"exp226 usb=(\d+) setups=(\d+) stalls=(\d+) dropped=(\d+) errors=(\d+) ref=([0-9a-f]{8}) "
                     r"sys=([0-9a-f]{8}) xosc=([0-9a-f]{8}) pll=([0-9a-f]{8}) usb_khz=(\d+) sys_khz=(\d+) sys48_khz=(\d+) "
                     r"ref_khz=(\d+) sof_khz=(\d+) lives=(\d+) minstret=(\d+)$")
+# Revision 4 built its status line in 192 bytes and cut it at 190, inside
+# minstret; and a line cut where the queue filled ran on into the next one.
+# Both still say everything up to lives, which is what is read from them.
+STATUS_HEAD = re.compile(STATUS.pattern.split(" minstret=")[0])
 LIFE = re.compile(r"LIFE ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8})$")
 
 
@@ -94,7 +98,7 @@ def replay(paths):
             seen["inspect"] = seen.get("inspect", 0) + 1
             continue
         want = lives(64)
-        nstatus, last = 0, None
+        nstatus, last, cut, spliced = 0, None, 0, 0
         for raw in text.splitlines():
             ln = raw.strip()
             m = LIFE.search(ln)
@@ -110,7 +114,17 @@ def replay(paths):
             if m:
                 seen["exp226"] += 1
                 nstatus += 1
-                last = m
+                last = m.groups()
+                continue
+            m = STATUS_HEAD.search(ln)
+            if m:
+                seen["exp226"] += 1
+                nstatus += 1
+                last = m.groups() + ("?",)
+                if m.start():
+                    spliced += 1
+                elif len(ln) == 190:
+                    cut += 1
                 continue
             if "FAIL" in ln and ln.startswith("FAIL"):
                 seen["FAIL"] += 1
@@ -118,14 +132,23 @@ def replay(paths):
                 print(f"FAIL  {os.path.basename(path)}: the board reported {ln}")
         if nstatus:
             (usb, setups, stalls, dropped, errors, ref, sys_, xosc, pll, usb_khz, sys_khz, sys48_khz, ref_khz,
-             sof_khz, nl, mi) = last.groups()
+             sof_khz, nl, mi) = last
             print(f"PASS  {os.path.basename(path)}: {nstatus} status lines, the last: usb={usb} setups={setups} "
                   f"stalls={stalls} dropped={dropped} errors={errors} lives={nl} minstret={mi}")
             print(f"      the bootrom left clk_ref_ctrl={ref} clk_sys_ctrl={sys_} xosc_status={xosc} pll_usb_cs={pll}")
             print(f"      against the crystal: clk_usb {usb_khz} kHz, clk_sys {sys_khz} kHz as left and {sys48_khz} kHz "
                   f"moved, clk_ref {ref_khz} kHz; "
                   f"clk_sys against the host's frames {sof_khz} kHz")
-            if usb != "6" or (mi != "0" and mi != "3082"):
+            if cut or spliced:
+                print(f"      {cut} of them cut at 190 bytes (revision 4's line buffer) and {spliced} came "
+                      f"after half of another (revision 4's queue cut a write): read up to lives")
+            if sof_khz != "0" and not 47000 <= int(sof_khz) <= 49000:
+                if mi == "?":
+                    print(f"      sof_khz={sof_khz} is a count across a gap in the host's frames, which revision 4 kept")
+                else:
+                    failed += 1
+                    print(f"FAIL  {os.path.basename(path)}: sof_khz={sof_khz} is not clk_sys at 48 MHz")
+            if usb != "6" or mi not in ("0", "3082", "?"):
                 failed += 1
                 print(f"FAIL  {os.path.basename(path)}: the last status should say usb=6 and minstret=3082")
     if seen["LIFE"] and not failed:

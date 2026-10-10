@@ -63,7 +63,7 @@ static uint32_t unit;   // set in board_init: the shell has no initialised data
 
 // ---------- text, without a C library -----------------------------------------
 
-static char line[192];
+static char line[256];   // a status line is at most 252 bytes: 192 cut minstret off (round 4)
 static uint32_t at;
 
 static void put(const char *s) { while (*s && at < sizeof line - 2) line[at++] = *s++; }
@@ -123,7 +123,11 @@ static void measure(void) {
     if (!sof_cycle) { sof_frame = f; sof_cycle = c; return; }
     uint32_t frames = (f - sof_frame) & 0x7ffu;
     if (frames >= 500) {
-        sof_khz = (c - sof_cycle) / frames;
+        // A count across a gap in the host's frames is not a clock: round 4's
+        // last line said 7877451, about 80 s for 500 frames, as if the bus
+        // had been suspended. Only a count that could be 1 ms frames is kept.
+        uint32_t khz = (c - sof_cycle) / frames;
+        if (frames < 1000 && khz < 200000u) sof_khz = khz;
         sof_frame = f;
         sof_cycle = c;
     }

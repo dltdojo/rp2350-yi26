@@ -267,12 +267,12 @@ void usbdev_ep0_out_done(const uint8_t *data, uint32_t len) {
 static uint8_t queue[QUEUE];
 static uint32_t head, count;
 
+// All of a write or none of it: a line cut where the queue filled would be
+// spliced onto the next one that fits (exp226's round 4 log had one).
 void usbdev_write(const char *s, uint32_t n) {
-    for (uint32_t i = 0; i < n; i++) {
-        if (count == QUEUE) { usbdev.dropped += n - i; return; }
-        queue[(head + count) % QUEUE] = (uint8_t)s[i];
-        count++;
-    }
+    if (n > QUEUE - count) { usbdev.dropped += n; return; }
+    for (uint32_t i = 0; i < n; i++) queue[(head + count + i) % QUEUE] = (uint8_t)s[i];
+    count += n;
 }
 
 uint32_t usbdev_packet(uint8_t *out) {

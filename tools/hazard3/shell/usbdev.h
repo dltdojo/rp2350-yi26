@@ -67,8 +67,9 @@ void usbdev_setup(const uint8_t setup[8]);
 void usbdev_ep0_in_done(void);
 void usbdev_ep0_out_done(const uint8_t *data, uint32_t len);
 
-// The bulk IN queue. usbdev_write takes what fits and counts the rest as
-// dropped — a log nobody reads must not stop the shell. usbdev_packet fills
+// The bulk IN queue. usbdev_write takes the whole write if it fits and
+// otherwise none of it, counted as dropped — a log nobody reads must not stop
+// the shell, and a log somebody reads must not have half a line in it. usbdev_packet fills
 // one packet, at most 64 bytes, and returns its length; 0 when there is none.
 void usbdev_write(const char *s, uint32_t n);
 uint32_t usbdev_packet(uint8_t *out);

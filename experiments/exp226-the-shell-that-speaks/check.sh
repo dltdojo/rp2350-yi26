@@ -68,6 +68,8 @@ usbdev_mutant "the address is taken before SET_ADDRESS's status stage" \
 usbdev_mutant "the bulk IN endpoint is 0x81, the interrupt endpoint's" 's/7, 0x05, 0x82, 0x02,/7, 0x05, 0x81, 0x02,/'
 usbdev_mutant "DTR is read from bit 1, RTS" 's/usbdev.dtr = (uint8_t)(value \& 1);/usbdev.dtr = (uint8_t)((value >> 1) \& 1);/'
 usbdev_mutant "a 64-byte answer short of what was asked gets no empty packet after" 's/tx_zlp = len < asked \&\& len % USBDEV_EP0_SIZE == 0 \&\& len > 0;/tx_zlp = 0;/'
+usbdev_mutant "a write is taken when only part of it fits" \
+    's/if (n > QUEUE - count) { usbdev.dropped += n; return; }/if (count == QUEUE) { usbdev.dropped += n; return; }/'
 usbdev_mutant "the device qualifier is answered with the device descriptor" \
     's/if (type == 0x01 \&\& index == 0) { \*len = sizeof DEVICE; return DEVICE; }/if ((type == 0x01 || type == 0x06) \&\& index == 0) { *len = sizeof DEVICE; return DEVICE; }/'
 

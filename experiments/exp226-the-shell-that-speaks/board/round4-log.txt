@@ -1,0 +1,14 @@
+exp226 usb=6 setups=35 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=9 minstr
+exp226 usb=6 setups=35 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=9 minstr
+exp226 usb=6 setups=35 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=9 minstr
+LIFE 00000009 00000c0a bedb108e 6270d1d5 08cdbd31
+exp226 usb=6 setups=35 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=10 minst
+exp226 usb=6 setups=35 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=10 minst
+exp226 usb=6 setups=35 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 exp226 usb=6 setups=37 stalls=3 dropped=307 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=10 min
+exp226 usb=6 setups=37 stalls=3 dropped=307 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=10 min
+exp226 usb=6 setups=37 stalls=3 dropped=307 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=10 min
+exp226 usb=6 setups=37 stalls=3 dropped=307 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=10 min
+exp226 usb=6 setups=37 stalls=3 dropped=307 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=10 min
+LIFE 0000000a 00000c0a 57c99b15 c85e6c46 2275a633
+exp226 usb=6 setups=37 stalls=3 dropped=307 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=47999 lives=11 min
+exp226 usb=6 setups=37 stalls=3 dropped=307 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10966 sys48_khz=48001 ref_khz=10965 sof_khz=7877451 lives=11 m
