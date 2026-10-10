@@ -12,11 +12,15 @@
 // wait loop. A control transfer has the host retrying for hundreds of
 // milliseconds; a poll every few milliseconds is plenty.
 //
-// The system clock is not touched. The bootrom's clk_sys and clk_ref stay as
-// they are, so led.h's beat is what it was; only clk_usb is new: XOSC (12 MHz
-// on a Pico 2) into PLL_USB, 12 x 120 / 6 / 5 = 48 MHz, as embassy-rp
-// configures it. Each wait for the hardware is bounded and, past its bound,
-// returns the step that did not finish.
+// XOSC (12 MHz on a Pico 2) into PLL_USB, 12 x 120 / 6 / 5 = 48 MHz, as
+// embassy-rp configures it, for clk_usb — and, from revision 4 on, for clk_sys
+// too. Revisions 1-3 left clk_sys where the bootrom put it, about 11 MHz, so
+// that led.h's beat stayed what it was; on a board the host got no further
+// than a bus reset with clk_usb measured at 48 MHz. Every implementation that
+// works here runs clk_sys at or above clk_usb (embassy-rp at 150 MHz), and that
+// was the one difference left. A shell that waits counts its own units, from
+// the measured clk_sys. Each wait for the hardware is bounded and, past its
+// bound, returns the step that did not finish.
 
 #include <stdint.h>
 
@@ -51,6 +55,8 @@
 #define CLOCKS          0x40010000u
 #define CLK_REF_CTRL    (CLOCKS + 0x30u)
 #define CLK_SYS_CTRL    (CLOCKS + 0x3cu)
+#define CLK_SYS_DIV     (CLOCKS + 0x40u)
+#define CLK_SYS_SEL     (CLOCKS + 0x44u)
 #define CLK_USB_CTRL    (CLOCKS + 0x60u)
 #define CLK_USB_DIV     (CLOCKS + 0x64u)
 #define CLK_ENABLE      (1u << 11)
@@ -166,7 +172,7 @@ int usb_clock_start(void) {
     // here and say so instead.
     uint32_t ref = usb_boot.clk_ref_ctrl, sys = usb_boot.clk_sys_ctrl;
     if (((ref & 3u) == 1 && ((ref >> 5) & 3u) == 0) || ((sys & 1u) == 1 && ((sys >> 5) & 7u) == 1))
-        return USB_STEP_PLL_IN_USE;
+        return USB_STEP_SYS_CLOCK;
 
     // XOSC, as embassy-rp's start_xosc: 1-15 MHz range, startup delay for a
     // 12 MHz crystal with a multiplier of 64, enable, wait for STABLE.
@@ -197,6 +203,21 @@ int usb_clock_start(void) {
     usb_boot.sys_khz = against_xosc(count_khz(FC_CLK_SYS), xosc);
     usb_boot.ref_khz = against_xosc(count_khz(FC_CLK_REF), xosc);
     if (usb_boot.usb_khz < 47760 || usb_boot.usb_khz > 48240) return USB_STEP_CLK_USB;   // 0.5%
+
+    // clk_sys onto PLL_USB as embassy-rp moves it onto a PLL: to clk_ref first
+    // if it is not there, then the aux source chosen and selected, then the
+    // divider 1. SELECTED is one-hot: bit 0 clk_ref, bit 1 aux.
+    if ((REG(CLK_SYS_CTRL) & 1u) != 0) {
+        REG(CLK_SYS_CTRL) = REG(CLK_SYS_CTRL) & ~1u;
+        if (!wait_for(CLK_SYS_SEL, 1u)) return USB_STEP_SYS_CLOCK;
+    }
+    REG(CLK_SYS_CTRL) = (1u << 5);          // aux = PLL_USB, still on clk_ref
+    REG(CLK_SYS_CTRL) = (1u << 5) | 1u;     // and onto aux
+    if (!wait_for(CLK_SYS_SEL, 2u)) return USB_STEP_SYS_CLOCK;
+    REG(CLK_SYS_DIV) = 1u << 16;
+    xosc = count_khz(FC_XOSC);
+    usb_boot.sys48_khz = against_xosc(count_khz(FC_CLK_SYS), xosc);
+    if (usb_boot.sys48_khz < 47760 || usb_boot.sys48_khz > 48240) return USB_STEP_SYS_CLOCK;
     return 0;
 }
 

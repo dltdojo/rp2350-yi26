@@ -8,8 +8,9 @@ exp225's shell and its proved Rule 30 kernel are compiled in unchanged. A new
 CDC-ACM device, written in C for the shell, brings up a 48 MHz USB clock,
 enumerates, and sends a log on a bulk IN endpoint. A phone opens that log with
 `tools/pages/log.html`, and **Copy** brings back as text what the LED could
-only blink. On a Pico 2, round 1: the phone found no device; round 2: the host reset
-the bus and got no further. Revision 3 measures the USB clock.**
+only blink. On a Pico 2, three rounds so far: no device; a bus reset and no further;
+clk_usb measured right and exp225's check 4 failing. Revision 4 runs clk_sys at
+48 MHz.**
 
 Development here is done from a cloud session with no board. So the question
 this experiment asks has a practical edge: can a board's report come back as
@@ -43,9 +44,9 @@ There is one difference: bcdUSB is 2.00, not 2.10, so no host asks for a BOS
 descriptor. The serial number is `226`.
 
 The register sequence follows embassy-rp 0.10 (`src/usb.rs`, `src/clocks.rs`)
-write for write, with addresses and bits from rp-pac 7.0.0. The system clock
-is left as the bootrom set it, so the LED's beat is what it was. Only clk_usb
-is new: the 12 MHz XOSC through PLL_USB, ×120 ÷6 ÷5 = 48 MHz.
+write for write, with addresses and bits from rp-pac 7.0.0. The 12 MHz XOSC
+goes through PLL_USB, ×120 ÷6 ÷5 = 48 MHz, for clk_usb and, from revision 4,
+for clk_sys as well; both are measured against the crystal before USB starts.
 
 ## What is checked without a board
 
@@ -103,7 +104,10 @@ files on the phone: `exp226.uf2`, plus `tools/pages/inspect.html` and
      - 7: clk_usb not enabled, or not 48 MHz against the crystal (revision 3
        measures it with the chip's frequency counter)
      - 8: the controller's reset
-     - 9: the bootrom left the system clock on PLL_USB, so it was not touched
+     - 9: clk_sys would not move onto PLL_USB (revision 4)
+
+     After an error 1 to 4, the stage count follows, in turn: two numbers,
+     each after its own 3 seconds dark.
 
    The life no longer plays on the LED. It goes out over USB as LIFE lines.
    Revision 1 played the life and showed the stage in between, and on a board
@@ -123,13 +127,14 @@ Every step ends in a number or in text. Nothing has to be described.
 ## What the log says
 
 ```
-exp226 usb=6 setups=… stalls=… dropped=… errors=… ref=… sys=… xosc=… pll=… usb_khz=… sys_khz=… ref_khz=… sof_khz=… lives=… minstret=…
+exp226 usb=6 setups=… stalls=… dropped=… errors=… ref=… sys=… xosc=… pll=… usb_khz=… sys_khz=… sys48_khz=… ref_khz=… sof_khz=… lives=… minstret=…
 LIFE round minstret gen1 gen256 centre-column
 ```
 
 The status line comes about once a second. `ref`, `sys`, `xosc` and `pll` are
 the clock registers as the bootrom left them, read before anything changed.
-`usb_khz`, `sys_khz` and `ref_khz` are the chip's frequency counter, taken
+`usb_khz`, `sys_khz` (as the bootrom left it), `sys48_khz` (once moved) and
+`ref_khz` are the chip's frequency counter, taken
 against the crystal so that clk_ref's unknown rate cancels; `sof_khz` is clk_sys
 counted again against the host's 1 ms frames. They are the first measurements
 in this repository of the clock `led.h` has only assumed. `errors` counts the
@@ -147,6 +152,8 @@ line must be `rule30.py`'s life, with minstret 3082.
 
 | 2 | revision 2 (`64b907e9…`) | No long light, then **2 flashes**: a bus reset, and no SET_ADDRESS completed. The pull-up is seen and the host resets the bus; nothing after that worked. |
 
+| 3 | revision 3 (`2a7068dc…`) | A long light, then **4 flashes**: exp225's check 4, the first life's SHA-256 not `rule30.py`'s — which revision 2 had passed, since it showed a stage, and only board_play shows one. And clk_usb **was** measured at 48 MHz ± 0.5%, or it would have been error 7. Both choosers empty again. |
+
 Round 2 stopped between the reset and the address, where revision 2's LED had
 one number for three different failures: no SETUP decoded, a SETUP decoded and
 never answered, or an answer never taken. Revision 3 splits them (stages 3 and
@@ -155,6 +162,18 @@ chip's frequency counter, because a reset is a 10 ms level that any clock sees
 and a packet is not: a wrong 48 MHz would stop exactly here. It also stops
 dropping a SETUP that arrives in the same poll as the reset before it, and
 answers the host for its first seconds before going on to the kernel.
+
+Round 3 settled the clock that was suspected: clk_usb is 48 MHz against the
+crystal. What it left is the one difference between this shell and every
+implementation that enumerates on this board: they run clk_sys at or above
+clk_usb (embassy-rp at 150 MHz), and the shell had kept the bootrom's, about
+11 MHz, so that `led.h`'s beat would not change. Revision 4 moves clk_sys onto
+PLL_USB too, measures it, and counts its waits in units of the measured clock.
+Check 4 failing in round 3, and not in round 2, is not explained: revision 3
+added the frequency counter and a few seconds of answering the host before the
+kernel runs, and neither writes where the kernel or the check reads. Revision 4
+shows the stage after an error as well, so one round gives both numbers, and
+if USB comes up the FAIL line carries the first generation the check saw.
 
 Round 1's lesson is the LED's, and it is this repository's own rule
 ([docs/debugging-without-a-board.md](../../docs/debugging-without-a-board.md)):

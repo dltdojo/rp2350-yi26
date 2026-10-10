@@ -11,8 +11,8 @@
 //                is an error on the LED, forever.
 //   board_play   the life goes out over USB; the LED says only how far the host
 //                has got with the device, for as long as the life lasts.
-//   board_fail   exp225's check 1 to 4 as an error on the LED, and over USB a
-//                FAIL line, forever.
+//   board_fail   exp225's check 1 to 4 as an error on the LED, then the stage,
+//                in turn, and over USB a FAIL line, forever.
 //
 // The LED is the debug channel here, so it says one thing at a time, in one
 // shape a person can count (revision 2: revision 1 played the life and showed
@@ -25,11 +25,12 @@
 //   2 s on, then N flashes, 3 s dark   an error: 1-4 exp225's checks, 5 XOSC,
 //                                      6 PLL_USB, 7 clk_usb not enabled or not
 //                                      48 MHz against the crystal, 8 the
-//                                      controller's reset, 9 the bootrom's
-//                                      clock on PLL_USB
+//                                      controller's reset, 9 clk_sys would not
+//                                      move onto PLL_USB (revision 4)
 //
 // Revision 3 split stage 2 in three after round 2 stopped there, and measures
-// clk_usb before using it.
+// clk_usb before using it. Revision 4 moves clk_sys onto PLL_USB too (see
+// usb_chip.c), and after an error shows the stage as well, in turn.
 //
 // The long light first is what makes an error not a stage.
 //
@@ -37,7 +38,7 @@
 // status line about once a second:
 //
 //   LIFE round minstret gen1 gen256 centre-column           as the RTL prints it
-//   exp226 usb=… setups=… stalls=… dropped=… errors=… ref=… sys=… xosc=… pll=… usb_khz=… sys_khz=… ref_khz=… sof_khz=… lives=… minstret=…
+//   exp226 usb=… setups=… stalls=… dropped=… errors=… ref=… sys=… xosc=… pll=… usb_khz=… sys_khz=… sys48_khz=… ref_khz=… sof_khz=… lives=… minstret=…
 //
 // usb_khz, sys_khz and ref_khz are the chip's frequency counter against the
 // crystal; sof_khz is clk_sys counted again against the host's 1 ms frames —
@@ -55,6 +56,10 @@
 static void (*const unused_blink)(uint32_t) __attribute__((unused)) = blink;
 
 static uint32_t lives, last_instret, last_status, sof_frame, sof_cycle, sof_khz;
+
+// led.h's unit, about 0.18 s, in cycles of the clk_sys this board runs at:
+// led.h's assumption until the clock is moved, then the measured one.
+static uint32_t unit;   // set in board_init: the shell has no initialised data
 
 // ---------- text, without a C library -----------------------------------------
 
@@ -101,6 +106,7 @@ static void status(void) {
     field_hex("pll", usb_boot.pll_usb_cs);
     field("usb_khz", usb_boot.usb_khz);
     field("sys_khz", usb_boot.sys_khz);
+    field("sys48_khz", usb_boot.sys48_khz);
     field("ref_khz", usb_boot.ref_khz);
     field("sof_khz", sof_khz);
     field("lives", lives);
@@ -128,7 +134,7 @@ static void pwait(uint32_t cycles) {
     while (csrr(mcycle) - start < cycles) {
         usb_poll();
         measure();
-        if (csrr(mcycle) - last_status > 5 * UNIT) {
+        if (csrr(mcycle) - last_status > 5 * unit) {
             last_status = csrr(mcycle);
             status();
         }
@@ -145,9 +151,9 @@ static void flash(uint32_t on, uint32_t off) {
 // One count on the LED: 2 s on first if it is an error, then n flashes of
 // about 0.36 s, then 3 s dark.
 static void count(uint32_t n, int error) {
-    if (error) flash(11 * UNIT, 4 * UNIT);
-    for (uint32_t i = 0; i < n; i++) flash(2 * UNIT, 2 * UNIT);
-    pwait(16 * UNIT);
+    if (error) flash(11 * unit, 4 * unit);
+    for (uint32_t i = 0; i < n; i++) flash(2 * unit, 2 * unit);
+    pwait(16 * unit);
 }
 
 // Before USB is up there is nothing to poll: the same shape, with led.h's wait.
@@ -171,14 +177,18 @@ __attribute__((noreturn)) static void error_forever(uint32_t n) {
 // ---------- the four calls exp225's shell makes -------------------------------
 
 void board_init(void) {
+    unit = UNIT;
     led_init();
     int step = usb_clock_start();
-    if (!step) step = usb_start("exp226 the shell that speaks", "226");
+    if (!step) {
+        unit = (usb_boot.sys48_khz ? usb_boot.sys48_khz : 48000u) * 180u;
+        step = usb_start("exp226 the shell that speaks", "226");
+    }
     if (step) error_forever((uint32_t)step);
     // A host that is there finds the device in its first seconds: be there to
     // answer, before the shell goes on to the kernel and the checks.
     uint32_t start = csrr(mcycle);
-    while (csrr(mcycle) - start < 16 * UNIT && usbdev.stage < USBDEV_CONFIGURED) usb_poll();
+    while (csrr(mcycle) - start < 16 * unit && usbdev.stage < USBDEV_CONFIGURED) usb_poll();
 }
 
 void board_play(const uint32_t *life, uint32_t round, uint32_t instret) {
@@ -198,13 +208,14 @@ void board_play(const uint32_t *life, uint32_t round, uint32_t instret) {
 
     // As long as exp225 would have played it: 256 beats of two units.
     uint32_t start = csrr(mcycle);
-    while (csrr(mcycle) - start < N * 2 * UNIT) count(usbdev.stage + 1u, 0);
+    while (csrr(mcycle) - start < N * 2 * unit) count(usbdev.stage + 1u, 0);
 }
 
 void board_fail(uint32_t check, uint32_t got) {
     REG(SIO_OUT_CLR) = LED;
     for (;;) {
         count(check, 1);
+        count(usbdev.stage + 1u, 0);   // and how far USB got, in between
         put("FAIL");
         put_hex(check);
         put_hex(got);
