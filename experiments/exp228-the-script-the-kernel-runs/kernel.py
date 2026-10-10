@@ -357,11 +357,14 @@ addi("t4", "t3", -8)
 ins("op", "srl", "t2", "a2", "t4")
 ins("opi", "andi", "t2", "t2", 0x80)
 ins("br", "beq", "t2", "zero", "ENC_FITS")
+# The magnitude's word first, then the sign byte after it: the other way
+# round, the word would write over the sign byte whenever the magnitude has
+# fewer than four bytes (-128 would come out as 80 00, which is 128).
 ins("sh", "slli", "t5", "a1", 7)
 ins("op", "add", "t6", "s4", "t1")
+ins("st", "sw", "s4", "a2", 4)
 ins("st", "sb", "t6", "t5", 4)
 addi("t1", "t1", 1)
-ins("st", "sw", "s4", "a2", 4)
 ins("st", "sw", "s4", "t1", 0)
 j("ENC_DONE")
 label("ENC_FITS")

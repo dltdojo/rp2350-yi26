@@ -126,6 +126,36 @@ def hand():
     return c
 
 
+def edges():
+    """Numbers a 4-byte operand can hold, at the edges of each byte count."""
+    vs = {0, 1, 0x7fffffff}
+    for k in (7, 8, 15, 16, 23, 24, 30):
+        vs |= {2 ** k - 1, 2 ** k, 2 ** k + 1}
+    vs = {v for v in vs if v <= 0x7fffffff}
+    return sorted(vs | {-v for v in vs})
+
+
+def arith():
+    """Every opcode of arithmetic on the edges, its result compared with
+    script.py's encoding of it. Random scripts almost never compare a sum with
+    a constant, and that is how exp228's first ENCODE wrote -128 as 80 00: the
+    proof's reading of it found that, after 3000 fuzzed scripts had passed."""
+    from script import encode
+    out = []
+    vs = edges()
+    for x in vs:
+        for op, f in ((OP_1ADD, lambda a: a + 1), (OP_1SUB, lambda a: a - 1)):
+            out.append((f"{x} {'1add' if op == OP_1ADD else '1sub'}", ops(num(x), op, push(encode(f(x))) if f(x) else OP_0, OP_EQUAL)))
+    few = [v for v in vs if abs(v) in (0, 1, 127, 128, 255, 256, 32767, 32768, 0x7fffffff)]
+    for x in few:
+        for y in few:
+            for op, f in ((OP_ADD, lambda a, b: a + b), (OP_SUB, lambda a, b: a - b)):
+                r = f(x, y)
+                out.append((f"{x} {'add' if op == OP_ADD else 'sub'} {y}",
+                            ops(num(x), num(y), op, push(encode(r)) if r else OP_0, OP_EQUAL)))
+    return out
+
+
 def fuzz(n, seed=228):
     rng = random.Random(seed)
     common = [0x00, 0x4f, 0x51, 0x52, 0x60, 0x61, 0x69, 0x75, 0x76, 0x77, 0x78, 0x7c, 0x87, 0x88,

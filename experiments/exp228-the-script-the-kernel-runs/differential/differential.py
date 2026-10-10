@@ -37,8 +37,9 @@ def differential(rv32run, kernel, nfuzz):
     sigs.close()
     hand = list(cases.hand().items())
     fz = [(f"fuzz {i}", (s, st, False)) for i, (s, st) in enumerate(cases.fuzz(nfuzz))]
+    ar = [(f"arith {name}", (s, [], False)) for name, s in cases.arith()]
     codes = {}
-    for name, (script, stack, signed) in hand + fz:
+    for name, (script, stack, signed) in hand + ar + fz:
         img = cases.image(kernel, script, stack)
         if signed:
             want = run(script, stack, sig=cases.valid)
@@ -52,12 +53,13 @@ def differential(rv32run, kernel, nfuzz):
             got_rtl = code_of(rtl(img))
         codes[want] = codes.get(want, 0) + 1
         bad = got_model != want or (not signed and got_rtl != want)
-        if bad or not name.startswith("fuzz"):
+        if bad or not name.startswith(("fuzz", "arith")):
             where = "model" if signed else "model and RTL"
             print(f"{'FAIL' if bad else 'PASS'}  {name}: {NAMES[want]} ({want}) on the {where}"
                   + (f" — model {got_model}, RTL {got_rtl}" if bad else ""))
         failed += bad
-    print(f"{'FAIL' if failed else 'PASS'}  {len(fz)} fuzzed scripts, model and RTL against script.py: "
+    print(f"{'FAIL' if failed else 'PASS'}  {len(ar)} scripts of arithmetic at the edges and "
+          f"{len(fz)} fuzzed, model and RTL against script.py: "
           + ", ".join(f"{NAMES[k]} {v}" for k, v in sorted(codes.items())))
     os.unlink(sigs.name)
     return failed

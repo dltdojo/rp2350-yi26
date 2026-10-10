@@ -26,6 +26,7 @@ def h(b):
 def main(lean, n):
     sig = cases.SIGN()
     allc = [(name, s, st, signed) for name, (s, st, signed) in cases.hand().items()]
+    allc += [(f"arith {name}", s, [], False) for name, s in cases.arith()]
     allc += [(f"fuzz {i}", s, st, False) for i, (s, st) in enumerate(cases.fuzz(n))]
     lines, want = [], []
     for name, s, st, signed in allc:
@@ -45,7 +46,8 @@ def main(lean, n):
         print(f"FAIL  the specification agrees with script.py ({len(got)} of {len(want)} answered, {len(bad)} differ)")
         return 1
     print(f"PASS  proof/Script.lean's specification, run, agrees with script.py on all {len(want)} cases: "
-          f"{len(allc) - n} by hand and {n} fuzzed")
+          f"{len(allc) - n - len(cases.arith())} by hand, {len(cases.arith())} of arithmetic at the edges "
+          f"and {n} fuzzed")
     return 0
 
 
