@@ -12,7 +12,8 @@ only blink. On a Pico 2, round 4, with clk_sys moved to 48 MHz: a phone enumerat
 it and read its whole descriptor tree, exactly as tested here, and `log.html`
 brought back two lives that are `rule30.py`'s, minstret 3082, and the first
 measurements of the clock the bootrom leaves: clk_sys 10966 kHz against the
-crystal. Rounds 1-3 had got no further than a bus reset.**
+crystal. Round 5, with the log's own faults fixed, sent every line whole.
+Rounds 1-3 had got no further than a bus reset.**
 
 Development here is done from a cloud session with no board. So the question
 this experiment asks has a practical edge: can a board's report come back as
@@ -156,12 +157,10 @@ line must be `rule30.py`'s life, with minstret 3082.
 | Round | Firmware | What came back |
 | --- | --- | --- |
 | 1 | revision 1, `exp226.uf2` built at baf9fb7 (`fbe75028…`) | Flashed from a Pixel 9a. `inspect.html`: *No device chosen*. Asked afterwards, with revision 1 still on the board: the filtered chooser was **empty**, and so was **Any device…** — the phone sees no USB device at all, so enumeration did not complete, whatever the IDs. The LED was irregular. An unfinished step would have been a regular count, so the clock and the controller most likely came up and the life was playing; how far enumeration got could not be read from it. |
-
 | 2 | revision 2 (`64b907e9…`) | No long light, then **2 flashes**: a bus reset, and no SET_ADDRESS completed. The pull-up is seen and the host resets the bus; nothing after that worked. |
-
 | 3 | revision 3 (`2a7068dc…`) | A long light, then **4 flashes**: exp225's check 4, the first life's SHA-256 not `rule30.py`'s — which revision 2 had passed, since it showed a stage, and only board_play shows one. And clk_usb **was** measured at 48 MHz ± 0.5%, or it would have been error 7. Both choosers empty again. |
-
 | 4 | revision 4 (`dac41ee2…`) | No long light, **6 flashes**: configured. `inspect.html` connected and read the whole tree — 1209:0001, *exp226 the shell that speaks*, serial 226, EF/02/01, `0x81` interrupt 8, `0x01` and `0x82` bulk 64 — exactly what `usbdev_test.py` and exp115's recording say ([board/round4-inspect.txt](./board/round4-inspect.txt), replayed by `check.sh`). And no error, so exp225's four checks held, check 4 included. **Copy report** gave nothing on the phone; the report was selected and copied by hand. Then `log.html`: twelve status lines and **LIFE lines for lives 9 and 10, both `rule30.py`'s, minstret 3082** ([board/round4-log.txt](./board/round4-log.txt), replayed by `check.sh`), and the clocks below. Copy worked only after Disconnect. |
+| 5 | revision 5 (`5762b0d8…`) | `log.html`, copied after Disconnect: eleven status lines, **all whole**, `dropped=0`, `errors=0`, every one ending `minstret=3082`, and a **LIFE line for life 12, `rule30.py`'s** ([board/round5-log.txt](./board/round5-log.txt), replayed by `check.sh`). clk_sys as left 10950 kHz, clk_usb 47997 kHz, clk_sys moved 48000 kHz, 47998-47999 kHz against the frames. |
 
 **Round 4 is the first time a RISC-V shell on the verified-kernel road was
 seen by a host as a USB device**, and the first time one sent its findings back
@@ -183,10 +182,20 @@ buffer; once the page had been away, the queue filled (`dropped=307`) and
 kept half a line, which the next line was then glued onto; and the last
 `sof_khz` was 7877451, a count of about 80 s over 500 frames, as if the host
 had stopped sending frames for a while. `replay.py` reads revision 4's lines up
-to `lives` and says which were cut. Revision 5 (`5762b0d8…`, not yet on a
-board) fixes all three: a 256-byte line, a write that goes into the queue
-whole or not at all (`usbdev_test.py` and a seventh mutant hold it), and a
-frame count kept only when it could be 1 ms frames. The change from revision 3 that touches USB is
+to `lives` and says which were cut. Revision 5 (`5762b0d8…`) fixes all
+three: a 256-byte line, a write that goes into the queue whole or not at all
+(`usbdev_test.py` and a seventh mutant hold it), and a frame count kept only
+when it could be 1 ms frames. In round 5 every status line arrived whole,
+198 bytes ending in `minstret=3082`, with nothing dropped.
+
+Round 5 was a second boot, so it also says how much of round 4's table is the
+chip and how much is the boot. The ROSC-derived clocks moved, clk_sys as left
+10950 kHz against round 4's 10966, about 0.15%; everything taken from the
+crystal stayed within a few kHz of 48 MHz (clk_usb 47997, clk_sys moved 48000,
+against the frames 47998-47999). The registers the bootrom left were the same,
+and so were the three stalls.
+
+The change from revision 3 that touches USB is
 clk_sys moved to 48 MHz; the rest of revision 3 — the clock measured, the finer
 stages, the SETUP kept after a reset — was already there. So the inference is
 that the controller needs clk_sys at least as fast as clk_usb. It is the
