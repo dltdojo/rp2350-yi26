@@ -137,7 +137,7 @@ line must be `rule30.py`'s life, with minstret 3082.
 
 | Round | Firmware | What came back |
 | --- | --- | --- |
-| 1 | revision 1, `exp226.uf2` built at baf9fb7 (`fbe75028…`) | Flashed from a Pixel 9a. `inspect.html`: *No device chosen* — the filtered chooser offered nothing that was picked, and whether it was empty or closed was not recorded. The LED was irregular. An unfinished step would have been a regular count, so the clock and the controller most likely came up and the life was playing; how far enumeration got could not be read from it. |
+| 1 | revision 1, `exp226.uf2` built at baf9fb7 (`fbe75028…`) | Flashed from a Pixel 9a. `inspect.html`: *No device chosen*. Asked afterwards, with revision 1 still on the board: the filtered chooser was **empty**, and so was **Any device…** — the phone sees no USB device at all, so enumeration did not complete, whatever the IDs. The LED was irregular. An unfinished step would have been a regular count, so the clock and the controller most likely came up and the life was playing; how far enumeration got could not be read from it. |
 
 Round 1's lesson is the LED's, and it is this repository's own rule
 ([docs/debugging-without-a-board.md](../../docs/debugging-without-a-board.md)):
