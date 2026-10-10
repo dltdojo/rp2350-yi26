@@ -676,6 +676,14 @@ TRNG, the SHA-256 block for `board_sha`, the LED) and `health_sim.c` (the
 stand-ins and `sha256.c`), each compiled against the experiment's own
 `board.h`. exp223's UF2 still builds byte for byte.
 
+exp226 gave a shell its first USB port: `usbdev.c` and `usbdev.h`, a CDC-ACM
+device's logic — the descriptors every Rust firmware here presents (1209:0001,
+EF/02/01, 0x81, 0x01, 0x82), EP0's requests, the bulk IN queue — with no
+register in it, so that `usbdev_test.py` runs all of it on this machine, against
+exp115's recording of a real board among other things; and `usb_chip.c` /
+`usb_chip.h`, the RP2350's controller and its 48 MHz clock under it, following
+embassy-rp 0.10 write for write, which the Hazard3 RTL cannot simulate.
+
 ## `capture/`
 
 `tee.py` is `tee` that also writes down when each line arrived. A `run.sh`

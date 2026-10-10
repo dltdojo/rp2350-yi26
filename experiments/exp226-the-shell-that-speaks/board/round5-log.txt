@@ -1,0 +1,20 @@
+The log, in a browser
+exp116 · claim the CDC interfaces and read the endpoint. No firmware changes.
+page build b3 — if this is not the build you expect, reload with Ctrl-Shift-R.
+
+Connect and stream Disconnect Clear Copy Copy as JSON
+
+Disconnected. The kernel takes the port back — /dev/ttyACM0 returns.
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=12 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=12 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=12 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=12 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=12 minstret=3082
+LIFE 0000000c 00000c0a d7035f22 3b28ec91 b3bd389d
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=13 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=13 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=13 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=13 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47999 lives=13 minstret=3082
+exp226 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47997 sys_khz=10950 sys48_khz=48000 ref_khz=10949 sof_khz=47998 lives=13 minstret=3082
+12 lines, 2251 bytes, 8.5 s
