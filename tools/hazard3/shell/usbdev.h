@@ -39,9 +39,11 @@
 enum {
     USBDEV_NONE = 0,
     USBDEV_RESET = 1,        // the host reset the bus: the pull-up is seen
-    USBDEV_ADDRESSED = 2,    // SET_ADDRESS, and its status stage completed
-    USBDEV_CONFIGURED = 3,   // SET_CONFIGURATION 1
-    USBDEV_OPEN = 4,         // SET_CONTROL_LINE_STATE with DTR: a page or a terminal opened the port
+    USBDEV_SETUP = 2,        // a SETUP packet arrived: the controller decodes the host
+    USBDEV_SENT = 3,         // the host took a packet the device sent on EP0
+    USBDEV_ADDRESSED = 4,    // SET_ADDRESS, and its status stage completed
+    USBDEV_CONFIGURED = 5,   // SET_CONFIGURATION 1
+    USBDEV_OPEN = 6,         // SET_CONTROL_LINE_STATE with DTR: a page or a terminal opened the port
 };
 
 struct usbdev_state {

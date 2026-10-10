@@ -173,14 +173,19 @@ def run_tests(product, serial, readme=None):
         # -- an enumeration, as Linux does it -----------------------------------
         lib.usbdev_reset()
         check(lib.stage() == 1, "a bus reset is the first stage the LED can show")
+        evs = dev.setup(0x80, 0x06, 0, 1, 0, 0, 64, 0)
+        check(lib.stage() == 2, "a SETUP packet is stage 2, before anything is sent")
+        dev.in_done()
+        check(lib.stage() == 3, "the host taking the first packet is stage 3")
+        dev.out_done()
         d, st, _ = get_descriptor(dev, 1, 0, 64)
         check(len(d) == 18 and st, "GET_DESCRIPTOR device, 64 asked: 18 bytes in one packet, then the status stage",
               f"{d.hex()} status={st}")
         dev_desc = d
         evs = dev.setup(0x00, 0x05, 7, 0, 0, 0, 0, 0)
         check(evs == [("IN", b"")], "SET_ADDRESS 7 is answered with an empty IN packet", str(evs))
-        check(dev.in_done() == [("ADDRESS", 7)] and lib.stage() == 2,
-              "the address is taken only after that status stage, and the stage is 2")
+        check(dev.in_done() == [("ADDRESS", 7)] and lib.stage() == 4,
+              "the address is taken only after that status stage, and the stage is 4")
         d, st, _ = get_descriptor(dev, 1, 0, 18)
         check(d == dev_desc and st, "GET_DESCRIPTOR device again, at the new address: the same 18 bytes")
         d9, st9, _ = get_descriptor(dev, 2, 0, 9)
@@ -200,8 +205,8 @@ def run_tests(product, serial, readme=None):
         _, _, evs = get_descriptor(dev, 0x0f, 0, 5)
         check(evs == [("STALL", 0)], "so is BOS: bcdUSB 2.00 does not promise one", str(evs))
         evs = dev.setup(0x00, 0x09, 1, 0, 0, 0, 0, 0)
-        check(evs == [("CONFIGURE", 1), ("IN", b"")] and lib.stage() == 3,
-              "SET_CONFIGURATION 1 enables the endpoints, then its status stage; the stage is 3", str(evs))
+        check(evs == [("CONFIGURE", 1), ("IN", b"")] and lib.stage() == 5,
+              "SET_CONFIGURATION 1 enables the endpoints, then its status stage; the stage is 5", str(evs))
         dev.in_done()
         d, st, _ = dev.control_in(0x80, 0x08, 0, 0, 0, 0, 1, 0)
         check(d == b"\x01" and st, "GET_CONFIGURATION: 1")
@@ -236,7 +241,7 @@ def run_tests(product, serial, readme=None):
         check(ok and bytes(lib.line_coding()[:7]) == coding, "SET_LINE_CODING: 7 bytes taken, then its status stage",
               str(evs))
         ok, evs = dev.control_out(0x21, 0x22, 3, 0, 0, 0, 0, 0)
-        check(ok and lib.dtr() == 1 and lib.stage() == 4, "SET_CONTROL_LINE_STATE 3: DTR, the port is open, stage 4")
+        check(ok and lib.dtr() == 1 and lib.stage() == 6, "SET_CONTROL_LINE_STATE 3: DTR, the port is open, stage 6")
         d, st, _ = dev.control_in(0xa1, 0x21, 0, 0, 0, 0, 7, 0)
         check(d == coding and st, "GET_LINE_CODING gives back what was set")
         ok, evs = dev.control_out(0x21, 0x22, 2, 0, 0, 0, 0, 0)
@@ -244,8 +249,8 @@ def run_tests(product, serial, readme=None):
         ok, evs = dev.control_out(0x21, 0x22, 1, 0, 0, 0, 0, 0)
         check(ok and lib.dtr() == 1, "SET_CONTROL_LINE_STATE 1, DTR alone: open")
         ok, evs = dev.control_out(0x21, 0x22, 0, 0, 0, 0, 0, 0)
-        check(ok and lib.dtr() == 0 and lib.stage() == 4,
-              "SET_CONTROL_LINE_STATE 0 when the page closes: DTR off, the stage stays 4")
+        check(ok and lib.dtr() == 0 and lib.stage() == 6,
+              "SET_CONTROL_LINE_STATE 0 when the page closes: DTR off, the stage stays 6")
         evs = dev.setup(0x21, 0x22, 3, 0, 1, 0, 0, 0)
         check(evs == [("STALL", 0)], "a class request to interface 1 is stalled: 0 is the communications interface")
         evs = dev.setup(0x40, 0x01, 0, 0, 0, 0, 0, 0)
@@ -254,7 +259,7 @@ def run_tests(product, serial, readme=None):
         # -- a bus reset in the middle ------------------------------------------
         dev.setup(0x80, 0x06, 0, 2, 0, 0, 255, 0)
         lib.usbdev_reset()
-        check(lib.stage() == 4 and dev.in_done() == [],
+        check(lib.stage() == 6 and dev.in_done() == [],
               "a bus reset in the middle of a transfer abandons it; the stage reached is kept")
 
         # -- an answer that ends on a full packet, short of what was asked -------

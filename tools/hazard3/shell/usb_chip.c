@@ -55,6 +55,19 @@
 #define CLK_USB_DIV     (CLOCKS + 0x64u)
 #define CLK_ENABLE      (1u << 11)
 #define CLK_ENABLED     (1u << 28)
+#define FC0_REF_KHZ     (CLOCKS + 0x8cu)
+#define FC0_MIN_KHZ     (CLOCKS + 0x90u)
+#define FC0_MAX_KHZ     (CLOCKS + 0x94u)
+#define FC0_INTERVAL    (CLOCKS + 0x9cu)
+#define FC0_SRC         (CLOCKS + 0xa0u)
+#define FC0_STATUS      (CLOCKS + 0xa4u)
+#define FC0_RESULT      (CLOCKS + 0xa8u)
+#define FC0_DONE        (1u << 4)
+#define FC0_RUNNING     (1u << 8)
+#define FC_CLK_REF      0x08u
+#define FC_CLK_SYS      0x09u
+#define FC_XOSC         0x05u
+#define FC_CLK_USB      0x0bu
 
 #define USB             0x50110000u
 #define ADDR_ENDP       (USB + 0x00u)
@@ -69,6 +82,7 @@
 
 #define ST_SETUP_REC    (1u << 17)
 #define ST_BUS_RESET    (1u << 19)
+#define ST_ERRORS       ((1u << 24) | (1u << 25) | (1u << 26) | (1u << 27))   // CRC, bit stuff, overflow, timeout
 
 #define DPRAM           0x50100000u
 #define EP_IN_CTRL(n)   (DPRAM + 0x08u + 8u * ((n) - 1))    // n >= 1
@@ -120,6 +134,27 @@ static void copy_in(uint32_t at, const uint8_t *data, uint32_t len) {
     }
 }
 
+// The chip's frequency counter, as pico-sdk's frequency_count_khz uses it.
+// The reference is clk_ref, whose frequency nobody here knows — so every
+// result is taken against the crystal's, measured the same way: a ratio, in
+// which clk_ref cancels.
+static uint32_t count_khz(uint32_t src) {
+    for (uint32_t i = 0; i < 4000000u && (REG(FC0_STATUS) & FC0_RUNNING); i++) {}
+    REG(FC0_REF_KHZ) = 12000;
+    REG(FC0_INTERVAL) = 10;
+    REG(FC0_MIN_KHZ) = 0;
+    REG(FC0_MAX_KHZ) = 0x1ffffffu;
+    REG(FC0_SRC) = src;
+    if (!wait_for(FC0_STATUS, FC0_DONE)) return 0;
+    return REG(FC0_RESULT) >> 5;
+}
+
+// raw x 12000 / xosc, in 32 bits: a raw count up to 350 MHz fits.
+static uint32_t against_xosc(uint32_t raw, uint32_t xosc) {
+    if (!xosc) return 0;
+    return raw < 350000u ? raw * 12000u / xosc : raw / xosc * 12000u;
+}
+
 int usb_clock_start(void) {
     usb_boot.clk_ref_ctrl = REG(CLK_REF_CTRL);
     usb_boot.clk_sys_ctrl = REG(CLK_SYS_CTRL);
@@ -155,6 +190,13 @@ int usb_clock_start(void) {
     REG(CLK_USB_DIV) = 1u << 16;
     REG(CLK_USB_CTRL) = CLK_ENABLE | (0u << 5);
     if (!wait_for(CLK_USB_CTRL, CLK_ENABLED)) return USB_STEP_CLK_USB;
+
+    // Measured, not assumed: clk_usb must be 48 MHz against the crystal.
+    uint32_t xosc = count_khz(FC_XOSC);
+    usb_boot.usb_khz = against_xosc(count_khz(FC_CLK_USB), xosc);
+    usb_boot.sys_khz = against_xosc(count_khz(FC_CLK_SYS), xosc);
+    usb_boot.ref_khz = against_xosc(count_khz(FC_CLK_REF), xosc);
+    if (usb_boot.usb_khz < 47760 || usb_boot.usb_khz > 48240) return USB_STEP_CLK_USB;   // 0.5%
     return 0;
 }
 
@@ -223,14 +265,20 @@ void usbhw_configure(int on) {
 
 void usb_poll(void) {
     uint32_t st = REG(SIE_STATUS);
+    if (st & ST_ERRORS) {
+        usb_boot.sie_errors++;
+        REG(SIE_STATUS) = st & ST_ERRORS;
+    }
+    // A reset and the SETUP after it can both be waiting when the shell has
+    // been busy: the reset is handled, and the SETUP is kept, not cleared.
     if (st & ST_BUS_RESET) {
-        REG(SIE_STATUS) = ST_BUS_RESET | ST_SETUP_REC;
+        REG(SIE_STATUS) = ST_BUS_RESET;
         REG(BUFF_STATUS) = 0xffffffffu;
         REG(ADDR_ENDP) = 0;
         usbhw_configure(0);
         in0_busy = out0_busy = 0;
         usbdev_reset();
-        return;
+        st = REG(SIE_STATUS);
     }
     if (st & ST_SETUP_REC) {
         uint32_t w0 = REG(DPRAM + 0), w1 = REG(DPRAM + 4);

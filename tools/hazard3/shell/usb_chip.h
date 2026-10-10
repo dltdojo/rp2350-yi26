@@ -19,14 +19,18 @@
 enum {
     USB_STEP_XOSC = 5,          // the crystal oscillator did not become stable
     USB_STEP_PLL = 6,           // PLL_USB did not come out of reset or did not lock
-    USB_STEP_CLK_USB = 7,       // clk_usb did not report enabled
+    USB_STEP_CLK_USB = 7,       // clk_usb did not report enabled, or is not 48 MHz against the crystal
     USB_STEP_CONTROLLER = 8,    // the USB controller did not come out of reset
     USB_STEP_PLL_IN_USE = 9,    // the bootrom left clk_ref or clk_sys on PLL_USB: not touched
 };
 
-// What the bootrom left, read before anything is changed.
+// What the bootrom left, read before anything is changed; and the clocks as
+// the chip's frequency counter measures them against the 12 MHz crystal, in
+// kHz (0 when the counter did not finish).
 struct usb_boot {
     uint32_t clk_ref_ctrl, clk_sys_ctrl, xosc_status, pll_usb_cs;
+    uint32_t usb_khz, sys_khz, ref_khz;
+    uint32_t sie_errors;        // CRC, bit-stuff, receive timeout and overflow errors seen on the bus
 };
 extern struct usb_boot usb_boot;
 

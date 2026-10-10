@@ -8,8 +8,8 @@ exp225's shell and its proved Rule 30 kernel are compiled in unchanged. A new
 CDC-ACM device, written in C for the shell, brings up a 48 MHz USB clock,
 enumerates, and sends a log on a bulk IN endpoint. A phone opens that log with
 `tools/pages/log.html`, and **Copy** brings back as text what the LED could
-only blink. On a Pico 2, round 1: the phone found no device, and the LED could not
-say why; revision 2's LED is a count.**
+only blink. On a Pico 2, round 1: the phone found no device; round 2: the host reset
+the bus and got no further. Revision 3 measures the USB clock.**
 
 Development here is done from a cloud session with no board. So the question
 this experiment asks has a practical edge: can a board's report come back as
@@ -88,9 +88,11 @@ files on the phone: `exp226.uf2`, plus `tools/pages/inspect.html` and
    - **Without a long light first, it is how far the host got**:
      - 1 flash: nothing from the host at all
      - 2: bus reset
-     - 3: addressed
-     - 4: configured
-     - 5: a page opened the port
+     - 3: a SETUP packet arrived
+     - 4: the host took a packet the device sent
+     - 5: addressed
+     - 6: configured
+     - 7: a page opened the port
 
      It changes as the host gets further. Report the last number you see.
    - **With a 2-second light first, it is an error**, and the board stops there:
@@ -98,7 +100,8 @@ files on the phone: `exp226.uf2`, plus `tools/pages/inspect.html` and
        FAIL line too
      - 5: the crystal oscillator
      - 6: PLL_USB
-     - 7: clk_usb
+     - 7: clk_usb not enabled, or not 48 MHz against the crystal (revision 3
+       measures it with the chip's frequency counter)
      - 8: the controller's reset
      - 9: the bootrom left the system clock on PLL_USB, so it was not touched
 
@@ -120,14 +123,17 @@ Every step ends in a number or in text. Nothing has to be described.
 ## What the log says
 
 ```
-exp226 usb=4 setups=… stalls=… dropped=… ref=… sys=… xosc=… pll=… sys_khz=… lives=… minstret=…
+exp226 usb=6 setups=… stalls=… dropped=… errors=… ref=… sys=… xosc=… pll=… usb_khz=… sys_khz=… ref_khz=… sof_khz=… lives=… minstret=…
 LIFE round minstret gen1 gen256 centre-column
 ```
 
 The status line comes about once a second. `ref`, `sys`, `xosc` and `pll` are
 the clock registers as the bootrom left them, read before anything changed.
-`sys_khz` is clk_sys counted against the host's 1 ms frames. Both are the
-first measurement in this repository of the clock `led.h` has only assumed.
+`usb_khz`, `sys_khz` and `ref_khz` are the chip's frequency counter, taken
+against the crystal so that clk_ref's unknown rate cancels; `sof_khz` is clk_sys
+counted again against the host's 1 ms frames. They are the first measurements
+in this repository of the clock `led.h` has only assumed. `errors` counts the
+CRC, bit-stuff, overflow and timeout errors the controller saw on the bus.
 
 The LIFE line comes once per life, the same words the RTL prints. A pasted log
 goes under `board/`, and `check.sh` replays it with `replay.py`: every LIFE
@@ -138,6 +144,17 @@ line must be `rule30.py`'s life, with minstret 3082.
 | Round | Firmware | What came back |
 | --- | --- | --- |
 | 1 | revision 1, `exp226.uf2` built at baf9fb7 (`fbe75028…`) | Flashed from a Pixel 9a. `inspect.html`: *No device chosen*. Asked afterwards, with revision 1 still on the board: the filtered chooser was **empty**, and so was **Any device…** — the phone sees no USB device at all, so enumeration did not complete, whatever the IDs. The LED was irregular. An unfinished step would have been a regular count, so the clock and the controller most likely came up and the life was playing; how far enumeration got could not be read from it. |
+
+| 2 | revision 2 (`64b907e9…`) | No long light, then **2 flashes**: a bus reset, and no SET_ADDRESS completed. The pull-up is seen and the host resets the bus; nothing after that worked. |
+
+Round 2 stopped between the reset and the address, where revision 2's LED had
+one number for three different failures: no SETUP decoded, a SETUP decoded and
+never answered, or an answer never taken. Revision 3 splits them (stages 3 and
+4) and, before anything else, measures clk_usb against the crystal with the
+chip's frequency counter, because a reset is a 10 ms level that any clock sees
+and a packet is not: a wrong 48 MHz would stop exactly here. It also stops
+dropping a SETUP that arrives in the same poll as the reset before it, and
+answers the host for its first seconds before going on to the kernel.
 
 Round 1's lesson is the LED's, and it is this repository's own rule
 ([docs/debugging-without-a-board.md](../../docs/debugging-without-a-board.md)):

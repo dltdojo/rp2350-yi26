@@ -19,11 +19,17 @@
 // the stage between lives, and on a board it could not be read):
 //
 //   N flashes, 3 s dark, repeated      the stage: N = 1 nothing from the host,
-//                                      2 bus reset, 3 addressed, 4 configured,
-//                                      5 a page opened the port
+//                                      2 bus reset, 3 a SETUP packet arrived,
+//                                      4 the host took a packet, 5 addressed,
+//                                      6 configured, 7 a page opened the port
 //   2 s on, then N flashes, 3 s dark   an error: 1-4 exp225's checks, 5 XOSC,
-//                                      6 PLL_USB, 7 clk_usb, 8 the controller's
-//                                      reset, 9 the bootrom's clock on PLL_USB
+//                                      6 PLL_USB, 7 clk_usb not enabled or not
+//                                      48 MHz against the crystal, 8 the
+//                                      controller's reset, 9 the bootrom's
+//                                      clock on PLL_USB
+//
+// Revision 3 split stage 2 in three after round 2 stopped there, and measures
+// clk_usb before using it.
 //
 // The long light first is what makes an error not a stage.
 //
@@ -31,11 +37,12 @@
 // status line about once a second:
 //
 //   LIFE round minstret gen1 gen256 centre-column           as the RTL prints it
-//   exp226 usb=… setups=… stalls=… dropped=… ref=… sys=… xosc=… pll=… sys_khz=… lives=… minstret=…
+//   exp226 usb=… setups=… stalls=… dropped=… errors=… ref=… sys=… xosc=… pll=… usb_khz=… sys_khz=… ref_khz=… sof_khz=… lives=… minstret=…
 //
-// sys_khz is clk_sys measured against the host's 1 ms frames — the first time
-// the clock led.h assumes is measured — and ref, sys, xosc and pll are the
-// clock registers as the bootrom left them, read before anything changed.
+// usb_khz, sys_khz and ref_khz are the chip's frequency counter against the
+// crystal; sof_khz is clk_sys counted again against the host's 1 ms frames —
+// the first measurements of the clock led.h assumes. ref, sys, xosc and pll are
+// the clock registers as the bootrom left them, read before anything changed.
 
 #include "board.h"
 #include "led.h"
@@ -47,7 +54,7 @@
 // led.h's one-bit verdict is not used here; a life is not a verdict.
 static void (*const unused_blink)(uint32_t) __attribute__((unused)) = blink;
 
-static uint32_t lives, last_instret, last_status, sof_frame, sof_cycle, sys_khz;
+static uint32_t lives, last_instret, last_status, sof_frame, sof_cycle, sof_khz;
 
 // ---------- text, without a C library -----------------------------------------
 
@@ -87,11 +94,15 @@ static void status(void) {
     field("setups", usbdev.setups);
     field("stalls", usbdev.stalls);
     field("dropped", usbdev.dropped);
+    field("errors", usb_boot.sie_errors);
     field_hex("ref", usb_boot.clk_ref_ctrl);
     field_hex("sys", usb_boot.clk_sys_ctrl);
     field_hex("xosc", usb_boot.xosc_status);
     field_hex("pll", usb_boot.pll_usb_cs);
-    field("sys_khz", sys_khz);
+    field("usb_khz", usb_boot.usb_khz);
+    field("sys_khz", usb_boot.sys_khz);
+    field("ref_khz", usb_boot.ref_khz);
+    field("sof_khz", sof_khz);
     field("lives", lives);
     field("minstret", last_instret);
     send();
@@ -106,7 +117,7 @@ static void measure(void) {
     if (!sof_cycle) { sof_frame = f; sof_cycle = c; return; }
     uint32_t frames = (f - sof_frame) & 0x7ffu;
     if (frames >= 500) {
-        sys_khz = (c - sof_cycle) / frames;
+        sof_khz = (c - sof_cycle) / frames;
         sof_frame = f;
         sof_cycle = c;
     }
@@ -164,6 +175,10 @@ void board_init(void) {
     int step = usb_clock_start();
     if (!step) step = usb_start("exp226 the shell that speaks", "226");
     if (step) error_forever((uint32_t)step);
+    // A host that is there finds the device in its first seconds: be there to
+    // answer, before the shell goes on to the kernel and the checks.
+    uint32_t start = csrr(mcycle);
+    while (csrr(mcycle) - start < 16 * UNIT && usbdev.stage < USBDEV_CONFIGURED) usb_poll();
 }
 
 void board_play(const uint32_t *life, uint32_t round, uint32_t instret) {

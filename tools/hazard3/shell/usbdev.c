@@ -205,6 +205,7 @@ static void class_request(const uint8_t *s, uint16_t value, uint16_t index, uint
 
 void usbdev_setup(const uint8_t s[8]) {
     usbdev.setups++;
+    if (usbdev.stage < USBDEV_SETUP) usbdev.stage = USBDEV_SETUP;
     ep0 = IDLE;
     tx_left = 0;
     tx_zlp = 0;
@@ -218,6 +219,7 @@ void usbdev_setup(const uint8_t s[8]) {
 }
 
 void usbdev_ep0_in_done(void) {
+    if (usbdev.stage < USBDEV_SENT) usbdev.stage = USBDEV_SENT;
     switch (ep0) {
     case DATA_IN:
         if (tx_left > 0) {
