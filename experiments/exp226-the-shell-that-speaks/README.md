@@ -246,7 +246,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp226 — the shell that speaks ===
-recorded at 2026-10-10T07:07:14Z from commit 6ea8001
+recorded at 2026-10-10T09:13:40Z from commit b2f5268
 
 >>> the USB device's descriptors, as a host reads them
 PASS  the device: USB 2.00, EF/02/01, EP0 64 bytes, 1209:0001, bcdDevice 0.10, strings 1-3, one configuration
@@ -256,8 +256,8 @@ PASS  the same device and tree exp115 recorded from a real Pico 2 running a Rust
 
 >>> the shell, for the chip and for the RTL
 build/expect.h: kernel 559d70d93ee6242d…, model 3079, RTL minstret 3082, first life 8c3f6e7f0f4aa2dc…
-build/exp226.bin  10916 bytes, the build allows 16384
-build/exp226.uf2  22016 bytes  sha256 dac41ee2c14935f5f4362ed2a96904d7d770c8fb0096fe5cf80a3538618dc8a0
+build/exp226.bin  10964 bytes, the build allows 16384
+build/exp226.uf2  22016 bytes  sha256 5762b0d84220ea91ab628bf377eb32df464f0985aa4a2220c4437a7ff01351aa
 
 >>> on the RTL, which has no USB: exp225's shell as exp226 builds it
 4c494645 00000000 00000c0a 00038000 02bb07b0 bae4d19d 4c494645 00000001 00000c0a 06a28c28 27266abc bd221e08 exit=0 
@@ -297,21 +297,29 @@ PASS  a vendor request is stalled
 PASS  a bus reset in the middle of a transfer abandons it; the stage reached is kept
 PASS  a 64-byte descriptor asked for with 255: one full packet, then an empty one, then the status stage
 PASS  100 bytes go out as 64 and 36: [64, 36, 0]
-PASS  1100 bytes into a 1024-byte queue: 76 dropped, the shell not stopped (76)
-PASS  and the 1024 that fit come out: 1024
+PASS  1100 bytes into a 1024-byte queue: all 1100 dropped, the shell not stopped (1100)
+PASS  ten 100-byte lines fit and the 30 bytes after them do not: whole lines out, none cut (1130 dropped, 1000 out)
+PASS  a write of exactly the queue fits and comes out: 1024
 PASS  the tests catch a usbdev.c where the configuration's length is miscounted, 75 for 70: GET_DESCRIPTOR configuration: 9 bytes, then all 70 in two packets, 64 and 6, no empty packet — 9 75 75
 PASS  the tests catch a usbdev.c where the address is taken before SET_ADDRESS's status stage: SET_ADDRESS 7 is answered with an empty IN packet — [('ADDRESS', 7), ('IN', b'')]
 PASS  the tests catch a usbdev.c where the bulk IN endpoint is 0x81, the interrupt endpoint's: interface 0 ACM with 0x81 interrupt 8; interface 1 data with 0x01 and 0x82 bulk 64 — [('interface', 0, 2, 2, 0), ('endpoint', 129, 'interrupt', 8), ('interface', 1, 10, 0, 0), ('endpoint', 1, 'bulk', 64), ('endpoint', 129, 'bulk', 64)]
 PASS  the tests catch a usbdev.c where DTR is read from bit 1, RTS: SET_CONTROL_LINE_STATE 2, RTS alone: DTR is bit 0, so the port is not open
 PASS  the tests catch a usbdev.c where a 64-byte answer short of what was asked gets no empty packet after: a 64-byte descriptor asked for with 255: one full packet, then an empty one, then the status stage — [('OUT', 0)]
+PASS  the tests catch a usbdev.c where a write is taken when only part of it fits: 1100 bytes into a 1024-byte queue: all 1100 dropped, the shell not stopped (0)
 PASS  the tests catch a usbdev.c where the device qualifier is answered with the device descriptor: the device qualifier is stalled: a full-speed device has none — [('OUT', 0)]
-PASS  the shell builds for the chip from exp225's shell.c and expect.h, in 10916 of the 16384 bytes it may use
+PASS  the shell builds for the chip from exp225's shell.c and expect.h, in 10964 of the 16384 bytes it may use
 PASS  all 43 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
-PASS  together they are exactly the 10916-byte image
+PASS  together they are exactly the 10964-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: dac41ee2c14935f5…
+PASS  the UF2 is byte for byte the committed one: 5762b0d84220ea91…
 PASS  on the RTL, exp225's shell as exp226 builds it lives exp225's two lives, minstret 3082
-SKIP  replaying a board's log: none recorded yet (board/*.txt)
+PASS  round4-inspect.txt: inspect.html on a phone saw the device usbdev.c describes — 1209:0001, exp226 the shell that speaks, serial 226, EF/02/01, 0x81 interrupt 8, 0x01 and 0x82 bulk 64
+PASS  round4-log.txt: 12 status lines, the last: usb=6 setups=37 stalls=3 dropped=307 errors=0 lives=11 minstret=?
+      the bootrom left clk_ref_ctrl=00000000 clk_sys_ctrl=00000000 xosc_status=00000000 pll_usb_cs=00000001
+      against the crystal: clk_usb 48000 kHz, clk_sys 10966 kHz as left and 48001 kHz moved, clk_ref 10965 kHz; clk_sys against the host's frames 7877451 kHz
+      11 of them cut at 190 bytes (revision 4's line buffer) and 1 came after half of another (revision 4's queue cut a write): read up to lives
+      sof_khz=7877451 is a count across a gap in the host's frames, which revision 4 kept
+PASS  every LIFE line (2) is rule30.py's life, minstret 3082
 ```
