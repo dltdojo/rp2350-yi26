@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""exp226 — what the board said, checked here, as many times as anyone likes.
+
+  replay.py LOG...
+
+LOG is what tools/pages/log.html's Copy button gave, pasted into a file under
+board/. Every line the shell prints is checked against what it should be:
+
+  LIFE round minstret gen1 gen256 centre-column
+      round r is the r-th life from exp225's seed, each seeded by the last
+      generation of the one before — rule30.py's, Rule 30 cell by cell — and
+      minstret is 3082, the RTL's count for any seed
+  exp226 usb=… setups=… stalls=… dropped=… ref=… sys=… xosc=… pll=… sys_khz=… lives=… minstret=…
+      the port is open (usb=4) and the counts parse
+  FAIL check got
+      a failed check: always a FAIL here
+
+and the clock registers and sys_khz the board reported are printed, since
+those are what nobody had measured before.
+"""
+import os
+import re
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "exp225-the-life-every-beat-proved"))
+from rule30 import SEED0, history  # noqa: E402
+
+STATUS = re.compile(r"exp226 usb=(\d+) setups=(\d+) stalls=(\d+) dropped=(\d+) ref=([0-9a-f]{8}) sys=([0-9a-f]{8}) "
+                    r"xosc=([0-9a-f]{8}) pll=([0-9a-f]{8}) sys_khz=(\d+) lives=(\d+) minstret=(\d+)$")
+LIFE = re.compile(r"LIFE ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8}) ([0-9a-f]{8})$")
+
+
+def lives(n):
+    out, seed = [], SEED0
+    for _ in range(n):
+        h = history(seed)
+        out.append((h[0], h[-1], sum(((h[g] >> 16) & 1) << g for g in range(32))))
+        seed = h[-1]
+    return out
+
+
+def replay(paths):
+    failed, seen = 0, {"LIFE": 0, "exp226": 0, "FAIL": 0}
+    for path in paths:
+        text = open(path, encoding="utf-8", errors="replace").read()
+        want = lives(64)
+        for raw in text.splitlines():
+            ln = raw.strip()
+            m = LIFE.search(ln)
+            if m:
+                r, instret, g1, g256, col = (int(x, 16) for x in m.groups())
+                seen["LIFE"] += 1
+                if r >= len(want) or (g1, g256, col) != want[r] or instret != 3082:
+                    failed += 1
+                    print(f"FAIL  {os.path.basename(path)}: {ln} — rule30.py says life {r} is "
+                          f"{' '.join(f'{x:08x}' for x in want[r]) if r < len(want) else '?'}, minstret 3082")
+                continue
+            m = STATUS.search(ln)
+            if m:
+                seen["exp226"] += 1
+                last = m
+                continue
+            if "FAIL" in ln and ln.startswith("FAIL"):
+                seen["FAIL"] += 1
+                failed += 1
+                print(f"FAIL  {os.path.basename(path)}: the board reported {ln}")
+        if seen["exp226"]:
+            usb, setups, stalls, dropped, ref, sys_, xosc, pll, khz, nl, mi = last.groups()
+            print(f"PASS  {os.path.basename(path)}: {seen['exp226']} status lines, the last: usb={usb} setups={setups} "
+                  f"stalls={stalls} dropped={dropped} lives={nl} minstret={mi}")
+            print(f"      the bootrom left clk_ref_ctrl={ref} clk_sys_ctrl={sys_} xosc_status={xosc} "
+                  f"pll_usb_cs={pll}; clk_sys measured {khz} kHz against the host's frames")
+            if usb != "4" or (mi != "0" and mi != "3082"):
+                failed += 1
+                print(f"FAIL  {os.path.basename(path)}: the last status should say usb=4 and minstret=3082")
+    if seen["LIFE"] and not failed:
+        print(f"PASS  every LIFE line ({seen['LIFE']}) is rule30.py's life, minstret 3082")
+    if not seen["LIFE"] and not seen["exp226"]:
+        failed += 1
+        print("FAIL  no line the shell prints was found")
+    return failed
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    sys.exit(1 if replay(sys.argv[1:]) else 0)
