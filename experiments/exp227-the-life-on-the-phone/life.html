@@ -1,0 +1,423 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp227 — the life on the phone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp227-the-life-on-the-phone — one file, no dependencies, no build step, no
+  server. An appliance, not a tool: it knows exp227's lines and nothing else.
+
+  The board sends every generation of every life as it plays it on the LED,
+  one a beat. This page draws each one as it arrives and checks it, cell by
+  cell, against Rule 30 written here again — so a row the board formatted or
+  carried wrong is drawn in red, whatever the C, the USB code or the phone did.
+  What it cannot check is the kernel: that is proof/Life.lean's, in exp225.
+
+  Open it directly from the filesystem — Files app -> "Open with Chrome" on
+  Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --acc:#1a5fb4; --led:#2fb84a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --acc:#78aeed; --led:#4ef06e; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 40rem; padding: 1.2rem 16px 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; margin: 0 .3rem .4rem 0; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: .6rem 0; padding: .6rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  #stage { display: flex; gap: 1rem; align-items: flex-start; }
+  #life { border: 1px solid var(--line); image-rendering: pixelated; max-width: 100%; }
+  #side { font-size: 13.5px; min-width: 7rem; }
+  #led { width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 2px solid var(--line); margin-bottom: .4rem;
+         background: transparent; transition: background .05s; }
+  #led.on { background: var(--led); box-shadow: 0 0 12px var(--led); }
+  #verdict { margin: .8rem 0; font-size: 14px; }
+  #verdict b.ok { color: var(--ok); } #verdict b.bad { color: var(--bad); }
+  #raw { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .6rem; border-radius: 6px;
+         font-family: ui-monospace, monospace; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap;
+         word-break: break-all; height: 11rem; overflow-y: auto; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .4rem; }
+</style>
+
+<h1>The life on the phone</h1>
+<p class="sub">exp227 &middot; every generation the board plays on its LED, drawn here and checked against Rule 30.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<div id="stage">
+  <canvas id="life" width="320" height="480"></canvas>
+  <div id="side">
+    <div id="led" title="the board's LED: the centre cell of the newest generation"></div>
+    <div>the LED</div>
+    <div class="meta" id="where">no life yet</div>
+  </div>
+</div>
+
+<div id="verdict">Nothing checked yet.</div>
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+const BAUD = 115200;   // nominal; 1200 would reboot some firmwares here into BOOTSEL (log.html says why)
+
+// BEGIN life-check
+// ---------------------------------------------------------------------------
+// What the board's lines say, and whether each generation is Rule 30's.
+//
+//   LIFE round minstret gen1 gen256 centre-column    before a life (exp226's)
+//   SEED round seed                                  what generation 0 grew from
+//   GEN  round g word                                generation g, 32 cells
+//
+// Rule 30 is written here cell by cell, as the rule is stated — each cell
+// becomes left XOR (centre OR right), its left neighbour the next bit up, round
+// the ring of 32 — and shares nothing with the kernel's shifts or with C.
+// exp227's check.sh runs this block under node: over streams rule30.py writes,
+// over wrong ones, and over every log a board gave back.
+// ---------------------------------------------------------------------------
+
+const LIFE_N = 256, LIFE_CENTRE = 16, LIFE_MINSTRET = 3082;
+
+function rule30(x) {
+  let y = 0;
+  for (let i = 0; i < 32; i++) {
+    const left = (x >>> ((i + 1) % 32)) & 1, centre = (x >>> i) & 1, right = (x >>> ((i + 31) % 32)) & 1;
+    y |= (left ^ (centre | right)) << i;
+  }
+  return y >>> 0;
+}
+
+/** One line in, what it is out; anything else is { kind: 'other' }. */
+function lifeParse(text) {
+  const t = text.trim();
+  const hex = '([0-9a-f]{8})';
+  let m;
+  if ((m = t.match(new RegExp(`^GEN ${hex} ${hex} ${hex}$`))))
+    return { kind: 'GEN', round: parseInt(m[1], 16), g: parseInt(m[2], 16), word: parseInt(m[3], 16) >>> 0 };
+  if ((m = t.match(new RegExp(`^SEED ${hex} ${hex}$`))))
+    return { kind: 'SEED', round: parseInt(m[1], 16), seed: parseInt(m[2], 16) >>> 0 };
+  if ((m = t.match(new RegExp(`^LIFE ${hex} ${hex} ${hex} ${hex} ${hex}$`))))
+    return { kind: 'LIFE', round: parseInt(m[1], 16), minstret: parseInt(m[2], 16),
+             gen1: parseInt(m[3], 16) >>> 0, gen256: parseInt(m[4], 16) >>> 0, col: parseInt(m[5], 16) >>> 0 };
+  if (/^exp22\d usb=/.test(t)) return { kind: 'status' };
+  if (/^FAIL /.test(t)) return { kind: 'FAIL' };
+  return { kind: 'other' };
+}
+
+/**
+ * Feed it lines; each GEN comes back with a verdict:
+ *   ok         it is Rule 30 of what came before it — the previous generation,
+ *              or for generation 0 the life's seed — and agrees with its LIFE line
+ *   wrong      it is not, and `why` says against what
+ *   unchecked  nothing before it was seen: the page joined mid-life, or a line
+ *              was lost (`gap`)
+ * and `summary()` counts them.
+ */
+function lifeChecker() {
+  const s = { rows: 0, ok: 0, wrong: 0, unchecked: 0, gaps: 0, seams: 0, seamsWrong: 0,
+              minstretWrong: 0, fails: 0, lives: 0, firstWrong: null };
+  const seeds = new Map(), info = new Map();
+  let last = null;   // the last GEN: { round, g, word }
+
+  function feed(text) {
+    const e = lifeParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'LIFE') {
+      info.set(e.round, e);
+      s.lives++;
+      if (e.minstret !== LIFE_MINSTRET) { s.minstretWrong++; e.why = `minstret ${e.minstret}, not ${LIFE_MINSTRET}`; }
+    }
+    if (e.kind === 'SEED') {
+      seeds.set(e.round, e.seed);
+      if (last && last.round === e.round - 1 && last.g === LIFE_N - 1) {
+        s.seams++;
+        if (e.seed !== last.word) { s.seamsWrong++; e.why = `the seed is not life ${last.round}'s last generation`; }
+      }
+    }
+    if (e.kind !== 'GEN') return e;
+
+    s.rows++;
+    let want = null, against = '';
+    const follows = last && ((last.round === e.round && last.g === e.g - 1) ||
+                             (e.g === 0 && last.round === e.round - 1 && last.g === LIFE_N - 1));
+    if (last && !follows) s.gaps++;
+    if (last && last.round === e.round && last.g === e.g - 1) {
+      want = rule30(last.word); against = `Rule 30 of generation ${e.g - 1}`;
+    } else if (e.g === 0 && seeds.has(e.round)) {
+      want = rule30(seeds.get(e.round)); against = 'Rule 30 of the seed';
+    } else if (e.g === 0 && follows) {
+      want = rule30(last.word); against = `Rule 30 of life ${last.round}'s last generation`;
+    }
+    const why = [];
+    if (want !== null && want !== e.word) why.push(`${against} is ${hex8(want)}`);
+    const li = info.get(e.round);
+    if (li) {
+      if (e.g === 0 && e.word !== li.gen1) why.push(`the LIFE line says generation 0 is ${hex8(li.gen1)}`);
+      if (e.g === LIFE_N - 1 && e.word !== li.gen256) why.push(`the LIFE line says generation 255 is ${hex8(li.gen256)}`);
+      if (e.g < 32 && ((e.word >>> LIFE_CENTRE) & 1) !== ((li.col >>> e.g) & 1))
+        why.push(`the LIFE line's centre column says cell 16 is ${(li.col >>> e.g) & 1}`);
+    }
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s.wrong++;
+      if (!s.firstWrong) s.firstWrong = { round: e.round, g: e.g, word: e.word, why: e.why };
+    } else if (want === null) {
+      e.verdict = 'unchecked'; e.why = last ? 'a line before it was lost' : 'the first generation this page saw'; s.unchecked++;
+    } else {
+      e.verdict = 'ok'; s.ok++;
+    }
+    last = { round: e.round, g: e.g, word: e.word };
+    return e;
+  }
+  return { feed, summary: () => ({ ...s }) };
+}
+
+function hex8(x) { return (x >>> 0).toString(16).padStart(8, '0'); }
+
+/** USB packets in, whole lines out: a packet is 64 bytes and ends wherever it ends. */
+function lifeLines() {
+  let pending = '';
+  return (chunk) => {
+    pending += chunk;
+    const parts = pending.split('\n');
+    pending = parts.pop();
+    return parts.map((p) => p.replace(/\r$/, '')).filter((p) => p.trim());
+  };
+}
+// END life-check
+
+const $ = (id) => document.getElementById(id);
+let device = null, streaming = false, bytes = 0, started = 0, captured = '';
+let checker = lifeChecker();
+const rows = [];   // the rows on screen, newest last: { word, verdict }
+const SHOW = 48;   // how many generations the canvas holds
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+
+function draw() {
+  const c = $('life'), x = c.getContext('2d');
+  const cell = Math.max(4, Math.floor(Math.min(c.parentElement.clientWidth - 130, 400) / 34));
+  const w = cell * 32 + cell, h = cell * SHOW;
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const css = getComputedStyle(document.documentElement);
+  x.fillStyle = css.getPropertyValue('--bg'); x.fillRect(0, 0, w, h);
+  const top = Math.max(0, rows.length - SHOW);
+  for (let r = top; r < rows.length; r++) {
+    const y = (r - top) * cell, row = rows[r];
+    x.fillStyle = row.verdict === 'wrong' ? css.getPropertyValue('--bad') : css.getPropertyValue('--fg');
+    for (let i = 31; i >= 0; i--)    // bit 31 on the left: a cell's left neighbour is the bit above it
+      if ((row.word >>> i) & 1) x.fillRect((31 - i) * cell, y, cell - (cell > 5 ? 1 : 0), cell - (cell > 5 ? 1 : 0));
+    x.fillStyle = row.verdict === 'ok' ? css.getPropertyValue('--ok')
+                : row.verdict === 'wrong' ? css.getPropertyValue('--bad') : css.getPropertyValue('--line');
+    x.fillRect(32 * cell + cell / 3, y, cell * 2 / 3, cell);
+  }
+  // the centre column, which is the LED
+  x.strokeStyle = css.getPropertyValue('--acc'); x.lineWidth = 1;
+  x.strokeRect((31 - LIFE_CENTRE) * cell - .5, 0, cell, h);
+}
+
+function verdict() {
+  const s = checker.summary();
+  const v = $('verdict');
+  if (!s.rows) { v.textContent = `${s.lives} LIFE lines, no generation yet.`; return; }
+  let t = `<b class="${s.wrong || s.seamsWrong || s.minstretWrong ? 'bad' : 'ok'}">`
+        + `${s.ok} of ${s.rows} generations are Rule 30's</b>`
+        + `, ${s.wrong} wrong, ${s.unchecked} unchecked (${s.gaps} gaps)`
+        + ` · seams between lives ${s.seams - s.seamsWrong}/${s.seams} · minstret wrong ${s.minstretWrong}`;
+  if (s.firstWrong) t += `<br>first wrong: life ${s.firstWrong.round}, generation ${s.firstWrong.g}, `
+                       + `${hex8(s.firstWrong.word)} — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+}
+
+function flashLed(on) {
+  const led = $('led');
+  led.classList.toggle('on', on);
+  if (on) setTimeout(() => led.classList.remove('on'), 180);   // one unit, as the board's flash
+}
+
+const rawLines = [];
+function line(text) {
+  const e = checker.feed(text);
+  rawLines.push(text + (e.verdict === 'wrong' ? `   <- wrong: ${e.why}` : ''));
+  if (rawLines.length > 40) rawLines.shift();
+  if (e.kind === 'LIFE') $('where').textContent = `life ${e.round}`;
+  if (e.kind === 'GEN') {
+    if (e.g === 0) rows.push({ word: 0, verdict: 'gap' });    // a blank row between lives
+    rows.push({ word: e.word, verdict: e.verdict });
+    if (rows.length > 4 * SHOW) rows.splice(0, rows.length - SHOW);
+    $('where').textContent = `life ${e.round}, generation ${e.g + 1} of ${LIFE_N}`;
+    flashLed(((e.word >>> LIFE_CENTRE) & 1) === 1);
+    draw();
+  }
+}
+
+const split = lifeLines();
+function received(text) {
+  captured += text;
+  for (const l of split(text)) line(l);
+  const raw = $('raw');
+  const atBottom = raw.scrollHeight - raw.scrollTop - raw.clientHeight < 30;
+  raw.textContent = rawLines.join('\n');
+  if (atBottom) raw.scrollTop = raw.scrollHeight;
+  verdict();
+  $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
+}
+
+// Copied from tools/pages/log.html, byte for byte; exp227's check.sh holds it to that.
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function start(dev) {
+  device = dev;
+  // Say what was picked before anything can fail: on a phone nobody can
+  // screenshot the dialog, and "it did not connect" is not a quantity.
+  say(`Picked "${dev.productName}", serial ${dev.serialNumber}. Opening…`);
+  try {
+    await device.open();
+  } catch (e) {
+    throw new Error(`cannot OPEN the device, before any interface is claimed. On Linux: "yi26 udev --install". [${e.name}: ${e.message}]`);
+  }
+  if (device.configuration === null) await device.selectConfiguration(1);
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null)
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(`cannot claim the interfaces — something else owns them: another page that has the port ` +
+      `open (close it), or on Linux the kernel's cdc_acm ("yi26 detach"). [${e.name}: ${e.message}]`);
+  }
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true); coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control }, coding.buffer);
+  // DTR: the board sends nothing until a page says it is listening.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  started = performance.now();
+  $('connect').disabled = true;
+  $('stop').disabled = false;
+  say(dev.serialNumber === '227'
+      ? `Listening to "${dev.productName}". The next generation comes with the LED's next beat; a new life starts about every 94 s.`
+      : `Listening — but this board says serial ${dev.serialNumber}, "${dev.productName}", not exp227. `
+        + `It will not send generations: flash exp227.uf2.`, dev.serialNumber === '227' ? 'ok' : 'bad');
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try {
+      r = await device.transferIn(endpointIn, 64);
+    } catch (e) {
+      if (streaming) say(`Transfer failed: ${e.name}: ${e.message}`, 'bad');
+      break;
+    }
+    if (r.status === 'stall') { await device.clearHalt('in', endpointIn); continue; }
+    if (r.data && r.data.byteLength) {
+      bytes += r.data.byteLength;
+      received(dec.decode(r.data, { stream: true }));
+    }
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('stop').disabled = true;
+  try {
+    if (device && device.opened) {
+      const { control, data } = findCdc(device);
+      if (control !== null) {
+        await device.controlTransferOut(
+          { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x00, index: control });
+        await device.releaseInterface(control);
+      }
+      if (data !== null) await device.releaseInterface(data);
+      await device.close();
+    }
+  } catch (e) { /* the device may already be gone */ }
+  $('connect').disabled = false;
+  say('Disconnected. The board keeps playing on its LED.');
+}
+
+// What Copy gives: the page's verdict, then every line exactly as it arrived.
+function report() {
+  const s = checker.summary();
+  return `#page exp227 life.html ${$('ver').textContent}: ${JSON.stringify(s)}\n` + captured;
+}
+
+// Copy, in two ways, and saying which one worked. exp226's round 4 found
+// Copy doing nothing on a Pixel 9a while the log streamed and working after
+// Disconnect; nothing said why. So: the Clipboard API first, then a selected
+// textarea and execCommand, and the status line names what failed.
+async function copy() {
+  const text = report();
+  let first = '';
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.length} characters (Clipboard API).`, 'ok');
+    return;
+  } catch (e) { first = `${e.name}: ${e.message}`; }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  say(ok ? `Copied ${text.length} characters (fallback; the Clipboard API said ${first}).`
+         : `Copy failed both ways. The Clipboard API said ${first}; the fallback refused. Press Disconnect, then Copy.`,
+      ok ? 'ok' : 'bad');
+}
+
+$('connect').onclick = async () => {
+  try { await start(await navigator.usb.requestDevice({ filters: FILTERS })); }
+  catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+};
+$('stop').onclick = stop;
+$('copy').onclick = copy;
+window.addEventListener('resize', draw);
+draw();
+
+(async () => {
+  if (!('usb' in navigator)) { say('This browser has no WebUSB. Chrome on Android, or a Chromium browser.', 'bad'); $('connect').disabled = true; return; }
+  const known = await navigator.usb.getDevices();
+  if (known.length) {
+    try { await start(known[0]); } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+  } else {
+    say('Press Connect and choose the board.');
+  }
+})();
+</script>

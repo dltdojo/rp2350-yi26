@@ -684,6 +684,14 @@ exp115's recording of a real board among other things; and `usb_chip.c` /
 `usb_chip.h`, the RP2350's controller and its 48 MHz clock under it, following
 embassy-rp 0.10 write for write, which the Hazard3 RTL cannot simulate.
 
+exp227 is the USB port's second user, and took exp226's board layer with it:
+`speak.h`, included by an experiment's `board_chip.c` after it defines
+`SPEAK_NAME`, `SPEAK_PRODUCT` and `SPEAK_SERIAL`, gives `board_init` (the
+clocks, the controller, a few seconds answering the host), the status line, a
+line of text without a C library, a wait that answers USB, and the LED's stage
+and error counts. What is left in each `board_chip.c` is how that experiment
+shows a life. exp226's UF2 still builds byte for byte.
+
 ## `capture/`
 
 `tee.py` is `tee` that also writes down when each line arrived. A `run.sh`
