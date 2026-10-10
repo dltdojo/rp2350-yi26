@@ -10,17 +10,27 @@ outside that region is a fault, which is what the shell's PMP setting makes
 it on the chip; misaligned accesses are a fault, which is what Hazard3 does
 with them.
 
-`ecall` is the only way out, and it is the sig.golf interface:
+`ecall` is the only way out. Calls 0 and 1 are the sig.golf interface; 2 and 3
+are exp228's, for a Bitcoin Script interpreter whose elements have any length
+and whose `OP_CHECKSIG` the shell answers:
 
 | `t0` | arguments | effect |
 | --- | --- | --- |
 | 0 | `a0` input, `a1` length, `a2` output | `HASH`: 32 bytes of `env.hash` of the input written at `a2`, `pc + 4` |
 | 1 | `a0` result code | `HALT`: stop, with `a0` |
+| 2 | `a0` input, `a1` length, `a2` output | `HASHB`: `HASH` with no rule on the length or on where the input starts |
+| 3 | `a0` 32-byte public key, `a1` 64-byte signature | `CHECKSIG`: `a0` becomes 1 if `env.sig` says the signature is valid, else 0; `pc + 4` |
 
 `env.hash` is a parameter. The proofs never look inside it, which is the
 same relationship a zkVM has with a precompile: the theorem is "given a
 function that returns 32 bytes", and whether the chip's SHA-256 block is that
-function is measured, not proved.
+function is measured, not proved. `env.sig` is the same kind of parameter: a
+theorem about a kernel that calls `CHECKSIG` holds whatever the shell answers,
+and what the shell's signature check computes is tested, not proved.
+
+Every kernel before exp228 uses calls 0 and 1 only, and its theorems are
+unchanged by 2 and 3 existing: the same step, from the same state, does the same
+thing.
 
 Where the specification leaves a choice to the implementation, this model makes
 the one Hazard3 makes, and says so at the site. Where the model is stricter than
@@ -50,15 +60,17 @@ def Region.ok (r : Region) (a : Word) (n : Nat) : Prop := r.lo ≤ a.toNat ∧ a
 instance (r : Region) (a : Word) (n : Nat) : Decidable (r.ok a n) := by
   unfold Region.ok; infer_instance
 
-/-- The world outside the kernel: its region, and the function `HASH` stands for. -/
+/-- The world outside the kernel: its region, the function `HASH` stands for,
+and what `CHECKSIG` answers for a public key and a signature. -/
 structure Env where
   region : Region
   hash   : List Byte → Fin 32 → Byte
+  sig    : List Byte → List Byte → Bool := fun _ _ => false
 
 inductive Fault
   | fetchMisaligned | fetchAccess | illegal (w : Word)
   | loadMisaligned | loadAccess | storeMisaligned | storeAccess
-  | hashArgs | unknownCall
+  | hashArgs | sigArgs | unknownCall
   deriving DecidableEq, Repr
 
 inductive Outcome
@@ -203,6 +215,19 @@ def syscall (env : Env) (s : Machine) : Outcome :=
       .running { s with mem := writeBytes s.mem dst (env.hash (readBytes s.mem src len)) }.next
     else .fault .hashArgs s
   else if t0 = 1 then .halted (s.reg A0) s
+  else if t0 = 2 then
+    let src := s.reg A0
+    let len := (s.reg A1).toNat
+    let dst := s.reg A2
+    if env.region.ok src len ∧ env.region.ok dst 32 then
+      .running { s with mem := writeBytes s.mem dst (env.hash (readBytes s.mem src len)) }.next
+    else .fault .hashArgs s
+  else if t0 = 3 then
+    let pk := s.reg A0
+    let sg := s.reg A1
+    if env.region.ok pk 32 ∧ env.region.ok sg 64 then
+      .running (s.setReg A0 (if env.sig (readBytes s.mem pk 32) (readBytes s.mem sg 64) then 1 else 0)).next
+    else .fault .sigArgs s
   else .fault .unknownCall s
 
 def exec (env : Env) (s : Machine) : Instr → Outcome

@@ -9,7 +9,7 @@ that kernel is asking about.
 | Module | Holds | Checked against something else by |
 | --- | --- | --- |
 | [`Rv32/Isa.lean`](./Rv32/Isa.lean) | the forty-six RV32IM forms a kernel may use; `encode`, `decode`, and both directions proved | LLVM, in [exp201](../experiments/exp201-one-word-one-reading/) |
-| [`Rv32/Machine.lean`](./Rv32/Machine.lean) | what one instruction does in User mode inside one region; `ecall` as HASH and HALT | riscv-tests and the Hazard3 RTL, in [exp202](../experiments/exp202-the-tests-the-chip-passes/) |
+| [`Rv32/Machine.lean`](./Rv32/Machine.lean) | what one instruction does in User mode inside one region; `ecall` as HASH and HALT, and since exp228 HASHB (any length) and CHECKSIG (`env.sig`, the shell's answer) | riscv-tests and the Hazard3 RTL, in [exp202](../experiments/exp202-the-tests-the-chip-passes/) |
 | [`Rv32/Load.lean`](./Rv32/Load.lean) | `boot`: the calling convention, the state the shell builds | the harness in `tools/hazard3`, which builds it |
 | [`Rv32/Proof.lean`](./Rv32/Proof.lean) | runs compose; a loaded program fetches; registers and memory after a write | — it is lemmas about the model, and is checked by Lean |
 | [`Rv32/Place.lean`](./Rv32/Place.lean) | a kernel at `base` in the 64 KiB region: `Placed`, address arithmetic that never wraps, the `lbu` and HASH steps, `readBytes`, and `code_of_image` — the bridge from a file's bytes to `CodeAt`, at any offset in the image since exp223 put a second program at 0x1000 | — lemmas, checked by Lean; exp203 wrote the first half, exp204 needed it second |

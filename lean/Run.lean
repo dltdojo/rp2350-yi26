@@ -40,7 +40,7 @@ def faultName : Fault → String
   | .illegal w => s!"illegal({hexWord w.toNat})"
   | .loadMisaligned => "load-misaligned" | .loadAccess => "load-access"
   | .storeMisaligned => "store-misaligned" | .storeAccess => "store-access"
-  | .hashArgs => "hash-args" | .unknownCall => "unknown-call"
+  | .hashArgs => "hash-args" | .sigArgs => "sig-args" | .unknownCall => "unknown-call"
 
 /-- `env.hash` for the runs: SHA-256 of the bytes. -/
 def sha256 (input : List Byte) (d : Fin 32) : Byte :=
@@ -63,6 +63,12 @@ other byte of the region is left as it was, which is what `exec` does with it.
 Outside the region nothing is ever written — both writes fault there first —
 so a read there goes to the memory the run began with.
 
+CHECKSIG writes a register only. `env.sig` for the runs is a list of the
+(public key, signature) pairs to call valid, read from the file named by
+`RV32RUN_SIGS`, one pair a line as two hex strings — what Python's BIP340
+reference said of them (exp228); every other pair is invalid, and with no file
+every pair is.
+
 `step` is untouched, and no proof sees any of this. If the runner ever copied
 the wrong bytes, the run would stop being the model's — and the comparison of
 the whole region with the RTL, which every kernel's `compare.sh` makes, is
@@ -72,7 +78,7 @@ what would show it. -/
 def writes (env : Env) (s : Machine) : Option (Word × Nat) :=
   match fetch env s with
   | .ok (.st op rs1 _ imm) => some (s.reg rs1 + imm.signExtend 32, op.size)
-  | .ok .ecall => if s.reg T0 = 0 then some (s.reg A2, 32) else none
+  | .ok .ecall => if s.reg T0 = 0 ∨ s.reg T0 = 2 then some (s.reg A2, 32) else none
   | _ => none
 
 def regsOf (s : Machine) : Array Word := (Array.range 32).map fun i => s.regs (BitVec.ofNat 5 i)
@@ -103,6 +109,25 @@ partial def loop (env : Env) (outside : Word → Byte) (fuel : Nat) (s : Machine
     | .halted code s' => (s!"halt code={hexWord code.toNat} count={k + 1}", s')
     | .fault f s' => (s!"fault {faultName f} pc={hexWord s'.pc.toNat} count={k + 1}", s')
 
+def hexBytes (s : String) : List Byte :=
+  let cs := s.toList
+  (List.range (cs.length / 2)).map fun i =>
+    let d (c : Char) : Nat := if c.isDigit then c.toNat - '0'.toNat
+      else if 'a' ≤ c ∧ c ≤ 'f' then c.toNat - 'a'.toNat + 10
+      else if 'A' ≤ c ∧ c ≤ 'F' then c.toNat - 'A'.toNat + 10 else 0
+    BitVec.ofNat 8 (16 * d (cs.getD (2 * i) '0') + d (cs.getD (2 * i + 1) '0'))
+
+/-- The pairs `RV32RUN_SIGS` names as valid; none without it. -/
+def sigsFromEnv : IO (List (List Byte × List Byte)) := do
+  match ← IO.getEnv "RV32RUN_SIGS" with
+  | none => pure []
+  | some path =>
+    let text ← IO.FS.readFile path
+    pure <| (text.splitOn "\n").filterMap fun l =>
+      match (l.trim.splitOn " ").filter (· ≠ "") with
+      | [pk, sg] => some (hexBytes pk, hexBytes sg)
+      | _ => none
+
 def parseHex (s : String) : Nat :=
   (s.toList.drop (if s.startsWith "0x" then 2 else 0)).foldl (fun n c =>
     n * 16 + (if c.isDigit then c.toNat - '0'.toNat
@@ -115,7 +140,8 @@ def main (args : List String) : IO UInt32 := do
     let bytes ← IO.FS.readBinFile img
     let lo := parseHex base
     let r : Region := { lo := lo, hi := lo + parseHex size }
-    let env : Env := { region := r, hash := sha256 }
+    let valid ← sigsFromEnv
+    let env : Env := { region := r, hash := sha256, sig := fun pk sg => valid.contains (pk, sg) }
     let s0 := boot r bytes
     let region : ByteArray := ⟨(Array.range (r.hi - r.lo)).map fun i =>
       (s0.mem (BitVec.ofNat 32 (r.lo + i))).toNat.toUInt8⟩
