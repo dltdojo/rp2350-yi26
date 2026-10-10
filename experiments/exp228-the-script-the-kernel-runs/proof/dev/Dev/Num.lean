@@ -1,4 +1,5 @@
 import Dev.Spec
+import Rv32.Blocks
 set_option linter.unusedSimpArgs false
 
 /-! # Numbers: the bit facts DECODE and ENCODE stand on, and the spec's
@@ -156,7 +157,15 @@ theorem magBytes_bytes : ∀ n m, 0 < m → m < 256 ^ (n + 1) → 256 ^ n ≤ m 
       (by rw [hp] at h2; exact (Nat.le_div_iff_mul_le (by decide)).mpr h2)]
     rfl
 
+theorem ofNat_eq_mod {a b : Nat} (h : a % 256 = b % 256) : BitVec.ofNat 8 a = BitVec.ofNat 8 b := by
+  apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_ofNat]; exact h
+
 theorem or80 : ∀ t < 128, BitVec.ofNat 8 (t + 128) = BitVec.ofNat 8 t ||| 0x80 := by decide
+
+theorem ofNat_or128 {a b : Nat} (ha : a % 256 < 128) (hb : b % 256 = a % 256 + 128) :
+    BitVec.ofNat 8 a ||| 128 = BitVec.ofNat 8 b := by
+  rw [ofNat_eq_mod (b := a % 256) (by omega), show (128 : Byte) = 0x80 from rfl, ← or80 _ ha]
+  exact ofNat_eq_mod (by omega)
 
 /-- **The spec's `encode`, as ENCODE computes it.** -/
 theorem encode_k (sg m : Nat) (hs : sg ≤ 1) (hm : m < 2 ^ 32) : encode (val sg m) = kenc sg m := by
@@ -166,7 +175,122 @@ theorem encode_k (sg m : Nat) (hs : sg ≤ 1) (hm : m < 2 ^ 32) : encode (val sg
   have hv : val sg m ≠ 0 := by unfold val; split <;> omega
   have habs : (val sg m).natAbs = m := by unfold val; split <;> omega
   have hneg : (val sg m < 0) ↔ sg = 1 := by unfold val; split <;> omega
-  simp only [hv, ↓reduceIte, habs, h0]
-  sorry
+  simp only [hv, ↓reduceIte, habs, h0, hneg]
+  have hk : (m < 2 ^ 8 ∧ nbytes m = 1) ∨ (2 ^ 8 ≤ m ∧ m < 2 ^ 16 ∧ nbytes m = 2) ∨
+      (2 ^ 16 ≤ m ∧ m < 2 ^ 24 ∧ nbytes m = 3) ∨ (2 ^ 24 ≤ m ∧ nbytes m = 4) := by
+    unfold nbytes; split <;> (try split) <;> (try split) <;> omega
+  rcases (by omega : sg = 0 ∨ sg = 1) with rfl | rfl <;>
+  rcases hk with ⟨h1, hn⟩ | ⟨h1, h2, hn⟩ | ⟨h1, h2, hn⟩ | ⟨h1, hn⟩ <;> rw [hn]
+  all_goals
+    first
+      | rw [magBytes_bytes 0 m (by omega) (by simpa using h1) (by simp; omega)]
+      | rw [magBytes_bytes 1 m (by omega) (by simpa using h2) (by simpa using h1)]
+      | rw [magBytes_bytes 2 m (by omega) (by simpa using h2) (by simpa using h1)]
+      | rw [magBytes_bytes 3 m (by omega) (by simpa using hm) (by simpa using h1)]
+    simp only [bytesOf, List.length_cons, List.length_nil, Nat.zero_add, Nat.reduceAdd, Nat.reduceMul,
+      Nat.reduceSub, Nat.reducePow, List.getD_cons_zero, List.getD_cons_succ, Nat.div_one, Nat.zero_mul,
+      Nat.add_zero, Nat.one_mul, ne_eq, byte_80, BitVec.toNat_ofNat, Nat.mod_mod]
+    repeat' split
+    all_goals (try (exfalso; omega))
+    all_goals simp only [List.cons_append, List.nil_append, List.take, List.cons.injEq, and_true]
+    all_goals (try (simp at *; done))
+    all_goals (repeat' constructor)
+    all_goals first
+      | exact ofNat_eq_mod (by omega)
+      | exact ofNat_or128 (by omega) (by omega)
+
+/-- CORE: two signed magnitudes added, the kernel's way. -/
+def kcore (s1 m1 s2 m2 : Nat) : Nat × Nat :=
+  if s1 = s2 then (s1, m1 + m2) else if m1 < m2 then (s2, m2 - m1) else (s1, m1 - m2)
+
+theorem kcore_val (s1 m1 s2 m2 : Nat) (hs1 : s1 ≤ 1) (hs2 : s2 ≤ 1) :
+    val (kcore s1 m1 s2 m2).1 (kcore s1 m1 s2 m2).2 = val s1 m1 + val s2 m2 := by
+  unfold kcore val
+  repeat' split
+  all_goals simp_all
+  all_goals omega
+
+theorem kcore_le (s1 m1 s2 m2 : Nat) (hs1 : s1 ≤ 1) (hs2 : s2 ≤ 1) : (kcore s1 m1 s2 m2).1 ≤ 1 := by
+  unfold kcore; repeat' split
+  all_goals simp_all
+
+theorem kcore_lt (s1 m1 s2 m2 : Nat) (h1 : m1 < 2 ^ 31) (h2 : m2 < 2 ^ 31) : (kcore s1 m1 s2 m2).2 < 2 ^ 32 := by
+  unfold kcore; repeat' split
+  all_goals simp_all
+  all_goals omega
+
+theorem val_flip (s m : Nat) (hs : s ≤ 1) : val (s ^^^ 1) m = - val s m := by
+  rcases (by omega : s = 0 ∨ s = 1) with rfl | rfl <;> simp [val]
+
+/-! ## The kernel's register arithmetic, on numbers -/
+
+theorem w_addi_neg (a v : Nat) (ha : a < 2 ^ 32) (hv : 0 < v ∧ v ≤ 2048) (hva : v ≤ a) :
+    BitVec.ofNat 32 a + (BitVec.ofNat 12 (4096 - v)).signExtend 32 = BitVec.ofNat 32 (a - v) := by
+  rw [se_neg _ (by omega) (by omega)]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+theorem w_addi_pos (a v : Nat) (ha : a + v < 2 ^ 32) (hv : v < 2048) :
+    BitVec.ofNat 32 a + (BitVec.ofNat 12 v).signExtend 32 = BitVec.ofNat 32 (a + v) := by
+  rw [se_small _ hv]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+theorem w_srl (w k : Nat) (hw : w < 2 ^ 32) (hk : k < 32) :
+    BitVec.ofNat 32 w >>> ((BitVec.ofNat 32 k).toNat % 32) = BitVec.ofNat 32 (w / 2 ^ k) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
+  rw [Nat.mod_eq_of_lt hw, Nat.mod_eq_of_lt (show k < 2 ^ 32 by omega), Nat.mod_eq_of_lt hk,
+    Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt (Nat.div_le_self _ _) hw)]
+
+theorem w_srli (w k : Nat) (hw : w < 2 ^ 32) :
+    BitVec.ofNat 32 w >>> k = BitVec.ofNat 32 (w / 2 ^ k) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.shiftRight_eq_div_pow]
+  rw [Nat.mod_eq_of_lt hw, Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt (Nat.div_le_self _ _) hw)]
+
+theorem w_slli (n k : Nat) (h : n * 2 ^ k < 2 ^ 32) :
+    BitVec.ofNat 32 n <<< k = BitVec.ofNat 32 (n * 2 ^ k) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
+  have : n < 2 ^ 32 := Nat.lt_of_le_of_lt (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by decide))) h
+  rw [Nat.mod_eq_of_lt this, Nat.mod_eq_of_lt h]
+
+theorem w_sll1 (k : Nat) (hk : k < 32) :
+    BitVec.ofNat 32 1 <<< ((BitVec.ofNat 32 k).toNat % 32) = BitVec.ofNat 32 (2 ^ k) := by
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show k < 2 ^ 32 by omega), Nat.mod_eq_of_lt hk, w_slli 1 k
+    (by rw [Nat.one_mul]; exact Nat.pow_lt_pow_right (by decide) hk), Nat.one_mul]
+
+theorem w_andi7f (x : Nat) (hx : x < 2 ^ 32) :
+    BitVec.ofNat 32 x &&& (0x7f : BitVec 12).signExtend 32 = BitVec.ofNat 32 (x % 128) := by
+  rw [show (0x7f : BitVec 12) = BitVec.ofNat 12 0x7f from rfl, se_small _ (by decide)]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx]
+  rw [show (0x7f % 2 ^ 32 : Nat) = 2 ^ 7 - 1 from rfl, Nat.and_two_pow_sub_one_eq_mod]
+  omega
+
+theorem w_andi80 (x : Nat) (hx : x < 2 ^ 32) :
+    BitVec.ofNat 32 x &&& (0x80 : BitVec 12).signExtend 32 = BitVec.ofNat 32 (128 * (x / 128 % 2)) := by
+  rw [show (0x80 : BitVec 12) = BitVec.ofNat 12 0x80 from rfl, se_small _ (by decide)]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx]
+  rw [show (0x80 % 2 ^ 32 : Nat) = 128 from rfl, and_bit7]
+  omega
+
+theorem w_xori1 (x : Nat) (hx : x < 2 ^ 32) :
+    BitVec.ofNat 32 x ^^^ (0xfff : BitVec 12).signExtend 32 = BitVec.ofNat 32 (x ^^^ (2 ^ 32 - 1)) := by
+  rw [show (0xfff : BitVec 12).signExtend 32 = BitVec.ofNat 32 (2 ^ 32 - 1) by decide]
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_xor, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx]
+  rw [Nat.mod_eq_of_lt (show 2 ^ 32 - 1 < 2 ^ 32 by decide)]
+  exact (Nat.mod_eq_of_lt (Nat.xor_lt_two_pow hx (by decide))).symm
+
+theorem w_and (x y : Nat) (hx : x < 2 ^ 32) (hy : y < 2 ^ 32) :
+    BitVec.ofNat 32 x &&& BitVec.ofNat 32 y = BitVec.ofNat 32 (x &&& y) := by
+  apply BitVec.eq_of_toNat_eq
+  simp only [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx, Nat.mod_eq_of_lt hy]
+  exact (Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt Nat.and_le_left hx)).symm
 
 end Exp228
