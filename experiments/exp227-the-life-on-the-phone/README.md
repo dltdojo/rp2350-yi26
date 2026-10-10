@@ -166,4 +166,51 @@ Not run yet.
 Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
+=== exp227 — the life on the phone ===
+recorded at 2026-10-10T10:59:54Z from commit c2b6fdc
+
+>>> what the board sends, as rule30.py writes it: the start of a life
+LIFE 00000000 00000c0a 00038000 02bb07b0 bae4d19d
+SEED 00000000 00010000
+GEN 00000000 00000000 00038000
+GEN 00000000 00000001 00064000
+GEN 00000000 00000002 000de000
+
+>>> the shell, for the chip
+build/expect.h: kernel 559d70d93ee6242d…, model 3079, RTL minstret 3082, first life 8c3f6e7f0f4aa2dc…
+build/exp227.bin  11456 bytes, the build allows 16384
+build/exp227.uf2  23040 bytes  sha256 860a832994cecd16d499c961c6ce585893cb37af31525b11a72ef17f473b0d54
+
+>>> the checks
+PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's Rule 30 is rule30.py's on all 5005 words tried
+PASS  two lives as the board sends them, in 64-byte packets: all 512 generations Rule 30's, the seam between them too
+PASS  joined at generation 100 of life 0: that one unchecked, the 411 after it checked
+PASS  one bit of generation 37 flipped on the way: 37 is wrong, and 38, which does not follow from it
+PASS  generation 120 lost: a gap, 121 unchecked, nothing called wrong
+PASS  life 1 grown from a seed that is not life 0's last generation: the seam is wrong, the life itself is Rule 30's
+PASS  a LIFE line with minstret 3083 is caught
+PASS  a LIFE line that disagrees with generation 255: that generation is marked
+PASS  the tests catch a page where Rule 30 is left XOR (centre AND right): the page's Rule 30 is rule30.py's on all 5005 words tried — word 3, 00010000 00038000: the page says 8000
+PASS  the tests catch a page where a generation is taken as its own expectation: one bit of generation 37 flipped on the way: 37 is wrong, and 38, which does not follow from it — rows 512 o
+PASS  the tests catch a page where the seam between lives is not checked: life 1 grown from a seed that is not life 0's last generation: the seam is wrong, the life itself is Rule 30's
+PASS  the tests catch a page where the right neighbour is the cell itself: the page's Rule 30 is rule30.py's on all 5005 words tried — word 3, 00010000 00038000: the page says 18000
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "512 of 512 generations are Rule 30's"
+PASS  good.txt: the canvas has the life on it (115074 pixels), and no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (50925 characters)
+PASS  flipped.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  flipped.txt: the verdict line says "2 wrong"
+PASS  flipped.txt: the canvas has the life on it (115074 pixels), and no script error
+PASS  flipped.txt: Copy puts the verdict and every line received on the clipboard (51002 characters)
+PASS  the shell builds for the chip from exp225's shell.c and expect.h over speak.h, in 11456 of the 16384 bytes it may use
+PASS  all 45 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 11456-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 860a832994cecd16…
+SKIP  checking a phone's log: none recorded yet (board/*.txt)
 ```
