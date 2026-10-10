@@ -39,5 +39,8 @@ tools/lean/lean.sh exe rv32run     # builds the library and the runner; prints t
 ```
 
 Nothing here imports Mathlib, and nothing is proved by `native_decide` or
-`bv_decide`: `tools/lean/lean.sh check` refuses the axioms they leave. The
+`bv_decide`: `tools/lean/lean.sh check` refuses the axioms they leave. When
+Mathlib would be worth bringing in, and how to keep it out of this library
+when it is, is
+[docs/2026-10-10-1236-mathlib-for-checksig-zh-tw.md](../docs/2026-10-10-1236-mathlib-for-checksig-zh-tw.md). The
 build output, `.lake/`, is not committed.
