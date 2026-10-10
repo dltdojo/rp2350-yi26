@@ -152,4 +152,74 @@ Not yet run.
 
 ## Expected output
 
-To be pasted from a recording.
+Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
+
+```text
+=== exp226 — the shell that speaks ===
+recorded at 2026-10-10T03:41:24Z from commit baf9fb7
+
+>>> the USB device's descriptors, as a host reads them
+PASS  the device: USB 2.00, EF/02/01, EP0 64 bytes, 1209:0001, bcdDevice 0.10, strings 1-3, one configuration
+PASS  the configuration: 70 bytes, 2 interfaces, bus powered, 100 mA
+PASS  interface 0 ACM with 0x81 interrupt 8; interface 1 data with 0x01 and 0x82 bulk 64
+PASS  the same device and tree exp115 recorded from a real Pico 2 running a Rust firmware here
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: kernel 559d70d93ee6242d…, model 3079, RTL minstret 3082, first life 8c3f6e7f0f4aa2dc…
+build/exp226.bin  9764 bytes, the build allows 16384
+build/exp226.uf2  19968 bytes  sha256 fbe75028ba876925be71845b81908b3e5a9539b36e4610da9b0ffdce97d0d09d
+
+>>> on the RTL, which has no USB: exp225's shell as exp226 builds it
+4c494645 00000000 00000c0a 00038000 02bb07b0 bae4d19d 4c494645 00000001 00000c0a 06a28c28 27266abc bd221e08 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
+PASS  a bus reset is the first stage the LED can show
+PASS  GET_DESCRIPTOR device, 64 asked: 18 bytes in one packet, then the status stage
+PASS  SET_ADDRESS 7 is answered with an empty IN packet
+PASS  the address is taken only after that status stage, and the stage is 2
+PASS  GET_DESCRIPTOR device again, at the new address: the same 18 bytes
+PASS  GET_DESCRIPTOR configuration: 9 bytes, then all 70 in two packets, 64 and 6, no empty packet
+PASS  asked for exactly 64, it sends exactly 64 and no empty packet after
+PASS  string 0: English (US)
+PASS  strings 1-3: ['rp2350-yi26', 'exp226 the shell that speaks', '226']
+PASS  the device qualifier is stalled: a full-speed device has none
+PASS  so is BOS: bcdUSB 2.00 does not promise one
+PASS  SET_CONFIGURATION 1 enables the endpoints, then its status stage; the stage is 3
+PASS  GET_CONFIGURATION: 1
+PASS  GET_STATUS: bus powered, no remote wakeup
+PASS  the device: USB 2.00, EF/02/01, EP0 64 bytes, 1209:0001, bcdDevice 0.10, strings 1-3, one configuration
+PASS  the configuration: 70 bytes, 2 interfaces, bus powered, 100 mA
+PASS  an interface association over interfaces 0 and 1, CDC ACM
+PASS  interface 0 ACM with 0x81 interrupt 8; interface 1 data with 0x01 and 0x82 bulk 64
+PASS  the CDC functional descriptors: header 1.10, ACM capabilities 0x02, union 0 -> 1
+PASS  the same device and tree exp115 recorded from a real Pico 2 running a Rust firmware here
+PASS  SET_LINE_CODING: 7 bytes taken, then its status stage
+PASS  SET_CONTROL_LINE_STATE 3: DTR, the port is open, stage 4
+PASS  GET_LINE_CODING gives back what was set
+PASS  SET_CONTROL_LINE_STATE 2, RTS alone: DTR is bit 0, so the port is not open
+PASS  SET_CONTROL_LINE_STATE 1, DTR alone: open
+PASS  SET_CONTROL_LINE_STATE 0 when the page closes: DTR off, the stage stays 4
+PASS  a class request to interface 1 is stalled: 0 is the communications interface
+PASS  a vendor request is stalled
+PASS  a bus reset in the middle of a transfer abandons it; the stage reached is kept
+PASS  a 64-byte descriptor asked for with 255: one full packet, then an empty one, then the status stage
+PASS  100 bytes go out as 64 and 36: [64, 36, 0]
+PASS  1100 bytes into a 1024-byte queue: 76 dropped, the shell not stopped (76)
+PASS  and the 1024 that fit come out: 1024
+PASS  the tests catch a usbdev.c where the configuration's length is miscounted, 75 for 70: GET_DESCRIPTOR configuration: 9 bytes, then all 70 in two packets, 64 and 6, no empty packet — 9 75 75
+PASS  the tests catch a usbdev.c where the address is taken before SET_ADDRESS's status stage: SET_ADDRESS 7 is answered with an empty IN packet — [('ADDRESS', 7), ('IN', b'')]
+PASS  the tests catch a usbdev.c where the bulk IN endpoint is 0x81, the interrupt endpoint's: interface 0 ACM with 0x81 interrupt 8; interface 1 data with 0x01 and 0x82 bulk 64 — [('interface', 0, 2, 2, 0), ('endpoint', 129, 'interrupt', 8), ('interface', 1, 10, 0, 0), ('endpoint', 1, 'bulk', 64), ('endpoint', 129, 'bulk', 64)]
+PASS  the tests catch a usbdev.c where DTR is read from bit 1, RTS: SET_CONTROL_LINE_STATE 2, RTS alone: DTR is bit 0, so the port is not open
+PASS  the tests catch a usbdev.c where a 64-byte answer short of what was asked gets no empty packet after: a 64-byte descriptor asked for with 255: one full packet, then an empty one, then the status stage — [('OUT', 0)]
+PASS  the tests catch a usbdev.c where the device qualifier is answered with the device descriptor: the device qualifier is stalled: a full-speed device has none — [('OUT', 0)]
+PASS  the shell builds for the chip from exp225's shell.c and expect.h, in 9764 of the 16384 bytes it may use
+PASS  all 39 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 9764-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: fbe75028ba876925…
+PASS  on the RTL, exp225's shell as exp226 builds it lives exp225's two lives, minstret 3082
+SKIP  replaying a board's log: none recorded yet (board/*.txt)
+```
