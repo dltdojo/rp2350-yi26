@@ -144,6 +144,14 @@ firmware: flash again.
 What none of it reaches: the board sending the lines, a phone drawing them,
 and a person seeing the LED and the page keep the same beat.
 
+## C or Rust
+
+How this experiment's USB port, written in C for the RISC-V shell, differs
+from the Rust + Embassy one the rest of the repository uses: the clocks
+`embassy_rp::init` sets without saying, polling against interrupts, what is
+in the repository and what is upstream, and what the board rounds cost. In
+Traditional Chinese: [C-AND-RUST.zh-TW.md](./C-AND-RUST.zh-TW.md).
+
 ## On the board
 
 | Round | Firmware | What came back |
