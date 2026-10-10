@@ -8,7 +8,8 @@ exp225's shell and its proved Rule 30 kernel are compiled in unchanged. A new
 CDC-ACM device, written in C for the shell, brings up a 48 MHz USB clock,
 enumerates, and sends a log on a bulk IN endpoint. A phone opens that log with
 `tools/pages/log.html`, and **Copy** brings back as text what the LED could
-only blink. Not yet run on a board.**
+only blink. On a Pico 2, round 1: the phone found no device, and the LED could not
+say why; revision 2's LED is a count.**
 
 Development here is done from a cloud session with no board. So the question
 this experiment asks has a practical edge: can a board's report come back as
@@ -82,28 +83,34 @@ files on the phone: `exp226.uf2`, plus `tools/pages/inspect.html` and
    `exp226.uf2` onto the `RP2350` drive straight away: a phone that sleeps
    takes the board out of BOOTSEL
    ([docs/debugging-on-a-phone.md](../../docs/debugging-on-a-phone.md)).
-2. **Read the LED.**
-   - **5 to 9 flashes and a pause, repeated**: a step of bringing up USB never
-     finished. Report the number. That is the whole round.
+2. **Read the LED.** It shows one thing at a time, in one shape you can count:
+   **N flashes, then 3 seconds dark, repeated**.
+   - **Without a long light first, it is how far the host got**:
+     - 1 flash: nothing from the host at all
+     - 2: bus reset
+     - 3: addressed
+     - 4: configured
+     - 5: a page opened the port
+
+     It changes as the host gets further. Report the last number you see.
+   - **With a 2-second light first, it is an error**, and the board stops there:
+     - 1 to 4: one of exp225's checks, as exp225 counts them; the log has a
+       FAIL line too
      - 5: the crystal oscillator
      - 6: PLL_USB
      - 7: clk_usb
      - 8: the controller's reset
      - 9: the bootrom left the system clock on PLL_USB, so it was not touched
-   - **1 to 4 slow flashes and a pause, repeated**: one of exp225's checks
-     failed, as exp225 counts them. The log has a FAIL line too.
-   - **Otherwise**, after a few seconds, a few **quick** flashes, then
-     exp225's life. The number of quick flashes is how far the host got:
-     - 0: nothing seen
-     - 1: bus reset
-     - 2: addressed
-     - 3: configured
-     - 4: a page opened the port
 
-     They repeat before every life, about every 92 seconds.
+   The life no longer plays on the LED. It goes out over USB as LIFE lines.
+   Revision 1 played the life and showed the stage in between, and on a board
+   that could not be read.
 3. **`inspect.html`**: open it with Chrome, tap the button, pick the board in
    the dialog, then **Copy report**, and paste it back. This is the descriptor
-   tree as the phone sees it.
+   tree as the phone sees it. **If the dialog lists nothing, say so, and press
+   Any device…**: it drops the 1209:0001 filter, and what it lists, or that it
+   lists nothing, tells a device that never enumerated from one that did with
+   the wrong IDs.
 4. **`log.html`**: close `inspect.html` first, because one interface has one
    owner. Open `log.html`, connect, wait for a LIFE line (up to a minute and a
    half), then **Copy**, and paste it back.
@@ -128,7 +135,14 @@ line must be `rule30.py`'s life, with minstret 3082.
 
 ## On the board
 
-Not yet run.
+| Round | Firmware | What came back |
+| --- | --- | --- |
+| 1 | revision 1, `exp226.uf2` built at baf9fb7 (`fbe75028…`) | Flashed from a Pixel 9a. `inspect.html`: *No device chosen* — the filtered chooser offered nothing that was picked, and whether it was empty or closed was not recorded. The LED was irregular. An unfinished step would have been a regular count, so the clock and the controller most likely came up and the life was playing; how far enumeration got could not be read from it. |
+
+Round 1's lesson is the LED's, and it is this repository's own rule
+([docs/debugging-without-a-board.md](../../docs/debugging-without-a-board.md)):
+a debug channel says one thing in one shape. Revision 2 stops playing the life
+on the LED and shows only the stage, as a count that repeats.
 
 ## What it does not say
 

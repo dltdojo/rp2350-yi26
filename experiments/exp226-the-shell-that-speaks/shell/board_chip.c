@@ -8,13 +8,24 @@
 //
 //   board_init   the LED on; then clk_usb and the USB controller
 //                (tools/hazard3/shell/usb_chip.c). A step that does not finish
-//                is 5 to 9 flashes and a pause, forever, as led.h counts.
-//   board_play   before each life: how far the host got with the device, as
-//                quick flashes — 1 bus reset, 2 addressed, 3 configured,
-//                4 a page opened the port — then the life, as exp225 plays it.
-//                Every wait keeps the USB answered.
-//   board_fail   exp225's check 1 to 4 as that many flashes, and over USB a
+//                is an error on the LED, forever.
+//   board_play   the life goes out over USB; the LED says only how far the host
+//                has got with the device, for as long as the life lasts.
+//   board_fail   exp225's check 1 to 4 as an error on the LED, and over USB a
 //                FAIL line, forever.
+//
+// The LED is the debug channel here, so it says one thing at a time, in one
+// shape a person can count (revision 2: revision 1 played the life and showed
+// the stage between lives, and on a board it could not be read):
+//
+//   N flashes, 3 s dark, repeated      the stage: N = 1 nothing from the host,
+//                                      2 bus reset, 3 addressed, 4 configured,
+//                                      5 a page opened the port
+//   2 s on, then N flashes, 3 s dark   an error: 1-4 exp225's checks, 5 XOSC,
+//                                      6 PLL_USB, 7 clk_usb, 8 the controller's
+//                                      reset, 9 the bootrom's clock on PLL_USB
+//
+// The long light first is what makes an error not a stage.
 //
 // While a page holds the port open (DTR), it gets a line per life and a
 // status line about once a second:
@@ -120,23 +131,44 @@ static void flash(uint32_t on, uint32_t off) {
     pwait(off);
 }
 
+// One count on the LED: 2 s on first if it is an error, then n flashes of
+// about 0.36 s, then 3 s dark.
+static void count(uint32_t n, int error) {
+    if (error) flash(11 * UNIT, 4 * UNIT);
+    for (uint32_t i = 0; i < n; i++) flash(2 * UNIT, 2 * UNIT);
+    pwait(16 * UNIT);
+}
+
+// Before USB is up there is nothing to poll: the same shape, with led.h's wait.
+__attribute__((noreturn)) static void error_forever(uint32_t n) {
+    __asm__ volatile ("csrwi mcountinhibit, 4");
+    for (;;) {
+        REG(SIO_OUT_SET) = LED;
+        wait(11);
+        REG(SIO_OUT_CLR) = LED;
+        wait(4);
+        for (uint32_t i = 0; i < n; i++) {
+            REG(SIO_OUT_SET) = LED;
+            wait(2);
+            REG(SIO_OUT_CLR) = LED;
+            wait(2);
+        }
+        wait(16);
+    }
+}
+
 // ---------- the four calls exp225's shell makes -------------------------------
 
 void board_init(void) {
     led_init();
     int step = usb_clock_start();
     if (!step) step = usb_start("exp226 the shell that speaks", "226");
-    if (step) led_count((uint32_t)step);
+    if (step) error_forever((uint32_t)step);
 }
 
 void board_play(const uint32_t *life, uint32_t round, uint32_t instret) {
     last_instret = instret;
     REG(SIO_OUT_CLR) = LED;
-    if (round == 0)   // give a host that is there a few seconds to find the device
-        for (uint32_t i = 0; i < 30 && usbdev.stage < USBDEV_CONFIGURED; i++) pwait(UNIT);
-    pwait(3 * UNIT);
-    for (uint32_t i = 0; i < usbdev.stage; i++) flash(UNIT / 3, UNIT / 3);
-    pwait(5 * UNIT);
 
     uint32_t col = 0;
     for (uint32_t g = 0; g < 32; g++) col |= ((life[g] >> CENTRE) & 1) << g;
@@ -149,21 +181,19 @@ void board_play(const uint32_t *life, uint32_t round, uint32_t instret) {
     send();
     lives = round + 1;
 
-    for (uint32_t g = 0; g < N; g++) {
-        if ((life[g] >> CENTRE) & 1) flash(UNIT, UNIT);
-        else pwait(2 * UNIT);
-    }
+    // As long as exp225 would have played it: 256 beats of two units.
+    uint32_t start = csrr(mcycle);
+    while (csrr(mcycle) - start < N * 2 * UNIT) count(usbdev.stage + 1u, 0);
 }
 
 void board_fail(uint32_t check, uint32_t got) {
     REG(SIO_OUT_CLR) = LED;
     for (;;) {
-        for (uint32_t i = 0; i < check; i++) flash(2 * UNIT, 2 * UNIT);
+        count(check, 1);
         put("FAIL");
         put_hex(check);
         put_hex(got);
         send();
-        pwait(10 * UNIT);
     }
 }
 
