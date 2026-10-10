@@ -1,0 +1,9 @@
+name = "dev228"
+defaultTargets = ["Dev"]
+
+[[require]]
+name = "yi26"
+path = "../../../../lean"
+
+[[lean_lib]]
+name = "Dev"
