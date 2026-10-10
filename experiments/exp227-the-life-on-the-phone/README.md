@@ -187,7 +187,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp227 — the life on the phone ===
-recorded at 2026-10-10T10:59:54Z from commit c2b6fdc
+recorded at 2026-10-10T11:13:31Z from commit 3f5f514
 
 >>> what the board sends, as rule30.py writes it: the start of a life
 LIFE 00000000 00000c0a 00038000 02bb07b0 bae4d19d
@@ -232,5 +232,6 @@ PASS  together they are exactly the 11456-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
 PASS  the UF2 is byte for byte the committed one: 860a832994cecd16…
-SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  round1-life.txt: 174 of 175 generations from a board are Rule 30's, 1 unchecked, 1 seams between lives, 1 LIFE lines
+PASS  round1-life.txt: all 175 generations are rule30.py's, at their round and generation from SEED0
 ```
