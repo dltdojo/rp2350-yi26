@@ -206,7 +206,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp226 — the shell that speaks ===
-recorded at 2026-10-10T04:02:52Z from commit 5e59128
+recorded at 2026-10-10T07:07:14Z from commit 6ea8001
 
 >>> the USB device's descriptors, as a host reads them
 PASS  the device: USB 2.00, EF/02/01, EP0 64 bytes, 1209:0001, bcdDevice 0.10, strings 1-3, one configuration
@@ -216,8 +216,8 @@ PASS  the same device and tree exp115 recorded from a real Pico 2 running a Rust
 
 >>> the shell, for the chip and for the RTL
 build/expect.h: kernel 559d70d93ee6242d…, model 3079, RTL minstret 3082, first life 8c3f6e7f0f4aa2dc…
-build/exp226.bin  10452 bytes, the build allows 16384
-build/exp226.uf2  20992 bytes  sha256 2a7068dc47b1a9f618897df2a17ce4c70a3ea82efe4dbc3aaee56465a82e8b0a
+build/exp226.bin  10916 bytes, the build allows 16384
+build/exp226.uf2  22016 bytes  sha256 dac41ee2c14935f5f4362ed2a96904d7d770c8fb0096fe5cf80a3538618dc8a0
 
 >>> on the RTL, which has no USB: exp225's shell as exp226 builds it
 4c494645 00000000 00000c0a 00038000 02bb07b0 bae4d19d 4c494645 00000001 00000c0a 06a28c28 27266abc bd221e08 exit=0 
@@ -265,13 +265,13 @@ PASS  the tests catch a usbdev.c where the bulk IN endpoint is 0x81, the interru
 PASS  the tests catch a usbdev.c where DTR is read from bit 1, RTS: SET_CONTROL_LINE_STATE 2, RTS alone: DTR is bit 0, so the port is not open
 PASS  the tests catch a usbdev.c where a 64-byte answer short of what was asked gets no empty packet after: a 64-byte descriptor asked for with 255: one full packet, then an empty one, then the status stage — [('OUT', 0)]
 PASS  the tests catch a usbdev.c where the device qualifier is answered with the device descriptor: the device qualifier is stalled: a full-speed device has none — [('OUT', 0)]
-PASS  the shell builds for the chip from exp225's shell.c and expect.h, in 10452 of the 16384 bytes it may use
-PASS  all 41 blocks carry family 0xe48bff57, absolute
+PASS  the shell builds for the chip from exp225's shell.c and expect.h, in 10916 of the 16384 bytes it may use
+PASS  all 43 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
-PASS  together they are exactly the 10452-byte image
+PASS  together they are exactly the 10916-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: 2a7068dc47b1a9f6…
+PASS  the UF2 is byte for byte the committed one: dac41ee2c14935f5…
 PASS  on the RTL, exp225's shell as exp226 builds it lives exp225's two lives, minstret 3082
 SKIP  replaying a board's log: none recorded yet (board/*.txt)
 ```
