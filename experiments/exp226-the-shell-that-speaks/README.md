@@ -255,7 +255,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp226 — the shell that speaks ===
-recorded at 2026-10-10T09:13:40Z from commit b2f5268
+recorded at 2026-10-10T10:38:48Z from commit fb0103a
 
 >>> the USB device's descriptors, as a host reads them
 PASS  the device: USB 2.00, EF/02/01, EP0 64 bytes, 1209:0001, bcdDevice 0.10, strings 1-3, one configuration
@@ -330,5 +330,8 @@ PASS  round4-log.txt: 12 status lines, the last: usb=6 setups=37 stalls=3 droppe
       against the crystal: clk_usb 48000 kHz, clk_sys 10966 kHz as left and 48001 kHz moved, clk_ref 10965 kHz; clk_sys against the host's frames 7877451 kHz
       11 of them cut at 190 bytes (revision 4's line buffer) and 1 came after half of another (revision 4's queue cut a write): read up to lives
       sof_khz=7877451 is a count across a gap in the host's frames, which revision 4 kept
-PASS  every LIFE line (2) is rule30.py's life, minstret 3082
+PASS  round5-log.txt: 11 status lines, the last: usb=6 setups=31 stalls=3 dropped=0 errors=0 lives=13 minstret=3082
+      the bootrom left clk_ref_ctrl=00000000 clk_sys_ctrl=00000000 xosc_status=00000000 pll_usb_cs=00000001
+      against the crystal: clk_usb 47997 kHz, clk_sys 10950 kHz as left and 48000 kHz moved, clk_ref 10949 kHz; clk_sys against the host's frames 47998 kHz
+PASS  every LIFE line (3) is rule30.py's life, minstret 3082
 ```
