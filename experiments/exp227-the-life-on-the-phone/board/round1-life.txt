@@ -1,0 +1,251 @@
+#page exp227 life.html p1: {"rows":213,"ok":212,"wrong":0,"unchecked":1,"gaps":0,"seams":1,"seamsWrong":0,"minstretWrong":0,"fails":0,"lives":1,"firstWrong":null}
+GEN 00000000 0000005a cd1f1dc1
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000005b 39b0b123
+GEN 00000000 0000005c e729abf6
+GEN 00000000 0000005d 9cef2a04
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000005e f388eb0f
+GEN 00000000 0000005f 0e5d8a98
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000060 19d15af4
+GEN 00000000 00000061 371b5286
+GEN 00000000 00000062 64b25ecd
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000063 5fafd0b9
+GEN 00000000 00000064 502819a7
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000065 586c373c
+GEN 00000000 00000066 d4ca64e2
+GEN 00000000 00000067 97bbdf96
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000068 f4221074
+GEN 00000000 00000069 867738c7
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000006a 4dc4e5ac
+GEN 00000000 0000006b f92f9d2a
+GEN 00000000 0000006c 87e871ea
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000006d cc0ccb0a
+GEN 00000000 0000006e ba1bba9a
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000006f a33222f2
+GEN 00000000 00000070 b6ef768e
+GEN 00000000 00000071 a48844d8
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000072 bfdcef95
+GEN 00000000 00000073 20138875
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000074 f03e5cc5
+GEN 00000000 00000075 0861d3ad
+GEN 00000000 00000076 9cd31e29
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 00000077 739eb16f
+GEN 00000000 00000078 4e70ab48
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000079 f9c9aa7c
+GEN 00000000 0000007a 873f2bc3
+GEN 00000000 0000007b 4ce0ea26
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000007c fb918b7d
+GEN 00000000 0000007d 027b5a41
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000007e 87c253e3
+GEN 00000000 0000007f 4c27de16
+GEN 00000000 00000080 fa7c1135
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000081 03c23be5
+GEN 00000000 00000082 8627621d
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000083 4d7c5731
+GEN 00000000 00000084 7942d4eb
+GEN 00000000 00000085 4766978a
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000086 ec5cf45b
+GEN 00000000 00000087 0ad386d2
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000088 1a9e4c9f
+GEN 00000000 00000089 b2f1fbf0
+GEN 00000000 0000008a ae8b0209
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000008b 28da871f
+GEN 00000000 0000008c ed92ccb0
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000008d 897ebba9
+GEN 00000000 0000008e 5f40a22f
+GEN 00000000 0000008f 5061b768
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 00000090 d8d3244c
+GEN 00000000 00000091 959efefb
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000092 75708082
+GEN 00000000 00000093 c549c1c7
+GEN 00000000 00000094 2d7f232c
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000095 6940f6ea
+GEN 00000000 00000096 cf61848b
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 00000097 38534fda
+GEN 00000000 00000098 64de7813
+GEN 00000000 00000099 5f91c43e
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000009a d07b2e61
+GEN 00000000 0000009b 18c2e9d3
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000009c b5a68f1e
+GEN 00000000 0000009d a53cd8b0
+GEN 00000000 0000009e bde395a9
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 0000009f 2116752f
+GEN 00000000 000000a0 f3b5c5e8
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000a1 8e252d0d
+GEN 00000000 000000a2 597de999
+GEN 00000000 000000a3 57410f77
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000a4 54639844
+GEN 00000000 000000a5 d6d674ee
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 000000a6 9495c788
+GEN 00000000 000000a7 f7f52c5d
+GEN 00000000 000000a8 0405ead1
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000a9 8e0d0a9b
+GEN 00000000 000000aa 59199af2
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 000000ab d7b7728f
+GEN 00000000 000000ac 14244ed8
+GEN 00000000 000000ad 367ef894
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000ae 65c085f6
+GEN 00000000 000000af dd21cd05
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 000000b0 11f3398d
+GEN 00000000 000000b1 bb0ee759
+GEN 00000000 000000b2 22989c57
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000b3 f6f5f2d4
+GEN 00000000 000000b4 84850e97
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000b5 4fcd98f4
+GEN 00000000 000000b6 f8397586
+GEN 00000000 000000b7 8467454c
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000b8 cedc6d7b
+GEN 00000000 000000b9 3892c942
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000ba 65febf67
+GEN 00000000 000000bb 5d00a05c
+GEN 00000000 000000bc d181b0d2
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000bd 9b43299e
+GEN 00000000 000000be f266ef70
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000bf 8fdc8849
+GEN 00000000 000000c0 5813dcff
+GEN 00000000 000000c1 543e1380
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000c2 d6613e40
+GEN 00000000 000000c3 95d3e1e1
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000c4 751e1313
+GEN 00000000 000000c5 45b13ebe
+GEN 00000000 000000c6 ed2be0a1
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 000000c7 09ea11b3
+GEN 00000000 000000c8 9f0b3b2e
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000c9 f09ae2e8
+GEN 00000000 000000ca 89f2968d
+GEN 00000000 000000cb 5f0ef4d9
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000cc 50988797
+GEN 00000000 000000cd 59f5cc74
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 000000ce d7053ac6
+GEN 00000000 000000cf 948de2ac
+GEN 00000000 000000d0 f7d916ab
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000d1 0417b4aa
+GEN 00000000 000000d2 0e3427ab
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000d3 99667c2a
+GEN 00000000 000000d4 f75dc26a
+GEN 00000000 000000d5 845127ca
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000d6 cedbfc3a
+GEN 00000000 000000d7 b8920262
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000d8 a5ff07d6
+GEN 00000000 000000d9 bd008c14
+GEN 00000000 000000da a181da37
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000db 33431364
+GEN 00000000 000000dc 6e66be5e
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000dd c9dca1d1
+GEN 00000000 000000de 3f13b31b
+GEN 00000000 000000df e0be2eb2
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000e0 91a168ae
+GEN 00000000 000000e1 fb334da8
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000e2 82ee792d
+GEN 00000000 000000e3 4689c7e9
+GEN 00000000 000000e4 6cdf2c0f
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+GEN 00000000 000000e5 4b90ea18
+GEN 00000000 000000e6 fa798b34
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000e7 83c75ae7
+GEN 00000000 000000e8 462c529c
+GEN 00000000 000000e9 ed6adef2
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000ea 894a908e
+GEN 00000000 000000eb df7af9d8
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000ec 90428715
+GEN 00000000 000000ed 78e6ccb5
+GEN 00000000 000000ee 459cbba5
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000ef 6d73a23d
+GEN 00000000 000000f0 494e3761
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000f1 7f796453
+GEN 00000000 000000f2 40475ede
+GEN 00000000 000000f3 e0ec5091
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000f4 118ad9fb
+GEN 00000000 000000f5 bb5a9702
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000f6 a252f486
+GEN 00000000 000000f7 b7de87cc
+GEN 00000000 000000f8 a410cc3b
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000f9 3e39ba62
+GEN 00000000 000000fa 616723d7
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000fb 535cf614
+GEN 00000000 000000fc de538536
+GEN 00000000 000000fd 91de4de4
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=1 minstret=3082
+GEN 00000000 000000fe fb11f91f
+GEN 00000000 000000ff 02bb07b0
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=1 minstret=3082
+LIFE 00000001 00000c0a 06a28c28 27266abc bd221e08
+SEED 00000001 02bb07b0
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=2 minstret=3082
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=2 minstret=3082
+GEN 00000001 00000000 06a28c28
+GEN 00000001 00000001 0cb6da6c
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47998 lives=2 minstret=3082
+GEN 00000001 00000002 1ba493ca
+GEN 00000001 00000003 323ffe3b
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=2 minstret=3082
+GEN 00000001 00000004 ef600162
+GEN 00000001 00000005 88500356
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48002 sys_khz=10943 sys48_khz=48006 ref_khz=10942 sof_khz=47999 lives=2 minstret=3082
+GEN 00000001 00000006 dcd80654
+GEN 00000001 00000007 93940dd7
+GEN 00000001 00000008 7e761914
+exp227 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=0

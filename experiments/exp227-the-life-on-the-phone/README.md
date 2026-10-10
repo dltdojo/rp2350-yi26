@@ -8,7 +8,10 @@ For every life, the board sends all 256 generations, one per beat of the LED.
 `life.html` draws each generation as it arrives. It also checks each one,
 cell by cell, against Rule 30 written again in the page, and draws any
 generation that is not Rule 30's in red. The proof says what the kernel wrote;
-the page says what reached the phone. Not yet run on a board.**
+the page says what reached the phone. Round 1, on a Pico 2 and a Pixel 9a:
+the page and the LED kept the same beat, and every generation the phone
+received was Rule 30's. Each was also exactly `rule30.py`'s at its place
+counted from the boot seed.**
 
 Needs: a **Pico 2**, a hand on **BOOTSEL** once, and a **phone with Chrome**
 holding `exp227.uf2` and `life.html`.
@@ -134,22 +137,39 @@ firmware: flash again.
   `tools/pages/log.html`'s, byte for byte.
 - **The UF2.** The shell builds into 16 KiB of flash, its UF2 reads back as
   built, and it is byte for byte the committed one (`exp227.uf2.sha256`).
-- **Logs from a phone.** Every log under `board/` is checked by the page's
-  own block.
+- **Logs from a phone.** Every log under `board/` is checked twice: by the
+  page's own block, and against `rule30.py`'s lives from SEED0 at the same
+  round and generation.
 
 What none of it reaches: the board sending the lines, a phone drawing them,
 and a person seeing the LED and the page keep the same beat.
 
 ## On the board
 
-Not run yet.
+| Round | Firmware | What came back |
+| --- | --- | --- |
+| 1 | revision 1 (`860a8329…`), page build p1 | A Pico 2 and a Pixel 9a. **The LED and the page flashed together, in step**, in the words of the person watching. **Copy** gave the report back. The page's own verdict, the `#page` line: **212 of 213 generations Rule 30's, 0 wrong, 1 unchecked** (the first one it saw, since it joined at generation 90 of life 0), no gaps, the one seam between lives right, minstret 3082. The paste ([board/round1-life.txt](./board/round1-life.txt)) holds 175 of those generations, from generation 90 of life 0 to generation 8 of life 1; it ends mid-line, so the text was cut somewhere between the clipboard and the chat. All 175 are Rule 30's by the page's block, and each is `rule30.py`'s at its round and generation from SEED0, both replayed by `check.sh`. Clocks from the status lines: clk_sys as left 10943 kHz, clk_usb 48002 kHz, clk_sys moved 48006 kHz, 47998-47999 kHz against the phone's frames; no bus errors, nothing dropped. |
+
+The two lives are the first two after boot: life 0 grew from SEED0, one live
+cell, and life 1 from life 0's last generation, `02bb07b0`, which the SEED
+line carried and the page checked. Life 1's LIFE line, `06a28c28 27266abc
+bd221e08`, is the second life exp225's RTL run prints.
+
+This was a third boot of exp226's port. clk_sys as left was 10943 kHz here,
+against 10966 and 10950 in exp226's rounds 4 and 5. That fits a ring
+oscillator varying from boot to boot.
+
+What the report does not say is whether Copy was pressed before or after
+Disconnect, or which of its two ways worked: the status line that says so
+was not part of the paste.
 
 ## What it does not say
 
 - **That the kernel wrote what the page drew.** The proof and the shell's
   checks cover the kernel. The page covers everything after it (see above).
 - **That the beat is exactly in step.** The GEN line leaves at the start of
-  its beat. How long the phone takes to draw it has not been measured.
+  its beat, and to a person watching, the LED and the page flashed together.
+  The delay between them has not been measured.
 - **Recovery without a hand.** There is no 1200-baud reboot, so BOOTSEL by
   hand is the way back.
 - **More than one phone.** The walkthrough is written for a Pixel 9a.

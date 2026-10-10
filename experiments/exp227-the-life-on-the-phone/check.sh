@@ -17,7 +17,8 @@
 #      flash, and its UF2 reads back as built, byte for byte the committed one
 #      when the toolchain is the recorded one;
 #   4. every log a phone gave back (board/*.txt) is checked by the page's own
-#      block: generations, none of them wrong.
+#      block: generations, none of them wrong; and each generation is
+#      rule30.py's at its round and generation, counted from SEED0.
 #
 # What none of it reaches: the board sending them, a phone drawing them, and
 # a person seeing the LED and the page keep the same beat.
@@ -117,6 +118,7 @@ shopt -s nullglob
 logs=(board/*.txt)
 if (( ${#logs[@]} )) && command -v node > /dev/null; then
     node page_test.mjs life.html build/fixtures "${logs[@]}" | tail -n "${#logs[@]}" || FAILED=1
+    python3 fixtures.py --board "${logs[@]}" || FAILED=1
 else
     echo "SKIP  checking a phone's log: none recorded yet (board/*.txt)"
 fi

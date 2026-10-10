@@ -7,6 +7,11 @@ tell apart.
 
   fixtures.py DIR      writes DIR/*.txt, one stream each, and DIR/pairs.txt:
                        random words and rule30.py's next generation of each
+  fixtures.py --board LOG...
+                       each GEN line a phone gave back, against rule30.py's
+                       lives from SEED0 at the same round and generation —
+                       independent of the page, which only checks each one
+                       against the one before
 """
 import os
 import random
@@ -74,7 +79,29 @@ def write_fixtures(d):
             f.write(f"{x:08x} {rule30(x):08x}\n")
 
 
+def board_positions(logs):
+    lives, failed = [history(SEED0)], 0
+    for log in logs:
+        got = {}
+        for line in open(log, encoding="utf-8", errors="replace"):
+            f = line.split()
+            if len(f) == 4 and f[0] == "GEN":
+                got[(int(f[1], 16), int(f[2], 16))] = int(f[3], 16)
+        while got and len(lives) <= max(r for r, _ in got):
+            lives.append(history(lives[-1][-1]))
+        bad = [(r, g) for (r, g), w in sorted(got.items()) if lives[r][g] != w]
+        name = os.path.basename(log)
+        if got and not bad:
+            print(f"PASS  {name}: all {len(got)} generations are rule30.py's, at their round and generation from SEED0")
+        else:
+            failed += 1
+            print(f"FAIL  {name}: rule30.py from SEED0 disagrees at {bad[:5] if bad else 'no GEN line'}")
+    return failed
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "--board":
+        sys.exit(1 if board_positions(sys.argv[2:]) else 0)
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     write_fixtures(sys.argv[1])
