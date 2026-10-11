@@ -12,7 +12,8 @@ and the theorem holds whatever it answers. Writing the proof of `ENCODE`
 found a bug that 3000 fuzzed scripts had not: the kernel wrote −128 as
 `80 00`, which is +128, and did the same to every negative result whose top
 magnitude byte had its high bit set. The shell, in C on the Pico 2's RISC-V
-cores, runs 33 hand-written scripts through the proved kernel forever. It
+cores, runs 34 hand-written scripts through the proved kernel forever, the
+last of them 2+2=5 from Nineteen Eighty-Four, which it refuses. It
 answers `CHECKSIG` with a BIP340 verifier of its own, held here to BIP340's
 test vectors, and says over USB what the kernel halted with for each. On a
 Pico 2, read on a Pixel 9a: 51 cases over three rounds, one of them whole,
@@ -141,6 +142,25 @@ ADD and SUB of every pair of a smaller set, and each result compared with
 `script.py`'s encoding of it. That is 672 scripts. The old kernel fails 110 of
 them on the model; the fixed one fails none.
 
+## 2+2=5
+
+The last case is from Nineteen Eighty-Four: *"Freedom is the freedom to say
+that two plus two make four. If that is granted, all else follows."*
+
+```
+OP_2 OP_2 OP_ADD PUSH 05 OP_EQUAL      the stack: 02 | 02, then 04, then 04 | 05, then ∅
+```
+
+The kernel adds 2 and 2 itself, with nothing asked of the shell, finds 4,
+and `OP_EQUAL` leaves false, the empty element. One element is left and it is
+false: code 11. It sits beside case 1, `2+3=5`, the same sum with one number
+changed, which the kernel accepts. Nothing about it is special to the proof:
+`kernel_verdict` already covered it, as it covers every script of up to 1020
+bytes. It is here to be seen on a board, refused, and checked by a page.
+
+It was added in revision 3 as case 33, last, so that every case before it
+keeps its number in the logs of revisions 1 and 2.
+
 ## The calls
 
 The kernel is the model's (`lean/Rv32/Machine.lean`), with two calls added for
@@ -159,7 +179,7 @@ the model's runner without `RV32RUN_SIGS`.
 
 ## The shell
 
-`shell/shell.c` runs every hand case in `cases.py`, 33 scripts that between
+`shell/shell.c` runs every hand case in `cases.py`, 34 scripts that between
 them reach every opcode and every way to fail. For each case it zeroes the
 region, writes the kernel (checked against `kernel.sha256`), the script and
 the stack, and enters the kernel in User mode. It answers `HASHB` with
@@ -219,7 +239,7 @@ like had something gone wrong. Revision 2 is the table above.
 
 `script.html` shows the experiment on a phone, as exp227's `life.html` does
 for its lives: one file, no build step, opened from the phone's files in
-Chrome. It holds the 33 cases and runs each of them again itself, so it is
+Chrome. It holds the 34 cases and runs each of them again itself, so it is
 worth opening with no board at all: tap a case and it shows the script, the
 stack it starts with, and the stack after every opcode, down to the verdict.
 With a board it checks every line the board sends.
@@ -231,8 +251,8 @@ The board sends four kinds of line, and that is all there is to read:
 | Line | What it carries | What the page does with it |
 | --- | --- | --- |
 | `CASE` | round, case number, the exit code, the verdict compiled in, minstret, signatures checked and valid, the case's name | holds every field to its own run of that case, and minstret to the model's count; the case's tile goes green or grey, or red |
-| `ROUND` | the round, and 33 | a round is *whole and right* when the page saw all 33 of its cases and none was wrong |
-| status, about once a second | USB stage, setups, stalls, bus errors, lines dropped, the clocks as measured, the round, the last case's minstret | the board panel; a status line that dropped a line or saw a bus error is counted against the board |
+| `ROUND` | the round, and how many cases it has: 34 (33 before revision 3) | a round is *whole and right* when the page saw every one of its cases and none was wrong; a round of 33 is named an older firmware |
+| status, about once a second | USB stage, setups, stalls, bus errors, lines dropped, the clocks as measured, the round, the last case's minstret | the board panel; `dropped` and `errors` are totals since the board started, so the page reports the largest it has seen, once |
 | `FAIL` | the check that failed, and what it got | counted; the verdict line goes red |
 
 Everything else the page shows, it holds or computes itself, because none of
@@ -257,15 +277,22 @@ LED, and the kernel's state between its first instruction and its last.
 The page's interpreter is written again in JavaScript from `script.py`'s
 specification, opcode by opcode, with its own SHA-256 and its own BIP340 over
 `BigInt`. It shares nothing with the kernel, the shell's C or `script.py`.
-`check.sh` holds it to `script.py` on all 1005 scripts the differential uses,
+`check.sh` holds it to `script.py` on all 1006 scripts the differential uses,
 its SHA-256 to `hashlib` on every length from 0 to 200 bytes, and its BIP340 to
 BIP340's 19 test vectors and 40 drawn signatures. It feeds it streams as the
-board sends them, in 64-byte packets, right and wrong in eight ways, and every
-log in `board/`. Six wrong pages are caught: `OP_ADD` subtracting, negative
+board sends them, in 64-byte packets, right and wrong in eight ways, a round of
+revision 2's 33 cases, and every log in `board/`. Six wrong pages are caught: `OP_ADD` subtracting, negative
 zero true, a second signature allowed, a BIP340 challenge without the key, a
 SHA-256 constant one off, minstret not compared. Then the whole page runs in
 headless Chromium against a stand-in board (`tools/pages/headless.mjs`) and
 with no WebUSB at all.
+
+It also notices a `CASE` line missing between two others, whatever the board's
+counter says.
+
+Every case is run once when the page opens, before it connects. Page build s1
+ran each the first time the board sent it, and on a phone the first BIP340 in
+`BigInt` takes long enough that the page stopped reading meanwhile: see round 3.
 
 So the page catches a board, a cable or a phone that reports a verdict other
 than the specification's, or a count other than the model's. **It cannot
@@ -286,7 +313,7 @@ Files on the phone: `exp228.uf2` and `script.html`, downloaded once and kept.
    reads the same lines, unchecked.)
 
 Every `CASE` line should have `code` equal to `want`, and each round should
-end in `ROUND` with `00000021`: 33 cases, in hex, as every number on these
+end in `ROUND` with `00000022`: 34 cases, in hex, as every number on these
 lines is. A pasted log goes under `board/`, and `check.sh` checks it twice:
 with `board.py`, and with the page's own checking.
 
@@ -296,6 +323,7 @@ with `board.py`, and with the page's own checking.
 | --- | --- | --- |
 | 1 | revision 1 (`14c86684…`) | A Pico 2 and a Pixel 9a, through `tools/pages/log.html` ([board/round1-log.txt](./board/round1-log.txt), replayed by `board.py`): **51 `CASE` lines, from case 25 of round 6 to case 9 of round 8, every one halting with its verdict, with the RTL's minstret to the instruction, and with the signatures `script.py` asks about**: both `pay to key` cases valid, `signature invalid` invalid, the second signature never checked. `ROUND 00000006 00000021` and `ROUND 00000007 00000021`, and round 7 whole in the log. Thirteen status lines: nothing dropped, no bus error, three stalls, as in exp226. The LED could not be read: see revision 2 above. |
 | 2 | revision 2 (`253abb90…`) | The same Pico 2, revision 2 copied on. The person watching: **a slow, even blink** — running, and every check holding, the first row of the LED's table. No log this round: revision 2 changes nothing on USB. |
+| 3 | revision 2, `script.html` page build s1 | The page on the Pixel 9a, dark mode, from a screenshot; no log was kept. **190 of 190 cases as they should be, 0 wrong**, round 9's 33 tiles all seen. But only 5 of 6 rounds were seen whole, and *25 status lines with something dropped or a bus error*. The board's counters are totals since it started, so 25 lines may be one event repeated; and a round not seen whole means a `CASE` line did go missing. The likely cause is the page: build s1 ran each case's BIP340 the first time the board sent it, in `BigInt`, on a phone, and read nothing meanwhile, so the board's queue filled. That is inferred, not shown: whether `dropped` or `errors` was the one, and how many, the screenshot does not say. Page build s2 runs every case before it connects and reports the counters once, as numbers. |
 
 What the chip's own counts say: minstret on the chip is the RTL's in every
 case, so the + 4 for the harness and + 4 for each call that the RTL showed
@@ -323,7 +351,7 @@ kernel; `kernel.bin` against what the proof writes; the specification run
 against `script.py` on every hand case, the 672 of arithmetic and 300 fuzzed;
 the model and the RTL against `script.py` on all of those; `bip340.c` on this
 machine; the UF2's bytes; on the RTL the whole shell, BIP340 and all, each of
-the 33 cases halting with its verdict and the model's count; and seven wrong
+the 34 cases halting with its verdict and the model's count; and seven wrong
 shells, each caught by the check it names; and every log a phone gave back,
 with a log one instruction off for one case caught; and the page, as above.
 
@@ -345,9 +373,10 @@ with a log one instruction off for one case caught; and the page, as above.
   checked against the model's count case by case, and nothing is claimed
   about it in general. Nothing here is constant-time, and nothing needs to
   be.
-- **The chip, twice, one board.** Round 1 ran revision 1 on one Pico 2 and
-  its log was read; round 2 ran revision 2 on the same board and only its LED
-  was.
+- **The chip, three times, one board.** Round 1 ran revision 1 on one Pico 2
+  and its log was read; round 2 ran revision 2 and only its LED was; round 3
+  was the page on revision 2, by screenshot. Revision 3, with 2+2=5, has not
+  run on a board yet.
 
 ## Running it
 

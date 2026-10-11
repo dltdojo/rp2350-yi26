@@ -80,12 +80,13 @@ function feedText(text) {
   return { ...c.summary(), wrongAt: at.join(' ') };
 }
 const stream = (name) => feedText(fs.readFileSync(path.join(dir, name), 'utf8'));
-const brief = (s) => `cases ${s.cases} ok ${s.ok} wrong ${s.wrong} [${s.wrongAt}] rounds ${s.rounds} whole ${s.roundsWhole} `
-  + `wrong ${s.roundsWrong} status ${s.statuses}/${s.statusBad} bad, FAIL ${s.fails}`;
+const brief = (s) => `cases ${s.cases} ok ${s.ok} wrong ${s.wrong} [${s.wrongAt}] gaps ${s.gaps} rounds ${s.rounds} `
+  + `whole ${s.roundsWhole} wrong ${s.roundsWrong} status ${s.statuses} dropped ${s.dropped} errors ${s.errors} FAIL ${s.fails}`;
+const n = api.CASES.length;
 
 let s = stream('good.txt');
-check(s.cases === 66 && s.ok === 66 && s.roundsWhole === 2 && !s.roundsWrong && !s.statusBad && s.statuses > 0,
-  'two rounds as the board sends them, in 64-byte packets: all 66 cases as they should be, both rounds whole', brief(s));
+check(s.cases === 2 * n && s.ok === 2 * n && s.roundsWhole === 2 && !s.roundsWrong && !s.gaps && !s.dropped && s.statuses > 0,
+  `two rounds as the board sends them, in 64-byte packets: all ${2 * n} cases as they should be, both rounds whole`, brief(s));
 s = stream('code.txt');
 check(s.wrong === 1 && s.wrongAt === '3:6' && s.roundsWhole === 1 && s.roundsWrong === 1,
   'case 6 halting with 1: that case is wrong, and its round', brief(s));
@@ -98,17 +99,21 @@ check(s.wrong === 1 && s.wrongAt === '3:8', "case 8's valid signature reported i
 s = stream('name.txt');
 check(s.wrong === 1 && s.wrongAt === '4:2', 'case 2 under another name: wrong', brief(s));
 s = stream('missing.txt');
-check(s.wrong === 0 && s.cases === 65 && s.roundsWhole === 1 && !s.roundsWrong,
-  'case 20 of round 3 lost on the way: nothing wrong, and round 3 not seen whole', brief(s));
+check(s.wrong === 0 && s.cases === 2 * n - 1 && s.gaps === 1 && s.roundsWhole === 1 && !s.roundsWrong,
+  'case 20 of round 3 lost on the way: nothing wrong, one gap, and round 3 not seen whole', brief(s));
 s = stream('dropped.txt');
-check(s.statusBad === 1 && s.wrong === 0, 'a status line saying four lines were dropped is counted', brief(s));
+check(s.dropped === 4 && s.wrong === 0,
+  "a status line saying the board has dropped four lines: four, once, not a count of the lines that repeat it", brief(s));
+s = stream('older.txt');
+check(s.wrong === 0 && s.roundsWhole === 1 && s.roundCases === n - 1,
+  `a round of revision 2's ${n - 1} cases, ending in ROUND ${n - 1}: whole and right, and named an older firmware`, brief(s));
 s = stream('fail.txt');
 check(s.fails === 1, "a FAIL line from speak.h is counted", brief(s));
 
 for (const log of logs) {
   s = feedText(fs.readFileSync(log, 'utf8'));
-  check(s.cases > 0 && s.wrong === 0 && !s.fails && !s.statusBad,
+  check(s.cases > 0 && s.wrong === 0 && !s.fails && !s.errors,
     `${path.basename(log)}: all ${s.cases} cases from a board as the page says; rounds seen whole: ${s.roundsWhole}; `
-    + `${s.statuses} status lines`, brief(s));
+    + `${s.statuses} status lines, ${s.dropped} dropped, ${s.gaps} gaps`, brief(s));
 }
 process.exit(failed ? 1 : 0);

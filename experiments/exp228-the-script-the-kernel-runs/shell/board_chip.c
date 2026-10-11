@@ -11,7 +11,7 @@
 //   ROUND round cases     every case as it should be, this round
 //
 // Each case takes two units, about 0.36 s, so that a person can read the
-// lines as they come; a round is 33 cases and three slots more.
+// lines as they come; a round is 34 cases and three slots more.
 //
 // The LED: on for three cases' worth and off for three, about 1 s each, the
 // whole time, whatever the cases' verdicts — revision 1 gave an accepted case

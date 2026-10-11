@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """exp228 — what script.html holds, and what it is tested against.
 
-  page_cases.py --write PAGE        put the 33 cases in PAGE, between
+  page_cases.py --write PAGE        put the hand cases in PAGE, between
                                     `// BEGIN cases` and `// END cases`: each
-                                    case's name, script, starting stack and the
-                                    minstret build/expect.h says the chip counts
+                                    case's name, script, starting stack, the
+                                    minstret build/expect.h says the chip
+                                    counts, and its line in cases.NOTES
   page_cases.py --check PAGE        the same, and fail if PAGE holds anything else
   page_cases.py --fixtures DIR      what page_test.mjs feeds the page:
       verdicts.jsonl   every hand case, 672 of arithmetic and 300 fuzzed, each
@@ -15,6 +16,7 @@
                        made, every other one with a bit flipped
       good.txt         two rounds as board_chip.c prints them, with status lines
       *.txt            the same, wrong in one way each
+      older.txt        a round of the 33 cases revision 2 ran: still read
 
 The page's verdicts are its own: nothing here is in the page but the cases.
 """
@@ -64,8 +66,9 @@ def cases_block():
              "const CASES = ["]
     for name, (script, stack, _) in cases.hand().items():
         elems = ", ".join(f"'{e.hex()}'" for e in stack)
+        note = f", note: {json.dumps(cases.NOTES[name], ensure_ascii=False)}" if name in cases.NOTES else ""
         lines.append(f"  {{ name: {json.dumps(name)}, script: '{script.hex()}', stack: [{elems}], "
-                     f"minstret: {minstret[name]} }},")
+                     f"minstret: {minstret[name]}{note} }},")
     lines += ["];", "// END cases"]
     return "\n".join(lines) + "\n"
 
@@ -119,6 +122,9 @@ def stream_fixtures(d):
     save("dropped.txt", [(a, b, line.replace("dropped=0", "dropped=4") if k == first else line)
                          for k, (a, b, line) in enumerate(good)])
     save("fail.txt", good[:10] + [(3, None, "FAIL 00000003 0000006f")])
+    n = len(cases.hand())
+    save("older.txt", [(a, b, line) for a, b, line in good if a == 3 and (b is None or b < n - 1) and not line.startswith("ROUND")]
+         + [(3, None, f"ROUND {3:08x} {n - 1:08x}")])
 
 
 def verdict_fixtures(d):
@@ -169,10 +175,10 @@ if __name__ == "__main__":
     elif what == "--check":
         old, new = page_with_cases(arg)
         if old != new:
-            print(f"FAIL  {arg} holds the 33 cases as cases.py and build/expect.h have them — it does not: "
+            print(f"FAIL  {arg} holds the {len(cases.hand())} cases as cases.py and build/expect.h have them — it does not: "
                   "run page_cases.py --write")
             sys.exit(1)
-        print(f"PASS  {arg} holds the 33 cases as cases.py and build/expect.h have them")
+        print(f"PASS  {arg} holds the {len(cases.hand())} cases as cases.py and build/expect.h have them")
     elif what == "--fixtures":
         os.makedirs(arg, exist_ok=True)
         verdict_fixtures(arg)

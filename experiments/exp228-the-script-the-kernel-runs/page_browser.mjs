@@ -35,8 +35,8 @@ check(sent.startsWith('claim 0, claim 1, ctl 32 0 0, ctl 34 3 0'),
   `${name}: the page claims interfaces 0 and 1, sets the line coding, then raises DTR`, sent);
 check(verdict.includes(want), `${name}: the verdict line says "${want}"`, verdict);
 const accept = tiles.filter((c) => c.includes('accept')).length, reject = tiles.filter((c) => c.includes('reject')).length;
-check(tiles.length === 33 && accept + reject + tiles.filter((c) => c.includes('wrong')).length === 33,
-  `${name}: 33 tiles, the last round's every case on them (${accept} accepted, ${reject} rejected)`, tiles.join(' / '));
+check(tiles.length === 34 && accept + reject + tiles.filter((c) => c.includes('wrong')).length === 34,
+  `${name}: 34 tiles, the last round's every case on them (${accept} accepted, ${reject} rejected)`, tiles.join(' / '));
 check(steps > 2 && marks.includes('✓') && errors.length === 0,
   `${name}: the case the board sent last, run here in ${steps - 1} rows, beside the board's columns; no script error`,
   `${marks.slice(0, 120)} ${errors.join('; ')}`);
@@ -63,6 +63,13 @@ if (name === 'good.txt') {
   check(invalid.head.includes('signature invalid') && invalid.sum.includes('code 8') && invalid.steps.includes('BIP340: invalid'),
     'case 26 tapped: the flipped signature, invalid by the page\'s own BIP340, rejected with code 8',
     JSON.stringify(invalid).slice(0, 200));
+  await tab.click('#grid .tile:nth-child(34)');
+  const orwell = { head: await tab.textContent('#cname'), sum: await tab.textContent('#csum'),
+                   note: await tab.textContent('#cnote'), steps: await tab.textContent('#ctrace') };
+  check(orwell.head.includes('2+2=5') && orwell.sum.includes('code 11') && orwell.note.includes('two plus two make four')
+        && orwell.steps.includes('04 (4)'),
+    'case 33 tapped: 2+2 comes to 4 on the stack, 5 is not it, false is left: rejected, code 11, with its line from the book',
+    JSON.stringify(orwell).slice(0, 200));
   await run.close();
 }
 process.exit(failed() ? 1 : 0);

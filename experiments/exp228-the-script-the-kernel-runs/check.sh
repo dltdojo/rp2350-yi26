@@ -24,7 +24,7 @@
 #   6. on the RTL the shell runs every hand case, answering HASHB with
 #      SHA-256 and CHECKSIG with BIP340, and each halts with its verdict and
 #      the model's count; wrong shells are caught;
-#   7. script.html, the page a phone shows the board on: the 33 cases it holds
+#   7. script.html, the page a phone shows the board on: the 34 cases it holds
 #      are cases.py's and expect.h's; its own interpreter, SHA-256 and BIP340
 #      agree with script.py, hashlib and BIP340's vectors; it tells right
 #      streams from wrong ones, in 64-byte packets, and wrong pages are caught;
@@ -157,7 +157,7 @@ else
     page_mutant "minstret is not compared" 's/if (e.minstret !== c.minstret)/if (false)/' \
         script.html node page_test.mjs @ build/page
     if page_playwright; then
-        node page_browser.mjs script.html build/page/good.txt "66 of 66 cases as they should be" || FAILED=1
+        node page_browser.mjs script.html build/page/good.txt "68 of 68 cases as they should be" || FAILED=1
         node page_browser.mjs script.html build/page/code.txt "1 wrong" || FAILED=1
     else
         echo "SKIP  the page in a browser: Playwright is not installed"

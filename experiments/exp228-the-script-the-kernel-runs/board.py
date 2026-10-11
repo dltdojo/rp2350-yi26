@@ -62,11 +62,12 @@ def check_log(path, rows):
                 bad.append(f"line {n}: {got}, not {(ename, ewant, ewant, einstret, esigs, evalid)}")
             seen.setdefault(rnd, set()).add(i)
         elif line.startswith("ROUND "):
+            # A round of fewer cases is an older exp228.uf2's: revision 2 ran the first 33.
             rnd, count = (int(x, 16) for x in line.split()[1:3])
-            whole = seen.get(rnd, set()) == set(range(len(rows)))
+            whole = seen.get(rnd, set()) >= set(range(count))
             rounds.append((rnd, whole))
-            if count != len(rows):
-                bad.append(f"line {n}: ROUND says {count} cases, not {len(rows)}")
+            if count > len(rows):
+                bad.append(f"line {n}: ROUND says {count} cases, more than {len(rows)}")
         elif line.startswith("exp228 usb="):
             statuses += 1
             f = dict(kv.split("=", 1) for kv in line.split()[1:])

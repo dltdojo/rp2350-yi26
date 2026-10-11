@@ -4,7 +4,9 @@
   region_image(kernel, script, stack)   kernel.bin with the script and the initial
                                  stack laid out where the kernel reads them
   hand()                         name -> (script, stack, sig): one case at
-                                 least for every opcode and every way to fail
+                                 least for every opcode and every way to fail,
+                                 and 2+2=5
+  NOTES                          name -> a line for script.html about the case
   fuzz(n, seed)                  n scripts drawn mostly from the subset's own
                                  opcodes, so that most of them run a while
   KEY, MSG, SIGN(...)            a BIP340 key, the message every CHECKSIG
@@ -123,7 +125,18 @@ def hand():
     c["false left"] = (ops(OP_0), [], False)
     c["equalverify unequal"] = (ops(OP_1, OP_2, OP_EQUALVERIFY, OP_1), [], False)
     c["the whole stack, all 32"] = (ops(*([OP_DROP] * (DMAX - 1))), [bytes([i + 1]) * 80 for i in range(DMAX)], False)
+    # Last, so that every case before it keeps its number in an older log.
+    c["2+2=5, as in 1984"] = (ops(OP_2, OP_2, OP_ADD, num(5), OP_EQUAL), [], False)
     return c
+
+
+# What a person reading a case on script.html is told besides its steps.
+NOTES = {
+    "2+3=5": "Beside case 33: the same sum with one number changed, and true.",
+    "2+2=5, as in 1984": "Nineteen Eighty-Four: \"Freedom is the freedom to say that two plus two make four. "
+                         "If that is granted, all else follows.\" The proved kernel adds 2 and 2 itself, with "
+                         "nothing asked of the shell, finds 4, and leaves false on the stack: rejected, code 11.",
+}
 
 
 def edges():
