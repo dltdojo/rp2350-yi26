@@ -2142,6 +2142,51 @@ theorem sub_run (hp : Placed env base) {s : Machine} {a b : Nat}
       simp only [show decide ((0 : Nat) = 1) = false from rfl, Bool.false_eq_true, ↓reduceIte] at n3
       omega
 
+/-- **The eight rows**: after `i`, T's first `8 + i` words are A's first `i` times B. -/
+theorem rows_run (hp : Placed env base) {s : Machine}
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * M_ROW0)) (hcode : CodeAt s.mem base kernel)
+    (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800) (hT : numAt s.mem base 0xa00 8 = 0) :
+    ∀ i ≤ 8, ∃ s', run env (135 * i) s = .running s'
+      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (M_ROW0 + 23 * i))
+      ∧ s'.reg 9 = base + BitVec.ofNat 32 0x800
+      ∧ Kept s.mem s'.mem base 0xa00 0xa40
+      ∧ numAt s'.mem base 0xa00 (8 + i) = numAt s.mem base 0x904 i * numAt s.mem base 0x924 8 := by
+  have hfit := hp.fit
+  intro i hi
+  induction i with
+  | zero => exact ⟨s, rfl, by simpa using hpc, h9, Kept.refl _ _ _ _, by rw [show 8 + 0 = 8 from rfl, hT]; simp [numAt]⟩
+  | succ i ih =>
+    obtain ⟨s1, e1, p1, g1, kp1, n1⟩ := ih (by omega)
+    have hi' : i < 8 := by omega
+    have code1 : CodeAt s1.mem base kernel := Kept.code hfit kp1 (by rw [kernel_length]; decide) (by decide) hcode
+    obtain ⟨s2, e2, p2, kp2, n2, o2⟩ := row_run hp (m_rows i hi') (s := s1) ⟨by omega, by omega⟩ (by omega)
+      (by decide) ⟨by omega, by omega⟩ (by decide) (by omega) (by omega) (by omega) p1 code1 g1
+    have wa : wordAt s1.mem base (0x904 + 4 * i) = wordAt s.mem base (0x904 + 4 * i) :=
+      kp1.word hfit (by omega) (by omega)
+    have nb : numAt s1.mem base 0x924 8 = numAt s.mem base 0x924 8 := kp1.num hfit (by omega) (by omega)
+    have ti : numAt s2.mem base 0xa00 i = numAt s1.mem base 0xa00 i := kp2.num hfit (by omega) (by omega)
+    rw [wa, nb] at n2
+    refine ⟨s2, ?_, ?_, by rw [o2 9 (by decide), g1], ?_, ?_⟩
+    · rw [show 135 * (i + 1) = 135 * i + 135 by omega, run_add_running e1, e2]
+    · rw [p2, show M_ROW0 + 23 * i + 23 = M_ROW0 + 23 * (i + 1) by omega]
+    · exact kp1.trans (kp2.widen (by omega) (by omega))
+    · have sp2 := numAt_split s2.mem base 0xa00 i 9
+      have sp1 := numAt_split s1.mem base 0xa00 i 8
+      rw [show i + 8 = 8 + i by omega] at sp1
+      rw [show 8 + (i + 1) = i + 9 by omega, sp2, ti, n2]
+      rw [n1] at sp1
+      have e1 : 2 ^ (32 * i) * (numAt s1.mem base (0xa00 + 4 * i) 8
+            + wordAt s.mem base (0x904 + 4 * i) * numAt s.mem base 0x924 8)
+          = 2 ^ (32 * i) * numAt s1.mem base (0xa00 + 4 * i) 8
+            + wordAt s.mem base (0x904 + 4 * i) * 2 ^ (32 * i) * numAt s.mem base 0x924 8 := by
+        rw [Nat.mul_add, ← Nat.mul_assoc, Nat.mul_comm (2 ^ (32 * i)) (wordAt s.mem base (0x904 + 4 * i))]
+      have e2 : numAt s.mem base 0x904 (i + 1) * numAt s.mem base 0x924 8
+          = numAt s.mem base 0x904 i * numAt s.mem base 0x924 8
+            + wordAt s.mem base (0x904 + 4 * i) * 2 ^ (32 * i) * numAt s.mem base 0x924 8 := by
+        simp only [numAt]; rw [Nat.add_mul]
+      rw [e1, e2]
+      omega
+
 end Exp229
 
 #print axioms Exp229.addm_loop
