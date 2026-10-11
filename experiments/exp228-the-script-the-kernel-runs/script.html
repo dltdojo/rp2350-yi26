@@ -1,0 +1,869 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp228 — the script the kernel runs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp228-the-script-the-kernel-runs — one file, no dependencies, no build step,
+  no server. An appliance, not a tool: it knows exp228's lines and nothing else.
+
+  The board runs 34 Bitcoin scripts through a proved RV32IM interpreter, one
+  every 0.36 s, forever, and says over USB what each halted with. This page
+  holds the same 34 scripts and runs each of them again, here — with its own
+  interpreter of the subset, its own SHA-256 and its own BIP340 — so that it
+  can show what a script does step by step, and check every CASE line the
+  board sends: the exit code, the verdict the board carries, minstret, and the
+  signatures the shell checked. It works without a board too: tap a case.
+
+  What it cannot check is the kernel: that is proof/Script.lean's.
+
+  Open it directly from the filesystem — Files app -> "Open with Chrome" on
+  Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b;
+          --acc:#1a5fb4; --soft:color-mix(in srgb, var(--fg) 6%, transparent); }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --acc:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 44rem; padding: 1.2rem 16px 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; }
+  p.sub { color: var(--dim); margin: 0 0 1rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; margin: 0 .3rem .4rem 0; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button.small { padding: .2rem .6rem; font-size: 13px; }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: .6rem 0; padding: .6rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  #grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; max-width: 30rem; }
+  .tile { aspect-ratio: 1; border: 1.5px solid var(--line); border-radius: 5px; display: flex; flex-direction: column;
+          align-items: center; justify-content: center; font-size: 11px; line-height: 1.1; cursor: pointer;
+          color: var(--dim); background: transparent; user-select: none; }
+  .tile b { font-size: 13px; color: var(--fg); }
+  .tile.accept { background: color-mix(in srgb, var(--ok) 22%, transparent); border-color: var(--ok); }
+  .tile.reject { background: var(--soft); border-color: var(--dim); }
+  .tile.wrong { background: color-mix(in srgb, var(--bad) 30%, transparent); border-color: var(--bad); }
+  .tile.sel { outline: 2.5px solid var(--acc); outline-offset: 1px; }
+  .tile.now { box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 35%, transparent); }
+  .legend { font-size: 12.5px; color: var(--dim); margin: .4rem 0; }
+  .legend span { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; vertical-align: -1px;
+                 margin: 0 .25rem 0 .7rem; border: 1.5px solid var(--line); }
+  .legend span.accept { background: color-mix(in srgb, var(--ok) 22%, transparent); border-color: var(--ok); }
+  .legend span.reject { background: var(--soft); border-color: var(--dim); }
+  .legend span.wrong { background: color-mix(in srgb, var(--bad) 30%, transparent); border-color: var(--bad); }
+  #verdict { margin: .6rem 0; font-size: 14px; }
+  b.ok { color: var(--ok); } b.bad { color: var(--bad); }
+  #case { border: 1px solid var(--line); border-radius: 8px; padding: .3rem .9rem .8rem; }
+  .label { font-size: 12.5px; color: var(--dim); margin: .7rem 0 .2rem; text-transform: uppercase; letter-spacing: .03em; }
+  .tok { display: inline-block; font-family: ui-monospace, monospace; font-size: 12.5px; padding: .05rem .4rem;
+         margin: 0 .25rem .25rem 0; border-radius: 4px; background: var(--soft); }
+  .tok.push { color: var(--acc); }
+  .mono { font-family: ui-monospace, monospace; font-size: 12.5px; word-break: break-all; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td, th { text-align: left; padding: .25rem .4rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: normal; font-size: 12px; }
+  td.n { color: var(--dim); width: 1.6rem; }
+  td.op { white-space: nowrap; }
+  tr.fail td { color: var(--bad); }
+  tr.end td { font-weight: 600; }
+  .yes { color: var(--ok); } .no { color: var(--bad); }
+  #board { font-size: 13.5px; }
+  #raw { background: var(--soft); padding: .6rem; border-radius: 6px; font-family: ui-monospace, monospace;
+         font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-all; height: 11rem; overflow-y: auto; }
+  details { margin: .8rem 0; } summary { cursor: pointer; color: var(--acc); }
+  details p, details li { font-size: 14px; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .4rem; }
+</style>
+
+<h1>The script the kernel runs</h1>
+<p class="sub">exp228 &middot; 34 Bitcoin scripts, each run by a proved RV32IM interpreter on the board, and each run again here.<br>
+  <small>page build <b id="ver">s2</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<h2>The 34 cases <small class="meta" id="round"></small></h2>
+<div id="grid"></div>
+<div class="legend">
+  <span class="accept"></span>✓ accepted <span class="reject"></span>rejected, with its code, as it should be
+  <span class="wrong"></span>not as the page says <span></span>not yet seen this round. Tap one.
+</div>
+<div id="verdict">No board yet: tap a case to see its script run here.</div>
+
+<div id="case">
+  <h2 id="cname"></h2>
+  <div id="csum"></div>
+  <div id="cnote" class="meta"></div>
+  <div class="label">The script</div><div id="cscript"></div>
+  <div class="label">The stack it starts with, bottom first</div><div id="cstack" class="mono"></div>
+  <div class="label">Run here, one opcode at a time — the stack after each, top on the right</div>
+  <table id="ctrace"></table>
+  <div class="label">What the board said <button id="follow" class="ghost small" hidden>follow the board</button></div>
+  <div id="cboard">Nothing yet.</div>
+</div>
+
+<h2>The board</h2>
+<div id="board">No status line yet.</div>
+
+<details>
+  <summary>What this page shows</summary>
+  <p>The board holds 34 scripts in its firmware, the last of them 2+2=5. For each one the C shell writes the script and its starting
+  stack into a region of memory, and hands the CPU to 881 RV32IM instructions — the kernel — that
+  <code>proof/Script.lean</code> proves halt with the specification's verdict for <em>every</em> script of up to
+  1020 bytes. When the kernel meets <code>OP_SHA256</code> or <code>OP_CHECKSIG</code> it asks the shell, which
+  answers with SHA-256 and BIP340. The board then sends one line:</p>
+  <p class="mono">CASE round i code want minstret sigs valid name</p>
+  <ul>
+    <li><b>code</b>: what the kernel halted with, 0 for accept, 1 to 12 for the way the script failed;</li>
+    <li><b>want</b>: the verdict compiled into the firmware, <code>script.py</code>'s;</li>
+    <li><b>minstret</b>: how many instructions the chip counted — the Lean model's count, plus 4 for the shell's
+      way in and out, plus 4 for each call;</li>
+    <li><b>sigs</b>, <b>valid</b>: how many signatures the shell checked, and how many were good.</li>
+  </ul>
+  <p>This page runs each script again with an interpreter of its own, written in JavaScript from the
+  specification, with its own SHA-256 and BIP340. A case is green or grey when the board's code, the verdict it
+  carries and the page's run agree, minstret is the model's count, and the signatures are the ones the page
+  checked too. Red is any of those not holding. The page cannot see inside the chip: that the kernel is right
+  for every script is the proof's to say, not this page's.</p>
+</details>
+
+<details>
+  <summary>中文說明</summary>
+  <p>板子的韌體裡有 34 個 Bitcoin 腳本，最後一個是《一九八四》裡的 2+2=5。每個案例，C 殼層把腳本和起始堆疊寫進一塊記憶體，再把 CPU 交給
+  881 條 RV32IM 指令組成的解譯器（核心）。<code>proof/Script.lean</code> 證明了：任何 1020 位元組以內的腳本，
+  核心停下來時的結果都等於規格的判決。核心遇到 <code>OP_SHA256</code> 或 <code>OP_CHECKSIG</code> 時會請殼層計算，
+  殼層用 SHA-256 和 BIP340 回答。每跑完一個案例，板子送出一行：</p>
+  <p class="mono">CASE 輪次 編號 code want minstret sigs valid 名稱</p>
+  <ul>
+    <li><b>code</b>：核心停下時的結果，0 是接受，1 到 12 是失敗的原因；</li>
+    <li><b>want</b>：編進韌體的預期判決，來自 <code>script.py</code>；</li>
+    <li><b>minstret</b>：晶片數到的指令數，等於 Lean 模型的計數，加上殼層進出的 4，再加上每次呼叫的 4；</li>
+    <li><b>sigs</b>、<b>valid</b>：殼層驗了幾個簽章、其中幾個有效。</li>
+  </ul>
+  <p>這個網頁用自己的 JavaScript 解譯器（照規格另寫一份）、自己的 SHA-256 和 BIP340，把每個腳本再跑一次。
+  板子回報的 code、它帶的判決、網頁自己跑出的結果三者一致，minstret 等於模型的計數，簽章也和網頁驗的一樣，
+  格子才會是綠色或灰色；任何一項不符就是紅色。點任何一格，可以看那個腳本一步一步執行時堆疊的變化。
+  網頁看不到晶片內部：核心對每一個腳本都正確，是證明的工作，不是這個網頁的。</p>
+  <p>不接板子也能用：直接點格子，看 34 個腳本各自怎麼執行、為什麼被接受或拒絕。</p>
+</details>
+
+<h2>Lines</h2>
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+const BAUD = 115200;   // nominal; 1200 would reboot some firmwares here into BOOTSEL (log.html says why)
+
+// BEGIN script-check
+// ---------------------------------------------------------------------------
+// The cases, the subset run again, and whether each CASE line the board
+// sends is what it should be.
+//
+//   CASE round i code want minstret sigs valid name    one case (board_chip.c)
+//   ROUND round cases                                  a round's end
+//   exp228 usb=… dropped=… errors=… … minstret=…       speak.h's status line
+//
+// The interpreter is written here from script.py's specification, opcode by
+// opcode, and shares nothing with the kernel, the shell's C or script.py; its
+// SHA-256 and BIP340 are written here too. exp228's check.sh runs this block
+// under node: against script.py on every hand case, 672 of arithmetic and 300
+// fuzzed, against BIP340's test vectors, over streams page_cases.py writes,
+// right and wrong, and over every log a board gave back.
+// ---------------------------------------------------------------------------
+
+// BEGIN cases — written by page_cases.py from cases.py and build/expect.h; check.sh holds it to them
+const MSG_HEX = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const CASES = [
+  { name: "one", script: '51', stack: [], minstret: 111 },
+  { name: "2+3=5", script: '525393010587', stack: [], minstret: 418, note: "Beside case 33: the same sum with one number changed, and true." },
+  { name: "7-9=-2", script: '0107010994018287', stack: [], minstret: 427 },
+  { name: "1add of 0x7fffffff", script: '04ffffff7f8b05000000800087', stack: [], minstret: 410 },
+  { name: "1sub of -0x7fffffff", script: '04ffffffff8c05000000808087', stack: [], minstret: 409 },
+  { name: "dup drop nip over swap", script: '51527c75767877876960', stack: [], minstret: 697 },
+  { name: "sha256 of a witness", script: 'a820ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad87', stack: ['616263'], minstret: 461 },
+  { name: "sha256 of nothing", script: '00a820e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85587', stack: [], minstret: 493 },
+  { name: "pay to key hash", script: '76a8204fbdbf30768ac87343fc0ebf5a5ed37c2cb9adbfb1e6ba84fdebbf874443cb8688ac', stack: ['9860930a340a276d465d9997fc2968b4740f5ee56ea6e3af28f2660705600e0c1d05d8ffe630785ab40e45b2863261d5a399eaf50e7a2d8c708a6403c645c07f', 'dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659'], minstret: 550 },
+  { name: "pay to key", script: '20dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659ac', stack: ['9860930a340a276d465d9997fc2968b4740f5ee56ea6e3af28f2660705600e0c1d05d8ffe630785ab40e45b2863261d5a399eaf50e7a2d8c708a6403c645c07f'], minstret: 329 },
+  { name: "empty signature pushes false", script: '20dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659ac0087', stack: [''], minstret: 474 },
+  { name: "negative zero is false", script: '6951', stack: ['0080'], minstret: 83 },
+  { name: "nop", script: '615161', stack: [], minstret: 127 },
+  { name: "1negate", script: '4f8b0087', stack: [], minstret: 341 },
+  { name: "bad opcode", script: '516a', stack: [], minstret: 67 },
+  { name: "pushdata1", script: '4c0101', stack: [], minstret: 31 },
+  { name: "push past the end", script: '05010203', stack: [], minstret: 33 },
+  { name: "underflow", script: '5193', stack: [], minstret: 72 },
+  { name: "overflow", script: '515151515151515151515151515151515151515151515151515151515151515151', stack: [], minstret: 1184 },
+  { name: "overflow by dup", script: '7676', stack: ['78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78', '78'], minstret: 92 },
+  { name: "5-byte operand", script: '0501020304058b', stack: [], minstret: 105 },
+  { name: "non-minimal operand", script: '0201008b', stack: [], minstret: 102 },
+  { name: "non-minimal zero", script: '01008b', stack: [], minstret: 93 },
+  { name: "verify false", script: '006951', stack: [], minstret: 69 },
+  { name: "key the wrong size", script: '1fdff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba6ac', stack: ['9860930a340a276d465d9997fc2968b4740f5ee56ea6e3af28f2660705600e0c1d05d8ffe630785ab40e45b2863261d5a399eaf50e7a2d8c708a6403c645c07f'], minstret: 230 },
+  { name: "signature the wrong size", script: '20dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659ac', stack: ['9860930a340a276d465d9997fc2968b4740f5ee56ea6e3af28f2660705600e0c1d05d8ffe630785ab40e45b2863261d5a399eaf50e7a2d8c708a6403c645c07f01'], minstret: 240 },
+  { name: "signature invalid", script: '20dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659ac', stack: ['9860930a340a276d465d9997fc2968b4740f5ee56ea6e3af28f2660705600e0c1d05d8ffe630785ab40e45b2863261d5a399eaf50e7a2d8c708a6403c645c07e'], minstret: 250 },
+  { name: "a second signature", script: '7620dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659ac6920dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659ac', stack: ['9860930a340a276d465d9997fc2968b4740f5ee56ea6e3af28f2660705600e0c1d05d8ffe630785ab40e45b2863261d5a399eaf50e7a2d8c708a6403c645c07f'], minstret: 613 },
+  { name: "two left", script: '5151', stack: [], minstret: 99 },
+  { name: "none left", script: '', stack: [], minstret: 27 },
+  { name: "false left", script: '00', stack: [], minstret: 61 },
+  { name: "equalverify unequal", script: '51528851', stack: [], minstret: 197 },
+  { name: "the whole stack, all 32", script: '75757575757575757575757575757575757575757575757575757575757575', stack: ['0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101', '0202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202', '0303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303', '0404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404', '0505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505', '0606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606060606', '0707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707', '0808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808', '0909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909090909', '0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a', '0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b', '0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c', '0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d', '0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e', '0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f', '1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010', '1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111', '1212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212', '1313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313', '1414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414', '1515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515151515', '1616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616', '1717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717171717', '1818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818181818', '1919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919191919', '1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a', '1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b', '1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c', '1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d', '1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e', '1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f', '2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020'], minstret: 478 },
+  { name: "2+2=5, as in 1984", script: '525293010587', stack: [], minstret: 369, note: "Nineteen Eighty-Four: \"Freedom is the freedom to say that two plus two make four. If that is granted, all else follows.\" The proved kernel adds 2 and 2 itself, with nothing asked of the shell, finds 4, and leaves false on the stack: rejected, code 11." },
+];
+// END cases
+
+const NAMES = ['accept', 'bad opcode', 'push past the end', 'too few elements', 'too many elements',
+  'not a 4-byte minimal number', 'OP_VERIFY false', 'key or signature the wrong size', 'signature invalid',
+  'a second signature', 'not exactly one element left', 'false', 'OP_EQUALVERIFY unequal'];
+const DMAX = 32;
+
+const fromHex = (h) => Uint8Array.from(h.match(/../g) || [], (x) => parseInt(x, 16));
+const toHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+function hex8(x) { return (x >>> 0).toString(16).padStart(8, '0'); }
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+function bytesEqual(a, b) { return a.length === b.length && a.every((x, i) => x === b[i]); }
+
+// ---- SHA-256, FIPS 180-4 -----------------------------------------------------
+const SHA_K = Uint32Array.of(
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2);
+const SHA_IV = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+const ror = (x, n) => (x >>> n) | (x << (32 - n));
+
+function sha256(msg) {
+  const len = msg.length, blocks = Math.ceil((len + 9) / 64), m = new Uint8Array(blocks * 64);
+  m.set(msg);
+  m[len] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(m.length - 8, Math.floor(len / 0x20000000));
+  dv.setUint32(m.length - 4, (len * 8) >>> 0);
+  const h = SHA_IV.slice(), w = new Uint32Array(64);
+  for (let o = 0; o < m.length; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(o + 4 * i);
+    for (let i = 16; i < 64; i++) {
+      const s0 = ror(w[i - 15], 7) ^ ror(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = ror(w[i - 2], 17) ^ ror(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, k] = h;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (k + (ror(e, 6) ^ ror(e, 11) ^ ror(e, 25)) + ((e & f) ^ (~e & g)) + SHA_K[i] + w[i]) >>> 0;
+      const t2 = ((ror(a, 2) ^ ror(a, 13) ^ ror(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      k = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    [a, b, c, d, e, f, g, k].forEach((x, i) => { h[i] = (h[i] + x) >>> 0; });
+  }
+  const out = new Uint8Array(32), ov = new DataView(out.buffer);
+  h.forEach((x, i) => ov.setUint32(4 * i, x));
+  return out;
+}
+
+// ---- BIP340 Verify, over secp256k1, in BigInt and Jacobian points ----------
+const SECP_P = 2n ** 256n - 2n ** 32n - 977n;
+const SECP_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+const SECP_G = [0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798n,
+                0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8n, 1n];
+const INF = [0n, 1n, 0n];
+const md = (a, m = SECP_P) => ((a % m) + m) % m;
+function powmod(b, e, m) {
+  let r = 1n;
+  b = md(b, m);
+  for (; e > 0n; e >>= 1n) { if (e & 1n) r = r * b % m; b = b * b % m; }
+  return r;
+}
+function jdouble([x, y, z]) {
+  if (z === 0n || y === 0n) return INF;
+  const yy = y * y % SECP_P, s = 4n * x * yy % SECP_P, m = 3n * x * x % SECP_P;
+  const x3 = md(m * m - 2n * s);
+  return [x3, md(m * md(s - x3) - 8n * (yy * yy % SECP_P)), 2n * y * z % SECP_P];
+}
+function jadd(p, q) {
+  const [x1, y1, z1] = p, [x2, y2, z2] = q;
+  if (z1 === 0n) return q;
+  if (z2 === 0n) return p;
+  const z11 = z1 * z1 % SECP_P, z22 = z2 * z2 % SECP_P;
+  const u1 = x1 * z22 % SECP_P, u2 = x2 * z11 % SECP_P;
+  const s1 = y1 * z2 % SECP_P * z22 % SECP_P, s2 = y2 * z1 % SECP_P * z11 % SECP_P;
+  if (u1 === u2) return s1 === s2 ? jdouble(p) : INF;
+  const hh = md(u2 - u1), r = md(s2 - s1), h2 = hh * hh % SECP_P, h3 = h2 * hh % SECP_P;
+  const x3 = md(r * r - h3 - 2n * u1 * h2);
+  return [x3, md(r * md(u1 * h2 - x3) - s1 * h3), hh * z1 % SECP_P * z2 % SECP_P];
+}
+function jmul(k, pt) {
+  let r = INF;
+  for (let i = 255; i >= 0; i--) {
+    r = jdouble(r);
+    if ((k >> BigInt(i)) & 1n) r = jadd(r, pt);
+  }
+  return r;
+}
+function affine([x, y, z]) {
+  if (z === 0n) return null;
+  const zi = powmod(z, SECP_P - 2n, SECP_P), zi2 = zi * zi % SECP_P;
+  return [x * zi2 % SECP_P, y * zi2 % SECP_P * zi % SECP_P];
+}
+function liftX(x) {
+  if (x >= SECP_P) return null;
+  const c = md(x * x % SECP_P * x + 7n), y = powmod(c, (SECP_P + 1n) / 4n, SECP_P);
+  if (y * y % SECP_P !== c) return null;
+  return [x, (y & 1n) ? SECP_P - y : y, 1n];
+}
+const toBig = (b) => b.reduce((a, x) => (a << 8n) | BigInt(x), 0n);
+function taggedHash(tag, data) {
+  const t = sha256(new TextEncoder().encode(tag));
+  return sha256(concat(t, t, data));
+}
+function bip340Verify(pk, msg, sig) {
+  if (pk.length !== 32 || sig.length !== 64) return false;
+  const pt = liftX(toBig(pk)), r = toBig(sig.subarray(0, 32)), s = toBig(sig.subarray(32));
+  if (!pt || r >= SECP_P || s >= SECP_N) return false;
+  const e = toBig(taggedHash('BIP0340/challenge', concat(sig.subarray(0, 32), pk, msg))) % SECP_N;
+  const big = affine(jadd(jmul(s, SECP_G), jmul(md(SECP_N - e, SECP_N), pt)));
+  return big !== null && (big[1] & 1n) === 0n && big[0] === r;
+}
+
+// ---- the subset, as script.py states it --------------------------------------
+const OPS = { 0x00: 'OP_0', 0x4c: 'OP_PUSHDATA1', 0x4f: 'OP_1NEGATE', 0x61: 'OP_NOP', 0x69: 'OP_VERIFY',
+  0x6a: 'OP_RETURN', 0x75: 'OP_DROP', 0x76: 'OP_DUP', 0x77: 'OP_NIP', 0x78: 'OP_OVER', 0x7c: 'OP_SWAP',
+  0x87: 'OP_EQUAL', 0x88: 'OP_EQUALVERIFY', 0x8b: 'OP_1ADD', 0x8c: 'OP_1SUB', 0x93: 'OP_ADD', 0x94: 'OP_SUB',
+  0xa8: 'OP_SHA256', 0xac: 'OP_CHECKSIG' };
+function opName(op) {
+  if (op >= 0x01 && op <= 0x4b) return `PUSH ${op}`;
+  if (op >= 0x51 && op <= 0x60) return `OP_${op - 0x50}`;
+  return OPS[op] || `0x${op.toString(16).padStart(2, '0')}`;
+}
+
+class ScriptFail { constructor(code) { this.code = code; } }
+
+/** CastToBool: any nonzero byte, except a lone sign bit in the last. */
+function castBool(e) {
+  for (let i = 0; i < e.length; i++)
+    if (e[i] !== 0) return !(i === e.length - 1 && e[i] === 0x80);
+  return false;
+}
+
+/** A number: at most 4 bytes, minimally encoded, little-endian sign and magnitude. */
+function numDecode(e) {
+  if (e.length > 4) throw new ScriptFail(5);
+  if (!e.length) return 0;
+  const last = e[e.length - 1];
+  if ((last & 0x7f) === 0 && (e.length === 1 || (e[e.length - 2] & 0x80) === 0)) throw new ScriptFail(5);
+  let mag = last & 0x7f;
+  for (let i = e.length - 2; i >= 0; i--) mag = mag * 256 + e[i];
+  return last & 0x80 ? -mag : mag;
+}
+
+/** Bitcoin Core's CScriptNum::serialize. */
+function numEncode(v) {
+  if (v === 0) return new Uint8Array(0);
+  const out = [];
+  for (let mag = Math.abs(v); mag; mag = Math.floor(mag / 256)) out.push(mag % 256);
+  if (out[out.length - 1] & 0x80) out.push(v < 0 ? 0x80 : 0);
+  else if (v < 0) out[out.length - 1] |= 0x80;
+  return Uint8Array.from(out);
+}
+
+/**
+ * Run a script on a stack (bottom first), BIP340 against msg. Returns the halt
+ * code, the signatures checked and found valid, and a step for each opcode:
+ * { at, op, name, data?, stack, note?, fail? }, then { end }.
+ */
+function scriptRun(script, stack, msg) {
+  const st = stack.map((e) => Uint8Array.from(e)), trace = [];
+  let pc = 0, sigs = 0, valid = 0;
+  const need = (k) => { if (st.length < k) throw new ScriptFail(3); };
+  const room = () => { if (st.length >= DMAX) throw new ScriptFail(4); };
+  let step = null;
+  try {
+    while (pc < script.length) {
+      const op = script[pc];
+      step = { at: pc, op, name: opName(op) };
+      pc++;
+      if (op === 0x00) { room(); st.push(new Uint8Array(0)); }
+      else if (op <= 0x4b) {
+        if (pc + op > script.length) throw new ScriptFail(2);
+        room();
+        step.data = script.slice(pc, pc + op);
+        st.push(step.data);
+        pc += op;
+      }
+      else if (op === 0x4f) { room(); st.push(Uint8Array.of(0x81)); }
+      else if (op >= 0x51 && op <= 0x60) { room(); st.push(Uint8Array.of(op - 0x50)); }
+      else if (op === 0x61) { /* nothing */ }
+      else if (op === 0x69) { need(1); if (!castBool(st.pop())) throw new ScriptFail(6); }
+      else if (op === 0x75) { need(1); st.pop(); }
+      else if (op === 0x76) { need(1); room(); st.push(st[st.length - 1]); }
+      else if (op === 0x77) { need(2); st.splice(st.length - 2, 1); }
+      else if (op === 0x78) { need(2); room(); st.push(st[st.length - 2]); }
+      else if (op === 0x7c) { need(2); st.push(st.splice(st.length - 2, 1)[0]); }
+      else if (op === 0x87 || op === 0x88) {
+        need(2);
+        const same = bytesEqual(st.pop(), st.pop());
+        if (op === 0x88) { if (!same) throw new ScriptFail(12); }
+        else st.push(same ? Uint8Array.of(1) : new Uint8Array(0));
+      }
+      else if (op === 0x8b || op === 0x8c) {
+        need(1);
+        const a = numDecode(st.pop());
+        st.push(numEncode(op === 0x8b ? a + 1 : a - 1));
+      }
+      else if (op === 0x93 || op === 0x94) {
+        need(2);
+        const b = numDecode(st[st.length - 1]), a = numDecode(st[st.length - 2]);
+        st.length -= 2;
+        st.push(numEncode(op === 0x93 ? a + b : a - b));
+      }
+      else if (op === 0xa8) { need(1); st.push(sha256(st.pop())); step.note = 'the shell hashes it (HASHB)'; }
+      else if (op === 0xac) {
+        need(2);
+        const pk = st.pop(), s = st.pop();
+        if (pk.length !== 32) throw new ScriptFail(7);
+        if (!s.length) { st.push(new Uint8Array(0)); step.note = 'an empty signature: false, and nothing to check'; }
+        else {
+          if (s.length !== 64) throw new ScriptFail(7);
+          if (sigs) throw new ScriptFail(9);
+          sigs++;
+          const ok = bip340Verify(pk, msg, s);
+          step.note = `the shell checks it with BIP340: ${ok ? 'valid' : 'invalid'}`;
+          if (!ok) throw new ScriptFail(8);
+          valid++;
+          st.push(Uint8Array.of(1));
+        }
+      }
+      else throw new ScriptFail(1);
+      step.stack = st.slice();
+      trace.push(step);
+      step = null;
+    }
+    let code = 0;
+    if (st.length !== 1) code = 10;
+    else if (!castBool(st[0])) code = 11;
+    trace.push({ end: code, stack: st.slice() });
+    return { code, sigs, valid, trace };
+  } catch (f) {
+    if (!(f instanceof ScriptFail)) throw f;
+    if (step) { step.fail = f.code; step.stack = st.slice(); trace.push(step); }
+    return { code: f.code, sigs, valid, trace };
+  }
+}
+
+/** The script as opcodes, for reading. */
+function disassemble(script) {
+  const out = [];
+  for (let pc = 0; pc < script.length;) {
+    const op = script[pc++];
+    if (op >= 0x01 && op <= 0x4b) { out.push({ name: `PUSH ${op}`, data: script.slice(pc, pc + op) }); pc += op; }
+    else out.push({ name: opName(op) });
+  }
+  return out;
+}
+
+/** Each case, run once, when first asked for. */
+function caseRuns(cases) {
+  const msg = fromHex(MSG_HEX), memo = new Map();
+  return (i) => {
+    if (!memo.has(i)) {
+      const c = cases[i];
+      memo.set(i, scriptRun(fromHex(c.script), c.stack.map(fromHex), msg));
+    }
+    return memo.get(i);
+  };
+}
+
+/** One line in, what it is out; anything else is { kind: 'other' }. */
+function scriptParse(text) {
+  const t = text.trim(), hex = '([0-9a-f]{8})';
+  let m;
+  if ((m = t.match(new RegExp(`^CASE ${hex} ${hex} ${hex} ${hex} ${hex} ${hex} ${hex} (.*)$`)))) {
+    const [round, i, code, want, minstret, sigs, valid] = m.slice(1, 8).map((x) => parseInt(x, 16));
+    return { kind: 'CASE', round, i, code, want, minstret, sigs, valid, name: m[8] };
+  }
+  if ((m = t.match(new RegExp(`^ROUND ${hex} ${hex}$`))))
+    return { kind: 'ROUND', round: parseInt(m[1], 16), cases: parseInt(m[2], 16) };
+  if (/^exp228 usb=/.test(t)) {
+    const f = {};
+    for (const kv of t.split(' ').slice(1)) { const [k, v] = kv.split('='); f[k] = v; }
+    return { kind: 'status', f };
+  }
+  if (/^FAIL/.test(t)) return { kind: 'FAIL', text: t };
+  return { kind: 'other' };
+}
+
+/**
+ * Feed it lines; each CASE comes back with a verdict:
+ *   ok     its name, code, the verdict it carries, minstret and signatures are
+ *          all what this page and the model say
+ *   wrong  one of them is not, and `why` says which
+ * and `summary()` counts them, by case and by round.
+ */
+function scriptChecker(cases) {
+  const run = caseRuns(cases);
+  const s = { cases: 0, ok: 0, wrong: 0, gaps: 0, rounds: 0, roundsWhole: 0, roundsWrong: 0, roundCases: null,
+              statuses: 0, dropped: 0, errors: 0, fails: 0, firstWrong: null };
+  const seen = new Map(), bad = new Set(), last = new Map();
+  let status = null, prev = null;
+
+  function feed(text) {
+    const e = scriptParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'status') {
+      // dropped and errors count from the board's start: each line says the total so far.
+      s.statuses++;
+      status = e.f;
+      s.dropped = Math.max(s.dropped, Number(e.f.dropped) || 0);
+      s.errors = Math.max(s.errors, Number(e.f.errors) || 0);
+    }
+    if (e.kind === 'ROUND') {
+      // A round of fewer cases is an older exp228.uf2's: revision 2 ran the first 33.
+      s.rounds++;
+      s.roundCases = e.cases;
+      const got = seen.get(e.round) || new Set();
+      e.whole = e.cases <= cases.length && [...Array(e.cases).keys()].every((i) => got.has(i));
+      e.right = e.whole && !bad.has(e.round);
+      if (e.right) s.roundsWhole++;
+      if (bad.has(e.round) || e.cases > cases.length) s.roundsWrong++;
+    }
+    if (e.kind !== 'CASE') return e;
+
+    s.cases++;
+    // In order is the next case of the round, or case 0 of the next round: anything else lost a line.
+    if (prev && !((e.round === prev.round && e.i === prev.i + 1) || (e.round === prev.round + 1 && e.i === 0))) s.gaps++;
+    prev = { round: e.round, i: e.i };
+    const why = [];
+    if (e.i >= cases.length) why.push(`there is no case ${e.i}`);
+    else {
+      const c = cases[e.i], r = run(e.i);
+      if (e.name !== c.name) why.push(`case ${e.i} is "${c.name}"`);
+      if (e.code !== r.code) why.push(`the page's run ends with ${r.code}, ${NAMES[r.code]}`);
+      if (e.want !== r.code) why.push(`the verdict it carries is ${e.want}, the page's is ${r.code}`);
+      if (e.minstret !== c.minstret) why.push(`minstret ${e.minstret}, the model's count is ${c.minstret}`);
+      if (e.sigs !== r.sigs || e.valid !== r.valid)
+        why.push(`signatures ${e.sigs} checked, ${e.valid} valid; the page checked ${r.sigs}, ${r.valid} valid`);
+    }
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s.wrong++;
+      bad.add(e.round);
+      if (!s.firstWrong) s.firstWrong = { round: e.round, i: e.i, name: e.name, why: e.why };
+    } else {
+      e.verdict = 'ok'; s.ok++;
+    }
+    if (!seen.has(e.round)) seen.set(e.round, new Set());
+    seen.get(e.round).add(e.i);
+    last.set(e.i, e);
+    return e;
+  }
+  return { feed, run, summary: () => ({ ...s }), last: (i) => last.get(i), status: () => status };
+}
+
+/** USB packets in, whole lines out: a packet is 64 bytes and ends wherever it ends. */
+function scriptLines() {
+  let pending = '';
+  return (chunk) => {
+    pending += chunk;
+    const parts = pending.split('\n');
+    pending = parts.pop();
+    return parts.map((p) => p.replace(/\r$/, '')).filter((p) => p.trim());
+  };
+}
+// END script-check
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let device = null, streaming = false, bytes = 0, started = 0, captured = '';
+const checker = scriptChecker(CASES);
+let selected = 0, follow = true, nowRound = null;
+const roundState = new Map();   // case -> the verdict of its line this round
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+
+/** An element, short enough to read: hex, its number when it is one, its length when it is long. */
+function elemText(e) {
+  if (!e.length) return '∅';
+  let num = '';
+  if (e.length <= 4) { try { num = ` (${numDecode(e)})`; } catch (x) { num = ''; } }
+  if (e.length <= 8) return toHex(e) + num;
+  return `${e.length} B ${toHex(e.subarray(0, 3))}…${toHex(e.subarray(e.length - 2))}`;
+}
+function stackText(st) {
+  if (!st.length) return '(empty)';
+  const shown = st.slice(-5).map(elemText);
+  return (st.length > 5 ? `…${st.length - 5} more | ` : '') + shown.join(' | ');
+}
+
+function drawGrid() {
+  const g = $('grid');
+  if (!g.children.length)
+    CASES.forEach((c, i) => {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      t.title = c.name;
+      t.onclick = () => { selected = i; follow = false; $('follow').hidden = false; drawGrid(); drawCase(); };
+      g.appendChild(t);
+    });
+  CASES.forEach((c, i) => {
+    const t = g.children[i], v = roundState.get(i), r = checker.run(i);
+    t.className = 'tile' + (v === 'wrong' ? ' wrong' : v === 'ok' ? (r.code ? ' reject' : ' accept') : '')
+                + (i === selected ? ' sel' : '') + (i === lastCase ? ' now' : '');
+    t.innerHTML = `<b>${i}</b>${v ? (r.code ? r.code : '✓') : '&nbsp;'}`;
+  });
+  $('round').textContent = nowRound === null ? '' : `· round ${nowRound}, ${roundState.size} of ${CASES.length} seen`;
+}
+
+function drawCase() {
+  const c = CASES[selected], r = checker.run(selected);
+  $('cname').textContent = `${selected} · ${c.name}`;
+  $('csum').innerHTML = r.code === 0
+    ? `<b class="ok">Accepted</b>: one element left, and it is true.`
+    : `<b>Rejected</b> with code ${r.code}: ${esc(NAMES[r.code])}.`;
+  $('cscript').innerHTML = disassemble(fromHex(c.script)).map((t) =>
+    `<span class="tok${t.data ? ' push' : ''}">${t.data ? 'PUSH ' + esc(elemText(t.data)) : esc(t.name)}</span>`).join('')
+    || '<span class="meta">an empty script</span>';
+  $('cstack').textContent = stackText(c.stack.map(fromHex));
+  $('cnote').textContent = c.note || '';
+  const rows = r.trace.map((t, n) => {
+    if ('end' in t)
+      return `<tr class="end"><td class="n"></td><td>end</td><td>${t.end === 0 ? 'one element left, true: <b class="ok">accept</b>'
+        : `${esc(NAMES[t.end])}: code ${t.end}`}</td></tr>`;
+    const what = t.fail !== undefined ? `fails: ${esc(NAMES[t.fail])}, code ${t.fail}` : esc(stackText(t.stack));
+    return `<tr${t.fail !== undefined ? ' class="fail"' : ''}><td class="n">${n + 1}</td><td class="mono op">${esc(t.name)}</td>`
+         + `<td class="mono">${what}${t.note ? `<br><span class="meta">${esc(t.note)}</span>` : ''}</td></tr>`;
+  });
+  $('ctrace').innerHTML = `<tr><th>#</th><th>opcode</th><th>stack after</th></tr>` + rows.join('');
+  const e = checker.last(selected);
+  if (!e) { $('cboard').textContent = 'Nothing from the board for this case yet.'; return; }
+  const mark = (ok) => `<span class="${ok ? 'yes' : 'no'}">${ok ? '✓' : '✗'}</span>`;
+  $('cboard').innerHTML = `<table>
+    <tr><th></th><th>the board</th><th>here</th><th></th></tr>
+    <tr><td>exit code</td><td>${e.code}</td><td>${r.code}</td><td>${mark(e.code === r.code)}</td></tr>
+    <tr><td>the verdict it carries</td><td>${e.want}</td><td>${r.code}</td><td>${mark(e.want === r.code)}</td></tr>
+    <tr><td>minstret</td><td>${e.minstret}</td><td>${c.minstret} <span class="meta">the model's count + 4 + 4 a call</span></td><td>${mark(e.minstret === c.minstret)}</td></tr>
+    <tr><td>signatures checked</td><td>${e.sigs}</td><td>${r.sigs}</td><td>${mark(e.sigs === r.sigs)}</td></tr>
+    <tr><td>valid</td><td>${e.valid}</td><td>${r.valid}</td><td>${mark(e.valid === r.valid)}</td></tr>
+  </table><div class="meta">round ${e.round}${e.why ? ` — ${esc(e.why)}` : ''}</div>`;
+}
+
+function drawVerdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.cases) { v.textContent = s.statuses ? `${s.statuses} status lines, no case yet.` : 'No board yet: tap a case to see its script run here.'; return; }
+  let t = `<b class="${s.wrong || s.fails ? 'bad' : 'ok'}">${s.ok} of ${s.cases} cases as they should be</b>, `
+        + `${s.wrong} wrong · rounds seen whole and right: ${s.roundsWhole} of ${s.rounds} ended`
+        + (s.gaps ? ` · ${s.gaps} times a CASE line was missing between two others` : '')
+        + (s.fails ? ` · <b class="bad">${s.fails} FAIL lines</b>` : '')
+        + (s.dropped ? ` · the board says it has dropped ${s.dropped} lines since it started, its queue full` : '')
+        + (s.errors ? ` · <b class="bad">${s.errors} bus errors</b>` : '')
+        + (s.roundCases !== null && s.roundCases < CASES.length
+           ? `<br>this board runs ${s.roundCases} cases a round, not ${CASES.length}: an older exp228.uf2` : '');
+  if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, case ${s.firstWrong.i} "${esc(s.firstWrong.name)}" — ${esc(s.firstWrong.why)}`;
+  v.innerHTML = t;
+}
+
+function drawBoard() {
+  const f = checker.status();
+  if (!f) return;
+  const khz = (k) => `${(Number(f[k]) / 1000).toFixed(3)} MHz`;
+  $('board').innerHTML = `<table>
+    <tr><td>USB</td><td>stage ${esc(f.usb)}${f.usb === '6' ? ' — configured' : ''}; ${esc(f.setups)} setups, ${esc(f.stalls)} stalled</td></tr>
+    <tr><td>on the bus</td><td>${esc(f.errors)} errors, ${esc(f.dropped)} lines dropped</td></tr>
+    <tr><td>clk_sys</td><td>${khz('sys48_khz')} against the crystal; ${khz('sys_khz')} as the bootrom left it</td></tr>
+    <tr><td>clk_usb</td><td>${khz('usb_khz')}</td></tr>
+    <tr><td>last case</td><td>round ${esc(f.lives)}, minstret ${esc(f.minstret)}</td></tr>
+  </table>`;
+}
+
+let lastCase = null;
+const rawLines = [];
+function line(text) {
+  const e = checker.feed(text);
+  rawLines.push(text + (e.verdict === 'wrong' ? `   <- wrong: ${e.why}` : ''));
+  if (rawLines.length > 60) rawLines.shift();
+  if (e.kind === 'CASE') {
+    if (e.round !== nowRound) { nowRound = e.round; roundState.clear(); }
+    roundState.set(e.i, e.verdict);
+    lastCase = e.i;
+    if (follow && e.i < CASES.length) selected = e.i;
+    drawGrid();
+    if (follow || selected === e.i) drawCase();
+  }
+  if (e.kind === 'status') drawBoard();
+}
+
+const split = scriptLines();
+function received(text) {
+  captured += text;
+  for (const l of split(text)) line(l);
+  const raw = $('raw');
+  const atBottom = raw.scrollHeight - raw.scrollTop - raw.clientHeight < 30;
+  raw.textContent = rawLines.join('\n');
+  if (atBottom) raw.scrollTop = raw.scrollHeight;
+  drawVerdict();
+  $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
+}
+
+// Copied from tools/pages/log.html, byte for byte; exp228's check.sh holds it to that.
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function start(dev) {
+  device = dev;
+  // Say what was picked before anything can fail: on a phone nobody can
+  // screenshot the dialog, and "it did not connect" is not a quantity.
+  say(`Picked "${dev.productName}", serial ${dev.serialNumber}. Opening…`);
+  try {
+    await device.open();
+  } catch (e) {
+    throw new Error(`cannot OPEN the device, before any interface is claimed. On Linux: "yi26 udev --install". [${e.name}: ${e.message}]`);
+  }
+  if (device.configuration === null) await device.selectConfiguration(1);
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null)
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(`cannot claim the interfaces — something else owns them: another page that has the port ` +
+      `open (close it), or on Linux the kernel's cdc_acm ("yi26 detach"). [${e.name}: ${e.message}]`);
+  }
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true); coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control }, coding.buffer);
+  // DTR: the board sends nothing until a page says it is listening.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  started = performance.now();
+  $('connect').disabled = true;
+  $('stop').disabled = false;
+  say(dev.serialNumber === '228'
+      ? `Listening to "${dev.productName}". A case comes about every 0.36 s, a round about every 13 s.`
+      : `Listening — but this board says serial ${dev.serialNumber}, "${dev.productName}", not exp228. `
+        + `It will not send cases: flash exp228.uf2.`, dev.serialNumber === '228' ? 'ok' : 'bad');
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try {
+      r = await device.transferIn(endpointIn, 64);
+    } catch (e) {
+      if (streaming) say(`Transfer failed: ${e.name}: ${e.message}`, 'bad');
+      break;
+    }
+    if (r.status === 'stall') { await device.clearHalt('in', endpointIn); continue; }
+    if (r.data && r.data.byteLength) {
+      bytes += r.data.byteLength;
+      received(dec.decode(r.data, { stream: true }));
+    }
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('stop').disabled = true;
+  try {
+    if (device && device.opened) {
+      const { control, data } = findCdc(device);
+      if (control !== null) {
+        await device.controlTransferOut(
+          { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x00, index: control });
+        await device.releaseInterface(control);
+      }
+      if (data !== null) await device.releaseInterface(data);
+      await device.close();
+    }
+  } catch (e) { /* the device may already be gone */ }
+  $('connect').disabled = false;
+  say('Disconnected. The board keeps running the cases.');
+}
+
+// What Copy gives: the page's verdict, then every line exactly as it arrived.
+function report() {
+  return `#page exp228 script.html ${$('ver').textContent}: ${JSON.stringify(checker.summary())}\n` + captured;
+}
+
+// Copy, in two ways, and saying which one worked (exp227's life.html says why).
+async function copy() {
+  const text = report();
+  let first = '';
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.length} characters (Clipboard API).`, 'ok');
+    return;
+  } catch (e) { first = `${e.name}: ${e.message}`; }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  say(ok ? `Copied ${text.length} characters (fallback; the Clipboard API said ${first}).`
+         : `Copy failed both ways. The Clipboard API said ${first}; the fallback refused. Press Disconnect, then Copy.`,
+      ok ? 'ok' : 'bad');
+}
+
+$('connect').onclick = async () => {
+  try { await start(await navigator.usb.requestDevice({ filters: FILTERS })); }
+  catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+};
+$('stop').onclick = stop;
+$('copy').onclick = copy;
+$('follow').onclick = () => { follow = true; $('follow').hidden = true; if (lastCase !== null) selected = lastCase; drawGrid(); drawCase(); };
+drawGrid();
+drawCase();
+
+(async () => {
+  // Every case run once now, before a board can be listening: a phone's first
+  // BIP340 in BigInt takes long enough that a page computing it mid-stream
+  // stops reading, and the board's queue fills (round 3).
+  say('Running the cases here once…');
+  await new Promise((r) => setTimeout(r, 30));
+  CASES.forEach((_, i) => checker.run(i));
+  if (!('usb' in navigator)) { say('This browser has no WebUSB, so no board: the cases still run here. Chrome on Android, or a Chromium browser, for the board.', 'bad'); $('connect').disabled = true; return; }
+  const known = await navigator.usb.getDevices();
+  if (known.length) {
+    try { await start(known[0]); } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+  } else {
+    say('Press Connect and choose the board — or tap a case to see it run here.');
+  }
+})();
+</script>

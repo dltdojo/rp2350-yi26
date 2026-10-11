@@ -77,7 +77,7 @@ def samples (m : Word → Byte) (base : Word) : List Byte := readBytes m (base +
 `Wide` and `low`, the first 64 KiB, are lean/Rv32/Within.lean's. -/
 
 /-- SHA-256's region: the 64 KiB from its first instruction. -/
-def env1 (env : Env) (base : Word) : Env := ⟨⟨base.toNat + SHA, base.toNat + SHA + 0x10000⟩, env.hash⟩
+def env1 (env : Env) (base : Word) : Env := { env with region := ⟨base.toNat + SHA, base.toNat + SHA + 0x10000⟩ }
 
 variable {env : Env} {base : Word}
 
@@ -93,7 +93,7 @@ theorem within1 (hw : Wide env base) : (env1 env base).region.within env.region 
 
 theorem halted1 (hw : Wide env base) {n : Nat} {c : Word} {s s' : Machine}
     (h : run (env1 env base) n s = .halted c s') : run env n s = .halted c s' :=
-  (run_within (env := env1 env base) (env' := env) rfl (within1 hw) n s).2 c s' h
+  (run_within (env := env1 env base) (env' := env) ⟨rfl, rfl⟩ (within1 hw) n s).2 c s' h
 
 /-! ## The front -/
 

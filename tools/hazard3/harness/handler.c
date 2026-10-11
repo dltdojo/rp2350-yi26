@@ -12,6 +12,12 @@
 //                   and a2 word-aligned, both inside the region — and anything
 //                   else is a fault. The hash is computed here in software; on
 //                   the chip it will be the SHA-256 block (exp210).
+//   ecall, t0 = 2   HASHB: HASH with no rule on a1 or on where a0 points
+//                   (exp228), the same checks otherwise
+//   ecall, t0 = 3   CHECKSIG: a0 becomes 1 or 0, checksig()'s answer for the
+//                   32 bytes at a0 and the 64 at a1 (exp228). Without a
+//                   checksig() linked in, every signature is invalid — the
+//                   model's runner says the same with no RV32RUN_SIGS
 //   anything else   a fault, reported with mcause, mepc and mtval
 //
 // Results go to the testbench's print port as one tagged line of hex words,
@@ -41,6 +47,13 @@
 #include "hashcall.h"
 #include "sha256.h"
 
+// The shell's signature check, if there is one; a harness alone has none.
+__attribute__((weak)) int checksig(const uint8_t *pk, const uint8_t *sig) {
+    (void)pk;
+    (void)sig;
+    return 0;
+}
+
 static void halt(uint32_t code) {
     IO_EXIT = code;
     for (;;) {}
@@ -54,6 +67,21 @@ void handle(uint32_t *x) {
         uint32_t src = x[10], len = x[11], dst = x[12];
         if (hash_args_ok(src, len, dst)) {
             sha256((const uint8_t *)src, len, (uint8_t *)dst);
+            csrw(mepc, csrr(mepc) + 4);
+            return;
+        }
+    }
+    if (cause == 8 && x[5] == 2) {
+        uint32_t src = x[10], len = x[11], dst = x[12];
+        if (hashb_args_ok(src, len, dst)) {
+            sha256((const uint8_t *)src, len, (uint8_t *)dst);
+            csrw(mepc, csrr(mepc) + 4);
+            return;
+        }
+    }
+    if (cause == 8 && x[5] == 3) {
+        if (sig_args_ok(x[10], x[11])) {
+            x[10] = checksig((const uint8_t *)x[10], (const uint8_t *)x[11]) ? 1 : 0;
             csrw(mepc, csrr(mepc) + 4);
             return;
         }
