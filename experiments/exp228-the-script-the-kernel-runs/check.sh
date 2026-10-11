@@ -23,9 +23,12 @@
 #      toolchain is the recorded one;
 #   6. on the RTL the shell runs every hand case, answering HASHB with
 #      SHA-256 and CHECKSIG with BIP340, and each halts with its verdict and
-#      the model's count; wrong shells are caught.
+#      the model's count; wrong shells are caught;
+#   7. every log a phone gave back (board/*.txt): each CASE line its case's
+#      verdict, minstret and signatures (board.py).
 #
-# What none of it reaches: the chip running it, and a phone reading it.
+# What none of it reaches: the chip running it, and a phone reading it; a
+# pasted log is what one did, once.
 #
 # Needs Lean (tools/lean/setup.sh), the Hazard3 testbench
 # (tools/hazard3/setup.sh), a host C compiler, clang, lld, llvm-objcopy, cargo
@@ -122,6 +125,21 @@ then
     pass "on the RTL the shell runs all $(grep -c '^    {"' build/expect.h) cases, SHA-256 and BIP340 answering the calls, each halting with script.py's verdict and the model's count"
 else
     fail "on the RTL the shell runs every case to its verdict" "$got"
+fi
+
+# Every log a phone gave back: each CASE line its case's verdict, minstret and
+# signatures, each ROUND line closing a round, nothing dropped.
+shopt -s nullglob
+logs=(board/*.txt)
+if (( ${#logs[@]} )); then
+    python3 board.py build/expect.h "${logs[@]}" || FAILED=1
+    if python3 board.py build/expect.h <(sed '0,/^CASE 00000007 00000012 00000004 00000004 000004a0/s//CASE 00000007 00000012 00000004 00000004 000004a1/' board/round1-log.txt) > /dev/null; then
+        fail "board.py catches a log one instruction off for one case" "it passed"
+    else
+        pass "board.py catches a log one instruction off for one case"
+    fi
+else
+    echo "SKIP  checking a phone's log: none recorded yet (board/*.txt)"
 fi
 
 # Wrong shells and wrong expectations: each is caught by the check it names.

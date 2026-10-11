@@ -2,7 +2,7 @@
 //
 // exp228 — the Pico 2: the shell runs every case, forever, and says over USB
 // (tools/hazard3/shell/speak.h) what the kernel halted with for each, while
-// the LED gives each case a beat.
+// the LED blinks slowly to say that nothing has failed.
 //
 //   CASE round i code want minstret sigs valid name
 //                         one case: the kernel's exit code, script.py's
@@ -10,15 +10,22 @@
 //                         checked for it and how many were valid
 //   ROUND round cases     every case as it should be, this round
 //
-// The beat: a case the script accepts (code 0), on for one unit and off for
-// one; a case it rejects, dark for two — 33 beats, about 12 s a round, and
-// 1.5 s dark between rounds. The kernel and BIP340 take milliseconds a case:
-// this is the pace a person can count, not the computation.
+// Each case takes two units, about 0.36 s, so that a person can read the
+// lines as they come; a round is 33 cases and three slots more.
 //
-// The LED gives the beats unless a host is part way through enumerating the
-// device — a stage from 2 (bus reset) to 5 (addressed) — when it shows that
-// stage the way exp226 does, for as long as a round would last. A check that
-// fails stops it all: speak.h's error, with the check as the count.
+// The LED: on for three cases' worth and off for three, about 1 s each, the
+// whole time, whatever the cases' verdicts — revision 1 gave an accepted case
+// a flash and a rejected one a dark beat, and a person could not tell that
+// apart from anything else. The verdicts are the USB lines' to say. So:
+//
+//   a slow, even blink           running, and every check has held
+//   2 s on, then N flashes       check N failed (speak.h's error), and it stopped
+//   N flashes, 3 s dark          a host part way through enumerating: stage N
+//                                (2 bus reset to 5 addressed), as in exp226
+//   lit or dark, and staying so  the shell died
+//
+// The blink holds still while the shell checks a signature, a fraction of a
+// second, so it is even rather than exact.
 //
 // Every line goes out only while a page holds the port open (DTR).
 
@@ -28,6 +35,14 @@
 #include "speak.h"
 
 static uint32_t stage_shown;   // set in board_case: the shell has no initialised data
+static uint32_t slots;         // two units each, from zero
+
+// One slot of the slow blink: three on, three off.
+static void slot(void) {
+    if ((slots++ / 3) & 1) REG(SIO_OUT_CLR) = LED;
+    else REG(SIO_OUT_SET) = LED;
+    pwait(2 * unit);
+}
 
 void board_case(uint32_t round, uint32_t i, const char *name, uint32_t code, uint32_t want, uint32_t instret,
                 uint32_t sigs, uint32_t valid) {
@@ -53,8 +68,8 @@ void board_case(uint32_t round, uint32_t i, const char *name, uint32_t code, uin
         }
         return;
     }
-    if (code == 0) flash(unit, unit);
-    else pwait(2 * unit);
+    (void)code;
+    slot();
 }
 
 void board_round(uint32_t round, uint32_t cases) {
@@ -62,8 +77,7 @@ void board_round(uint32_t round, uint32_t cases) {
     put_hex(round);
     put_hex(cases);
     send();
-    REG(SIO_OUT_CLR) = LED;
-    pwait(8 * unit);
+    for (int k = 0; k < 3; k++) slot();
 }
 
 void board_fail(uint32_t check, uint32_t got) { speak_fail(check, got); }

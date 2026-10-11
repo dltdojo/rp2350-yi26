@@ -14,7 +14,10 @@ found a bug that 3000 fuzzed scripts had not: the kernel wrote −128 as
 magnitude byte had its high bit set. The shell, in C on the Pico 2's RISC-V
 cores, runs 33 hand-written scripts through the proved kernel forever. It
 answers `CHECKSIG` with a BIP340 verifier of its own, held here to BIP340's
-test vectors, and says over USB what the kernel halted with for each.**
+test vectors, and says over USB what the kernel halted with for each. On a
+Pico 2, read on a Pixel 9a: 51 cases over three rounds, one of them whole,
+every one halting with its verdict and with the RTL's minstret to the
+instruction.**
 
 What it does in plain words, and how it differs from writing the same
 interpreter in Rust or C, is written up in Taiwanese Mandarin:
@@ -190,30 +193,65 @@ FAIL …                                            a check failed (speak.h's)
 
 ### The LED
 
-Each case gets one beat. A script the kernel accepts gets one unit on and one
-unit off; a script it rejects gets two units dark. That is 33 beats, about 12
-seconds a round, with 1.5 seconds dark between rounds. Fourteen of the 33 are
-accepted; `build/expect.h` lists them in order, with a verdict of 0.
+The verdicts are the USB lines' to say. The LED says only whether anything
+has gone wrong, in shapes a person can tell apart at a glance:
 
-While a host is part way through enumerating the board (a stage from 2 to 5),
-the LED shows that stage, as exp226 does. A 2-second light first is an error,
-and the board stops there: 1 to 4 are the four checks above, 5 to 9
-`speak.h`'s clocks and USB.
+| The LED | It means |
+| --- | --- |
+| a slow, even blink, about 1 s on and 1 s off | running, and every check has held |
+| 2 s on, then N flashes, then 3 s dark, over and over | check N failed and the board stopped: 1 to 4 the four checks above, 5 to 9 `speak.h`'s clocks and USB |
+| N flashes, then 3 s dark, with no long light | a host part way through enumerating the board, stage N from 2 to 5, as in exp226 |
+| lit or dark, and staying so | the shell died |
+
+Each case takes two units, about 0.36 s, so that the lines come at a pace a
+person can read; the blink is three cases on and three off, straight through
+the rounds. It holds still for the fraction of a second the shell spends on a
+signature, so it is even rather than exact.
+
+Revision 1 gave each case a beat of its own: a flash for a script the kernel
+accepted, two units dark for one it rejected. In round 1 the person watching
+could not tell that pattern from anything else, nor what it would have looked
+like had something gone wrong. Revision 2 is the table above.
 
 ## Running it on a board, from a phone
 
 1. Hold **BOOTSEL**, plug the Pico 2 into the phone, and copy `exp228.uf2` onto
    the drive that appears. The board restarts by itself.
-2. Watch the LED for a few seconds: a pattern of beats and pauses, repeating
-   every 13 or so seconds. A long light first means a check failed; count the
-   flashes after it.
+2. Watch the LED for a few seconds. A slow, even blink is all well. A long
+   light means a check failed: count the flashes after it.
 3. Open `tools/pages/log.html` in Chrome, tap the button, pick the board, and
    let it run through a round or two (the `ROUND` line). Then **Copy** and
    paste the log back.
 
 Every `CASE` line should have `code` equal to `want`, and each round should
 end in `ROUND` with `00000021`: 33 cases, in hex, as every number on these
-lines is.
+lines is. A pasted log goes under `board/`, and `check.sh` checks it with
+`board.py`: every `CASE` line its case's verdict, minstret and signatures.
+
+## On the board
+
+| Round | Firmware | What came back |
+| --- | --- | --- |
+| 1 | revision 1 (`14c86684…`) | A Pico 2 and a Pixel 9a, through `tools/pages/log.html` ([board/round1-log.txt](./board/round1-log.txt), replayed by `board.py`): **51 `CASE` lines, from case 25 of round 6 to case 9 of round 8, every one halting with its verdict, with the RTL's minstret to the instruction, and with the signatures `script.py` asks about**: both `pay to key` cases valid, `signature invalid` invalid, the second signature never checked. `ROUND 00000006 00000021` and `ROUND 00000007 00000021`, and round 7 whole in the log. Thirteen status lines: nothing dropped, no bus error, three stalls, as in exp226. The LED could not be read: see revision 2 above. |
+
+What the chip's own counts say: minstret on the chip is the RTL's in every
+case, so the + 4 for the harness and + 4 for each call that the RTL showed
+hold on silicon too, signatures and hashes included. The clocks are exp226's:
+clk_sys as the bootrom left it 10955 kHz, clk_usb 47989 kHz, clk_sys moved
+47998 kHz, against the crystal.
+
+Against the phone's 1 ms frames, clk_sys read 47999 kHz on some status lines
+and 12408 to 12429 kHz on others: 47999 near the start of each round, about a
+quarter of that from case 11 of round 7 to case 17, and again after case 5 of
+round 8. **Why is not known.** The clock did not move: its count against the
+crystal held at 47998 on every line. `sof_khz` is `mcycle` over 500 or more
+frames, and `harness.S` holds `mcycle` still everywhere except in the kernel
+and the shell's waits, which exp226's shell, idle between waits, never
+exercised. But the page says the whole log took 23.8 s, and its waits alone,
+51 cases and two rounds' ends, take 21.2 s, so time with `mcycle` held is at
+most about a tenth of it: enough to lower the reading by a tenth, not to a
+quarter. The line can be taken for what it was in exp226 only where
+the shell does nothing between waits.
 
 ## What is checked without a board
 
@@ -223,7 +261,8 @@ against `script.py` on every hand case, the 672 of arithmetic and 300 fuzzed;
 the model and the RTL against `script.py` on all of those; `bip340.c` on this
 machine; the UF2's bytes; on the RTL the whole shell, BIP340 and all, each of
 the 33 cases halting with its verdict and the model's count; and seven wrong
-shells, each caught by the check it names.
+shells, each caught by the check it names; and every log a phone gave back,
+with a log one instruction off for one case caught.
 
 `run.sh` also runs the differentials with 3000 fuzzed scripts.
 
@@ -243,7 +282,8 @@ shells, each caught by the check it names.
   checked against the model's count case by case, and nothing is claimed
   about it in general. Nothing here is constant-time, and nothing needs to
   be.
-- **The chip.** Nothing here has run on a Pico 2 yet.
+- **The chip, once.** Round 1 ran revision 1 on one Pico 2. Revision 2
+  changes only the LED; it has not run on a board yet.
 
 ## Running it
 
