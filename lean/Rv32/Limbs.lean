@@ -113,6 +113,13 @@ theorem fold_word (l h p c lo hi : Word) (hP : lo.toNat + 2 ^ 32 * hi.toNat = 97
   rw [f3]
   constructor <;> omega
 
+/-- A fold's last two words: `y8 = p + c; y9 = y8 <u p`. -/
+theorem tail_word (p c : Word) :
+    (p + c).toNat + 2 ^ 32 * (lt1 (p + c) p).toNat = p.toNat + c.toNat := by
+  have hp := p.isLt; have hc := c.isLt
+  simp only [BitVec.toNat_add, lt1_toNat]
+  split <;> omega
+
 /-! ## Numbers in memory -/
 
 variable {base : Word}
@@ -195,6 +202,22 @@ theorem numAt_write_next (hfit : base.toNat + 0x10000 ≤ 2^32) (m : Word → By
   simp only [numAt]
   rw [numAt_write_out hfit m v (by omega) (by omega) (Or.inl (by omega)), wordAt_write_same m _ hv]
 
+/-- A store over word `k` of `n` changes the number by what changed in that word. -/
+theorem numAt_write_mid (hfit : base.toNat + 0x10000 ≤ 2^32) (m : Word → Byte) {o : Nat} (v : Nat)
+    (hv : v < 2 ^ 32) : ∀ {n k : Nat}, k < n → o + 4 * n ≤ 0x10000 →
+    numAt (writeLE m (base + BitVec.ofNat 32 (o + 4 * k)) v 4) base o n + wordAt m base (o + 4 * k) * 2 ^ (32 * k)
+      = numAt m base o n + v * 2 ^ (32 * k)
+  | 0, _, h, _ => absurd h (Nat.not_lt_zero _)
+  | n + 1, k, hk, ho => by
+    simp only [numAt]
+    by_cases e : k = n
+    · subst e
+      rw [numAt_write_out hfit m v (by omega) (by omega) (Or.inl (by omega)), wordAt_write_same m _ hv]
+      omega
+    · have ih := numAt_write_mid hfit m v hv (show k < n by omega) (show o + 4 * n ≤ 0x10000 by omega)
+      rw [wordAt_write_out hfit m v (by omega) (by omega) (by omega)]
+      omega
+
 /-! ## Memory changed in one window only -/
 
 /-- `m'` is `m` at every offset of the region outside `[lo, hi)`. -/
@@ -249,6 +272,15 @@ theorem carry_step {A B C P t c' X Y : Nat} (h1 : A + C * P = B) (h2 : t + 2 ^ 3
     A + t * P + c' * (2 ^ 32 * P) = B + X * P + Y * P := by
   have e : t * P + 2 ^ 32 * (c' * P) = X * P + Y * P + C * P := by
     rw [← Nat.mul_assoc, ← Nat.add_mul, h2, Nat.add_mul, Nat.add_mul]
+  rw [Nat.mul_left_comm c' (2 ^ 32) P]
+  omega
+
+/-- One word more of a difference: what is written and what is taken away so
+far, then the word and the new borrow. -/
+theorem borrow_step {A B C P z c' X Y Yn : Nat} (h1 : A + Yn = B + C * P) (h2 : z + Y + C = X + 2 ^ 32 * c') :
+    (A + z * P) + (Yn + Y * P) = (B + X * P) + c' * (2 ^ 32 * P) := by
+  have e : z * P + Y * P + C * P = X * P + 2 ^ 32 * (c' * P) := by
+    rw [← Nat.add_mul, ← Nat.add_mul, h2, Nat.add_mul, Nat.mul_assoc]
   rw [Nat.mul_left_comm c' (2 ^ 32) P]
   omega
 
