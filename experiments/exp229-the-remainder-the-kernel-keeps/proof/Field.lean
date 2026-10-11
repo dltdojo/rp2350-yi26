@@ -1739,6 +1739,236 @@ theorem fold_run (hp : Placed env base) {M x y z : Nat} (hM : FoldAt M x y z) {s
   · intro r hr
     rw [r5, r4, k3 r (not_mem_of hr (by decide)), o2 r (not_mem_of hr (by decide)), qk r (not_mem_of hr (by decide))]
 
+/-- A store above the kernel keeps the kernel. -/
+theorem code_write (hp : Placed env base) {m : Word → Byte} (hcode : CodeAt m base kernel) {c : Nat}
+    (hc : 1832 ≤ c) (hc' : c + 4 ≤ 0x10000) (v : Nat) :
+    CodeAt (writeLE m (base + BitVec.ofNat 32 c) v 4) base kernel :=
+  Kept.code hp.fit (Kept.write hp.fit (Kept.refl _ _ c (c + 4)) _ (Nat.le_refl _) (Nat.le_refl _) hc')
+    (by rw [kernel_length]; omega) (by decide) hcode
+
+theorem hset_sum (n0 x y z : Nat) (h : n0 = 0) (hz : z = 0) :
+    n0 + x * 2 ^ (32 * 0) + y * 2 ^ (32 * 1) + z * 2 ^ (32 * 2) + z * 2 ^ (32 * 3) + z * 2 ^ (32 * 4)
+      + z * 2 ^ (32 * 5) + z * 2 ^ (32 * 6) + z * 2 ^ (32 * 7) = x + 2 ^ 32 * y := by
+  subst h hz; rw [show 32 * 0 = 0 from rfl, show 32 * 1 = 32 from rfl, Nat.pow_zero, Nat.mul_one]
+  simp only [Nat.zero_mul, Nat.add_zero, Nat.zero_add, Nat.mul_comm y]
+
+/-- HSET's ten instructions: `src[8]` and `src[9]` into t0 and t1, then V's eight words. -/
+def hsetCode (src : Nat) : List Instr :=
+  [.ld .lw 5 9 (BitVec.ofNat 12 (src + 32 - 0x800)), .ld .lw 6 9 (BitVec.ofNat 12 (src + 36 - 0x800)),
+    .st .sw 9 5 (BitVec.ofNat 12 (0xa80 + 4 * 0 - 0x800)), .st .sw 9 6 (BitVec.ofNat 12 (0xa80 + 4 * 1 - 0x800)),
+    .st .sw 9 0 (BitVec.ofNat 12 (0xa80 + 4 * 2 - 0x800)), .st .sw 9 0 (BitVec.ofNat 12 (0xa80 + 4 * 3 - 0x800)),
+    .st .sw 9 0 (BitVec.ofNat 12 (0xa80 + 4 * 4 - 0x800)), .st .sw 9 0 (BitVec.ofNat 12 (0xa80 + 4 * 5 - 0x800)),
+    .st .sw 9 0 (BitVec.ofNat 12 (0xa80 + 4 * 6 - 0x800)), .st .sw 9 0 (BitVec.ofNat 12 (0xa80 + 4 * 7 - 0x800))]
+
+structure HsetAt (M src : Nat) : Prop where
+  code : (kernel.drop M).take 10 = hsetCode src
+  fits : M + 10 ≤ 458
+
+/-- **HSET**: V, eight words, is `src[8] + 2^32 · src[9]`. -/
+theorem hset_run (hp : Placed env base) {M src : Nat} (hM : HsetAt M src) {s : Machine}
+    (hsrc : 0x800 ≤ src ∧ src + 40 ≤ 0x1000) (hs4 : src % 4 = 0)
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * M)) (hcode : CodeAt s.mem base kernel)
+    (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800) :
+    ∃ s', run env 10 s = .running s'
+      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (M + 10))
+      ∧ Kept s.mem s'.mem base 0xa80 0xaa0
+      ∧ numAt s'.mem base 0xa80 8 = wordAt s.mem base (src + 32) + 2 ^ 32 * wordAt s.mem base (src + 36)
+      ∧ ∀ r : Reg, r ∉ [5, 6] → s'.reg r = s.reg r := by
+  have hfit := hp.fit
+  have hk := hM.fits
+  have g := fun i (hi : i < 10) => getD_slice hM.code hi
+  have kl : ∀ i, i < 10 → M + i < kernel.length := fun i hi => by rw [kernel_length]; omega
+  obtain ⟨s1, e1, p1, m1, r1⟩ := lwS1 hp M (kl 0 (by decide)) hcode hpc h9 (c := src + 32) (g 0 (by decide))
+    ⟨by omega, by omega⟩ (by omega)
+  have c1 : CodeAt s1.mem base kernel := by rw [m1]; exact hcode
+  have h91 : s1.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [r1 9]; regsimp; exact h9
+  obtain ⟨s2, e2, p2, m2, r2⟩ := lwS1 hp (M + 1) (kl 1 (by decide)) c1 p1 h91 (c := src + 36) (g 1 (by decide))
+    ⟨by omega, by omega⟩ (by omega)
+  have c2 : CodeAt s2.mem base kernel := by rw [m2]; exact c1
+  have h92 : s2.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [r2 9]; regsimp; exact h91
+  have v5 : (s2.reg 5).toNat = wordAt s.mem base (src + 32) := by
+    rw [r2 5]; regsimp; rw [r1 5]; regsimp
+    rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (wordAt_lt _ _ _)
+  have v6 : (s2.reg 6).toNat = wordAt s.mem base (src + 36) := by
+    rw [r2 6]; regsimp; rw [m1, BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (wordAt_lt _ _ _)
+  obtain ⟨s3, e3, p3, m3, r3⟩ := swS1 hp (M + 2) (kl 2 (by decide)) c2 p2 h92 (c := 0xa80 + 4 * 0)
+    (g 2 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have c3 : CodeAt s3.mem base kernel := by rw [m3]; exact code_write hp c2 (by omega) (by omega) _
+  have h93 : s3.reg 9 = _ := (r3 9).trans h92
+  obtain ⟨s4, e4, p4, m4, r4⟩ := swS1 hp (M + 3) (kl 3 (by decide)) c3 p3 h93 (c := 0xa80 + 4 * 1)
+    (g 3 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have c4 : CodeAt s4.mem base kernel := by rw [m4]; exact code_write hp c3 (by omega) (by omega) _
+  have h94 : s4.reg 9 = _ := (r4 9).trans h93
+  obtain ⟨s5, e5, p5, m5, r5⟩ := swS1 hp (M + 4) (kl 4 (by decide)) c4 p4 h94 (c := 0xa80 + 4 * 2)
+    (g 4 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have c5 : CodeAt s5.mem base kernel := by rw [m5]; exact code_write hp c4 (by omega) (by omega) _
+  have h95 : s5.reg 9 = _ := (r5 9).trans h94
+  obtain ⟨s6, e6, p6, m6, r6⟩ := swS1 hp (M + 5) (kl 5 (by decide)) c5 p5 h95 (c := 0xa80 + 4 * 3)
+    (g 5 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have c6 : CodeAt s6.mem base kernel := by rw [m6]; exact code_write hp c5 (by omega) (by omega) _
+  have h96 : s6.reg 9 = _ := (r6 9).trans h95
+  obtain ⟨s7, e7, p7, m7, r7⟩ := swS1 hp (M + 6) (kl 6 (by decide)) c6 p6 h96 (c := 0xa80 + 4 * 4)
+    (g 6 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have c7 : CodeAt s7.mem base kernel := by rw [m7]; exact code_write hp c6 (by omega) (by omega) _
+  have h97 : s7.reg 9 = _ := (r7 9).trans h96
+  obtain ⟨s8, e8, p8, m8, r8⟩ := swS1 hp (M + 7) (kl 7 (by decide)) c7 p7 h97 (c := 0xa80 + 4 * 5)
+    (g 7 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have c8 : CodeAt s8.mem base kernel := by rw [m8]; exact code_write hp c7 (by omega) (by omega) _
+  have h98 : s8.reg 9 = _ := (r8 9).trans h97
+  obtain ⟨s9, e9, p9, m9, r9⟩ := swS1 hp (M + 8) (kl 8 (by decide)) c8 p8 h98 (c := 0xa80 + 4 * 6)
+    (g 8 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have c9 : CodeAt s9.mem base kernel := by rw [m9]; exact code_write hp c8 (by omega) (by omega) _
+  have h99 : s9.reg 9 = _ := (r9 9).trans h98
+  obtain ⟨s10, e10, p10, m10, r10⟩ := swS1 hp (M + 9) (kl 9 (by decide)) c9 p9 h99 (c := 0xa80 + 4 * 7)
+    (g 9 (by decide)) ⟨by omega, by omega⟩ (by omega)
+  have rr : ∀ r, s10.reg r = s2.reg r := fun r => by
+    rw [r10, r9, r8, r7, r6, r5, r4, r3]
+  refine ⟨s10, ?_, p10, ?_, ?_, ?_⟩
+  · rw [show 10 = 1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + 1)))))))) from rfl, run_add_running e1,
+      run_add_running e2, run_add_running e3, run_add_running e4, run_add_running e5, run_add_running e6,
+      run_add_running e7, run_add_running e8, run_add_running e9, e10]
+  · have k2 : Kept s.mem s2.mem base 0xa80 0xaa0 := by rw [m2, m1]; exact Kept.refl _ _ _ _
+    rw [m10, m9, m8, m7, m6, m5, m4, m3]
+    exact ((((((((k2.write hfit _ (by omega) (by omega) (by omega)).write hfit _ (by omega) (by omega) (by omega)).write
+      hfit _ (by omega) (by omega) (by omega)).write hfit _ (by omega) (by omega) (by omega)).write hfit _ (by omega)
+      (by omega) (by omega)).write hfit _ (by omega) (by omega) (by omega)).write hfit _ (by omega) (by omega)
+      (by omega)).write hfit _ (by omega) (by omega) (by omega))
+  · have a1 : numAt s3.mem base 0xa80 (0 + 1) = numAt s2.mem base 0xa80 0 + (s2.reg 5).toNat * 2 ^ (32 * 0) := by
+      rw [m3]; exact numAt_write_next hfit s2.mem (s2.reg 5).toNat (s2.reg 5).isLt (o := 0xa80) (n := 0) (by omega)
+    have a2 : numAt s4.mem base 0xa80 (1 + 1) = numAt s3.mem base 0xa80 1 + (s3.reg 6).toNat * 2 ^ (32 * 1) := by
+      rw [m4]; exact numAt_write_next hfit s3.mem (s3.reg 6).toNat (s3.reg 6).isLt (o := 0xa80) (n := 1) (by omega)
+    have a3 : numAt s5.mem base 0xa80 (2 + 1) = numAt s4.mem base 0xa80 2 + (s4.reg 0).toNat * 2 ^ (32 * 2) := by
+      rw [m5]; exact numAt_write_next hfit s4.mem (s4.reg 0).toNat (s4.reg 0).isLt (o := 0xa80) (n := 2) (by omega)
+    have a4 : numAt s6.mem base 0xa80 (3 + 1) = numAt s5.mem base 0xa80 3 + (s5.reg 0).toNat * 2 ^ (32 * 3) := by
+      rw [m6]; exact numAt_write_next hfit s5.mem (s5.reg 0).toNat (s5.reg 0).isLt (o := 0xa80) (n := 3) (by omega)
+    have a5 : numAt s7.mem base 0xa80 (4 + 1) = numAt s6.mem base 0xa80 4 + (s6.reg 0).toNat * 2 ^ (32 * 4) := by
+      rw [m7]; exact numAt_write_next hfit s6.mem (s6.reg 0).toNat (s6.reg 0).isLt (o := 0xa80) (n := 4) (by omega)
+    have a6 : numAt s8.mem base 0xa80 (5 + 1) = numAt s7.mem base 0xa80 5 + (s7.reg 0).toNat * 2 ^ (32 * 5) := by
+      rw [m8]; exact numAt_write_next hfit s7.mem (s7.reg 0).toNat (s7.reg 0).isLt (o := 0xa80) (n := 5) (by omega)
+    have a7 : numAt s9.mem base 0xa80 (6 + 1) = numAt s8.mem base 0xa80 6 + (s8.reg 0).toNat * 2 ^ (32 * 6) := by
+      rw [m9]; exact numAt_write_next hfit s8.mem (s8.reg 0).toNat (s8.reg 0).isLt (o := 0xa80) (n := 6) (by omega)
+    have a8 : numAt s10.mem base 0xa80 (7 + 1) = numAt s9.mem base 0xa80 7 + (s9.reg 0).toNat * 2 ^ (32 * 7) := by
+      rw [m10]; exact numAt_write_next hfit s9.mem (s9.reg 0).toNat (s9.reg 0).isLt (o := 0xa80) (n := 7) (by omega)
+    have e6 : (s3.reg 6).toNat = wordAt s.mem base (src + 36) := by rw [r3]; exact v6
+    simp only [reg_zero] at a3 a4 a5 a6 a7 a8
+    show numAt s10.mem base 0xa80 (7 + 1) = _
+    rw [a8, a7, a6, a5, a4, a3, a2, a1, e6, v5]
+    exact hset_sum _ _ _ _ rfl rfl
+  · intro r hr
+    rw [rr, r2, r1]
+    have n5 : ¬ r = 5 := fun h => hr (by rw [h]; decide)
+    have n6 : ¬ r = 6 := fun h => hr (by rw [h]; decide)
+    rw [if_neg (fun h => n6 h.1), if_neg (fun h => n5 h.1)]
+
+/-- `0 - (a <u b)`: the mask, all ones exactly when `a <u b`. -/
+theorem neg_lt1 (a b : Word) : 0 - lt1 a b = mask (a.ult b) := by
+  unfold lt1 mask
+  cases a.ult b <;> decide
+
+/-- CSUB written at `M`: SUBN of `src` and p into D, the mask from `src[8]` and
+the borrow, SEL of `src` and D into R. -/
+structure CsubAt (M src : Nat) : Prop where
+  subn : SubnAt M src 0x800 0xb40
+  ld : kernel.getD (M + 18) .ecall = .ld .lw 6 9 (BitVec.ofNat 12 (src + 32 - 0x800))
+  alu : (kernel.drop (M + 19)).take 2 = [.op .sltu 7 6 5, .op .sub 13 0 7]
+  sel : SelAt (M + 21) src 0xb40 0x944
+
+/-- A number below `2p` less `p` once if it must be. -/
+theorem mod_lt2 {N P : Nat} (h : N < 2 * P) : N % P = if N < P then N else N - P := by
+  by_cases h1 : N < P
+  · rw [if_pos h1, Nat.mod_eq_of_lt h1]
+  · rw [if_neg h1, Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
+
+/-- **CSUB**: R is `src mod p`, `src` nine words below `2p`. -/
+theorem csub_run (hp : Placed env base) {M src : Nat} (hM : CsubAt M src) {s : Machine}
+    (hsrc : 0x800 ≤ src ∧ src + 36 < 0x1000) (hs4 : src % 4 = 0)
+    (hout : src + 36 ≤ 0x944 ∨ (0x964 ≤ src ∧ src + 36 ≤ 0xb40) ∨ 0xb60 ≤ src)
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * M)) (hcode : CodeAt s.mem base kernel)
+    (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800) (hP : numAt s.mem base 0x800 8 = P)
+    (hlt : numAt s.mem base src 8 + 2 ^ 256 * wordAt s.mem base (src + 32) < 2 * P) :
+    ∃ s', run env 204 s = .running s'
+      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (M + 36))
+      ∧ Kept s.mem s'.mem base 0x944 0xb60
+      ∧ numAt s'.mem base 0x944 8 = (numAt s.mem base src 8 + 2 ^ 256 * wordAt s.mem base (src + 32)) % P
+      ∧ s'.reg 9 = s.reg 9 := by
+  have hfit := hp.fit
+  have hk := hM.sel.fits
+  obtain ⟨s1, e1, p1, kp1, f1, n1, o1⟩ := subn_run hp hM.subn (s := s) ⟨hsrc.1, by omega⟩ (by decide)
+    (by decide) hs4 (by decide) (by decide) (by decide) (by omega) (by decide) hpc hcode h9
+  have code1 : CodeAt s1.mem base kernel := Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
+  have h91 : s1.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o1 9 (by decide), h9]
+  obtain ⟨s2, e2, p2, m2, r2⟩ := lwS1 hp (M + 18) (by rw [kernel_length]; omega) code1 p1 h91 (c := src + 32) hM.ld
+    ⟨by omega, by omega⟩ (by omega)
+  have w8 : wordAt s1.mem base (src + 32) = wordAt s.mem base (src + 32) := kp1.word hfit (by omega) (by omega)
+  have code2 : CodeAt s2.mem base kernel := by rw [m2]; exact code1
+  have l3 : run env 2 s2 = .running (s2.line [.op .sltu 7 6 5, .op .sub 13 0 7]) :=
+    run_line (prog := kernel) hp [.op .sltu 7 6 5, .op .sub 13 0 7] rfl (M + 19) s2 hM.alu
+      (by rw [kernel_length]; simp; omega) code2 p2 (by decide)
+  generalize hs3 : s2.line [.op .sltu 7 6 5, .op .sub 13 0 7] = s3 at l3
+  have p3 : s3.pc = base + BitVec.ofNat 32 (4 * (M + 21)) := by
+    rw [← hs3, line_pc_at _ p2 (by simp; omega)]; rfl
+  have m3 : s3.mem = s1.mem := by rw [← hs3, line_mem, m2]
+  have v13 : s3.reg 13 = mask ((BitVec.ofNat 32 (wordAt s.mem base (src + 32))).ult (s1.reg 5)) := by
+    rw [← hs3]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
+    rw [r2 6, r2 5]; regsimp
+    rw [← w8]; exact neg_lt1 _ _
+  have h93 : s3.reg 9 = base + BitVec.ofNat 32 0x800 := by
+    rw [← hs3]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
+    rw [r2 9]; regsimp; exact h91
+  obtain ⟨s4, e4, p4, kp4, n4, o4⟩ := sel_run hp hM.sel (s := s3) ⟨hsrc.1, by omega⟩ (by decide) (by decide)
+    hs4 (by decide) (by decide) (by decide) (by omega) (by decide) p3 (by rw [m3]; exact code1) h93 v13
+  refine ⟨s4, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [show 204 = 109 + (1 + (2 + 92)) from rfl, run_add_running e1, run_add_running e2, run_add_running l3, e4]
+  · rw [p4]
+  · rw [m3] at kp4
+    exact (kp1.widen (by decide) (Nat.le_refl _)).trans (kp4.widen (Nat.le_refl _) (by decide))
+  · rw [n4, m3]
+    have xs : numAt s1.mem base src 8 = numAt s.mem base src 8 := kp1.num hfit (by omega) (by omega)
+    have hb := f1
+    have hw := wordAt_lt s.mem base (src + 32)
+    have hD := numAt_lt s1.mem base 0xb40 8
+    have hS := numAt_lt s.mem base src 8
+    rw [hP] at n1
+    rw [mod_lt2 hlt, xs]
+    simp only [BitVec.ult, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hw]
+    have hp2 : P < 2 ^ 256 := by unfold P; omega
+    rw [show 32 * 8 = 256 from rfl] at hD hS
+    by_cases hk : wordAt s.mem base (src + 32) < (s1.reg 5).toNat
+    · simp only [hk, decide_true, ↓reduceIte]
+      rw [if_pos (by omega)]
+      omega
+    · simp only [hk, decide_false, Bool.false_eq_true, ↓reduceIte]
+      rw [if_neg (by omega)]
+      omega
+  · rw [o4 9 (by decide), h93, h9]
+
+/-- HALT written at `M`: a0 = 0, t0 = 1, `ecall`. -/
+structure HaltAt (M : Nat) : Prop where
+  code : (kernel.drop M).take 2 = [.opi .addi 10 0 0x0, .opi .addi 5 0 0x1]
+  ec : kernel.getD (M + 2) .ecall = .ecall
+  fits : M + 3 ≤ 458
+
+/-- **HALT**: after two instructions it is at the `ecall`, and the third halts with 0. -/
+theorem halt_run (hp : Placed env base) {M : Nat} (hM : HaltAt M) {s : Machine}
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * M)) (hcode : CodeAt s.mem base kernel) :
+    ∃ s', run env 2 s = .running s' ∧ run env 3 s = .halted 0 s' ∧ s'.mem = s.mem := by
+  have hk := hM.fits
+  have l1 : run env 2 s = .running (s.line [.opi .addi 10 0 0x0, .opi .addi 5 0 0x1]) :=
+    run_line (prog := kernel) hp [.opi .addi 10 0 0x0, .opi .addi 5 0 0x1] rfl M s hM.code
+      (by rw [kernel_length]; simp; omega) hcode hpc (by decide)
+  generalize hs1 : s.line [.opi .addi 10 0 0x0, .opi .addi 5 0 0x1] = s1 at l1
+  have p1 : s1.pc = base + BitVec.ofNat 32 (4 * (M + 2)) := by
+    rw [← hs1, line_pc_at _ hpc (by simp; omega)]; rfl
+  have m1 : s1.mem = s.mem := by rw [← hs1, line_mem]
+  have a0 : s1.reg A0 = 0 := by
+    rw [← hs1]; simp only [A0, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp; rfl
+  have t0 : s1.reg T0 = 1 := by
+    rw [← hs1]; simp only [T0, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp; rfl
+  refine ⟨s1, l1, ?_, m1⟩
+  rw [show 3 = 2 + (0 + 1) from rfl, run_add_running l1,
+    haltStep (prog := kernel) hp (M + 2) (by rw [kernel_length]; omega) (by rw [m1]; exact hcode) p1 hM.ec t0
+      (by decide) 0, a0]
+
 end Exp229
 
 #print axioms Exp229.addm_loop
