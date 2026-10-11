@@ -32,6 +32,7 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 source ../lib.sh
+source ../../tools/pages/pagecheck.sh
 require_supported_platform
 
 PRESENCE=2
@@ -51,39 +52,16 @@ python3 fixtures.py build/fixtures
 if ! command -v node > /dev/null; then
     echo "SKIP  the page: node is not installed"
 else
-    sed -n '/^<script>$/,/^<\/script>$/p' life.html | sed '1d;$d' > build/page.js
-    if node --check build/page.js 2> build/syntax; then
-        pass "the page's script parses (node --check)"
-    else
-        fail "the page's script parses" "$(head -3 build/syntax)"
-    fi
-    cdc() { awk '/^function findCdc\(/,/^}$/' "$1"; }
-    if [[ -n "$(cdc life.html)" && "$(cdc life.html)" == "$(cdc ../../tools/pages/log.html)" ]]; then
-        pass "findCdc is tools/pages/log.html's, byte for byte"
-    else
-        fail "findCdc is tools/pages/log.html's, byte for byte" "it has drifted"
-    fi
+    page_parses life.html build
+    page_findcdc life.html
     node page_test.mjs life.html build/fixtures || FAILED=1
 
-    page_mutant() { # what sed
-        local work
-        work="$(mktemp -d)"
-        sed "$2" life.html > "$work/life.html"
-        if cmp -s life.html "$work/life.html"; then
-            fail "the tests catch a page where $1" "the change did not apply"
-        elif node page_test.mjs "$work/life.html" build/fixtures > "$work/out" 2>&1; then
-            fail "the tests catch a page where $1" "every test still passes"
-        else
-            pass "the tests catch a page where $1: $(grep -m1 '^FAIL' "$work/out" | sed 's/^FAIL  //' | cut -c1-110)"
-        fi
-        rm -rf -- "$work"
-    }
-    page_mutant "Rule 30 is left XOR (centre AND right)" 's/(left ^ (centre | right))/(left ^ (centre \& right))/'
-    page_mutant "a generation is taken as its own expectation" 's/want = rule30(last.word); against = `Rule 30 of generation/want = e.word; against = `Rule 30 of generation/'
-    page_mutant "the seam between lives is not checked" 's/if (e.seed !== last.word) {/if (false) {/'
-    page_mutant "the right neighbour is the cell itself" 's/right = (x >>> ((i + 31) % 32)) \& 1;/right = (x >>> i) \& 1;/'
+    page_mutant "Rule 30 is left XOR (centre AND right)" 's/(left ^ (centre | right))/(left ^ (centre \& right))/' life.html node page_test.mjs @ build/fixtures
+    page_mutant "a generation is taken as its own expectation" 's/want = rule30(last.word); against = `Rule 30 of generation/want = e.word; against = `Rule 30 of generation/' life.html node page_test.mjs @ build/fixtures
+    page_mutant "the seam between lives is not checked" 's/if (e.seed !== last.word) {/if (false) {/' life.html node page_test.mjs @ build/fixtures
+    page_mutant "the right neighbour is the cell itself" 's/right = (x >>> ((i + 31) % 32)) \& 1;/right = (x >>> i) \& 1;/' life.html node page_test.mjs @ build/fixtures
 
-    if node -e "require(require('child_process').execSync('npm root -g').toString().trim() + '/playwright')" 2> /dev/null; then
+    if page_playwright; then
         node page_browser.mjs life.html build/fixtures/good.txt "512 of 512 generations are Rule 30's" || FAILED=1
         node page_browser.mjs life.html build/fixtures/flipped.txt "2 wrong" || FAILED=1
     else

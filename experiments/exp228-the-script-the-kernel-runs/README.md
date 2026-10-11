@@ -215,20 +215,80 @@ accepted, two units dark for one it rejected. In round 1 the person watching
 could not tell that pattern from anything else, nor what it would have looked
 like had something gone wrong. Revision 2 is the table above.
 
+## The page
+
+`script.html` shows the experiment on a phone, as exp227's `life.html` does
+for its lives: one file, no build step, opened from the phone's files in
+Chrome. It holds the 33 cases and runs each of them again itself, so it is
+worth opening with no board at all: tap a case and it shows the script, the
+stack it starts with, and the stack after every opcode, down to the verdict.
+With a board it checks every line the board sends.
+
+### What can be read over CDC, and what cannot
+
+The board sends four kinds of line, and that is all there is to read:
+
+| Line | What it carries | What the page does with it |
+| --- | --- | --- |
+| `CASE` | round, case number, the exit code, the verdict compiled in, minstret, signatures checked and valid, the case's name | holds every field to its own run of that case, and minstret to the model's count; the case's tile goes green or grey, or red |
+| `ROUND` | the round, and 33 | a round is *whole and right* when the page saw all 33 of its cases and none was wrong |
+| status, about once a second | USB stage, setups, stalls, bus errors, lines dropped, the clocks as measured, the round, the last case's minstret | the board panel; a status line that dropped a line or saw a bus error is counted against the board |
+| `FAIL` | the check that failed, and what it got | counted; the verdict line goes red |
+
+Everything else the page shows, it holds or computes itself, because none of
+it crosses the cable:
+
+- **The scripts and their stacks.** `page_cases.py` writes them into the page
+  from `cases.py`, and `check.sh` fails if the page holds anything else.
+- **The model's count for each case**, from `build/expect.h`, the same number
+  compiled into the firmware.
+- **The steps.** The stack after each opcode is the page's own run, not the
+  chip's. The kernel's steps on the chip are not sent and are not counted
+  anywhere but in minstret.
+- **The hashes and the signature checks.** The shell's SHA-256 and BIP340
+  answers are not sent; the page computes its own and compares only what the
+  board does send: the verdict, and how many signatures were checked and good.
+
+What nothing here can read: time per case (the board sends no `mcycle`), the
+LED, and the kernel's state between its first instruction and its last.
+
+### What the page checks, and what it cannot
+
+The page's interpreter is written again in JavaScript from `script.py`'s
+specification, opcode by opcode, with its own SHA-256 and its own BIP340 over
+`BigInt`. It shares nothing with the kernel, the shell's C or `script.py`.
+`check.sh` holds it to `script.py` on all 1005 scripts the differential uses,
+its SHA-256 to `hashlib` on every length from 0 to 200 bytes, and its BIP340 to
+BIP340's 19 test vectors and 40 drawn signatures. It feeds it streams as the
+board sends them, in 64-byte packets, right and wrong in eight ways, and every
+log in `board/`. Six wrong pages are caught: `OP_ADD` subtracting, negative
+zero true, a second signature allowed, a BIP340 challenge without the key, a
+SHA-256 constant one off, minstret not compared. Then the whole page runs in
+headless Chromium against a stand-in board (`tools/pages/headless.mjs`) and
+with no WebUSB at all.
+
+So the page catches a board, a cable or a phone that reports a verdict other
+than the specification's, or a count other than the model's. **It cannot
+catch the kernel being wrong on a script it does not hold**: that is the
+proof's.
+
 ## Running it on a board, from a phone
+
+Files on the phone: `exp228.uf2` and `script.html`, downloaded once and kept.
 
 1. Hold **BOOTSEL**, plug the Pico 2 into the phone, and copy `exp228.uf2` onto
    the drive that appears. The board restarts by itself.
 2. Watch the LED for a few seconds. A slow, even blink is all well. A long
    light means a check failed: count the flashes after it.
-3. Open `tools/pages/log.html` in Chrome, tap the button, pick the board, and
-   let it run through a round or two (the `ROUND` line). Then **Copy** and
-   paste the log back.
+3. Open `script.html` in Chrome, tap **Connect**, pick the board, and let it
+   run through a round or two. The verdict line should read *N of N cases as
+   they should be*. Then **Copy** and paste the log back. (`tools/pages/log.html`
+   reads the same lines, unchecked.)
 
 Every `CASE` line should have `code` equal to `want`, and each round should
 end in `ROUND` with `00000021`: 33 cases, in hex, as every number on these
-lines is. A pasted log goes under `board/`, and `check.sh` checks it with
-`board.py`: every `CASE` line its case's verdict, minstret and signatures.
+lines is. A pasted log goes under `board/`, and `check.sh` checks it twice:
+with `board.py`, and with the page's own checking.
 
 ## On the board
 
@@ -265,7 +325,7 @@ the model and the RTL against `script.py` on all of those; `bip340.c` on this
 machine; the UF2's bytes; on the RTL the whole shell, BIP340 and all, each of
 the 33 cases halting with its verdict and the model's count; and seven wrong
 shells, each caught by the check it names; and every log a phone gave back,
-with a log one instruction off for one case caught.
+with a log one instruction off for one case caught; and the page, as above.
 
 `run.sh` also runs the differentials with 3000 fuzzed scripts.
 

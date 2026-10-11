@@ -178,6 +178,21 @@ The one thing it cannot check is a browser: opening a page, picking a device
 from a native dialog and pressing a button needs a person. That is what the
 experiments' own `run.sh` scripts are for.
 
+### What appliances share from here
+
+Appliance pages stay in their experiments, but the means of testing them do
+not have to be copied with them. Two files here are for those experiments'
+`check.sh`, not for a person:
+
+| File | What it gives an appliance's tests |
+| --- | --- |
+| [`headless.mjs`](./headless.mjs) | the page in Playwright's Chromium with `navigator.usb` replaced by a stand-in CDC board that streams a fixture in 64-byte packets once DTR is raised, or with no WebUSB at all |
+| [`pagecheck.sh`](./pagecheck.sh) | the page's script parses; its `findCdc` is `log.html`'s byte for byte; a mutated copy of the page must make the tests fail |
+
+Both came out of exp227's `life.html` when exp228's `script.html` became the
+second page to need them. Neither picks a device from a real dialog: that
+still needs a person.
+
 ## If you are an AI assistant
 
 These pages are not how you talk to a board — `yi26` is, and it can do the

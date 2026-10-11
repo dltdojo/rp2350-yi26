@@ -24,8 +24,13 @@
 #   6. on the RTL the shell runs every hand case, answering HASHB with
 #      SHA-256 and CHECKSIG with BIP340, and each halts with its verdict and
 #      the model's count; wrong shells are caught;
-#   7. every log a phone gave back (board/*.txt): each CASE line its case's
-#      verdict, minstret and signatures (board.py).
+#   7. script.html, the page a phone shows the board on: the 33 cases it holds
+#      are cases.py's and expect.h's; its own interpreter, SHA-256 and BIP340
+#      agree with script.py, hashlib and BIP340's vectors; it tells right
+#      streams from wrong ones, in 64-byte packets, and wrong pages are caught;
+#      in headless Chromium against a stand-in board, and with no WebUSB;
+#   8. every log a phone gave back (board/*.txt): each CASE line its case's
+#      verdict, minstret and signatures, by board.py and by the page.
 #
 # What none of it reaches: the chip running it, and a phone reading it; a
 # pasted log is what one did, once.
@@ -43,6 +48,7 @@ set -u
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 source ../lib.sh
+source ../../tools/pages/pagecheck.sh
 require_supported_platform
 
 PRESENCE=2
@@ -125,6 +131,37 @@ then
     pass "on the RTL the shell runs all $(grep -c '^    {"' build/expect.h) cases, SHA-256 and BIP340 answering the calls, each halting with script.py's verdict and the model's count"
 else
     fail "on the RTL the shell runs every case to its verdict" "$got"
+fi
+
+# The page: the cases it holds, its own run of the subset against script.py's,
+# its SHA-256 and BIP340, every stream and every log a phone gave back.
+if ! command -v node > /dev/null; then
+    echo "SKIP  the page: node is not installed"
+else
+    python3 page_cases.py --check script.html || FAILED=1
+    python3 page_cases.py --fixtures build/page
+    page_parses script.html build
+    page_findcdc script.html
+    shopt -s nullglob
+    node page_test.mjs script.html build/page board/*.txt || FAILED=1
+    page_mutant "OP_ADD subtracts" 's/numEncode(op === 0x93 ? a + b : a - b)/numEncode(op === 0x93 ? a - b : a - b)/' \
+        script.html node page_test.mjs @ build/page
+    page_mutant "negative zero is true" 's/return !(i === e.length - 1 \&\& e\[i\] === 0x80);/return true;/' \
+        script.html node page_test.mjs @ build/page
+    page_mutant "a second signature is checked" 's/if (sigs) throw new ScriptFail(9);/if (false) throw new ScriptFail(9);/' \
+        script.html node page_test.mjs @ build/page
+    page_mutant "BIP340's challenge leaves the key out" 's/concat(sig.subarray(0, 32), pk, msg)/concat(sig.subarray(0, 32), msg)/' \
+        script.html node page_test.mjs @ build/page
+    page_mutant "SHA-256's first round constant is one off" 's/0x428a2f98,/0x428a2f99,/' \
+        script.html node page_test.mjs @ build/page
+    page_mutant "minstret is not compared" 's/if (e.minstret !== c.minstret)/if (false)/' \
+        script.html node page_test.mjs @ build/page
+    if page_playwright; then
+        node page_browser.mjs script.html build/page/good.txt "66 of 66 cases as they should be" || FAILED=1
+        node page_browser.mjs script.html build/page/code.txt "1 wrong" || FAILED=1
+    else
+        echo "SKIP  the page in a browser: Playwright is not installed"
+    fi
 fi
 
 # Every log a phone gave back: each CASE line its case's verdict, minstret and
