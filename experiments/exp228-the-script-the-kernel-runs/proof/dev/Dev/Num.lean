@@ -293,4 +293,39 @@ theorem w_and (x y : Nat) (hx : x < 2 ^ 32) (hy : y < 2 ^ 32) :
   simp only [BitVec.toNat_and, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hx, Nat.mod_eq_of_lt hy]
   exact (Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt Nat.and_le_left hx)).symm
 
+theorem bytesOf_length : ∀ n W, (bytesOf W n).length = n
+  | 0, _ => rfl
+  | n + 1, W => by simp [bytesOf, bytesOf_length n]
+
+theorem bytesOf_getD : ∀ n W i, i < n → (bytesOf W n).getD i 0 = BitVec.ofNat 8 (W / 256 ^ i)
+  | 0, _, _, h => by omega
+  | n + 1, W, 0, _ => by simp [bytesOf]; exact ofNat_eq_mod (by omega)
+  | n + 1, W, i + 1, h => by
+    simp only [bytesOf, List.getD_cons_succ]
+    rw [bytesOf_getD n (W / 256) i (by omega), Nat.div_div_eq_div_mul, Nat.pow_succ, Nat.mul_comm (256 ^ i)]
+
+theorem byte_hi_zero (W n i : Nat) (hW : W < 256 ^ n) (hi : n ≤ i) : BitVec.ofNat 8 (W / 256 ^ i) = 0 := by
+  rw [Nat.div_eq_of_lt (Nat.lt_of_lt_of_le hW (Nat.pow_le_pow_right (by decide) hi))]; rfl
+
+theorem nbytes_facts (m : Nat) (h0 : 0 < m) (hm : m < 2 ^ 32) :
+    1 ≤ nbytes m ∧ nbytes m ≤ 4 ∧ m < 256 ^ nbytes m ∧ 256 ^ (nbytes m - 1) ≤ m := by
+  unfold nbytes; repeat' split
+  all_goals simp
+  all_goals omega
+
+theorem w_or_top (m sg k : Nat) (hs : sg ≤ 1) (hk : k < 32) (hm : m < 2 ^ k) :
+    BitVec.ofNat 32 m ||| BitVec.ofNat 32 (sg * 2 ^ k) = BitVec.ofNat 32 (m + sg * 2 ^ k) := by
+  have h32 : 2 ^ k < 2 ^ 32 := Nat.pow_lt_pow_right (by decide) hk
+  rcases (by omega : sg = 0 ∨ sg = 1) with rfl | rfl
+  · simp
+  · apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_or, BitVec.toNat_ofNat, Nat.one_mul]
+    rw [Nat.mod_eq_of_lt (show m < 2 ^ 32 by omega), Nat.mod_eq_of_lt h32, Nat.or_two_pow_eq_add_of_lt hm]
+    have : 2 ^ k ≤ 2 ^ 31 := Nat.pow_le_pow_right (by decide) (by omega)
+    exact (Nat.mod_eq_of_lt (by omega)).symm
+
+theorem w_sll (x k : Nat) (hk : k < 32) (h : x * 2 ^ k < 2 ^ 32) :
+    BitVec.ofNat 32 x <<< ((BitVec.ofNat 32 k).toNat % 32) = BitVec.ofNat 32 (x * 2 ^ k) := by
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show k < 2 ^ 32 by omega), Nat.mod_eq_of_lt hk, w_slli _ _ h]
+
 end Exp228
