@@ -328,4 +328,26 @@ theorem w_sll (x k : Nat) (hk : k < 32) (h : x * 2 ^ k < 2 ^ 32) :
     BitVec.ofNat 32 x <<< ((BitVec.ofNat 32 k).toNat % 32) = BitVec.ofNat 32 (x * 2 ^ k) := by
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (show k < 2 ^ 32 by omega), Nat.mod_eq_of_lt hk, w_slli _ _ h]
 
+theorem kdec_bounds {n w sg mg : Nat} (h : kdec n w = some (sg, mg)) (hw : n ≤ 4 → w < 2 ^ (8 * n)) :
+    sg ≤ 1 ∧ mg < 2 ^ 31 := by
+  unfold kdec at h
+  by_cases h0 : n = 0
+  · simp [h0] at h; omega
+  by_cases h4 : 4 < n
+  · simp [h0, h4] at h
+  have hw := hw (by omega)
+  simp only [h0, h4, ↓reduceIte] at h
+  split at h
+  · cases h
+  · simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    rcases (by omega : n = 1 ∨ n = 2 ∨ n = 3 ∨ n = 4) with rfl | rfl | rfl | rfl <;> simp at hw ⊢ <;> omega
+
+theorem kenc_length (sg m : Nat) (hm : m < 2 ^ 32) : (kenc sg m).length ≤ 5 := by
+  unfold kenc
+  split
+  · simp
+  · have := (nbytes_facts m (by omega) hm).2.1
+    split <;> simp [bytesOf_length] <;> omega
+
 end Exp228
