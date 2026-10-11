@@ -2187,6 +2187,98 @@ theorem rows_run (hp : Placed env base) {s : Machine}
       rw [e1, e2]
       omega
 
+/-- A number of ten words: its first eight and the two above, at their weights. -/
+theorem num10 (m : Word → Byte) (o : Nat) :
+    numAt m base o 10
+      = numAt m base o 8 + wordAt m base (o + 32) * 2 ^ 256 + wordAt m base (o + 36) * (2 ^ 32 * 2 ^ 256) := by
+  rw [show (2 : Nat) ^ 32 * 2 ^ 256 = 2 ^ (32 * 9) by rw [← Nat.pow_add]]; rfl
+
+theorem num8_lt (m : Word → Byte) (o : Nat) : numAt m base o 8 < 2 ^ 256 := numAt_lt m base o 8
+
+/-- **Multiplication**, from OP_MUL with s1 set: R is `a · b mod p`. -/
+theorem mul_run (hp : Placed env base) {s : Machine} {a b : Nat}
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * OP_MUL)) (hg : Given s.mem base a b)
+    (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800) :
+    ∃ s', run env 1895 s = .running s' ∧ run env 1896 s = .halted 0 s'
+      ∧ numAt s'.mem base 0x944 8 = (a * b) % P := by
+  have hfit := hp.fit
+  -- T[0 .. 8) = 0
+  obtain ⟨s1, e1, p1, kp1, n1, o1⟩ := zero_run hp m_zero (s := s) (by decide) (by decide) (by decide) hpc hg.code h9
+  have c1 : CodeAt s1.mem base kernel := Kept.code hfit kp1 (by rw [kernel_length]; decide) (by decide) hg.code
+  have g1 : s1.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o1 9 (by decide), h9]
+  -- the eight rows: T = a · b
+  obtain ⟨s2, e2, p2, g2, kp2, n2⟩ := rows_run hp (s := s1) (by rw [p1]; rfl) c1 g1 n1 8 (by decide)
+  have c2 : CodeAt s2.mem base kernel := Kept.code hfit kp2 (by rw [kernel_length]; decide) (by decide) c1
+  have k02 : Kept s.mem s2.mem base 0xa00 0xa40 := (kp1.widen (Nat.le_refl _) (by decide)).trans kp2
+  have hab : numAt s2.mem base 0xa00 8 + 2 ^ 256 * numAt s2.mem base 0xa20 8 = a * b := by
+    have sT : numAt s2.mem base 0xa00 16 = numAt s2.mem base 0xa00 8 + 2 ^ 256 * numAt s2.mem base 0xa20 8 :=
+      numAt_split s2.mem base 0xa00 8 8
+    have n2' : numAt s2.mem base 0xa00 16 = numAt s1.mem base 0x904 8 * numAt s1.mem base 0x924 8 := n2
+    rw [kp1.num hfit (by decide) (by decide), kp1.num hfit (by decide) (by decide), hg.ina, hg.inb] at n2'
+    rw [← sT, n2']
+  -- U = L + (2^32 + 977) H
+  obtain ⟨s3, e3, p3, kp3, n3, o3⟩ := fold_run hp m_fold1 (s := s2) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by rw [p2]; rfl) c2 g2
+  have c3 : CodeAt s3.mem base kernel := Kept.code hfit kp3 (by rw [kernel_length]; decide) (by decide) c2
+  have g3 : s3.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o3 9 (by decide), g2]
+  -- V = U[8] + 2^32 U[9]
+  obtain ⟨s4, e4, p4, kp4, n4, o4⟩ := hset_run hp m_hset1 (s := s3) (by decide) (by decide) (by rw [p3]; rfl) c3 g3
+  have c4 : CodeAt s4.mem base kernel := Kept.code hfit kp4 (by rw [kernel_length]; decide) (by decide) c3
+  have g4 : s4.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o4 9 (by decide), g3]
+  -- W = U[0 .. 8) + (2^32 + 977) V
+  obtain ⟨s5, e5, p5, kp5, n5, o5⟩ := fold_run hp m_fold2 (s := s4) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by rw [p4]; rfl) c4 g4
+  have c5 : CodeAt s5.mem base kernel := Kept.code hfit kp5 (by rw [kernel_length]; decide) (by decide) c4
+  have g5 : s5.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o5 9 (by decide), g4]
+  obtain ⟨s6, e6, p6, kp6, n6, o6⟩ := hset_run hp m_hset2 (s := s5) (by decide) (by decide) (by rw [p5]; rfl) c5 g5
+  have c6 : CodeAt s6.mem base kernel := Kept.code hfit kp6 (by rw [kernel_length]; decide) (by decide) c5
+  have g6 : s6.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o6 9 (by decide), g5]
+  -- X = W[0 .. 8) + (2^32 + 977) V
+  obtain ⟨s7, e7, p7, kp7, n7, o7⟩ := fold_run hp m_fold3 (s := s6) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by rw [p6]; rfl) c6 g6
+  have c7 : CodeAt s7.mem base kernel := Kept.code hfit kp7 (by rw [kernel_length]; decide) (by decide) c6
+  have g7 : s7.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o7 9 (by decide), g6]
+  have k07 : Kept s.mem s7.mem base 0xa00 0xb28 :=
+    (((((((k02.widen (Nat.le_refl _) (by decide)).trans (kp3.widen (by decide) (by decide))).trans
+      (kp4.widen (by decide) (by decide))).trans (kp5.widen (by decide) (by decide))).trans
+      (kp6.widen (by decide) (by decide))).trans (kp7.widen (by decide) (by decide))))
+  have hP7 : numAt s7.mem base 0x800 8 = P := by rw [k07.num hfit (by decide) (by decide), hg.prime]
+  -- what each piece read, as the one before left it
+  have u4 : numAt s4.mem base 0xa40 8 = numAt s3.mem base 0xa40 8 := kp4.num hfit (by decide) (by decide)
+  have w6 : numAt s6.mem base 0xac0 8 = numAt s5.mem base 0xac0 8 := kp6.num hfit (by decide) (by decide)
+  have uS := num10 (base := base) s3.mem 0xa40
+  have wS := num10 (base := base) s5.mem 0xac0
+  have xS := num10 (base := base) s7.mem 0xb00
+  rw [u4] at n5
+  rw [w6] at n7
+  have bT := num8_lt (base := base) s2.mem 0xa00
+  have bT' := num8_lt (base := base) s2.mem 0xa20
+  have bU := num8_lt (base := base) s3.mem 0xa40
+  have bW := num8_lt (base := base) s5.mem 0xac0
+  have bX := num8_lt (base := base) s7.mem 0xb00
+  have bu8 := wordAt_lt s3.mem base (0xa40 + 32)
+  have bu9 := wordAt_lt s3.mem base (0xa40 + 36)
+  have bw8 := wordAt_lt s5.mem base (0xac0 + 32)
+  have bw9 := wordAt_lt s5.mem base (0xac0 + 36)
+  have bx8 := wordAt_lt s7.mem base (0xb00 + 32)
+  have bx9 := wordAt_lt s7.mem base (0xb00 + 36)
+  have hPv : P = 2 ^ 256 - 2 ^ 32 - 977 := rfl
+  have hlt : numAt s7.mem base 0xb00 8 + 2 ^ 256 * wordAt s7.mem base (0xb00 + 32) < 2 * P := by omega
+  have key : a * b = (numAt s7.mem base 0xb00 8 + 2 ^ 256 * wordAt s7.mem base (0xb00 + 32))
+      + (2 ^ 256 - 2 ^ 32 - 977) * (numAt s2.mem base 0xa20 8 + numAt s4.mem base 0xa80 8
+        + numAt s6.mem base 0xa80 8) := by omega
+  obtain ⟨s8, e8, p8, kp8, n8, -⟩ := csub_run hp m_csub (s := s7) (by decide) (by decide) (by decide)
+    (by rw [p7]; rfl) c7 g7 hP7 hlt
+  obtain ⟨s9, e9, e9', m9⟩ := halt_run hp m_halt (s := s8) (by rw [p8]; rfl) (Kept.code hfit kp8 (by rw [kernel_length]; decide) (by decide) c7)
+  refine ⟨s9, ?_, ?_, ?_⟩
+  · rw [show 1895 = 76 + (135 * 8 + (171 + (10 + (171 + (10 + (171 + (204 + 2))))))) from rfl,
+      run_add_running e1, run_add_running e2, run_add_running e3, run_add_running e4, run_add_running e5,
+      run_add_running e6, run_add_running e7, run_add_running e8, e9]
+  · rw [show 1896 = 76 + (135 * 8 + (171 + (10 + (171 + (10 + (171 + (204 + 3))))))) from rfl,
+      run_add_running e1, run_add_running e2, run_add_running e3, run_add_running e4, run_add_running e5,
+      run_add_running e6, run_add_running e7, run_add_running e8, e9']
+  · rw [m9, n8, key, ← hPv, Nat.add_mul_mod_self_left]
+
 end Exp229
 
 #print axioms Exp229.addm_loop
