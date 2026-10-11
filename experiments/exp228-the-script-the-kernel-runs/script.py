@@ -7,7 +7,7 @@ the proof something, so that a script this subset accepts is one tapscript
 would accept too, given the same answer from OP_CHECKSIG. Where it is stricter
 it fails, never succeeds; the README lists every place.
 
-  run(script, stack, sig=None, h=None)   the halt code, 0 = accept
+  script_verdict(script, stack, sig=None, h=None)   the halt code, 0 = accept
       script   bytes
       stack    the initial stack, bottom first — a witness, each element bytes
       sig      (pubkey, signature) -> bool, what the shell answers; default no
@@ -63,7 +63,7 @@ def cast(e):
     return False
 
 
-def decode(e):
+def num_decode(e):
     """A number: at most 4 bytes, minimally encoded, little-endian sign and magnitude."""
     if len(e) > 4:
         raise Fail(NUM)
@@ -90,7 +90,7 @@ def encode(v):
     return bytes(out)
 
 
-def run(script, stack, sig=None, h=None):
+def script_verdict(script, stack, sig=None, h=None):
     sig = sig or (lambda pk, s: False)
     h = h or (lambda b: hashlib.sha256(b).digest())
     assert len(script) <= SMAX and len(stack) <= DMAX and all(len(e) <= EMAX for e in stack)
@@ -158,12 +158,12 @@ def run(script, stack, sig=None, h=None):
                     st.append(b"\x01" if same else b"")
             elif op in (0x8b, 0x8c):
                 need(1)
-                a = decode(st.pop())
+                a = num_decode(st.pop())
                 st.append(encode(a + 1 if op == 0x8b else a - 1))
             elif op in (0x93, 0x94):
                 need(2)
-                b = decode(st[-1])
-                a = decode(st[-2])
+                b = num_decode(st[-1])
+                a = num_decode(st[-2])
                 del st[-2:]
                 st.append(encode(a + b if op == 0x93 else a - b))
             elif op == 0xa8:

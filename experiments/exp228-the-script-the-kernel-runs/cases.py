@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """exp228 — scripts and the images that hold them.
 
-  image(kernel, script, stack)   kernel.bin with the script and the initial
+  region_image(kernel, script, stack)   kernel.bin with the script and the initial
                                  stack laid out where the kernel reads them
   hand()                         name -> (script, stack, sig): one case at
                                  least for every opcode and every way to fail
@@ -43,7 +43,7 @@ def slot(e):
     return struct.pack("<I", len(e)) + bytes(e) + bytes(EMAX - len(e))
 
 
-def image(kernel, script, stack):
+def region_image(kernel, script, stack):
     assert len(script) <= SMAX and len(stack) <= DMAX
     img = bytearray(STACK + SLOT * len(stack))
     img[:len(kernel)] = kernel

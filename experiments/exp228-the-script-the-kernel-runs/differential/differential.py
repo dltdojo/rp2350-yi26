@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "tools", "hazard3", "shell"))
 from expect import model, rtl  # noqa: E402
 import cases  # noqa: E402
-from script import NAMES, run  # noqa: E402
+from script import NAMES, script_verdict  # noqa: E402
 
 FUEL = 200000
 
@@ -40,15 +40,15 @@ def differential(rv32run, kernel, nfuzz):
     ar = [(f"arith {name}", (s, [], False)) for name, s in cases.arith()]
     codes = {}
     for name, (script, stack, signed) in hand + ar + fz:
-        img = cases.image(kernel, script, stack)
+        img = cases.region_image(kernel, script, stack)
         if signed:
-            want = run(script, stack, sig=cases.valid)
+            want = script_verdict(script, stack, sig=cases.valid)
             os.environ["RV32RUN_SIGS"] = sigs.name
             got_model = code_of(model(rv32run, img, FUEL)[0])
             del os.environ["RV32RUN_SIGS"]
             got_rtl = None
         else:
-            want = run(script, stack)
+            want = script_verdict(script, stack)
             got_model = code_of(model(rv32run, img, FUEL)[0])
             got_rtl = code_of(rtl(img))
         codes[want] = codes.get(want, 0) + 1

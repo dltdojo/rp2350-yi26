@@ -1,0 +1,11 @@
+# exp228 — wrong versions of the kernel, and wrong claims about the right one.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+enc_tail|ENCODE stores the sign byte before the magnitude's word, which then writes over it — -128 comes out as 80 00, as it did in this experiment's first kernel|/^  .st .sw 20 12 0x4,$/{N;s/^\(  .st .sw 20 12 0x4,\)\n\(  .st .sb 31 30 0x4,\)$/\2\n\1/}
+dec_block|DECODE never asks whether a bare sign byte was needed: 00 80 and 80 are numbers|s/^  .br .beq 31 0 0xb74,$/  .br .bne 0 0 0xb74,/
+cast_block|CastToBool keeps the last byte's sign bit: negative zero is true|s/^  .opi .andi 28 28 0x7f,$/  .opi .andi 28 28 0xff,/
+h_push|a push's check of the script's end is turned around|s/^  .br .bltu 19 7 0xf9e,$/  .br .bltu 7 19 0xf9e,/
+h_checksig|the specification lets a script check a second signature, and the kernel does not|s/^      else if c.sigs ≠ 0 then .done C_COUNT$/      else if c.sigs ≠ 0 ∧ False then .done C_COUNT/
+the_end|the specification accepts a false element left on the stack|s/^  | \[e\] => if cast e then C_OK else C_FALSE$/  | [e] => if cast e then C_OK else C_OK/
+runs|the verdict is given the fuel for one opcode fewer than the script holds|s/^  runS env scr (scr.length + 1) ⟨0, st, 0⟩$/  runS env scr scr.length ⟨0, st, 0⟩/

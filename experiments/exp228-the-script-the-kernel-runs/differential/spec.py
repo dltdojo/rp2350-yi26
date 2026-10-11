@@ -6,7 +6,7 @@
 
 Every hand case and FUZZ fuzzed scripts (default 3000), with SHA-256 for the
 hash and the cases' own signature as the only valid one, through `lean.sh exec
-proof/Script.lean spec`, and through script.run.
+proof/Script.lean spec`, and through script.script_verdict.
 """
 import os
 import subprocess
@@ -16,7 +16,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 import cases  # noqa: E402
-from script import NAMES, run  # noqa: E402
+from script import NAMES, script_verdict  # noqa: E402
 
 
 def h(b):
@@ -32,7 +32,7 @@ def main(lean, n):
     for name, s, st, signed in allc:
         pairs = f"{h(cases.KEY)} {h(sig)}" if signed else ""
         lines.append(f"{h(s)} | {' '.join(h(e) for e in st)} | {pairs}")
-        want.append(run(s, st, sig=cases.valid if signed else None))
+        want.append(script_verdict(s, st, sig=cases.valid if signed else None))
     with tempfile.NamedTemporaryFile("w", suffix=".cases", delete=False) as f:
         f.write("\n".join(lines) + "\n")
     out = subprocess.run([lean, "exec", os.path.join(HERE, "..", "proof", "Script.lean"), "spec", f.name],
