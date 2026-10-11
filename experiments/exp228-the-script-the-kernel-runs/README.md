@@ -21,7 +21,9 @@ instruction.**
 
 What it does in plain words, and how it differs from writing the same
 interpreter in Rust or C, is written up in Taiwanese Mandarin:
-[WHY.zh-TW.md](./WHY.zh-TW.md).
+[WHY.zh-TW.md](./WHY.zh-TW.md). What the method is worth for a hardware
+wallet, and what to prove next, is
+[docs/2026-10-11-0610-verified-bytes-for-a-hardware-wallet-zh-tw.md](../../docs/2026-10-11-0610-verified-bytes-for-a-hardware-wallet-zh-tw.md).
 
 Needs: a **Pico 2**, a hand on **BOOTSEL** once to copy `exp228.uf2` on, and a
 **phone with Chrome** to open `tools/pages/log.html`, tap the USB permission,
@@ -233,6 +235,7 @@ lines is. A pasted log goes under `board/`, and `check.sh` checks it with
 | Round | Firmware | What came back |
 | --- | --- | --- |
 | 1 | revision 1 (`14c86684…`) | A Pico 2 and a Pixel 9a, through `tools/pages/log.html` ([board/round1-log.txt](./board/round1-log.txt), replayed by `board.py`): **51 `CASE` lines, from case 25 of round 6 to case 9 of round 8, every one halting with its verdict, with the RTL's minstret to the instruction, and with the signatures `script.py` asks about**: both `pay to key` cases valid, `signature invalid` invalid, the second signature never checked. `ROUND 00000006 00000021` and `ROUND 00000007 00000021`, and round 7 whole in the log. Thirteen status lines: nothing dropped, no bus error, three stalls, as in exp226. The LED could not be read: see revision 2 above. |
+| 2 | revision 2 (`253abb90…`) | The same Pico 2, revision 2 copied on. The person watching: **a slow, even blink** — running, and every check holding, the first row of the LED's table. No log this round: revision 2 changes nothing on USB. |
 
 What the chip's own counts say: minstret on the chip is the RTL's in every
 case, so the + 4 for the harness and + 4 for each call that the RTL showed
@@ -282,8 +285,9 @@ with a log one instruction off for one case caught.
   checked against the model's count case by case, and nothing is claimed
   about it in general. Nothing here is constant-time, and nothing needs to
   be.
-- **The chip, once.** Round 1 ran revision 1 on one Pico 2. Revision 2
-  changes only the LED; it has not run on a board yet.
+- **The chip, twice, one board.** Round 1 ran revision 1 on one Pico 2 and
+  its log was read; round 2 ran revision 2 on the same board and only its LED
+  was.
 
 ## Running it
 
