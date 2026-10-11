@@ -1969,6 +1969,179 @@ theorem halt_run (hp : Placed env base) {M : Nat} (hM : HaltAt M) {s : Machine}
     haltStep (prog := kernel) hp (M + 2) (by rw [kernel_length]; omega) (by rw [m1]; exact hcode) p1 hM.ec t0
       (by decide) 0, a0]
 
+/-! ## Where each piece is: decided against the kernel -/
+
+theorem m_zero : ZeroAt M_ZERO 0xa00 := ⟨by decide, ⟨0xff0, by decide, by jump, by decide⟩, by decide⟩
+theorem m_row0 : RowAt M_ROW0 0x904 0x924 0xa00 :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem m_row1 : RowAt M_ROW1 0x908 0x924 0xa04 :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem m_row2 : RowAt M_ROW2 0x90c 0x924 0xa08 :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem m_row3 : RowAt M_ROW3 0x910 0x924 0xa0c :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem m_row4 : RowAt M_ROW4 0x914 0x924 0xa10 :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem m_row5 : RowAt M_ROW5 0x918 0x924 0xa14 :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem m_row6 : RowAt M_ROW6 0x91c 0x924 0xa18 :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem m_row7 : RowAt M_ROW7 0x920 0x924 0xa1c :=
+  ⟨by decide, by decide, ⟨0xfe2, by decide, by jump, by decide⟩, by decide, by decide⟩
+
+theorem m_rows : ∀ i < 8, RowAt (M_ROW0 + 23 * i) (0x904 + 4 * i) 0x924 (0xa00 + 4 * i) := by
+  intro i hi
+  rcases (by omega : i = 0 ∨ i = 1 ∨ i = 2 ∨ i = 3 ∨ i = 4 ∨ i = 5 ∨ i = 6 ∨ i = 7) with
+    h | h | h | h | h | h | h | h <;> subst h
+  · exact m_row0
+  · exact m_row1
+  · exact m_row2
+  · exact m_row3
+  · exact m_row4
+  · exact m_row5
+  · exact m_row6
+  · exact m_row7
+
+theorem m_fold1 : FoldAt M_FOLD1 0xa00 0xa20 0xa40 :=
+  ⟨by decide, ⟨0xfda, by decide, by jump, by decide⟩, by decide, by decide, by decide, by decide⟩
+theorem m_hset1 : HsetAt M_HSET1 0xa40 := ⟨by decide, by decide⟩
+theorem m_fold2 : FoldAt M_FOLD2 0xa40 0xa80 0xac0 :=
+  ⟨by decide, ⟨0xfda, by decide, by jump, by decide⟩, by decide, by decide, by decide, by decide⟩
+theorem m_hset2 : HsetAt M_HSET2 0xac0 := ⟨by decide, by decide⟩
+theorem m_fold3 : FoldAt M_FOLD3 0xac0 0xa80 0xb00 :=
+  ⟨by decide, ⟨0xfda, by decide, by jump, by decide⟩, by decide, by decide, by decide, by decide⟩
+theorem m_csub : CsubAt M_CSUB 0xb00 :=
+  ⟨⟨by decide, ⟨0xfe8, by decide, by jump, by decide⟩, by decide⟩, by decide, by decide,
+    ⟨by decide, ⟨0xfec, by decide, by jump, by decide⟩, by decide⟩⟩
+theorem m_halt : HaltAt M_HALT := ⟨by decide, by decide, by decide⟩
+
+theorem a_addm : AddmAt A_ADDM 0x904 0x924 0xb80 :=
+  ⟨by decide, ⟨0xfe6, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem a_csub : CsubAt A_CSUB 0xb80 :=
+  ⟨⟨by decide, ⟨0xfe8, by decide, by jump, by decide⟩, by decide⟩, by decide, by decide,
+    ⟨by decide, ⟨0xfec, by decide, by jump, by decide⟩, by decide⟩⟩
+theorem a_halt : HaltAt A_HALT := ⟨by decide, by decide, by decide⟩
+
+theorem s_subn : SubnAt S_SUBN 0x904 0x924 0xb40 :=
+  ⟨by decide, ⟨0xfe8, by decide, by jump, by decide⟩, by decide⟩
+theorem s_addm : AddmAt S_ADDM 0xb40 0x800 0x944 :=
+  ⟨by decide, ⟨0xfe6, by decide, by jump, by decide⟩, by decide, by decide⟩
+theorem s_halt : HaltAt S_HALT := ⟨by decide, by decide, by decide⟩
+
+/-! ## The three operations -/
+
+/-- What the kernel is given: its code at base, p at PRIME, a and b. -/
+structure Given (m : Word → Byte) (base : Word) (a b : Nat) : Prop where
+  code : CodeAt m base kernel
+  prime : numAt m base 0x800 8 = P
+  ina : numAt m base 0x904 8 = a
+  inb : numAt m base 0x924 8 = b
+
+theorem P_lt : P < 2 ^ 256 := by unfold P; omega
+
+theorem allOnes_se : (0 : Word) + (0xfff : BitVec 12).signExtend 32 = mask true := by
+  rw [show (0xfff : BitVec 12) = BitVec.ofNat 12 4095 from rfl, se_neg 4095 (by decide) (by decide)]; decide
+
+/-- **Addition**, from OP_ADD with s1 set: R is `(a + b) mod p`. -/
+theorem add_run (hp : Placed env base) {s : Machine} {a b : Nat}
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * OP_ADD)) (hg : Given s.mem base a b)
+    (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800) (ha : a < P) (hb : b < P) :
+    ∃ s', run env 325 s = .running s' ∧ run env 326 s = .halted 0 s'
+      ∧ numAt s'.mem base 0x944 8 = (a + b) % P := by
+  have hfit := hp.fit
+  have l1 : run env 1 s = .running (s.line [.opi .addi 13 0 0xfff]) :=
+    run_line (prog := kernel) hp [.opi .addi 13 0 0xfff] rfl OP_ADD s (by decide) (by decide) hg.code hpc (by decide)
+  generalize hs1 : s.line [.opi .addi 13 0 0xfff] = s1 at l1
+  have p1 : s1.pc = base + BitVec.ofNat 32 (4 * A_ADDM) := by rw [← hs1, line_pc_at _ hpc (by decide)]; rfl
+  have m1 : s1.mem = s.mem := by rw [← hs1, line_mem]
+  have g13 : s1.reg 13 = mask true := by
+    rw [← hs1]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
+    rw [reg_zero]; exact allOnes_se
+  have g9 : s1.reg 9 = base + BitVec.ofNat 32 0x800 := by
+    rw [← hs1]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp; exact h9
+  obtain ⟨s2, e2, p2, kp2, n2, o2⟩ := addm_run hp a_addm (s := s1) (k := true) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) p1 (by rw [m1]; exact hg.code) g9 g13
+  rw [m1] at kp2 n2
+  have code2 : CodeAt s2.mem base kernel := Kept.code hfit kp2 (by rw [kernel_length]; decide) (by decide) hg.code
+  have h92 : s2.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [o2 9 (by decide), g9]
+  have hP2 : numAt s2.mem base 0x800 8 = P := by rw [kp2.num hfit (by decide) (by decide), hg.prime]
+  have hS : numAt s2.mem base 0xb80 8 + 2 ^ 256 * wordAt s2.mem base (0xb80 + 32) = a + b := by
+    have : numAt s2.mem base 0xb80 9 = numAt s2.mem base 0xb80 8 + wordAt s2.mem base (0xb80 + 4 * 8) * 2 ^ (32 * 8) := rfl
+    rw [n2, hg.ina, hg.inb] at this
+    simp only [ite_true] at this
+    rw [show 32 * 8 = 256 from rfl] at this
+    have e : (0xb80 + 4 * 8 : Nat) = 0xb80 + 32 := rfl
+    rw [e] at this
+    omega
+  obtain ⟨s3, e3, p3, kp3, n3, h93⟩ := csub_run hp a_csub (s := s2) (by decide) (by decide) (by decide) p2 code2 h92 hP2
+    (by rw [hS]; omega)
+  rw [hS] at n3
+  obtain ⟨s4, e4, e4', m4⟩ := halt_run hp a_halt (s := s3) p3
+    (Kept.code hfit kp3 (by rw [kernel_length]; decide) (by decide) code2)
+  refine ⟨s4, ?_, ?_, by rw [m4, n3]⟩
+  · rw [show 325 = 1 + (118 + (204 + 2)) from rfl, run_add_running l1, run_add_running e2, run_add_running e3, e4]
+  · rw [show 326 = 1 + (118 + (204 + 3)) from rfl, run_add_running l1, run_add_running e2, run_add_running e3, e4']
+
+/-- `0 - t0`, a borrow of 0 or 1: the mask, all ones when it borrowed. -/
+theorem neg_bit (w : Word) (h : w.toNat ≤ 1) : 0 - w = mask (decide (w.toNat = 1)) := by
+  rcases (by omega : w.toNat = 0 ∨ w.toNat = 1) with e | e
+  · have : w = 0 := BitVec.eq_of_toNat_eq (by rw [e]; rfl)
+    subst this; decide
+  · have : w = 1 := BitVec.eq_of_toNat_eq (by rw [e]; rfl)
+    subst this; decide
+
+/-- **Subtraction**, from OP_SUB with s1 set: R is `(a + p - b) mod p`. -/
+theorem sub_run (hp : Placed env base) {s : Machine} {a b : Nat}
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * OP_SUB)) (hg : Given s.mem base a b)
+    (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800) (ha : a < P) (hb : b < P) :
+    ∃ s', run env 230 s = .running s' ∧ run env 231 s = .halted 0 s'
+      ∧ numAt s'.mem base 0x944 8 = (a + P - b) % P := by
+  have hfit := hp.fit
+  obtain ⟨s1, e1, p1, kp1, f1, n1, o1⟩ := subn_run hp s_subn (s := s) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) hpc hg.code h9
+  have code1 : CodeAt s1.mem base kernel := Kept.code hfit kp1 (by rw [kernel_length]; decide) (by decide) hg.code
+  have l2 : run env 1 s1 = .running (s1.line [.op .sub 13 0 5]) :=
+    run_line (prog := kernel) hp [.op .sub 13 0 5] rfl (S_SUBN + 18) s1 (by decide) (by decide) code1 p1 (by decide)
+  generalize hs2 : s1.line [.op .sub 13 0 5] = s2 at l2
+  have p2 : s2.pc = base + BitVec.ofNat 32 (4 * S_ADDM) := by rw [← hs2, line_pc_at _ p1 (by decide)]; rfl
+  have m2 : s2.mem = s1.mem := by rw [← hs2, line_mem]
+  have g13 : s2.reg 13 = mask (decide ((s1.reg 5).toNat = 1)) := by
+    rw [← hs2]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
+    rw [reg_zero]; exact neg_bit _ f1
+  have g9 : s2.reg 9 = base + BitVec.ofNat 32 0x800 := by
+    rw [← hs2]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
+    rw [o1 9 (by decide), h9]
+  obtain ⟨s3, e3, p3, kp3, n3, -⟩ := addm_run hp s_addm (s := s2) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) p2 (by rw [m2]; exact code1) g9 g13
+  rw [m2] at kp3 n3
+  have hP1 : numAt s1.mem base 0x800 8 = P := by rw [kp1.num hfit (by decide) (by decide), hg.prime]
+  obtain ⟨s4, e4, e4', m4⟩ := halt_run hp s_halt (s := s3) p3
+    (Kept.code hfit kp3 (by rw [kernel_length]; decide) (by decide) code1)
+  refine ⟨s4, ?_, ?_, ?_⟩
+  · rw [show 230 = 109 + (1 + (118 + 2)) from rfl, run_add_running e1, run_add_running l2, run_add_running e3, e4]
+  · rw [show 231 = 109 + (1 + (118 + 3)) from rfl, run_add_running e1, run_add_running l2, run_add_running e3, e4']
+  · rw [m4]
+    have h9w : numAt s3.mem base 0x944 9
+        = numAt s3.mem base 0x944 8 + wordAt s3.mem base (0x944 + 4 * 8) * 2 ^ (32 * 8) := rfl
+    have hR := numAt_lt s3.mem base 0x944 8
+    have hD := numAt_lt s1.mem base 0xb40 8
+    rw [h9w, hP1] at n3
+    rw [hg.ina, hg.inb] at n1
+    rw [show 32 * 8 = 256 from rfl] at n3 hR hD
+    have hPv : P = 2 ^ 256 - 2 ^ 32 - 977 := rfl
+    have hN : a + P - b + b = a + P := Nat.sub_add_cancel (by omega)
+    generalize a + P - b = N at hN ⊢
+    rw [mod_lt2 (by omega)]
+    by_cases hk : (s1.reg 5).toNat = 1
+    · simp only [hk, decide_true, ↓reduceIte] at n3 n1
+      rw [if_pos (by omega)]
+      omega
+    · have hk0 : (s1.reg 5).toNat = 0 := by omega
+      simp only [hk, hk0, decide_false, Bool.false_eq_true, ↓reduceIte] at n3 n1
+      rw [if_neg (by omega)]
+      simp only [show decide ((0 : Nat) = 1) = false from rfl, Bool.false_eq_true, ↓reduceIte] at n3
+      omega
+
 end Exp229
 
 #print axioms Exp229.addm_loop
