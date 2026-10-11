@@ -34,177 +34,261 @@ def spec : Nat → Nat → Nat → Nat
 /-- Where each label is: an instruction number. -/
 def ENTRY : Nat := 0
 def OP_MUL : Nat := 7
-def OP_ADD : Nat := 43
-def OP_SUB : Nat := 60
-def HALT : Nat := 69
-def ADDM : Nat := 72
-def ADDM_L : Nat := 74
-def SUBN : Nat := 90
-def SUBN_L : Nat := 92
-def SEL : Nat := 106
-def SEL_L : Nat := 107
-def MUL : Nat := 119
-def MUL_Z : Nat := 121
-def MUL_O : Nat := 126
-def MUL_I : Nat := 131
-def FOLD : Nat := 152
-def FOLD_L : Nat := 156
-def HSET : Nat := 181
+def M_ZERO : Nat := 7
+def M_ZERO_L : Nat := 11
+def M_ROW0 : Nat := 20
+def M_ROW0_L : Nat := 26
+def M_ROW1 : Nat := 43
+def M_ROW1_L : Nat := 49
+def M_ROW2 : Nat := 66
+def M_ROW2_L : Nat := 72
+def M_ROW3 : Nat := 89
+def M_ROW3_L : Nat := 95
+def M_ROW4 : Nat := 112
+def M_ROW4_L : Nat := 118
+def M_ROW5 : Nat := 135
+def M_ROW5_L : Nat := 141
+def M_ROW6 : Nat := 158
+def M_ROW6_L : Nat := 164
+def M_ROW7 : Nat := 181
+def M_ROW7_L : Nat := 187
+def M_FOLD1 : Nat := 204
+def M_FOLD1_L : Nat := 211
+def M_HSET1 : Nat := 235
+def M_FOLD2 : Nat := 245
+def M_FOLD2_L : Nat := 252
+def M_HSET2 : Nat := 276
+def M_FOLD3 : Nat := 286
+def M_FOLD3_L : Nat := 293
+def M_CSUB : Nat := 317
+def M_CSUB_L : Nat := 322
+def M_CSUB_SEL : Nat := 338
+def M_CSUB_SEL_L : Nat := 342
+def M_HALT : Nat := 353
+def OP_ADD : Nat := 356
+def A_ADDM : Nat := 357
+def A_ADDM_L : Nat := 362
+def A_CSUB : Nat := 377
+def A_CSUB_L : Nat := 382
+def A_CSUB_SEL : Nat := 398
+def A_CSUB_SEL_L : Nat := 402
+def A_HALT : Nat := 413
+def OP_SUB : Nat := 416
+def S_SUBN : Nat := 416
+def S_SUBN_L : Nat := 421
+def S_ADDM : Nat := 435
+def S_ADDM_L : Nat := 440
+def S_HALT : Nat := 455
 
-/-- The kernel, 190 instructions. -/
+/-- The kernel, 458 instructions. -/
 def kernel : List Instr := [
   .auipc 9 0x0,
   .opi .addi 9 9 0x400,
   .opi .addi 9 9 0x400,
   .ld .lw 5 9 0x100,
-  .br .beq 5 0 0x4e,
+  .br .beq 5 0 0x2c0,
   .opi .addi 6 0 0x1,
-  .br .beq 5 6 0x6c,
-  .opi .addi 10 9 0x104,
-  .opi .addi 11 9 0x124,
+  .br .beq 5 6 0x334,
+  .opi .addi 10 9 0x200,
+  .opi .addi 11 9 0x200,
   .opi .addi 12 9 0x200,
-  .jal 1 0xda,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .sub 29 7 7,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xff0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x200,
+  .opi .addi 12 9 0x200,
+  .ld .lw 14 9 0x104,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x204,
+  .opi .addi 12 9 0x204,
+  .ld .lw 14 9 0x108,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x208,
+  .opi .addi 12 9 0x208,
+  .ld .lw 14 9 0x10c,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x20c,
+  .opi .addi 12 9 0x20c,
+  .ld .lw 14 9 0x110,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x210,
+  .opi .addi 12 9 0x210,
+  .ld .lw 14 9 0x114,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x214,
+  .opi .addi 12 9 0x214,
+  .ld .lw 14 9 0x118,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x218,
+  .opi .addi 12 9 0x218,
+  .ld .lw 14 9 0x11c,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x124,
+  .opi .addi 11 9 0x21c,
+  .opi .addi 12 9 0x21c,
+  .ld .lw 14 9 0x120,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 30 14 7,
+  .op .mulhu 31 14 7,
+  .op .add 29 28 30,
+  .op .sltu 15 29 30,
+  .op .add 29 29 5,
+  .op .sltu 16 29 5,
+  .op .add 5 31 15,
+  .op .add 5 5 16,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe2,
+  .st .sw 12 5 0x0,
   .opi .addi 10 9 0x200,
   .opi .addi 11 9 0x220,
   .opi .addi 12 9 0x240,
-  .jal 1 0x114,
-  .ld .lw 5 9 0x260,
-  .ld .lw 6 9 0x264,
-  .opi .addi 10 9 0x280,
-  .jal 1 0x146,
-  .opi .addi 10 9 0x240,
-  .opi .addi 11 9 0x280,
-  .opi .addi 12 9 0x2c0,
-  .jal 1 0x104,
-  .ld .lw 5 9 0x2e0,
-  .ld .lw 6 9 0x2e4,
-  .opi .addi 10 9 0x280,
-  .jal 1 0x136,
-  .opi .addi 10 9 0x2c0,
-  .opi .addi 11 9 0x280,
-  .opi .addi 12 9 0x300,
-  .jal 1 0xf4,
-  .opi .addi 10 9 0x300,
-  .opi .addi 11 9 0x0,
-  .opi .addi 12 9 0x340,
-  .jal 1 0x70,
-  .ld .lw 6 9 0x320,
-  .op .sltu 7 6 5,
-  .op .sub 13 0 7,
-  .opi .addi 10 9 0x300,
-  .opi .addi 11 9 0x340,
-  .opi .addi 12 9 0x144,
-  .jal 1 0x82,
-  .jal 0 0x36,
-  .opi .addi 10 9 0x104,
-  .opi .addi 11 9 0x124,
-  .opi .addi 12 9 0x380,
-  .opi .addi 13 0 0xfff,
-  .jal 1 0x32,
-  .opi .addi 10 9 0x380,
-  .opi .addi 11 9 0x0,
-  .opi .addi 12 9 0x340,
-  .jal 1 0x4e,
-  .ld .lw 6 9 0x3a0,
-  .op .sltu 7 6 5,
-  .op .sub 13 0 7,
-  .opi .addi 10 9 0x380,
-  .opi .addi 11 9 0x340,
-  .opi .addi 12 9 0x144,
-  .jal 1 0x60,
-  .jal 0 0x14,
-  .opi .addi 10 9 0x104,
-  .opi .addi 11 9 0x124,
-  .opi .addi 12 9 0x340,
-  .jal 1 0x36,
-  .op .sub 13 0 5,
-  .opi .addi 10 9 0x340,
-  .opi .addi 11 9 0x0,
-  .opi .addi 12 9 0x144,
-  .jal 1 0x8,
-  .opi .addi 10 0 0x0,
-  .opi .addi 5 0 0x1,
-  .ecall,
-  .opi .addi 5 0 0x0,
-  .opi .addi 6 0 0x8,
-  .ld .lw 7 10 0x0,
-  .ld .lw 28 11 0x0,
-  .op .and 28 28 13,
-  .op .add 29 7 28,
-  .op .sltu 30 29 28,
-  .op .add 29 29 5,
-  .op .sltu 31 29 5,
-  .op .add 5 30 31,
-  .st .sw 12 29 0x0,
-  .opi .addi 10 10 0x4,
-  .opi .addi 11 11 0x4,
-  .opi .addi 12 12 0x4,
-  .opi .addi 6 6 0xfff,
-  .br .bne 6 0 0xfe6,
-  .st .sw 12 5 0x0,
-  .jalr 0 1 0x0,
-  .opi .addi 5 0 0x0,
-  .opi .addi 6 0 0x8,
-  .ld .lw 7 10 0x0,
-  .ld .lw 28 11 0x0,
-  .op .sub 29 7 28,
-  .op .sltu 30 7 28,
-  .op .sltu 31 29 5,
-  .op .sub 29 29 5,
-  .op .add 5 30 31,
-  .st .sw 12 29 0x0,
-  .opi .addi 10 10 0x4,
-  .opi .addi 11 11 0x4,
-  .opi .addi 12 12 0x4,
-  .opi .addi 6 6 0xfff,
-  .br .bne 6 0 0xfe8,
-  .jalr 0 1 0x0,
-  .opi .addi 6 0 0x8,
-  .ld .lw 7 10 0x0,
-  .ld .lw 28 11 0x0,
-  .op .xor 29 7 28,
-  .op .and 29 29 13,
-  .op .xor 29 29 28,
-  .st .sw 12 29 0x0,
-  .opi .addi 10 10 0x4,
-  .opi .addi 11 11 0x4,
-  .opi .addi 12 12 0x4,
-  .opi .addi 6 6 0xfff,
-  .br .bne 6 0 0xfec,
-  .jalr 0 1 0x0,
-  .opi .addi 14 12 0x0,
-  .opi .addi 6 0 0x10,
-  .st .sw 14 0 0x0,
-  .opi .addi 14 14 0x4,
-  .opi .addi 6 6 0xfff,
-  .br .bne 6 0 0xffa,
-  .opi .addi 6 0 0x8,
-  .ld .lw 7 10 0x0,
-  .opi .addi 5 0 0x0,
-  .opi .addi 15 11 0x0,
-  .opi .addi 14 12 0x0,
-  .opi .addi 28 0 0x8,
-  .ld .lw 29 15 0x0,
-  .ld .lw 16 14 0x0,
-  .op .mul 30 7 29,
-  .op .mulhu 31 7 29,
-  .op .add 16 16 30,
-  .op .sltu 17 16 30,
-  .op .add 16 16 5,
-  .op .sltu 13 16 5,
-  .op .add 5 31 17,
-  .op .add 5 5 13,
-  .st .sw 14 16 0x0,
-  .opi .addi 15 15 0x4,
-  .opi .addi 14 14 0x4,
-  .opi .addi 28 28 0xfff,
-  .br .bne 28 0 0xfe4,
-  .st .sw 14 5 0x0,
-  .opi .addi 10 10 0x4,
-  .opi .addi 12 12 0x4,
-  .opi .addi 6 6 0xfff,
-  .br .bne 6 0 0xfd0,
-  .jalr 0 1 0x0,
   .opi .addi 5 0 0x0,
   .opi .addi 13 0 0x0,
   .opi .addi 14 0 0x3d1,
@@ -233,16 +317,251 @@ def kernel : List Instr := [
   .op .sltu 30 31 13,
   .st .sw 12 31 0x0,
   .st .sw 12 30 0x4,
-  .jalr 0 1 0x0,
-  .st .sw 10 5 0x0,
-  .st .sw 10 6 0x4,
-  .st .sw 10 0 0x8,
-  .st .sw 10 0 0xc,
-  .st .sw 10 0 0x10,
-  .st .sw 10 0 0x14,
-  .st .sw 10 0 0x18,
-  .st .sw 10 0 0x1c,
-  .jalr 0 1 0x0 ]
+  .ld .lw 5 9 0x260,
+  .ld .lw 6 9 0x264,
+  .st .sw 9 5 0x280,
+  .st .sw 9 6 0x284,
+  .st .sw 9 0 0x288,
+  .st .sw 9 0 0x28c,
+  .st .sw 9 0 0x290,
+  .st .sw 9 0 0x294,
+  .st .sw 9 0 0x298,
+  .st .sw 9 0 0x29c,
+  .opi .addi 10 9 0x240,
+  .opi .addi 11 9 0x280,
+  .opi .addi 12 9 0x2c0,
+  .opi .addi 5 0 0x0,
+  .opi .addi 13 0 0x0,
+  .opi .addi 14 0 0x3d1,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 29 28 14,
+  .op .mulhu 30 28 14,
+  .op .add 31 7 29,
+  .op .sltu 15 31 29,
+  .op .add 31 31 13,
+  .op .sltu 16 31 13,
+  .op .add 31 31 5,
+  .op .sltu 17 31 5,
+  .op .add 5 30 15,
+  .op .add 5 5 16,
+  .op .add 5 5 17,
+  .opi .addi 13 28 0x0,
+  .st .sw 12 31 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfda,
+  .op .add 31 13 5,
+  .op .sltu 30 31 13,
+  .st .sw 12 31 0x0,
+  .st .sw 12 30 0x4,
+  .ld .lw 5 9 0x2e0,
+  .ld .lw 6 9 0x2e4,
+  .st .sw 9 5 0x280,
+  .st .sw 9 6 0x284,
+  .st .sw 9 0 0x288,
+  .st .sw 9 0 0x28c,
+  .st .sw 9 0 0x290,
+  .st .sw 9 0 0x294,
+  .st .sw 9 0 0x298,
+  .st .sw 9 0 0x29c,
+  .opi .addi 10 9 0x2c0,
+  .opi .addi 11 9 0x280,
+  .opi .addi 12 9 0x300,
+  .opi .addi 5 0 0x0,
+  .opi .addi 13 0 0x0,
+  .opi .addi 14 0 0x3d1,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .mul 29 28 14,
+  .op .mulhu 30 28 14,
+  .op .add 31 7 29,
+  .op .sltu 15 31 29,
+  .op .add 31 31 13,
+  .op .sltu 16 31 13,
+  .op .add 31 31 5,
+  .op .sltu 17 31 5,
+  .op .add 5 30 15,
+  .op .add 5 5 16,
+  .op .add 5 5 17,
+  .opi .addi 13 28 0x0,
+  .st .sw 12 31 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfda,
+  .op .add 31 13 5,
+  .op .sltu 30 31 13,
+  .st .sw 12 31 0x0,
+  .st .sw 12 30 0x4,
+  .opi .addi 10 9 0x300,
+  .opi .addi 11 9 0x0,
+  .opi .addi 12 9 0x340,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .sub 29 7 28,
+  .op .sltu 30 7 28,
+  .op .sltu 31 29 5,
+  .op .sub 29 29 5,
+  .op .add 5 30 31,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe8,
+  .ld .lw 6 9 0x320,
+  .op .sltu 7 6 5,
+  .op .sub 13 0 7,
+  .opi .addi 10 9 0x300,
+  .opi .addi 11 9 0x340,
+  .opi .addi 12 9 0x144,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .xor 29 7 28,
+  .op .and 29 29 13,
+  .op .xor 29 29 28,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfec,
+  .opi .addi 10 0 0x0,
+  .opi .addi 5 0 0x1,
+  .ecall,
+  .opi .addi 13 0 0xfff,
+  .opi .addi 10 9 0x104,
+  .opi .addi 11 9 0x124,
+  .opi .addi 12 9 0x380,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .and 28 28 13,
+  .op .add 29 7 28,
+  .op .sltu 30 29 28,
+  .op .add 29 29 5,
+  .op .sltu 31 29 5,
+  .op .add 5 30 31,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe6,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 9 0x380,
+  .opi .addi 11 9 0x0,
+  .opi .addi 12 9 0x340,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .sub 29 7 28,
+  .op .sltu 30 7 28,
+  .op .sltu 31 29 5,
+  .op .sub 29 29 5,
+  .op .add 5 30 31,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe8,
+  .ld .lw 6 9 0x3a0,
+  .op .sltu 7 6 5,
+  .op .sub 13 0 7,
+  .opi .addi 10 9 0x380,
+  .opi .addi 11 9 0x340,
+  .opi .addi 12 9 0x144,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .xor 29 7 28,
+  .op .and 29 29 13,
+  .op .xor 29 29 28,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfec,
+  .opi .addi 10 0 0x0,
+  .opi .addi 5 0 0x1,
+  .ecall,
+  .opi .addi 10 9 0x104,
+  .opi .addi 11 9 0x124,
+  .opi .addi 12 9 0x340,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .sub 29 7 28,
+  .op .sltu 30 7 28,
+  .op .sltu 31 29 5,
+  .op .sub 29 29 5,
+  .op .add 5 30 31,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe8,
+  .op .sub 13 0 5,
+  .opi .addi 10 9 0x340,
+  .opi .addi 11 9 0x0,
+  .opi .addi 12 9 0x144,
+  .opi .addi 5 0 0x0,
+  .opi .addi 6 0 0x8,
+  .ld .lw 7 10 0x0,
+  .ld .lw 28 11 0x0,
+  .op .and 28 28 13,
+  .op .add 29 7 28,
+  .op .sltu 30 29 28,
+  .op .add 29 29 5,
+  .op .sltu 31 29 5,
+  .op .add 5 30 31,
+  .st .sw 12 29 0x0,
+  .opi .addi 10 10 0x4,
+  .opi .addi 11 11 0x4,
+  .opi .addi 12 12 0x4,
+  .opi .addi 6 6 0xfff,
+  .br .bne 6 0 0xfe6,
+  .st .sw 12 5 0x0,
+  .opi .addi 10 0 0x0,
+  .opi .addi 5 0 0x1,
+  .ecall ]
+
+/-- Each loop, and where a0, a1 and a2 start in it: offsets from base. -/
+def loops : List (Nat × Nat × Nat × Nat) := [
+  (M_ZERO_L, 0xa00, 0xa00, 0xa00),
+  (M_ROW0_L, 0x924, 0xa00, 0xa00),
+  (M_ROW1_L, 0x924, 0xa04, 0xa04),
+  (M_ROW2_L, 0x924, 0xa08, 0xa08),
+  (M_ROW3_L, 0x924, 0xa0c, 0xa0c),
+  (M_ROW4_L, 0x924, 0xa10, 0xa10),
+  (M_ROW5_L, 0x924, 0xa14, 0xa14),
+  (M_ROW6_L, 0x924, 0xa18, 0xa18),
+  (M_ROW7_L, 0x924, 0xa1c, 0xa1c),
+  (M_FOLD1_L, 0xa00, 0xa20, 0xa40),
+  (M_FOLD2_L, 0xa40, 0xa80, 0xac0),
+  (M_FOLD3_L, 0xac0, 0xa80, 0xb00),
+  (M_CSUB_L, 0xb00, 0x800, 0xb40),
+  (M_CSUB_SEL_L, 0xb00, 0xb40, 0x944),
+  (A_ADDM_L, 0x904, 0x924, 0xb80),
+  (A_CSUB_L, 0xb80, 0x800, 0xb40),
+  (A_CSUB_SEL_L, 0xb80, 0xb40, 0x944),
+  (S_SUBN_L, 0x904, 0x924, 0xb40),
+  (S_ADDM_L, 0xb40, 0x800, 0x944) ]
 
 -- END generated by kernel.py
 
@@ -267,7 +586,7 @@ open Rv32
 
 variable {env : Env} {base : Word}
 
-theorem kernel_length : kernel.length = 190 := by decide
+theorem kernel_length : kernel.length = 458 := by decide
 
 /-- The immediate 0 of a load or store. -/
 theorem se_zero : (0x0 : BitVec 12).signExtend 32 = 0#32 := rfl
@@ -288,119 +607,6 @@ theorem count_zero (n : Nat) (hn : n < 8) : (BitVec.ofNat 32 (8 - (n + 1)) != (0
   rcases (by omega : n = 0 ∨ n = 1 ∨ n = 2 ∨ n = 3 ∨ n = 4 ∨ n = 5 ∨ n = 6 ∨ n = 7) with
     h | h | h | h | h | h | h | h <;> subst h <;> decide
 
-/-- **One word of ADDM**: `Z[j] = X[j] + (Y[j] & a3) + carry`, the pointers on
-and the counter down, and back to the top unless that was the last. -/
-theorem addm_body (hp : Placed env base) {x y z j : Nat} {s : Machine} (hj : j < 8)
-    (hx : x + 32 < 0x10000) (hy : y + 32 < 0x10000) (hz : z + 32 < 0x10000)
-    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 760 ≤ z)
-    (hpc : s.pc = base + BitVec.ofNat 32 (4 * ADDM_L)) (hcode : CodeAt s.mem base kernel)
-    (h10 : s.reg 10 = base + BitVec.ofNat 32 (x + 4 * j))
-    (h11 : s.reg 11 = base + BitVec.ofNat 32 (y + 4 * j))
-    (h12 : s.reg 12 = base + BitVec.ofNat 32 (z + 4 * j))
-    (h6 : s.reg 6 = BitVec.ofNat 32 (8 - j)) :
-    ∃ s', run env 14 s = .running s'
-      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (if j + 1 < 8 then ADDM_L else ADDM_L + 14))
-      ∧ s'.mem = writeLE s.mem (base + BitVec.ofNat 32 (z + 4 * j))
-          ((BitVec.ofNat 32 (wordAt s.mem base (x + 4 * j))
-            + (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13)) + s.reg 5).toNat 4
-      ∧ s'.reg 5 = lt1 (BitVec.ofNat 32 (wordAt s.mem base (x + 4 * j))
-              + (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13))
-            (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13)
-          + lt1 ((BitVec.ofNat 32 (wordAt s.mem base (x + 4 * j))
-              + (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13)) + s.reg 5) (s.reg 5)
-      ∧ s'.reg 10 = base + BitVec.ofNat 32 (x + 4 * (j + 1))
-      ∧ s'.reg 11 = base + BitVec.ofNat 32 (y + 4 * (j + 1))
-      ∧ s'.reg 12 = base + BitVec.ofNat 32 (z + 4 * (j + 1))
-      ∧ s'.reg 6 = BitVec.ofNat 32 (8 - (j + 1))
-      ∧ ∀ r : Reg, r ∉ [5, 6, 7, 10, 11, 12, 28, 29, 30, 31] → s'.reg r = s.reg r := by
-  have hfit := hp.fit
-  obtain ⟨s1, e1, p1, m1, r1⟩ := loadStep (prog := kernel) hp 74 (by decide) hcode hpc rfl (x + 4 * j)
-    (by rw [h10, se_zero, BitVec.add_zero]) (by omega) (by omega)
-  obtain ⟨s2, e2, p2, m2, r2⟩ := loadStep (prog := kernel) hp 75 (by decide) (by rw [m1]; exact hcode) p1 rfl
-    (y + 4 * j) (by rw [r1 11]; regsimp; rw [se_zero, BitVec.add_zero, h11]) (by omega) (by omega)
-  have c2 : CodeAt s2.mem base kernel := by rw [m2, m1]; exact hcode
-  have l1 : run env 6 s2 = .running (s2.line [.op .and 28 28 13, .op .add 29 7 28, .op .sltu 30 29 28,
-      .op .add 29 29 5, .op .sltu 31 29 5, .op .add 5 30 31]) :=
-    run_line (prog := kernel) hp [.op .and 28 28 13, .op .add 29 7 28, .op .sltu 30 29 28,
-      .op .add 29 29 5, .op .sltu 31 29 5, .op .add 5 30 31] (by decide) 76 s2 (by decide) (by decide) c2 p2 (by decide)
-  generalize hs3 : s2.line [.op .and 28 28 13, .op .add 29 7 28, .op .sltu 30 29 28,
-    .op .add 29 29 5, .op .sltu 31 29 5, .op .add 5 30 31] = s3 at l1
-  have p3 : s3.pc = base + BitVec.ofNat 32 (4 * 82) := by
-    rw [← hs3, line_pc_at _ p2 (by decide)]; rfl
-  have m3 : s3.mem = s2.mem := by rw [← hs3, line_mem]
-  have r3 : ∀ r, s3.reg r = (s2.line [.op .and 28 28 13, .op .add 29 7 28, .op .sltu 30 29 28,
-    .op .add 29 29 5, .op .sltu 31 29 5, .op .add 5 30 31]).reg r := by rw [hs3]; intro r; rfl
-  have r3_12 : s3.reg 12 = s.reg 12 := by
-    rw [r3]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
-    rw [r2 12]; regsimp; rw [r1 12]; regsimp
-  have v29 : s3.reg 29 = (BitVec.ofNat 32 (wordAt s.mem base (x + 4 * j))
-      + (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13)) + s.reg 5 := by
-    rw [r3]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
-    rw [r2 7, r2 28, r2 13, r2 5]; regsimp; rw [r1 7, r1 13, r1 5]; regsimp; rw [m1]; rfl
-  have v5 : s3.reg 5 = lt1 (BitVec.ofNat 32 (wordAt s.mem base (x + 4 * j))
-              + (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13))
-            (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13)
-          + lt1 ((BitVec.ofNat 32 (wordAt s.mem base (x + 4 * j))
-              + (BitVec.ofNat 32 (wordAt s.mem base (y + 4 * j)) &&& s.reg 13)) + s.reg 5) (s.reg 5) := by
-    rw [r3]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
-    rw [r2 7, r2 28, r2 13, r2 5]; regsimp; rw [r1 7, r1 13, r1 5]; regsimp; rw [m1]; rfl
-  obtain ⟨s4, e4, p4, m4, r4⟩ := storeStep (prog := kernel) hp 82 (by decide)
-    (by rw [m3, m2, m1]; exact hcode) p3 rfl (z + 4 * j)
-    (by rw [r3_12, h12, se_zero, BitVec.add_zero]) (by omega) (by omega)
-  have c4 : CodeAt s4.mem base kernel := by
-    rw [m4, m3, m2, m1]
-    exact Kept.code hfit (Kept.write hfit (Kept.refl _ _ (z + 4 * j) (z + 4 * j + 4)) _ (Nat.le_refl _) (Nat.le_refl _)
-      (by omega)) (by rw [kernel_length]; omega) (by decide) hcode
-  have l2 : run env 4 s4 = .running (s4.line [.opi .addi 10 10 0x4, .opi .addi 11 11 0x4, .opi .addi 12 12 0x4,
-      .opi .addi 6 6 0xfff]) :=
-    run_line (prog := kernel) hp [.opi .addi 10 10 0x4, .opi .addi 11 11 0x4, .opi .addi 12 12 0x4,
-      .opi .addi 6 6 0xfff] (by decide) 83 s4 (by decide) (by decide) c4 p4 (by decide)
-  generalize hs5 : s4.line [.opi .addi 10 10 0x4, .opi .addi 11 11 0x4, .opi .addi 12 12 0x4,
-    .opi .addi 6 6 0xfff] = s5 at l2
-  have p5 : s5.pc = base + BitVec.ofNat 32 (4 * 87) := by rw [← hs5, line_pc_at _ p4 (by decide)]; rfl
-  have m5 : s5.mem = s4.mem := by rw [← hs5, line_mem]
-  have r5 : ∀ r, s5.reg r = (s4.line [.opi .addi 10 10 0x4, .opi .addi 11 11 0x4, .opi .addi 12 12 0x4,
-    .opi .addi 6 6 0xfff]).reg r := by rw [hs5]; intro r; rfl
-  have back : ∀ r : Reg, r ∉ [5, 7, 28, 29, 30, 31] → s4.reg r = s.reg r := by
-    intro r hr
-    have n : ∀ q : Reg, q ∈ [5, 7, 28, 29, 30, 31] → ¬ r = q := fun q hq h => hr (h ▸ hq)
-    have e2 : s2.reg r = s.reg r := by
-      rw [r2 r, r1 r, if_neg (fun h => n 28 (by decide) h.1), if_neg (fun h => n 7 (by decide) h.1)]
-    rw [r4, r3]
-    simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR, false_and, ↓reduceIte,
-      n 5 (by decide), n 28 (by decide), n 29 (by decide), n 30 (by decide), n 31 (by decide), e2]
-  have v6 : s5.reg 6 = BitVec.ofNat 32 (8 - (j + 1)) := by
-    rw [r5]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
-    rw [back 6 (by decide), h6, count_step j hj]
-  obtain ⟨s6, e6, p6, m6, r6⟩ := brStep (prog := kernel) hp 87 (by decide)
-    (by rw [m5]; exact c4) p5 rfl (k' := 74) (by jump)
-  refine ⟨s6, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [show 14 = 1 + (1 + (6 + (1 + (4 + 1)))) by rfl, run_add_running e1, run_add_running e2,
-      run_add_running l1, run_add_running e4, run_add_running l2, e6]
-  · rw [p6, v6, reg_zero]
-    simp only [taken]
-    have hc := count_zero j hj
-    by_cases h : j + 1 < 8
-    · simp only [hc, h, decide_true, ↓reduceIte]; rfl
-    · simp only [hc, h, decide_false, ↓reduceIte, Bool.false_eq_true]; rfl
-  · rw [m6, m5, m4, m3, m2, m1, v29]
-  · have k5 : s5.reg 5 = s4.reg 5 := by
-      rw [r5]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
-    rw [r6, k5, r4, v5]
-  · rw [r6, r5]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
-    rw [back 10 (by decide), h10, ptr_step hfit _ (by omega)]; congr 2 <;> omega
-  · rw [r6, r5]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
-    rw [back 11 (by decide), h11, ptr_step hfit _ (by omega)]; congr 2 <;> omega
-  · rw [r6, r5]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
-    rw [back 12 (by decide), h12, ptr_step hfit _ (by omega)]; congr 2 <;> omega
-  · rw [r6, v6]
-  · intro r hr
-    have n : ∀ q : Reg, q ∈ [5, 6, 7, 10, 11, 12, 28, 29, 30, 31] → ¬ r = q := fun q hq h => hr (h ▸ hq)
-    rw [r6, r5]
-    simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI, false_and, ↓reduceIte,
-      n 6 (by decide), n 10 (by decide), n 11 (by decide), n 12 (by decide)]
-    exact back r (fun h => by simp at h; rcases h with h | h | h | h | h | h <;> exact n _ (by subst h; decide) rfl)
-
 /-- A register outside a list is outside every list of its members. -/
 theorem not_mem_of {r : Reg} {L L' : List Reg} (h : r ∉ L) (hs : L'.all (· ∈ L) = true) : r ∉ L' :=
   fun h' => h (by have := List.all_eq_true.1 hs r h'; simpa using this)
@@ -419,23 +625,70 @@ theorem line_reg_congr {s s' : Machine} (h : ∀ r, s.reg r = s'.reg r) (blk : L
 def loaded (s : Machine) (X Y : Nat) : Machine :=
   (s.setReg 7 (BitVec.ofNat 32 X)).setReg 28 (BitVec.ofNat 32 Y)
 
+/-- What instruction `L + i` is, from a stretch of the kernel. -/
+theorem getD_slice {prog code : List Instr} {L n : Nat} (h : (prog.drop L).take n = code) {i : Nat}
+    (hi : i < n) : prog.getD (L + i) .ecall = code.getD i .ecall := by
+  rw [← h]; simp [List.getD_eq_getElem?_getD, List.getElem?_take, hi, List.getElem?_drop]
+
+/-- A stretch inside a stretch. -/
+theorem slice_sub {prog code : List Instr} {L n : Nat} (h : (prog.drop L).take n = code) (i m : Nat)
+    (h' : i + m ≤ n) : (prog.drop (L + i)).take m = (code.drop i).take m := by
+  rw [← h, List.drop_take, List.take_take, List.drop_drop, Nat.min_eq_left (by omega)]
+
+/-- A three-pointer loop: `lw t2, 0(a0); lw t3, 0(a1)`, a straight line `blk`,
+`sw rv, 0(a2)`, the three pointers on a word and the counter t1 down one, and
+`bne t1, zero` back to the top. -/
+def loopCode (blk : List Instr) (rv : Reg) (off : BitVec 12) : List Instr :=
+  .ld .lw 7 10 0x0 :: .ld .lw 28 11 0x0 :: (blk ++
+    [.st .sw 12 rv 0x0, .opi .addi 10 10 0x4, .opi .addi 11 11 0x4, .opi .addi 12 12 0x4,
+      .opi .addi 6 6 0xfff, .br .bne 6 0 off])
+
+/-- Such a loop is at instruction `L`, its branch back to `L`. -/
+def LoopAt (L : Nat) (blk : List Instr) (rv : Reg) : Prop :=
+  ∃ off : BitVec 12, (kernel.drop L).take (blk.length + 8) = loopCode blk rv off
+    ∧ BitVec.ofNat 32 (4 * (L + 7 + blk.length)) + (off ++ 0#1).signExtend 32 = BitVec.ofNat 32 (4 * L)
+    ∧ L + 8 + blk.length ≤ 458
+
+theorem LoopAt.facts {L : Nat} {blk : List Instr} {rv : Reg} (h : LoopAt L blk rv) :
+    ∃ off : BitVec 12, kernel.getD L .ecall = .ld .lw 7 10 0x0
+      ∧ kernel.getD (L + 1) .ecall = .ld .lw 28 11 0x0
+      ∧ (kernel.drop (L + 2)).take blk.length = blk
+      ∧ kernel.getD (L + 2 + blk.length) .ecall = .st .sw 12 rv 0x0
+      ∧ (kernel.drop (L + 3 + blk.length)).take 4
+          = [.opi .addi 10 10 0x4, .opi .addi 11 11 0x4, .opi .addi 12 12 0x4, .opi .addi 6 6 0xfff]
+      ∧ kernel.getD (L + 7 + blk.length) .ecall = .br .bne 6 0 off
+      ∧ BitVec.ofNat 32 (4 * (L + 7 + blk.length)) + (off ++ 0#1).signExtend 32 = BitVec.ofNat 32 (4 * L)
+      ∧ L + 8 + blk.length ≤ 458 := by
+  obtain ⟨off, hc, hoff, hk⟩ := h
+  have g := fun i (hi : i < blk.length + 8) => getD_slice hc hi
+  refine ⟨off, ?_, ?_, ?_, ?_, ?_, ?_, hoff, hk⟩
+  · simpa [loopCode] using g 0 (by omega)
+  · simpa [loopCode] using g 1 (by omega)
+  · rw [slice_sub hc 2 blk.length (by omega)]; simp [loopCode]
+  · rw [show L + 2 + blk.length = L + (blk.length + 2) by omega, g _ (by omega)]
+    simp only [loopCode, List.getD_eq_getElem?_getD, List.getElem?_cons_succ,
+      List.getElem?_append_right (Nat.le_refl _), Nat.sub_self]
+    rfl
+  · rw [show L + 3 + blk.length = L + (blk.length + 1 + 2) by omega, slice_sub hc _ 4 (by omega)]
+    simp only [loopCode, List.drop_succ_cons, List.drop_zero]
+    rw [List.drop_append, List.drop_eq_nil_of_le (by omega),
+      show blk.length + 1 - blk.length = 1 by omega]
+    rfl
+  · rw [show L + 7 + blk.length = L + (blk.length + 5 + 2) by omega, g _ (by omega)]
+    simp only [loopCode, List.getD_eq_getElem?_getD, List.getElem?_cons_succ,
+      List.getElem?_append_right (Nat.le_add_right _ _), Nat.add_sub_cancel_left]
+    rfl
+
 /-- **One word of a three-pointer loop**: `lw t2, 0(a0); lw t3, 0(a1)`, a straight
 line `blk` of register instructions, `sw rv, 0(a2)`, the three pointers on a word
 and the counter down one, and back to `L` unless that was the last. ADDM, SUBN,
 SEL and FOLD are each one of these. -/
-theorem word_body (hp : Placed env base) {L : Nat} {blk : List Instr} {rv : Reg} {off : BitVec 12}
-    (i0 : kernel.getD L .ecall = .ld .lw 7 10 0x0) (i1 : kernel.getD (L + 1) .ecall = .ld .lw 28 11 0x0)
-    (iblk : (kernel.drop (L + 2)).take blk.length = blk) (halu : blk.all isAlu = true)
-    (isw : kernel.getD (L + 2 + blk.length) .ecall = .st .sw 12 rv 0x0)
-    (ip : (kernel.drop (L + 3 + blk.length)).take 4
-      = [.opi .addi 10 10 0x4, .opi .addi 11 11 0x4, .opi .addi 12 12 0x4, .opi .addi 6 6 0xfff])
-    (ibr : kernel.getD (L + 7 + blk.length) .ecall = .br .bne 6 0 off)
-    (hoff : BitVec.ofNat 32 (4 * (L + 7 + blk.length)) + (off ++ 0#1).signExtend 32 = BitVec.ofNat 32 (4 * L))
-    (hk : L + 8 + blk.length ≤ 190)
+theorem word_body (hp : Placed env base) {L : Nat} {blk : List Instr} {rv : Reg}
+    (hL : LoopAt L blk rv) (halu : blk.all isAlu = true)
     (hw : ∀ i ∈ blk, rdOf i ≠ some 6 ∧ rdOf i ≠ some 10 ∧ rdOf i ≠ some 11 ∧ rdOf i ≠ some 12)
     {x y z j : Nat} {s : Machine} (hj : j < 8)
     (hx : x + 32 < 0x10000) (hy : y + 32 < 0x10000) (hz : z + 32 < 0x10000)
-    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 760 ≤ z)
+    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 1832 ≤ z)
     (hpc : s.pc = base + BitVec.ofNat 32 (4 * L)) (hcode : CodeAt s.mem base kernel)
     (h10 : s.reg 10 = base + BitVec.ofNat 32 (x + 4 * j))
     (h11 : s.reg 11 = base + BitVec.ofNat 32 (y + 4 * j))
@@ -452,6 +705,7 @@ theorem word_body (hp : Placed env base) {L : Nat} {blk : List Instr} {rv : Reg}
       ∧ ∀ r : Reg, r ∉ [6, 10, 11, 12] →
           s'.reg r = ((loaded s (wordAt s.mem base (x + 4 * j)) (wordAt s.mem base (y + 4 * j))).line blk).reg r := by
   have hfit := hp.fit
+  obtain ⟨off, i0, i1, iblk, isw, ip, ibr, hoff, hk⟩ := hL.facts
   have hlen : 4 * kernel.length < 0x10000 := by decide
   obtain ⟨s1, e1, p1, m1, r1⟩ := loadStep (prog := kernel) hp L (by rw [kernel_length]; omega) hcode hpc i0
     (x + 4 * j) (by rw [h10, se_zero, BitVec.add_zero]) (by omega) (by omega)
@@ -549,15 +803,15 @@ theorem subn_regs (s : Machine) (X Y : Nat) :
 
 /-- **SUBN's loop**: after `j` words, `Z`'s first `j` and `Y`'s are `X`'s and the
 borrow, at the next word's weight; the rest of memory is as it was. -/
-theorem subn_loop (hp : Placed env base) {x y z : Nat} {m0 : Word → Byte} {s : Machine}
+theorem subn_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L subnLine 29) {x y z : Nat} {m0 : Word → Byte} {s : Machine}
     (hx : x + 32 < 0x10000) (hy : y + 32 < 0x10000) (hz : z + 32 < 0x10000)
-    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 760 ≤ z)
+    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 1832 ≤ z)
     (hxz : x + 32 ≤ z ∨ z + 32 ≤ x) (hyz : y + 32 ≤ z ∨ z + 32 ≤ y)
-    (hpc : s.pc = base + BitVec.ofNat 32 (4 * SUBN_L)) (hcode : CodeAt m0 base kernel) (hm : s.mem = m0)
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * L)) (hcode : CodeAt m0 base kernel) (hm : s.mem = m0)
     (h10 : s.reg 10 = base + BitVec.ofNat 32 x) (h11 : s.reg 11 = base + BitVec.ofNat 32 y)
     (h12 : s.reg 12 = base + BitVec.ofNat 32 z) (h6 : s.reg 6 = BitVec.ofNat 32 8) (h5 : s.reg 5 = 0) :
     ∀ j ≤ 8, ∃ s', run env (13 * j) s = .running s'
-      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (if j < 8 then SUBN_L else SUBN_L + 13))
+      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (if j < 8 then L else L + 13))
       ∧ s'.reg 10 = base + BitVec.ofNat 32 (x + 4 * j)
       ∧ s'.reg 11 = base + BitVec.ofNat 32 (y + 4 * j)
       ∧ s'.reg 12 = base + BitVec.ofNat 32 (z + 4 * j)
@@ -578,8 +832,7 @@ theorem subn_loop (hp : Placed env base) {x y z : Nat} {m0 : Word → Byte} {s :
     have hj' : j < 8 := by omega
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
-    obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (L := SUBN_L) (blk := subnLine) (rv := 29)
-      (off := 0xfe8) hp rfl rfl (by decide) (by decide) rfl (by decide) rfl (by jump) (by decide) (by decide)
+    obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := subnLine) (rv := 29) hp hL (by decide) (by decide)
       hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
     have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) := kp1.word hfit (by omega) (by omega)
     have wy : wordAt s1.mem base (y + 4 * j) = wordAt m0 base (y + 4 * j) := kp1.word hfit (by omega) (by omega)
@@ -614,23 +867,43 @@ theorem and_mask (w : Word) (k : Bool) : (w &&& mask k).toNat = if k then w.toNa
   · simp [mask]
   · simp only [mask, ite_true, BitVec.and_allOnes]
 
+/-- ADDM's straight line. -/
+def addmLine : List Instr :=
+  [.op .and 28 28 13, .op .add 29 7 28, .op .sltu 30 29 28, .op .add 29 29 5, .op .sltu 31 29 5, .op .add 5 30 31]
+
+theorem addm_regs (s : Machine) (X Y : Nat) :
+    ((loaded s X Y).line addmLine).reg 29
+      = (BitVec.ofNat 32 X + (BitVec.ofNat 32 Y &&& s.reg 13)) + s.reg 5
+    ∧ ((loaded s X Y).line addmLine).reg 5
+        = lt1 (BitVec.ofNat 32 X + (BitVec.ofNat 32 Y &&& s.reg 13)) (BitVec.ofNat 32 Y &&& s.reg 13)
+          + lt1 ((BitVec.ofNat 32 X + (BitVec.ofNat 32 Y &&& s.reg 13)) + s.reg 5) (s.reg 5)
+    ∧ ∀ r : Reg, r ∉ [5, 7, 28, 29, 30, 31] → ((loaded s X Y).line addmLine).reg r = s.reg r := by
+  refine ⟨?_, ?_, ?_⟩
+  · simp only [addmLine, loaded, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
+  · simp only [addmLine, loaded, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR]; regsimp
+  · intro r hr
+    have n : ∀ q : Reg, q ∈ [5, 7, 28, 29, 30, 31] → ¬ r = q := fun q hq h => hr (h ▸ hq)
+    simp only [addmLine, loaded, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluR, false_and,
+      ↓reduceIte, n 5 (by decide), n 7 (by decide), n 28 (by decide), n 29 (by decide), n 30 (by decide),
+      n 31 (by decide)]
+
 /-- **ADDM's loop**: after `j` words, `Z`'s first `j` and the carry are `X`'s first
 `j` plus, under the mask, `Y`'s; the rest of memory is as it was. -/
-theorem addm_loop (hp : Placed env base) {x y z : Nat} {k : Bool} {m0 : Word → Byte} {s : Machine}
+theorem addm_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L addmLine 29) {x y z : Nat} {k : Bool}
+    {m0 : Word → Byte} {s : Machine}
     (hx : x + 32 < 0x10000) (hy : y + 32 < 0x10000) (hz : z + 32 < 0x10000)
-    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 760 ≤ z)
+    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 1832 ≤ z)
     (hxz : x + 32 ≤ z ∨ z + 32 ≤ x) (hyz : y + 32 ≤ z ∨ z + 32 ≤ y)
-    (hpc : s.pc = base + BitVec.ofNat 32 (4 * ADDM_L)) (hcode : CodeAt m0 base kernel) (hm : s.mem = m0)
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * L)) (hcode : CodeAt m0 base kernel) (hm : s.mem = m0)
     (h10 : s.reg 10 = base + BitVec.ofNat 32 x) (h11 : s.reg 11 = base + BitVec.ofNat 32 y)
     (h12 : s.reg 12 = base + BitVec.ofNat 32 z) (h6 : s.reg 6 = BitVec.ofNat 32 8)
     (h5 : s.reg 5 = 0) (h13 : s.reg 13 = mask k) :
     ∀ j ≤ 8, ∃ s', run env (14 * j) s = .running s'
-      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (if j < 8 then ADDM_L else ADDM_L + 14))
+      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (if j < 8 then L else L + 14))
       ∧ s'.reg 10 = base + BitVec.ofNat 32 (x + 4 * j)
       ∧ s'.reg 11 = base + BitVec.ofNat 32 (y + 4 * j)
       ∧ s'.reg 12 = base + BitVec.ofNat 32 (z + 4 * j)
       ∧ s'.reg 6 = BitVec.ofNat 32 (8 - j)
-      ∧ s'.reg 13 = mask k
       ∧ (s'.reg 5).toNat ≤ 1
       ∧ Kept m0 s'.mem base z (z + 32)
       ∧ numAt s'.mem base z j + (s'.reg 5).toNat * 2 ^ (32 * j)
@@ -641,25 +914,31 @@ theorem addm_loop (hp : Placed env base) {x y z : Nat} {k : Bool} {m0 : Word →
   induction j with
   | zero =>
     refine ⟨s, rfl, by simpa using hpc, by simpa using h10, by simpa using h11, by simpa using h12,
-      by simpa using h6, h13, by rw [h5]; decide, by rw [hm]; exact Kept.refl _ _ _ _, ?_, fun _ _ => rfl⟩
+      by simpa using h6, by rw [h5]; decide, by rw [hm]; exact Kept.refl _ _ _ _, ?_, fun _ _ => rfl⟩
     rw [h5]; cases k <;> simp [numAt]
   | succ j ih =>
-    obtain ⟨s1, e1, p1, a1, b1, c1, d1, g1, f1, kp1, n1, o1⟩ := ih (by omega)
+    obtain ⟨s1, e1, p1, a1, b1, c1, d1, f1, kp1, n1, o1⟩ := ih (by omega)
     have hj' : j < 8 := by omega
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
-    obtain ⟨s2, e2, p2, m2, v5, a2, b2, c2, d2, o2⟩ := addm_body hp (x := x) (y := y) (z := z) hj' hx hy hz
-      hx4 hy4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
-    -- what the loads read: X and Y as the shell left them
-    have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) :=
-      kp1.word hfit (by omega) (by omega)
-    have wy : wordAt s1.mem base (y + 4 * j) = wordAt m0 base (y + 4 * j) :=
-      kp1.word hfit (by omega) (by omega)
-    rw [wx, wy, g1] at m2 v5
+    obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := addmLine) (rv := 29) hp hL (by decide)
+      (by decide) hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
+    have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) := kp1.word hfit (by omega) (by omega)
+    have wy : wordAt s1.mem base (y + 4 * j) = wordAt m0 base (y + 4 * j) := kp1.word hfit (by omega) (by omega)
+    have g1 : s1.reg 13 = mask k := by rw [o1 13 (by decide), h13]
+    obtain ⟨v29, v5, vk⟩ := addm_regs s1 (wordAt s1.mem base (x + 4 * j)) (wordAt s1.mem base (y + 4 * j))
+    rw [wx, wy, g1] at v29 v5
+    rw [wx, wy] at vk m2 o2
     obtain ⟨sum, cb⟩ := add_word (BitVec.ofNat 32 (wordAt m0 base (x + 4 * j)))
       (BitVec.ofNat 32 (wordAt m0 base (y + 4 * j)) &&& mask k) (s1.reg 5) f1
-    refine ⟨s2, ?_, p2, a2, b2, c2, d2, by rw [o2 13 (by decide), g1], by rw [v5]; exact cb, ?_, ?_, ?_⟩
-    · rw [show 14 * (j + 1) = 14 * j + 14 by omega, run_add_running e1, e2]
+    have r5 : s2.reg 5 = lt1 (BitVec.ofNat 32 (wordAt m0 base (x + 4 * j))
+          + (BitVec.ofNat 32 (wordAt m0 base (y + 4 * j)) &&& mask k)) (BitVec.ofNat 32 (wordAt m0 base (y + 4 * j)) &&& mask k)
+        + lt1 ((BitVec.ofNat 32 (wordAt m0 base (x + 4 * j))
+          + (BitVec.ofNat 32 (wordAt m0 base (y + 4 * j)) &&& mask k)) + s1.reg 5) (s1.reg 5) := by
+      rw [o2 5 (by decide), v5]
+    refine ⟨s2, ?_, ?_, a2, b2, c2, d2, by rw [r5]; exact cb, ?_, ?_, ?_⟩
+    · rw [show 14 * (j + 1) = 14 * j + (addmLine.length + 8) by simp [addmLine]; omega, run_add_running e1, e2]
+    · rw [p2]; simp [addmLine]
     · rw [m2]; exact kp1.write hfit _ (by omega) (by omega) (by omega)
     · have hX : (BitVec.ofNat 32 (wordAt m0 base (x + 4 * j))).toNat = wordAt m0 base (x + 4 * j) := by
         rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (wordAt_lt _ _ _)
@@ -667,7 +946,7 @@ theorem addm_loop (hp : Placed env base) {x y z : Nat} {k : Bool} {m0 : Word →
           = if k then wordAt m0 base (y + 4 * j) else 0 := by
         rw [and_mask, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (wordAt_lt _ _ _)]
       rw [hX, hY] at sum
-      rw [m2, numAt_write_next hfit _ _ (BitVec.isLt _) (by omega), v5,
+      rw [m2, numAt_write_next hfit _ _ (BitVec.isLt _) (by omega), v29, r5,
         show 2 ^ (32 * (j + 1)) = 2 ^ 32 * 2 ^ (32 * j) by rw [show 32 * (j + 1) = 32 + 32 * j by omega, Nat.pow_add]]
       have step := carry_step (P := 2 ^ (32 * j)) n1 sum
       cases k
@@ -676,15 +955,50 @@ theorem addm_loop (hp : Placed env base) {x y z : Nat} {k : Bool} {m0 : Word →
       · simp only [↓reduceIte] at step ⊢
         simp only [numAt]; omega
     · intro r hr
-      rw [o2 r hr, o1 r hr]
+      rw [o2 r (not_mem_of hr (by decide)), vk r (not_mem_of hr (by decide)), o1 r hr]
 
 
 end Exp229
 
-#print axioms Exp229.addm_body
 #print axioms Exp229.addm_loop
 #print axioms Exp229.word_body
 #print axioms Exp229.subn_loop
+
+
+/-! ## Constant time
+
+The kernel through lean/Rv32/Ct.lean's checker: p and the operation are
+public, and nothing else is — a, b and everything made from them may differ
+between two runs. At each loop's head s1 is `base + PRIME`, the counter t1 is
+between 1 and 8, and each pointer is where it started plus four words for
+each round already run, which is a fixed offset less four times t1. -/
+
+namespace Exp229
+open Rv32 Rv32.Ct
+
+/-- Public: p and the operation word. -/
+def pub : List (Nat × Nat) := [(0x800, 0x904)]
+
+/-- A state where only the registers named are known, and the rest secret. -/
+def known (o : List (Nat × AV)) : AState :=
+  (List.range 32).map fun n => match o.find? (fun p => p.1 == n) with
+    | some (_, v) => v
+    | none => .sec
+
+def loopHead (x y z : Nat) : AState :=
+  known [(9, .ptr 0x800 0x800), (6, .num 1 8), (10, .aff 6 (-4) (x + 32)), (11, .aff 6 (-4) (y + 32)),
+    (12, .aff 6 (-4) (z + 32))]
+
+def heads : Heads :=
+  (OP_ADD, known [(9, .ptr 0x800 0x800)]) :: (OP_SUB, known [(9, .ptr 0x800 0x800)]) ::
+    loops.map fun (L, x, y, z) => (L, loopHead x y z)
+
+set_option maxRecDepth 100000 in
+theorem accepted : check kernel pub heads = true := by decide
+
+end Exp229
+
+#print axioms Exp229.accepted
 
 def main (args : List String) : IO Unit := do
   match args with

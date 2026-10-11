@@ -11,9 +11,15 @@ instruction number beside it, through tools/lean/kasm.py.
   kernel.py           rewrite the generated block in proof/Field.lean
   kernel.py --check   exit 1 if the block is not what this would write
 
-Each loop's body has one shape, so that one lemma runs each part: its loads,
-then register instructions only, then its store, then the pointers and the
-counter, then the branch back.
+Each loop's body has one shape, so that one lemma runs each part: its loads
+from a0 and a1, then register instructions only, then its store through a2,
+then the three pointers on a word and the counter t1 down one, then the branch
+back. Every loop is written out where it is used — there is no call and no
+return — because lean/Rv32/Ct.lean's checker takes no jal and no jalr, and so
+that each loop's pointers are a fixed offset plus a multiple of its own
+counter, which is what the checker can follow. For the same reason the
+schoolbook product's outer loop is written out eight times: a row's store
+pointer moves with both counters.
 
 No branch here depends on a number. Every loop runs a fixed count, and the
 one choice the arithmetic needs — subtract p or not — is made with a mask:
@@ -36,15 +42,17 @@ The layout of the 64 KiB region, from base (s1 holds base + 0x800, PRIME):
   0x0b40  D      x - p, eight words
   0x0b80  S      a + b, nine words
 
-Subroutines take pointers in a0, a1, a2 (and a mask in a3) and return through
-ra; they move the pointers they are given:
+The pieces, each written where it is used (a label marks its first
+instruction):
 
-  ADDM  Z = X + (Y & mask), eight words, the carry in Z[8]
+  ADDM  Z = X + (Y & a3), eight words, the carry in Z[8]
   SUBN  Z = X - Y, eight words, the borrow in t0
-  SEL   Z = mask ? X : D, eight words, a word at a time
-  MUL   T = A · B, sixteen words
+  SEL   Z = a3 ? X : Y, eight words, a word at a time
+  ZERO  Z = 0, eight words
+  ROW   T[i .. i+9) = T[i .. i+8) + A[i] · B
   FOLD  Y = L + H · (2^32 + 977), L and H eight words each, Y ten
-  HSET  V = [t0, t1, 0, 0, 0, 0, 0, 0]
+  HSET  V = [src[8], src[9], 0, 0, 0, 0, 0, 0]
+  CSUB  R = src or src - p, by mask: SUBN, the mask, SEL
 """
 import os
 import sys
@@ -75,49 +83,139 @@ def setk(rd, v):
     ins("opi", "addi", rd, "zero", v)
 
 
-def call(name):
-    ins("jal", "ra", name)
+LOOPS = []   # (label, x, y, z): each loop and where its three pointers start
 
 
-def ret():
-    ins("jalr", "zero", "ra", 0)
-
-
-def step(*regs):
-    """Each pointer on a word, the counter t1 down one, and round again."""
-    for r in regs:
+def rounds(name, line, rv, x, y, z):
+    K.label(name)
+    LOOPS.append((name, x, y, z))
+    ins("ld", "lw", "t2", "a0", 0)
+    ins("ld", "lw", "t3", "a1", 0)
+    for i in line:
+        ins(*i)
+    ins("st", "sw", "a2", rv, 0)
+    for r in ("a0", "a1", "a2"):
         ins("opi", "addi", r, r, 4)
     ins("opi", "addi", "t1", "t1", -1)
+    ins("br", "bne", "t1", "zero", name)
 
 
-def csub(src):
-    """R = src mod p, src nine words below 2p: subtract p, and keep src if it borrowed."""
-    at("a0", src)
-    at("a1", PRIME)
-    at("a2", D)
-    call("SUBN")                          # t0: did src[0..8) - p borrow
-    ins("ld", "lw", "t1", "s1", src + 32 - PRIME)
-    ins("op", "sltu", "t2", "t1", "t0")   # src < p  ⇔  src[8] < borrow
-    ins("op", "sub", "a3", "zero", "t2")  # all ones: keep src
-    at("a0", src)
-    at("a1", D)
-    at("a2", R)
-    call("SEL")
+ADDM_LINE = [("op", "and", "t3", "t3", "a3"), ("op", "add", "t4", "t2", "t3"), ("op", "sltu", "t5", "t4", "t3"),
+             ("op", "add", "t4", "t4", "t0"), ("op", "sltu", "t6", "t4", "t0"), ("op", "add", "t0", "t5", "t6")]
+SUBN_LINE = [("op", "sub", "t4", "t2", "t3"), ("op", "sltu", "t5", "t2", "t3"), ("op", "sltu", "t6", "t4", "t0"),
+             ("op", "sub", "t4", "t4", "t0"), ("op", "add", "t0", "t5", "t6")]
+SEL_LINE = [("op", "xor", "t4", "t2", "t3"), ("op", "and", "t4", "t4", "a3"), ("op", "xor", "t4", "t4", "t3")]
+ZERO_LINE = [("op", "sub", "t4", "t2", "t2")]
+ROW_LINE = [("op", "mul", "t5", "a4", "t2"), ("op", "mulhu", "t6", "a4", "t2"),
+            ("op", "add", "t4", "t3", "t5"), ("op", "sltu", "a5", "t4", "t5"),
+            ("op", "add", "t4", "t4", "t0"), ("op", "sltu", "a6", "t4", "t0"),
+            ("op", "add", "t0", "t6", "a5"), ("op", "add", "t0", "t0", "a6")]
+FOLD_LINE = [("op", "mul", "t4", "t3", "a4"), ("op", "mulhu", "t5", "t3", "a4"),
+             ("op", "add", "t6", "t2", "t4"), ("op", "sltu", "a5", "t6", "t4"),
+             ("op", "add", "t6", "t6", "a3"), ("op", "sltu", "a6", "t6", "a3"),
+             ("op", "add", "t6", "t6", "t0"), ("op", "sltu", "a7", "t6", "t0"),
+             ("op", "add", "t0", "t5", "a5"), ("op", "add", "t0", "t0", "a6"),
+             ("op", "add", "t0", "t0", "a7"), ("opi", "addi", "a3", "t3", 0)]
 
 
-def fold(lo, hi, out):
+def addm(name, x, y, z):
+    """Z = X + (Y & a3), the carry in Z[8]; a3 is set before."""
+    K.label(name)
+    at("a0", x)
+    at("a1", y)
+    at("a2", z)
+    setk("t0", 0)
+    setk("t1", 8)
+    rounds(name + "_L", ADDM_LINE, "t4", x, y, z)
+    ins("st", "sw", "a2", "t0", 0)
+
+
+def subn(name, x, y, z):
+    """Z = X - Y, the borrow in t0."""
+    K.label(name)
+    at("a0", x)
+    at("a1", y)
+    at("a2", z)
+    setk("t0", 0)
+    setk("t1", 8)
+    rounds(name + "_L", SUBN_LINE, "t4", x, y, z)
+
+
+def sel(name, x, y, z):
+    """Z = a3 ? X : Y, a word at a time: y ^ ((x ^ y) & a3)."""
+    K.label(name)
+    at("a0", x)
+    at("a1", y)
+    at("a2", z)
+    setk("t1", 8)
+    rounds(name + "_L", SEL_LINE, "t4", x, y, z)
+
+
+def zero(name, z):
+    """Z = 0, eight words: each word less itself."""
+    K.label(name)
+    at("a0", z)
+    at("a1", z)
+    at("a2", z)
+    setk("t1", 8)
+    rounds(name + "_L", ZERO_LINE, "t4", z, z, z)
+
+
+def row(name, i):
+    """T[i .. i+9) = T[i .. i+8) + A[i] · B: the carry chain of one row."""
+    K.label(name)
+    at("a0", B)
+    at("a1", T + 4 * i)
+    at("a2", T + 4 * i)
+    ins("ld", "lw", "a4", "s1", A + 4 * i - PRIME)
+    setk("t0", 0)
+    setk("t1", 8)
+    rounds(name + "_L", ROW_LINE, "t4", B, T + 4 * i, T + 4 * i)
+    ins("st", "sw", "a2", "t0", 0)
+
+
+def fold(name, lo, hi, out):
+    """OUT = L + H·977 + H·2^32, ten words."""
+    K.label(name)
     at("a0", lo)
     at("a1", hi)
     at("a2", out)
-    call("FOLD")
+    setk("t0", 0)                         # carry
+    setk("a3", 0)                         # H[i - 1]
+    setk("a4", 977)
+    setk("t1", 8)
+    rounds(name + "_L", FOLD_LINE, "t6", lo, hi, out)
+    ins("op", "add", "t6", "a3", "t0")    # OUT[8] = H[7] + carry
+    ins("op", "sltu", "t5", "t6", "a3")   # OUT[9]
+    ins("st", "sw", "a2", "t6", 0)
+    ins("st", "sw", "a2", "t5", 4)
 
 
-def hset_from(src):
+def hset(name, src):
     """V = [src[8], src[9], 0, 0, 0, 0, 0, 0]."""
+    K.label(name)
     ins("ld", "lw", "t0", "s1", src + 32 - PRIME)
     ins("ld", "lw", "t1", "s1", src + 36 - PRIME)
-    at("a0", V)
-    call("HSET")
+    ins("st", "sw", "s1", "t0", V - PRIME)
+    ins("st", "sw", "s1", "t1", V + 4 - PRIME)
+    for k in range(2, 8):
+        ins("st", "sw", "s1", "zero", V + 4 * k - PRIME)
+
+
+def csub(name, src):
+    """R = src mod p, src nine words below 2p: subtract p, and keep src if it borrowed."""
+    subn(name, src, PRIME, D)             # t0: did src[0..8) - p borrow
+    ins("ld", "lw", "t1", "s1", src + 32 - PRIME)
+    ins("op", "sltu", "t2", "t1", "t0")   # src < p  ⇔  src[8] < borrow
+    ins("op", "sub", "a3", "zero", "t2")  # all ones: keep src
+    sel(name + "_SEL", src, D, R)
+
+
+def halt(name):
+    K.label(name)
+    setk("a0", 0)
+    setk("t0", 1)
+    ins("ecall")
 
 
 def field_kernel():
@@ -131,167 +229,28 @@ def field_kernel():
     ins("br", "beq", "t0", "t1", "OP_SUB")
 
     K.label("OP_MUL")
-    at("a0", A)
-    at("a1", B)
-    at("a2", T)
-    call("MUL")
-    fold(T, T + 32, U)
-    hset_from(U)
-    fold(U, V, W)
-    hset_from(W)
-    fold(W, V, X)
-    csub(X)
-    ins("jal", "zero", "HALT")
+    zero("M_ZERO", T)
+    for i in range(8):
+        row(f"M_ROW{i}", i)
+    fold("M_FOLD1", T, T + 32, U)
+    hset("M_HSET1", U)
+    fold("M_FOLD2", U, V, W)
+    hset("M_HSET2", W)
+    fold("M_FOLD3", W, V, X)
+    csub("M_CSUB", X)
+    halt("M_HALT")
 
     K.label("OP_ADD")
-    at("a0", A)
-    at("a1", B)
-    at("a2", S)
     setk("a3", -1)
-    call("ADDM")
-    csub(S)
-    ins("jal", "zero", "HALT")
+    addm("A_ADDM", A, B, S)
+    csub("A_CSUB", S)
+    halt("A_HALT")
 
     K.label("OP_SUB")
-    at("a0", A)
-    at("a1", B)
-    at("a2", D)
-    call("SUBN")
+    subn("S_SUBN", A, B, D)
     ins("op", "sub", "a3", "zero", "t0")  # borrowed: add p back
-    at("a0", D)
-    at("a1", PRIME)
-    at("a2", R)
-    call("ADDM")
-
-    K.label("HALT")
-    setk("a0", 0)
-    setk("t0", 1)
-    ins("ecall")
-
-    # ---- ADDM: Z = X + (Y & a3), carry in Z[8] ----------------------------------
-    K.label("ADDM")
-    setk("t0", 0)
-    setk("t1", 8)
-    K.label("ADDM_L")
-    ins("ld", "lw", "t2", "a0", 0)
-    ins("ld", "lw", "t3", "a1", 0)
-    ins("op", "and", "t3", "t3", "a3")
-    ins("op", "add", "t4", "t2", "t3")
-    ins("op", "sltu", "t5", "t4", "t3")
-    ins("op", "add", "t4", "t4", "t0")
-    ins("op", "sltu", "t6", "t4", "t0")
-    ins("op", "add", "t0", "t5", "t6")
-    ins("st", "sw", "a2", "t4", 0)
-    step("a0", "a1", "a2")
-    ins("br", "bne", "t1", "zero", "ADDM_L")
-    ins("st", "sw", "a2", "t0", 0)
-    ret()
-
-    # ---- SUBN: Z = X - Y, borrow in t0 --------------------------------------------
-    K.label("SUBN")
-    setk("t0", 0)
-    setk("t1", 8)
-    K.label("SUBN_L")
-    ins("ld", "lw", "t2", "a0", 0)
-    ins("ld", "lw", "t3", "a1", 0)
-    ins("op", "sub", "t4", "t2", "t3")
-    ins("op", "sltu", "t5", "t2", "t3")
-    ins("op", "sltu", "t6", "t4", "t0")
-    ins("op", "sub", "t4", "t4", "t0")
-    ins("op", "add", "t0", "t5", "t6")
-    ins("st", "sw", "a2", "t4", 0)
-    step("a0", "a1", "a2")
-    ins("br", "bne", "t1", "zero", "SUBN_L")
-    ret()
-
-    # ---- SEL: Z = D ^ ((D ^ X) & a3) ---------------------------------------------
-    K.label("SEL")
-    setk("t1", 8)
-    K.label("SEL_L")
-    ins("ld", "lw", "t2", "a0", 0)
-    ins("ld", "lw", "t3", "a1", 0)
-    ins("op", "xor", "t4", "t2", "t3")
-    ins("op", "and", "t4", "t4", "a3")
-    ins("op", "xor", "t4", "t4", "t3")
-    ins("st", "sw", "a2", "t4", 0)
-    step("a0", "a1", "a2")
-    ins("br", "bne", "t1", "zero", "SEL_L")
-    ret()
-
-    # ---- MUL: T = A · B, sixteen words --------------------------------------------
-    K.label("MUL")
-    mov("a4", "a2")
-    setk("t1", 16)
-    K.label("MUL_Z")
-    ins("st", "sw", "a4", "zero", 0)
-    ins("opi", "addi", "a4", "a4", 4)
-    ins("opi", "addi", "t1", "t1", -1)
-    ins("br", "bne", "t1", "zero", "MUL_Z")
-    setk("t1", 8)
-    K.label("MUL_O")
-    ins("ld", "lw", "t2", "a0", 0)        # a_i
-    setk("t0", 0)                         # carry
-    mov("a5", "a1")                       # b_j
-    mov("a4", "a2")                       # T[i + j]
-    setk("t3", 8)
-    K.label("MUL_I")
-    ins("ld", "lw", "t4", "a5", 0)        # b_j
-    ins("ld", "lw", "a6", "a4", 0)        # T[i + j]
-    ins("op", "mul", "t5", "t2", "t4")
-    ins("op", "mulhu", "t6", "t2", "t4")
-    ins("op", "add", "a6", "a6", "t5")
-    ins("op", "sltu", "a7", "a6", "t5")
-    ins("op", "add", "a6", "a6", "t0")
-    ins("op", "sltu", "a3", "a6", "t0")
-    ins("op", "add", "t0", "t6", "a7")
-    ins("op", "add", "t0", "t0", "a3")
-    ins("st", "sw", "a4", "a6", 0)
-    ins("opi", "addi", "a5", "a5", 4)
-    ins("opi", "addi", "a4", "a4", 4)
-    ins("opi", "addi", "t3", "t3", -1)
-    ins("br", "bne", "t3", "zero", "MUL_I")
-    ins("st", "sw", "a4", "t0", 0)        # T[i + 8]
-    step("a0", "a2")
-    ins("br", "bne", "t1", "zero", "MUL_O")
-    ret()
-
-    # ---- FOLD: Y = L + H·977 + H·2^32, ten words -----------------------------------
-    K.label("FOLD")
-    setk("t0", 0)                         # carry
-    setk("a3", 0)                         # H[i - 1]
-    setk("a4", 977)
-    setk("t1", 8)
-    K.label("FOLD_L")
-    ins("ld", "lw", "t2", "a0", 0)        # L[i]
-    ins("ld", "lw", "t3", "a1", 0)        # H[i]
-    ins("op", "mul", "t4", "t3", "a4")
-    ins("op", "mulhu", "t5", "t3", "a4")
-    ins("op", "add", "t6", "t2", "t4")
-    ins("op", "sltu", "a5", "t6", "t4")
-    ins("op", "add", "t6", "t6", "a3")
-    ins("op", "sltu", "a6", "t6", "a3")
-    ins("op", "add", "t6", "t6", "t0")
-    ins("op", "sltu", "a7", "t6", "t0")
-    ins("op", "add", "t0", "t5", "a5")
-    ins("op", "add", "t0", "t0", "a6")
-    ins("op", "add", "t0", "t0", "a7")
-    mov("a3", "t3")
-    ins("st", "sw", "a2", "t6", 0)
-    step("a0", "a1", "a2")
-    ins("br", "bne", "t1", "zero", "FOLD_L")
-    ins("op", "add", "t6", "a3", "t0")    # Y[8] = H[7] + carry
-    ins("op", "sltu", "t5", "t6", "a3")   # Y[9]
-    ins("st", "sw", "a2", "t6", 0)
-    ins("st", "sw", "a2", "t5", 4)
-    ret()
-
-    # ---- HSET: V = [t0, t1, 0 × 6] -------------------------------------------------
-    K.label("HSET")
-    ins("st", "sw", "a0", "t0", 0)
-    ins("st", "sw", "a0", "t1", 4)
-    for k in range(2, 8):
-        ins("st", "sw", "a0", "zero", 4 * k)
-    ret()
+    addm("S_ADDM", D, PRIME, R)
+    halt("S_HALT")
 
 
 def field_block():
@@ -306,6 +265,11 @@ def field_block():
     lines.append("def kernel : List Instr := [")
     for k, text in enumerate(code):
         lines.append(f"  {text}{',' if k + 1 < len(code) else ' ]'}")
+    lines.append("")
+    lines.append("/-- Each loop, and where a0, a1 and a2 start in it: offsets from base. -/")
+    lines.append("def loops : List (Nat × Nat × Nat × Nat) := [")
+    for k, (name, x, y, z) in enumerate(LOOPS):
+        lines.append(f"  ({name}, {x:#x}, {y:#x}, {z:#x}){',' if k + 1 < len(LOOPS) else ' ]'}")
     lines.append("")
     lines.append("-- END generated by kernel.py")
     return "\n".join(lines)
