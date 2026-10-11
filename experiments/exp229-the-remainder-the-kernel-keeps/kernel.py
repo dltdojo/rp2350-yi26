@@ -164,10 +164,10 @@ def zero(name, z):
 def row(name, i):
     """T[i .. i+9) = T[i .. i+8) + A[i] · B: the carry chain of one row."""
     K.label(name)
+    ins("ld", "lw", "a4", "s1", A + 4 * i - PRIME)
     at("a0", B)
     at("a1", T + 4 * i)
     at("a2", T + 4 * i)
-    ins("ld", "lw", "a4", "s1", A + 4 * i - PRIME)
     setk("t0", 0)
     setk("t1", 8)
     rounds(name + "_L", ROW_LINE, "t4", B, T + 4 * i, T + 4 * i)

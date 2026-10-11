@@ -102,10 +102,10 @@ def kernel : List Instr := [
   .opi .addi 12 12 0x4,
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xff0,
+  .ld .lw 14 9 0x104,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x200,
   .opi .addi 12 9 0x200,
-  .ld .lw 14 9 0x104,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -125,10 +125,10 @@ def kernel : List Instr := [
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xfe2,
   .st .sw 12 5 0x0,
+  .ld .lw 14 9 0x108,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x204,
   .opi .addi 12 9 0x204,
-  .ld .lw 14 9 0x108,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -148,10 +148,10 @@ def kernel : List Instr := [
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xfe2,
   .st .sw 12 5 0x0,
+  .ld .lw 14 9 0x10c,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x208,
   .opi .addi 12 9 0x208,
-  .ld .lw 14 9 0x10c,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -171,10 +171,10 @@ def kernel : List Instr := [
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xfe2,
   .st .sw 12 5 0x0,
+  .ld .lw 14 9 0x110,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x20c,
   .opi .addi 12 9 0x20c,
-  .ld .lw 14 9 0x110,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -194,10 +194,10 @@ def kernel : List Instr := [
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xfe2,
   .st .sw 12 5 0x0,
+  .ld .lw 14 9 0x114,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x210,
   .opi .addi 12 9 0x210,
-  .ld .lw 14 9 0x114,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -217,10 +217,10 @@ def kernel : List Instr := [
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xfe2,
   .st .sw 12 5 0x0,
+  .ld .lw 14 9 0x118,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x214,
   .opi .addi 12 9 0x214,
-  .ld .lw 14 9 0x118,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -240,10 +240,10 @@ def kernel : List Instr := [
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xfe2,
   .st .sw 12 5 0x0,
+  .ld .lw 14 9 0x11c,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x218,
   .opi .addi 12 9 0x218,
-  .ld .lw 14 9 0x11c,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -263,10 +263,10 @@ def kernel : List Instr := [
   .opi .addi 6 6 0xfff,
   .br .bne 6 0 0xfe2,
   .st .sw 12 5 0x0,
+  .ld .lw 14 9 0x120,
   .opi .addi 10 9 0x124,
   .opi .addi 11 9 0x21c,
   .opi .addi 12 9 0x21c,
-  .ld .lw 14 9 0x120,
   .opi .addi 5 0 0x0,
   .opi .addi 6 0 0x8,
   .ld .lw 7 10 0x0,
@@ -1276,6 +1276,128 @@ theorem fold_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L foldLine 31) {
       omega
     · intro r hr
       rw [o2 r (not_mem_of hr (by decide)), vk r (not_mem_of hr (by decide)), o1 r hr]
+
+/-! ## Each piece, from its first instruction -/
+
+/-- `addi rd, s1, x - PRIME`: `rd = base + x`. -/
+def atI (rd : Reg) (x : Nat) : Instr := .opi .addi rd 9 (BitVec.ofNat 12 (x - 0x800))
+
+/-- a0, a1, a2 at `x`, `y`, `z`. -/
+def ptrs (x y z : Nat) : List Instr := [atI 10 x, atI 11 y, atI 12 z]
+
+theorem at_val (hp : Placed env base) {w : Word} (h9 : w = base + BitVec.ofNat 32 0x800) {x : Nat}
+    (h1 : 0x800 ≤ x) (h2 : x < 0x1000) :
+    w + (BitVec.ofNat 12 (x - 0x800)).signExtend 32 = base + BitVec.ofNat 32 x := by
+  rw [h9, se_small _ (by omega), off_add hp.fit _ _ (by omega)]; congr 2; omega
+
+theorem setk_val (c : Nat) (hc : c < 2048) : (0 : Word) + (BitVec.ofNat 12 c).signExtend 32 = BitVec.ofNat 32 c := by
+  rw [se_small _ hc]; simp
+
+/-- Where the three pointers start, as a piece's first three instructions leave them. -/
+theorem ptrs_regs (hp : Placed env base) (s : Machine) (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800)
+    {x y z : Nat} (hx : 0x800 ≤ x ∧ x < 0x1000) (hy : 0x800 ≤ y ∧ y < 0x1000) (hz : 0x800 ≤ z ∧ z < 0x1000) :
+    (s.line (ptrs x y z)).reg 10 = base + BitVec.ofNat 32 x
+    ∧ (s.line (ptrs x y z)).reg 11 = base + BitVec.ofNat 32 y
+    ∧ (s.line (ptrs x y z)).reg 12 = base + BitVec.ofNat 32 z
+    ∧ ∀ r : Reg, r ∉ [10, 11, 12] → (s.line (ptrs x y z)).reg r = s.reg r := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · simp only [ptrs, atI, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
+    exact at_val hp h9 hx.1 hx.2
+  · simp only [ptrs, atI, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
+    exact at_val hp h9 hy.1 hy.2
+  · simp only [ptrs, atI, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
+    exact at_val hp h9 hz.1 hz.2
+  · intro r hr
+    have n : ∀ q : Reg, q ∈ [10, 11, 12] → ¬ r = q := fun q hq h => hr (h ▸ hq)
+    simp only [ptrs, atI, line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI, false_and,
+      ↓reduceIte, n 10 (by decide), n 11 (by decide), n 12 (by decide)]
+
+/-- `addi rd, zero, c`, one register set to a small number. -/
+theorem setk_regs (s : Machine) (rd : Reg) (c : Nat) (hc : c < 2048) (h0 : rd ≠ 0) :
+    (s.line [.opi .addi rd 0 (BitVec.ofNat 12 c)]).reg rd = BitVec.ofNat 32 c
+    ∧ ∀ r : Reg, r ≠ rd → (s.line [.opi .addi rd 0 (BitVec.ofNat 12 c)]).reg r = s.reg r := by
+  refine ⟨?_, ?_⟩
+  · simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI, true_and]
+    rw [if_pos h0, reg_zero]
+    exact setk_val c hc
+  · intro r hr
+    simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI, hr, false_and, ↓reduceIte]
+
+/-- The pointers, t0 = 0 and t1 = 8: how ADDM, SUBN and a row begin. -/
+def pro5 (x y z : Nat) : List Instr := ptrs x y z ++ [.opi .addi 5 0 0x0, .opi .addi 6 0 0x8]
+
+theorem pro5_regs (hp : Placed env base) (s : Machine) (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800)
+    {x y z : Nat} (hx : 0x800 ≤ x ∧ x < 0x1000) (hy : 0x800 ≤ y ∧ y < 0x1000) (hz : 0x800 ≤ z ∧ z < 0x1000) :
+    (s.line (pro5 x y z)).reg 10 = base + BitVec.ofNat 32 x
+    ∧ (s.line (pro5 x y z)).reg 11 = base + BitVec.ofNat 32 y
+    ∧ (s.line (pro5 x y z)).reg 12 = base + BitVec.ofNat 32 z
+    ∧ (s.line (pro5 x y z)).reg 5 = 0
+    ∧ (s.line (pro5 x y z)).reg 6 = BitVec.ofNat 32 8
+    ∧ ∀ r : Reg, r ∉ [5, 6, 10, 11, 12] → (s.line (pro5 x y z)).reg r = s.reg r := by
+  obtain ⟨q10, q11, q12, qk⟩ := ptrs_regs hp s h9 hx hy hz
+  have e : pro5 x y z = ptrs x y z ++ [Instr.opi .addi 5 0 (BitVec.ofNat 12 0)]
+      ++ [.opi .addi 6 0 (BitVec.ofNat 12 8)] := rfl
+  rw [e, line_append, line_append]
+  obtain ⟨u5, uk⟩ := setk_regs (s.line (ptrs x y z)) 5 0 (by decide) (by decide)
+  obtain ⟨u6, vk⟩ := setk_regs ((s.line (ptrs x y z)).line [.opi .addi 5 0 (BitVec.ofNat 12 0)]) 6 8 (by decide)
+    (by decide)
+  refine ⟨?_, ?_, ?_, ?_, u6, ?_⟩
+  · rw [vk 10 (by decide), uk 10 (by decide), q10]
+  · rw [vk 11 (by decide), uk 11 (by decide), q11]
+  · rw [vk 12 (by decide), uk 12 (by decide), q12]
+  · rw [vk 5 (by decide), u5]; rfl
+  · intro r hr
+    have n : ∀ q : Reg, q ∈ [5, 6, 10, 11, 12] → ¬ r = q := fun q hq h => hr (h ▸ hq)
+    rw [vk r (n 6 (by decide)), uk r (n 5 (by decide)), qk r (not_mem_of hr (by decide))]
+
+/-- ADDM written at `M`: the pointers, t0 = 0, t1 = 8, the loop, and the carry stored. -/
+structure AddmAt (M x y z : Nat) : Prop where
+  pro : (kernel.drop M).take (pro5 x y z).length = pro5 x y z
+  loop : LoopAt (M + 5) addmLine 29
+  sw : kernel.getD (M + 19) .ecall = .st .sw 12 5 0x0
+  fits : M + 20 ≤ 458
+
+/-- **ADDM**: `Z`, nine words, is `X` plus `Y` under the mask in a3. -/
+theorem addm_run (hp : Placed env base) {M x y z : Nat} (hM : AddmAt M x y z) {k : Bool} {s : Machine}
+    (hx : 0x800 ≤ x ∧ x + 32 < 0x1000) (hy : 0x800 ≤ y ∧ y + 32 < 0x1000) (hz : 0x800 ≤ z ∧ z + 36 < 0x1000)
+    (hx4 : x % 4 = 0) (hy4 : y % 4 = 0) (hz4 : z % 4 = 0) (hzc : 1832 ≤ z)
+    (hxz : x + 32 ≤ z ∨ z + 36 ≤ x) (hyz : y + 32 ≤ z ∨ z + 36 ≤ y)
+    (hpc : s.pc = base + BitVec.ofNat 32 (4 * M)) (hcode : CodeAt s.mem base kernel)
+    (h9 : s.reg 9 = base + BitVec.ofNat 32 0x800) (h13 : s.reg 13 = mask k) :
+    ∃ s', run env 118 s = .running s'
+      ∧ s'.pc = base + BitVec.ofNat 32 (4 * (M + 20))
+      ∧ Kept s.mem s'.mem base z (z + 36)
+      ∧ numAt s'.mem base z 9 = numAt s.mem base x 8 + (if k then numAt s.mem base y 8 else 0)
+      ∧ ∀ r : Reg, r ∉ [5, 6, 7, 10, 11, 12, 28, 29, 30, 31] → s'.reg r = s.reg r := by
+  have hfit := hp.fit
+  have l1 : run env (pro5 x y z).length s = .running (s.line (pro5 x y z)) :=
+    run_line (prog := kernel) hp (pro5 x y z) rfl M s hM.pro
+      (by rw [kernel_length]; have := hM.fits; simp [pro5, ptrs]; omega) hcode hpc (by decide)
+  generalize hs1 : s.line (pro5 x y z) = s1 at l1
+  obtain ⟨q10, q11, q12, q5, q6, qk⟩ := pro5_regs hp s h9 (x := x) (y := y) (z := z) ⟨hx.1, by omega⟩
+    ⟨hy.1, by omega⟩ ⟨hz.1, by omega⟩
+  rw [hs1] at q10 q11 q12 q5 q6 qk
+  have p1 : s1.pc = base + BitVec.ofNat 32 (4 * (M + 5)) := by
+    rw [← hs1, line_pc_at _ hpc (by have := hM.fits; simp [pro5, ptrs]; omega)]; rfl
+  have m1 : s1.mem = s.mem := by rw [← hs1, line_mem]
+  have g13 : s1.reg 13 = mask k := by rw [qk 13 (by decide), h13]
+  obtain ⟨s2, e2, p2, -, -, c2, -, -, kp2, n2, o2⟩ := addm_loop hp hM.loop (x := x) (y := y) (z := z) (k := k)
+    (m0 := s.mem) (s := s1) (by omega) (by omega) (by omega) hx4 hy4 hz4 hzc (by omega) (by omega) p1 hcode m1
+    q10 q11 q12 q6 q5 g13 8 (by decide)
+  have p2' : s2.pc = base + BitVec.ofNat 32 (4 * (M + 19)) := by rw [p2]; simp
+  have code2 : CodeAt s2.mem base kernel := Kept.code hfit kp2 (by rw [kernel_length]; omega) (by decide) hcode
+  obtain ⟨s3, e3, p3, m3, r3⟩ := storeStep (prog := kernel) hp (M + 19)
+    (by rw [kernel_length]; have := hM.fits; omega) code2 p2' hM.sw (z + 32)
+    (by rw [c2, se_zero, BitVec.add_zero]) (by omega) (by omega)
+  refine ⟨s3, ?_, p3, ?_, ?_, ?_⟩
+  · rw [show 118 = (pro5 x y z).length + (14 * 8 + 1) from rfl, run_add_running l1, run_add_running e2, e3]
+  · rw [m3]; exact (kp2.widen (Nat.le_refl _) (by omega)).write hfit _ (by omega) (by omega) (by omega)
+  · have hn := numAt_write_next hfit s2.mem (s2.reg 5).toNat (BitVec.isLt _) (o := z) (n := 8) (by omega)
+    show numAt s3.mem base z (8 + 1) = _
+    rw [m3, show z + 32 = z + 4 * 8 from rfl, hn]
+    exact n2
+  · intro r hr
+    rw [r3, o2 r hr, qk r (not_mem_of hr (by decide))]
 
 end Exp229
 
