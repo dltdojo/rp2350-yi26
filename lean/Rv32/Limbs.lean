@@ -147,6 +147,17 @@ theorem numAt_lt (m : Word → Byte) (base : Word) (o : Nat) : ∀ n, numAt m ba
     rw [Nat.sub_mul, Nat.one_mul] at this
     omega
 
+/-- A number of \`n + k\` words is its first \`n\` and, above them, the next \`k\`. -/
+theorem numAt_split (m : Word → Byte) (base : Word) (o n : Nat) :
+    ∀ k, numAt m base o (n + k) = numAt m base o n + 2 ^ (32 * n) * numAt m base (o + 4 * n) k
+  | 0 => by simp [numAt]
+  | k + 1 => by
+    rw [show n + (k + 1) = (n + k) + 1 by omega]
+    simp only [numAt]
+    rw [numAt_split m base o n k, show o + 4 * (n + k) = o + 4 * n + 4 * k by omega,
+      show 32 * (n + k) = 32 * n + 32 * k by omega, Nat.pow_add, Nat.mul_add, Nat.mul_left_comm]
+    omega
+
 /-- Two memories that agree on the words read the same number. -/
 theorem numAt_congr {m m' : Word → Byte} {o : Nat} :
     ∀ n, (∀ i < n, wordAt m base (o + 4 * i) = wordAt m' base (o + 4 * i)) → numAt m base o n = numAt m' base o n
@@ -282,6 +293,18 @@ theorem borrow_step {A B C P z c' X Y Yn : Nat} (h1 : A + Yn = B + C * P) (h2 : 
   have e : z * P + Y * P + C * P = X * P + 2 ^ 32 * (c' * P) := by
     rw [← Nat.add_mul, ← Nat.add_mul, h2, Nat.add_mul, Nat.mul_assoc]
   rw [Nat.mul_left_comm c' (2 ^ 32) P]
+  omega
+
+/-- One word more of a fold \`L + 977·H + 2^32·H\`: what is written so far, with
+the carry and the last word of H still to place, and then the word and the
+new carry, with this word of H now the last. -/
+theorem fold_step {Y L H c p P w c' l h : Nat}
+    (h1 : Y + (c + p) * P = L + 977 * H + 2 ^ 32 * H) (h2 : w + 2 ^ 32 * c' = l + 977 * h + p + c) :
+    (Y + w * P) + (c' + h) * (2 ^ 32 * P) = (L + l * P) + 977 * (H + h * P) + 2 ^ 32 * (H + h * P) := by
+  have e : w * P + 2 ^ 32 * (c' * P) = l * P + 977 * (h * P) + p * P + c * P := by
+    rw [← Nat.mul_assoc, ← Nat.add_mul, h2, Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.mul_assoc]
+  have e1 : (c + p) * P = c * P + p * P := Nat.add_mul _ _ _
+  rw [Nat.add_mul, Nat.mul_left_comm c' (2 ^ 32) P, Nat.mul_left_comm h (2 ^ 32) P, Nat.mul_add, Nat.mul_add]
   omega
 
 end Rv32
