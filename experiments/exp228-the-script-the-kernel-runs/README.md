@@ -218,7 +218,7 @@ kernel; `kernel.bin` against what the proof writes; the specification run
 against `script.py` on every hand case, the 672 of arithmetic and 300 fuzzed;
 the model and the RTL against `script.py` on all of those; `bip340.c` on this
 machine; the UF2's bytes; on the RTL the whole shell, BIP340 and all, each of
-the 33 cases halting with its verdict and the model's count; and six wrong
+the 33 cases halting with its verdict and the model's count; and seven wrong
 shells, each caught by the check it names.
 
 `run.sh` also runs the differentials with 3000 fuzzed scripts.
@@ -244,10 +244,113 @@ shells, each caught by the check it names.
 ## Running it
 
 ```sh
-./check.sh   # everything that needs no board, about fifteen minutes
+./check.sh   # everything that needs no board, about half an hour
 ./run.sh     # the same, recorded to capture.txt
 ```
 
 ## Expected output
 
-Not yet captured.
+Recorded by `./run.sh` from a clean commit, on this machine with no board
+attached. The board's half is not yet captured. `capture.txt` is the whole
+record; below are its sections, with the hand cases' per-case lines left out
+here (they are in `capture.txt`) and the 3000-script differential cut to its
+summary.
+
+```
+=== exp228 — the script the kernel runs ===
+recorded at 2026-10-11T02:35:36Z from commit f2a7803
+
+>>> the theorems, and what they rest on
+'Exp228.decode_k' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp228.encode_k' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp228.iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp228.init' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp228.the_end' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp228.runs' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp228.kernel_verdict' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+enc_tail        ENCODE stores the sign byte before the magnitude's word, which then writes over it — -128 comes out as 80 00, as it did in this experiment's first kernel   refused in enc_tail
+dec_block       DECODE never asks whether a bare sign byte was needed: 00 80 and 80 are numbers                                                                               refused in dec_block
+h_verify        CastToBool keeps the last byte's sign bit: negative zero is true                                                                                              refused in h_verify
+h_push          a push's check of the script's end is turned around                                                                                                           refused in h_push
+h_checksig      the specification lets a script check a second signature, and the kernel does not                                                                             refused in h_checksig
+the_end         the specification accepts a false element left on the stack                                                                                                   refused in the_end
+kernel_verdict  the verdict is given the fuel for one opcode fewer than the script holds                                                                                      refused in kernel_verdict
+
+>>> the specification, run, against script.py; the model and the RTL against script.py, 3000 fuzzed
+PASS  proof/Script.lean's specification, run, agrees with script.py on all 3705 cases: 33 by hand, 672 of arithmetic at the edges and 3000 fuzzed
+PASS  672 scripts of arithmetic at the edges and 3000 fuzzed, model and RTL against script.py: accept 738, bad opcode 837, push past the end 251, too few elements 558, too many elements 2, not a 4-byte minimal number 492, OP_VERIFY false 38, key or signature the wrong size 229, signature invalid 4, a second signature 1, not exactly one element left 356, false 9, OP_EQUALVERIFY unequal 190
+
+>>> on the RTL, every case: CASE i code want minstret sigs valid, then DONE cases
+43415345 00000000 00000000 00000000 0000006f 00000000 00000000
+43415345 00000001 00000000 00000000 000001a2 00000000 00000000
+43415345 00000002 00000000 00000000 000001ab 00000000 00000000
+43415345 00000003 00000000 00000000 0000019a 00000000 00000000
+43415345 00000004 00000000 00000000 00000199 00000000 00000000
+43415345 00000005 00000000 00000000 000002b9 00000000 00000000
+43415345 00000006 00000000 00000000 000001cd 00000000 00000000
+43415345 00000007 00000000 00000000 000001ed 00000000 00000000
+43415345 00000008 00000000 00000000 00000226 00000001 00000001
+43415345 00000009 00000000 00000000 00000149 00000001 00000001
+43415345 0000000a 00000000 00000000 000001da 00000000 00000000
+43415345 0000000b 00000006 00000006 00000053 00000000 00000000
+43415345 0000000c 00000000 00000000 0000007f 00000000 00000000
+43415345 0000000d 00000000 00000000 00000155 00000000 00000000
+43415345 0000000e 00000001 00000001 00000043 00000000 00000000
+43415345 0000000f 00000001 00000001 0000001f 00000000 00000000
+43415345 00000010 00000002 00000002 00000021 00000000 00000000
+43415345 00000011 00000003 00000003 00000048 00000000 00000000
+43415345 00000012 00000004 00000004 000004a0 00000000 00000000
+43415345 00000013 00000004 00000004 0000005c 00000000 00000000
+43415345 00000014 00000005 00000005 00000069 00000000 00000000
+43415345 00000015 00000005 00000005 00000066 00000000 00000000
+43415345 00000016 00000005 00000005 0000005d 00000000 00000000
+43415345 00000017 00000006 00000006 00000045 00000000 00000000
+43415345 00000018 00000007 00000007 000000e6 00000000 00000000
+43415345 00000019 00000007 00000007 000000f0 00000000 00000000
+43415345 0000001a 00000008 00000008 000000fa 00000001 00000000
+43415345 0000001b 00000009 00000009 00000265 00000001 00000001
+43415345 0000001c 0000000a 0000000a 00000063 00000000 00000000
+43415345 0000001d 0000000a 0000000a 0000001b 00000000 00000000
+43415345 0000001e 0000000b 0000000b 0000003d 00000000 00000000
+43415345 0000001f 0000000c 0000000c 000000c5 00000000 00000000
+43415345 00000020 00000000 00000000 000001de 00000000 00000000 444f4e45 00000021 exit=0 
+
+>>> the checks
+PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
+PASS  Script.lean checks, with no errors and no warnings
+PASS  all 7 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  enc_tail: the proof refuses a version where ENCODE stores the sign byte before the magnitude's word, which then writes over it — -128 comes out as 80 00, as it did in this experiment's first kernel
+PASS  dec_block: the proof refuses a version where DECODE never asks whether a bare sign byte was needed: 00 80 and 80 are numbers
+PASS  h_verify: the proof refuses a version where CastToBool keeps the last byte's sign bit: negative zero is true
+PASS  h_push: the proof refuses a version where a push's check of the script's end is turned around
+PASS  h_checksig: the proof refuses a version where the specification lets a script check a second signature, and the kernel does not
+PASS  the_end: the proof refuses a version where the specification accepts a false element left on the stack
+PASS  kernel_verdict: the proof refuses a version where the verdict is given the fuel for one opcode fewer than the script holds
+PASS  proof/Script.lean's kernel is what kernel.py writes from its labels
+PASS  kernel.bin is what proof/Script.lean writes, 5120 bytes, and kernel.sha256 is its hash
+PASS  proof/Script.lean's specification, run, agrees with script.py on all 1005 cases: 33 by hand, 672 of arithmetic at the edges and 300 fuzzed
+PASS  672 scripts of arithmetic at the edges and 300 fuzzed, model and RTL against script.py: accept 690, bad opcode 99, push past the end 22, too few elements 54, too many elements 2, not a 4-byte minimal number 57, OP_VERIFY false 4, key or signature the wrong size 33, signature invalid 2, a second signature 1, not exactly one element left 24, false 3, OP_EQUALVERIFY unequal 14
+PASS  bip340.c gives 19 of 19 of BIP340's test vectors the result the CSV says
+PASS  bip340.c gives 200 of 200 signatures reference.py made, half of them with a bit flipped, the result the CSV says
+PASS  the shell builds for the chip and for the RTL, the chip's in 26664 of the 32768 bytes it may use
+PASS  all 105 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
+PASS  together they are exactly the 26664-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 14c86684235f6e94…
+PASS  on the RTL the shell runs all 33 cases, SHA-256 and BIP340 answering the calls, each halting with script.py's verdict and the model's count
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
+PASS  the shell catches a version where the first case is said to be rejected — check 2
+PASS  the shell catches a version where the chip is asked to count one more for the first case — check 3
+PASS  the shell catches a version where HASHB hashes one byte too few — check 2, where a hash is compared
+PASS  the shell catches a version where CHECKSIG says yes to every signature — check 2, at the invalid one
+PASS  the shell catches a version where BIP340's challenge leaves the key out — check 2, at the first valid signature
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check
+```
+
+The run took 44m42s, of which the mutants are 13 minutes and the
+differentials' 3000 fuzzed scripts 11.
