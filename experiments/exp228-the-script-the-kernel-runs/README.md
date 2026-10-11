@@ -16,6 +16,10 @@ cores, runs 33 hand-written scripts through the proved kernel forever. It
 answers `CHECKSIG` with a BIP340 verifier of its own, held here to BIP340's
 test vectors, and says over USB what the kernel halted with for each.**
 
+What it does in plain words, and how it differs from writing the same
+interpreter in Rust or C, is written up in Taiwanese Mandarin:
+[WHY.zh-TW.md](./WHY.zh-TW.md).
+
 Needs: a **Pico 2**, a hand on **BOOTSEL** once to copy `exp228.uf2` on, and a
 **phone with Chrome** to open `tools/pages/log.html`, tap the USB permission,
 and **Copy** the log back.
