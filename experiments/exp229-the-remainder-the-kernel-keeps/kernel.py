@@ -11,6 +11,10 @@ instruction number beside it, through tools/lean/kasm.py.
   kernel.py           rewrite the generated block in proof/Field.lean
   kernel.py --check   exit 1 if the block is not what this would write
 
+Each loop's body has one shape, so that one lemma runs each part: its loads,
+then register instructions only, then its store, then the pointers and the
+counter, then the branch back.
+
 No branch here depends on a number. Every loop runs a fixed count, and the
 one choice the arithmetic needs — subtract p or not — is made with a mask:
 out = d ^ ((d ^ x) & mask). The only branches on data are on the operation
@@ -231,10 +235,10 @@ def field_kernel():
     mov("a4", "a2")                       # T[i + j]
     setk("t3", 8)
     K.label("MUL_I")
-    ins("ld", "lw", "t4", "a5", 0)
+    ins("ld", "lw", "t4", "a5", 0)        # b_j
+    ins("ld", "lw", "a6", "a4", 0)        # T[i + j]
     ins("op", "mul", "t5", "t2", "t4")
     ins("op", "mulhu", "t6", "t2", "t4")
-    ins("ld", "lw", "a6", "a4", 0)
     ins("op", "add", "a6", "a6", "t5")
     ins("op", "sltu", "a7", "a6", "t5")
     ins("op", "add", "a6", "a6", "t0")
