@@ -323,7 +323,8 @@ with `board.py`, and with the page's own checking.
 | --- | --- | --- |
 | 1 | revision 1 (`14c86684…`) | A Pico 2 and a Pixel 9a, through `tools/pages/log.html` ([board/round1-log.txt](./board/round1-log.txt), replayed by `board.py`): **51 `CASE` lines, from case 25 of round 6 to case 9 of round 8, every one halting with its verdict, with the RTL's minstret to the instruction, and with the signatures `script.py` asks about**: both `pay to key` cases valid, `signature invalid` invalid, the second signature never checked. `ROUND 00000006 00000021` and `ROUND 00000007 00000021`, and round 7 whole in the log. Thirteen status lines: nothing dropped, no bus error, three stalls, as in exp226. The LED could not be read: see revision 2 above. |
 | 2 | revision 2 (`253abb90…`) | The same Pico 2, revision 2 copied on. The person watching: **a slow, even blink** — running, and every check holding, the first row of the LED's table. No log this round: revision 2 changes nothing on USB. |
-| 3 | revision 2, `script.html` page build s1 | The page on the Pixel 9a, dark mode, from a screenshot; no log was kept. **190 of 190 cases as they should be, 0 wrong**, round 9's 33 tiles all seen. But only 5 of 6 rounds were seen whole, and *25 status lines with something dropped or a bus error*. The board's counters are totals since it started, so 25 lines may be one event repeated; and a round not seen whole means a `CASE` line did go missing. The likely cause is the page: build s1 ran each case's BIP340 the first time the board sent it, in `BigInt`, on a phone, and read nothing meanwhile, so the board's queue filled. That is inferred, not shown: whether `dropped` or `errors` was the one, and how many, the screenshot does not say. Page build s2 runs every case before it connects and reports the counters once, as numbers. |
+| 3 | revision 2, `script.html` page build s1 | The page on the Pixel 9a, dark mode, from a screenshot; no log was kept. **190 of 190 cases as they should be, 0 wrong**, round 9's 33 tiles all seen. 5 of 6 rounds were seen whole, and *25 status lines with something dropped or a bus error*. The board's counters are totals since it started, so 25 lines may be one event repeated. One round short of whole is what a page that joins part way through a round always sees (round 4 shows it with nothing lost), so it says nothing about lost lines; this row first said it did, and round 4 corrected it. Whether `dropped` or `errors` was nonzero, and how many, the screenshot does not say. One possible cause is the page: build s1 ran each case's BIP340 the first time the board sent it, in `BigInt`, on a phone, and read nothing meanwhile. That is inferred, not shown. Page build s2 runs every case before it connects and reports the counters once, as numbers. |
+| 4 | revision 3 (`dffe45dc…`), page build s2 | The page on the same board and phone, its text pasted back ([board/round4-page.txt](./board/round4-page.txt): the page's own view and its last 60 lines, replayed by `board.py` and by the page's checking). **167 of 167 cases as they should be, 0 wrong**; 4 of 5 rounds whole, the fifth the one the page joined part way through; no `CASE` line missing; **0 dropped, 0 bus errors**. **Case 33, 2+2=5, halted with code 11 in rounds 4 and 5, at minstret 369, the RTL's to the instruction**, and each round ended `ROUND … 00000022`. `sof_khz` read 12416 once mid-round again, the crystal's count 48005. |
 
 What the chip's own counts say: minstret on the chip is the RTL's in every
 case, so the + 4 for the harness and + 4 for each call that the RTL showed
@@ -373,10 +374,10 @@ with a log one instruction off for one case caught; and the page, as above.
   checked against the model's count case by case, and nothing is claimed
   about it in general. Nothing here is constant-time, and nothing needs to
   be.
-- **The chip, three times, one board.** Round 1 ran revision 1 on one Pico 2
+- **The chip, four times, one board.** Round 1 ran revision 1 on one Pico 2
   and its log was read; round 2 ran revision 2 and only its LED was; round 3
-  was the page on revision 2, by screenshot. Revision 3, with 2+2=5, has not
-  run on a board yet.
+  was the page on revision 2, by screenshot; round 4 was revision 3, with
+  2+2=5, read through the page.
 
 ## Running it
 
@@ -388,14 +389,14 @@ with a log one instruction off for one case caught; and the page, as above.
 ## Expected output
 
 Recorded by `./run.sh` from a clean commit, on this machine with no board
-attached. The board's half is not yet captured. `capture.txt` is the whole
-record; below are its sections, with the hand cases' per-case lines left out
-here (they are in `capture.txt`) and the 3000-script differential cut to its
-summary.
+attached; the board's half is in [On the board](#on-the-board).
+`capture.txt` is the whole record; below are its sections, with the hand
+cases' per-case lines left out here (they are in `capture.txt`) and the
+3000-script differential cut to its summary.
 
 ```
 === exp228 — the script the kernel runs ===
-recorded at 2026-10-11T02:35:36Z from commit f2a7803
+recorded at 2026-10-11T07:10:50Z from commit cdfeb0a
 
 >>> the theorems, and what they rest on
 'Exp228.decode_k' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -417,8 +418,8 @@ the_end         the specification accepts a false element left on the stack     
 kernel_verdict  the verdict is given the fuel for one opcode fewer than the script holds                                                                                      refused in kernel_verdict
 
 >>> the specification, run, against script.py; the model and the RTL against script.py, 3000 fuzzed
-PASS  proof/Script.lean's specification, run, agrees with script.py on all 3705 cases: 33 by hand, 672 of arithmetic at the edges and 3000 fuzzed
-PASS  672 scripts of arithmetic at the edges and 3000 fuzzed, model and RTL against script.py: accept 738, bad opcode 837, push past the end 251, too few elements 558, too many elements 2, not a 4-byte minimal number 492, OP_VERIFY false 38, key or signature the wrong size 229, signature invalid 4, a second signature 1, not exactly one element left 356, false 9, OP_EQUALVERIFY unequal 190
+PASS  proof/Script.lean's specification, run, agrees with script.py on all 3706 cases: 34 by hand, 672 of arithmetic at the edges and 3000 fuzzed
+PASS  672 scripts of arithmetic at the edges and 3000 fuzzed, model and RTL against script.py: accept 738, bad opcode 837, push past the end 251, too few elements 558, too many elements 2, not a 4-byte minimal number 492, OP_VERIFY false 38, key or signature the wrong size 229, signature invalid 4, a second signature 1, not exactly one element left 356, false 10, OP_EQUALVERIFY unequal 190
 
 >>> on the RTL, every case: CASE i code want minstret sigs valid, then DONE cases
 43415345 00000000 00000000 00000000 0000006f 00000000 00000000
@@ -453,7 +454,8 @@ PASS  672 scripts of arithmetic at the edges and 3000 fuzzed, model and RTL agai
 43415345 0000001d 0000000a 0000000a 0000001b 00000000 00000000
 43415345 0000001e 0000000b 0000000b 0000003d 00000000 00000000
 43415345 0000001f 0000000c 0000000c 000000c5 00000000 00000000
-43415345 00000020 00000000 00000000 000001de 00000000 00000000 444f4e45 00000021 exit=0 
+43415345 00000020 00000000 00000000 000001de 00000000 00000000
+43415345 00000021 0000000b 0000000b 00000171 00000000 00000000 444f4e45 00000022 exit=0 
 
 >>> the checks
 PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
@@ -468,18 +470,58 @@ PASS  the_end: the proof refuses a version where the specification accepts a fal
 PASS  kernel_verdict: the proof refuses a version where the verdict is given the fuel for one opcode fewer than the script holds
 PASS  proof/Script.lean's kernel is what kernel.py writes from its labels
 PASS  kernel.bin is what proof/Script.lean writes, 5120 bytes, and kernel.sha256 is its hash
-PASS  proof/Script.lean's specification, run, agrees with script.py on all 1005 cases: 33 by hand, 672 of arithmetic at the edges and 300 fuzzed
-PASS  672 scripts of arithmetic at the edges and 300 fuzzed, model and RTL against script.py: accept 690, bad opcode 99, push past the end 22, too few elements 54, too many elements 2, not a 4-byte minimal number 57, OP_VERIFY false 4, key or signature the wrong size 33, signature invalid 2, a second signature 1, not exactly one element left 24, false 3, OP_EQUALVERIFY unequal 14
+PASS  proof/Script.lean's specification, run, agrees with script.py on all 1006 cases: 34 by hand, 672 of arithmetic at the edges and 300 fuzzed
+PASS  672 scripts of arithmetic at the edges and 300 fuzzed, model and RTL against script.py: accept 690, bad opcode 99, push past the end 22, too few elements 54, too many elements 2, not a 4-byte minimal number 57, OP_VERIFY false 4, key or signature the wrong size 33, signature invalid 2, a second signature 1, not exactly one element left 24, false 4, OP_EQUALVERIFY unequal 14
 PASS  bip340.c gives 19 of 19 of BIP340's test vectors the result the CSV says
 PASS  bip340.c gives 200 of 200 signatures reference.py made, half of them with a bit flipped, the result the CSV says
-PASS  the shell builds for the chip and for the RTL, the chip's in 26664 of the 32768 bytes it may use
+PASS  the shell builds for the chip and for the RTL, the chip's in 26852 of the 32768 bytes it may use
 PASS  all 105 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
-PASS  together they are exactly the 26664-byte image
+PASS  together they are exactly the 26852-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: 14c86684235f6e94…
-PASS  on the RTL the shell runs all 33 cases, SHA-256 and BIP340 answering the calls, each halting with script.py's verdict and the model's count
+PASS  the UF2 is byte for byte the committed one: dffe45dc48e8e079…
+PASS  on the RTL the shell runs all 34 cases, SHA-256 and BIP340 answering the calls, each halting with script.py's verdict and the model's count
+PASS  script.html holds the 34 cases as cases.py and build/expect.h have them
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's SHA-256 is hashlib's on every length from 0 to 200 bytes
+PASS  the page's BIP340 gives all 19 of BIP340's test vectors and 40 signatures reference.py made the result they should have (29 valid)
+PASS  the page's interpreter is script.py's on all 1006 scripts — 34 by hand, 672 of arithmetic at the edges, 300 fuzzed — code, signatures checked and valid
+PASS  the page holds the 34 hand cases, in order
+PASS  two rounds as the board sends them, in 64-byte packets: all 68 cases as they should be, both rounds whole
+PASS  case 6 halting with 1: that case is wrong, and its round
+PASS  case 11 carrying the verdict 0 where it is 6: wrong
+PASS  case 12 counting one instruction more than the model: wrong
+PASS  case 8's valid signature reported invalid: wrong
+PASS  case 2 under another name: wrong
+PASS  case 20 of round 3 lost on the way: nothing wrong, one gap, and round 3 not seen whole
+PASS  a status line saying the board has dropped four lines: four, once, not a count of the lines that repeat it
+PASS  a round of revision 2's 33 cases, ending in ROUND 33: whole and right, and named an older firmware
+PASS  a FAIL line from speak.h is counted
+PASS  round1-log.txt: all 51 cases from a board as the page says; rounds seen whole: 1; 13 status lines, 0 dropped, 0 gaps
+PASS  the tests catch a page where OP_ADD subtracts: the page's interpreter is script.py's on all 1006 scripts — 34 by hand, 672 of arithmetic at the edges, 300 
+PASS  the tests catch a page where negative zero is true: the page's interpreter is script.py's on all 1006 scripts — 34 by hand, 672 of arithmetic at the edges, 300 
+PASS  the tests catch a page where a second signature is checked: the page's interpreter is script.py's on all 1006 scripts — 34 by hand, 672 of arithmetic at the edges, 300 
+PASS  the tests catch a page where BIP340's challenge leaves the key out: the page's BIP340 gives all 19 of BIP340's test vectors and 40 signatures reference.py made the result they sh
+PASS  the tests catch a page where SHA-256's first round constant is one off: the page's SHA-256 is hashlib's on every length from 0 to 200 bytes — 0 bytes: 85fb6b7d3d968791a2e43411e4d7b
+PASS  the tests catch a page where minstret is not compared: case 12 counting one instruction more than the model: wrong — cases 68 ok 68 wrong 0 [] gaps 0 rounds 2 whol
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "68 of 68 cases as they should be"
+PASS  good.txt: 34 tiles, the last round's every case on them (14 accepted, 20 rejected)
+PASS  good.txt: the case the board sent last, run here in 6 rows, beside the board's columns; no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (10321 characters)
+PASS  with no WebUSB the page says so, and runs anyway
+PASS  case 8 tapped, no board: pay to key hash, run here step by step to a valid BIP340 signature, accepted
+PASS  case 26 tapped: the flipped signature, invalid by the page's own BIP340, rejected with code 8
+PASS  case 33 tapped: 2+2 comes to 4 on the stack, 5 is not it, false is left: rejected, code 11, with its line from the book
+PASS  code.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  code.txt: the verdict line says "1 wrong"
+PASS  code.txt: 34 tiles, the last round's every case on them (14 accepted, 20 rejected)
+PASS  code.txt: the case the board sent last, run here in 6 rows, beside the board's columns; no script error
+PASS  code.txt: Copy puts the verdict and every line received on the clipboard (10406 characters)
+PASS  board/round1-log.txt: 51 CASE lines over rounds 6–8, each its case's verdict, minstret and signatures; 2 ROUND lines, 1 closing a round the log holds whole (7); 13 status lines, nothing dropped, no bus error
+PASS  board.py catches a log one instruction off for one case
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where the first case is said to be rejected — check 2
 PASS  the shell catches a version where the chip is asked to count one more for the first case — check 3
@@ -489,5 +531,5 @@ PASS  the shell catches a version where BIP340's challenge leaves the key out �
 PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check
 ```
 
-The run took 44m42s, of which the mutants are 13 minutes and the
-differentials' 3000 fuzzed scripts 11.
+The run took 47m33s, of which the mutants are 13m48s and the differentials'
+3000 fuzzed scripts 11m54s.
