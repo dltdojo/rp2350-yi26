@@ -38,7 +38,7 @@ def main(lean, n):
     out = subprocess.run([lean, "exec", os.path.join(HERE, "..", "proof", "Script.lean"), "spec", f.name],
                          capture_output=True, text=True)
     os.unlink(f.name)
-    got = [int(x) for x in out.stdout.split()]
+    got = [int(x) for x in out.stdout.split("\n") if x.strip().isdigit()]
     bad = [(c[0], w, g) for c, w, g in zip(allc, want, got) if w != g]
     if len(got) != len(want) or bad:
         for name, w, g in bad[:10]:
