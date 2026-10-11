@@ -80,7 +80,7 @@ else
     fail "kernel.bin is what proof/Script.lean writes"
 fi
 python3 differential/spec.py "$LEAN" 300 || FAILED=1
-python3 differential/differential.py "$($LEAN exe rv32run)" kernel.bin 300 | grep -v "^PASS  [^:]*: " || FAILED=1
+python3 differential/differential.py "$($LEAN exe rv32run)" kernel.bin 300 || FAILED=1
 python3 differential/bip340.py cc "$work" || FAILED=1
 rm -rf -- "$work"
 

@@ -29,7 +29,7 @@ echo
 
 echo ">>> the specification, run, against script.py; the model and the RTL against script.py, 3000 fuzzed"
 python3 differential/spec.py "$LEAN" 3000
-python3 differential/differential.py "$($LEAN exe rv32run)" kernel.bin 3000 | grep -v "^PASS  [^:]*: "
+python3 differential/differential.py "$($LEAN exe rv32run)" kernel.bin 3000
 echo
 
 echo ">>> the shell, for the chip and for the RTL"
