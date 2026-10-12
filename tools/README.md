@@ -697,6 +697,16 @@ line of text without a C library, a wait that answers USB, and the LED's stage
 and error counts. What is left in each `board_chip.c` is how that experiment
 shows a life. exp226's UF2 still builds byte for byte.
 
+exp234 is exp232's second user, and took three pieces of its trial: `ring.h`,
+the ring of 32 cells as a shell needs it — `up1`, `dn1`, `spread`, the
+popcount, a lump, xorshift32, and the trial's endpoint and three outcomes over
+generations `STRIDE` words apart; `trial_chip.h`, the trial's lines and LED on
+the Pico 2, under `speak.h` and `trng.h`; and `trial_sim.h`, the same printed
+on the RTL. `STRIDE` is a macro and not an argument because as an argument it
+moved exp232's code; as a macro exp232's UF2 and its RTL build are byte for
+byte what they were. exp234's world has three words a generation, exp232's
+model two.
+
 ## `capture/`
 
 `tee.py` is `tee` that also writes down when each line arrived. A `run.sh`

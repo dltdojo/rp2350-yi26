@@ -1,0 +1,229 @@
+# exp234 — the rate the proof predicts
+
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+**exp232's world, proved. exp232 put a proved model of tissue, tumour and
+drug beside a world it left something out of: a cell the tumour divides into
+is, now and then, resistant. The model said every treated patient is cured;
+the trial said some are not. That world was C, written again and unproved.
+Here it is a 74-instruction kernel and a theorem, and the random draw is an
+input — 64 masks, one a generation — so what is proved holds for every draw.
+With every mask zero the world is exp232's model, so on the chip one kernel
+is both. And the gap between proof and trial gets a number: Lean proves
+exactly which cells must stay unhit for the treated to be cured, and from
+that the treated fail 3276629119 / 25769803776 of the time — 12.715%.**
+
+Needs: a **Pico 2**, a hand on **BOOTSEL** once to copy `exp234.uf2` on, and a
+**phone with Chrome** holding [exp233](../exp233-the-trial-on-the-phone/)'s
+`trial.html`, build p3 or later, to read the trial. The page puts the
+predicted rate beside the share the board has counted. The LED tells the
+trial on its own, as exp232's does. A plain-language account is in
+[WHY.zh-TW.md](./WHY.zh-TW.md).
+
+## What changes from exp232
+
+| | exp232 | exp234 |
+| --- | --- | --- |
+| the model | a proved kernel (M1) | the same proved kernel as the world, every mask zero (W0) |
+| the world | C in the shell, unproved | a proved kernel (W1): every input, every mask |
+| resistance | drawn in C | the masks, drawn in C — the only arithmetic left unproved |
+| what the proof says about the trial | every treated patient is cured, in the model | which patients the world fails, and how often |
+| the lines, the LED, the page | — | exp232's, unchanged: only the name and the serial differ |
+
+The trial itself is exp232's to the bit: the same search, the same protocol
+hash, the same patients from the same words. The world kernel computes exactly
+what exp232's C did, so a word drawn on either board gives the same patient
+and the same outcome, and exp232's `cure.py --board` checks both boards' logs.
+
+## The world
+
+`wnext m b` in [`proof/World.lean`](./proof/World.lean): exp232's generation,
+with `r`, the resistant tumour cells, and `m`, this generation's mask.
+
+- A dose kills what exp232's dose kills, **except resistant cells**.
+- Every cell the tumour divides into is resistant **where `m` has a one**.
+- A resistant cell's daughter, the cell above it, is resistant.
+
+The shell draws `m` as exp232 did: four xorshift32 words from the patient's
+word, ANDed, so each bit is one about 1 time in 16.
+
+## The kernel
+
+74 RV32I instructions, 296 bytes. It reads the tumour, tissue and schedule at
+base + 0x200 and the 64 masks from 0x300, writes 64 generations — tumour,
+tissue, resistant, 12 bytes each — from 0x400, and halts with 0.
+
+```
+0-7    t, h, s into a0, a1, a2; a4 = 0; a5 the masks; t1 the history; t2 64
+8      lw a6, the mask
+9-63   one generation, 55 register instructions
+64-66  sw a0, a1, a4
+67-70  t1 += 12, a5 += 4, t2 -= 1, bne t2, x0, 8
+71-73  HALT 0
+```
+
+## The proof
+
+On Lean's own axioms only, no `bv_decide`, no `native_decide`:
+
+| | Theorem | Says |
+| --- | --- | --- |
+| W1 | `lives`, `from_boot` | after exactly 4043 instructions the kernel halts with 0 having written generations 1 to 64 of `wnext`, and changed nothing else — for every input and every mask |
+| W0 | `still` | with every mask zero, the world is exp232's proved model |
+| M6 | `resistance_stays` | one resistant cell inside the tumour, and whatever the schedule and the masks, the tumour never goes |
+| M7 | `cured_iff` | cured at 64 exactly when the model's patient is and no mask hit a cell the model's tumour divided into |
+| | `answer_world` | under exp232's answer, a lump of 1 to 6 cells anywhere on the ring leaves 0, 0, 1, 2, 3 or 8 such cells to chance |
+| M8 | `zero_stays` | a corrected endpoint: no tumour cell at all — not "none a scan sees" — and none ever comes back, in the world as in the model |
+
+**From M7 to a rate.** If each mask bit is one with probability q = 1/16,
+independently, a lump that leaves D cells to chance is cured with probability
+(15/16)^D. The widths are equally likely, so the treated fail
+
+1 − (1 + 1 + (15/16) + (15/16)² + (15/16)³ + (15/16)⁸) / 6 =
+3276629119 / 25769803776 ≈ **12.715%**.
+
+That step is arithmetic, done in `world.py --check`. The assumption is the
+one thing in it no theorem reaches: whether the bits of four xorshift32
+words, seeded by the TRNG, are independent ones that come up 1 time in 16.
+
+Why the position does not matter: `born_rot` proves that rotating the patient
+rotates the cells it divides into, so the count `answer_zero` checks at cell 0
+is the count everywhere. 32 positions were never tried.
+
+Six wrong versions are refused (`proof/mutants.txt`):
+
+- a kernel whose dose kills resistant cells too;
+- a kernel whose resistant cells have no resistant daughters;
+- the claim that the kernel halts one instruction sooner;
+- the claim that a patient the model cures is cured in the world, whatever
+  the masks;
+- the claim that a lump of six leaves seven divisions to chance, not eight;
+- the claim for a lump of seven, one cell beyond the enrolment.
+
+The tissue rule exp232 proved its model with — `spread`, `dose`, `edge`,
+`next`, `gen`, the patients and rotation — moved to
+[`lean/Rv32/Tissue.lean`](../../lean/Rv32/Tissue.lean), where both proofs
+stand on it. exp232's `kernel.bin` is unchanged.
+
+## How close the world comes
+
+`world.py` runs exp232's `cure.py` world — written cell by cell, sharing
+nothing with the kernel — over 40000 treated patients:
+
+| Width | Divisions | Predicted | cure.py's world |
+| --- | --- | --- | --- |
+| 1 | 0 | 0 | 0 of 6530 |
+| 2 | 0 | 0 | 0 of 6849 |
+| 3 | 1 | 6.25% | 5.77% |
+| 4 | 2 | 12.11% | 12.20% |
+| 5 | 3 | 17.60% | 16.44% |
+| 6 | 8 | 40.33% | 39.57% |
+| all | | **12.715%** | **12.43%** (4971 of 40000) |
+
+12.43% is 1.7 standard errors below the prediction, which 40000 patients
+leave room for (one standard error is 0.17%). exp232's own 2000-patient
+figure, 13.7% of 1038 treated, was 1 standard error above it.
+
+The boards have treated 30 patients so far, all on exp232, each boot counting
+from patient 1: 7 in round 1 (1 missed), 7 in round 2 (2 missed), and 16 by
+patient 40 in exp233's round 1 (1 missed, as the page's summary line records
+the board's TRIAL line). 4 of 30 were not cured: 13.3%, with a 95% interval of
+5.3%–29.7%. The prediction is inside it. That interval is what a trial of
+thirty can say, and it is wide.
+
+## The shell
+
+exp232's shell, with every generation left to the kernel. The C in
+[`shell/shell.c`](./shell/shell.c) draws the masks and counts; it computes no
+generation of anything.
+
+- **The search** runs the kernel with every mask zero: by W0, that is exp232's
+  model, and the search finds what exp232's did.
+- **Each patient** is two runs: every mask zero (the model), then the masks
+  drawn from the patient's word (the world).
+- **Two theorems are checked again on every patient**, as what the chip must
+  show if it runs what was proved:
+  - a world in which no cell became resistant is the model's 64 generations
+    (W0, check 10);
+  - a world in which one did never loses its tumour after (M6, check 12).
+
+| Check | What |
+| --- | --- |
+| 1 | the kernel's bytes are its hash's, once, when it is loaded |
+| 2 | every run halted with 0 |
+| 3 | every run's minstret is 4046, the RTL's, whatever the input and the masks |
+| 4 | the search's answer, counts and first loophole are `cure.py`'s |
+| 10 | a patient with no resistance lived exactly the model's generations (W0) |
+| 11 | the TRNG gave words |
+| 12 | a patient with resistance kept a tumour from then on (M6) |
+
+What exp232 and exp234 share moved to `tools/hazard3/shell`: the ring
+arithmetic and the trial's endpoint (`ring.h`), and the board layer on the
+chip and the RTL (`trial_chip.h`, `trial_sim.h`). exp232's UF2 is byte for
+byte what it was, `dd5dbde3…`, and so is its RTL build.
+
+## The LED
+
+exp232's:
+
+- **On, steady:** the search, about a second.
+- **Then, for each patient:** treated, one flash if the world cured it, two if
+  it met the endpoint and came back, three if it missed; control, dark. Then
+  2 s dark before the next.
+- An error starts with 2 s of light, then flashes its check's number. **10 or
+  12 flashes is a theorem the chip did not hold.**
+
+## The lines
+
+exp232's, so `trial.html` and `cure.py --board` read them unchanged:
+
+```
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca…
+PATIENT n=… word=… arm=treated|control width=… at=… model=… world=… resistant=… t24=… tissue=… t64=…
+TRIAL treated=… cured=… relapsed=… missed=… predicted=… control=… control_missed=…
+```
+
+The status line says `exp234` and the USB serial is `234`. minstret is 4046,
+not exp232's 3084: the world's kernel is longer.
+
+## Running it on a board
+
+1. Hold BOOTSEL, plug the Pico 2 in, and copy `build/exp234.uf2` onto the
+   `RP2350` drive.
+2. The LED comes on for about a second: the search. Then a patient every few
+   seconds.
+3. Open exp233's `trial.html` (p3 or later) in Chrome, Connect, and choose the
+   board. The rate panel shows 12.7% beside the board's share.
+4. Copy, save the text as `board/<name>.txt`, and run
+   `python3 world.py --board board/<name>.txt`. `check.sh` runs it on every
+   saved log.
+
+## On the board
+
+Not yet run on a board. Everything above that is not marked as a board's was
+computed off-board: Lean, the Lean model, the Hazard3 RTL and Python.
+
+## What it does not say
+
+- **Anything about medicine.** The world is still a model. It now has a proof,
+  which makes it a better-understood model, not a body.
+- **That the TRNG's bits are what M7's rate assumes.** The rate is exact only
+  if each mask bit is an independent one-in-sixteen. The masks come from
+  xorshift32 seeded by one TRNG word. The trial is where that assumption meets
+  a board.
+- **That a proof replaces the trial.** M7 says which patients fail. It cannot
+  say how often unless something says how the masks fall, and that is the
+  world's business, not the proof's.
+
+## Running it
+
+```sh
+./check.sh     # about eight minutes, most of it the RTL searching
+./run.sh       # the same, recorded to capture.txt
+```
+
+## Expected output
+
+Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit: see
+[capture.txt](./capture.txt).

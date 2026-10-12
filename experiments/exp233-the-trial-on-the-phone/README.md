@@ -12,9 +12,9 @@ cell, from the random word the board drew it from. Where the proved model
 said a treated patient would be cured and the world did not, the page draws
 both lives side by side, a row a generation, the trial's endpoint marked.**
 
-Needs: exp232's board, a **Pico 2** running `exp232.uf2` (the second build,
-whose lines carry each patient's word), and a **phone with Chrome** holding
-`trial.html`. Or nothing at all: **Demo** plays the same page with patients
+Needs: a **Pico 2** running `exp232.uf2` (the second build, whose lines carry
+each patient's word) or [exp234](../exp234-the-rate-the-proof-predicts/)'s
+`exp234.uf2`, and a **phone with Chrome** holding `trial.html`. Or nothing at all: **Demo** plays the same page with patients
 drawn in the page, and says it checks nothing. exp233 has no firmware of its
 own. A plain-language account is in [WHY.zh-TW.md](./WHY.zh-TW.md).
 
@@ -22,8 +22,9 @@ own. A plain-language account is in [WHY.zh-TW.md](./WHY.zh-TW.md).
 
 | | Where it comes from |
 | --- | --- |
-| the board, its lines, the search, the trial | exp232, unchanged: `shell/board_chip.c`'s formats |
-| the proof the page quotes | exp232's `proof/Cure.lean`; the page runs none of it |
+| the board, its lines, the search, the trial | exp232, unchanged: `tools/hazard3/shell/trial_chip.h`'s formats, which exp234's board sends too |
+| the proof the page quotes | exp232's `proof/Cure.lean` and exp234's `proof/World.lean`; the page runs none of it |
+| the rate M7 predicts | exp234's theorem; the page computes the divisions it counts from its own model |
 | what Copy, the connection and the tests are made of | exp231's `fly.html`, `tools/pages/headless.mjs` and `pagecheck.sh` |
 | the model, the world, the search and SHA-256, written a third time | **here**: `trial.html`, between `BEGIN trial-check` and `END trial-check` |
 | the two lives drawn side by side | **here** |
@@ -36,6 +37,13 @@ From the top:
   before the page joined too. For example: "Treated 7: the proof predicts 7
   cured · the world cured 5, 2 missed". Then the controls, all missed, as M3
   says they must be.
+- **The rate the proof predicts** (build p3). exp234's M7 says exactly which
+  treated patients the world fails, and under the answer a lump of 1 to 6
+  cells leaves 0, 0, 1, 2, 3 or 8 dividing cells to chance. The page counts
+  those itself from its own model and states the rate they give if each mask
+  bit is one 1 time in 16: 12.7%. Beside it, the board's share of treated
+  patients not cured so far, its 95% Wilson interval, the expected count, and
+  whether the prediction is inside the interval.
 - **The search and the protocol.** The page runs the search itself, about
   0.1 s in node: 1024 schedules, 367 accepted, 34 relapsing, answer `0x51af`.
   It also hashes the protocol itself, with its own SHA-256. A page opened from
@@ -59,7 +67,8 @@ What the page checks, line by line:
 
 | Line | Against |
 | --- | --- |
-| `SEARCH` | the page's own search: tried, accepted, relapsing, answer, loophole; doses against the answer; minstret 3084 |
+| `SEARCH` | the page's own search: tried, accepted, relapsing, answer, loophole; doses against the answer; minstret 3084 on exp232's board, 4046 on exp234's |
+| status (`exp232 …`, `exp234 …`) | its minstret that board's; one board's name, not two, in one stream |
 | `PLAN` | the page's own SHA-256 of the same eight words |
 | `PATIENT` with a word | the patient replayed from it: arm, lump, the model's outcome, the world's outcome, resistance, tumour at 24, least tissue, tumour at 64 |
 | `PATIENT` without one (exp232's first build) | the model's outcome; the world's numbers where the world cannot differ from the model, which is a control or no resistant cell; otherwise "partial" |
@@ -121,6 +130,16 @@ covers patients 16 to 40.
   side by side hard to read. Build p2 is English only, and `check.sh` holds
   it to that. The Chinese account is [WHY.zh-TW.md](./WHY.zh-TW.md).
 
+**Build p3** (no phone yet) takes exp234's board too: the same lines, serial
+234, its own name on the status line and minstret 4046. It adds the rate
+panel. Off-board it is held to: the page's divisions and rate being exp234's
+`world.py`'s, 3276629119/25769803776 exactly; its Wilson interval for 4 of 30
+being Python's to 1e-5; the same 40 patients from exp234's board all agreeing;
+a SEARCH with exp234's count under exp232's name, and the reverse, caught; and
+in headless Chromium, serial 234 accepted and the rate panel filled. Two more
+wrong pages are caught: a rate that counts every tumour cell rather than the
+ones just divided into, and every board's minstret taken for exp232's.
+
 ## Running it
 
 ```sh
@@ -129,7 +148,7 @@ covers patients 16 to 40.
 ```
 
 On a phone: copy `trial.html` to it, open it from Files with Chrome, plug in
-exp232's board, press Connect and choose it. A patient arrives every few
+exp232's board or exp234's, press Connect and choose it. A patient arrives every few
 seconds, with the LED's flashes. **Copy** gives the verdict and every line
 received.
 

@@ -152,28 +152,42 @@ def patient_of(r):
     return r & 1, 1 + ((r >> 1) % 6), (r >> 4) & 31, r if r else 1
 
 
-def world(r, sched):
-    """One patient in the world: (arm, width, at, world history, model history, resistant ever).
-
-    The model's history is the kernel's for the same patient; the world's is
-    the same rule with resistance, drawn from xorshift32 seeded by the word."""
-    arm, width, at, x = patient_of(r)
-    s = sched if arm else 0
-    t = lump(width, at)
-    h, res, out, ever = ~t & M, 0, [], 0
-    model = lifetime(t, h, s)
+def masks_of(r):
+    """The 64 mutation masks a patient's word draws: each the AND of MUT_BITS
+    xorshift32 words, seeded by the word, so each bit is one about 1/16 of the time."""
+    x, out = r if r else 1, []
     for _ in range(GENS):
         mut = M
         for _ in range(MUT_BITS):
             x = xorshift(x)
             mut &= x
+        out.append(mut)
+    return out
+
+
+def lived(t, h, s, masks):
+    """The world, cell by cell, generation g's mask masks[g]: [(t, h, resistant)]."""
+    res, out = 0, []
+    for mut in masks:
         t1, t2, h2 = dose_and_grow(t, h, s, res)
         born = t2 & ~t1      # every cell the tumour divided into this generation
         res = (res | ((res << 1 | res >> 31) & M) | (born & mut)) & t2
-        ever |= res
         t, h, s = t2, h2, s >> 1
-        out.append((t, h))
-    return arm, width, at, out, model, ever != 0
+        out.append((t, h, res))
+    return out
+
+
+def world(r, sched):
+    """One patient in the world: (arm, width, at, world history, model history, resistant ever).
+
+    The model's history is the kernel's for the same patient; the world's is
+    the same rule with resistance, drawn from xorshift32 seeded by the word."""
+    arm, width, at, _ = patient_of(r)
+    s = sched if arm else 0
+    t = lump(width, at)
+    life = lived(t, ~t & M, s, masks_of(r))
+    ever = any(res for _, _, res in life)
+    return arm, width, at, [(a, b) for a, b, _ in life], lifetime(t, ~t & M, s), ever
 
 
 def outcome(hist):
@@ -207,8 +221,10 @@ def fields(line):
     return dict(f.split("=", 1) for f in line.split()[1:] if "=" in f)
 
 
-def board_logs(logs):
-    """Every board log against this file. Returns the number that failed."""
+def board_logs(logs, name="exp232", minstret="3084"):
+    """Every board log against this file — exp232's, or a shell that prints the
+    same lines under another `name` with another `minstret` (exp234's). Returns
+    the number that failed."""
     import hashlib
     answer, accepted, relapsing, loophole = search()
     protocol = [answer, DAYS, DETECT, TISSUE_MIN, max(WIDTHS), MUT_BITS, CANDIDATES, SEARCH_SEED]
@@ -259,21 +275,21 @@ def board_logs(logs):
                 if (c["treated"] != c["cured"] + c["relapsed"] + c["missed"] or c["control"] != c["control_missed"]
                         or c["predicted"] != c["treated"]):
                     bad.append(f"TRIAL {f}")
-            elif head.startswith("exp232"):
+            elif head.startswith(name):
                 instrets.add(f.get("minstret"))
         instrets.discard(None)
-        name = os.path.basename(log)
-        if seen and not bad and instrets <= {"3084"}:
+        base = os.path.basename(log)
+        if seen and not bad and instrets <= {minstret}:
             worlds = (f"every world replayed by cure.py from its word, to the number ({replayed} of {len(seen)})"
                       if replayed == len(seen) else
                       f"every world that could not differ from the model the model's to the number "
                       f"({len(seen) - resistant_treated} of {len(seen)})")
-            print(f"PASS  {name}: SEARCH and PLAN are cure.py's ({n_search} times), minstret 3084 throughout; "
+            print(f"PASS  {base}: SEARCH and PLAN are cure.py's ({n_search} times), minstret {minstret} throughout; "
                   f"patients {seen[0]}–{seen[-1]}: every model outcome cure.py's, {worlds}, "
                   f"every TRIAL count adding up, every treated patient predicted cured and every control missed")
         else:
             failed += 1
-            print(f"FAIL  {name}: {bad[:4] if bad else 'no PATIENT line' if not seen else f'minstret {instrets}'}")
+            print(f"FAIL  {base}: {bad[:4] if bad else 'no PATIENT line' if not seen else f'minstret {instrets}'}")
     return failed
 
 
