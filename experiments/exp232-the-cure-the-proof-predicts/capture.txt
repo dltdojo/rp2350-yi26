@@ -1,0 +1,70 @@
+=== exp232 — the cure the proof predicts ===
+recorded at 2026-10-12T05:39:25Z from commit ee29f46
+
+>>> the theorems, and what they rest on
+'Exp232.apart' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.inside_survives' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.healthy_untouched' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.off_target' depends on axioms: [propext, Quot.sound]
+'Exp232.untreated_fills' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.answer_cures' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.loophole_relapses' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.body_t' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.iter' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.models' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.not_before' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp232.bytes_words' depends on axioms: [propext]
+'Exp232.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+grows_down      the kernel's tumour invades the cell below, where the model's invades the cell above            refused in body_t
+every_day       the kernel doses every generation, whatever the schedule says                                   refused in body_t
+count_short     the kernel is claimed to halt one instruction sooner than it does                               refused in models
+harmless        the claim that a dose kills no tissue beside a tumour                                           refused in off_target
+edge_tissue     the claim that tissue survives a dose with tissue on one side only                              refused in tissue_survives
+sooner          the claim that untreated, a tumour fills the ring by generation 30: one cell takes 31           refused in untreated_fills
+beyond          the claim that the answer cures a lump of seven too — one cell more than the trial enrolled   refused in answer_zero
+loophole_cures  the claim that what meets the endpoint is cured: the loophole's lump of six gone by 64          refused in loophole_zero
+
+>>> the search as the chip runs it, and 2000 patients in cure.py's world
+search: 1024 schedules, 367 meet the endpoint, 34 of them relapse in the model
+answer: 0051af, 9 doses; first loophole f917d1
+  control  model 2 world 2: 962
+  treated  model 0 world 0: 896
+  treated  model 0 world 2: 142
+
+>>> the shell, for the chip and the RTL
+build/cure.h: kernel dad129edfd020594…, model 3081, RTL minstret 3084, search 367 accepted, 34 relapsing, answer 0051af
+build/exp232.bin  15492 bytes, the build allows 16384
+build/exp232.uf2  31232 bytes  sha256 2e9f6811e8e19cbdd7cb22d10a0070b7d82b0699b61f92585b7403a3929aeaea
+
+>>> the checks
+PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
+PASS  Cure.lean checks, with no errors and no warnings
+PASS  all 13 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  grows_down: the proof refuses a version where the kernel's tumour invades the cell below, where the model's invades the cell above
+PASS  every_day: the proof refuses a version where the kernel doses every generation, whatever the schedule says
+PASS  count_short: the proof refuses a version where the kernel is claimed to halt one instruction sooner than it does
+PASS  harmless: the proof refuses a version where the claim that a dose kills no tissue beside a tumour
+PASS  edge_tissue: the proof refuses a version where the claim that tissue survives a dose with tissue on one side only
+PASS  sooner: the proof refuses a version where the claim that untreated, a tumour fills the ring by generation 30: one cell takes 31
+PASS  beyond: the proof refuses a version where the claim that the answer cures a lump of seven too — one cell more than the trial enrolled
+PASS  loophole_cures: the proof refuses a version where the claim that what meets the endpoint is cured: the loophole's lump of six gone by 64
+PASS  kernel.bin is what proof/Cure.lean writes, 228 bytes, and kernel.sha256 is its hash
+PASS  on 20 inputs the Lean model halts with 0 after exactly 3081 and the RTL with 0, each leaving exactly cure.py's 64 generations and nothing else; the RTL's instret=3084
+PASS  the shell builds for the chip over speak.h and trng.h, in 15492 of the 16384 bytes it may use, and for the RTL
+PASS  all 61 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 15492-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 2e9f6811e8e19cbd…
+PASS  on the RTL the shell's search finds cure.py's answer, 51af, and its counts — 367 accepted, 34 of them relapsing in the model — then hashes the protocol and treats six patients, model and world, exactly as cure.py does
+PASS  the shell catches a version where the kernel is held to a hash that is not its own — check 1
+PASS  the shell catches a version where a run's halt is held to 1 instead of 0 — check 2
+PASS  the shell catches a version where the chip is asked to count one more — check 3
+PASS  the shell catches a version where the search keeps the most doses, not the fewest — check 4
+PASS  the shell catches a version where the world's tumour grows down while the proved model's grows up — check 10
+PASS  the shell catches a version where the TRNG gives nothing — check 11
+PASS  the shell catches a version where the shell itself traps entering the kernel — a fault, not a check
