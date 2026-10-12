@@ -70,6 +70,8 @@ def write_fly_fixtures(d):
     save("good.txt", good)
     # Joined in the middle of round 0: no LIFE, no FLY, no SEED, step 100 first.
     save("midround.txt", [x for x in good if x[0] == 1 or (x[1] is not None and x[1] >= 100)])
+    # Joined at step 63 of round 0 and gone after step 162, as round 1 on a board was.
+    save("joined.txt", [x for x in good if x[0] == 0 and x[1] is not None and 63 <= x[1] <= 162])
     # One bit of generation 37 flipped on the way, its counts left as the board sent them.
     save("flipped.txt", at(good, (0, 37), 3, lambda w: w ^ (1 << 5)))
     # Step 50's up count one more than the fly saw.

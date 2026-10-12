@@ -7,14 +7,15 @@
 // control transfers, the drawing, the verdict line, Copy — running where it
 // will run; and for good.txt, the page with no WebUSB at all, playing Demo.
 //
-//   node page_browser.mjs PAGE FIXTURE WANT
+//   node page_browser.mjs PAGE FIXTURE WANT [TOTALS]
 //
-// WANT is a piece of text the verdict line must contain. Prints PASS/FAIL.
+// WANT is a piece of text the verdict line must contain, TOTALS one the line
+// under the rows must. Prints PASS/FAIL.
 
 import fs from 'node:fs';
 import { openWithBoard, checker } from '../../tools/pages/headless.mjs';
 
-const [page, fixture, want] = process.argv.slice(2);
+const [page, fixture, want, totals] = process.argv.slice(2);
 const stream = fs.readFileSync(fixture, 'utf8');
 const name = fixture.split('/').pop();
 const board = { productName: 'exp231 the fly on the phone', serialNumber: '231' };
@@ -32,8 +33,10 @@ let run = await openWithBoard(page, stream, board);
 let { tab, errors } = run;
 const verdict = await tab.textContent('#verdict');
 const saw = await tab.textContent('#saw');
+const under = await tab.textContent('#totals');
 const sent = await run.sent();
 const ink = await inked(tab);
+if (totals) check(under.includes(totals), `${name}: under the rows, "${totals}"`, under);
 await tab.click('#copy');
 await tab.waitForTimeout(100);
 const status = await tab.textContent('#status');
@@ -63,7 +66,7 @@ if (name === 'good.txt') {
   check(status2.startsWith('Demo') && /Demo: [1-9]\d* steps computed in this page/.test(v) && demoInk > 0 && errors.length === 0,
     `Demo plays from one live cell at the board's pace, drawn (${demoInk} pixels), and says it checks nothing: "${v.slice(0, 60)}…"`,
     `${status2} / ${v} ${errors.join('; ')}`);
-  check(clip2.startsWith('#page exp231 fly.html p1 DEMO, no board') && clip2.includes('\nSEED 00000000 00010000'),
+  check(/^#page exp231 fly.html p\d+ DEMO, no board/.test(clip2) && clip2.includes('\nSEED 00000000 00010000'),
     'Copy during Demo says DEMO, no board, on its first line', clip2.slice(0, 120));
   await run.close();
 }

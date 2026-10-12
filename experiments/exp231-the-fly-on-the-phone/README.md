@@ -14,8 +14,13 @@ checks each step again, with Rule 30 and the fly both written cell by cell in
 the page.**
 
 Needs: a **Pico 2**, a hand on **BOOTSEL** once, and a **phone with Chrome**
-holding `exp231.uf2` and `fly.html`. **Not yet run on a board**: everything
-below that says so was run on the Hazard3 RTL and in headless Chromium.
+holding `exp231.uf2` and `fly.html`. Round 1, on a Pico 2 and an Android
+phone: the page joined at step 63 of the first round after boot. **All 100
+steps it saw were Rule 30's, with the fly's counts the page's own, and every
+one was seen moving up.** Each is `rule30.py`'s generation and `fly.py`'s
+counts at its place from the boot seed. The shell plays a round only after all
+five of the fly's checks, so on silicon round 0 held check 13, and with it
+every count of that round.
 
 exp230 was planned with the board and the phone left to a next experiment, on
 exp227's USB; this is it. A plain-language account is in
@@ -140,7 +145,7 @@ checks cover the kernels. The page covers everything after them.
 **Demo** plays the same thing with no board: computed in the page from one
 live cell, at the board's pace. Its rows are checked against the page's own
 functions, so it checks nothing, and the verdict line, the status line and Copy
-all say so (`#page exp231 fly.html p1 DEMO, no board`). It is there so the
+all say so (`#page exp231 fly.html p2 DEMO, no board`). It is there so the
 page can be shown where there is no board. It is not evidence.
 
 **Copy** works as exp227's does: the Clipboard API, then a selected text area,
@@ -183,11 +188,15 @@ firmware: flash again.
   - Five wrong versions of the page are caught: Rule 30 with AND for OR, the
     fly looking the wrong way, the counts never compared, the totals never
     compared, and the minstret never compared.
+  - Steps 63 to 162 alone, as round 1 on a board: the first unchecked, the 99
+    after it checked.
 - **The whole page in headless Chromium**, against a stand-in USB device that
   sends nothing until DTR. The check confirms that the page claims the
   interfaces, sets the line coding, raises DTR, draws, gives the expected
-  verdict, and that Copy works. With no WebUSB, Demo plays and says it checks
-  nothing.
+  verdict, and that Copy works. The line under the rows says which steps it
+  counts: the whole of round 1 of `good.txt`, and steps 64–163 of `joined.txt`.
+  A sixth wrong page is caught here: p1, which called those the round so far.
+  With no WebUSB, Demo plays and says it checks nothing.
 - **The shell on the RTL.** It runs two rounds, printing LIFE and FLY words,
   each exactly what `rule30.py` and `fly.py` say:
   - round 0 counts 2053 up and 1030 down, 255 steps seen moving and 1 not;
@@ -198,7 +207,7 @@ firmware: flash again.
   catches.
 - **The UF2.** 12400 bytes of the 16 KiB it may use, it reads back as built,
   and it is byte for byte the committed one (`exp231.uf2.sha256`).
-- **Logs from a phone** (`board/*.txt`, none yet). Each is checked by the
+- **Logs from a phone** (`board/*.txt`). Each is checked by the
   page's own block, and against `rule30.py` and `fly.py` from SEED0 at its
   round and step.
 
@@ -209,14 +218,25 @@ its LED, a phone drawing the steps, and a person seeing the two keep time.
 
 | Round | Firmware | What came back |
 | --- | --- | --- |
-| — | revision 1 (`0346f697…`), page build p1 | not yet run |
+| 1 | revision 1 (`0346f697…`), page build p1 | A Pico 2 and an Android phone, Chrome, the page opened from the phone's files. The page connected while the first round after boot was playing, at step 63 (`lives=1`), and stayed for 100 steps, 63 to 162. The page's own verdict, the `#page` line: **99 of 100 steps agree, 0 wrong, 1 unchecked** (the first it saw), no gaps, **seen moving up 100, not moving 0, down 0**. The paste ([board/round1-fly.txt](./board/round1-fly.txt)) holds all 100. `check.sh` replays them through the page's block, and against `rule30.py` and `fly.py` from SEED0 at round 0 and each step: all 100 are exact. No LIFE, FLY or SEED line arrived, since they go out before step 0, so the totals, the seams and the LIFE line were not checked on the board. The status lines say `minstret=70927`: the fly's count on silicon, the RTL's to the instruction (check 12). Clocks: clk_sys as left 10964 kHz, clk_usb 47999 kHz, clk_sys moved 47987 kHz, 47999 kHz against the phone's frames; no bus errors, nothing dropped. What the LED did was not reported. |
+
+Round 1 found one thing wrong with the page. Under the rows it said **"this
+round so far: left 222 · right 111 over 28 steps"**: steps 63 to 90 only, the
+ones it had seen, called the round. Both numbers were right; `fly.py` gives 222
+and 111 for exactly those steps. The words were wrong. Page build p2 says
+*steps 64–91 of this round, as this page saw them* when it joined mid-round,
+and keeps "this round so far" for a round it saw from step 0. `check.sh`
+replays the round in headless Chromium (`joined.txt`, steps 63 to 162), holds
+the line to the right numbers, and catches p1's wording as a wrong page.
 
 ## What it does not say
 
 - **That the kernels wrote what the page drew.** The proofs and the shell's
   checks cover the kernels; the page covers everything after them.
 - **That `watches_life` holds on silicon for every round.** Check 14 holds it
-  for every round the board runs, and only those.
+  for every round the board runs, and only those. Round 1 saw one round, from
+  step 63.
+- **What the LED did in round 1.** It was not reported.
 - **Recovery without a hand.** There is no 1200-baud reboot, so BOOTSEL by
   hand is the way back.
 - **More than one phone.** The walkthrough is written for a Pixel 9a, which

@@ -63,6 +63,9 @@ check(s.rows === 512 && s.ok === 512 && s.wrong === 0 && s.unchecked === 0 && s.
 s = fixture('midround.txt');
 check(s.rows === 412 && s.unchecked === 1 && s.ok === 411 && s.wrong === 0 && s.totals === 1,
   'joined at step 100 of round 0: that one unchecked, the 411 after it checked; only round 1\'s totals checked', brief(s));
+s = fixture('joined.txt');
+check(s.rows === 100 && s.unchecked === 1 && s.ok === 99 && s.totals === 0 && s.seenUp === 100,
+  'steps 63 to 162 of round 0 alone, as round 1 on a board: the first unchecked, the 99 after it checked, no totals', brief(s));
 s = fixture('flipped.txt');
 check(s.wrong === 2 && s.wrongAt === '0:37 0:38' && s.firstWrong && /Rule 30/.test(s.firstWrong.why) && /counts/.test(s.firstWrong.why),
   'one bit of generation 37 flipped on the way: 37 is wrong, frame and counts, and 38, which does not follow from it', brief(s));

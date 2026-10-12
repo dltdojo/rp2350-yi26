@@ -67,7 +67,14 @@ else
     page_mutant "the fly's minstret is not checked" 's/if (e.minstret !== FLY_MINSTRET)/if (false)/' fly.html node page_test.mjs @ build/fixtures
 
     if page_playwright; then
-        node page_browser.mjs fly.html build/fixtures/good.txt "512 of 512 steps agree" || FAILED=1
+        node page_browser.mjs fly.html build/fixtures/good.txt "512 of 512 steps agree" \
+            "this round so far: left 2004 · right 992 over 256 steps" || FAILED=1
+        node page_browser.mjs fly.html build/fixtures/joined.txt "99 of 100 steps agree" \
+            "steps 64–163 of this round, as this page saw them: left 819 · right 411" || FAILED=1
+        page_mutant "a page that joins mid-round calls what it saw the round so far, as p1 did on the board" \
+            's/if (e.g === 0 || e.round !== round.round) round =/if (e.g === 0) round =/' fly.html \
+            node page_browser.mjs @ build/fixtures/joined.txt "99 of 100 steps agree" \
+            "steps 64–163 of this round, as this page saw them: left 819 · right 411"
         node page_browser.mjs fly.html build/fixtures/crossed.txt "1 wrong" || FAILED=1
     else
         echo "SKIP  the page in a browser: Playwright is not installed"

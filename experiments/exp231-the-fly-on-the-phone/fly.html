@@ -67,7 +67,7 @@
 
 <h1>The fly on the phone</h1>
 <p class="sub">exp231 &middot; a fly's motion detector watching Rule 30 on the board, drawn here and checked again.<br>
-  <small>page build <b id="ver">p1</b></small></p>
+  <small>page build <b id="ver">p2</b></small></p>
 
 <p>
   <button id="connect">Connect</button>
@@ -288,7 +288,7 @@ let checker = flyChecker();
 const rows = [];   // the rows on screen, newest last: { word, up, down, verdict }
 const SHOW = 48;   // how many generations the canvas holds
 const COLS = 32 + 1 + 22 + 1 + 1;   // the cells, a gap, the meter (a cell for every 3, to 33 each way), a gap, the mark
-let round = { up: 0, down: 0, steps: 0 };
+let round = { round: -1, from: 0, up: 0, down: 0, steps: 0 };   // what this page saw of the round, from step `from`
 
 function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
 
@@ -355,10 +355,13 @@ function showStep(e) {
   saw.className = e.up > e.down ? 'up' : e.up < e.down ? 'down' : 'still';
   saw.textContent = e.up > e.down ? '← moving left' : e.up < e.down ? 'moving right →' : '· not moving';
   $('where').textContent = `round ${e.round}, step ${e.g + 1} of ${FLY_N} · left ${e.up}, right ${e.down}`;
-  if (e.g === 0) round = { up: 0, down: 0, steps: 0 };
+  // Round 1 on a board joined at step 63 and said "this round so far" of 28
+  // steps: what the page saw is not the round, so say which steps it was.
+  if (e.g === 0 || e.round !== round.round) round = { round: e.round, from: e.g, up: 0, down: 0, steps: 0 };
   round.up += e.up; round.down += e.down; round.steps++;
-  $('totals').innerHTML = `this round so far: <b class="up">left ${round.up}</b> · <b class="down">right ${round.down}</b>`
-    + ` over ${round.steps} steps`;
+  $('totals').innerHTML = (round.from === 0 ? 'this round so far' : `steps ${round.from + 1}–${e.g + 1} of this round, as this page saw them`)
+    + `: <b class="up">left ${round.up}</b> · <b class="down">right ${round.down}</b>`
+    + (round.from === 0 ? ` over ${round.steps} steps` : '');
   const led = $('led');
   led.classList.toggle('on', e.up > e.down);
   if (e.up > e.down) setTimeout(() => led.classList.remove('on'), 180);   // one unit, as the board's flash
