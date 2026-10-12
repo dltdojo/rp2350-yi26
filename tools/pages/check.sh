@@ -133,6 +133,30 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# log.html's Copy, the Clipboard API refusing while the log streams — as a
+# phone did in exp232's round 1, when build b3 called it alone. In headless
+# Chromium against headless.mjs's stand-in board; and b3's handler, put back,
+# must fail the same test.
+
+source ./pagecheck.sh
+if command -v node > /dev/null && page_playwright; then
+    node log_copy.mjs log.html || FAILED=1
+    work="$(mktemp -d)"
+    sed '/^async function copyText(text) {$/,/^};$/c\
+$('"'"'copy'"'"').onclick = async () => { await navigator.clipboard.writeText($('"'"'log'"'"').textContent); say('"'"'Log copied.'"'"', '"'"'ok'"'"'); };' log.html > "$work/log.html"
+    if cmp -s "$work/log.html" log.html; then
+        fail "build b3's Copy, put back, fails the test" "the sed changed nothing"
+    elif node log_copy.mjs "$work/log.html" > /dev/null 2>&1; then
+        fail "build b3's Copy, put back, fails the test" "it passed"
+    else
+        pass "build b3's Copy, put back, fails the test: nothing reaches the clipboard and nothing says why"
+    fi
+    rm -rf -- "$work"
+else
+    echo "SKIP  log.html's Copy in a browser: needs node and Playwright"
+fi
+
+# ---------------------------------------------------------------------------
 # The experiments that built these pages keep their own copies, on purpose.
 #
 # An experiment that turns into a link loses the history somebody came for. So

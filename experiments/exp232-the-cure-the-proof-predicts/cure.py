@@ -18,8 +18,19 @@ The kernel runs 64 generations; the schedule is 32 bits, generation g's dose
 in bit g, so nothing is given after generation 31.
 
   cure.py              the search as the chip runs it, its answer, and a trial
+  cure.py --board LOG...
+                       each line a board sent, against this file: SEARCH and
+                       PLAN as the search and the protocol's hash here; each
+                       PATIENT's model outcome from its arm, width and place;
+                       its world replayed from its word, when the line has one
+                       (from the second build on), or else, where the world
+                       cannot differ from the model (a control, or no resistant
+                       cell), the model's to the number; each TRIAL's counts
+                       adding up
 """
+import os
 import struct
+import sys
 
 W, GENS = 32, 64
 INIT_OFF, HIST_OFF = 0x100, 0x200
@@ -189,7 +200,86 @@ def patient_words(n, r, sched):
             min(pc(h) for _, h in hist[:DAYS]), pc(hist[-1][0])]
 
 
+WORDS = ("cured", "relapsed", "missed")
+
+
+def fields(line):
+    return dict(f.split("=", 1) for f in line.split()[1:] if "=" in f)
+
+
+def board_logs(logs):
+    """Every board log against this file. Returns the number that failed."""
+    import hashlib
+    answer, accepted, relapsing, loophole = search()
+    protocol = [answer, DAYS, DETECT, TISSUE_MIN, max(WIDTHS), MUT_BITS, CANDIDATES, SEARCH_SEED]
+    plan = hashlib.sha256(b"".join(w.to_bytes(4, "little") for w in protocol)).hexdigest()
+    want_search = {"tried": str(CANDIDATES), "accepted": str(accepted), "relapsing": str(relapsing),
+                   "answer": f"{answer:08x}", "doses": str(pc(answer)), "loophole": f"{loophole:08x}"}
+    failed = 0
+    for log in logs:
+        bad, seen, n_search, resistant_treated, replayed = [], [], 0, 0, 0
+        instrets = set()
+        for line in open(log, encoding="utf-8", errors="replace"):
+            f = fields(line)
+            head = line.split()[0] if line.split() else ""
+            if head == "SEARCH":
+                n_search += 1
+                instrets.add(f.get("minstret"))
+                if any(f.get(k) != v for k, v in want_search.items()):
+                    bad.append(f"SEARCH {f}")
+            elif head == "PLAN" and f.get("sha256") != plan:
+                bad.append(f"PLAN {f.get('sha256')}")
+            elif head == "PATIENT":
+                treated, w, at = f["arm"] == "treated", int(f["width"]), int(f["at"])
+                t = lump(w, at)
+                model = lifetime(t, ~t & M, answer if treated else 0)
+                got = (f["model"], f["world"], int(f["t24"]), int(f["tissue"]), int(f["t64"]))
+                if f["model"] != WORDS[outcome(model)]:
+                    bad.append(f"patient {f['n']}: model {f['model']}, cure.py {WORDS[outcome(model)]}")
+                if "word" in f:
+                    arm, w2, at2, hist, _, ever = world(int(f["word"], 16), answer)
+                    want = (WORDS[outcome(model)], WORDS[outcome(hist)], pc(hist[DAYS - 1][0]),
+                            min(pc(h) for _, h in hist[:DAYS]), pc(hist[-1][0]))
+                    if (arm, w2, at2, int(ever)) != (int(treated), w, at, int(f["resistant"])) or got != want:
+                        bad.append(f"patient {f['n']}: {got}, cure.py's world from {f['word']} {want}")
+                    replayed += 1
+                elif not treated or f["resistant"] == "0":
+                    want = (WORDS[outcome(model)], WORDS[outcome(model)], pc(model[DAYS - 1][0]),
+                            min(pc(h) for _, h in model[:DAYS]), pc(model[-1][0]))
+                    if got != want:
+                        bad.append(f"patient {f['n']}: {got}, the model's {want}")
+                else:
+                    resistant_treated += 1
+                    met = got[2] <= DETECT and got[3] >= TISSUE_MIN
+                    if f["world"] != (WORDS[2] if not met else WORDS[0] if got[4] == 0 else WORDS[1]):
+                        bad.append(f"patient {f['n']}: world {f['world']} with t24 {got[2]}, tissue {got[3]}, t64 {got[4]}")
+                seen.append(f["n"])
+            elif head == "TRIAL":
+                c = {k: int(v) for k, v in f.items()}
+                if (c["treated"] != c["cured"] + c["relapsed"] + c["missed"] or c["control"] != c["control_missed"]
+                        or c["predicted"] != c["treated"]):
+                    bad.append(f"TRIAL {f}")
+            elif head.startswith("exp232"):
+                instrets.add(f.get("minstret"))
+        instrets.discard(None)
+        name = os.path.basename(log)
+        if seen and not bad and instrets <= {"3084"}:
+            worlds = (f"every world replayed by cure.py from its word, to the number ({replayed} of {len(seen)})"
+                      if replayed == len(seen) else
+                      f"every world that could not differ from the model the model's to the number "
+                      f"({len(seen) - resistant_treated} of {len(seen)})")
+            print(f"PASS  {name}: SEARCH and PLAN are cure.py's ({n_search} times), minstret 3084 throughout; "
+                  f"patients {seen[0]}–{seen[-1]}: every model outcome cure.py's, {worlds}, "
+                  f"every TRIAL count adding up, every treated patient predicted cured and every control missed")
+        else:
+            failed += 1
+            print(f"FAIL  {name}: {bad[:4] if bad else 'no PATIENT line' if not seen else f'minstret {instrets}'}")
+    return failed
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "--board":
+        sys.exit(1 if board_logs(sys.argv[2:]) else 0)
     best, accepted, relapsing, loophole = search()
     print(f"search: {CANDIDATES} schedules, {accepted} meet the endpoint, {relapsing} of them relapse in the model")
     print(f"answer: {best:06x}, {pc(best)} doses; first loophole {loophole:06x}")

@@ -20,7 +20,9 @@
 #      committed one when the toolchain is the recorded one;
 #   4. on the RTL the shell runs the whole search and six patients exactly as
 #      cure.py says, the protocol's SHA-256 included; wrong shells are caught by
-#      the check each breaks.
+#      the check each breaks;
+#   5. every log a board gave back (board/*.txt) is cure.py's, line by line,
+#      and a log with one thing changed is refused.
 #
 # What none of it reaches: the TRNG drawing the patients, the board sending
 # them, and a person reading the trial off the LED and a phone.
@@ -125,5 +127,30 @@ side_by_side shell_mutant "the TRNG gives nothing — check 11" board_sim.c \
 side_by_side shell_mutant "the shell itself traps entering the kernel — a fault, not a check" shell.c \
     's/^    step = phase ? 7 : 3;$/    step = phase ? 7 : 3;\n    __asm__ volatile (".word 0");/' "4641554c 00000003 00000002 "
 side_by_side_end
+
+# What a board sent, against cure.py: SEARCH and PLAN, every patient's model,
+# its world replayed from its word (or, before the second build put the word
+# in the line, the model's wherever the world cannot differ from it), every
+# TRIAL count. And a log with one thing changed must be refused.
+shopt -s nullglob
+logs=(board/*.txt)
+if (( ${#logs[@]} )); then
+    python3 cure.py --board "${logs[@]}" || FAILED=1
+    work="$(mktemp -d)"
+    for e in 's/ tissue=26 t64=0$/ tissue=25 t64=0/' 's/sha256=4cccf5ca/sha256=4cccf5cb/' \
+             's/control=8 control_missed=8/control=8 control_missed=7/' 's/n=8 arm=treated width=1 at=23 model=cured/n=8 arm=treated width=1 at=23 model=missed/'; do
+        sed "$e" board/round1.txt > "$work/changed.txt"
+        if cmp -s "$work/changed.txt" board/round1.txt; then
+            fail "a board log with one thing changed is refused" "the sed changed nothing: $e"
+        elif python3 cure.py --board "$work/changed.txt" > /dev/null; then
+            fail "a board log with one thing changed is refused" "accepted: $e"
+        else
+            pass "a board log with one thing changed is refused: $e"
+        fi
+    done
+    rm -rf -- "$work"
+else
+    echo "SKIP  checking a board's log: none recorded yet (board/*.txt)"
+fi
 
 exit "$FAILED"

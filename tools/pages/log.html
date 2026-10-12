@@ -54,7 +54,7 @@
 
 <h1>The log, in a browser</h1>
 <p class="sub">exp116 &middot; claim the CDC interfaces and read the endpoint. No firmware changes.<br>
-  <small>page build <b id="ver">b3</b> &mdash; if this is not the build you expect,
+  <small>page build <b id="ver">b4</b> &mdash; if this is not the build you expect,
   reload with <kbd>Ctrl-Shift-R</kbd>.</small></p>
 
 <p>
@@ -424,7 +424,32 @@ $('clear').onclick = () => {
   $('log').textContent = ''; captured = '';
   lines = 0; bytes = 0; started = performance.now(); meta();
 };
-$('copy').onclick = async () => { await navigator.clipboard.writeText($('log').textContent); say('Log copied.', 'ok'); };
+// Copy, in two ways, saying which one worked; null if neither did. Build b3
+// had the Clipboard API alone, unguarded: on a phone in exp232's round 1 it
+// did nothing while the log streamed, said nothing, and the log came back only
+// by pressing Disconnect and selecting the whole page. exp226's round 4 had
+// met the same on a Pixel 9a, and exp227's life.html and exp231's fly.html
+// carry this fallback for it; this page, the one most people copy from, did not.
+async function copyText(text) {
+  let first = '';
+  try { await navigator.clipboard.writeText(text); return 'Clipboard API'; }
+  catch (e) { first = `${e.name}: ${e.message}`; }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  if (ok) return `fallback; the Clipboard API said ${first}`;
+  say(`Copy failed both ways. The Clipboard API said ${first}; the fallback refused. Press Disconnect, then Copy.`, 'bad');
+  return null;
+}
+
+$('copy').onclick = async () => {
+  const text = $('log').textContent;
+  const how = await copyText(text);
+  if (how) say(`Log copied, ${text.length} characters (${how}).`, 'ok');
+};
 
 // The button that exists for a reader who is not a person.
 //
@@ -436,7 +461,8 @@ $('copy').onclick = async () => { await navigator.clipboard.writeText($('log').t
 // in a field, with a total in the summary.
 $('copyjson').onclick = async () => {
   const json = yi26Ndjson(captured);
-  await navigator.clipboard.writeText(json);
+  const how = await copyText(json);
+  if (!how) return;
 
   const summary = JSON.parse(json.trimEnd().split('\n').pop());
 
@@ -457,8 +483,8 @@ $('copyjson').onclick = async () => {
   }
 
   say(summary.lost_total > 0
-    ? `Copied ${summary.lines} lines as JSON — and it records ${summary.lost_total} more that the firmware dropped before they reached you.`
-    : `Copied ${summary.lines} lines as JSON, in the same shape yi26 log --json produces.`, 'ok');
+    ? `Copied ${summary.lines} lines as JSON (${how}) — and it records ${summary.lost_total} more that the firmware dropped before they reached you.`
+    : `Copied ${summary.lines} lines as JSON (${how}), in the same shape yi26 log --json produces.`, 'ok');
 };
 
 (async () => {

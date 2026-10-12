@@ -8,7 +8,7 @@
 //
 //   SEARCH tried=… accepted=… relapsing=… answer=… doses=… loophole=… minstret=…
 //   PLAN sha256=…                       the protocol, fixed before patient 1
-//   PATIENT n=… arm=… width=… at=… model=… world=… resistant=… t24=… tissue=… t64=…
+//   PATIENT n=… word=… arm=… width=… at=… model=… world=… resistant=… t24=… tissue=… t64=…
 //   TRIAL treated=… cured=… relapsed=… missed=… predicted=… control=… control_missed=…
 //
 // SEARCH and PLAN go out again before every patient, so a page that opens
@@ -71,6 +71,7 @@ void board_patient(const struct search *s, const uint8_t plan[32], const struct 
     header(s, plan);
     put("PATIENT");
     field("n", p->n);
+    field_hex("word", p->word);   // the TRNG's word: cure.py's world() replays the patient from it
     put(p->arm ? " arm=treated" : " arm=control");
     field("width", p->width);
     field("at", p->at);

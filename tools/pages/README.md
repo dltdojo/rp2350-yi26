@@ -193,6 +193,14 @@ Both came out of exp227's `life.html` when exp228's `script.html` became the
 second page to need them. Neither picks a device from a real dialog: that
 still needs a person.
 
+`log.html`'s own Copy is tested the same way, by [`log_copy.mjs`](./log_copy.mjs),
+which `check.sh` runs when Playwright is there: the Clipboard API refuses
+while the log streams, as it did on a phone in exp232's round 1, and Copy
+and Copy as JSON must each still get every line out, by the fallback, and
+say which way. Build b3 had no fallback and said nothing; b4 has the one
+`life.html` and `fly.html` already carried, and b3's handler put back must
+fail the test.
+
 ## If you are an AI assistant
 
 These pages are not how you talk to a board — `yi26` is, and it can do the

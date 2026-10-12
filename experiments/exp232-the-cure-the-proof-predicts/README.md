@@ -195,14 +195,15 @@ These go out over USB, and `tools/pages/log.html` shows them:
 ```
 SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
 PLAN sha256=…
-PATIENT n=… arm=treated|control width=… at=… model=… world=… resistant=… t24=… tissue=… t64=…
+PATIENT n=… word=… arm=treated|control width=… at=… model=… world=… resistant=… t24=… tissue=… t64=…
 TRIAL treated=… cured=… relapsed=… missed=… predicted=… control=… control_missed=…
 ```
 
-`model` and `world` are `cured`, `relapsed` or `missed`. SEARCH and PLAN go
+`model` and `world` are `cured`, `relapsed` or `missed`. `word` is the TRNG's
+word the patient was drawn from, so `cure.py` can replay that patient's world
+exactly. It arrived with the second build, after round 1. SEARCH and PLAN go
 out again before every patient, so a page opened late still sees what is
-being tested. That SEARCH line is what the RTL prints. These lines have not
-come from a board yet.
+being tested.
 
 ## Running it on a board
 
@@ -211,7 +212,50 @@ come from a board yet.
 2. The LED comes on for about a second: the search. Then the trial begins,
    a patient every few seconds.
 3. To read the lines, open `tools/pages/log.html` in Chrome, Connect, and
-   choose the board.
+   choose the board. Use page build b4 or later: b3's Copy can fail silently
+   on a phone while the log streams (round 1 below).
+4. To check what came back: save the lines as `board/<name>.txt` and run
+   `python3 cure.py --board board/<name>.txt`. `check.sh` runs it on every
+   saved log.
+
+## On the board
+
+**Round 1.** A Pico 2, the first build (UF2 `2e9f6811…`), and a phone with
+`tools/pages/log.html` build b3. The log, pasted as the page showed it, is
+[`board/round1.txt`](./board/round1.txt).
+
+- **The search on silicon is `cure.py`'s.** 1024 tried, 367 accepted, 34 of
+  them relapsing in the model, answer `0x51af` with 9 doses, first loophole
+  `0xf917d1`. The PLAN hash is `cure.py`'s and the RTL's: `4cccf5ca…a112cd60`.
+  Every run's minstret on silicon was 3084, the RTL's count, all 15 patients
+  and the whole search.
+- **The page joined at patient 7** and saw 7 to 15. `cure.py --board` holds
+  every one:
+  - each model outcome, recomputed from the arm, width and place;
+  - each world to the number. These nine could not differ from the model:
+    four controls, whose patients get no dose, so resistance changes
+    nothing; and five treated patients with no resistant cell.
+- **The trial at patient 15:**
+  - 7 treated, and the model predicted all 7 cured. In the world 6 were
+    cured and **1 missed the endpoint**.
+  - 8 controls, all missed, as M3 says they must.
+
+  The missed patient was one of 1 to 6, before the page joined, so its line
+  is not in the log. But it is in TRIAL's count, and the board kept going,
+  so check 10 held for every patient: no world without resistance left the
+  proved model.
+  **On silicon, the gap between the proof and the trial.**
+- **Copy failed silently.** The page's Copy did nothing while the log
+  streamed, and said nothing. The log came back only by pressing Disconnect
+  and selecting the whole page. This is what exp226's round 4 met on a
+  Pixel 9a, and what `life.html` and `fly.html` carry a fallback for;
+  `log.html` never got it. Build b4 has it, and
+  [`tools/pages/log_copy.mjs`](../../tools/pages/log_copy.mjs) holds it to
+  the case: Clipboard API refusing, still streaming, every line out by the
+  fallback. b3's handler, put back, fails the test.
+- **The second build** puts `word=` in each PATIENT line, so a resistant
+  treated patient, the one that matters, can be replayed too. Its UF2 is
+  `exp232.uf2.sha256`'s. The trial is the same; only the line is longer.
 
 ## What it does not say
 
