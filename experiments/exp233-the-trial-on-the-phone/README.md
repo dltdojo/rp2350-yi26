@@ -147,7 +147,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp233 — the trial on the phone ===
-recorded at 2026-10-12T08:20:32Z from commit 537979a
+recorded at 2026-10-12T08:29:11Z from commit bb6563b
 
 >>> what exp232's board sends, as cure.py writes it: the first patient
 build/fixtures: 40 patients, the model and the world part on 2 treated: [3, 4]; patient 2 is the first the world cured
@@ -159,6 +159,7 @@ TRIAL treated=1 cured=1 relapsed=0 missed=0 predicted=1 control=0 control_missed
 >>> the checks
 PASS  no lifeline, and it says why: no firmware of its own
 PASS  the page's script parses (node --check)
+PASS  the page is in English only
 PASS  findCdc is tools/pages/log.html's, byte for byte
 PASS  the page's own search is cure.py's: 1024 tried, 367 accepted, 34 relapsing, answer 000051af, loophole 00f917d1
 PASS  the page's own SHA-256 of the protocol is cure.py's, 4cccf5ca251d8259…
@@ -177,6 +178,7 @@ PASS  patient 12's line lost: a gap, nothing called wrong
 PASS  a status line with minstret 3085 is caught
 PASS  round1.txt: 9 of 9 patients from a board agree with the page; search, plan and every TRIAL count agree; the model and the world part on 0
 PASS  round2.txt: 16 of 16 patients from a board agree with the page; search, plan and every TRIAL count agree; the model and the world part on 2
+PASS  round1.txt: 20 of 20 patients from a board agree with the page; search, plan and every TRIAL count agree; the model and the world part on 0
 PASS  the tests catch a page where the world has no resistance in it: the page's model and world are cure.py's, every number, for all 5 random words — word 2654496c: cure.py 0 1 
 PASS  the tests catch a page where a dose kills resistant cells too: the page's model and world are cure.py's, every number, for all 8 random words — word b4b95461: cure.py 1 5 
 PASS  the tests catch a page where the tumour invades the cell below: the page's model and world are cure.py's, every number, for all 0 random words — word 00000000: cure.py 0 1 
@@ -206,5 +208,10 @@ PASS  round2.txt: the verdict line says "16 of 16 patients agree"
 PASS  round2.txt: the trial panel says "Treated 7: the proof predicts 7 cured · the world cured 5, 2 missed", and the search and the protocol agree with the page's own
 PASS  round2.txt: 2 patients drawn where the model said cured and the world did not (149352, 147552 pixels), no script error
 PASS  round2.txt: Copy puts the verdict and every line received on the clipboard (16304 characters)
+PASS  round1.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  round1.txt: the verdict line says "20 of 20 patients agree"
+PASS  round1.txt: the trial panel says "Treated 13: the proof predicts 13 cured · the world cured 12, 1 missed", and the search and the protocol agree with the page's own
+PASS  round1.txt: 0 patients drawn where the model said cured and the world did not ( pixels), no script error
+PASS  round1.txt: Copy puts the verdict and every line received on the clipboard (20404 characters)
 PASS  the tests catch a page where the page draws the patients the model and the world agree on: good.txt: 6 patients drawn where the model said cured and the world did not (149244, 149532, 149244, 149820, 1
 ```
