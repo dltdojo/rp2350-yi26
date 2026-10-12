@@ -1,5 +1,5 @@
 === exp232 — the cure the proof predicts ===
-recorded at 2026-10-12T06:26:10Z from commit 37b508e
+recorded at 2026-10-12T07:35:41Z from commit 6ecf4f5
 
 >>> the theorems, and what they rest on
 'Exp232.apart' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -69,7 +69,10 @@ PASS  the shell catches a version where the world's tumour grows down while the 
 PASS  the shell catches a version where the TRNG gives nothing — check 11
 PASS  the shell catches a version where the shell itself traps entering the kernel — a fault, not a check
 PASS  round1.txt: SEARCH and PLAN are cure.py's (9 times), minstret 3084 throughout; patients 7–15: every model outcome cure.py's, every world that could not differ from the model the model's to the number (9 of 9), every TRIAL count adding up, every treated patient predicted cured and every control missed
+PASS  round2.txt: SEARCH and PLAN are cure.py's (16 times), minstret 3084 throughout; patients 5–20: every model outcome cure.py's, every world replayed by cure.py from its word, to the number (16 of 16), every TRIAL count adding up, every treated patient predicted cured and every control missed
 PASS  a board log with one thing changed is refused: s/ tissue=26 t64=0$/ tissue=25 t64=0/
 PASS  a board log with one thing changed is refused: s/sha256=4cccf5ca/sha256=4cccf5cb/
 PASS  a board log with one thing changed is refused: s/control=8 control_missed=8/control=8 control_missed=7/
 PASS  a board log with one thing changed is refused: s/n=8 arm=treated width=1 at=23 model=cured/n=8 arm=treated width=1 at=23 model=missed/
+PASS  a board log with one thing changed is refused: s/resistant=1 t24=19 tissue=13/resistant=1 t24=18 tissue=13/
+PASS  a board log with one thing changed is refused: s/word=2e8b3fbd/word=2e8b3fbc/
