@@ -30,23 +30,29 @@ STATUS = ("exp231 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=0
           "lives={} minstret=70927")
 
 
+def round_heads(r, seed, fly_minstret=FLY_MINSTRET):
+    """Round r grown from seed: its LIFE, FLY and SEED lines, and its steps (word, up, down)."""
+    h = history(seed)
+    frames = [seed] + h
+    steps = [(h[g], *sees(frames[g], frames[g + 1])) for g in range(len(h))]
+    col = sum(((h[g] >> 16) & 1) << g for g in range(32))
+    up, down = sum(u for _, u, _ in steps), sum(d for _, _, d in steps)
+    return [f"LIFE {r:08x} {LIFE_MINSTRET:08x} {h[0]:08x} {h[-1]:08x} {col:08x}",
+            f"FLY {r:08x} {fly_minstret:08x} {up:08x} {down:08x}",
+            f"SEED {r:08x} {seed:08x}"], steps
+
+
 def fly_round_lines(rounds, seed=SEED0, fly_minstret=FLY_MINSTRET):
     """[(round, g or None, line)]: what board_play sends, a status line every few beats."""
     out = []
     for r in range(rounds):
-        h = history(seed)
-        frames = [seed] + h
-        steps = [sees(frames[g], frames[g + 1]) for g in range(len(h))]
-        col = sum(((h[g] >> 16) & 1) << g for g in range(32))
-        up, down = sum(u for u, _ in steps), sum(d for _, d in steps)
-        out.append((r, None, f"LIFE {r:08x} {LIFE_MINSTRET:08x} {h[0]:08x} {h[-1]:08x} {col:08x}"))
-        out.append((r, None, f"FLY {r:08x} {fly_minstret:08x} {up:08x} {down:08x}"))
-        out.append((r, None, f"SEED {r:08x} {seed:08x}"))
-        for g, (w, (u, d)) in enumerate(zip(h, steps)):
+        heads, steps = round_heads(r, seed, fly_minstret)
+        out += [(r, None, line) for line in heads]
+        for g, (w, u, d) in enumerate(steps):
             if g % 3 == 0:
                 out.append((r, None, STATUS.format(r + 1)))
             out.append((r, g, f"SEES {r:08x} {g:08x} {w:08x} {u:08x} {d:08x}"))
-        seed = h[-1]
+        seed = steps[-1][0]
     return out
 
 
@@ -98,26 +104,29 @@ def write_fly_fixtures(d):
 
 
 def fly_board_positions(logs):
-    lives, failed = [[SEED0] + history(SEED0)], 0
+    """Every SEES, LIFE, FLY and SEED line a board sent, against round_heads from SEED0."""
+    rounds, failed = [round_heads(0, SEED0)], 0
     for log in logs:
-        got = {}
+        got, heads = {}, []
         for line in open(log, encoding="utf-8", errors="replace"):
             f = line.split()
             if len(f) == 6 and f[0] == "SEES":
                 got[(int(f[1], 16), int(f[2], 16))] = tuple(int(v, 16) for v in f[3:])
-        while got and len(lives) <= max(r for r, _ in got):
-            lives.append([lives[-1][-1]] + history(lives[-1][-1]))
-        bad = [(r, g) for (r, g), (w, u, d) in sorted(got.items())
-               if (lives[r][g + 1], *sees(lives[r][g], lives[r][g + 1])) != (w, u, d)]
+            elif f and f[0] in ("LIFE", "FLY", "SEED") and len(f) > 1:
+                heads.append((int(f[1], 16), " ".join(f)))
+        last = max([r for r, _ in got] + [r for r, _ in heads], default=-1)
+        while len(rounds) <= last:
+            rounds.append(round_heads(len(rounds), rounds[-1][1][-1][0]))
+        bad = [(r, g) for (r, g), step in sorted(got.items()) if rounds[r][1][g] != step]
+        bad += [line for r, line in heads if line not in rounds[r][0]]
         name = os.path.basename(log)
         if got and not bad:
             print(f"PASS  {name}: all {len(got)} steps are rule30.py's generation and fly.py's counts, "
-                  "at their round and step from SEED0")
+                  f"and all {len(heads)} LIFE, FLY and SEED lines theirs, at their round from SEED0")
         else:
             failed += 1
             print(f"FAIL  {name}: rule30.py and fly.py from SEED0 disagree at {bad[:5] if bad else 'no SEES line'}")
     return failed
-
 
 if __name__ == "__main__":
     if len(sys.argv) >= 3 and sys.argv[1] == "--board":
