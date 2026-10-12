@@ -833,7 +833,7 @@ theorem subn_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L subnLine 29) {
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
     obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := subnLine) (rv := 29) hp hL (by decide) (by decide)
-      hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
+      hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, ifT hj']) code1 a1 b1 c1 d1
     have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) := kp1.word hfit (by omega) (by omega)
     have wy : wordAt s1.mem base (y + 4 * j) = wordAt m0 base (y + 4 * j) := kp1.word hfit (by omega) (by omega)
     obtain ⟨v29, v5, vk⟩ := subn_regs s1 (wordAt s1.mem base (x + 4 * j)) (wordAt s1.mem base (y + 4 * j))
@@ -922,7 +922,7 @@ theorem addm_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L addmLine 29) {
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
     obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := addmLine) (rv := 29) hp hL (by decide)
-      (by decide) hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
+      (by decide) hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, ifT hj']) code1 a1 b1 c1 d1
     have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) := kp1.word hfit (by omega) (by omega)
     have wy : wordAt s1.mem base (y + 4 * j) = wordAt m0 base (y + 4 * j) := kp1.word hfit (by omega) (by omega)
     have g1 : s1.reg 13 = mask k := by rw [o1 13 (by decide), h13]
@@ -1009,7 +1009,7 @@ theorem sel_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L selLine 29) {x 
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
     obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := selLine) (rv := 29) hp hL (by decide)
-      (by decide) hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
+      (by decide) hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, ifT hj']) code1 a1 b1 c1 d1
     have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) := kp1.word hfit (by omega) (by omega)
     have wy : wordAt s1.mem base (y + 4 * j) = wordAt m0 base (y + 4 * j) := kp1.word hfit (by omega) (by omega)
     have g1 : s1.reg 13 = mask k := by rw [o1 13 (by decide), h13]
@@ -1074,7 +1074,7 @@ theorem zero_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L zeroLine 29) {
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
     obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := zeroLine) (rv := 29) hp hL (by decide)
-      (by decide) hj' hz hz hz hz4 hz4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
+      (by decide) hj' hz hz hz hz4 hz4 hz4 hzc (by rw [p1, ifT hj']) code1 a1 b1 c1 d1
     obtain ⟨v29, vk⟩ := zero_regs s1 (wordAt s1.mem base (z + 4 * j)) (wordAt s1.mem base (z + 4 * j))
     refine ⟨s2, ?_, ?_, a2, b2, c2, d2, ?_, ?_, ?_⟩
     · rw [show 9 * (j + 1) = 9 * j + (zeroLine.length + 8) by simp [zeroLine]; omega, run_add_running e1, e2]
@@ -1138,7 +1138,7 @@ theorem row_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L rowLine 29) {x 
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
     obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := rowLine) (rv := 29) hp hL (by decide)
-      (by decide) hj' hx hz hz hx4 hz4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
+      (by decide) hj' hx hz hz hx4 hz4 hz4 hzc (by rw [p1, ifT hj']) code1 a1 b1 c1 d1
     have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) := kp1.word hfit (by omega) (by omega)
     have wz : wordAt s1.mem base (z + 4 * j) = wordAt m0 base (z + 4 * j) := kp1.word hfit (by omega) (by omega)
     have g14 : s1.reg 14 = s.reg 14 := o1 14 (by decide)
@@ -1237,7 +1237,7 @@ theorem fold_loop (hp : Placed env base) {L : Nat} (hL : LoopAt L foldLine 31) {
     have code1 : CodeAt s1.mem base kernel :=
       Kept.code hfit kp1 (by rw [kernel_length]; omega) (by decide) hcode
     obtain ⟨s2, e2, p2, m2, a2, b2, c2, d2, o2⟩ := word_body (blk := foldLine) (rv := 31) hp hL (by decide)
-      (by decide) hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, if_pos hj']) code1 a1 b1 c1 d1
+      (by decide) hj' hx hy hz hx4 hy4 hz4 hzc (by rw [p1, ifT hj']) code1 a1 b1 c1 d1
     have wx : wordAt s1.mem base (x + 4 * j) = wordAt m0 base (x + 4 * j) := kp1.word hfit (by omega) (by omega)
     have wy : wordAt s1.mem base (y + 4 * j) = wordAt m0 base (y + 4 * j) := kp1.word hfit (by omega) (by omega)
     have g14 : s1.reg 14 = BitVec.ofNat 32 977 := by rw [o1 14 (by decide), h14]
@@ -1318,7 +1318,7 @@ theorem setk_regs (s : Machine) (rd : Reg) (c : Nat) (hc : c < 2048) (h0 : rd �
     ∧ ∀ r : Reg, r ≠ rd → (s.line [.opi .addi rd 0 (BitVec.ofNat 12 c)]).reg r = s.reg r := by
   refine ⟨?_, ?_⟩
   · simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI, true_and]
-    rw [if_pos h0, reg_zero]
+    rw [ifT h0, reg_zero]
     exact setk_val c hc
   · intro r hr
     simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI, hr, false_and, ↓reduceIte]
@@ -1610,7 +1610,7 @@ theorem row_run (hp : Placed env base) {M xa x z : Nat} (hM : RowAt M xa x z) {s
   · intro r hr
     have n14 : ¬ r = 14 := fun h => hr (by rw [h]; decide)
     rw [r3, o2 r (not_mem_of hr (by decide)), qk r (not_mem_of hr (by decide)), r0 r,
-      if_neg (fun h => n14 h.1)]
+      ifF (fun h => n14 h.1)]
 
 /-- The pointers, t0 = 0, a3 = 0, a4 = 977 and t1 = 8: how FOLD begins. -/
 def pro7 (x y z : Nat) : List Instr :=
@@ -1661,6 +1661,7 @@ structure FoldAt (M x y z : Nat) : Prop where
   sw2 : kernel.getD (M + 30) .ecall = .st .sw 12 30 0x4
   fits : M + 31 ≤ 458
 
+set_option exponentiation.threshold 300 in
 /-- **FOLD**: `Z`, ten words, is `L + 977·H + 2^32·H`, `L` at `x` and `H` at `y`, eight words each. -/
 theorem fold_run (hp : Placed env base) {M x y z : Nat} (hM : FoldAt M x y z) {s : Machine}
     (hx : 0x800 ≤ x ∧ x + 32 < 0x1000) (hy : 0x800 ≤ y ∧ y + 32 < 0x1000) (hz : 0x800 ≤ z ∧ z + 40 < 0x1000)
@@ -1858,7 +1859,7 @@ theorem hset_run (hp : Placed env base) {M src : Nat} (hM : HsetAt M src) {s : M
     rw [rr, r2, r1]
     have n5 : ¬ r = 5 := fun h => hr (by rw [h]; decide)
     have n6 : ¬ r = 6 := fun h => hr (by rw [h]; decide)
-    rw [if_neg (fun h => n6 h.1), if_neg (fun h => n5 h.1)]
+    rw [ifF (fun h => n6 h.1), ifF (fun h => n5 h.1)]
 
 /-- `0 - (a <u b)`: the mask, all ones exactly when `a <u b`. -/
 theorem neg_lt1 (a b : Word) : 0 - lt1 a b = mask (a.ult b) := by
@@ -1876,8 +1877,8 @@ structure CsubAt (M src : Nat) : Prop where
 /-- A number below `2p` less `p` once if it must be. -/
 theorem mod_lt2 {N P : Nat} (h : N < 2 * P) : N % P = if N < P then N else N - P := by
   by_cases h1 : N < P
-  · rw [if_pos h1, Nat.mod_eq_of_lt h1]
-  · rw [if_neg h1, Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
+  · rw [ifT h1, Nat.mod_eq_of_lt h1]
+  · rw [ifF h1, Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
 
 /-- **CSUB**: R is `src mod p`, `src` nine words below `2p`. -/
 theorem csub_run (hp : Placed env base) {M src : Nat} (hM : CsubAt M src) {s : Machine}
@@ -1935,10 +1936,10 @@ theorem csub_run (hp : Placed env base) {M src : Nat} (hM : CsubAt M src) {s : M
     rw [show 32 * 8 = 256 from rfl] at hD hS
     by_cases hk : wordAt s.mem base (src + 32) < (s1.reg 5).toNat
     · simp only [hk, decide_true, ↓reduceIte]
-      rw [if_pos (by omega)]
+      rw [ifT (by omega)]
       omega
     · simp only [hk, decide_false, Bool.false_eq_true, ↓reduceIte]
-      rw [if_neg (by omega)]
+      rw [ifF (by omega)]
       omega
   · rw [o4 9 (by decide), h93, h9]
 
@@ -2134,11 +2135,11 @@ theorem sub_run (hp : Placed env base) {s : Machine} {a b : Nat}
     rw [mod_lt2 (by omega)]
     by_cases hk : (s1.reg 5).toNat = 1
     · simp only [hk, decide_true, ↓reduceIte] at n3 n1
-      rw [if_pos (by omega)]
+      rw [ifT (by omega)]
       omega
     · have hk0 : (s1.reg 5).toNat = 0 := by omega
       simp only [hk, hk0, decide_false, Bool.false_eq_true, ↓reduceIte] at n3 n1
-      rw [if_neg (by omega)]
+      rw [ifF (by omega)]
       simp only [show decide ((0 : Nat) = 1) = false from rfl, Bool.false_eq_true, ↓reduceIte] at n3
       omega
 
@@ -2187,6 +2188,7 @@ theorem rows_run (hp : Placed env base) {s : Machine}
       rw [e1, e2]
       omega
 
+set_option exponentiation.threshold 300 in
 /-- A number of ten words: its first eight and the two above, at their weights. -/
 theorem num10 (m : Word → Byte) (o : Nat) :
     numAt m base o 10
@@ -2437,18 +2439,12 @@ def heads : Heads :=
 set_option maxRecDepth 100000 in
 theorem accepted : check kernel pub heads = true := by decide
 
-set_option maxRecDepth 100000 in
-theorem bytes_words : ∀ k (h : k < kernel.length),
-    (bytes.getD (4 * k) 0).toNat + 256 * (bytes.getD (4 * k + 1) 0).toNat
-      + 65536 * (bytes.getD (4 * k + 2) 0).toNat + 16777216 * (bytes.getD (4 * k + 3) 0).toNat
-      = (encode kernel[k]).toNat := by
-  decide
-
 /-- An image that begins with the kernel's 1832 bytes holds the kernel. -/
 theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (img : ByteArray)
     (hsize : 1832 ≤ img.size) (himg : ∀ d (h : d < 1832), img.get d (by omega) = bytes.getD d 0) :
     CodeAt (memOfImage base img) base kernel :=
-  Rv32.code_of_image hfit (by rw [kernel_length]; decide) bytes_words img (by rw [kernel_length]; exact hsize)
+  Rv32.code_of_image hfit (by rw [kernel_length]; decide) (toBytes_words kernel) img
+    (by rw [kernel_length]; exact hsize)
     (fun d h => himg d (by rw [kernel_length] at h; exact h))
 
 /-- **The trace does not depend on a or b.** Two images that begin with the
@@ -2466,7 +2462,6 @@ theorem field_constant_time {env : Env} {base : Word} (hp : Placed env base) (im
 end Exp229
 
 #print axioms Exp229.accepted
-#print axioms Exp229.bytes_words
 #print axioms Exp229.field_constant_time
 
 def main (args : List String) : IO Unit := do

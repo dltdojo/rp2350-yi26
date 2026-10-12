@@ -1,0 +1,12 @@
+# exp229 — wrong versions of the kernel, and wrong claims about the right one.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+fold976|each fold multiplies the high words by 976: 2^256 is taken to be 2^32 + 976 modulo p|s/^  .opi .addi 14 0 0x3d1,$/  .opi .addi 14 0 0x3d0,/
+keep_turned|CSUB's mask is turned around: it keeps the sum when the sum is p or more, and subtracts when it is less|s/^  .op .sltu 7 6 5,$/  .op .sltu 7 5 6,/
+sub_no_p|subtraction never adds p back: a borrow is left as 2^256 - (b - a)|s/^  .op .sub 13 0 5,$/  .op .sub 13 0 0,/
+secret_branch|the select loop branches on the word it chose, a word of the secret, instead of on its counter|0,/^  .br .bne 6 0 0xfec,$/s//  .br .bne 29 0 0xfec,/
+op_secret|the operation word is called secret: the dispatch then branches on a secret, and the checker refuses it|s/^def pub : List (Nat × Nat) := \[(0x800, 0x904)\]$/def pub : List (Nat × Nat) := [(0x800, 0x900)]/
+spec_off|the specification asks for a·b + 1 modulo p|s/^  else (a \* b) % P$/  else (a * b + 1) % P/
+count_short|the multiplication is claimed to halt one instruction sooner than it does|s/^  if op = 0 then 331 else if op = 1 then 238 else 1903$/  if op = 0 then 331 else if op = 1 then 238 else 1902/
+prime_off|the prime is taken to be 2^256 - 2^32 - 978|s/^def P : Nat := 2 ^ 256 - 2 ^ 32 - 977$/def P : Nat := 2 ^ 256 - 2 ^ 32 - 978/

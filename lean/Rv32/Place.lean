@@ -265,4 +265,41 @@ theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {prog
   have h := code_of_image_at hfit 0 (by omega) hwords img (by omega) (fun d hd => by simpa using himg d hd)
   simpa using h
 
+/-- `toBytes` of one instruction more: its four bytes first. -/
+theorem toBytes_cons (i : Instr) (prog : List Instr) :
+    toBytes (i :: prog) = [(encode i).toNat % 256, (encode i).toNat / 256 % 256,
+      (encode i).toNat / 65536 % 256, (encode i).toNat / 16777216].map UInt8.ofNat ++ toBytes prog := by
+  simp [toBytes, List.flatMap_cons]
+
+/-- **The bytes are the program**, for any program: word `k` of `toBytes prog`,
+put back together, is instruction `k`'s encoding. What `code_of_image` asks,
+proved once rather than computed for each kernel. -/
+theorem toBytes_words (prog : List Instr) : ∀ k (h : k < prog.length),
+    ((toBytes prog).getD (4 * k) 0).toNat + 256 * ((toBytes prog).getD (4 * k + 1) 0).toNat
+      + 65536 * ((toBytes prog).getD (4 * k + 2) 0).toNat + 16777216 * ((toBytes prog).getD (4 * k + 3) 0).toNat
+      = (encode prog[k]).toNat := by
+  induction prog with
+  | nil => intro k h; simp at h
+  | cons i prog ih =>
+    intro k hk
+    rw [toBytes_cons]
+    cases k with
+    | zero =>
+      have := (encode i).isLt
+      simp only [List.getD_eq_getElem?_getD, List.map_cons, List.map_nil, List.cons_append,
+        Nat.mul_zero, Nat.zero_add, List.getElem?_cons_zero, List.getElem?_cons_succ, Option.getD_some,
+        UInt8.toNat_ofNat']
+      show _ = (encode i).toNat
+      omega
+    | succ k =>
+      have e : ∀ j, ([(encode i).toNat % 256, (encode i).toNat / 256 % 256,
+          (encode i).toNat / 65536 % 256, (encode i).toNat / 16777216].map UInt8.ofNat ++ toBytes prog).getD
+            (4 * (k + 1) + j) 0 = (toBytes prog).getD (4 * k + j) 0 := by
+        intro j
+        rw [show 4 * (k + 1) + j = (4 * k + j) + 1 + 1 + 1 + 1 by omega]
+        simp only [List.map_cons, List.map_nil, List.cons_append, List.nil_append, List.getD_cons_succ]
+      have ih' := ih k (by simp at hk; omega)
+      rw [show 4 * (k + 1) = 4 * (k + 1) + 0 by omega, e 0, e 1, e 2, e 3]
+      simpa using ih'
+
 end Rv32
