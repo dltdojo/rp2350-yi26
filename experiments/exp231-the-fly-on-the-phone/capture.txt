@@ -1,0 +1,63 @@
+=== exp231 — the fly on the phone ===
+recorded at 2026-10-12T02:46:24Z from commit fd2daed
+
+>>> what the board sends, as rule30.py and fly.py write it: the start of a round
+LIFE 00000000 00000c0a 00038000 02bb07b0 bae4d19d
+FLY 00000000 0001150f 00000805 00000406
+SEED 00000000 00010000
+SEES 00000000 00000000 00038000 00000001 00000001
+SEES 00000000 00000001 00064000 00000002 00000001
+SEES 00000000 00000002 000de000 00000003 00000002
+SEES 00000000 00000003 00191000 00000003 00000001
+
+>>> the shell, for the chip and the RTL
+build/expect.h: kernel 559d70d93ee6242d…, model 3079, RTL minstret 3082, first life 8c3f6e7f0f4aa2dc…
+build/fly.h: fly 0361bd0d0b52e6f3…, model 70924, RTL minstret 70927, first round up 2053 down 1030, steps ff41a6963da90979…
+build/exp231.bin  12400 bytes, the build allows 16384
+build/exp231.uf2  25088 bytes  sha256 0346f697a56f99108cfcfce6dc8fd5eb3e7ec87820e1d6cbff84dae50095745e
+
+>>> the checks
+PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's Rule 30 is rule30.py's, and its fly counts fly.py's, on all 5007 pairs tried
+PASS  two rounds as the board sends them, in 64-byte packets: all 512 steps agree, 511 seen moving up, 1 not, none down; both FLY lines' totals add up
+PASS  joined at step 100 of round 0: that one unchecked, the 411 after it checked; only round 1's totals checked
+PASS  one bit of generation 37 flipped on the way: 37 is wrong, frame and counts, and 38, which does not follow from it
+PASS  step 50's up count one more than the fly saw: that step is wrong, its generation is not, and round 0's total is off
+PASS  step 60 sent as if seen moving down, up and down crossed: it is wrong, and counted as seen down
+PASS  step 120 lost: a gap, 121 unchecked, nothing called wrong, round 0's totals not checked
+PASS  a FLY line whose down total is one more than its steps add up to is caught
+PASS  a FLY line with minstret 70928 is caught
+PASS  the tests catch a page where Rule 30 is left XOR (centre AND right): the page's Rule 30 is rule30.py's, and its fly counts fly.py's, on all 5007 pairs tried — pair 3, 00010000 0
+PASS  the tests catch a page where the fly looks the wrong way: up from the cell above: the page's Rule 30 is rule30.py's, and its fly counts fly.py's, on all 5007 pairs tried — pair 3, 00010000 0
+PASS  the tests catch a page where the counts are never compared: one bit of generation 37 flipped on the way: 37 is wrong, frame and counts, and 38, which does not follow from
+PASS  the tests catch a page where the FLY line's totals are not checked: step 50's up count one more than the fly saw: that step is wrong, its generation is not, and round 0's total i
+PASS  the tests catch a page where the fly's minstret is not checked: a FLY line with minstret 70928 is caught — rows 256 ok 256 wrong 0 [] unchecked 0 gaps 0 seen 255/1/0 totals
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "512 of 512 steps agree"
+PASS  good.txt: the rows and the fly's meter are drawn (254456 pixels), the last step said "← moving left", no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (60974 characters)
+PASS  with no WebUSB the page says so, and offers Demo
+PASS  Demo plays from one live cell at the board's pace, drawn (2349 pixels), and says it checks nothing: "Demo: 3 steps computed in this page, so nothing here is chec…"
+PASS  Copy during Demo says DEMO, no board, on its first line
+PASS  crossed.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  crossed.txt: the verdict line says "1 wrong"
+PASS  crossed.txt: the rows and the fly's meter are drawn (254456 pixels), the last step said "← moving left", no script error
+PASS  crossed.txt: Copy puts the verdict and every line received on the clipboard (61066 characters)
+PASS  the shell builds for the chip from exp225's and exp230's kernels over speak.h, in 12400 of the 16384 bytes it may use, and for the RTL
+PASS  all 49 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 12400-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 0346f697a56f9910…
+PASS  on the RTL the shell runs two rounds: each life rule30.py's, each fly's totals and steps fly.py's — 255 steps seen moving up and 1 not, then 256 and 0
+PASS  the shell catches a version where the fly's kernel is held to a hash that is not its own — check 10
+PASS  the shell catches a version where the fly's halt is held to 1 instead of 0 — check 11
+PASS  the shell catches a version where the chip is asked to count one more for the fly — check 12
+PASS  the shell catches a version where the first round's steps are held against a hash that is not fly.py's — check 13
+PASS  the shell catches a version where the fly is shown the generations without the seed before them — check 13
+PASS  the shell catches a version where the shell calls a step moving down when it moved up — check 14
+PASS  the shell catches a version where the shell itself traps setting the fly up — a fault, not a check
+SKIP  checking a phone's log: none recorded yet (board/*.txt)
