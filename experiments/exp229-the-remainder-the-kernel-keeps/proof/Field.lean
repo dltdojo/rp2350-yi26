@@ -607,9 +607,6 @@ theorem count_zero (n : Nat) (hn : n < 8) : (BitVec.ofNat 32 (8 - (n + 1)) != (0
   rcases (by omega : n = 0 ∨ n = 1 ∨ n = 2 ∨ n = 3 ∨ n = 4 ∨ n = 5 ∨ n = 6 ∨ n = 7) with
     h | h | h | h | h | h | h | h <;> subst h <;> decide
 
-/-- A register outside a list is outside every list of its members. -/
-theorem not_mem_of {r : Reg} {L L' : List Reg} (h : r ∉ L) (hs : L'.all (· ∈ L) = true) : r ∉ L' :=
-  fun h' => h (by have := List.all_eq_true.1 hs r h'; simpa using this)
 
 /-- A straight line's registers depend on the registers it starts from, and nothing else. -/
 theorem line_reg_congr {s s' : Machine} (h : ∀ r, s.reg r = s'.reg r) (blk : List Instr) :
@@ -1740,13 +1737,6 @@ theorem fold_run (hp : Placed env base) {M x y z : Nat} (hM : FoldAt M x y z) {s
   · intro r hr
     rw [r5, r4, k3 r (not_mem_of hr (by decide)), o2 r (not_mem_of hr (by decide)), qk r (not_mem_of hr (by decide))]
 
-/-- A store above the kernel keeps the kernel. -/
-theorem code_write (hp : Placed env base) {m : Word → Byte} (hcode : CodeAt m base kernel) {c : Nat}
-    (hc : 1832 ≤ c) (hc' : c + 4 ≤ 0x10000) (v : Nat) :
-    CodeAt (writeLE m (base + BitVec.ofNat 32 c) v 4) base kernel :=
-  Kept.code hp.fit (Kept.write hp.fit (Kept.refl _ _ c (c + 4)) _ (Nat.le_refl _) (Nat.le_refl _) hc')
-    (by rw [kernel_length]; omega) (by decide) hcode
-
 theorem hset_sum (n0 x y z : Nat) (h : n0 = 0) (hz : z = 0) :
     n0 + x * 2 ^ (32 * 0) + y * 2 ^ (32 * 1) + z * 2 ^ (32 * 2) + z * 2 ^ (32 * 3) + z * 2 ^ (32 * 4)
       + z * 2 ^ (32 * 5) + z * 2 ^ (32 * 6) + z * 2 ^ (32 * 7) = x + 2 ^ 32 * y := by
@@ -1794,31 +1784,31 @@ theorem hset_run (hp : Placed env base) {M src : Nat} (hM : HsetAt M src) {s : M
     rw [r2 6]; regsimp; rw [m1, BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (wordAt_lt _ _ _)
   obtain ⟨s3, e3, p3, m3, r3⟩ := swS1 hp (M + 2) (kl 2 (by decide)) c2 p2 h92 (c := 0xa80 + 4 * 0)
     (g 2 (by decide)) ⟨by omega, by omega⟩ (by omega)
-  have c3 : CodeAt s3.mem base kernel := by rw [m3]; exact code_write hp c2 (by omega) (by omega) _
+  have c3 : CodeAt s3.mem base kernel := by rw [m3]; exact code_write hp.fit c2 (by rw [kernel_length]; omega) (by omega) (by decide) _
   have h93 : s3.reg 9 = _ := (r3 9).trans h92
   obtain ⟨s4, e4, p4, m4, r4⟩ := swS1 hp (M + 3) (kl 3 (by decide)) c3 p3 h93 (c := 0xa80 + 4 * 1)
     (g 3 (by decide)) ⟨by omega, by omega⟩ (by omega)
-  have c4 : CodeAt s4.mem base kernel := by rw [m4]; exact code_write hp c3 (by omega) (by omega) _
+  have c4 : CodeAt s4.mem base kernel := by rw [m4]; exact code_write hp.fit c3 (by rw [kernel_length]; omega) (by omega) (by decide) _
   have h94 : s4.reg 9 = _ := (r4 9).trans h93
   obtain ⟨s5, e5, p5, m5, r5⟩ := swS1 hp (M + 4) (kl 4 (by decide)) c4 p4 h94 (c := 0xa80 + 4 * 2)
     (g 4 (by decide)) ⟨by omega, by omega⟩ (by omega)
-  have c5 : CodeAt s5.mem base kernel := by rw [m5]; exact code_write hp c4 (by omega) (by omega) _
+  have c5 : CodeAt s5.mem base kernel := by rw [m5]; exact code_write hp.fit c4 (by rw [kernel_length]; omega) (by omega) (by decide) _
   have h95 : s5.reg 9 = _ := (r5 9).trans h94
   obtain ⟨s6, e6, p6, m6, r6⟩ := swS1 hp (M + 5) (kl 5 (by decide)) c5 p5 h95 (c := 0xa80 + 4 * 3)
     (g 5 (by decide)) ⟨by omega, by omega⟩ (by omega)
-  have c6 : CodeAt s6.mem base kernel := by rw [m6]; exact code_write hp c5 (by omega) (by omega) _
+  have c6 : CodeAt s6.mem base kernel := by rw [m6]; exact code_write hp.fit c5 (by rw [kernel_length]; omega) (by omega) (by decide) _
   have h96 : s6.reg 9 = _ := (r6 9).trans h95
   obtain ⟨s7, e7, p7, m7, r7⟩ := swS1 hp (M + 6) (kl 6 (by decide)) c6 p6 h96 (c := 0xa80 + 4 * 4)
     (g 6 (by decide)) ⟨by omega, by omega⟩ (by omega)
-  have c7 : CodeAt s7.mem base kernel := by rw [m7]; exact code_write hp c6 (by omega) (by omega) _
+  have c7 : CodeAt s7.mem base kernel := by rw [m7]; exact code_write hp.fit c6 (by rw [kernel_length]; omega) (by omega) (by decide) _
   have h97 : s7.reg 9 = _ := (r7 9).trans h96
   obtain ⟨s8, e8, p8, m8, r8⟩ := swS1 hp (M + 7) (kl 7 (by decide)) c7 p7 h97 (c := 0xa80 + 4 * 5)
     (g 7 (by decide)) ⟨by omega, by omega⟩ (by omega)
-  have c8 : CodeAt s8.mem base kernel := by rw [m8]; exact code_write hp c7 (by omega) (by omega) _
+  have c8 : CodeAt s8.mem base kernel := by rw [m8]; exact code_write hp.fit c7 (by rw [kernel_length]; omega) (by omega) (by decide) _
   have h98 : s8.reg 9 = _ := (r8 9).trans h97
   obtain ⟨s9, e9, p9, m9, r9⟩ := swS1 hp (M + 8) (kl 8 (by decide)) c8 p8 h98 (c := 0xa80 + 4 * 6)
     (g 8 (by decide)) ⟨by omega, by omega⟩ (by omega)
-  have c9 : CodeAt s9.mem base kernel := by rw [m9]; exact code_write hp c8 (by omega) (by omega) _
+  have c9 : CodeAt s9.mem base kernel := by rw [m9]; exact code_write hp.fit c8 (by rw [kernel_length]; omega) (by omega) (by decide) _
   have h99 : s9.reg 9 = _ := (r9 9).trans h98
   obtain ⟨s10, e10, p10, m10, r10⟩ := swS1 hp (M + 9) (kl 9 (by decide)) c9 p9 h99 (c := 0xa80 + 4 * 7)
     (g 9 (by decide)) ⟨by omega, by omega⟩ (by omega)

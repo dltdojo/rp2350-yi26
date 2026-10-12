@@ -275,6 +275,12 @@ theorem Kept.code (hfit : base.toNat + 0x10000 ≤ 2^32) {prog : List Instr} {m 
     (hc : CodeAt m base prog) : CodeAt m' base prog :=
   Ct.code_keep hfit hlen (fun o' ho' => h o' (by omega) (Or.inl (by omega))) hc
 
+/-- A store above the program keeps the program. -/
+theorem code_write (hfit : base.toNat + 0x10000 ≤ 2^32) {prog : List Instr} {m : Word → Byte}
+    (hc : CodeAt m base prog) {c : Nat} (hlo : 4 * prog.length ≤ c) (hc' : c + 4 ≤ 0x10000)
+    (hlen : 4 * prog.length < 0x10000) (v : Nat) : CodeAt (writeLE m (base + BitVec.ofNat 32 c) v 4) base prog :=
+  Kept.code hfit (Kept.write hfit (Kept.refl _ _ c (c + 4)) _ (Nat.le_refl _) (Nat.le_refl _) hc') hlo hlen hc
+
 /-! ## A loop's carry, as numbers -/
 
 /-- One word more of a sum: the number so far and its carry, then the word and
