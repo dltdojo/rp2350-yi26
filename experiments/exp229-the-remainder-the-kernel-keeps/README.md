@@ -120,4 +120,53 @@ proves it for any program.
 
 ## Expected output
 
-Not yet captured.
+From `./run.sh`, pasted from `capture.txt`; no board is involved.
+
+```
+=== exp229 — the remainder the kernel keeps ===
+recorded at 2026-10-12T00:55:54Z from commit b71d11e
+
+>>> the theorems, and what they rest on
+'Exp229.addm_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.word_body' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.subn_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.sel_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.zero_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.row_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.fold_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.field' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp229.accepted' depends on axioms: [propext, Quot.sound]
+'Exp229.field_constant_time' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+fold976        each fold multiplies the high words by 976: 2^256 is taken to be 2^32 + 976 modulo p                      refused in m_fold1
+keep_turned    CSUB's mask is turned around: it keeps the sum when the sum is p or more, and subtracts when it is less   refused in m_csub
+sub_no_p       subtraction never adds p back: a borrow is left as 2^256 - (b - a)                                        refused in sub_run
+secret_branch  the select loop branches on the word it chose, a word of the secret, instead of on its counter            refused in m_csub
+op_secret      the operation word is called secret: the dispatch then branches on a secret, and the checker refuses it   refused in accepted
+spec_off       the specification asks for a·b + 1 modulo p                                                              refused in field
+count_short    the multiplication is claimed to halt one instruction sooner than it does                                 refused in field
+prime_off      the prime is taken to be 2^256 - 2^32 - 978                                                               refused in sub_run
+
+>>> the model and the RTL against Python's integers: every edge pair, then 1000 drawn
+PASS  2083 cases on the model, the first 1143 on the RTL too: each halts with 0 and leaves (a op b) mod p — 0 wrong
+PASS  one count per operation, whatever the numbers: model add ['331'], sub ['238'], mul ['1903']; RTL add ['instret=335 cycles=370'], sub ['instret=241 cycles=266'], mul ['instret=1907 cycles=1979']
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Field.lean checks, with no errors and no warnings
+PASS  all 10 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  fold976: the proof refuses a version where each fold multiplies the high words by 976: 2^256 is taken to be 2^32 + 976 modulo p
+PASS  keep_turned: the proof refuses a version where CSUB's mask is turned around: it keeps the sum when the sum is p or more, and subtracts when it is less
+PASS  sub_no_p: the proof refuses a version where subtraction never adds p back: a borrow is left as 2^256 - (b - a)
+PASS  secret_branch: the proof refuses a version where the select loop branches on the word it chose, a word of the secret, instead of on its counter
+PASS  op_secret: the proof refuses a version where the operation word is called secret: the dispatch then branches on a secret, and the checker refuses it
+PASS  spec_off: the proof refuses a version where the specification asks for a·b + 1 modulo p
+PASS  count_short: the proof refuses a version where the multiplication is claimed to halt one instruction sooner than it does
+PASS  prime_off: the proof refuses a version where the prime is taken to be 2^256 - 2^32 - 978
+PASS  proof/Field.lean's kernel is what kernel.py writes from its labels
+PASS  kernel.bin is what proof/Field.lean writes, 2080 bytes, and kernel.sha256 is its hash
+PASS  1283 cases on the model, the first 1143 on the RTL too: each halts with 0 and leaves (a op b) mod p — 0 wrong
+PASS  one count per operation, whatever the numbers: model add ['331'], sub ['238'], mul ['1903']; RTL add ['instret=335 cycles=370'], sub ['instret=241 cycles=266'], mul ['instret=1907 cycles=1979']
+```
