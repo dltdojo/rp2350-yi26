@@ -22,10 +22,10 @@ def P : Nat := 2 ^ 256 - 2 ^ 32 - 977
 
 /-- What each operation must leave: the remainder modulo p. Subtraction adds p
 first, so that it is a natural number's remainder. -/
-def spec : Nat → Nat → Nat → Nat
-  | 0, a, b => (a + b) % P
-  | 1, a, b => (a + P - b) % P
-  | _, a, b => (a * b) % P
+def spec (op a b : Nat) : Nat :=
+  if op = 0 then (a + b) % P
+  else if op = 1 then (a + P - b) % P
+  else (a * b) % P
 
 /-! ## The kernel -/
 
@@ -2279,6 +2279,121 @@ theorem mul_run (hp : Placed env base) {s : Machine} {a b : Nat}
       run_add_running e6, run_add_running e7, run_add_running e8, e9']
   · rw [m9, n8, key, ← hPv, Nat.add_mul_mod_self_left]
 
+/-! ## From the first instruction -/
+
+/-- `auipc s1, 0; addi s1, s1, 0x400` twice; `lw t0, OPW(s1)`. -/
+theorem entry_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
+    ∃ s', run env 4 s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * 4) ∧ s'.mem = s.mem
+      ∧ s'.reg 9 = base + BitVec.ofNat 32 0x800 ∧ s'.reg 5 = BitVec.ofNat 32 (wordAt s.mem base 0x900) := by
+  have hfit := hp.fit
+  obtain ⟨s1, e1, p1, m1, r1⟩ := regStep (prog := kernel) hp 0 (by decide) hcode (by simp [hpc])
+    (i := .auipc 9 0) (by decide) rfl
+  have b1 : s1.reg 9 = base := by
+    rw [reg_wrote r1 (by decide), hpc, show (0 : BitVec 20) ++ 0#12 = (0 : Word) by decide]; simp
+  have c1 : CodeAt s1.mem base kernel := by rw [m1]; exact hcode
+  have l2 : run env 2 s1 = .running (s1.line [.opi .addi 9 9 0x400, .opi .addi 9 9 0x400]) :=
+    run_line (prog := kernel) hp [.opi .addi 9 9 0x400, .opi .addi 9 9 0x400] rfl 1 s1 (by decide) (by decide)
+      c1 p1 (by decide)
+  generalize hs2 : s1.line [.opi .addi 9 9 0x400, .opi .addi 9 9 0x400] = s2 at l2
+  have p2 : s2.pc = base + BitVec.ofNat 32 (4 * 3) := by rw [← hs2, line_pc_at _ p1 (by decide)]; rfl
+  have m2 : s2.mem = s.mem := by rw [← hs2, line_mem, m1]
+  have b2 : s2.reg 9 = base + BitVec.ofNat 32 0x800 := by
+    rw [← hs2]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
+    rw [b1, show (0x400 : BitVec 12) = BitVec.ofNat 12 1024 from rfl, se_small 1024 (by decide),
+      off_add hfit 1024 1024 (by decide)]
+  obtain ⟨s3, e3, p3, m3, r3⟩ := lwS1 hp 3 (by decide) (by rw [m2]; exact hcode) p2 b2 (rd := 5) (c := 0x900) (by decide)
+    ⟨by decide, by decide⟩ (by decide)
+  refine ⟨s3, ?_, p3, by rw [m3, m2], by rw [r3 9]; regsimp; exact b2, by rw [r3 5]; regsimp; rw [m2]⟩
+  rw [show 4 = 1 + (2 + 1) from rfl, run_add_running e1, run_add_running l2, e3]
+
+/-- `beq` on a word and a small number: equal exactly when the numbers are. -/
+theorem beq_word {op : Nat} (h : op < 2 ^ 32) (c : Nat) (hc : c < 2 ^ 32) :
+    (BitVec.ofNat 32 op == BitVec.ofNat 32 c) = decide (op = c) := by
+  by_cases e : op = c
+  · subst e; simp
+  · have ne : BitVec.ofNat 32 op ≠ BitVec.ofNat 32 c := fun h' => e (by
+      have := congrArg BitVec.toNat h'
+      rwa [BitVec.toNat_ofNat, BitVec.toNat_ofNat, Nat.mod_eq_of_lt h, Nat.mod_eq_of_lt hc] at this)
+    simp [ne, e]
+
+/-- How many instructions each operation takes, to its `ecall` included. -/
+def count (op : Nat) : Nat :=
+  if op = 0 then 331 else if op = 1 then 238 else 1903
+
+/-- **The kernel computes the field.** From base, with the kernel, p at PRIME,
+the operation at OPW and `a, b < p` at A and B: the kernel runs `count op - 1`
+instructions, the next one halts with 0, and R holds `spec op a b`. The count
+does not depend on `a` or `b`. -/
+theorem field (hp : Placed env base) {s : Machine} {op a b : Nat} (hpc : s.pc = base)
+    (hg : Given s.mem base a b) (hop : wordAt s.mem base 0x900 = op) (ha : a < P) (hb : b < P) :
+    ∃ s', run env (count op - 1) s = .running s' ∧ run env (count op) s = .halted 0 s'
+      ∧ numAt s'.mem base 0x944 8 = spec op a b := by
+  have hfit := hp.fit
+  have hlt : op < 2 ^ 32 := hop ▸ wordAt_lt _ _ _
+  obtain ⟨s4, e4, p4, m4, g4, r4⟩ := entry_run hp hpc hg.code
+  rw [hop] at r4
+  have hg4 : Given s4.mem base a b := by rw [m4]; exact hg
+  obtain ⟨s5, e5, p5, m5, k5⟩ := brStep (prog := kernel) hp 4 (by decide) (by rw [m4]; exact hg.code) p4
+    (op := .beq) (rs1 := 5) (rs2 := 0) (off := 0x2c0) (by decide) (k' := OP_ADD) (by jump)
+  have hg5 : Given s5.mem base a b := by rw [m5]; exact hg4
+  have g5 : s5.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [k5, g4]
+  rw [r4, reg_zero, show (0 : Word) = BitVec.ofNat 32 0 from rfl] at p5
+  simp only [taken, beq_word hlt 0 (by decide)] at p5
+  by_cases h0 : op = 0
+  · subst h0
+    simp only [decide_true, ↓reduceIte] at p5
+    obtain ⟨s', e, e', n⟩ := add_run hp p5 hg5 g5 ha hb
+    refine ⟨s', ?_, ?_, n⟩
+    · rw [show count 0 - 1 = 4 + (1 + 325) from rfl, run_add_running e4, run_add_running e5, e]
+    · rw [show count 0 = 4 + (1 + 326) from rfl, run_add_running e4, run_add_running e5, e']
+  · simp only [h0, decide_false, Bool.false_eq_true, ↓reduceIte] at p5
+    have l6 : run env 1 s5 = .running (s5.line [.opi .addi 6 0 0x1]) :=
+      run_line (prog := kernel) hp [.opi .addi 6 0 0x1] rfl 5 s5 (by decide) (by decide) hg5.code p5 (by decide)
+    generalize hs6 : s5.line [.opi .addi 6 0 0x1] = s6 at l6
+    have p6 : s6.pc = base + BitVec.ofNat 32 (4 * 6) := by rw [← hs6, line_pc_at _ p5 (by decide)]; rfl
+    have m6 : s6.mem = s5.mem := by rw [← hs6, line_mem]
+    have r65 : s6.reg 5 = BitVec.ofNat 32 op := by
+      rw [← hs6]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
+      rw [k5, r4]
+    have r66 : s6.reg 6 = BitVec.ofNat 32 1 := by
+      rw [← hs6]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp
+      rw [reg_zero]; exact setk_val 1 (by decide)
+    have g6 : s6.reg 9 = base + BitVec.ofNat 32 0x800 := by
+      rw [← hs6]; simp only [line_cons, line_nil, Machine.alu, next_reg, reg_setReg, aluI]; regsimp; exact g5
+    have hg6 : Given s6.mem base a b := by rw [m6]; exact hg5
+    obtain ⟨s7, e7, p7, m7, k7⟩ := brStep (prog := kernel) hp 6 (by decide) hg6.code p6
+      (op := .beq) (rs1 := 5) (rs2 := 6) (off := 0x334) (by decide) (k' := OP_SUB) (by jump)
+    have hg7 : Given s7.mem base a b := by rw [m7]; exact hg6
+    have g7 : s7.reg 9 = base + BitVec.ofNat 32 0x800 := by rw [k7, g6]
+    rw [r65, r66] at p7
+    simp only [taken, beq_word hlt 1 (by decide)] at p7
+    by_cases h1 : op = 1
+    · subst h1
+      simp only [decide_true, ↓reduceIte] at p7
+      obtain ⟨s', e, e', n⟩ := sub_run hp p7 hg7 g7 ha hb
+      have q1 : run env 237 s = .running s' := by
+        rw [show 237 = 4 + (1 + (1 + (1 + 230))) from rfl, run_add_running e4, run_add_running e5,
+          run_add_running l6, run_add_running e7, e]
+      have q2 : run env 238 s = .halted 0 s' := by
+        rw [show 238 = 4 + (1 + (1 + (1 + 231))) from rfl, run_add_running e4, run_add_running e5,
+          run_add_running l6, run_add_running e7, e']
+      have hc1 : count 1 - 1 = 237 := by simp [count]
+      have hc2 : count 1 = 238 := by simp [count]
+      have hs1 : spec 1 a b = (a + P - b) % P := by simp [spec]
+      exact ⟨s', hc1 ▸ q1, hc2 ▸ q2, hs1 ▸ n⟩
+    · simp only [h1, decide_false, Bool.false_eq_true, ↓reduceIte] at p7
+      obtain ⟨s', e, e', n⟩ := mul_run hp (by rw [p7]; rfl) hg7 g7
+      have q1 : run env 1902 s = .running s' := by
+        rw [show 1902 = 4 + (1 + (1 + (1 + 1895))) from rfl, run_add_running e4, run_add_running e5,
+          run_add_running l6, run_add_running e7, e]
+      have q2 : run env 1903 s = .halted 0 s' := by
+        rw [show 1903 = 4 + (1 + (1 + (1 + 1896))) from rfl, run_add_running e4, run_add_running e5,
+          run_add_running l6, run_add_running e7, e']
+      have hc1 : count op - 1 = 1902 := by simp [count, h0, h1]
+      have hc2 : count op = 1903 := by simp [count, h0, h1]
+      have hs : spec op a b = (a * b) % P := by simp [spec, h0, h1]
+      exact ⟨s', hc1 ▸ q1, hc2 ▸ q2, hs ▸ n⟩
+
 end Exp229
 
 #print axioms Exp229.addm_loop
@@ -2288,6 +2403,7 @@ end Exp229
 #print axioms Exp229.zero_loop
 #print axioms Exp229.row_loop
 #print axioms Exp229.fold_loop
+#print axioms Exp229.field
 
 
 /-! ## Constant time
@@ -2321,9 +2437,37 @@ def heads : Heads :=
 set_option maxRecDepth 100000 in
 theorem accepted : check kernel pub heads = true := by decide
 
+set_option maxRecDepth 100000 in
+theorem bytes_words : ∀ k (h : k < kernel.length),
+    (bytes.getD (4 * k) 0).toNat + 256 * (bytes.getD (4 * k + 1) 0).toNat
+      + 65536 * (bytes.getD (4 * k + 2) 0).toNat + 16777216 * (bytes.getD (4 * k + 3) 0).toNat
+      = (encode kernel[k]).toNat := by
+  decide
+
+/-- An image that begins with the kernel's 1832 bytes holds the kernel. -/
+theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (img : ByteArray)
+    (hsize : 1832 ≤ img.size) (himg : ∀ d (h : d < 1832), img.get d (by omega) = bytes.getD d 0) :
+    CodeAt (memOfImage base img) base kernel :=
+  Rv32.code_of_image hfit (by rw [kernel_length]; decide) bytes_words img (by rw [kernel_length]; exact hsize)
+    (fun d h => himg d (by rw [kernel_length] at h; exact h))
+
+/-- **The trace does not depend on a or b.** Two images that begin with the
+kernel and hold the same p and the same operation — whatever a and b they
+hold, and whatever else — run in lock step: at every step the same `pc`, the
+same address loaded or stored, and the same end. -/
+theorem field_constant_time {env : Env} {base : Word} (hp : Placed env base) (img1 img2 : ByteArray)
+    (hsize1 : 1832 ≤ img1.size) (h1 : ∀ d (h : d < 1832), img1.get d (by omega) = bytes.getD d 0)
+    (hpub : ∀ o, o < 0x10000 → InP kernel.length pub o →
+      memOfImage base img1 (base + BitVec.ofNat 32 o) = memOfImage base img2 (base + BitVec.ofNat 32 o)) :
+    ∀ n, trace env n (boot env.region img1) = trace env n (boot env.region img2)
+      ∧ Same (run env n (boot env.region img1)) (run env n (boot env.region img2)) :=
+  constant_time_boot hp accepted (by decide) img1 img2 hpub (code_of_image hp.fit img1 hsize1 h1)
+
 end Exp229
 
 #print axioms Exp229.accepted
+#print axioms Exp229.bytes_words
+#print axioms Exp229.field_constant_time
 
 def main (args : List String) : IO Unit := do
   match args with
