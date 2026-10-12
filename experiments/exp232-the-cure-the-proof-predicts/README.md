@@ -25,6 +25,10 @@ of its three open questions were answered as recommended (tissue, tumour and
 a dose; resistance drawn from the TRNG). The third went the other way: the
 search runs on the chip, so the design's two experiments are one.
 
+The trial on a phone is [exp233](../exp233-the-trial-on-the-phone/)'s
+`trial.html`: it replays every patient from its word and draws the two lives
+of each one the model and the world part on.
+
 ## Where it comes from
 
 Terence Tao, in a talk at Caltech, asked: an AI is told to find a cancer

@@ -1,0 +1,768 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp233 — the trial on the phone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp233-the-trial-on-the-phone — one file, no dependencies, no build step, no
+  server. An appliance, not a tool: it knows exp232's lines and nothing else.
+
+  The board runs exp232: a search for a dosing schedule over a proved model of
+  tissue and tumour, then a trial forever, each patient lived twice — in the
+  model, by the proved kernel, and in a world with resistance in it. This page
+  runs the same search itself, hashes the same protocol, and replays every
+  patient from the random word the board drew it from, cell by cell. Where the
+  model said cured and the world did not, it draws both lives side by side.
+
+  What it cannot check is the kernel, or anything Lean proved: that is exp232's
+  proof, quoted here and not re-run.
+
+  Demo plays the same thing computed here, with no board. It checks nothing,
+  and says so.
+
+  Open it directly from the filesystem — Files app -> "Open with Chrome" on
+  Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b;
+          --acc:#1a5fb4; --tissue:#9ccc9c; --tumour:#7b1f1f; --res:#e67e22; --dose:#1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --acc:#78aeed;
+            --tissue:#3d6b3d; --tumour:#e05a5a; --res:#f0a050; --dose:#78aeed; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 40rem; padding: 1.2rem 16px 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1.05rem; margin: 1.2rem 0 .3rem; }
+  p.sub { color: var(--dim); margin: 0 0 1rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; margin: 0 .3rem .4rem 0; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: .6rem 0; padding: .6rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  .panel { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: .6rem 0; font-size: 14px; }
+  .big { font-size: 1.15rem; font-weight: 600; line-height: 1.35; }
+  .says { color: var(--acc); } .world { color: var(--res); }
+  b.ok { color: var(--ok); } b.bad { color: var(--bad); } b.dim { color: var(--dim); }
+  #charts figure { margin: .8rem 0; }
+  #charts figcaption { font-size: 13px; color: var(--dim); margin-bottom: .2rem; }
+  #charts canvas { display: block; border: 1px solid var(--line); max-width: 100%; }
+  .key { font-size: 12px; color: var(--dim); }
+  .key i { display: inline-block; width: .8em; height: .8em; vertical-align: -1px; margin: 0 .2em 0 .6em; }
+  #verdict { margin: .8rem 0; font-size: 14px; }
+  details { margin: .6rem 0; font-size: 14px; }
+  summary { cursor: pointer; color: var(--acc); }
+  li { margin: .2rem 0; }
+  #raw { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .6rem; border-radius: 6px;
+         font-family: ui-monospace, monospace; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap;
+         word-break: break-all; height: 11rem; overflow-y: auto; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .4rem; }
+</style>
+
+<h1>The trial on the phone</h1>
+<p class="sub">exp233 &middot; exp232's trial — a proved model, and a world with resistance — replayed here and checked.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+  <button id="demo" class="ghost">Demo, no board</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<div class="panel" id="trial">
+  <div class="big">No trial yet.</div>
+</div>
+
+<div class="panel" id="search">The search: nothing from the board yet.</div>
+
+<h2>Where the proof and the world part · 證明和世界分歧的病人</h2>
+<p class="key">Treated patients the model said would be cured and the world did not. Left: the proved model;
+  right: the world, the same patient with resistance in it. One row a generation, the first at the top;
+  the line under generation 24 is the trial's endpoint; a square in the margin is a dose.
+  <br><i style="background:var(--tissue)"></i>tissue<i style="background:var(--tumour)"></i>tumour<i
+  style="background:var(--res)"></i>resistant tumour<i style="background:var(--dose)"></i>dose</p>
+<div id="charts"><p class="key" id="nocharts">None yet.</p></div>
+
+<details>
+  <summary>What Lean proved, and what it refused · Lean 證明了什麼</summary>
+  <p>Quoted from exp232's <code>proof/Cure.lean</code>. This page checks none of it: it cannot run Lean.
+    這裡只是引用，網頁本身沒有執行 Lean。</p>
+  <ul>
+    <li><b>M1</b> the board's 57-instruction kernel computes the model exactly, for any input, in 3081 instructions.</li>
+    <li><b>M2</b> a dose kills only cells at the edge of their kind — and tissue beside a tumour dies with it.</li>
+    <li><b>M3</b> untreated, any tumour fills the ring by generation 31: every control misses.</li>
+    <li><b>M4</b> the search's answer meets the endpoint for every enrolled patient, wherever the lump sits, and the tumour is gone for good — <i>in the model</i>.</li>
+    <li><b>M5</b> a schedule the search also accepted meets the same endpoint, and a lump of six comes back.</li>
+  </ul>
+  <p>Refused by Lean: "the drug harms no tissue"; "the answer cures a lump of seven"; "whatever meets the endpoint is cured".
+    The world's resistance is in none of these: the model has no such thing, so no theorem speaks of it.</p>
+  <p>Lean 拒絕的宣稱：「這種藥不傷正常組織」、「答案也能治好 7 格的腫瘤」、「達到終點的就是治癒」。世界裡的抗藥性不在模型中，所以沒有任何定理說到它。</p>
+</details>
+
+<details>
+  <summary>How to read it · 怎麼看</summary>
+  <p>The board searched 1024 dosing schedules for one that meets the trial's endpoint — no tumour a scan can
+    see at generation 24, half the tissue kept — and answered with the one with fewest doses. Then it draws
+    patients from its random number generator, gives half the answer and half nothing, and lives each one twice:
+    in the model the proof is about, and in a world where a dividing tumour cell is now and then resistant to the drug.
+    The top panel is the trial as the board counts it. This page checks every line again: it runs the search
+    itself, hashes the protocol itself, and replays each patient from the word it was drawn from.</p>
+  <p>板子先在 1024 種給藥排程裡搜尋能達到試驗終點的（第 24 代影像看不到腫瘤、組織保留一半），挑給藥最少的當答案。接著用亂數抽病人，一半給答案、一半不給，每位病人活兩次：一次在證明所說的模型裡，一次在會出現抗藥細胞的世界裡。最上面是板子算的試驗結果。網頁會把每一行重新檢查一次：自己跑一次搜尋、自己算試驗計畫的雜湊值，並用板子抽病人時的亂數把每位病人重算一次。</p>
+</details>
+
+<div id="verdict">Nothing checked yet.</div>
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+const BAUD = 115200;   // nominal; 1200 would reboot some firmwares here into BOOTSEL (log.html says why)
+
+// BEGIN trial-check
+// ---------------------------------------------------------------------------
+// What exp232's board says, and whether each line is what it should be.
+//
+//   SEARCH tried=… accepted=… relapsing=… answer=… doses=… loophole=… minstret=…
+//   PLAN sha256=…
+//   PATIENT n=… [word=…] arm=… width=… at=… model=… world=… resistant=… t24=… tissue=… t64=…
+//   TRIAL treated=… cured=… relapsed=… missed=… predicted=… control=… control_missed=…
+//
+// The model, the world, the search and SHA-256 are all written again here,
+// the rule cell by cell as exp232's cure.py states it. Nothing is shared with
+// the kernel's shifts, the shell's C or cure.py itself. exp233's check.sh runs
+// this block under node: over streams cure.py writes, over wrong ones, and
+// over every log a board gave back.
+// ---------------------------------------------------------------------------
+
+const W = 32, GENS = 64, DAYS = 24, DETECT = 2, TISSUE_MIN = 16, WIDTH_MAX = 6;
+const CANDIDATES = 1024, SEARCH_SEED = 1, MUT_BITS = 4, MINSTRET = 3084;
+const OUTCOME = ['cured', 'relapsed', 'missed'];
+
+const bit = (x, i) => (x >>> (((i % W) + W) % W)) & 1;
+
+/**
+ * One generation, cell by cell. A dose (the schedule's low bit) kills every
+ * cell at the edge of its own kind, unless it is resistant; then a tumour
+ * cell invades the cell above it, and tissue fills a gap beside it.
+ * Returns { t1: the tumour after the dose, t, h }.
+ */
+function generation(t, h, s, resistant) {
+  if (s & 1) {
+    let kill = 0;
+    for (let i = 0; i < W; i++) {
+      const mine = bit(t, i) ? t : bit(h, i) ? h : null;
+      if (mine !== null && !bit(resistant, i) && (!bit(mine, i - 1) || !bit(mine, i + 1))) kill |= 1 << i;
+    }
+    t &= ~kill; h &= ~kill;
+  }
+  let t2 = 0, h2 = 0;
+  for (let i = 0; i < W; i++) {
+    if (bit(t, i) || bit(t, i - 1)) t2 |= 1 << i;
+    else if (bit(h, i) || bit(h, i - 1) || bit(h, i + 1)) h2 |= 1 << i;
+  }
+  return { t1: t >>> 0, t: t2 >>> 0, h: h2 >>> 0 };
+}
+
+function count(x) { let n = 0; for (let i = 0; i < W; i++) n += bit(x, i); return n; }
+
+function lump(width, at) {
+  let x = 0;
+  for (let i = 0; i < width; i++) x |= 1 << ((at + i) % W);
+  return x >>> 0;
+}
+
+function xorshift(x) {
+  x ^= x << 13; x >>>= 0;
+  x ^= x >>> 17;
+  x ^= x << 5;
+  return x >>> 0;
+}
+
+/** 64 generations of the model: [{ t, h }], generation g + 1 at g. */
+function lifetime(t, h, s) {
+  const out = [];
+  for (let g = 0; g < GENS; g++) {
+    ({ t, h } = generation(t, h, s, 0));
+    s >>>= 1;
+    out.push({ t, h });
+  }
+  return out;
+}
+
+/** The stated endpoint: no scan sees the tumour after DAYS, and never less than TISSUE_MIN tissue before. */
+function endpoint(life) {
+  if (count(life[DAYS - 1].t) > DETECT) return false;
+  for (let g = 0; g < DAYS; g++) if (count(life[g].h) < TISSUE_MIN) return false;
+  return true;
+}
+
+function outcome(life) { return !endpoint(life) ? 2 : life[GENS - 1].t ? 1 : 0; }
+
+/** The search, as exp232's chip runs it. */
+function search() {
+  let x = SEARCH_SEED, answer = null, accepted = 0, relapsing = 0, loophole = null;
+  for (let k = 0; k < CANDIDATES; k++) {
+    x = xorshift(x);
+    const c = x & ((1 << DAYS) - 1);
+    let ok = true, back = false;
+    for (let w = 1; w <= WIDTH_MAX && ok; w++) {
+      const life = lifetime(lump(w, 0), ~lump(w, 0) >>> 0, c);
+      ok = endpoint(life);
+      back = back || life[GENS - 1].t !== 0;
+    }
+    if (!ok) continue;
+    accepted++;
+    if (back) { relapsing++; if (loophole === null) loophole = c; }
+    if (answer === null || count(c) < count(answer)) answer = c;
+  }
+  return { tried: CANDIDATES, accepted, relapsing, answer, loophole };
+}
+
+/** A patient from one random word, lived in the model and in the world. */
+function patient(word, answer) {
+  const arm = word & 1, width = 1 + ((word >>> 1) % WIDTH_MAX), at = (word >>> 4) & 31;
+  const t0 = lump(width, at), s0 = arm ? answer : 0;
+  const model = lifetime(t0, ~t0 >>> 0, s0);
+  let t = t0, h = ~t0 >>> 0, s = s0, res = 0, ever = 0, x = word || 1;
+  const world = [];
+  for (let g = 0; g < GENS; g++) {
+    let mut = 0xffffffff;
+    for (let i = 0; i < MUT_BITS; i++) { x = xorshift(x); mut &= x; }
+    const n = generation(t, h, s, res);
+    let r = 0;
+    for (let i = 0; i < W; i++) {
+      const born = bit(n.t, i) && !bit(n.t1, i);
+      if (bit(n.t, i) && (bit(res, i) || bit(res, i - 1) || (born && bit(mut, i)))) r |= 1 << i;
+    }
+    res = r >>> 0; ever |= res;
+    t = n.t; h = n.h; s >>>= 1;
+    world.push({ t, h, r: res });
+  }
+  let tissue = W;
+  for (let g = 0; g < DAYS; g++) tissue = Math.min(tissue, count(world[g].h));
+  return { word, arm, width, at, model, world, resistant: ever ? 1 : 0,
+           modelOutcome: outcome(model), worldOutcome: outcome(world),
+           t24: count(world[DAYS - 1].t), tissue, t64: count(world[GENS - 1].t) };
+}
+
+/** SHA-256 of bytes, hex: FIPS 180-4, here because a page opened from a phone's files may have no crypto.subtle. */
+function sha256(bytes) {
+  const K = [];
+  const frac = (x) => ((x - Math.floor(x)) * 2 ** 32) >>> 0;
+  for (let n = 2, found = 0; found < 64; n++) {
+    let prime = true;
+    for (let d = 2; d * d <= n; d++) if (n % d === 0) { prime = false; break; }
+    if (prime) { K.push(frac(Math.cbrt(n))); found++; }
+  }
+  const H = [];
+  for (let n = 2; H.length < 8; n++) {
+    let prime = true;
+    for (let d = 2; d * d <= n; d++) if (n % d === 0) { prime = false; break; }
+    if (prime) H.push(frac(Math.sqrt(n)));
+  }
+  const len = bytes.length, padded = new Uint8Array(((len + 9 + 63) >> 6) << 6);
+  padded.set(bytes); padded[len] = 0x80;
+  const dv = new DataView(padded.buffer);
+  dv.setUint32(padded.length - 4, (len * 8) >>> 0); dv.setUint32(padded.length - 8, Math.floor(len / 2 ** 29));
+  const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < padded.length; off += 64) {
+    const w = new Array(64);
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + 4 * i);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (h + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) >>> 0;
+      const t2 = ((rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H.splice(0, 8, ...[a, b, c, d, e, f, g, h].map((v, i) => (v + H[i]) >>> 0));
+  }
+  return H.map((v) => v.toString(16).padStart(8, '0')).join('');
+}
+
+/** The protocol as exp232's shell hashes it: eight little-endian words. */
+function plan(answer) {
+  const words = [answer, DAYS, DETECT, TISSUE_MIN, WIDTH_MAX, MUT_BITS, CANDIDATES, SEARCH_SEED];
+  const b = new Uint8Array(32);
+  words.forEach((v, i) => { for (let k = 0; k < 4; k++) b[4 * i + k] = (v >>> (8 * k)) & 255; });
+  return sha256(b);
+}
+
+/** One line in, what it is out. A line that names itself but does not parse is { kind: 'bad' }. */
+function trialParse(text) {
+  const t = text.trim(), head = t.split(' ')[0];
+  const f = {};
+  for (const part of t.split(' ').slice(1)) {
+    const k = part.indexOf('=');
+    if (k > 0) f[part.slice(0, k)] = part.slice(k + 1);
+  }
+  const dec = (k) => (/^\d+$/.test(f[k] || '') ? parseInt(f[k], 10) : NaN);
+  const hex = (k) => (/^[0-9a-f]{8}$/.test(f[k] || '') ? parseInt(f[k], 16) >>> 0 : NaN);
+  const word = (k) => OUTCOME.indexOf(f[k]);
+  const whole = (e) => (Object.values(e).some((v) => typeof v === 'number' && Number.isNaN(v))
+    ? { kind: 'bad', why: `a ${head} line that does not parse` } : e);
+  if (head === 'SEARCH')
+    return whole({ kind: 'SEARCH', tried: dec('tried'), accepted: dec('accepted'), relapsing: dec('relapsing'),
+                   answer: hex('answer'), doses: dec('doses'), loophole: hex('loophole'), minstret: dec('minstret') });
+  if (head === 'PLAN') return /^[0-9a-f]{64}$/.test(f.sha256 || '') ? { kind: 'PLAN', sha: f.sha256 } : { kind: 'bad', why: 'a PLAN line that does not parse' };
+  if (head === 'PATIENT') {
+    const e = whole({ kind: 'PATIENT', n: dec('n'), arm: f.arm === 'treated' ? 1 : f.arm === 'control' ? 0 : NaN,
+                      width: dec('width'), at: dec('at'), model: word('model'), world: word('world'),
+                      resistant: dec('resistant'), t24: dec('t24'), tissue: dec('tissue'), t64: dec('t64') });
+    if (e.kind === 'PATIENT') {
+      if (e.model < 0 || e.world < 0) return { kind: 'bad', why: 'a PATIENT line with an outcome that is not cured, relapsed or missed' };
+      e.word = 'word' in f ? hex('word') : null;
+      if (Number.isNaN(e.word)) return { kind: 'bad', why: 'a PATIENT line whose word is not eight hex digits' };
+    }
+    return e;
+  }
+  if (head === 'TRIAL')
+    return whole({ kind: 'TRIAL', treated: dec('treated'), cured: dec('cured'), relapsed: dec('relapsed'), missed: dec('missed'),
+                   predicted: dec('predicted'), control: dec('control'), controlMissed: dec('control_missed') });
+  if (head === 'exp232') return { kind: 'status', minstret: dec('minstret') };
+  if (head === 'FAIL') return { kind: 'FAIL' };
+  return { kind: 'other' };
+}
+
+/**
+ * Feed it lines; each PATIENT comes back with a verdict:
+ *   ok         replayed here from its word — arm, lump, the model's outcome and
+ *              the world's to the number; or, a line with no word (exp232's
+ *              first build), its model, and its world wherever the world cannot
+ *              differ from the model (a control, or no resistant cell)
+ *   partial    no word, a treated patient with a resistant cell: its model is
+ *              checked, its world cannot be
+ *   wrong      something is not so, and `why` says what
+ * and SEARCH against the search run here, PLAN against the hash of the
+ * protocol here, each TRIAL's counts against each other and against the
+ * patient that came between it and the one before.
+ */
+function trialChecker() {
+  const s = { lines: 0, searches: 0, searchWrong: 0, plans: 0, planWrong: 0, patients: 0, ok: 0, partial: 0, wrong: 0,
+              gaps: 0, trials: 0, trialsWrong: 0, minstretWrong: 0, fails: 0, bad: 0, first: null, last: null,
+              discordant: 0, firstWrong: null, trial: null };
+  let mine = null, lastPatient = null, lastTrial = null, between = null;
+  const ours = () => (mine = mine || { ...search(), plan: null });
+
+  function wrong(e, why) {
+    e.verdict = 'wrong'; e.why = why;
+    if (!s.firstWrong) s.firstWrong = { line: e.kind + (e.n !== undefined ? ` ${e.n}` : ''), why };
+  }
+
+  function feed(text) {
+    const e = trialParse(text);
+    s.lines++;
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'bad') { s.bad++; wrong(e, e.why); }
+    if (e.kind === 'status' && e.minstret && e.minstret !== MINSTRET) {
+      s.minstretWrong++; wrong(e, `minstret ${e.minstret}, not ${MINSTRET}`);
+    }
+    if (e.kind === 'SEARCH') {
+      s.searches++;
+      const m = ours(), why = [];
+      for (const k of ['tried', 'accepted', 'relapsing', 'answer', 'loophole'])
+        if (e[k] !== m[k]) why.push(`${k} ${e[k]}, this page's search ${m[k]}`);
+      if (e.doses !== count(e.answer)) why.push(`doses ${e.doses}, the answer has ${count(e.answer)}`);
+      if (e.minstret !== MINSTRET) { s.minstretWrong++; why.push(`minstret ${e.minstret}, not ${MINSTRET}`); }
+      if (why.length) { s.searchWrong++; wrong(e, why.join('; ')); } else e.verdict = 'ok';
+    }
+    if (e.kind === 'PLAN') {
+      s.plans++;
+      const m = ours();
+      m.plan = m.plan || plan(m.answer);
+      if (e.sha !== m.plan) { s.planWrong++; wrong(e, `this page hashes the protocol to ${m.plan.slice(0, 16)}…`); }
+      else e.verdict = 'ok';
+    }
+    if (e.kind === 'PATIENT') {
+      s.patients++;
+      if (s.first === null) s.first = e.n;
+      if (lastPatient !== null && e.n !== lastPatient + 1) s.gaps++;
+      s.last = e.n;
+      const answer = ours().answer, why = [];
+      const t0 = lump(e.width, e.at), modelLife = lifetime(t0, ~t0 >>> 0, e.arm ? answer : 0);
+      if (e.word !== null) {
+        const p = patient(e.word, answer);
+        e.replay = p;
+        const want = { arm: p.arm, width: p.width, at: p.at, model: p.modelOutcome, world: p.worldOutcome,
+                       resistant: p.resistant, t24: p.t24, tissue: p.tissue, t64: p.t64 };
+        for (const k of Object.keys(want))
+          if (e[k] !== want[k]) why.push(`${k} ${k === 'model' || k === 'world' ? OUTCOME[e[k]] : e[k]}, replayed here `
+            + `${k === 'model' || k === 'world' ? OUTCOME[want[k]] : want[k]}`);
+      } else {
+        if (e.model !== outcome(modelLife)) why.push(`model ${OUTCOME[e.model]}, this page's model ${OUTCOME[outcome(modelLife)]}`);
+        if (!e.arm || !e.resistant) {
+          let tissue = W;
+          for (let g = 0; g < DAYS; g++) tissue = Math.min(tissue, count(modelLife[g].h));
+          const want = { world: outcome(modelLife), t24: count(modelLife[DAYS - 1].t), tissue, t64: count(modelLife[GENS - 1].t) };
+          for (const k of Object.keys(want))
+            if (e[k] !== want[k]) why.push(`${k} ${k === 'world' ? OUTCOME[e[k]] : e[k]}, the model's `
+              + `${k === 'world' ? OUTCOME[want[k]] : want[k]} (a world with nothing resistant in it is the model)`);
+        }
+      }
+      if (why.length) { s.wrong++; wrong(e, why.join('; ')); }
+      else if (e.word === null && e.arm && e.resistant) { s.partial++; e.verdict = 'partial'; e.why = 'no word on the line: its world cannot be replayed'; }
+      else { s.ok++; e.verdict = 'ok'; }
+      if (e.arm && e.model !== e.world) s.discordant++;
+      lastPatient = e.n;
+      between = between === null ? e : 'many';
+    }
+    if (e.kind === 'TRIAL') {
+      s.trials++;
+      const why = [];
+      if (e.treated !== e.cured + e.relapsed + e.missed) why.push('treated is not cured + relapsed + missed');
+      if (e.control !== e.controlMissed) why.push('a control met the endpoint, which M3 says none can');
+      if (e.predicted !== e.treated) why.push('a treated patient the model did not predict cured, which M4 says none is');
+      if (lastTrial && between && between !== 'many') {
+        const p = between, d = (k) => e[k] - lastTrial[k];
+        const want = { treated: p.arm, control: 1 - p.arm, cured: p.arm && p.world === 0 ? 1 : 0,
+                       relapsed: p.arm && p.world === 1 ? 1 : 0, missed: p.arm && p.world === 2 ? 1 : 0,
+                       predicted: p.arm && p.model === 0 ? 1 : 0, controlMissed: !p.arm && p.world === 2 ? 1 : 0 };
+        for (const k of Object.keys(want)) if (d(k) !== want[k]) why.push(`${k} moved by ${d(k)} for patient ${p.n}, not ${want[k]}`);
+      }
+      if (why.length) { s.trialsWrong++; wrong(e, why.join('; ')); } else e.verdict = 'ok';
+      lastTrial = e; between = null;
+      s.trial = { ...e };
+    }
+    return e;
+  }
+  return { feed, summary: () => ({ ...s }), search: ours };
+}
+
+function hex8(x) { return (x >>> 0).toString(16).padStart(8, '0'); }
+
+/** USB packets in, whole lines out: a packet is 64 bytes and ends wherever it ends. */
+function trialLines() {
+  let pending = '';
+  return (chunk) => {
+    pending += chunk;
+    const parts = pending.split('\n');
+    pending = parts.pop();
+    return parts.map((p) => p.replace(/\r$/, '')).filter((p) => p.trim());
+  };
+}
+// END trial-check
+
+const $ = (id) => document.getElementById(id);
+let device = null, streaming = false, bytes = 0, started = 0, captured = '', demo = null;
+let checker = trialChecker();
+const charts = [];   // the patients drawn, newest first
+const SHOWN = 6;
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+
+/** The trial as the board counts it, and what this page saw of it. */
+function showTrial() {
+  const s = checker.summary(), t = s.trial, el = $('trial');
+  if (!t) { el.innerHTML = '<div class="big">No trial yet.</div>'; return; }
+  const seen = s.first === null ? '' : ` This page saw patients ${s.first}–${s.last}`
+    + (s.first > 1 ? `; the board counted the ${s.first - 1} before it joined.` : '.');
+  el.innerHTML =
+    `<div class="big">Treated ${t.treated}: <span class="says">the proof predicts ${t.predicted} cured</span> · `
+    + `<span class="world">the world cured ${t.cured}</span>`
+    + (t.relapsed ? `, ${t.relapsed} came back` : '') + (t.missed ? `, ${t.missed} missed` : '') + `</div>`
+    + `<div>Control ${t.control}: ${t.controlMissed} missed, as M3 says every one must.</div>`
+    + `<div class="key">治療組 ${t.treated} 人：證明預測 ${t.predicted} 人治癒，世界裡 ${t.cured} 人治癒`
+    + (t.missed ? `、${t.missed} 人沒達到終點` : '') + (t.relapsed ? `、${t.relapsed} 人復發` : '')
+    + `。對照組 ${t.control} 人，${t.controlMissed} 人沒達到。</div><div class="key">${seen}</div>`;
+}
+
+function showSearch(e) {
+  if (e.kind !== 'SEARCH' && e.kind !== 'PLAN') return;
+  const m = checker.search(), s = checker.summary(), el = $('search');
+  const mark = (ok) => (ok ? '<b class="ok">✓ this page agrees</b>' : '<b class="bad">✗ this page disagrees</b>');
+  el.innerHTML = `<b>The search</b> — the AI's stand-in: ${m.tried} schedules tried, ${m.accepted} met the endpoint, `
+    + `${m.relapsing} of those come back in the model, which the search never looked at. `
+    + `Answer <code>${hex8(m.answer)}</code>, ${count(m.answer)} doses. ${mark(!s.searchWrong)}`
+    + (s.plans ? `<br><b>The protocol</b>, hashed before patient 1: <code>${(m.plan || '').slice(0, 16)}…</code> ${mark(!s.planWrong)}` : '');
+}
+
+function cellSize() { return Math.max(3, Math.min(6, Math.floor(($('charts').clientWidth - 2) / (2 + 32 + 2 + 32)))); }
+
+/** A patient's two lives, side by side: 65 rows, generation 0 first. */
+function drawPatient(p, n) {
+  const cell = cellSize(), ratio = window.devicePixelRatio || 1, cols = 2 + 32 + 2 + 32, rows = GENS + 1;
+  const c = document.createElement('canvas'), w = cols * cell, h = rows * cell;
+  c.width = w * ratio; c.height = h * ratio; c.style.width = `${w}px`; c.style.height = `${h}px`;
+  const x = c.getContext('2d');
+  x.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const css = getComputedStyle(document.documentElement), col = (v) => css.getPropertyValue(v);
+  x.fillStyle = col('--bg'); x.fillRect(0, 0, w, h);
+  const t0 = lump(p.width, p.at), start = { t: t0, h: ~t0 >>> 0, r: 0 };
+  const sched = checker.search().answer;
+  const life = (L, left) => {
+    [start, ...L].forEach((g, r) => {
+      for (let i = 31; i >= 0; i--) {    // bit 31 on the left
+        const kind = bit(g.t, i) ? (bit(g.r || 0, i) ? '--res' : '--tumour') : bit(g.h, i) ? '--tissue' : null;
+        if (!kind) continue;
+        x.fillStyle = col(kind);
+        x.fillRect(left + (31 - i) * cell, r * cell, cell, cell);
+      }
+    });
+  };
+  life(p.model, 2 * cell);
+  life(p.world, (2 + 32 + 2) * cell);
+  x.fillStyle = col('--dose');
+  for (let g = 0; g < 32; g++) if ((sched >>> g) & 1) x.fillRect(0, (g + 1) * cell, cell, cell);
+  x.fillStyle = col('--fg');
+  x.fillRect(0, (DAYS + 1) * cell, w, 1);
+  const fig = document.createElement('figure');
+  fig.innerHTML = `<figcaption>Patient ${n}, word ${hex8(p.word)}: a lump of ${p.width} at cell ${p.at}. `
+    + `<span class="says">Model: ${OUTCOME[p.modelOutcome]}.</span> `
+    + `<span class="world">World: ${OUTCOME[p.worldOutcome]} — ${p.t24} tumour cells at 24, the least tissue ${p.tissue}.</span></figcaption>`;
+  fig.appendChild(c);
+  return fig;
+}
+
+function showCharts() {
+  const box = $('charts');
+  box.innerHTML = charts.length ? '' : '<p class="key">None yet.</p>';
+  for (const { p, n } of charts.slice(0, SHOWN)) box.appendChild(drawPatient(p, n));
+}
+
+function verdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.lines) { v.textContent = 'Nothing checked yet.'; return; }
+  const bad = s.wrong || s.searchWrong || s.planWrong || s.trialsWrong || s.minstretWrong || s.fails || s.bad;
+  let t = demo
+    ? `<b class="dim">Demo: ${s.patients} patients computed in this page, so nothing here is checked</b>`
+    : `<b class="${bad ? 'bad' : 'ok'}">${s.ok} of ${s.patients} patients agree with this page</b>`
+      + `, ${s.wrong} wrong, ${s.partial} partly checked (no word)`;
+  t += ` · search ${s.searches - s.searchWrong}/${s.searches} · plan ${s.plans - s.planWrong}/${s.plans}`
+     + ` · trial counts ${s.trials - s.trialsWrong}/${s.trials} · gaps ${s.gaps} · minstret wrong ${s.minstretWrong}`;
+  if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
+  if (s.firstWrong) t += `<br>first wrong: ${s.firstWrong.line} — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+}
+
+const rawLines = [];
+function line(text) {
+  const e = checker.feed(text);
+  rawLines.push(text + (e.why ? `   <- ${e.why}` : ''));
+  if (rawLines.length > 40) rawLines.shift();
+  showSearch(e);
+  if (e.kind === 'PATIENT' && e.replay && e.replay.arm && e.replay.modelOutcome !== e.replay.worldOutcome) {
+    charts.unshift({ p: e.replay, n: e.n });
+    showCharts();
+  }
+  if (e.kind === 'TRIAL') showTrial();
+}
+
+const split = trialLines();
+function received(text) {
+  captured += text;
+  for (const l of split(text)) line(l);
+  const raw = $('raw');
+  const atBottom = raw.scrollHeight - raw.scrollTop - raw.clientHeight < 30;
+  raw.textContent = rawLines.join('\n');
+  if (atBottom) raw.scrollTop = raw.scrollHeight;
+  verdict();
+  $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
+}
+
+// The board's lines, written here: what Demo plays.
+function boardLines(n, word, tally) {
+  const m = checker.search(), p = patient(word, m.answer);
+  m.plan = m.plan || plan(m.answer);
+  tally.arm[p.arm]++; tally.out[p.arm][p.worldOutcome]++; if (p.modelOutcome === 0) tally.pred[p.arm]++;
+  return `SEARCH tried=${m.tried} accepted=${m.accepted} relapsing=${m.relapsing} answer=${hex8(m.answer)} `
+    + `doses=${count(m.answer)} loophole=${hex8(m.loophole)} minstret=${MINSTRET}\r\nPLAN sha256=${m.plan}\r\n`
+    + `PATIENT n=${n} word=${hex8(word)} arm=${p.arm ? 'treated' : 'control'} width=${p.width} at=${p.at} `
+    + `model=${OUTCOME[p.modelOutcome]} world=${OUTCOME[p.worldOutcome]} resistant=${p.resistant} t24=${p.t24} `
+    + `tissue=${p.tissue} t64=${p.t64}\r\n`
+    + `TRIAL treated=${tally.arm[1]} cured=${tally.out[1][0]} relapsed=${tally.out[1][1]} missed=${tally.out[1][2]} `
+    + `predicted=${tally.pred[1]} control=${tally.arm[0]} control_missed=${tally.out[0][2]}\r\n`;
+}
+
+// Patients drawn here, at the board's pace: no board, so nothing the checker
+// holds them to but this page itself.
+function startDemo() {
+  if (demo) return;
+  const tally = { arm: [0, 0], out: [[0, 0, 0], [0, 0, 0]], pred: [0, 0] };
+  let n = 0;
+  started = performance.now();
+  say('Demo: patients drawn and lived in this page, at about the board\'s pace. No board is involved, '
+      + 'so every green mark only says the page agrees with itself.', 'ok');
+  $('demo').textContent = 'Stop demo';
+  const next = () => {
+    const w = new Uint32Array(1);
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(w); else w[0] = Math.random() * 2 ** 32;
+    const text = boardLines(++n, w[0], tally);
+    bytes += text.length;
+    received(text);
+  };
+  next();
+  demo = setInterval(next, 1500);
+}
+
+function stopDemo() {
+  if (!demo) return;
+  clearInterval(demo);
+  demo = null;
+  $('demo').textContent = 'Demo, no board';
+  say('Demo stopped.');
+}
+
+// Copied from tools/pages/log.html, byte for byte; exp233's check.sh holds it to that.
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+function reset() {
+  checker = trialChecker(); captured = ''; bytes = 0; charts.length = 0; rawLines.length = 0;
+  showCharts(); showTrial(); $('search').textContent = 'The search: nothing from the board yet.';
+}
+
+async function start(dev) {
+  if (demo) { stopDemo(); reset(); }
+  device = dev;
+  // Say what was picked before anything can fail: on a phone nobody can
+  // screenshot the dialog, and "it did not connect" is not a quantity.
+  say(`Picked "${dev.productName}", serial ${dev.serialNumber}. Opening…`);
+  try {
+    await device.open();
+  } catch (e) {
+    throw new Error(`cannot OPEN the device, before any interface is claimed. On Linux: "yi26 udev --install". [${e.name}: ${e.message}]`);
+  }
+  if (device.configuration === null) await device.selectConfiguration(1);
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null)
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(`cannot claim the interfaces — something else owns them: another page that has the port ` +
+      `open (close it), or on Linux the kernel's cdc_acm ("yi26 detach"). [${e.name}: ${e.message}]`);
+  }
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true); coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control }, coding.buffer);
+  // DTR: the board sends nothing until a page says it is listening.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  started = performance.now();
+  $('connect').disabled = true;
+  $('demo').disabled = true;
+  $('stop').disabled = false;
+  say(dev.serialNumber === '232'
+      ? `Listening to "${dev.productName}". A patient comes every few seconds, with the LED's flashes.`
+      : `Listening — but this board says serial ${dev.serialNumber}, "${dev.productName}", not exp232. `
+        + `It will not send a trial: flash exp232.uf2.`, dev.serialNumber === '232' ? 'ok' : 'bad');
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try {
+      r = await device.transferIn(endpointIn, 64);
+    } catch (e) {
+      if (streaming) say(`Transfer failed: ${e.name}: ${e.message}`, 'bad');
+      break;
+    }
+    if (r.status === 'stall') { await device.clearHalt('in', endpointIn); continue; }
+    if (r.data && r.data.byteLength) {
+      bytes += r.data.byteLength;
+      received(dec.decode(r.data, { stream: true }));
+    }
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('stop').disabled = true;
+  try {
+    if (device && device.opened) {
+      const { control, data } = findCdc(device);
+      if (control !== null) {
+        await device.controlTransferOut(
+          { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x00, index: control });
+        await device.releaseInterface(control);
+      }
+      if (data !== null) await device.releaseInterface(data);
+      await device.close();
+    }
+  } catch (e) { /* the device may already be gone */ }
+  $('connect').disabled = false;
+  say('Disconnected. The board keeps treating patients on its LED.');
+}
+
+// What Copy gives: the page's verdict, then every line exactly as it arrived.
+function report() {
+  const s = checker.summary();
+  return `#page exp233 trial.html ${$('ver').textContent}${demo ? ' DEMO, no board' : ''}: ${JSON.stringify(s)}\n` + captured;
+}
+
+// Copy, in two ways, and saying which one worked: exp227's, for the reason it
+// gives — on a Pixel 9a in exp226's round 4, Copy did nothing while the log
+// streamed and nothing said why; exp232's round 1 met it again in log.html b3.
+async function copy() {
+  const text = report();
+  let first = '';
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.length} characters (Clipboard API).`, 'ok');
+    return;
+  } catch (e) { first = `${e.name}: ${e.message}`; }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  say(ok ? `Copied ${text.length} characters (fallback; the Clipboard API said ${first}).`
+         : `Copy failed both ways. The Clipboard API said ${first}; the fallback refused. Press Disconnect, then Copy.`,
+      ok ? 'ok' : 'bad');
+}
+
+$('connect').onclick = async () => {
+  try { await start(await navigator.usb.requestDevice({ filters: FILTERS })); }
+  catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+};
+$('stop').onclick = stop;
+$('copy').onclick = copy;
+$('demo').onclick = () => (demo ? stopDemo() : startDemo());
+window.addEventListener('resize', showCharts);
+
+(async () => {
+  if (!('usb' in navigator)) {
+    say('This browser has no WebUSB, so no board — Chrome on Android, or a Chromium browser, has it. Demo still works.', 'bad');
+    $('connect').disabled = true;
+    return;
+  }
+  const known = await navigator.usb.getDevices();
+  if (known.length) {
+    try { await start(known[0]); } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+  } else {
+    say('Press Connect and choose the board — or Demo, to see it with no board.');
+  }
+})();
+</script>
