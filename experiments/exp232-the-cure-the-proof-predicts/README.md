@@ -282,7 +282,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp232 — the cure the proof predicts ===
-recorded at 2026-10-12T05:39:25Z from commit ee29f46
+recorded at 2026-10-12T06:26:10Z from commit 37b508e
 
 >>> the theorems, and what they rest on
 'Exp232.apart' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -319,8 +319,8 @@ answer: 0051af, 9 doses; first loophole f917d1
 
 >>> the shell, for the chip and the RTL
 build/cure.h: kernel dad129edfd020594…, model 3081, RTL minstret 3084, search 367 accepted, 34 relapsing, answer 0051af
-build/exp232.bin  15492 bytes, the build allows 16384
-build/exp232.uf2  31232 bytes  sha256 2e9f6811e8e19cbdd7cb22d10a0070b7d82b0699b61f92585b7403a3929aeaea
+build/exp232.bin  15516 bytes, the build allows 16384
+build/exp232.uf2  31232 bytes  sha256 dd5dbde39b7bf2959ef93a0bde626b971f96975543fe6c5512eb0a695bb7cfa6
 
 >>> the checks
 PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
@@ -336,13 +336,13 @@ PASS  beyond: the proof refuses a version where the claim that the answer cures 
 PASS  loophole_cures: the proof refuses a version where the claim that what meets the endpoint is cured: the loophole's lump of six gone by 64
 PASS  kernel.bin is what proof/Cure.lean writes, 228 bytes, and kernel.sha256 is its hash
 PASS  on 20 inputs the Lean model halts with 0 after exactly 3081 and the RTL with 0, each leaving exactly cure.py's 64 generations and nothing else; the RTL's instret=3084
-PASS  the shell builds for the chip over speak.h and trng.h, in 15492 of the 16384 bytes it may use, and for the RTL
+PASS  the shell builds for the chip over speak.h and trng.h, in 15516 of the 16384 bytes it may use, and for the RTL
 PASS  all 61 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
-PASS  together they are exactly the 15492-byte image
+PASS  together they are exactly the 15516-byte image
 PASS  the image starts with a jump to _start at 0x10000024
 PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
-PASS  the UF2 is byte for byte the committed one: 2e9f6811e8e19cbd…
+PASS  the UF2 is byte for byte the committed one: dd5dbde39b7bf295…
 PASS  on the RTL the shell's search finds cure.py's answer, 51af, and its counts — 367 accepted, 34 of them relapsing in the model — then hashes the protocol and treats six patients, model and world, exactly as cure.py does
 PASS  the shell catches a version where the kernel is held to a hash that is not its own — check 1
 PASS  the shell catches a version where a run's halt is held to 1 instead of 0 — check 2
@@ -351,4 +351,9 @@ PASS  the shell catches a version where the search keeps the most doses, not the
 PASS  the shell catches a version where the world's tumour grows down while the proved model's grows up — check 10
 PASS  the shell catches a version where the TRNG gives nothing — check 11
 PASS  the shell catches a version where the shell itself traps entering the kernel — a fault, not a check
+PASS  round1.txt: SEARCH and PLAN are cure.py's (9 times), minstret 3084 throughout; patients 7–15: every model outcome cure.py's, every world that could not differ from the model the model's to the number (9 of 9), every TRIAL count adding up, every treated patient predicted cured and every control missed
+PASS  a board log with one thing changed is refused: s/ tissue=26 t64=0$/ tissue=25 t64=0/
+PASS  a board log with one thing changed is refused: s/sha256=4cccf5ca/sha256=4cccf5cb/
+PASS  a board log with one thing changed is refused: s/control=8 control_missed=8/control=8 control_missed=7/
+PASS  a board log with one thing changed is refused: s/n=8 arm=treated width=1 at=23 model=cured/n=8 arm=treated width=1 at=23 model=missed/
 ```
