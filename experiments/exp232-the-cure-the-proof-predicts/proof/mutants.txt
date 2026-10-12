@@ -1,0 +1,13 @@
+# exp232 — wrong versions of the kernel, and wrong claims about the right one.
+# Each must be refused by Lean. The claims are the ones a reader might hope
+# the proof says; it says something narrower, and Lean holds it to that.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+grows_down|the kernel's tumour invades the cell below, where the model's invades the cell above|s/^  .sh .slli T4 A0 1, .sh .srli T5 A0 31, .op .or T4 T4 T5, .op .or A0 A0 T4,$/  .sh .srli T4 A0 1, .sh .slli T5 A0 31, .op .or T4 T4 T5, .op .or A0 A0 T4,/
+every_day|the kernel doses every generation, whatever the schedule says|s/^  .opi .andi T3 A2 1, .op .sub T3 0 T3, .sh .srli A2 A2 1,$/  .opi .andi T3 A2 1, .opi .addi T3 0 0xfff, .sh .srli A2 A2 1,/
+count_short|the kernel is claimed to halt one instruction sooner than it does|s/^    ∃ st', run env 3081 st = .halted 0 st' ∧ st'.mem = lived st.mem base N := by$/    ∃ st', run env 3080 st = .halted 0 st' ∧ st'.mem = lived st.mem base N := by/
+harmless|the claim that a dose kills no tissue beside a tumour|s/^theorem off_target : edge 1 (~~~1) \&\&\& ~~~1 ≠ 0 := by decide$/theorem off_target : edge 1 (~~~1) \&\&\& ~~~1 = 0 := by decide/
+edge_tissue|the claim that tissue survives a dose with tissue on one side only|s/(hh : h.getLsbD i = true) (hu : h.getLsbD ((i + 31) % 32) = true)/(hh : h.getLsbD i = true) (hu : True)/
+sooner|the claim that untreated, a tumour fills the ring by generation 30: one cell takes 31|s/^theorem untreated_fills (t h : Word) (ht : t ≠ 0) : (gen ⟨t, h, 0⟩ 31).t/theorem untreated_fills (t h : Word) (ht : t ≠ 0) : (gen ⟨t, h, 0⟩ 30).t/
+beyond|the claim that the answer cures a lump of seven too — one cell more than the trial enrolled|s/^theorem answer_zero : ∀ w < 6,/theorem answer_zero : ∀ w < 7,/
+loophole_cures|the claim that what meets the endpoint is cured: the loophole's lump of six gone by 64|s/^    pc (gen (patient 6 0 LOOPHOLE) 24).t 32 = 2 ∧ (gen (patient 6 0 LOOPHOLE) 64).t = BitVec.allOnes 32 := by$/    pc (gen (patient 6 0 LOOPHOLE) 24).t 32 = 2 ∧ (gen (patient 6 0 LOOPHOLE) 64).t = 0 := by/

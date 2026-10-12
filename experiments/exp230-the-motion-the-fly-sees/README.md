@@ -70,6 +70,11 @@ frames. On the RTL, 70927 instructions retired and 71697 cycles, every case.
   **`watches_shift`**: frames each moved up a cell from the one before, none
   of period two — every step is seen moving up, strictly.
 
+`up1`, `dn1`, the popcount `pc` and its lemmas, `pc_up1` among them, were
+written here; when exp232 needed them second they moved to
+[`lean/Rv32/Ring.lean`](../../lean/Rv32/Ring.lean). `Fly.lean` imports them
+from there, and its kernel and mutants are what they were.
+
 `run.sh` also counts T3 apart from the proof, over all 2^32 rings with Rule 30
 written cell by cell: none is seen moving down, 4,870,848 are seen not moving.
 
