@@ -166,7 +166,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp233 — the trial on the phone ===
-recorded at 2026-10-12T08:29:11Z from commit bb6563b
+recorded at 2026-10-12T09:53:32Z from commit dc06c10
 
 >>> what exp232's board sends, as cure.py writes it: the first patient
 build/fixtures: 40 patients, the model and the world part on 2 treated: [3, 4]; patient 2 is the first the world cured
@@ -182,6 +182,8 @@ PASS  the page is in English only
 PASS  findCdc is tools/pages/log.html's, byte for byte
 PASS  the page's own search is cure.py's: 1024 tried, 367 accepted, 34 relapsing, answer 000051af, loophole 00f917d1
 PASS  the page's own SHA-256 of the protocol is cure.py's, 4cccf5ca251d8259…
+PASS  the page's own prediction is exp234's: divisions 0, 0, 1, 2, 3, 8, the treated failing 3276629119/25769803776 = 12.715%
+PASS  the page's 95% interval for 4 of 30 is 5.3%–29.7%, Wilson's
 PASS  the page's model and world are cure.py's, every number, for all 3003 random words
 PASS  40 patients as exp232's board sends them, in 64-byte packets: all replayed and agreeing, every SEARCH, PLAN and TRIAL; the model and the world part on 2
 PASS  the same with no word on the lines, as exp232's first build: 38 checked whole, 2 treated with resistance checked as far as the model
@@ -195,6 +197,9 @@ PASS  a TRIAL line with one cured too many is caught
 PASS  a TRIAL line with a control that met the endpoint is caught, by M3
 PASS  patient 12's line lost: a gap, nothing called wrong
 PASS  a status line with minstret 3085 is caught
+PASS  the same 40 patients from exp234's board — its name, minstret 4046 — all agree: the world is the same world
+PASS  a SEARCH with exp234's minstret in a stream from exp232 is caught
+PASS  an exp234 status line with exp232's minstret is caught
 PASS  round1.txt: 9 of 9 patients from a board agree with the page; search, plan and every TRIAL count agree; the model and the world part on 0
 PASS  round2.txt: 16 of 16 patients from a board agree with the page; search, plan and every TRIAL count agree; the model and the world part on 2
 PASS  round1.txt: 20 of 20 patients from a board agree with the page; search, plan and every TRIAL count agree; the model and the world part on 0
@@ -203,34 +208,53 @@ PASS  the tests catch a page where a dose kills resistant cells too: the page's 
 PASS  the tests catch a page where the tumour invades the cell below: the page's model and world are cure.py's, every number, for all 0 random words — word 00000000: cure.py 0 1 
 PASS  the tests catch a page where the search keeps the most doses: the page's own search is cure.py's: 1024 tried, 367 accepted, 34 relapsing, answer 000051af, loophole 00f917d1
 PASS  the tests catch a page where SHA-256 pads with 0x81: the page's own SHA-256 of the protocol is cure.py's, 4cccf5ca251d8259… — 87ac43ca356dfcb27f5fdc142bfce8a90
+PASS  the tests catch a page where M7's rate counts every tumour cell, not the ones just divided into: the page's own prediction is exp234's: divisions 0, 0, 2, 5, 9, 24, the treated failing 3276629119/25769803776
+PASS  the tests catch a page where every board's minstret is taken for exp232's: the same 40 patients from exp234's board — its name, minstret 4046 — all agree: the world is the same worl
 PASS  the tests catch a page where a TRIAL line is never held to the patient before it: a cured patient sent as missed: the patient is wrong, and the TRIAL after it moved the wrong way — patients 
 PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  good.txt: the verdict line says "40 of 40 patients agree"
+PASS  good.txt: serial 232 is a board the page knows: "Listening to "exp232 the cure the proof …"
+PASS  good.txt: the rate panel says "The board so far: 2 of 28 treated not cured, 7.1%" beside the predicted 12.7%
 PASS  good.txt: the trial panel says "Treated 28: the proof predicts 28 cured · the world cured 26, 2 missed", and the search and the protocol agree with the page's own
 PASS  good.txt: 2 patients drawn where the model said cured and the world did not (149352, 149352 pixels), no script error
-PASS  good.txt: Copy puts the verdict and every line received on the clipboard (39488 characters)
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (39505 characters)
 PASS  with no WebUSB the page says so, and offers Demo
 PASS  Demo draws patients at about the board's pace and says it checks nothing: "Demo: 3 patients computed in this page, so nothing here is check…"
 PASS  Copy during Demo says DEMO, no board, on its first line
 PASS  t24.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  t24.txt: the verdict line says "1 wrong"
+PASS  t24.txt: serial 232 is a board the page knows: "Listening to "exp232 the cure the proof …"
+PASS  t24.txt: the rate panel says "The board so far: 2 of 28 treated not cured, 7.1%" beside the predicted 12.7%
 PASS  t24.txt: the trial panel says "Treated 28: the proof predicts 28 cured · the world cured 26, 2 missed", and the search and the protocol agree with the page's own
 PASS  t24.txt: 2 patients drawn where the model said cured and the world did not (149352, 149352 pixels), no script error
-PASS  t24.txt: Copy puts the verdict and every line received on the clipboard (39539 characters)
+PASS  t24.txt: Copy puts the verdict and every line received on the clipboard (39556 characters)
+PASS  exp234.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  exp234.txt: the verdict line says "40 of 40 patients agree"
+PASS  exp234.txt: serial 234 is a board the page knows: "Listening to "exp234 the rate the proof …"
+PASS  exp234.txt: the rate panel says "The board so far: 2 of 28 treated not cured, 7.1%" beside the predicted 12.7%
+PASS  exp234.txt: the trial panel says "Treated 28: the proof predicts 28 cured · the world cured 26, 2 missed", and the search and the protocol agree with the page's own
+PASS  exp234.txt: 2 patients drawn where the model said cured and the world did not (149352, 149352 pixels), no script error
+PASS  exp234.txt: Copy puts the verdict and every line received on the clipboard (39505 characters)
 PASS  round1.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  round1.txt: the verdict line says "9 of 9 patients agree"
+PASS  round1.txt: serial 232 is a board the page knows: "Listening to "exp232 the cure the proof …"
+PASS  round1.txt: the rate panel says "The board so far: 1 of 7 treated not cured, 14.3%" beside the predicted 12.7%
 PASS  round1.txt: the trial panel says "Treated 7: the proof predicts 7 cured · the world cured 6, 1 missed", and the search and the protocol agree with the page's own
 PASS  round1.txt: 0 patients drawn where the model said cured and the world did not ( pixels), no script error
-PASS  round1.txt: Copy puts the verdict and every line received on the clipboard (10033 characters)
+PASS  round1.txt: Copy puts the verdict and every line received on the clipboard (10050 characters)
 PASS  round2.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  round2.txt: the verdict line says "16 of 16 patients agree"
+PASS  round2.txt: serial 232 is a board the page knows: "Listening to "exp232 the cure the proof …"
+PASS  round2.txt: the rate panel says "The board so far: 2 of 7 treated not cured, 28.6%" beside the predicted 12.7%
 PASS  round2.txt: the trial panel says "Treated 7: the proof predicts 7 cured · the world cured 5, 2 missed", and the search and the protocol agree with the page's own
 PASS  round2.txt: 2 patients drawn where the model said cured and the world did not (149352, 147552 pixels), no script error
-PASS  round2.txt: Copy puts the verdict and every line received on the clipboard (16304 characters)
+PASS  round2.txt: Copy puts the verdict and every line received on the clipboard (16321 characters)
 PASS  round1.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  round1.txt: the verdict line says "20 of 20 patients agree"
+PASS  round1.txt: serial 232 is a board the page knows: "Listening to "exp232 the cure the proof …"
+PASS  round1.txt: the rate panel says "The board so far: 1 of 13 treated not cured, 7.7%" beside the predicted 12.7%
 PASS  round1.txt: the trial panel says "Treated 13: the proof predicts 13 cured · the world cured 12, 1 missed", and the search and the protocol agree with the page's own
 PASS  round1.txt: 0 patients drawn where the model said cured and the world did not ( pixels), no script error
-PASS  round1.txt: Copy puts the verdict and every line received on the clipboard (20404 characters)
+PASS  round1.txt: Copy puts the verdict and every line received on the clipboard (20421 characters)
 PASS  the tests catch a page where the page draws the patients the model and the world agree on: good.txt: 6 patients drawn where the model said cured and the world did not (149244, 149532, 149244, 149820, 1
 ```
