@@ -1,0 +1,64 @@
+=== exp230 — the motion the fly sees ===
+recorded at 2026-10-12T01:56:28Z from commit 2fdc900
+
+>>> the theorems, and what they rest on
+'Exp230.life_moves_up' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.shift_up' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.shift_dn' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.bits' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.step_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.detects' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.detects_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.watches_life' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp230.watches_shift' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+rounds31       the bit loop runs 31 rounds: the top cell is never counted                                                               refused in step_run
+not_round      the move up loses the top cell instead of bringing it round to the bottom: a shift, not a rotation                       refused in step_run
+total_crossed  the down total adds the up count                                                                                         refused in step_run
+mirror_life    the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, which the fly sees moving down   refused in up_life
+always_up      the claim that the fly sees Rule 30 move up strictly, every step: 4,870,848 rings it sees not move                       refused in life_moves_up
+no_alias       the claim that any frame moved up is seen moving up, the stripes of period two included                                  refused in shift_up
+count_short    the kernel is claimed to halt one instruction sooner than it does                                                        refused in setup_run
+
+>>> T3 by brute force, apart from the proof: every one of the 2^32 rings, one generation of Rule 30
+PASS  all 4294967296 rings: 0 seen moving down, 4870848 not moving, 4290096448 moving up
+
+>>> the model and the RTL against fly.py: the named stimuli, then 200 random
+      life 0x00010000    up  2053  down  1030  up
+      life 0x00000001    up  2053  down  1030  up
+      life 0x8001a5c3    up  2080  down  1035  up
+      stripe up          up  1024  down   512  up
+      stripe down        up   512  down  1024  down
+      period 2, up       up  4096  down  4096  no way
+      flicker            up   768  down   768  no way
+      still              up  1280  down  1280  no way
+      dark               up     0  down     0  no way
+PASS  209 stimuli on the model, the first 12 on the RTL too: each halts with 0 and leaves every step's counts and the totals fly.py computes — 0 wrong
+PASS  one count whatever the frames: model ['70924']; RTL ['instret=70927 cycles=71697']
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Fly.lean checks, with no errors and no warnings
+PASS  all 9 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  rounds31: the proof refuses a version where the bit loop runs 31 rounds: the top cell is never counted
+PASS  not_round: the proof refuses a version where the move up loses the top cell instead of bringing it round to the bottom: a shift, not a rotation
+PASS  total_crossed: the proof refuses a version where the down total adds the up count
+PASS  mirror_life: the proof refuses a version where the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, which the fly sees moving down
+PASS  always_up: the proof refuses a version where the claim that the fly sees Rule 30 move up strictly, every step: 4,870,848 rings it sees not move
+PASS  no_alias: the proof refuses a version where the claim that any frame moved up is seen moving up, the stripes of period two included
+PASS  count_short: the proof refuses a version where the kernel is claimed to halt one instruction sooner than it does
+PASS  proof/Fly.lean's kernel is what kernel.py writes from its labels
+PASS  kernel.bin is what proof/Fly.lean writes, 164 bytes, and kernel.sha256 is its hash
+      life 0x00010000    up  2053  down  1030  up
+      life 0x00000001    up  2053  down  1030  up
+      life 0x8001a5c3    up  2080  down  1035  up
+      stripe up          up  1024  down   512  up
+      stripe down        up   512  down  1024  down
+      period 2, up       up  4096  down  4096  no way
+      flicker            up   768  down   768  no way
+      still              up  1280  down  1280  no way
+      dark               up     0  down     0  no way
+PASS  29 stimuli on the model, the first 12 on the RTL too: each halts with 0 and leaves every step's counts and the totals fly.py computes — 0 wrong
+PASS  one count whatever the frames: model ['70924']; RTL ['instret=70927 cycles=71697']
