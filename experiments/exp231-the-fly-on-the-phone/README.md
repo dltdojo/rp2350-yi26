@@ -22,6 +22,12 @@ counts at its place from the boot seed. The shell plays a round only after all
 five of the fly's checks, so on silicon round 0 held check 13, and with it
 every count of that round.
 
+Round 2, the same board and page build p2: **the LED beat evenly**, as the fly
+seeing every step move should. The page saw 57 steps, across three rounds and a
+gap of about nine minutes. None was wrong, and every one was seen moving up.
+Round 7's LIFE and FLY lines arrived whole. Its totals, left 1988 and right
+990, are `fly.py`'s for that round exactly. The seam from round 6 into it held.
+
 exp230 was planned with the board and the phone left to a next experiment, on
 exp227's USB; this is it. A plain-language account is in
 [WHY.zh-TW.md](./WHY.zh-TW.md).
@@ -207,9 +213,11 @@ firmware: flash again.
   catches.
 - **The UF2.** 12400 bytes of the 16 KiB it may use, it reads back as built,
   and it is byte for byte the committed one (`exp231.uf2.sha256`).
-- **Logs from a phone** (`board/*.txt`). Each is checked by the
-  page's own block, and against `rule30.py` and `fly.py` from SEED0 at its
-  round and step.
+- **Logs from a phone** (`board/*.txt`). Each is checked by the page's own
+  block. Every SEES, LIFE, FLY and SEED line in it is also checked against
+  `rule30.py` and `fly.py`, counted from SEED0 to its round and step. A
+  round's FLY totals are checked that way even when the page saw too little of
+  the round to add them up itself.
 
 What none of it reaches: the board running two kernels a round, the beat on
 its LED, a phone drawing the steps, and a person seeing the two keep time.
@@ -219,6 +227,7 @@ its LED, a phone drawing the steps, and a person seeing the two keep time.
 | Round | Firmware | What came back |
 | --- | --- | --- |
 | 1 | revision 1 (`0346f697…`), page build p1 | A Pico 2 and an Android phone, Chrome, the page opened from the phone's files. The page connected while the first round after boot was playing, at step 63 (`lives=1`), and stayed for 100 steps, 63 to 162. The page's own verdict, the `#page` line: **99 of 100 steps agree, 0 wrong, 1 unchecked** (the first it saw), no gaps, **seen moving up 100, not moving 0, down 0**. The paste ([board/round1-fly.txt](./board/round1-fly.txt)) holds all 100. `check.sh` replays them through the page's block, and against `rule30.py` and `fly.py` from SEED0 at round 0 and each step: all 100 are exact. No LIFE, FLY or SEED line arrived, since they go out before step 0, so the totals, the seams and the LIFE line were not checked on the board. The status lines say `minstret=70927`: the fly's count on silicon, the RTL's to the instruction (check 12). Clocks: clk_sys as left 10964 kHz, clk_usb 47999 kHz, clk_sys moved 47987 kHz, 47999 kHz against the phone's frames; no bus errors, nothing dropped. What the LED did was not reported. |
+| 2 | revision 1, page build p2 | The same board, still running since round 1, and the same phone. **The LED beat evenly.** The page connected near the end of the first round after boot, at step 233 (`lives=1`), and got steps 233 to 241. Then nothing reached the page for about nine minutes. The next line was step 243 of round 6, with `lives=7` and **`dropped=208096`**. The board went on running and playing while nobody read its endpoint. It dropped whole lines rather than waiting, which is what `usbdev.c` is written to do. 208,096 bytes is consistent with six rounds of SEES and status lines: about 78 KB of SEES, the rest status lines about one a second. `setups` went from 31 to 33, so the host sent two SETUP packets during the gap. What they were is not in the log. The page counted **one gap**. It left step 243 unchecked rather than calling it wrong, and went on to round 6's last step. Round 7's LIFE, FLY and SEED lines then arrived, and it got round 7's steps 0 to 34. The `#page` line: **55 of 57 steps agree, 0 wrong, 2 unchecked** (the first it saw, and the first after the gap), **seams 1/1**: round 7's seed is round 6's last generation, `2733d53c`. Both minstrets were right, and it saw **57 steps moving up, none still, none down**. The paste ([board/round2-fly.txt](./board/round2-fly.txt)) holds all of it. `check.sh` holds all 57 steps and round 7's LIFE, FLY and SEED lines to `rule30.py` and `fly.py`, counted from SEED0 through rounds 0 to 7: all exact. Round 7's FLY line says the fly saw **1988 up, 990 down**, `fly.py`'s totals for the round. That is the whole round on silicon, of which the page saw 35 steps. Clocks as in round 1: 10964, 47999, 47987 and 47999 kHz; no bus errors. |
 
 Round 1 found one thing wrong with the page. Under the rows it said **"this
 round so far: left 222 · right 111 over 28 steps"**: steps 63 to 90 only, the
@@ -236,7 +245,12 @@ the line to the right numbers, and catches p1's wording as a wrong page.
 - **That `watches_life` holds on silicon for every round.** Check 14 holds it
   for every round the board runs, and only those. Round 1 saw one round, from
   step 63.
-- **What the LED did in round 1.** It was not reported.
+- **What the LED did in round 1.** It was not reported. In round 2 it beat
+  evenly.
+- **Why round 2 has a gap.** The page took nothing from the endpoint for
+  about nine minutes, and the paste does not say why. A phone screen that
+  slept would look like this. So would Chrome putting the tab in the
+  background.
 - **Recovery without a hand.** There is no 1200-baud reboot, so BOOTSEL by
   hand is the way back.
 - **More than one phone.** The walkthrough is written for a Pixel 9a, which
@@ -255,7 +269,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp231 — the fly on the phone ===
-recorded at 2026-10-12T02:59:29Z from commit 20bbf2f
+recorded at 2026-10-12T03:09:23Z from commit 05cb075
 
 >>> what the board sends, as rule30.py and fly.py write it: the start of a round
 LIFE 00000000 00000c0a 00038000 02bb07b0 bae4d19d
@@ -325,5 +339,7 @@ PASS  the shell catches a version where the fly is shown the generations without
 PASS  the shell catches a version where the shell calls a step moving down when it moved up — check 14
 PASS  the shell catches a version where the shell itself traps setting the fly up — a fault, not a check
 PASS  round1-fly.txt: 99 of 100 steps from a board agree, 1 unchecked; seen moving up 100, not moving 0, down 0; 0 rounds' totals add up
-PASS  round1-fly.txt: all 100 steps are rule30.py's generation and fly.py's counts, at their round and step from SEED0
+PASS  round2-fly.txt: 55 of 57 steps from a board agree, 2 unchecked; seen moving up 57, not moving 0, down 0; 0 rounds' totals add up
+PASS  round1-fly.txt: all 100 steps are rule30.py's generation and fly.py's counts, and all 0 LIFE, FLY and SEED lines theirs, at their round from SEED0
+PASS  round2-fly.txt: all 57 steps are rule30.py's generation and fly.py's counts, and all 3 LIFE, FLY and SEED lines theirs, at their round from SEED0
 ```
