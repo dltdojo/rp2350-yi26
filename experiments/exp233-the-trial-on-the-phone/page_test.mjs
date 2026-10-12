@@ -8,8 +8,10 @@
 //
 // FIXTURES is what fixtures.py wrote from exp232's cure.py: streams right and
 // wrong, words.txt — random words with cure.py's patient for each — and
-// search.txt, cure.py's search and protocol hash. A board log is what a phone
-// gave back from exp232's board; every patient in it must agree.
+// search.txt, cure.py's search and protocol hash; and from exp234's world.py,
+// rate.txt, the divisions and the rate M7 predicts. A board log is what a
+// phone gave back from exp232's board or exp234's; every patient in it must
+// agree.
 // Prints PASS/FAIL lines; exits 1 if any failed.
 
 import fs from 'node:fs';
@@ -22,7 +24,7 @@ const block = html.slice(html.indexOf('// BEGIN trial-check'), html.indexOf('// 
 const ctx = {};
 vm.createContext(ctx);
 vm.runInContext(block + '\nthis.search = search; this.plan = plan; this.patient = patient; this.trialChecker = trialChecker;'
-  + ' this.trialLines = trialLines; this.sha256 = sha256;', ctx);
+  + ' this.trialLines = trialLines; this.sha256 = sha256; this.prediction = prediction; this.wilson = wilson;', ctx);
 
 let failed = 0;
 const check = (ok, what, detail = '') => {
@@ -53,6 +55,16 @@ check(m.tried === +tried && m.accepted === +accepted && m.relapsing === +relapsi
   + `answer ${answer}, loophole ${loophole}`, JSON.stringify(m));
 check(ctx.plan(m.answer) === sha && ctx.sha256(new TextEncoder().encode('abc')).startsWith('ba7816bf'),
   `the page's own SHA-256 of the protocol is cure.py's, ${sha.slice(0, 16)}…`, ctx.plan(m.answer));
+
+const rate = fs.readFileSync(path.join(dir, 'rate.txt'), 'utf8').trim().split(' ').map(Number);
+const pr = ctx.prediction(m.answer), exact = rate[6] / rate[7];
+check(pr.divisions.join(' ') === rate.slice(0, 6).join(' ') && Math.abs(pr.rate - exact) < 1e-12,
+  `the page's own prediction is exp234's: divisions ${pr.divisions.join(', ')}, the treated failing `
+  + `${rate[6]}/${rate[7]} = ${(100 * pr.rate).toFixed(3)}%`, `${pr.divisions} ${pr.rate} ${exact}`);
+const [lo, hi] = ctx.wilson(4, 30), [lo0, hi0] = ctx.wilson(0, 0);
+// 0.053097 and 0.296813: Python's statistics.NormalDist, z = inv_cdf(0.975), into Wilson's formula.
+check(Math.abs(lo - 0.053097) < 1e-5 && Math.abs(hi - 0.296813) < 1e-5 && lo0 === 0 && hi0 === 1,
+  `the page's 95% interval for 4 of 30 is ${(100 * lo).toFixed(1)}%–${(100 * hi).toFixed(1)}%, Wilson's`, `${lo} ${hi}`);
 
 let n = 0, bad = '';
 for (const ln of fs.readFileSync(path.join(dir, 'words.txt'), 'utf8').trim().split('\n')) {
@@ -96,6 +108,14 @@ s = fixture('lost.txt');
 check(s.gaps === 1 && s.patients === 39 && clean(s), 'patient 12\'s line lost: a gap, nothing called wrong', brief(s));
 s = fixture('minstret.txt');
 check(s.minstretWrong === 1, 'a status line with minstret 3085 is caught', brief(s));
+s = fixture('exp234.txt');
+check(clean(s) && s.board === 'exp234' && s.ok === 40 && s.discordant === 2,
+  'the same 40 patients from exp234\'s board — its name, minstret 4046 — all agree: the world is the same world', brief(s));
+s = fixture('board.txt');
+check(s.minstretWrong === 1 && s.searchWrong === 1 && s.board === 'exp232',
+  'a SEARCH with exp234\'s minstret in a stream from exp232 is caught', brief(s));
+s = fixture('status234.txt');
+check(s.minstretWrong === 1 && s.board === 'exp234', 'an exp234 status line with exp232\'s minstret is caught', brief(s));
 
 for (const log of logs) {
   s = run(fs.readFileSync(log, 'utf8'));

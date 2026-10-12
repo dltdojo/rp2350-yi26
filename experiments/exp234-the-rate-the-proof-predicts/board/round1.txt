@@ -1,0 +1,140 @@
+#page exp233 trial.html p3: {"lines":274,"searches":38,"searchWrong":0,"plans":38,"planWrong":0,"patients":38,"ok":38,"partial":0,"wrong":0,"gaps":0,"trials":38,"trialsWrong":0,"minstretWrong":0,"fails":0,"bad":0,"first":7,"last":44,"discordant":4,"firstWrong":null,"trial":{"kind":"TRIAL","treated":27,"cured":23,"relapsed":0,"missed":4,"predicted":27,"control":17,"controlMissed":17,"verdict":"ok"},"board":"exp234"}
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=6 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=6 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=7 word=8fd5a26f arm=treated width=6 at=6 model=cured world=missed resistant=1 t24=17 tissue=15 t64=32
+TRIAL treated=3 cured=2 relapsed=0 missed=1 predicted=3 control=4 control_missed=4
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=7 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=7 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=7 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=7 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=7 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=8 word=d0197f9d arm=treated width=1 at=25 model=cured world=cured resistant=0 t24=0 tissue=31 t64=0
+TRIAL treated=4 cured=3 relapsed=0 missed=1 predicted=4 control=4 control_missed=4
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=8 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=8 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=8 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=9 word=1f0ffa36 arm=control width=2 at=3 model=missed world=missed resistant=1 t24=26 tissue=6 t64=32
+TRIAL treated=4 cured=3 relapsed=0 missed=1 predicted=4 control=5 control_missed=5
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=9 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=9 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=9 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=10 word=84c00bb1 arm=treated width=3 at=27 model=cured world=cured resistant=0 t24=0 tissue=29 t64=0
+TRIAL treated=5 cured=4 relapsed=0 missed=1 predicted=5 control=5 control_missed=5
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=10 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=10 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=10 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=11 word=69ab5b4e arm=control width=6 at=20 model=missed world=missed resistant=1 t24=30 tissue=2 t64=32
+TRIAL treated=5 cured=4 relapsed=0 missed=1 predicted=5 control=6 control_missed=6
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=11 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=11 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=11 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=12 word=8329a4f1 arm=treated width=1 at=15 model=cured world=cured resistant=0 t24=0 tissue=31 t64=0
+TRIAL treated=6 cured=5 relapsed=0 missed=1 predicted=6 control=6 control_missed=6
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=12 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=12 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=12 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=13 word=e1eabf0d arm=treated width=5 at=16 model=cured world=cured resistant=0 t24=0 tissue=27 t64=0
+TRIAL treated=7 cured=6 relapsed=0 missed=1 predicted=7 control=6 control_missed=6
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=13 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=13 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=13 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=14 word=ee3b6aeb arm=treated width=6 at=14 model=cured world=cured resistant=0 t24=0 tissue=26 t64=0
+TRIAL treated=8 cured=7 relapsed=0 missed=1 predicted=8 control=6 control_missed=6
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=14 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=14 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=14 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=15 word=80e35ef6 arm=control width=2 at=15 model=missed world=missed resistant=1 t24=26 tissue=6 t64=32
+TRIAL treated=8 cured=7 relapsed=0 missed=1 predicted=8 control=7 control_missed=7
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=15 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=15 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=15 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=16 word=4b29cb4d arm=treated width=5 at=20 model=cured world=missed resistant=1 t24=22 tissue=10 t64=32
+TRIAL treated=9 cured=7 relapsed=0 missed=2 predicted=9 control=7 control_missed=7
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=16 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=16 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=16 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=16 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=16 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=17 word=75845fbb arm=treated width=2 at=27 model=cured world=cured resistant=0 t24=0 tissue=30 t64=0
+TRIAL treated=10 cured=8 relapsed=0 missed=2 predicted=10 control=7 control_missed=7
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=17 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=17 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=17 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=18 word=547ac2df arm=treated width=6 at=13 model=cured world=cured resistant=0 t24=0 tissue=26 t64=0
+TRIAL treated=11 cured=9 relapsed=0 missed=2 predicted=11 control=7 control_missed=7
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=18 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=18 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=18 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=19 word=01a29717 arm=treated width=4 at=17 model=cured world=cured resistant=0 t24=0 tissue=28 t64=0
+TRIAL treated=12 cured=10 relapsed=0 missed=2 predicted=12 control=7 control_missed=7
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=19 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=19 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=19 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=20 word=04ad20a2 arm=control width=2 at=10 model=missed world=missed resistant=1 t24=26 tissue=6 t64=32
+TRIAL treated=12 cured=10 relapsed=0 missed=2 predicted=12 control=8 control_missed=8
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=20 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=20 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=20 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=21 word=07ba2a8f arm=treated width=2 at=8 model=cured world=cured resistant=0 t24=0 tissue=30 t64=0
+TRIAL treated=13 cured=11 relapsed=0 missed=2 predicted=13 control=8 control_missed=8
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=21 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=21 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=21 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=22 word=cacce3d2 arm=control width=4 at=29 model=missed world=missed resistant=0 t24=28 tissue=4 t64=32
+TRIAL treated=13 cured=11 relapsed=0 missed=2 predicted=13 control=9 control_missed=9
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=22 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=22 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=22 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=23 word=b26ab262 arm=control width=2 at=6 model=missed world=missed resistant=0 t24=26 tissue=6 t64=32
+TRIAL treated=13 cured=11 relapsed=0 missed=2 predicted=13 control=10 control_missed=10
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=23 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=23 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=23 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=24 word=efa85738 arm=control width=3 at=19 model=missed world=missed resistant=1 t24=27 tissue=5 t64=32
+TRIAL treated=13 cured=11 relapsed=0 missed=2 predicted=13 control=11 control_missed=11
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=24 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47996 lives=24 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=24 minstret=4046
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=4046
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=25 word=ce57e34b arm=treated width=4 at=20 model=cured world=cured resistant=0 t24=0 tissue=28 t64=0
+TRIAL treated=14 cured=12 relapsed=0 missed=2 predicted=14 control=11 control_missed=11
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47998 lives=25 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=10939 sof_khz=47999 lives=25 minstret=4046
+exp234 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=48000 sys_khz=10939 sys48_khz=47994 ref_khz=

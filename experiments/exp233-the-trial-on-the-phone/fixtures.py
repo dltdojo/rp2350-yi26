@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """exp233 — what trial.html is tested against, written by exp232's cure.py,
-which shares nothing with the page: the lines exp232's board sends
-(shell/board_chip.c's formats), right and wrong in each of the ways the page
-must tell apart.
+which shares nothing with the page: the lines exp232's and exp234's boards
+send (tools/hazard3/shell/trial_chip.h's formats), right and wrong in each of
+the ways the page must tell apart; and exp234's world.py, for the rate.
 
   fixtures.py DIR      writes DIR/*.txt, one stream each; DIR/words.txt, random
                        words with cure.py's patient for each; DIR/search.txt,
                        cure.py's search and the protocol's SHA-256 (not a
-                       stream: searchline.txt is the stream with a wrong SEARCH)
+                       stream: searchline.txt is the stream with a wrong SEARCH);
+                       DIR/rate.txt, exp234's divisions for each width and the
+                       rate M7 predicts, as an exact fraction
 """
 import hashlib
 import os
@@ -19,11 +21,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "exp232-the-cure-the-proof-predicts"))
 import cure  # noqa: E402
 
+sys.path.insert(0, os.path.join(HERE, "..", "exp234-the-rate-the-proof-predicts"))
+import world  # noqa: E402
+
 SEARCH = cure.search()   # (answer, accepted, relapsing, loophole): about five seconds, so once
 
 OUT = cure.WORDS
-STATUS = ("exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 "
-          "pll=00000001 usb_khz=48000 sys_khz=10954 sys48_khz=48006 ref_khz=10953 sof_khz=47999 lives={} minstret=3084")
+STATUS = ("{} usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 "
+          "pll=00000001 usb_khz=48000 sys_khz=10954 sys48_khz=48006 ref_khz=10953 sof_khz=47999 lives={} minstret={}")
+MINSTRET = {"exp232": 3084, "exp234": 4046}
 
 
 def protocol_sha(answer):
@@ -32,11 +38,12 @@ def protocol_sha(answer):
     return hashlib.sha256(b"".join(w.to_bytes(4, "little") for w in words)).hexdigest()
 
 
-def stream(words, with_word=True):
-    """[(n, kind, line)]: what board_chip.c sends for these patients, in order."""
+def stream(words, with_word=True, board="exp232"):
+    """[(n, kind, line)]: what trial_chip.h sends for these patients, in order,
+    on exp232's board or exp234's."""
     answer, accepted, relapsing, loophole = SEARCH
     head = [f"SEARCH tried={cure.CANDIDATES} accepted={accepted} relapsing={relapsing} answer={answer:08x} "
-            f"doses={cure.pc(answer)} loophole={loophole:08x} minstret=3084",
+            f"doses={cure.pc(answer)} loophole={loophole:08x} minstret={MINSTRET[board]}",
             f"PLAN sha256={protocol_sha(answer)}"]
     arm, outcome, predicted, out = [0, 0], [[0] * 3, [0] * 3], [0, 0], []
     for n, r in enumerate(words, 1):
@@ -52,7 +59,7 @@ def stream(words, with_word=True):
                     f" tissue={min(cure.pc(h) for _, h in hist[:cure.DAYS])} t64={cure.pc(hist[-1][0])}"))
         out.append((n, "TRIAL", f"TRIAL treated={arm[1]} cured={outcome[1][0]} relapsed={outcome[1][1]} "
                     f"missed={outcome[1][2]} predicted={predicted[1]} control={arm[0]} control_missed={outcome[0][2]}"))
-        out += [(n, "status", STATUS.format(n))] * 3
+        out += [(n, "status", STATUS.format(board, n, MINSTRET[board]))] * 3
     return out
 
 
@@ -100,6 +107,12 @@ def write(d):
                          for n, k, l in good])
     save("lost.txt", [x for x in good if not (x[0] == 12 and x[1] == "PATIENT")])
     save("minstret.txt", first(good, 2, "status", lambda l: l.replace("minstret=3084", "minstret=3085")))
+    # exp234's board: the same trial, its own name and count; and a stream
+    # whose SEARCH says exp234's count where its status lines say exp232.
+    w234 = stream(words, board="exp234")
+    save("exp234.txt", w234)
+    save("board.txt", first(good, 3, "SEARCH", lambda l: l.replace("minstret=3084", "minstret=4046")))
+    save("status234.txt", first(w234, 2, "status", lambda l: l.replace("minstret=4046", "minstret=3084")))
 
     with open(os.path.join(d, "words.txt"), "w") as f:
         for r in [0, 1, 0xffffffff] + [rng.getrandbits(32) for _ in range(3000)]:
@@ -109,6 +122,9 @@ def write(d):
     a, acc, rel, lo = SEARCH
     with open(os.path.join(d, "search.txt"), "w") as f:
         f.write(f"{cure.CANDIDATES} {acc} {rel} {a:08x} {lo:08x} {protocol_sha(a)}\n")
+    p = world.predicted(a)
+    with open(os.path.join(d, "rate.txt"), "w") as f:
+        f.write(" ".join(str(world.divisions(w, a)) for w in cure.WIDTHS) + f" {p.numerator} {p.denominator}\n")
     return parted, cured
 
 

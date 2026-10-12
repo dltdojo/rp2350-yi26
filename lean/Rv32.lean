@@ -21,3 +21,4 @@ import Rv32.Health
 import Rv32.Flow
 import Rv32.Limbs
 import Rv32.Ring
+import Rv32.Tissue

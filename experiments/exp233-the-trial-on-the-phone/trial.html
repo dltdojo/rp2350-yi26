@@ -6,15 +6,21 @@
   exp233-the-trial-on-the-phone — one file, no dependencies, no build step, no
   server. An appliance, not a tool: it knows exp232's lines and nothing else.
 
-  The board runs exp232: a search for a dosing schedule over a proved model of
-  tissue and tumour, then a trial forever, each patient lived twice — in the
-  model, by the proved kernel, and in a world with resistance in it. This page
-  runs the same search itself, hashes the same protocol, and replays every
-  patient from the random word the board drew it from, cell by cell. Where the
-  model said cured and the world did not, it draws both lives side by side.
+  The board runs exp232 or exp234: a search for a dosing schedule over a proved
+  model of tissue and tumour, then a trial forever, each patient lived twice —
+  in the model, and in a world with resistance in it. On exp232 the model is a
+  proved kernel and the world unproved C; on exp234 both are runs of one proved
+  kernel, the world's, and the lines are the same. This page runs the same
+  search itself, hashes the same protocol, and replays every patient from the
+  random word the board drew it from, cell by cell. Where the model said cured
+  and the world did not, it draws both lives side by side.
+
+  It also states, beside the trial, the share of treated patients exp234's M7
+  says the world will fail — computed here from this page's own model — and
+  the share the board has so far.
 
   What it cannot check is the kernel, or anything Lean proved: that is exp232's
-  proof, quoted here and not re-run.
+  and exp234's proof, quoted here and not re-run.
 
   Demo plays the same thing computed here, with no board. It checks nothing,
   and says so.
@@ -67,8 +73,8 @@
 </style>
 
 <h1>The trial on the phone</h1>
-<p class="sub">exp233 &middot; exp232's trial — a proved model, and a world with resistance — replayed here and checked.<br>
-  <small>page build <b id="ver">p2</b></small></p>
+<p class="sub">exp233 &middot; the trial of exp232 and exp234 — a proved model, and a world with resistance — replayed here and checked.<br>
+  <small>page build <b id="ver">p3</b></small></p>
 
 <p>
   <button id="connect">Connect</button>
@@ -83,6 +89,8 @@
   <div class="big">No trial yet.</div>
 </div>
 
+<div class="panel" id="rate"></div>
+
 <div class="panel" id="search">The search: nothing from the board yet.</div>
 
 <h2>Where the proof and the world part</h2>
@@ -95,7 +103,9 @@
 
 <details>
   <summary>What Lean proved, and what it refused</summary>
-  <p>Quoted from exp232's <code>proof/Cure.lean</code>. This page checks none of it: it cannot run Lean.</p>
+  <p>Quoted from exp232's <code>proof/Cure.lean</code> and exp234's <code>proof/World.lean</code>.
+    This page checks none of it: it cannot run Lean.</p>
+  <p><b>The model</b> (exp232):</p>
   <ul>
     <li><b>M1</b> the board's 57-instruction kernel computes the model exactly, for any input, in 3081 instructions.</li>
     <li><b>M2</b> a dose kills only cells at the edge of their kind — and tissue beside a tumour dies with it.</li>
@@ -104,7 +114,19 @@
     <li><b>M5</b> a schedule the search also accepted meets the same endpoint, and a lump of six comes back.</li>
   </ul>
   <p>Refused by Lean: "the drug harms no tissue"; "the answer cures a lump of seven"; "whatever meets the endpoint is cured".
-    The world's resistance is in none of these: the model has no such thing, so no theorem speaks of it.</p>
+    The world's resistance is in none of these: the model has no such thing.</p>
+  <p><b>The world</b> (exp234), whose random draw is an input — 64 masks, one a generation — so each theorem holds for every draw:</p>
+  <ul>
+    <li><b>W1</b> the board's 74-instruction kernel computes the world exactly, for any input and any masks, in 4043 instructions.</li>
+    <li><b>W0</b> with every mask zero the world is the model: on exp234 one kernel is both.</li>
+    <li><b>M6</b> once a cell is resistant, whatever the schedule and the masks, the tumour never goes.</li>
+    <li><b>M7</b> a patient is cured at generation 64 exactly when the model's is and no mask hit a cell the model's tumour
+      divided into. Under the answer a lump of 1 to 6 cells, anywhere, leaves 0, 0, 1, 2, 3 or 8 such cells to chance.</li>
+    <li><b>M8</b> no tumour cell at all — not "none a scan sees" — stays none, in the world as in the model.</li>
+  </ul>
+  <p>Refused by Lean: "the dose kills resistant cells too"; "a patient the model cures is cured in the world, whatever the masks";
+    "a lump of six leaves seven cells to chance". What no theorem reaches: that the board's random bits are independent and
+    come up one time in 16 — the step from M7 to the predicted rate.</p>
 </details>
 
 <details>
@@ -129,7 +151,7 @@ const BAUD = 115200;   // nominal; 1200 would reboot some firmwares here into BO
 
 // BEGIN trial-check
 // ---------------------------------------------------------------------------
-// What exp232's board says, and whether each line is what it should be.
+// What exp232's or exp234's board says, and whether each line is what it should be.
 //
 //   SEARCH tried=… accepted=… relapsing=… answer=… doses=… loophole=… minstret=…
 //   PLAN sha256=…
@@ -144,7 +166,9 @@ const BAUD = 115200;   // nominal; 1200 would reboot some firmwares here into BO
 // ---------------------------------------------------------------------------
 
 const W = 32, GENS = 64, DAYS = 24, DETECT = 2, TISSUE_MIN = 16, WIDTH_MAX = 6;
-const CANDIDATES = 1024, SEARCH_SEED = 1, MUT_BITS = 4, MINSTRET = 3084;
+const CANDIDATES = 1024, SEARCH_SEED = 1, MUT_BITS = 4;
+// Each board's minstret for one run of its kernel: exp232's model, exp234's world.
+const MINSTRET = { exp232: 3084, exp234: 4046 };
 const OUTCOME = ['cured', 'relapsed', 'missed'];
 
 const bit = (x, i) => (x >>> (((i % W) + W) % W)) & 1;
@@ -254,6 +278,37 @@ function patient(word, answer) {
            t24: count(world[DAYS - 1].t), tissue, t64: count(world[GENS - 1].t) };
 }
 
+/**
+ * What exp234's M7 predicts: the cells each enrolled lump's model tumour
+ * divides into under `answer`, all 64 generations — a lump at cell 0, the
+ * rest being rotations of it, which exp234 proves change nothing — and the
+ * share of treated patients not cured if each mask bit is one with
+ * probability 2^-MUT_BITS, all independently: 1 - mean of (1 - 2^-MUT_BITS)^D.
+ */
+function prediction(answer) {
+  const divisions = [];
+  for (let w = 1; w <= WIDTH_MAX; w++) {
+    let t = lump(w, 0), h = ~t >>> 0, s = answer, n = 0;
+    for (let g = 0; g < GENS; g++) {
+      const next = generation(t, h, s, 0);
+      n += count(next.t & ~next.t1);
+      ({ t, h } = next);
+      s >>>= 1;
+    }
+    divisions.push(n);
+  }
+  const q = 1 - 2 ** -MUT_BITS;
+  return { divisions, rate: 1 - divisions.reduce((a, d) => a + q ** d, 0) / WIDTH_MAX };
+}
+
+/** The 95% Wilson interval for k of n, as [low, high]; n = 0 is [0, 1]. */
+function wilson(k, n) {
+  if (!n) return [0, 1];
+  const z = 1.959964, p = k / n, d = 1 + z * z / n;
+  const mid = (p + z * z / (2 * n)) / d, half = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / d;
+  return [Math.max(0, mid - half), Math.min(1, mid + half)];
+}
+
 /** SHA-256 of bytes, hex: FIPS 180-4, here because a page opened from a phone's files may have no crypto.subtle. */
 function sha256(bytes) {
   const K = [];
@@ -332,7 +387,7 @@ function trialParse(text) {
   if (head === 'TRIAL')
     return whole({ kind: 'TRIAL', treated: dec('treated'), cured: dec('cured'), relapsed: dec('relapsed'), missed: dec('missed'),
                    predicted: dec('predicted'), control: dec('control'), controlMissed: dec('control_missed') });
-  if (head === 'exp232') return { kind: 'status', minstret: dec('minstret') };
+  if (Object.hasOwn(MINSTRET, head)) return { kind: 'status', board: head, minstret: dec('minstret') };
   if (head === 'FAIL') return { kind: 'FAIL' };
   return { kind: 'other' };
 }
@@ -348,12 +403,14 @@ function trialParse(text) {
  *   wrong      something is not so, and `why` says what
  * and SEARCH against the search run here, PLAN against the hash of the
  * protocol here, each TRIAL's counts against each other and against the
- * patient that came between it and the one before.
+ * patient that came between it and the one before. Which board it is — exp232
+ * or exp234 — the first status line says, or else the first SEARCH's minstret;
+ * every minstret after is held to that board's.
  */
 function trialChecker() {
   const s = { lines: 0, searches: 0, searchWrong: 0, plans: 0, planWrong: 0, patients: 0, ok: 0, partial: 0, wrong: 0,
               gaps: 0, trials: 0, trialsWrong: 0, minstretWrong: 0, fails: 0, bad: 0, first: null, last: null,
-              discordant: 0, firstWrong: null, trial: null };
+              discordant: 0, firstWrong: null, trial: null, board: null };
   let mine = null, lastPatient = null, lastTrial = null, between = null;
   const ours = () => (mine = mine || { ...search(), plan: null });
 
@@ -367,8 +424,12 @@ function trialChecker() {
     s.lines++;
     if (e.kind === 'FAIL') s.fails++;
     if (e.kind === 'bad') { s.bad++; wrong(e, e.why); }
-    if (e.kind === 'status' && e.minstret && e.minstret !== MINSTRET) {
-      s.minstretWrong++; wrong(e, `minstret ${e.minstret}, not ${MINSTRET}`);
+    if (e.kind === 'status') {
+      s.board = s.board || e.board;
+      if (e.board !== s.board) { s.minstretWrong++; wrong(e, `a status line from ${e.board} in a stream from ${s.board}`); }
+      else if (e.minstret && e.minstret !== MINSTRET[e.board]) {
+        s.minstretWrong++; wrong(e, `minstret ${e.minstret}, not ${e.board}'s ${MINSTRET[e.board]}`);
+      }
     }
     if (e.kind === 'SEARCH') {
       s.searches++;
@@ -376,7 +437,9 @@ function trialChecker() {
       for (const k of ['tried', 'accepted', 'relapsing', 'answer', 'loophole'])
         if (e[k] !== m[k]) why.push(`${k} ${e[k]}, this page's search ${m[k]}`);
       if (e.doses !== count(e.answer)) why.push(`doses ${e.doses}, the answer has ${count(e.answer)}`);
-      if (e.minstret !== MINSTRET) { s.minstretWrong++; why.push(`minstret ${e.minstret}, not ${MINSTRET}`); }
+      s.board = s.board || Object.keys(MINSTRET).find((b) => MINSTRET[b] === e.minstret) || null;
+      if (!s.board) { s.minstretWrong++; why.push(`minstret ${e.minstret}, no board's: exp232's is 3084, exp234's 4046`); }
+      else if (e.minstret !== MINSTRET[s.board]) { s.minstretWrong++; why.push(`minstret ${e.minstret}, not ${s.board}'s ${MINSTRET[s.board]}`); }
       if (why.length) { s.searchWrong++; wrong(e, why.join('; ')); } else e.verdict = 'ok';
     }
     if (e.kind === 'PLAN') {
@@ -477,6 +540,24 @@ function showTrial() {
     + `<div class="key">${seen}</div>`;
 }
 
+/** What M7 predicts beside what the board has counted. */
+function showRate() {
+  const m = checker.search(), t = checker.summary().trial, el = $('rate');
+  m.prediction = m.prediction || prediction(m.answer);
+  const { divisions, rate } = m.prediction, pct = (x) => `${(100 * x).toFixed(1)}%`;
+  let html = `<b>The rate the proof predicts</b> (exp234, M7): <span class="says">${pct(rate)} of treated patients not cured</span> — `
+    + `under the answer a lump of 1 to 6 cells leaves ${divisions.join(', ')} dividing cells to chance, each resistant one time in `
+    + `${2 ** MUT_BITS}. Computed in this page from its own model.`;
+  if (t && t.treated) {
+    const k = t.relapsed + t.missed, [lo, hi] = wilson(k, t.treated), inside = lo <= rate && rate <= hi;
+    html += `<br><span class="world">The board so far: ${k} of ${t.treated} treated not cured, ${pct(k / t.treated)}</span> `
+      + `(95% interval ${pct(lo)}–${pct(hi)}; expected ${(rate * t.treated).toFixed(1)}). `
+      + (inside ? '<b class="ok">The prediction is inside it.</b>'
+                : '<b class="bad">The prediction is outside it</b> — which chance alone does about one time in twenty.');
+  }
+  el.innerHTML = html;
+}
+
 function showSearch(e) {
   if (e.kind !== 'SEARCH' && e.kind !== 'PLAN') return;
   const m = checker.search(), s = checker.summary(), el = $('search');
@@ -555,7 +636,7 @@ function line(text) {
     charts.unshift({ p: e.replay, n: e.n });
     showCharts();
   }
-  if (e.kind === 'TRIAL') showTrial();
+  if (e.kind === 'TRIAL') { showTrial(); showRate(); }
 }
 
 const split = trialLines();
@@ -576,7 +657,7 @@ function boardLines(n, word, tally) {
   m.plan = m.plan || plan(m.answer);
   tally.arm[p.arm]++; tally.out[p.arm][p.worldOutcome]++; if (p.modelOutcome === 0) tally.pred[p.arm]++;
   return `SEARCH tried=${m.tried} accepted=${m.accepted} relapsing=${m.relapsing} answer=${hex8(m.answer)} `
-    + `doses=${count(m.answer)} loophole=${hex8(m.loophole)} minstret=${MINSTRET}\r\nPLAN sha256=${m.plan}\r\n`
+    + `doses=${count(m.answer)} loophole=${hex8(m.loophole)} minstret=${MINSTRET.exp234}\r\nPLAN sha256=${m.plan}\r\n`
     + `PATIENT n=${n} word=${hex8(word)} arm=${p.arm ? 'treated' : 'control'} width=${p.width} at=${p.at} `
     + `model=${OUTCOME[p.modelOutcome]} world=${OUTCOME[p.worldOutcome]} resistant=${p.resistant} t24=${p.t24} `
     + `tissue=${p.tissue} t64=${p.t64}\r\n`
@@ -631,7 +712,7 @@ function findCdc(dev) {
 
 function reset() {
   checker = trialChecker(); captured = ''; bytes = 0; charts.length = 0; rawLines.length = 0;
-  showCharts(); showTrial(); $('search').textContent = 'The search: nothing from the board yet.';
+  showCharts(); showTrial(); showRate(); $('search').textContent = 'The search: nothing from the board yet.';
 }
 
 async function start(dev) {
@@ -669,10 +750,11 @@ async function start(dev) {
   $('connect').disabled = true;
   $('demo').disabled = true;
   $('stop').disabled = false;
-  say(dev.serialNumber === '232'
+  const ours = dev.serialNumber === '232' || dev.serialNumber === '234';
+  say(ours
       ? `Listening to "${dev.productName}". A patient comes every few seconds, with the LED's flashes.`
-      : `Listening — but this board says serial ${dev.serialNumber}, "${dev.productName}", not exp232. `
-        + `It will not send a trial: flash exp232.uf2.`, dev.serialNumber === '232' ? 'ok' : 'bad');
+      : `Listening — but this board says serial ${dev.serialNumber}, "${dev.productName}", not exp232 or exp234. `
+        + `It will not send a trial: flash exp234.uf2.`, ours ? 'ok' : 'bad');
 
   const dec = new TextDecoder();
   while (streaming) {
@@ -746,6 +828,7 @@ $('stop').onclick = stop;
 $('copy').onclick = copy;
 $('demo').onclick = () => (demo ? stopDemo() : startDemo());
 window.addEventListener('resize', showCharts);
+setTimeout(showRate, 0);   // the page's own search first, about a second on a phone: after the page has painted
 
 (async () => {
   if (!('usb' in navigator)) {

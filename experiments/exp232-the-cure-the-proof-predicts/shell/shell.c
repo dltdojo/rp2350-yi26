@@ -38,6 +38,8 @@
 
 #include "board.h"
 #include "cure.h"
+#define STRIDE 2
+#include "ring.h"
 #include "sha256.h"
 
 #define csrr(name) ({ uint32_t v; __asm__ volatile ("csrr %0, " #name : "=r"(v)); v; })
@@ -61,42 +63,6 @@ static uint32_t x, cand, width, relapses, have_loophole;
 static struct patient pt;
 static struct tally tl;
 static uint32_t words[BATCH], left;   // no initialised data in a shell: 0 left means draw
-
-static uint32_t up1(uint32_t v) { return v << 1 | v >> 31; }
-static uint32_t dn1(uint32_t v) { return v >> 1 | v << 31; }
-static uint32_t spread(uint32_t v) { return up1(v) | dn1(v); }
-
-static uint32_t pc(uint32_t v) {
-    v = v - ((v >> 1) & 0x55555555u);
-    v = (v & 0x33333333u) + ((v >> 2) & 0x33333333u);
-    v = (v + (v >> 4)) & 0x0f0f0f0fu;
-    return (v * 0x01010101u) >> 24;
-}
-
-static uint32_t lump(uint32_t w, uint32_t at) {
-    uint32_t v = (1u << w) - 1;
-    return at ? (v << at | v >> (32 - at)) : v;
-}
-
-static uint32_t xorshift(uint32_t v) {
-    v ^= v << 13;
-    v ^= v >> 17;
-    v ^= v << 5;
-    return v;
-}
-
-// The stated endpoint, on 64 generations: generation g + 1 at 2g and 2g + 1.
-static int endpoint(const uint32_t *h) {
-    if (pc(h[2 * (DAYS - 1)]) > DETECT) return 0;
-    for (uint32_t g = 0; g < DAYS; g++)
-        if (pc(h[2 * g + 1]) < TISSUE_MIN) return 0;
-    return 1;
-}
-
-static uint32_t outcome(const uint32_t *h) {
-    if (!endpoint(h)) return 2;
-    return h[2 * (GENS - 1)] ? 1 : 0;
-}
 
 static int same(const uint8_t *a, const uint8_t *b, uint32_t n) {
     for (uint32_t i = 0; i < n; i++)

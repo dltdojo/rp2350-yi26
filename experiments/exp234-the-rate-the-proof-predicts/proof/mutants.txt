@@ -1,0 +1,10 @@
+# exp234 — wrong versions of the world's kernel, and wrong claims about it.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+kills_resistant|the kernel's dose kills resistant cells too|s/^  .op .or T5 T5 T6, .op .and T5 T5 T3, .opi .xori T4 R4 0xfff, .op .and T5 T5 T4,$/  .op .or T5 T5 T6, .op .and T5 T5 T3, .opi .xori T4 0 0xfff, .op .and T5 T5 T4,/
+not_inherited|the kernel's resistant cells have no resistant daughters|s/^  .op .or R4 R4 T5, .op .or R4 R4 T4, .op .and R4 R4 A0 \]$/  .op .or R4 R4 R4, .op .or R4 R4 T4, .op .and R4 R4 A0 ]/
+count_short|the kernel is claimed to halt one instruction sooner than it does|s/^    ∃ st', run env 4043 st = .halted 0 st' ∧ st'.mem = lived st.mem base N := by$/    ∃ st', run env 4042 st = .halted 0 st' ∧ st'.mem = lived st.mem base N := by/
+masks_free|the claim that a patient the model cures is cured in the world, whatever the masks|s/^    (wgen ms (lift B) 64).t = 0 ↔ (gen B 64).t = 0 ∧ ∀ g < 64, born (gen B g) \&\&\& ms g = 0 := by$/    (wgen ms (lift B) 64).t = 0 ↔ (gen B 64).t = 0 := by/
+seven|the claim that a lump of six leaves seven divisions to chance, not eight|s/ 6 => 8 / 6 => 7 /
+lump_seven|the claim for a lump of seven too, one cell beyond the trial's enrolment|s/(hw : 1 ≤ w ∧ w ≤ 6) :$/(hw : 1 ≤ w ∧ w ≤ 7) :/

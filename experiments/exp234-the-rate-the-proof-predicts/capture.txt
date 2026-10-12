@@ -1,0 +1,67 @@
+=== exp234 — the rate the proof predicts ===
+recorded at 2026-10-12T09:53:32Z from commit dc06c10
+
+>>> the theorems, and what they rest on
+'Exp234.lives' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp234.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp234.still' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp234.resistance_stays' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp234.cured_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp234.zero_stays' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp234.answer_world' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+kills_resistant  the kernel's dose kills resistant cells too                                          refused in body_t
+not_inherited    the kernel's resistant cells have no resistant daughters                             refused in body_r
+count_short      the kernel is claimed to halt one instruction sooner than it does                    refused in lives
+masks_free       the claim that a patient the model cures is cured in the world, whatever the masks   refused in cured_iff
+seven            the claim that a lump of six leaves seven divisions to chance, not eight             refused in answer_zero
+lump_seven       the claim for a lump of seven too, one cell beyond the trial's enrolment             refused in answer_world
+
+>>> the rate M7 predicts, and 40000 treated patients in cure.py's world
+PASS  the divisions answer_world proves, {1: 0, 2: 0, 3: 1, 4: 2, 5: 3, 6: 8}, are cure.py's cell by cell, lump by lump; with each mask bit one 1 time in 16 the treated fail 3276629119/25769803776 = 12.7150%
+the treated, by lump width: M7's prediction beside cure.py's world, 40000 patients
+  width 1: 0 divisions, predicted 0.0000, cure.py 0.0000 (0 of 6530)
+  width 2: 0 divisions, predicted 0.0000, cure.py 0.0000 (0 of 6849)
+  width 3: 1 divisions, predicted 0.0625, cure.py 0.0577 (378 of 6553)
+  width 4: 2 divisions, predicted 0.1211, cure.py 0.1220 (814 of 6671)
+  width 5: 3 divisions, predicted 0.1760, cure.py 0.1644 (1082 of 6582)
+  width 6: 8 divisions, predicted 0.4033, cure.py 0.3957 (2697 of 6815)
+  all: predicted 3276629119/25769803776 = 12.7150%, cure.py 4971 of 40000 = 12.4275%
+
+>>> the shell, for the chip and the RTL
+build/world.h: kernel ec5eb7147ee2bfd0…, model 4043, RTL minstret 4046, search 367 accepted, 34 relapsing, answer 0051af
+build/exp234.bin  15532 bytes, the build allows 16384
+build/exp234.uf2  31232 bytes  sha256 636f96ab96299091df6d8cc3b321c13cb686728ad4da6da10c5b9b9a79386982
+
+>>> the checks
+PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
+PASS  World.lean checks, with no errors and no warnings
+PASS  all 7 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  kills_resistant: the proof refuses a version where the kernel's dose kills resistant cells too
+PASS  not_inherited: the proof refuses a version where the kernel's resistant cells have no resistant daughters
+PASS  count_short: the proof refuses a version where the kernel is claimed to halt one instruction sooner than it does
+PASS  masks_free: the proof refuses a version where the claim that a patient the model cures is cured in the world, whatever the masks
+PASS  seven: the proof refuses a version where the claim that a lump of six leaves seven divisions to chance, not eight
+PASS  lump_seven: the proof refuses a version where the claim for a lump of seven too, one cell beyond the trial's enrolment
+PASS  the divisions answer_world proves, {1: 0, 2: 0, 3: 1, 4: 2, 5: 3, 6: 8}, are cure.py's cell by cell, lump by lump; with each mask bit one 1 time in 16 the treated fail 3276629119/25769803776 = 12.7150%
+PASS  kernel.bin is what proof/World.lean writes, 296 bytes, and kernel.sha256 is its hash
+PASS  on 15 bodies and mask sets the Lean model halts with 0 after exactly 4043 and the RTL with 0, each leaving exactly cure.py's world, 64 generations, and nothing else; the RTL's instret=4046
+PASS  the shell builds for the chip over trial_chip.h, in 15532 of the 16384 bytes it may use, and for the RTL
+PASS  all 61 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 15532-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 636f96ab96299091…
+PASS  on the RTL the shell's search, every run the world's kernel with every mask zero, finds cure.py's answer, 51af, and its counts; then it treats six patients, the model and the world each a run of the same kernel, exactly as cure.py does — minstret 4046 on every run
+PASS  the shell catches a version where the kernel is held to a hash that is not its own — check 1
+PASS  the shell catches a version where a run's halt is held to 1 instead of 0 — check 2
+PASS  the shell catches a version where the chip is asked to count one more — check 3
+PASS  the shell catches a version where the search keeps the most doses, not the fewest — check 4
+PASS  the shell catches a version where a patient's model run keeps the last patient's masks — check 10, W0
+PASS  the shell catches a version where the shell reads resistance from the tissue's word — check 12, M6
+PASS  the shell catches a version where the TRNG gives nothing — check 11
+PASS  the shell catches a version where the shell itself traps entering the kernel — a fault, not a check
+SKIP  checking a board's log: none recorded yet (board/*.txt)
