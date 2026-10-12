@@ -1,5 +1,5 @@
 === exp231 — the fly on the phone ===
-recorded at 2026-10-12T02:46:24Z from commit fd2daed
+recorded at 2026-10-12T02:59:29Z from commit 20bbf2f
 
 >>> what the board sends, as rule30.py and fly.py write it: the start of a round
 LIFE 00000000 00000c0a 00038000 02bb07b0 bae4d19d
@@ -23,6 +23,7 @@ PASS  findCdc is tools/pages/log.html's, byte for byte
 PASS  the page's Rule 30 is rule30.py's, and its fly counts fly.py's, on all 5007 pairs tried
 PASS  two rounds as the board sends them, in 64-byte packets: all 512 steps agree, 511 seen moving up, 1 not, none down; both FLY lines' totals add up
 PASS  joined at step 100 of round 0: that one unchecked, the 411 after it checked; only round 1's totals checked
+PASS  steps 63 to 162 of round 0 alone, as round 1 on a board: the first unchecked, the 99 after it checked, no totals
 PASS  one bit of generation 37 flipped on the way: 37 is wrong, frame and counts, and 38, which does not follow from it
 PASS  step 50's up count one more than the fly saw: that step is wrong, its generation is not, and round 0's total is off
 PASS  step 60 sent as if seen moving down, up and down crossed: it is wrong, and counted as seen down
@@ -34,6 +35,7 @@ PASS  the tests catch a page where the fly looks the wrong way: up from the cell
 PASS  the tests catch a page where the counts are never compared: one bit of generation 37 flipped on the way: 37 is wrong, frame and counts, and 38, which does not follow from
 PASS  the tests catch a page where the FLY line's totals are not checked: step 50's up count one more than the fly saw: that step is wrong, its generation is not, and round 0's total i
 PASS  the tests catch a page where the fly's minstret is not checked: a FLY line with minstret 70928 is caught — rows 256 ok 256 wrong 0 [] unchecked 0 gaps 0 seen 255/1/0 totals
+PASS  good.txt: under the rows, "this round so far: left 2004 · right 992 over 256 steps"
 PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  good.txt: the verdict line says "512 of 512 steps agree"
 PASS  good.txt: the rows and the fly's meter are drawn (254456 pixels), the last step said "← moving left", no script error
@@ -41,6 +43,12 @@ PASS  good.txt: Copy puts the verdict and every line received on the clipboard (
 PASS  with no WebUSB the page says so, and offers Demo
 PASS  Demo plays from one live cell at the board's pace, drawn (2349 pixels), and says it checks nothing: "Demo: 3 steps computed in this page, so nothing here is chec…"
 PASS  Copy during Demo says DEMO, no board, on its first line
+PASS  joined.txt: under the rows, "steps 64–163 of this round, as this page saw them: left 819 · right 411"
+PASS  joined.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  joined.txt: the verdict line says "99 of 100 steps agree"
+PASS  joined.txt: the rows and the fly's meter are drawn (102582 pixels), the last step said "← moving left", no script error
+PASS  joined.txt: Copy puts the verdict and every line received on the clipboard (5329 characters)
+PASS  the tests catch a page where a page that joins mid-round calls what it saw the round so far, as p1 did on the board: joined.txt: under the rows, "steps 64–163 of this round, as this page saw them: left 819 · right 411" — t
 PASS  crossed.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  crossed.txt: the verdict line says "1 wrong"
 PASS  crossed.txt: the rows and the fly's meter are drawn (254456 pixels), the last step said "← moving left", no script error
@@ -60,4 +68,5 @@ PASS  the shell catches a version where the first round's steps are held against
 PASS  the shell catches a version where the fly is shown the generations without the seed before them — check 13
 PASS  the shell catches a version where the shell calls a step moving down when it moved up — check 14
 PASS  the shell catches a version where the shell itself traps setting the fly up — a fault, not a check
-SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  round1-fly.txt: 99 of 100 steps from a board agree, 1 unchecked; seen moving up 100, not moving 0, down 0; 0 rounds' totals add up
+PASS  round1-fly.txt: all 100 steps are rule30.py's generation and fly.py's counts, at their round and step from SEED0
