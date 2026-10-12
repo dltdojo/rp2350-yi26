@@ -257,6 +257,30 @@ being tested.
   treated patient, the one that matters, can be replayed too. Its UF2 is
   `exp232.uf2.sha256`'s. The trial is the same; only the line is longer.
 
+**Round 2.** The same board, the second build (UF2 `dd5dbde3…`), every
+PATIENT line carrying its TRNG word. The paste is
+[`board/round2.txt`](./board/round2.txt).
+
+- SEARCH, PLAN and minstret 3084 are as in round 1.
+- **The page saw patients 5 to 20, and `cure.py` replays every one of the
+  16 worlds from its word, to the number.** That includes the two that
+  matter: patients 5 and 6, both treated.
+  - Patient 5 had a lump of 6 at cell 10. The model said cured. In the
+    world a resistant cell appeared, and at generation 24 there were 19
+    tumour cells and 13 tissue: missed.
+  - Patient 6 had a lump of 3 at cell 27. The model said cured. In the
+    world: 24 tumour cells, 8 tissue, missed.
+
+  Neither is a fault, an error or a guess. They are the TRNG's draw, lived
+  out by the C world on silicon, and lived out the same way by Python.
+- **The trial at patient 20:** 7 treated, all 7 predicted cured by the
+  proved model; 5 cured in the world and **2 missed**. 13 controls, all
+  missed.
+- Across the two rounds, the board had treated 14 patients. The proof said
+  all 14 would be cured; the world cured 11 and 3 missed. Round 2's 2 of 7 is
+  above `cure.py`'s 13.7% over 2000 patients, which is what seven patients
+  are: a small trial.
+
 ## What it does not say
 
 - **Anything about medicine.** The world is a second model someone wrote,

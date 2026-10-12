@@ -137,10 +137,14 @@ logs=(board/*.txt)
 if (( ${#logs[@]} )); then
     python3 cure.py --board "${logs[@]}" || FAILED=1
     work="$(mktemp -d)"
-    for e in 's/ tissue=26 t64=0$/ tissue=25 t64=0/' 's/sha256=4cccf5ca/sha256=4cccf5cb/' \
-             's/control=8 control_missed=8/control=8 control_missed=7/' 's/n=8 arm=treated width=1 at=23 model=cured/n=8 arm=treated width=1 at=23 model=missed/'; do
-        sed "$e" board/round1.txt > "$work/changed.txt"
-        if cmp -s "$work/changed.txt" board/round1.txt; then
+    for fe in 'round1:s/ tissue=26 t64=0$/ tissue=25 t64=0/' 'round1:s/sha256=4cccf5ca/sha256=4cccf5cb/' \
+              'round1:s/control=8 control_missed=8/control=8 control_missed=7/' \
+              'round1:s/n=8 arm=treated width=1 at=23 model=cured/n=8 arm=treated width=1 at=23 model=missed/' \
+              'round2:s/resistant=1 t24=19 tissue=13/resistant=1 t24=18 tissue=13/' \
+              'round2:s/word=2e8b3fbd/word=2e8b3fbc/'; do
+        f="board/${fe%%:*}.txt" e="${fe#*:}"
+        sed "$e" "$f" > "$work/changed.txt"
+        if cmp -s "$work/changed.txt" "$f"; then
             fail "a board log with one thing changed is refused" "the sed changed nothing: $e"
         elif python3 cure.py --board "$work/changed.txt" > /dev/null; then
             fail "a board log with one thing changed is refused" "accepted: $e"
