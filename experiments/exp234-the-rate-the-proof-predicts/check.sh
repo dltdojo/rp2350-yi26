@@ -23,7 +23,8 @@
 #   5. on the RTL the shell runs the whole search and six patients, each as
 #      two runs of the one kernel, exactly as cure.py says — exp232's lines,
 #      number for number; wrong shells are caught by the check each breaks;
-#   6. every log a board gave back (board/*.txt) is cure.py's, line by line.
+#   6. every log a board gave back (board/*.txt) is cure.py's, line by line,
+#      and a log with one thing changed is refused.
 #
 # What none of it reaches: the TRNG's bits being independent ones that come up
 # 1 time in 16 after the AND of four — the step from M7 to 12.715% — the board
@@ -136,10 +137,26 @@ side_by_side shell_mutant "the shell itself traps entering the kernel — a faul
 side_by_side_end
 
 # What a board sent, against cure.py: exp232's lines, so exp232's checker.
+# And a log with one thing changed must be refused.
 shopt -s nullglob
 logs=(board/*.txt)
 if (( ${#logs[@]} )); then
     python3 world.py --board "${logs[@]}" || FAILED=1
+    work="$(mktemp -d)"
+    for fe in 'round1:s/word=8fd5a26f/word=8fd5a26e/' 'round1:s/resistant=1 t24=22 tissue=10/resistant=1 t24=21 tissue=10/' \
+              'round1:s/n=16 word=4b29cb4d arm=treated width=5 at=20 model=cured world=missed/n=16 word=4b29cb4d arm=treated width=5 at=20 model=cured world=cured/' \
+              'round1:s/lives=10 minstret=4046/lives=10 minstret=3084/'; do
+        f="board/${fe%%:*}.txt" e="${fe#*:}"
+        sed "$e" "$f" > "$work/changed.txt"
+        if cmp -s "$work/changed.txt" "$f"; then
+            fail "a board log with one thing changed is refused" "the sed changed nothing: $e"
+        elif python3 world.py --board "$work/changed.txt" > /dev/null; then
+            fail "a board log with one thing changed is refused" "accepted: $e"
+        else
+            pass "a board log with one thing changed is refused: $e"
+        fi
+    done
+    rm -rf -- "$work"
 else
     echo "SKIP  checking a board's log: none recorded yet (board/*.txt)"
 fi

@@ -130,7 +130,7 @@ covers patients 16 to 40.
   side by side hard to read. Build p2 is English only, and `check.sh` holds
   it to that. The Chinese account is [WHY.zh-TW.md](./WHY.zh-TW.md).
 
-**Build p3** (no phone yet) takes exp234's board too: the same lines, serial
+**Build p3** takes exp234's board too: the same lines, serial
 234, its own name on the status line and minstret 4046. It adds the rate
 panel. Off-board it is held to: the page's divisions and rate being exp234's
 `world.py`'s, 3276629119/25769803776 exactly; its Wilson interval for 4 of 30
@@ -139,6 +139,13 @@ a SEARCH with exp234's count under exp232's name, and the reverse, caught; and
 in headless Chromium, serial 234 accepted and the rate panel filled. Two more
 wrong pages are caught: a rate that counts every tumour cell rather than the
 ones just divided into, and every board's minstret taken for exp232's.
+
+**Round 2**, p3 on an Android phone against exp234's board (exp234's
+[`board/round1.txt`](../exp234-the-rate-the-proof-predicts/board/round1.txt)):
+the page joined at patient 7 and agreed with all 38 it saw, through 44, and
+named the board `exp234`; at 44 the rate panel stood at 4 of 27 treated not
+cured, 14.8%, beside the predicted 12.7%. `check.sh` runs the log through the
+page's block and the page in headless Chromium, as serial 234.
 
 ## Running it
 

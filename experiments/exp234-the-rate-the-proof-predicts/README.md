@@ -124,12 +124,14 @@ nothing with the kernel — over 40000 treated patients:
 leave room for (one standard error is 0.17%). exp232's own 2000-patient
 figure, 13.7% of 1038 treated, was 1 standard error above it.
 
-The boards have treated 30 patients so far, all on exp232, each boot counting
-from patient 1: 7 in round 1 (1 missed), 7 in round 2 (2 missed), and 16 by
-patient 40 in exp233's round 1 (1 missed, as the page's summary line records
-the board's TRIAL line). 4 of 30 were not cured: 13.3%, with a 95% interval of
-5.3%–29.7%. The prediction is inside it. That interval is what a trial of
-thirty can say, and it is wide.
+exp232's board treated 30 patients, each boot counting from patient 1: 7 in
+round 1 (1 missed), 7 in round 2 (2 missed), and 16 by patient 40 in exp233's
+round 1 (1 missed, as the page's summary line records the board's TRIAL line).
+4 of 30 were not cured: 13.3%, with a 95% interval of 5.3%–29.7%. exp234's own
+board, round 1 below, treated 27 by patient 44 and 4 were not cured: 14.8%,
+interval 5.9%–32.5%. Together, 8 of 57: 14.0%, interval 7.3%–25.3%, against
+7.2 expected. The prediction is inside every one of them. Those intervals are
+what trials of thirty and sixty can say, and they are wide.
 
 ## The shell
 
@@ -201,8 +203,30 @@ not exp232's 3084: the world's kernel is longer.
 
 ## On the board
 
-Not yet run on a board. Everything above that is not marked as a board's was
-computed off-board: Lean, the Lean model, the Hazard3 RTL and Python.
+**Round 1.** A Pico 2 running `exp234.uf2` (`636f96ab…`), and an Android phone
+with exp233's `trial.html` build p3. Copy gave back the page's summary and
+the lines from patient 7; the paste ends partway through patient 25's status
+lines, so [`board/round1.txt`](./board/round1.txt) holds patients 7–25 whole
+and the page's verdict on 7–44.
+
+- **The proved world on silicon is `cure.py`'s.** `world.py --board` replays
+  every one of the 19 patients in the file from its TRNG word, model and world,
+  to the number. The search on silicon is exp232's, answer `0x51af`, the PLAN
+  hash `4cccf5ca…a112cd60`, and minstret is 4046 on every run, the RTL's count.
+- **The page agreed with all 38 it saw**, patients 7–44: search, plan, every
+  TRIAL count, every patient replayed in the phone's own JavaScript. It said
+  `"board":"exp234"`.
+- **No theorem check failed.** Checks 10 (W0) and 12 (M6) run on every
+  patient, and a failure stops the trial; the board was still treating at
+  patient 44 and sent no FAIL line.
+- **The trial at 44:** 27 treated, the model predicting all 27 cured; the
+  world cured 23 and 4 missed the endpoint. 17 controls, all missed. The rate
+  panel's prediction is 12.7%; the board's share was 14.8%, with 3.4 expected.
+- **What M7 says about the four**, for the two in the file: patient 7, a lump
+  of 6 (8 divisions to chance), and patient 16, a lump of 5 (3), each became
+  resistant and missed. Every width-1 and width-2 treated patient in the file
+  (8, 12, 17, 21) was cured, as the theorem says they must be whatever the
+  masks: their lumps leave nothing to chance.
 
 ## What it does not say
 
