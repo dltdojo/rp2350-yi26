@@ -571,6 +571,11 @@ tools/lean/lean.sh exec    experiments/exp203-*/proof/Copy64.lean kernel.bin   #
 `native_decide` and `bv_decide` leave behind: a proof that runs compiled code
 trusts the compiler, and none here does.
 
+`kasm.py` is how a kernel experiment writes its `List Instr`: with labels, in
+Python, spliced into the Lean file between `BEGIN generated` and `END
+generated` markers, every label's instruction number beside it. exp228's
+`kernel.py` wrote it inline; exp229 needed it second.
+
 `gap.sh` shows what a round-trip proof cannot see: wrong versions of the
 library that make the same mistake in an encoder and its decoder, so both
 theorems still hold, must each be accepted by Lean and refused by an

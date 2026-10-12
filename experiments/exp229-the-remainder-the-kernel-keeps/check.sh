@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# exp229 quick check — non-interactive, and no board anywhere in it.
+#
+#   1. the proof checks, on Lean's own axioms only: from base, with a and b
+#      below p, the kernel halts with 0 having left (a + b), (a - b) or (a · b)
+#      mod p in R, after exactly 331, 238 or 1903 instructions; two runs on
+#      different a and b are observed the same at every step (exp207's
+#      checker); and every wrong kernel and wrong claim in proof/mutants.txt
+#      is refused;
+#   2. kernel.py writes the kernel the proof holds, and kernel.bin is what the
+#      proof writes, its SHA-256 the committed one;
+#   3. the model and the RTL, on every edge pair and drawn ones, against
+#      Python's integers: the remainder, and one count per operation.
+#
+# Needs Lean (tools/lean/setup.sh) and the Hazard3 testbench
+# (tools/hazard3/setup.sh); without them it says SKIP for what it cannot run.
+#
+#   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
+
+set -u
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+source ../lib.sh
+require_supported_platform
+
+PRESENCE=0
+LIFELINE="no: no firmware of its own"
+presence_check
+lifeline_check
+
+# No board, no person, nothing to look at: a machine and nothing else.
+USB_IFACE="none"
+USB_CARRIES="none"
+USB_HOST="none"
+USB_RUNS_ON="none"
+usb_check
+
+LEAN=../../tools/lean/lean.sh
+$LEAN check proof/Field.lean || FAILED=1
+[[ -f proof/mutants.txt ]] && { $LEAN mutants proof/Field.lean || FAILED=1; }
+
+if python3 kernel.py --check; then
+    pass "proof/Field.lean's kernel is what kernel.py writes from its labels"
+else
+    fail "proof/Field.lean's kernel is what kernel.py writes from its labels"
+fi
+
+if [[ "$($LEAN version 2>&1)" != Lean* ]] || ! ../../tools/hazard3/sim.sh ready; then
+    echo "SKIP  kernel.bin and the differential: needs tools/lean/setup.sh and tools/hazard3/setup.sh"
+    exit "$FAILED"
+fi
+work="$(mktemp -d)"
+$LEAN exec proof/Field.lean "$work/kernel.bin" > /dev/null
+if cmp -s "$work/kernel.bin" kernel.bin && [[ "$(sha256sum kernel.bin | cut -d' ' -f1)" == "$(cat kernel.sha256)" ]]; then
+    pass "kernel.bin is what proof/Field.lean writes, $(stat -c %s kernel.bin) bytes, and kernel.sha256 is its hash"
+else
+    fail "kernel.bin is what proof/Field.lean writes"
+fi
+rm -rf -- "$work"
+python3 differential/differential.py "$($LEAN exe rv32run)" kernel.bin 200 || FAILED=1
+
+exit "$FAILED"
