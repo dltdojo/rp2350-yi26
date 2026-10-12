@@ -32,6 +32,14 @@ exp230 was planned with the board and the phone left to a next experiment, on
 exp227's USB; this is it. A plain-language account is in
 [WHY.zh-TW.md](./WHY.zh-TW.md).
 
+What comes next, exp232, is planned in Taiwanese Mandarin in
+[NEXT.zh-TW.md](./NEXT.zh-TW.md). It starts from a debate over a proved model
+and a trial that passed: a ring of tissue and tumour with a dose that kills
+dividing cells, the parts Lean could prove about it, and a trial in the shell
+drawn from the TRNG against a world the model leaves something out of. It is
+an assessment with three open questions, not a plan; nothing in it has run on
+a board or been proved.
+
 ## What is new, and what is not
 
 | | Where it comes from |

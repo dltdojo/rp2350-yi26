@@ -1,0 +1,76 @@
+The log, in a browser
+exp116 · claim the CDC interfaces and read the endpoint. No firmware changes.
+page build b3 — if this is not the build you expect, reload with Ctrl-Shift-R.
+
+Connect and stream Disconnect Clear Copy Copy as JSON
+
+Disconnected. The kernel takes the port back — /dev/ttyACM0 returns.
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=7 arm=control width=5 at=25 model=missed world=missed resistant=1 t24=29 tissue=3 t64=32
+TRIAL treated=2 cured=1 relapsed=0 missed=1 predicted=2 control=5 control_missed=5
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=7 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=7 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=7 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=8 arm=treated width=1 at=23 model=cured world=cured resistant=0 t24=0 tissue=31 t64=0
+TRIAL treated=3 cured=2 relapsed=0 missed=1 predicted=3 control=5 control_missed=5
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=8 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=8 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=8 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=9 arm=control width=1 at=15 model=missed world=missed resistant=1 t24=25 tissue=7 t64=32
+TRIAL treated=3 cured=2 relapsed=0 missed=1 predicted=3 control=6 control_missed=6
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=9 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=9 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=9 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=10 arm=treated width=1 at=9 model=cured world=cured resistant=0 t24=0 tissue=31 t64=0
+TRIAL treated=4 cured=3 relapsed=0 missed=1 predicted=4 control=6 control_missed=6
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=10 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=10 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=10 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=11 arm=treated width=3 at=10 model=cured world=cured resistant=0 t24=0 tissue=29 t64=0
+TRIAL treated=5 cured=4 relapsed=0 missed=1 predicted=5 control=6 control_missed=6
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=11 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=11 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=11 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=12 arm=control width=5 at=19 model=missed world=missed resistant=1 t24=29 tissue=3 t64=32
+TRIAL treated=5 cured=4 relapsed=0 missed=1 predicted=5 control=7 control_missed=7
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=12 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=12 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=12 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=13 arm=treated width=1 at=14 model=cured world=cured resistant=0 t24=0 tissue=31 t64=0
+TRIAL treated=6 cured=5 relapsed=0 missed=1 predicted=6 control=7 control_missed=7
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=13 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=13 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=13 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=14 arm=control width=1 at=4 model=missed world=missed resistant=1 t24=25 tissue=7 t64=32
+TRIAL treated=6 cured=5 relapsed=0 missed=1 predicted=6 control=8 control_missed=8
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=14 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=14 minstret=3084
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=14 minstret=3084
+SEARCH tried=1024 accepted=367 relapsing=34 answer=000051af doses=9 loophole=00f917d1 minstret=3084
+PLAN sha256=4cccf5ca251d8259a4f0d16052d0ba2e14c3e66203d1c60c7f579a6ca112cd60
+PATIENT n=15 arm=treated width=6 at=7 model=cured world=cured resistant=0 t24=0 tissue=26 t64=0
+TRIAL treated=7 cured=6 relapsed=0 missed=1 predicted=7 control=8 control_missed=8
+exp232 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 pll=00000001 usb_khz=47979 sys_khz=10962 sys48_khz=47991 ref_khz=10961 sof_khz=47999 lives=15 minstret=3084
+61 lines, 8246 bytes, 22.2 s
+On Linux, run yi26 udev --install first, then yi26 detach. They are two different gates and they fail differently, so the order matters and so does knowing which one stopped you.
+
+Without the udev rule the board's device node is root-only, and Connect fails with “Access denied” the instant it opens the device — before any interface is involved, and before yi26 detach could have helped. Detaching goes through that same node, so it fails with the same permission error until the rule is in place. yi26 udev on its own checks it by opening the device the way this page does.
+
+Then the second gate. The kernel's cdc_acm driver owns these interfaces — that is what /dev/ttyACM0 is — and an interface has exactly one owner. Chrome's WebUSB does not take it away for you, so claiming fails until something else does. yi26 attach gives it back; so does replugging, or flashing anything.
+
+While detached there is no serial port, so yi26 log and every terminal program stop seeing the board. Flashing still works — yi26 bootsel sends the same 1200-baud request over a control transfer when there is no port to set a baud rate on.
