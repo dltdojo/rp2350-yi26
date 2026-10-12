@@ -1,5 +1,5 @@
 === exp231 — the fly on the phone ===
-recorded at 2026-10-12T02:59:29Z from commit 20bbf2f
+recorded at 2026-10-12T03:09:23Z from commit 05cb075
 
 >>> what the board sends, as rule30.py and fly.py write it: the start of a round
 LIFE 00000000 00000c0a 00038000 02bb07b0 bae4d19d
@@ -69,4 +69,6 @@ PASS  the shell catches a version where the fly is shown the generations without
 PASS  the shell catches a version where the shell calls a step moving down when it moved up — check 14
 PASS  the shell catches a version where the shell itself traps setting the fly up — a fault, not a check
 PASS  round1-fly.txt: 99 of 100 steps from a board agree, 1 unchecked; seen moving up 100, not moving 0, down 0; 0 rounds' totals add up
-PASS  round1-fly.txt: all 100 steps are rule30.py's generation and fly.py's counts, at their round and step from SEED0
+PASS  round2-fly.txt: 55 of 57 steps from a board agree, 2 unchecked; seen moving up 57, not moving 0, down 0; 0 rounds' totals add up
+PASS  round1-fly.txt: all 100 steps are rule30.py's generation and fly.py's counts, and all 0 LIFE, FLY and SEED lines theirs, at their round from SEED0
+PASS  round2-fly.txt: all 57 steps are rule30.py's generation and fly.py's counts, and all 3 LIFE, FLY and SEED lines theirs, at their round from SEED0
