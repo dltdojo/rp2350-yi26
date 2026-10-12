@@ -151,7 +151,7 @@ def sel(name, x, y, z):
     rounds(name + "_L", SEL_LINE, "t4", x, y, z)
 
 
-def zero(name, z):
+def zero8(name, z):
     """Z = 0, eight words: each word less itself."""
     K.label(name)
     at("a0", z)
@@ -229,7 +229,7 @@ def field_kernel():
     ins("br", "beq", "t0", "t1", "OP_SUB")
 
     K.label("OP_MUL")
-    zero("M_ZERO", T)
+    zero8("M_ZERO", T)
     for i in range(8):
         row(f"M_ROW{i}", i)
     fold("M_FOLD1", T, T + 32, U)

@@ -5,8 +5,10 @@
 #
 #   1. the proof checks, on Lean's own axioms only: from base, with a and b
 #      below p, the kernel halts with 0 having left (a + b), (a - b) or (a · b)
-#      mod p in R, in the same number of instructions whatever a and b are;
-#      and every wrong kernel and wrong claim in proof/mutants.txt is refused;
+#      mod p in R, after exactly 331, 238 or 1903 instructions; two runs on
+#      different a and b are observed the same at every step (exp207's
+#      checker); and every wrong kernel and wrong claim in proof/mutants.txt
+#      is refused;
 #   2. kernel.py writes the kernel the proof holds, and kernel.bin is what the
 #      proof writes, its SHA-256 the committed one;
 #   3. the model and the RTL, on every edge pair and drawn ones, against
