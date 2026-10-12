@@ -32,7 +32,11 @@
 #                                 when what it prints matches WANT* — WANT is
 #                                 a pattern, so it may hold a * of its own.
 #                                 MUTANT_EXPECT, if set, is the expect.h to
-#                                 copy instead of build/expect.h
+#                                 copy instead of build/expect.h. FILE may
+#                                 also be another generated header in build/
+#                                 (exp231's fly.h): it is copied beside
+#                                 expect.h and changed there, so the build's
+#                                 include path must hold build/ after INCLUDE
 #
 #   shell_stand_ins DIR EXPECTED DEVICE...
 #                                 for a shell that prints its register writes
@@ -93,6 +97,7 @@ shell_mutant() { # what file sed want
     work="$(mktemp -d)"
     cp -r shell "$work/shell"; cp "$expect" "$work/expect.h"
     if [[ "$2" == expect.h ]]; then target="$work/expect.h" orig="$expect"
+    elif [[ ! -f "shell/$2" && -f "build/$2" ]]; then cp "build/$2" "$work/$2"; target="$work/$2" orig="build/$2"
     else target="$work/shell/$2" orig="shell/$2"; fi
     sed -i "$3" "$target"
     if cmp -s "$target" "$orig"; then

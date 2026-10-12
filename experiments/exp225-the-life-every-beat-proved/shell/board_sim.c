@@ -8,9 +8,8 @@
 //   FAUL step cause                    the shell itself trapped
 
 #include "board.h"
+#include "fail_sim.h"
 
-#define IO_PRINT_U32 (*(volatile uint32_t *)0xc0000004u)
-#define IO_EXIT      (*(volatile uint32_t *)0xc0000008u)
 #define CENTRE 16
 
 void board_init(void) {}
@@ -28,20 +27,4 @@ void board_play(const uint32_t *life, uint32_t round, uint32_t instret) {
         IO_EXIT = 0;
         for (;;) {}
     }
-}
-
-void board_fail(uint32_t check, uint32_t got) {
-    IO_PRINT_U32 = 0x4641494cu;   // "FAIL"
-    IO_PRINT_U32 = check;
-    IO_PRINT_U32 = got;
-    IO_EXIT = check;
-    for (;;) {}
-}
-
-void board_fault(uint32_t step, uint32_t cause) {
-    IO_PRINT_U32 = 0x4641554cu;   // "FAUL"
-    IO_PRINT_U32 = step;
-    IO_PRINT_U32 = cause;
-    IO_EXIT = 100;
-    for (;;) {}
 }

@@ -1,0 +1,567 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp231 — the fly on the phone</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp231-the-fly-on-the-phone — one file, no dependencies, no build step, no
+  server. An appliance, not a tool: it knows exp231's lines and nothing else.
+
+  The board runs exp225's proved Rule 30, then exp230's proved fly on what it
+  wrote, and sends every step as it plays the fly's verdict on the LED, one a
+  beat. This page draws each generation and, beside it, which way the fly saw
+  it move. It checks each one again here: the generation is Rule 30 of the one
+  before, and the fly's two counts are what a fly written again here counts.
+  What it cannot check is the kernels: that is exp225's and exp230's proofs.
+
+  Demo plays the same thing computed here, with no board. It checks nothing,
+  and says so.
+
+  Open it directly from the filesystem — Files app -> "Open with Chrome" on
+  Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b;
+          --acc:#1a5fb4; --led:#2fb84a; --up:#1a5fb4; --down:#d35400; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --acc:#78aeed;
+            --led:#4ef06e; --up:#78aeed; --down:#f0a050; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 40rem; padding: 1.2rem 16px 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; margin: 0 .3rem .4rem 0; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: .6rem 0; padding: .6rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  #now { display: flex; gap: .9rem; align-items: center; margin: .4rem 0 .6rem; }
+  #led { flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; border: 2px solid var(--line);
+         background: transparent; transition: background .05s; }
+  #led.on { background: var(--led); box-shadow: 0 0 14px var(--led); }
+  #saw { font-size: 1.35rem; font-weight: 600; line-height: 1.2; }
+  #saw.up { color: var(--up); } #saw.down { color: var(--down); } #saw.still { color: var(--dim); }
+  #where { font-size: 13px; color: var(--dim); }
+  #heads { display: flex; font-size: 12px; color: var(--dim); }
+  #heads span { text-align: center; }
+  #fly { display: block; border: 1px solid var(--line); max-width: 100%; }
+  #totals { font-size: 14px; margin: .5rem 0; }
+  #totals b.up { color: var(--up); } #totals b.down { color: var(--down); }
+  #verdict { margin: .8rem 0; font-size: 14px; }
+  #verdict b.ok { color: var(--ok); } #verdict b.bad { color: var(--bad); } #verdict b.dim { color: var(--dim); }
+  details { margin: .6rem 0; font-size: 14px; }
+  summary { cursor: pointer; color: var(--acc); }
+  #raw { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .6rem; border-radius: 6px;
+         font-family: ui-monospace, monospace; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap;
+         word-break: break-all; height: 11rem; overflow-y: auto; }
+  .meta { font-size: 13px; color: var(--dim); margin-top: .4rem; }
+</style>
+
+<h1>The fly on the phone</h1>
+<p class="sub">exp231 &middot; a fly's motion detector watching Rule 30 on the board, drawn here and checked again.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+  <button id="demo" class="ghost">Demo, no board</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<div id="now">
+  <div id="led" title="the board's LED: on when the fly saw this step move up"></div>
+  <div>
+    <div id="saw" class="still">waiting</div>
+    <div id="where">no round yet</div>
+  </div>
+</div>
+
+<div id="heads"></div>
+<canvas id="fly" width="320" height="480"></canvas>
+<div id="totals"></div>
+
+<details>
+  <summary>How to read it · 怎麼看</summary>
+  <p>Each row is one generation of Rule 30 on a ring of 32 cells, the newest at the bottom, bit 31 on the left.
+    Beside it, what the fly saw from the row above to this one: a bar to the left for cells that moved
+    <b>left</b>, toward bit 31 — what exp230 calls up — and a bar to the right for cells that moved right. The
+    fly is a Hassenstein–Reichardt detector: a cell lit now whose neighbour was lit a frame ago counts as having
+    moved from that neighbour. exp230 proved that, watching Rule 30, the left bar is never shorter than the
+    right. The mark at the end is this page's own check: green when the row is Rule 30 of the row above and the
+    counts are this page's, red when not, grey when there was no row above to check against.</p>
+  <p>每一列是 32 格環狀 Rule 30 的一代，最新的在最下面，第 31 位元在最左邊。右邊是果蠅從上一列看到這一列時看見的移動：往左的長條是往左（往第 31
+    位元，exp230 稱為「上」）移動的格子數，往右的長條是往右移動的。果蠅用的是 Hassenstein–Reichardt
+    偵測器：現在亮著、而前一刻鄰居亮著的格子，就算是從鄰居那邊移過來的。exp230 證明了：看著 Rule 30，往左的長條永遠不會比往右的短。最右邊的小方塊是這個網頁自己的檢查：綠色表示這一列確實是上一列的
+    Rule 30、計數也和網頁自己算的一樣；紅色表示不一樣；灰色表示沒有上一列可以對照。板子上的 LED
+    每一步閃一下表示果蠅看見往左移動，暗一拍表示沒看見移動。</p>
+</details>
+
+<div id="verdict">Nothing checked yet.</div>
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const SET_LINE_CODING        = 0x20;
+const SET_CONTROL_LINE_STATE = 0x22;
+const BAUD = 115200;   // nominal; 1200 would reboot some firmwares here into BOOTSEL (log.html says why)
+
+// BEGIN fly-check
+// ---------------------------------------------------------------------------
+// What the board's lines say, and whether each step is what it should be.
+//
+//   LIFE round minstret gen1 gen256 centre-column    the life's kernel (exp227's line)
+//   FLY  round minstret up down                      the fly's kernel: its count, its totals
+//   SEED round seed                                  frame 0, what generation 0 grew from
+//   SEES round g word up down                        generation g, and what the fly saw
+//                                                    move from the frame before to it
+//
+// Rule 30 and the fly are written here cell by cell, as each is stated, and
+// share nothing with the kernels' shifts, with C, or with exp225's and
+// exp230's Python. exp231's check.sh runs this block under node: over streams
+// rule30.py and fly.py write, over wrong ones, and over every log a board gave
+// back.
+// ---------------------------------------------------------------------------
+
+const FLY_N = 256, LIFE_MINSTRET = 3082, FLY_MINSTRET = 70927;
+
+/** Each cell becomes left XOR (centre OR right); its left neighbour is the next bit up, round the ring. */
+function rule30(x) {
+  let y = 0;
+  for (let i = 0; i < 32; i++) {
+    const left = (x >>> ((i + 1) % 32)) & 1, centre = (x >>> i) & 1, right = (x >>> ((i + 31) % 32)) & 1;
+    y |= (left ^ (centre | right)) << i;
+  }
+  return y >>> 0;
+}
+
+/**
+ * The fly: for each cell lit now, it moved up if the cell one below it was lit
+ * before, and down if the cell one above it was. Both can be true; neither
+ * can. Up is toward the higher bit, Rule 30's left.
+ */
+function flySees(before, now) {
+  let up = 0, down = 0;
+  for (let i = 0; i < 32; i++) {
+    if (!((now >>> i) & 1)) continue;
+    const below = (before >>> ((i + 31) % 32)) & 1, above = (before >>> ((i + 1) % 32)) & 1;
+    up += below; down += above;
+  }
+  return { up, down };
+}
+
+/** One line in, what it is out; anything else is { kind: 'other' }. */
+function flyParse(text) {
+  const t = text.trim();
+  const hex = '([0-9a-f]{8})', n = (s) => parseInt(s, 16) >>> 0;
+  let m;
+  if ((m = t.match(new RegExp(`^SEES ${hex} ${hex} ${hex} ${hex} ${hex}$`))))
+    return { kind: 'SEES', round: n(m[1]), g: n(m[2]), word: n(m[3]), up: n(m[4]), down: n(m[5]) };
+  if ((m = t.match(new RegExp(`^SEED ${hex} ${hex}$`))))
+    return { kind: 'SEED', round: n(m[1]), seed: n(m[2]) };
+  if ((m = t.match(new RegExp(`^FLY ${hex} ${hex} ${hex} ${hex}$`))))
+    return { kind: 'FLY', round: n(m[1]), minstret: n(m[2]), up: n(m[3]), down: n(m[4]) };
+  if ((m = t.match(new RegExp(`^LIFE ${hex} ${hex} ${hex} ${hex} ${hex}$`))))
+    return { kind: 'LIFE', round: n(m[1]), minstret: n(m[2]), gen1: n(m[3]), gen256: n(m[4]), col: n(m[5]) };
+  if (/^exp231 usb=/.test(t)) return { kind: 'status' };
+  if (/^FAIL /.test(t)) return { kind: 'FAIL' };
+  return { kind: 'other' };
+}
+
+/**
+ * Feed it lines; each SEES comes back with a verdict:
+ *   ok         its generation is Rule 30 of the frame before it — the previous
+ *              generation, or for step 0 the round's seed — and its two counts
+ *              are what flySees counts between them
+ *   wrong      one of those is not so, and `why` says which
+ *   unchecked  no frame before it was seen: the page joined mid-round, or a
+ *              line was lost (`gap`)
+ * and `summary()` counts them, what the board said the fly saw, and the FLY
+ * line's totals against every step of a round the page saw whole.
+ */
+function flyChecker() {
+  const s = { rows: 0, ok: 0, wrong: 0, unchecked: 0, gaps: 0, seams: 0, seamsWrong: 0,
+              rounds: 0, totals: 0, totalsWrong: 0, minstretWrong: 0, fails: 0,
+              seenUp: 0, seenStill: 0, seenDown: 0, firstWrong: null };
+  const seeds = new Map(), fly = new Map(), life = new Map(), sums = new Map();
+  let last = null;   // the last SEES: { round, g, word }
+
+  function feed(text) {
+    const e = flyParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'LIFE') {
+      life.set(e.round, e);
+      if (e.minstret !== LIFE_MINSTRET) { s.minstretWrong++; e.why = `the life's minstret ${e.minstret}, not ${LIFE_MINSTRET}`; }
+    }
+    if (e.kind === 'FLY') {
+      fly.set(e.round, e);
+      s.rounds++;
+      if (e.minstret !== FLY_MINSTRET) { s.minstretWrong++; e.why = `the fly's minstret ${e.minstret}, not ${FLY_MINSTRET}`; }
+    }
+    if (e.kind === 'SEED') {
+      seeds.set(e.round, e.seed);
+      if (last && last.round === e.round - 1 && last.g === FLY_N - 1) {
+        s.seams++;
+        if (e.seed !== last.word) { s.seamsWrong++; e.why = `the seed is not round ${last.round}'s last generation`; }
+      }
+    }
+    if (e.kind !== 'SEES') return e;
+
+    s.rows++;
+    if (e.up > e.down) s.seenUp++; else if (e.up === e.down) s.seenStill++; else s.seenDown++;
+    const sum = sums.get(e.round) || { up: 0, down: 0, n: 0 };
+    sum.up += e.up; sum.down += e.down; sum.n++;
+    sums.set(e.round, sum);
+
+    let before = null, against = '';
+    const follows = last && ((last.round === e.round && last.g === e.g - 1) ||
+                             (e.g === 0 && last.round === e.round - 1 && last.g === FLY_N - 1));
+    if (last && !follows) s.gaps++;
+    if (last && last.round === e.round && last.g === e.g - 1) {
+      before = last.word; against = `generation ${e.g - 1}`;
+    } else if (e.g === 0 && seeds.has(e.round)) {
+      before = seeds.get(e.round); against = 'the seed';
+    } else if (e.g === 0 && follows) {
+      before = last.word; against = `round ${last.round}'s last generation`;
+    }
+    const why = [];
+    if (before !== null) {
+      const want = rule30(before), saw = flySees(before, e.word);
+      if (want !== e.word) why.push(`Rule 30 of ${against} is ${hex8(want)}`);
+      if (saw.up !== e.up || saw.down !== e.down)
+        why.push(`from ${against} the fly here counts up ${saw.up}, down ${saw.down}`);
+    }
+    const li = life.get(e.round);
+    if (li) {
+      if (e.g === 0 && e.word !== li.gen1) why.push(`the LIFE line says generation 0 is ${hex8(li.gen1)}`);
+      if (e.g === FLY_N - 1 && e.word !== li.gen256) why.push(`the LIFE line says generation 255 is ${hex8(li.gen256)}`);
+    }
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s.wrong++;
+      if (!s.firstWrong) s.firstWrong = { round: e.round, g: e.g, word: e.word, why: e.why };
+    } else if (before === null) {
+      e.verdict = 'unchecked'; e.why = last ? 'a line before it was lost' : 'the first step this page saw'; s.unchecked++;
+    } else {
+      e.verdict = 'ok'; s.ok++;
+    }
+    const f = fly.get(e.round);
+    if (e.g === FLY_N - 1 && f && sum.n === FLY_N) {
+      s.totals++;
+      if (f.up !== sum.up || f.down !== sum.down) {
+        s.totalsWrong++;
+        e.note = `the FLY line's totals are up ${f.up}, down ${f.down}; the steps add up to ${sum.up}, ${sum.down}`;
+      }
+    }
+    last = { round: e.round, g: e.g, word: e.word };
+    return e;
+  }
+  return { feed, summary: () => ({ ...s }) };
+}
+
+function hex8(x) { return (x >>> 0).toString(16).padStart(8, '0'); }
+
+/** USB packets in, whole lines out: a packet is 64 bytes and ends wherever it ends. */
+function flyLines() {
+  let pending = '';
+  return (chunk) => {
+    pending += chunk;
+    const parts = pending.split('\n');
+    pending = parts.pop();
+    return parts.map((p) => p.replace(/\r$/, '')).filter((p) => p.trim());
+  };
+}
+// END fly-check
+
+const $ = (id) => document.getElementById(id);
+let device = null, streaming = false, bytes = 0, started = 0, captured = '', demo = null;
+let checker = flyChecker();
+const rows = [];   // the rows on screen, newest last: { word, up, down, verdict }
+const SHOW = 48;   // how many generations the canvas holds
+const COLS = 32 + 1 + 22 + 1 + 1;   // the cells, a gap, the meter (a cell for every 3, to 33 each way), a gap, the mark
+let round = { up: 0, down: 0, steps: 0 };
+
+function say(t, k) { const s = $('status'); s.textContent = t; s.className = k || ''; }
+
+function cellSize() {
+  return Math.max(4, Math.min(12, Math.floor(($('fly').parentElement.clientWidth - 2) / COLS)));
+}
+
+function heads() {
+  const cell = cellSize();
+  $('heads').innerHTML = `<span style="width:${32 * cell}px">the ring, bit 31 on the left</span>`
+    + `<span style="width:${cell}px"></span>`
+    + `<span style="width:${11 * cell}px;color:var(--up)">← left</span>`
+    + `<span style="width:${11 * cell}px;color:var(--down)">right →</span>`;
+}
+
+function draw() {
+  const c = $('fly'), cell = cellSize(), ratio = window.devicePixelRatio || 1;
+  const w = cell * COLS, h = cell * SHOW;
+  if (c.width !== w * ratio || c.height !== h * ratio) {
+    c.width = w * ratio; c.height = h * ratio; c.style.width = `${w}px`; c.style.height = `${h}px`;
+  }
+  const x = c.getContext('2d');
+  x.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const css = getComputedStyle(document.documentElement), col = (v) => css.getPropertyValue(v);
+  x.fillStyle = col('--bg'); x.fillRect(0, 0, w, h);
+  const mid = (32 + 1 + 11) * cell, gap = cell > 5 ? 1 : 0;
+  const top = Math.max(0, rows.length - SHOW);
+  for (let r = top; r < rows.length; r++) {
+    const y = (r - top) * cell, row = rows[r];
+    if (row.verdict === 'gap') continue;
+    x.fillStyle = row.verdict === 'wrong' ? col('--bad') : col('--fg');
+    for (let i = 31; i >= 0; i--)    // bit 31 on the left: a cell's left neighbour is the bit above it
+      if ((row.word >>> i) & 1) x.fillRect((31 - i) * cell, y, cell - gap, cell - gap);
+    if (row.up !== null) {
+      x.fillStyle = col('--up');   x.fillRect(mid - row.up * cell / 3, y + gap, row.up * cell / 3, cell - 2 * gap);
+      x.fillStyle = col('--down'); x.fillRect(mid, y + gap, row.down * cell / 3, cell - 2 * gap);
+    }
+    x.fillStyle = row.verdict === 'ok' ? col('--ok') : row.verdict === 'wrong' ? col('--bad') : col('--line');
+    x.fillRect((COLS - 1) * cell + cell / 4, y, cell * 3 / 4, cell);
+  }
+  x.fillStyle = col('--line');
+  x.fillRect(mid, 0, 1, h);
+}
+
+function verdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.rows) { v.textContent = `${s.rounds} FLY lines, no step yet.`; return; }
+  const bad = s.wrong || s.seamsWrong || s.minstretWrong || s.totalsWrong || s.fails;
+  let t = demo
+    ? `<b class="dim">Demo: ${s.rows} steps computed in this page, so nothing here is checked</b>`
+    : `<b class="${bad ? 'bad' : 'ok'}">${s.ok} of ${s.rows} steps agree with this page</b>`
+      + `, ${s.wrong} wrong, ${s.unchecked} unchecked (${s.gaps} gaps)`;
+  t += ` · seen moving left ${s.seenUp}, not moving ${s.seenStill}, right ${s.seenDown}`
+     + ` · totals ${s.totals - s.totalsWrong}/${s.totals} · seams ${s.seams - s.seamsWrong}/${s.seams}`
+     + ` · minstret wrong ${s.minstretWrong}`;
+  if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
+  if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, step ${s.firstWrong.g}, `
+                       + `${hex8(s.firstWrong.word)} — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+}
+
+function showStep(e) {
+  const saw = $('saw');
+  saw.className = e.up > e.down ? 'up' : e.up < e.down ? 'down' : 'still';
+  saw.textContent = e.up > e.down ? '← moving left' : e.up < e.down ? 'moving right →' : '· not moving';
+  $('where').textContent = `round ${e.round}, step ${e.g + 1} of ${FLY_N} · left ${e.up}, right ${e.down}`;
+  if (e.g === 0) round = { up: 0, down: 0, steps: 0 };
+  round.up += e.up; round.down += e.down; round.steps++;
+  $('totals').innerHTML = `this round so far: <b class="up">left ${round.up}</b> · <b class="down">right ${round.down}</b>`
+    + ` over ${round.steps} steps`;
+  const led = $('led');
+  led.classList.toggle('on', e.up > e.down);
+  if (e.up > e.down) setTimeout(() => led.classList.remove('on'), 180);   // one unit, as the board's flash
+}
+
+const rawLines = [];
+function line(text) {
+  const e = checker.feed(text);
+  rawLines.push(text + (e.verdict === 'wrong' || e.why ? `   <- ${e.why}` : '') + (e.note ? `   <- ${e.note}` : ''));
+  if (rawLines.length > 40) rawLines.shift();
+  if (e.kind === 'FLY') $('where').textContent = `round ${e.round}: the fly saw left ${e.up}, right ${e.down} in all`;
+  if (e.kind === 'SEES') {
+    if (e.g === 0) rows.push({ word: 0, up: null, down: null, verdict: 'gap' });    // a blank row between rounds
+    rows.push({ word: e.word, up: e.up, down: e.down, verdict: e.verdict });
+    if (rows.length > 4 * SHOW) rows.splice(0, rows.length - SHOW);
+    showStep(e);
+    draw();
+  }
+}
+
+const split = flyLines();
+function received(text) {
+  captured += text;
+  for (const l of split(text)) line(l);
+  const raw = $('raw');
+  const atBottom = raw.scrollHeight - raw.scrollTop - raw.clientHeight < 30;
+  raw.textContent = rawLines.join('\n');
+  if (atBottom) raw.scrollTop = raw.scrollHeight;
+  verdict();
+  $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
+}
+
+// The same steps, computed here from one live cell, at the board's pace: no
+// board, so no LIFE or FLY line, and nothing the checker can hold it to.
+function startDemo() {
+  if (demo) return;
+  let seed = 1 << 16, r = 0, g = -1, frame = seed;
+  started = performance.now();
+  say('Demo: computed in this page from one live cell, at the board\'s pace. No board is involved, '
+      + 'so the green marks only say the page agrees with itself.', 'ok');
+  $('demo').textContent = 'Stop demo';
+  demo = setInterval(() => {
+    let text = '';
+    if (g < 0) { text = `SEED ${hex8(r)} ${hex8(seed)}\r\n`; g = 0; frame = seed; }
+    const now = rule30(frame), saw = flySees(frame, now);
+    text += `SEES ${hex8(r)} ${hex8(g)} ${hex8(now)} ${hex8(saw.up)} ${hex8(saw.down)}\r\n`;
+    frame = now;
+    if (++g === FLY_N) { seed = now; r++; g = -1; }
+    bytes += text.length;
+    received(text);
+  }, 360);
+}
+
+function stopDemo() {
+  if (!demo) return;
+  clearInterval(demo);
+  demo = null;
+  $('demo').textContent = 'Demo, no board';
+  say('Demo stopped.');
+}
+
+// Copied from tools/pages/log.html, byte for byte; exp231's check.sh holds it to that.
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+async function start(dev) {
+  if (demo) { stopDemo(); checker = flyChecker(); captured = ''; bytes = 0; rows.length = 0; rawLines.length = 0; }
+  device = dev;
+  // Say what was picked before anything can fail: on a phone nobody can
+  // screenshot the dialog, and "it did not connect" is not a quantity.
+  say(`Picked "${dev.productName}", serial ${dev.serialNumber}. Opening…`);
+  try {
+    await device.open();
+  } catch (e) {
+    throw new Error(`cannot OPEN the device, before any interface is claimed. On Linux: "yi26 udev --install". [${e.name}: ${e.message}]`);
+  }
+  if (device.configuration === null) await device.selectConfiguration(1);
+  const { control, data, endpointIn } = findCdc(device);
+  if (control === null || data === null || endpointIn === null)
+    throw new Error('no CDC interface pair with a bulk IN endpoint on this device');
+  try {
+    await device.claimInterface(control);
+    await device.claimInterface(data);
+  } catch (e) {
+    throw new Error(`cannot claim the interfaces — something else owns them: another page that has the port ` +
+      `open (close it), or on Linux the kernel's cdc_acm ("yi26 detach"). [${e.name}: ${e.message}]`);
+  }
+  const coding = new DataView(new ArrayBuffer(7));
+  coding.setUint32(0, BAUD, true); coding.setUint8(4, 0); coding.setUint8(5, 0); coding.setUint8(6, 8);
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_LINE_CODING, value: 0, index: control }, coding.buffer);
+  // DTR: the board sends nothing until a page says it is listening.
+  await device.controlTransferOut(
+    { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x03, index: control });
+
+  streaming = true;
+  started = performance.now();
+  $('connect').disabled = true;
+  $('demo').disabled = true;
+  $('stop').disabled = false;
+  say(dev.serialNumber === '231'
+      ? `Listening to "${dev.productName}". The next step comes with the LED's next beat; a new round starts about every 94 s.`
+      : `Listening — but this board says serial ${dev.serialNumber}, "${dev.productName}", not exp231. `
+        + `It will not send steps: flash exp231.uf2.`, dev.serialNumber === '231' ? 'ok' : 'bad');
+
+  const dec = new TextDecoder();
+  while (streaming) {
+    let r;
+    try {
+      r = await device.transferIn(endpointIn, 64);
+    } catch (e) {
+      if (streaming) say(`Transfer failed: ${e.name}: ${e.message}`, 'bad');
+      break;
+    }
+    if (r.status === 'stall') { await device.clearHalt('in', endpointIn); continue; }
+    if (r.data && r.data.byteLength) {
+      bytes += r.data.byteLength;
+      received(dec.decode(r.data, { stream: true }));
+    }
+  }
+}
+
+async function stop() {
+  streaming = false;
+  $('stop').disabled = true;
+  try {
+    if (device && device.opened) {
+      const { control, data } = findCdc(device);
+      if (control !== null) {
+        await device.controlTransferOut(
+          { requestType: 'class', recipient: 'interface', request: SET_CONTROL_LINE_STATE, value: 0x00, index: control });
+        await device.releaseInterface(control);
+      }
+      if (data !== null) await device.releaseInterface(data);
+      await device.close();
+    }
+  } catch (e) { /* the device may already be gone */ }
+  $('connect').disabled = false;
+  say('Disconnected. The board keeps playing on its LED.');
+}
+
+// What Copy gives: the page's verdict, then every line exactly as it arrived.
+function report() {
+  const s = checker.summary();
+  return `#page exp231 fly.html ${$('ver').textContent}${demo ? ' DEMO, no board' : ''}: ${JSON.stringify(s)}\n` + captured;
+}
+
+// Copy, in two ways, and saying which one worked: exp227's, for the reason it
+// gives — on a Pixel 9a in exp226's round 4, Copy did nothing while the log
+// streamed and nothing said why.
+async function copy() {
+  const text = report();
+  let first = '';
+  try {
+    await navigator.clipboard.writeText(text);
+    say(`Copied ${text.length} characters (Clipboard API).`, 'ok');
+    return;
+  } catch (e) { first = `${e.name}: ${e.message}`; }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  say(ok ? `Copied ${text.length} characters (fallback; the Clipboard API said ${first}).`
+         : `Copy failed both ways. The Clipboard API said ${first}; the fallback refused. Press Disconnect, then Copy.`,
+      ok ? 'ok' : 'bad');
+}
+
+$('connect').onclick = async () => {
+  try { await start(await navigator.usb.requestDevice({ filters: FILTERS })); }
+  catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+};
+$('stop').onclick = stop;
+$('copy').onclick = copy;
+$('demo').onclick = () => (demo ? stopDemo() : startDemo());
+window.addEventListener('resize', () => { heads(); draw(); });
+heads();
+draw();
+
+(async () => {
+  if (!('usb' in navigator)) {
+    say('This browser has no WebUSB, so no board — Chrome on Android, or a Chromium browser, has it. Demo still works.', 'bad');
+    $('connect').disabled = true;
+    return;
+  }
+  const known = await navigator.usb.getDevices();
+  if (known.length) {
+    try { await start(known[0]); } catch (e) { say(`${e.name}: ${e.message}`, 'bad'); }
+  } else {
+    say('Press Connect and choose the board — or Demo, to see it with no board.');
+  }
+})();
+</script>
