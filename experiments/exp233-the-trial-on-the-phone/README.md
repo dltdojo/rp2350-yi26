@@ -88,11 +88,38 @@ What the page checks, line by line:
 
    A page that draws the patients the model and the world agree on is
    caught.
-4. **Every log exp232's board gave back** (its `board/*.txt`), through the
-   page's block and through the page in the browser:
+4. **Every log a board gave back**, through the page's block and through the
+   page in the browser. These are exp232's `board/*.txt` and this
+   experiment's own round 1 from a phone:
    - **round 1**: 9 of 9 patients agree;
    - **round 2**: 16 of 16 agree, and patients 5 and 6 are drawn — both
-     treated, both predicted cured, both missed with a resistant cell.
+     treated, both predicted cured, both missed with a resistant cell;
+   - **exp233's round 1**: 20 of 20 agree.
+
+## On a phone
+
+**Round 1.** exp232's board, its second build, and an Android phone with
+page build p1, opened from Files in Chrome (`content://`). The phone's Copy
+is [`board/round1.txt`](./board/round1.txt), verbatim. The paste breaks off
+in patient 35's last status line. The page's own summary, its first line,
+covers patients 16 to 40.
+
+- **The page joined at patient 16, and checked 25 patients, 25 agreeing.**
+  - It ran the search and the protocol hash itself, and both agreed with the
+    board: ✓ ✓ on the phone.
+  - It replayed every patient from its word: nothing wrong, nothing partial,
+    no gaps.
+  - The 20 patients the paste holds, 16 to 35, pass through `check.sh`
+    again: the page's block, the page in headless Chromium, and exp232's
+    `cure.py --board`.
+- **The trial at patient 40:** 16 treated, all 16 predicted cured; 15 cured
+  in the world and 1 missed. 24 controls, all missed. The missed patient was
+  before the page joined, so no chart was drawn this round. The board's
+  count still carries it, and the page says which patients it saw.
+- **The screen** showed the trial panel and the two ✓ as designed.
+- **One language.** The person running it found p1's English and Chinese
+  side by side hard to read. Build p2 is English only, and `check.sh` holds
+  it to that. The Chinese account is [WHY.zh-TW.md](./WHY.zh-TW.md).
 
 ## Running it
 

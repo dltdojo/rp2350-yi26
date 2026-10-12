@@ -19,8 +19,9 @@
 #      and the world part on, gives a verdict, and Copy works; with no WebUSB,
 #      Demo plays and says it checks nothing. findCdc is log.html's, byte for
 #      byte;
-#   3. every log a board gave back to exp232 (its board/*.txt) is checked by
-#      the page's own block, and in the browser.
+#   3. every log a board gave back — exp232's board/*.txt, and this
+#      experiment's, which a phone running this page copied — is checked by the
+#      page's own block, and in the browser.
 #
 # What none of it reaches: exp232's board sending them, and a phone drawing
 # them for a person.
@@ -50,13 +51,20 @@ usb_check
 mkdir -p build
 python3 fixtures.py build/fixtures > /dev/null
 shopt -s nullglob
-logs=(../exp232-the-cure-the-proof-predicts/board/*.txt)
+logs=(../exp232-the-cure-the-proof-predicts/board/*.txt board/*.txt)
 
 if ! command -v node > /dev/null; then
     echo "SKIP  the page: node is not installed"
     exit "$FAILED"
 fi
 page_parses trial.html build
+# One language on the page: round 1 on a phone found p1's English and Chinese
+# side by side hard to read. WHY.zh-TW.md is where the Chinese lives.
+if python3 -c "import re, sys; sys.exit(1 if re.search(r'[\u3000-\u9fff\uff00-\uffef]', open('trial.html', encoding='utf-8').read()) else 0)"; then
+    pass "the page is in English only"
+else
+    fail "the page is in English only" "it has CJK text in it"
+fi
 page_findcdc trial.html
 node page_test.mjs trial.html build/fixtures "${logs[@]}" || FAILED=1
 

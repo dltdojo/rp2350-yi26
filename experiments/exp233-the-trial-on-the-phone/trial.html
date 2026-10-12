@@ -68,7 +68,7 @@
 
 <h1>The trial on the phone</h1>
 <p class="sub">exp233 &middot; exp232's trial — a proved model, and a world with resistance — replayed here and checked.<br>
-  <small>page build <b id="ver">p1</b></small></p>
+  <small>page build <b id="ver">p2</b></small></p>
 
 <p>
   <button id="connect">Connect</button>
@@ -85,7 +85,7 @@
 
 <div class="panel" id="search">The search: nothing from the board yet.</div>
 
-<h2>Where the proof and the world part · 證明和世界分歧的病人</h2>
+<h2>Where the proof and the world part</h2>
 <p class="key">Treated patients the model said would be cured and the world did not. Left: the proved model;
   right: the world, the same patient with resistance in it. One row a generation, the first at the top;
   the line under generation 24 is the trial's endpoint; a square in the margin is a dose.
@@ -94,9 +94,8 @@
 <div id="charts"><p class="key" id="nocharts">None yet.</p></div>
 
 <details>
-  <summary>What Lean proved, and what it refused · Lean 證明了什麼</summary>
-  <p>Quoted from exp232's <code>proof/Cure.lean</code>. This page checks none of it: it cannot run Lean.
-    這裡只是引用，網頁本身沒有執行 Lean。</p>
+  <summary>What Lean proved, and what it refused</summary>
+  <p>Quoted from exp232's <code>proof/Cure.lean</code>. This page checks none of it: it cannot run Lean.</p>
   <ul>
     <li><b>M1</b> the board's 57-instruction kernel computes the model exactly, for any input, in 3081 instructions.</li>
     <li><b>M2</b> a dose kills only cells at the edge of their kind — and tissue beside a tumour dies with it.</li>
@@ -106,18 +105,16 @@
   </ul>
   <p>Refused by Lean: "the drug harms no tissue"; "the answer cures a lump of seven"; "whatever meets the endpoint is cured".
     The world's resistance is in none of these: the model has no such thing, so no theorem speaks of it.</p>
-  <p>Lean 拒絕的宣稱：「這種藥不傷正常組織」、「答案也能治好 7 格的腫瘤」、「達到終點的就是治癒」。世界裡的抗藥性不在模型中，所以沒有任何定理說到它。</p>
 </details>
 
 <details>
-  <summary>How to read it · 怎麼看</summary>
+  <summary>How to read it</summary>
   <p>The board searched 1024 dosing schedules for one that meets the trial's endpoint — no tumour a scan can
     see at generation 24, half the tissue kept — and answered with the one with fewest doses. Then it draws
     patients from its random number generator, gives half the answer and half nothing, and lives each one twice:
     in the model the proof is about, and in a world where a dividing tumour cell is now and then resistant to the drug.
     The top panel is the trial as the board counts it. This page checks every line again: it runs the search
     itself, hashes the protocol itself, and replays each patient from the word it was drawn from.</p>
-  <p>板子先在 1024 種給藥排程裡搜尋能達到試驗終點的（第 24 代影像看不到腫瘤、組織保留一半），挑給藥最少的當答案。接著用亂數抽病人，一半給答案、一半不給，每位病人活兩次：一次在證明所說的模型裡，一次在會出現抗藥細胞的世界裡。最上面是板子算的試驗結果。網頁會把每一行重新檢查一次：自己跑一次搜尋、自己算試驗計畫的雜湊值，並用板子抽病人時的亂數把每位病人重算一次。</p>
 </details>
 
 <div id="verdict">Nothing checked yet.</div>
@@ -477,9 +474,7 @@ function showTrial() {
     + `<span class="world">the world cured ${t.cured}</span>`
     + (t.relapsed ? `, ${t.relapsed} came back` : '') + (t.missed ? `, ${t.missed} missed` : '') + `</div>`
     + `<div>Control ${t.control}: ${t.controlMissed} missed, as M3 says every one must.</div>`
-    + `<div class="key">治療組 ${t.treated} 人：證明預測 ${t.predicted} 人治癒，世界裡 ${t.cured} 人治癒`
-    + (t.missed ? `、${t.missed} 人沒達到終點` : '') + (t.relapsed ? `、${t.relapsed} 人復發` : '')
-    + `。對照組 ${t.control} 人，${t.controlMissed} 人沒達到。</div><div class="key">${seen}</div>`;
+    + `<div class="key">${seen}</div>`;
 }
 
 function showSearch(e) {
