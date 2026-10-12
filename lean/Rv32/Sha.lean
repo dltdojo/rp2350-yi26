@@ -1546,11 +1546,6 @@ theorem at_zeroA : ∀ j < 8, kernel.getD (20 + j) .ecall = .st .sw S1 0 (BitVec
 theorem at_zeroB : ∀ j < 8, kernel.getD (28 + j) .ecall = .st .sw S1 0 (BitVec.ofNat 12 (0x420 + 4 * j)) := by
   decide
 
-theorem imm_off {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (d c : Nat) (hc : c < 2048)
-    (hd : d + c < 0x10000) :
-    base + BitVec.ofNat 32 d + (BitVec.ofNat 12 c).signExtend 32 = base + BitVec.ofNat 32 (d + c) := by
-  rw [se_small c hc, off_add hfit _ _ hd]
-
 theorem len_bits (L : Nat) (hL : 8 * L < 2 ^ 32) : (BitVec.ofNat 32 L <<< (3 : BitVec 5).toNat).toNat = 8 * L := by
   rw [BitVec.toNat_shiftLeft, BitVec.toNat_ofNat, Nat.shiftLeft_eq]
   simp only [show (3 : BitVec 5).toNat = 3 from rfl]

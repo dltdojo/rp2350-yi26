@@ -161,6 +161,26 @@ theorem haltStep (hp : Placed env base) (k : Nat) (hk : k < prog.length) {s : Ma
     (by rw [hpc]; exact align_off hp.align hp.fit _ (by omega) (by omega))
     (by rw [hpc]; exact ok_off hp _ 4 (by omega) (by omega)) (this ▸ exec_halt h1)
 
+/-- `addi r, r, -1` on a counter `n > 0`: `n - 1`. -/
+theorem count_down (n : Nat) (h0 : 0 < n) (h : n < 2 ^ 32) :
+    BitVec.ofNat 32 n + BitVec.signExtend 32 (0xfff : BitVec 12) = BitVec.ofNat 32 (n - 1) := by
+  have := dec_one (n - 1) (by omega)
+  rwa [Nat.sub_add_cancel h0] at this
+
+/-- A counter as `bne r, zero` reads it: not zero exactly when its number is not. -/
+theorem ofNat_ne_zero (n : Nat) (h : n < 2 ^ 32) : (BitVec.ofNat 32 n != (0 : Word)) = decide (n ≠ 0) := by
+  by_cases e : n = 0
+  · subst e; decide
+  · have ne : BitVec.ofNat 32 n ≠ 0 := fun h' => e (by
+      have := congrArg BitVec.toNat h'
+      rwa [BitVec.toNat_ofNat, Nat.mod_eq_of_lt h] at this)
+    rw [decide_eq_true e]
+    exact bne_iff_ne.mpr ne
+
+/-- A register outside a list is outside every list of its members. -/
+theorem not_mem_of {r : Reg} {L L' : List Reg} (h : r ∉ L) (hs : L'.all (· ∈ L) = true) : r ∉ L' :=
+  fun h' => h (by have := List.all_eq_true.1 hs r h'; simpa using this)
+
 end Rv32
 
 /-- A jump's offset, checked: `jump_ok` with `decide` for the numbers. -/

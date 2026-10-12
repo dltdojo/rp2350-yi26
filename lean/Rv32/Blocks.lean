@@ -36,6 +36,11 @@ theorem se_neg (c : Nat) (h1 : 2048 ≤ c) (h2 : c < 4096) :
   simp only [BitVec.toNat_setWidth, BitVec.toNat_ofNat, ↓reduceIte]
   omega
 
+/-- `addi`, a load or a store at `base + c` with a small immediate `d`: `base + (c + d)`. -/
+theorem imm_off {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (c d : Nat) (hd : d < 2048) (h : c + d < 0x10000) :
+    base + BitVec.ofNat 32 c + (BitVec.ofNat 12 d).signExtend 32 = base + BitVec.ofNat 32 (c + d) := by
+  rw [se_small d hd, off_add hfit _ _ h]
+
 /-- `addi r, r, -1` on a counter: one less. Written without `omega`, which
 runs Lean's kernel out of memory on a goal holding `2^32 - 1` as a literal. -/
 theorem dec_one (n : Nat) (hn : n < 2 ^ 32 - 1) :
