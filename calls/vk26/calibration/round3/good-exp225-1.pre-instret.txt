@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:88-89, differential/differential.py:53
+reason: README.md:88-89 reads as if the RTL counts 3082 on every one of the twenty seeds. The differential checks only that the RTL halts with code 0 (differential.py:53), not its instruction count. The count 3082 is evidenced only for two seeds by gen.py, and for the two lives in the capture, whose minstret is 0x0c0a. The other claims match the bundle, including the person's recorded board observation, which names the UF2 SHA, the board and how it was run.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:87, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` holds for any image whose first 76 bytes are the kernel's, so the seed at 0x100 is arbitrary. It runs from `boot env.region img` and states both that the kernel is still running at 3078 and that it halts with 0 at 3079, with memory equal to `lived m0 base N`. That definition overlays only the 1024 bytes from 0x200, with generations 1 to 256 stored little-endian, which is exactly what the README says. `lives`, `not_before` and `rule30` also match their table rows in quantifiers and conclusion, and the only added hypothesis, `Placed`, is the region-fit condition the docstring states.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288-289, proof/Life.lean:294
+reason: This is a new 19-instruction Rule 30 cellular-automaton kernel. It has new theorems: `rule30` (cell by cell), `lives` (halts with 0 after exactly 3079 instructions, leaving 256 generations) and `not_before`. None of the prior experiments listed does this.
+J4: YES
+evidence: rule30.py:19-24, proof/Life.lean:76, rule30.py:3-6
+reason: rule30.py computes each cell individually with an explicit per-bit loop (`left ^ (centre | right)`). Lean's `life` uses whole-word shifts and ORs. The README states this difference and the code bears it out.
+INJECTION: NONE
+END
