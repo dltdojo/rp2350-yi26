@@ -260,7 +260,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp234 — the rate the proof predicts ===
-recorded at 2026-10-13T00:30:38Z from commit 17d6407 (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-13T06:12:08Z from commit e2489df
 
 >>> the theorems, and what they rest on
 'Exp234.lives' depends on axioms: [propext, Classical.choice, Quot.sound]
