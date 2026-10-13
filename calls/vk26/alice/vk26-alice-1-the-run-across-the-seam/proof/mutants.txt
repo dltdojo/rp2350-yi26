@@ -1,7 +1,10 @@
 # vk26-alice-1 — wrong versions of the kernel, and wrong claims about the right one.
 # Each must be refused by Lean.
 #
-# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean or calls/vk26/alice/lean/<file>.lean]
+#
+# The last two edit alice's own package, calls/vk26/alice/lean/, where the
+# window block and its specification are.
 window_fail|the branch goes to FAIL when the window passed, and on when it failed|s/\.br \.bne S6 0 /.br .beq S6 0 /g
 window_fail|the halt code is the number of windows passed, not the failing window's|s/\.opi \.addi A0 S2 1,/.opi .addi A0 S2 0,/g
 all_pass|four windows passed and it halts with 1|s/\.opi \.addi A0 0 0,/.opi .addi A0 0 1,/g
@@ -12,3 +15,5 @@ window_head|the claim: each window starts with no run behind it|s/^  s5 : s.reg 
 from_boot|the claim: the failing window's digest is written too|s/base (stop (memOfImage base img) base) := by$/base (stop (memOfImage base img) base + 1) := by/
 from_boot|the claim: the halt code is the failing window's index, 0 to 3|s/else BitVec.ofNat 32 (stop m base + 1)$/else BitVec.ofNat 32 (stop m base)/
 from_boot|the claim: one instruction fewer to the halt|s/else 17431 + 17421 \* k$/else 17430 + 17421 * k/
+win_verdict|the specification: the repetition count starts afresh at each window, as front's does|s/(rct m base src (N \* (w + 1))).bad = false ∧/(rct m base (src + 4 * (N * w)) N).bad = false ∧/|calls/vk26/alice/lean/Alice/Window.lean
+start_run|the block takes the whole first word as the window's reference, not its bit 0|/^  \.ld \.lw S7 S1 0, /s/\.opi \.andi S7 S7 1,/.opi .andi S7 S7 3,/|calls/vk26/alice/lean/Alice/Window.lean
