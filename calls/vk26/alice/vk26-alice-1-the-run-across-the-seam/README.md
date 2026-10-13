@@ -310,3 +310,48 @@ python3 ../pages/build.py seam.html build/seam.html   # the page, as one file
 ## Expected output
 
 [capture.txt](./capture.txt), recorded by `run.sh` from a clean commit.
+
+Pasted from it — the theorems, the mutants, and the six streams on the RTL:
+
+```
+=== vk26-alice-1 — the run across the seam ===
+recorded at 2026-10-13T11:28:33Z from commit 474b4c7
+
+>>> the theorems, and what they rest on
+'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seam.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seam.window_head' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seam.window_fail' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seam.window_pass' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seam.all_pass' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seam.runs_to' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seam.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+window_fail  the branch goes to FAIL when the window passed, and on when it failed     refused in window_fail
+window_fail  the halt code is the number of windows passed, not the failing window's   refused in window_fail
+all_pass     four windows passed and it halts with 1                                   refused in all_pass
+window_pass  each digest 16 bytes after the last, half over it                         refused in window_pass
+window_pass  HASH is asked for the window after the one tested                         refused in window_pass
+init_regs    the repetition count starts as though a 0 came before the stream          refused in init_regs
+window_head  the claim: each window starts with no run behind it                       refused in window_head
+from_boot    the claim: the failing window's digest is written too                     refused in from_boot
+from_boot    the claim: the halt code is the failing window's index, 0 to 3            refused in from_boot
+from_boot    the claim: one instruction fewer to the halt                              refused in from_boot
+
+...
+>>> on the RTL, every stream: STRM s code want minstret digests, then DONE streams
+5354524d 00000000 00000000 ffffffff 00011057 00000004
+5354524d 00000001 00000002 00000002 0000882b 00000001
+5354524d 00000002 00000000 00000000 00011057 00000004
+5354524d 00000003 00000001 00000001 0000441a 00000000
+5354524d 00000004 00000003 00000003 0000cc3c 00000002
+5354524d 00000005 00000004 00000004 0001104d 00000003 444f4e45 00000006 exit=0 
+```
+
+and then 68 PASS, 0 FAIL and the one SKIP:
+
+```
+SKIP  checking a phone's log: none recorded yet (board/*.txt)
+```
