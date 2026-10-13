@@ -4,7 +4,8 @@
 Hazard3 RTL each run kernel.bin, and each region afterwards must be exactly
 the image with rule30.py's 256 generations from 0x200 — rule30.py being Rule
 30 written cell by cell, sharing nothing with the kernel's shifts. The model
-must halt with 0 after exactly 3079, and the RTL with 0.
+must halt with 0 after exactly 3079, and the RTL with 0, counting the same
+instret on every seed.
 
   differential.py RV32RUN
 """
@@ -41,7 +42,7 @@ def rtl_region(img):
 
 def main(rv32run):
     kernel, _ = kernel_bin(os.path.join(EXP, "kernel"))
-    failed = 0
+    failed, counts = 0, set()
     ss = seeds()
     for seed in ss:
         img = image(kernel, seed)
@@ -51,6 +52,7 @@ def main(rv32run):
         ok_model = ran == "halt code=00000000 count=3079" and region == bytes(want)
         rran, rregion = rtl_region(img)
         ok_rtl = rran.startswith("halt code=00000000 ") and rregion == bytes(want)
+        counts.add(" ".join(w for w in rran.split() if w.startswith("instret=")))
         if not (ok_model and ok_rtl):
             failed += 1
             print(f"FAIL  seed {seed:#010x}: model {ran} {'ok' if ok_model else 'differs'}, "
@@ -58,6 +60,12 @@ def main(rv32run):
     if failed == 0:
         print(f"PASS  on {len(ss)} seeds the Lean model halts with 0 after exactly 3079 and the RTL with 0, "
               f"each leaving exactly rule30.py's 256 generations and nothing else")
+    # The RTL's count, on every seed: the README says 3082 whatever the seed.
+    if len(counts) == 1 and next(iter(counts)).startswith("instret="):
+        print(f"PASS  the RTL counts the same on all {len(ss)} seeds: {next(iter(counts))}")
+    else:
+        failed += 1
+        print(f"FAIL  the RTL counts differently across the seeds: {sorted(counts)}")
     return failed
 
 
