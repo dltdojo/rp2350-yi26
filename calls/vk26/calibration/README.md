@@ -233,3 +233,24 @@ ca971eb，2026-10-13，同一個指令，約 36 秒，沒有 429。
      板子紀錄、推論寫成像在晶片上觀察到的。這是 JUDGE.md J1「板子上的宣稱必須對應板子紀錄」
      的兩種讀法：第 1 輪 Opus 三次都接受「一個人記錄的觀察 ＋ 程式碼推論」，這兩次 Sonnet
      都不接受。是模型差別還是取樣差別，目前分不出來；要不要改寫 J1 待任務方決定。
+
+### 選項 A：`differential/*.py` 加回 J1 用的 bundle（Slice Bundle v4，尚未重跑探測）
+
+重新探測時 J1 NO 的第一項（README.md:86–87 的二十個種子查不到）是 bundle 的缺口：種子寫在
+`differential/differential.py` 的 `seeds()`，v2 起整個 `differential/` 被排除。處理方式與
+`shell.c` 相同：
+
+- `differential/*.py` 只進 J1/J3/J4 的 Sonnet bundle（`slice J1` 與完整 bundle），**不進** J2
+  切片，也不進 J4 切片（J4 看的是參考實作本身，不是外面那層 harness）。
+- 注入掃描也涵蓋 `differential/*.py`：裁判讀到的檔案都要掃。
+- 回歸測試（[`../selftest.sh`](../selftest.sh) 1b 節，共 4 項新增）：bundle 有
+  `differential/differential.py` 的 `29| def seeds():`；J1 切片有、J2 與 J4 切片沒有；`tally`
+  接受 `differential/differential.py:29`；`differential/` 裡寫給裁判的話會被掃描抓到。修改前的
+  版本跑同一份測試，前三類有 3 項失敗、掃描 1 項失敗；修改後 112 項全過。
+- 大小：七份 bundle 各增加 3.0–4.2 KB（+3%–7%），例如 good-exp225 48.8 → 51.8 KB、good-exp234
+  121.7 → 125.9 KB；J2 切片不變。narrowed 與 good-exp234 仍只差在刻意改壞的那三行。
+
+J1 NO 的第二項（「LED 會閃 → 四項檢查都成立」的推論要不要算有根據）是 J1 規則的讀法，
+這次沒有改，仍待任務方決定。下一步：用同一個指令重跑步驟 1 的探測（good-exp225 一次）。
+既有的 `round2/good-exp225-1.txt` 是 v3 bundle 的判定，重跑前要先改名保留，否則 `run.sh`
+會因 bundle 不同而拒絕執行。

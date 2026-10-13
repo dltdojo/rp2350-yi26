@@ -54,8 +54,9 @@
 # - Reference Implementation (for J4): top-level Python algorithms (differential
 #   harnesses omitted; imported sibling algorithms capped).
 # - Empirical Evidence (for J1): capture.txt summary, shell/shell.c (what a board
-#   claim argues from), and board log results (PATIENT/TRIAL lines kept, polling
-#   deduplicated).
+#   claim argues from), differential/*.py (what a measured claim's inputs are:
+#   exp225's twenty seeds), and board log results (PATIENT/TRIAL lines kept,
+#   polling deduplicated).
 # Never kernel.bin, check.sh, build/ or anything generated.
 #
 #   VK26_AS=experiments/expNNN-…   bundle EXPDIR as though it were at that path
@@ -326,11 +327,16 @@ def files_of(exp, question=None):
                         if os.path.isfile(cand) and r not in [x for x, _ in out]:
                             out.append((r, 150))
 
-    # Evidence: capture summary, the shell and board logs, needed by J1. The
-    # shell is what turns "the LED beats" into "every check held": exp225's
-    # README argues from it, and without it J1 rightly found that unsupported.
+    # Evidence: capture summary, the shell, the differential and board logs,
+    # needed by J1. The shell is what turns "the LED beats" into "every check
+    # held": exp225's README argues from it, and without it J1 rightly found
+    # that unsupported. The differential is where a measured claim's inputs
+    # are (exp225's "twenty seeds … one live cell, none, all …" is its seeds());
+    # without it round 2's re-probe found that claim unsupported too. J1 only:
+    # the J4 slice reads the reference, not the harness around it.
     if question in (None, "J1"):
         add("shell/shell.c", 1000)
+        add("differential/*.py", 1000)
         add("capture.txt", 200)
         add("board/*.txt", 100)
         readme = os.path.join(exp, "README.md")
@@ -354,7 +360,7 @@ def files_of(exp, question=None):
 def scan(exp):
     hits = []
     scan_files = []
-    for pattern in ["README.md", "WHY.zh-TW.md", "proof/*.lean", "*.py", "check.sh", "shell/shell.c", "capture.txt", "board/*.txt"]:
+    for pattern in ["README.md", "WHY.zh-TW.md", "proof/*.lean", "*.py", "check.sh", "shell/shell.c", "differential/*.py", "capture.txt", "board/*.txt"]:
         for p in sorted(glob.glob(os.path.join(exp, pattern))):
             if os.path.isfile(p):
                 scan_files.append(os.path.relpath(p, exp))
