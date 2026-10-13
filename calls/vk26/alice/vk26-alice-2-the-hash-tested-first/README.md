@@ -381,7 +381,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-2 — the hash tested first ===
-recorded at 2026-10-13T16:06:53Z from commit 92c6418
+recorded at 2026-10-13T23:54:32Z from commit 65f5999
 
 >>> the theorems, and what they rest on
 'Trust.compare_iff' depends on axioms: [propext, Quot.sound]
@@ -414,10 +414,12 @@ win_verdict  the specification: the repetition count starts afresh at each windo
 5354524d 00000004 00000001 00000001 0000443e 00000000 444f4e45 00000005 exit=0 
 ```
 
-and the KAT at work, among 81 PASS, 0 FAIL and 1 SKIP (no phone log yet):
+and the KAT at work, and the phone's log, among 83 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  on the RTL the shell runs all five streams, SHA-256 answering HASH, each halting with trust.py's code and the RTL's count for it, the spoiled one at the KAT
 PASS  the shell catches a version where HASH writes its digest a word late — the KAT refuses it: check 2, code 2 unspoiled
 PASS  the shell catches a version where HASH hashes 64 bytes too few — the KAT refuses it: check 2, code 2 unspoiled
+PASS  round1.txt: 18 of 18 streams from a board judged right, 0 incomplete, 3 rounds, 4 spoiled hashes refused, 7 outputs
+PASS  round1.txt: 18 whole streams from a board, each KAT answer, code, minstret and output as trust.py and hashlib give them
 ```

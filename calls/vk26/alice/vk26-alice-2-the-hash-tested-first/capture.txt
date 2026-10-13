@@ -1,5 +1,5 @@
 === vk26-alice-2 — the hash tested first ===
-recorded at 2026-10-13T16:06:53Z from commit 92c6418
+recorded at 2026-10-13T23:54:32Z from commit 65f5999
 
 >>> the theorems, and what they rest on
 'Trust.compare_iff' depends on axioms: [propext, Quot.sound]
@@ -116,6 +116,7 @@ PASS  minstret one more than the RTL's for a stream: caught
 PASS  a BITS line lost: that stream incomplete, nothing called wrong, the other 9 judged
 PASS  the KAT line of the spoiled stream lost: that stream incomplete, not judged as if HASH were right
 PASS  joined mid-stream: the first stream incomplete, every one after it judged
+PASS  round1.txt: 18 of 18 streams from a board judged right, 0 incomplete, 3 rounds, 4 spoiled hashes refused, 7 outputs
 PASS  the tests catch a page where the KAT's answer is never compared: two rounds as the board sends them, in 64-byte packets: all 10 streams judged right — the spoiled hash refus
 PASS  the tests catch a page where a spoiled answer is taken as it comes: HASH answering the KAT wrong with nothing spoiling it: the kernel stopping is right, the board is not, and the
 PASS  the tests catch a page where the start-up window is not tested: the page's tests stop where trust.py's do, on all 1 of trust.py's streams — stuck at 1 from the start: trust
@@ -133,7 +134,7 @@ PASS  unchecked.txt: the verdict line says "1 wrong"
 PASS  unchecked.txt: the table shows the last round's 5 streams, and no script error
 PASS  unchecked.txt: Copy puts the verdict and every line received on the clipboard (5421 characters)
 PASS  unchecked.txt: Save downloads the same text as a file, vk26-alice-2-<time>.txt, and says how long it is
-SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  round1.txt: 18 whole streams from a board, each KAT answer, code, minstret and output as trust.py and hashlib give them
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where the shell forgets to spoil HASH's answer for the fair stream — check 2, code 0 where 2 is due
 PASS  the shell catches a version where the spoiled stream is said to pass — check 2
