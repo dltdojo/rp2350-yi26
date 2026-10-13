@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """vk26-alice-2 — kernel.bin on the Lean model (rv32run) and on the Hazard3
-RTL, against trust.py and hashlib's SHA-256: every stream in trust.streams()
+RTL, against trust.py and hashlib's SHA-256: every stream in trust.trust_streams()
 with the right expected digest, and the fair stream with each of
 trust.bad_wants().
 
@@ -24,7 +24,7 @@ sys.path.insert(0, TOOLS)
 sys.path.insert(0, os.path.join(EXP, "..", "tools"))
 from expect import model  # noqa: E402
 from region import rtl_region as rtl  # noqa: E402
-from trust import bad_wants, image, streams, trust_outcome  # noqa: E402
+from trust import bad_wants, image, trust_outcome, trust_streams  # noqa: E402
 
 # Instructions to the halt, by code: the KAT is 43 to its branch and halt;
 # a window is 17415 and its branch 1; the output 7, the halt 3.
@@ -33,8 +33,8 @@ COUNT = {2: 43, 1: 43 + 17415 + 1 + 3, 3: 43 + 2 * (17415 + 1) + 3, 0: 43 + 2 * 
 
 def main():
     kernel = open(os.path.join(EXP, "kernel.bin"), "rb").read()
-    fair = streams()["fair"]
-    cases = [(name, words, None) for name, words in streams().items()]
+    fair = trust_streams()["fair"]
+    cases = [(name, words, None) for name, words in trust_streams().items()]
     cases += [(f"KAT: {name}", fair, want) for name, want in bad_wants().items()]
     failed = 0
     for name, words, want in cases:

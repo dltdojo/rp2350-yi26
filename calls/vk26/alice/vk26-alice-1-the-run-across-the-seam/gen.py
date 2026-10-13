@@ -30,6 +30,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "tools", "hazard3", "shell"))
 from expect import c_bytes, kernel_bin, model, rtl  # noqa: E402
 from seam import DIGESTS, N, WINDOWS, image, seam_outcome, streams  # noqa: E402
+from health import pack  # noqa: E402  (seam.py has put alice/tools on the path)
 
 # The order the shell runs them in, after the TRNG's own: the seam caught and
 # its control, then each remaining code once.
@@ -42,9 +43,6 @@ def cost(code):
     """proof/Seam.lean's `cost (stop …)`, by the halt code."""
     return 69699 if code == 0 else 17431 + 17421 * (code - 1)
 
-
-def pack(samples):
-    return [sum((samples[32 * k + i] & 1) << i for i in range(32)) for k in range(WORDS)]
 
 
 def write_seam_expect(out, rv32run):

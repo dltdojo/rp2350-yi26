@@ -27,6 +27,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from seam import N, WINDOWS, seam_outcome, streams  # noqa: E402
+from health import pack, unpack  # noqa: E402  (seam.py has put alice/tools on the path)
 
 STATUS = ("vk26-alice-1 usb=6 setups=31 stalls=3 dropped=0 errors=0 ref=00000000 sys=00000000 xosc=00000000 "
           "pll=00000001 usb_khz=48000 sys_khz=48000 sys48_khz=48000 ref_khz=12000 sof_khz=47999 "
@@ -40,14 +41,6 @@ def expect(path):
     instret = [int(x) for x in re.search(r"INSTRET\[5\] = \{([^}]*)\}", text).group(1).split(",")]
     names = re.findall(r'^    \{"([^"]+)", \d+, \{', text, re.M)
     return instret, names
-
-
-def pack(bits):
-    return [sum((bits[32 * k + i] & 1) << i for i in range(32)) for k in range(len(bits) // 32)]
-
-
-def unpack(words):
-    return [(words[i // 32] >> (i % 32)) & 1 for i in range(32 * len(words))]
 
 
 def stream_lines(rnd, s, name, bits, want, instret, code=None, digests=None, minstret=None):

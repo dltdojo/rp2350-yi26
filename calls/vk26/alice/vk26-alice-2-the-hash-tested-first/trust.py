@@ -4,7 +4,7 @@
 leave, for any hash function, written from the plan and alice/tools/health.py,
 and nothing like the kernel's registers.
 
-  trust.py           print every stream in streams() and what it gives
+  trust.py           print every stream in trust_streams() and what it gives
 
 The order is the plan's:
 
@@ -83,7 +83,7 @@ def image(kernel, words, want=None):
     return bytes(img)
 
 
-def streams():
+def trust_streams():
     """Named streams of 2048 words: the start-up window, then the one whose
     digest is the output."""
     rng = random.Random(0xA11CE2)
@@ -142,10 +142,10 @@ def bad_wants():
 
 
 if __name__ == "__main__":
-    for name, words in streams().items():
+    for name, words in trust_streams().items():
         code, writes, why = trust_outcome(words)
         print(f"{name:34} halt {code}  {'output written' if OUTPUT in writes else 'no output':14}  "
               f"{why or 'both windows passed'}")
     for name, want in bad_wants().items():
-        code, _, why = trust_outcome(streams()["fair"], want)
+        code, _, why = trust_outcome(trust_streams()["fair"], want)
         print(f"KAT: {name:28} halt {code}  {why}")

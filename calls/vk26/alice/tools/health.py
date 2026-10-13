@@ -18,6 +18,9 @@ reference. Judging stops at the first window that fails.
                          never 21 alike, never 589 of a window alike
   longest(bits)          the longest run of alike samples
   window_bytes(words, w) window w's 4096 bytes, as HASH reads them
+  pack(samples)          samples packed 32 to a word, as a shell sends them:
+                         sample i is bit i % 32 of word i / 32
+  unpack(words)          the samples again
 """
 import struct
 
@@ -62,3 +65,11 @@ def longest(bits):
 
 def window_bytes(words, w):
     return struct.pack(f"<{N}I", *words[w * N:(w + 1) * N])
+
+
+def pack(samples):
+    return [sum((samples[32 * k + i] & 1) << i for i in range(32)) for k in range(len(samples) // 32)]
+
+
+def unpack(words):
+    return [(words[i // 32] >> (i % 32)) & 1 for i in range(32 * len(words))]
