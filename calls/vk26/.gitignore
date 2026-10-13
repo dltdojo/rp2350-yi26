@@ -2,3 +2,4 @@
 */lean/.lake/
 build/
 __pycache__/
+calibration/round*/bundles/

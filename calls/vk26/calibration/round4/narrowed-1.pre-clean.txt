@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:259, capture.txt:2
+reason: README.md:259 says the capture was "recorded by ./run.sh from a clean commit", but capture.txt:2 (pasted at README.md:263) says "working tree dirty — this recording is not reproducible from the commit alone". The proof, rate, 40000-patient and board-round claims all match their theorems, captures and logs.
+J2: NO
+evidence: README.md:75, proof/World.lean:711, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:697
+reason: `from_boot` and `lives` (proof/World.lean:489-511) do match W1, and `still`, `resistance_stays`, `cured_iff` and `zero_stays` match their descriptions. But `answer_world` is described as covering a lump "anywhere on the ring" (README.md:75, proof/World.lean:712), while the theorem fixes the position at 0 (`patient w 0 ANSWER`, proof/World.lean:719-720). The helper `divisions_iter` (proof/World.lean:697) carries only the division count to other positions and is not part of the stated main theorem, so `answer_world` as written is weaker than its description.
+J3: YES
+evidence: proof/World.lean:153, proof/World.lean:641, proof/World.lean:718, README.md:71, README.md:212
+reason: It adds a new 74-instruction world kernel proved for every input and every mask (W1). It also adds new theorems, M7 `cured_iff` and `answer_world`, and from them a derived exact failure rate. That rate is checked against exp234's own board round 1. None of the prior experiments listed has any of these.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:66, world.py:43, world.py:61
+reason: The reference is cure.py's `dose_and_grow`, written cell by cell with per-cell tests, while the Lean `wnext` and the kernel use whole-word bit operations. world.py recomputes the divisions D from that reference and compares them to the D in the Lean source, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END

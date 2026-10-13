@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:68, README.md:69, proof/Fly.lean:576, proof/Fly.lean:578
+reason: README says `watches_life` proves the kernel reports up at least down at every one of the 256 steps and in total. The theorem's stated conclusion in the bundle is `True`, which proves nothing of the kind. Only the `watches_shift` conclusion (proof/Fly.lean:585-586) matches its README claim.
+J2: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69
+reason: `detects_boot` is a valid from_boot theorem, and T1, T2 and T3 match their descriptions, but `watches_life` concludes only `True`. The README says it shows the kernel "reports up at least down at every one of the 256 steps, and in total", and the Lean statement says nothing about the kernel's run or its stored counts.
+J3: YES
+evidence: proof/Fly.lean:44, proof/Fly.lean:115, proof/Fly.lean:496
+reason: The experiment adds a new 41-instruction detector kernel with its exact count theorem (T1). It also adds the new property T3 (`life_moves_up`), which turns exp225's conjecture into a theorem. None of the prior-work summaries mention a motion detector.
+J4: YES
+evidence: fly.py:30, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:24, proof/Fly.lean:24
+reason: The reference writes Rule 30 cell by cell with modular indexing, where Lean's `life` uses whole-word XOR/OR of shifts. The reference moves use rotations and counts with `bin().count`, where Lean uses `up1`/`dn1` and its own `pc`, and the kernel uses shifts and a bit loop. A shared mistake is therefore unlikely.
+INJECTION: NONE
+END

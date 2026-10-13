@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:123-125, README.md:166-167
+reason: Two claims go beyond the bundle. "exp232's own 2000-patient figure, 13.7% of 1038 treated" has no log or output in the bundle. "exp232's UF2 is byte for byte what it was, dd5dbde3…, and so is its RTL build" is not in capture.txt, and the bundle holds neither exp232's UF2 nor a check of it. The rest is supported: the theorems exist, and the 4 of 30, 4 of 27 and 38 of 38 board counts match board/round1.txt:1 and exp232's logs.
+J2: NO
+evidence: README.md:75, proof/World.lean:711, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:697
+reason: `from_boot` (proof/World.lean:507-511) is a proper from_boot-form theorem, and W1, W0, M6, M7 and M8 match their descriptions. The headline `answer_world`, however, is stated only for `patient w 0 ANSWER`, a lump at position 0, while README.md:75 and its own docstring say "anywhere on the ring". `divisions_iter` (World.lean:697) carries only the division count to other positions. No theorem in the bundle gives the cured-iff equivalence, or the model's cure at generation 64, for a lump at any position p ≠ 0, so the theorem is weaker than the text.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:641, proof/World.lean:718
+reason: It adds a new 74-instruction kernel for the world with masks as input (`lives`), and new theorems M6, M7, M8 and `answer_world`. These yield an exact predicted failure rate (3276629119/25769803776) that is then compared with a board, none of which is in the prior work.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61-77, world.py:43-50, world.py:61-66
+reason: The reference `cure.py` computes the dose and growth cell by cell with loops, where Lean and the kernel use word-level bit operations. `world.py` recomputes the divisions D through that reference and the exact rate with Fractions, then compares them with the D read from the Lean source.
+INJECTION: NONE
+END

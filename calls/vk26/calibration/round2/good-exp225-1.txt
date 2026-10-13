@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:12, README.md:139, README.md:142
+reason: The board result ("an irregular beat" from a Pixel 9a in the gallery) is claimed with no board log in the bundle. Line 139's "built at a5927c7 and unchanged since" is also unsupported, since capture.txt records commit f24df95. The inference at lines 144-149 that the first life on silicon is the proved one rests on that unlogged observation. I could only read README.md; WHY.zh-TW.md is not in the bundle.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:84, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` covers any image whose first 76 bytes are `bytes`, run from `boot env.region img`. It proves the kernel is still running after 3078 instructions and halts with 0 after exactly 3079, with memory equal to `lived m0 base N`. That is the original memory overlaid at 0x200 with 1024 bytes holding generations 1–256 of `life`, little-endian, from the little-endian seed at 0x100. This matches the README, and `lives`, `not_before` and `rule30` (universally quantified over machine state and seed, cell i from i+1 XOR (i OR i-1) mod 32) state what the table says. The only extra hypothesis is `Placed`, a region-fit side condition that the docstring states and that does not weaken the claim.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:288, proof/Life.lean:98, README.md:5
+reason: It adds a new 19-instruction Rule 30 kernel with theorems for its exact halt count (`lives`), the lower bound (`not_before`) and the cell-by-cell rule (`rule30`). None of the listed prior experiments covers a cellular automaton or a generated history written to memory.
+J4: YES
+evidence: rule30.py:19, rule30.py:22, rule30.py:23, proof/Life.lean:76
+reason: rule30.py computes each cell with a per-bit loop over left, centre and right with modular indexing, while Lean uses whole-word shifts and ORs. It is not a transcription of the Lean definition, and the README states the difference.
+INJECTION: NONE
+END

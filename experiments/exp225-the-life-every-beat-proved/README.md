@@ -200,7 +200,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp225 — the life every beat proved ===
-recorded at 2026-10-09T08:01:03Z from commit f24df95
+recorded at 2026-10-13T05:13:18Z from commit e45bdcc
 
 >>> the kernel, as proof/Life.lean writes it
   0000  00000317  auipc x6, 0
@@ -276,6 +276,7 @@ PASS  lives: the proof refuses a version where it is claimed to halt one instruc
 PASS  not_before: the proof refuses a version where it is claimed still to be running after 3079
 PASS  kernel.bin is what proof/Life.lean writes, 76 bytes, and kernel.sha256 is its hash
 PASS  on 20 seeds the Lean model halts with 0 after exactly 3079 and the RTL with 0, each leaving exactly rule30.py's 256 generations and nothing else
+PASS  the RTL counts the same on all 20 seeds: instret=3082
 PASS  the shell builds for the chip and for the RTL, the chip's in 3272 of the 8192 bytes it may use
 PASS  all 13 blocks carry family 0xe48bff57, absolute
 PASS  every block lies in the first 8 KiB of flash, 0x10000000..0x10002000

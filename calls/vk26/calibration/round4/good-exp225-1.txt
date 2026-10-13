@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Life.lean:288, proof/Life.lean:294, proof/Life.lean:309, proof/Life.lean:98, README.md:139, README.md:141, README.md:142, proof/mutants.txt:5, capture.txt:77, capture.txt:78, capture.txt:86, shell/shell.c:75, shell/shell.c:77, shell/shell.c:87
+reason: The proof claims match `lives`, `not_before`, `rule30` and `from_boot`, and the capture shows the 11 refused mutants, the 20-seed differential with instret 3082, and the six shell mutants. The board claim is a recorded observation that names the UF2 SHA-256, the board and how it was run. The reading that all four checks held rests on shell.c, where the beat is reached only after the checks, and README.md:156 plainly says what was not recorded. One caveat: `board_fail` and `board_play` are not in the bundle, so it is assumed, not shown, that `board_fail` never returns.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:91, proof/Life.lean:92, proof/Life.lean:84, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` covers any image whose first 76 bytes are the kernel's, run from `boot`, with any seed (read from memory via `seedOf`). It states the kernel is still running at 3078, halts with 0 at 3079, and leaves memory equal to `lived`, the original memory overlaid only on the 1024 bytes from 0x200 with generations 1 to 256. `lives`, `not_before` and `rule30` state what the README table says, with `(i + 31) % 32` as i-1 round the ring; the only extra hypothesis, `Placed env base`, is the region-fits condition the docstring states and does not narrow the claim.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:288, proof/Life.lean:98
+reason: A Rule 30 cellular-automaton kernel with its own 3079-instruction theorem, a cell-by-cell `rule30` theorem and a from-boot theorem is a new kernel and property. No prior-work entry covers a cellular automaton, and the others cover copy, hash, signature, PIO and health-test kernels.
+J4: YES
+evidence: rule30.py:19, rule30.py:22, rule30.py:23, proof/Life.lean:76, differential/differential.py:49, differential/differential.py:50
+reason: rule30.py computes each cell with a loop over 32 cells and per-cell neighbour extraction, while Lean's `life` is a whole-word shift/or/xor formula. The differential builds its expected region from rule30.py alone, and the README states this difference.
+INJECTION: NONE
+END

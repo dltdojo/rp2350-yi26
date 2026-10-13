@@ -98,8 +98,7 @@ strictly, T2 claimed for the period-two stripes, and a count one short.
 The shared library gained what this proof and exp229's both needed:
 `count_down`, `ofNat_ne_zero` and `not_mem_of` in `lean/Rv32/Flow.lean`, and
 `code_write` in `lean/Rv32/Limbs.lean`; and `imm_off`, of which
-`lean/Rv32/Sha.lean` had kept its own copy, is now in `Blocks.lean` once. Every
-proof that imports the library was checked again.
+`lean/Rv32/Sha.lean` had kept its own copy, is now in `Blocks.lean` once.
 
 ## Running it
 
@@ -114,7 +113,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp230 — the motion the fly sees ===
-recorded at 2026-10-13T00:23:06Z from commit 17d6407
+recorded at 2026-10-13T05:46:20Z from commit c40873e
 
 >>> the theorems, and what they rest on
 'Exp230.life_moves_up' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -139,6 +138,7 @@ count_short    the kernel is claimed to halt one instruction sooner than it does
 
 >>> T3 by brute force, apart from the proof: every one of the 2^32 rings, one generation of Rule 30
 PASS  all 4294967296 rings: 0 seen moving down, 4870848 not moving, 4290096448 moving up
+PASS  rings that moved two cells are themselves: 4 — 00000000 55555555 aaaaaaaa ffffffff
 
 >>> the model and the RTL against fly.py: the named stimuli, then 200 random
       life 0x00010000    up  2053  down  1030  up   steps: 255 up, 1 not moving, 0 down

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:144, README.md:145, README.md:146, README.md:147
+reason: The board evidence is one person watching the LED ("an irregular beat", README.md:142). No board log exists. README.md:144-147 states as facts about silicon that the 76 bytes were `kernel.bin`, the kernel halted with 0, `minstret` was 3082, and the first life's hash matched. These are inferred from the shell's design, and `shell.c` is not in the bundle. The README should say these were inferred from the beat rather than observed.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:91, proof/Life.lean:92, proof/Life.lean:87, proof/Life.lean:84, proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:99, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` has the required form. For any image whose first 76 bytes are the kernel's, starting from `boot`, it states that the kernel is still running after 3078 instructions and halts with 0 after 3079, leaving `lived m0 base N`. That is the original memory overlaid at 0x200 with 1024 little-endian bytes of generations 1 to 256 from the word at 0x100, so it holds for any seed, as README.md says. `lives`, `not_before` and `rule30`, where (i+31)%32 is i-1 mod 32, match their descriptions in quantifiers and conclusion. The only extra hypothesis is `Placed env base`, a placement precondition that does not narrow the claim.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288
+reason: This is a new kernel, a 19-instruction Rule 30 cellular automaton. It has a new `rule30` theorem, which ties `life` to the cell-by-cell rule, and a new `lives` theorem, which proves 256 generations written in exactly 3079 instructions. None of the prior experiments covers a cellular automaton.
+J4: YES
+evidence: rule30.py:19, rule30.py:22, rule30.py:23, proof/Life.lean:76
+reason: `rule30.py` computes each cell by extracting individual bits in a 32-iteration loop. Lean and the kernel use a whole-word shift/OR/XOR formula. The Python's docstring says it shares nothing with the kernel's shifts, and the code bears that out.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:7, README.md:47, README.md:63, proof/Fly.lean:115, proof/Fly.lean:495, proof/Fly.lean:576, capture.txt:26, capture.txt:27, capture.txt:30, capture.txt:39, capture.txt:40, proof/mutants.txt:5
+reason: The proof claims match theorems in Fly.lean (T1 `detects` with 70923/70924, T2 `shift_up`/`shift_dn`, T3 `life_moves_up`, `watches_life`, `watches_shift`), and 7+277*256+5 = 70924. The measured claims match the capture: 2053/1030 with 255 up steps and 1 not moving, 4,870,848 rings not moving, exactly four period-two rings, and RTL instret=70927 cycles=71697. The seven mutants listed match mutants.txt. The README says plainly that no board was used.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:486, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:589, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:593, README.md:54, README.md:58, README.md:63, README.md:68
+reason: `detects_boot` is in from_boot form: from `boot env.region img`, with any image that begins with the kernel's bytes, it is still running after 70923 steps and `.halted 0` at 70924, with `Sees` giving every step's toUp/toDn, both totals and the unchanged frames for arbitrary frame contents. T2 (`shift_up`/`shift_dn` with exactly the period-two hypothesis the README states), T3 (∀ x, toDn ≤ toUp of `life x`), `watches_life` and `watches_shift` (hypotheses "generations of Rule 30" and "none of period two") all match their English descriptions in quantifiers, hypotheses and conclusions.
+J3: YES
+evidence: proof/Fly.lean:113-115, proof/Fly.lean:495-496, proof/Fly.lean:573-580
+reason: A Hassenstein–Reichardt motion detector kernel is new, with T1 proved for every input. T3, that Rule 30 is never seen moving down, and the T2 aliasing exception are new properties and consequences. None of the prior experiments covers a motion detector.
+J4: YES
+evidence: fly.py:13-14, fly.py:30-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24, differential/differential.py:45-52
+reason: fly.py computes the moves as Python-integer rotations and counts with `bin().count`, where the Lean spec uses `up1`/`dn1` and its own `pc`, and the kernel uses shift pairs. Rule 30 is written cell by cell in rule30.py, where Lean uses bit operations, and the docstring states this. The detector formula itself is shared, but its implementation is independent.
+INJECTION: NONE
+END

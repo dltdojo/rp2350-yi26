@@ -208,22 +208,31 @@ calls/vk26/alice/
   capture、現場上板。只有通過或不通過。
 - **提案層級 S1–S4**：五個實驗、只動自己目錄、彼此不同、索引表齊全。
 - **LLM 裁判 J1–J4**（每個實驗，四個是非題）：宣稱是否都有根據、定理是否就是 README
-  說的那件事、相對既有實驗有沒有新東西、參考實作是否獨立（原 J3 定理不平凡已由 G1.5 與 G3 機器關卡把關）。每個回答都
+  說的那件事、相對既有實驗有沒有新東西、參考實作是否獨立（原 J3「定理不平凡」已併入 J2；G1.5 機器關卡先擋下結論就是 `True` 的定理）。每個回答都
   必須引用 `檔案:行號`。
-  - **抽檢模式**：五個實驗中，四個實驗預設採**單次確認**，抽驗一個實驗跑**三次判定**，總判定次數減少 60%–70%。
-  - **模型分級**：J2 專送 Opus（J2 切片），其餘 J1/J3/J4 送 Sonnet，節省 ~90% Opus 額度。
+  - **抽檢模式**：五個實驗中，四個實驗預設採**單次確認**，隨機抽驗一個實驗跑**三次判定**，判定次數由 15 次降為 7 次（減少 53%）；抽驗沒通過，其餘四個補滿三次。
+  - **模型分級**：J2 專送 Opus（J2 切片，實測約為完整 bundle 的 42%–61%），其餘 J1/J3/J4 送 Sonnet；Opus 讀的量約為單獨判四題時的一半。
   - LLM 不能推翻機器關卡的結果。
 
 自己先跑裁判：
 
 ```sh
+# 改了 judge-bundle.sh、JUDGE.md 或 audit-proposal.sh 之後，先跑回歸測試（不呼叫模型）：
+calls/vk26/selftest.sh
+
+# 看裁判實際收到的提示詞（由 JUDGE.md 組出）：
+calls/vk26/judge-bundle.sh prompt J2
+
+# 每次判定後，看 claude 回報的實際用量（每個 session 一行，另附各模型合計）：
+calls/vk26/judge-bundle.sh usage v1.txt.usage
+
 # 產生專題切片 bundle（排除無關檔案、去重複日誌）：
 calls/vk26/judge-bundle.sh bundle calls/vk26/alice/exp101-foo > /tmp/b.txt
 
 # 或是只抽取單一題目切片（J1、J2、J3、J4）進行極低 token 自檢：
 calls/vk26/judge-bundle.sh slice calls/vk26/alice/exp101-foo J2 > /tmp/b_j2.txt
 
-# 執行模型分級裁判（J2 專用 Opus 審查切片，J1/J3/J4 由 Sonnet 判定，節省 ~90% Opus 額度）：
+# 執行模型分級裁判（J2 由 Opus 判 J2 切片，J1/J3/J4 由 Sonnet 判完整 bundle，共兩個 session）：
 calls/vk26/judge-bundle.sh judge /tmp/b.txt v1.txt
 
 # 單次確認統計（一般實驗）：
