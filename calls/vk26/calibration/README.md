@@ -359,4 +359,4 @@ JUDGE.md 改了（9786a21），依規則整輪重跑。用漸進步驟：`VK26_J
 - J1 抓到的是**本 repo 自己**的問題，不是裁判太嚴。同樣「capture 標頭是 dirty」的實驗還有
   exp194、exp207、exp210、exp211、exp212（`grep -l "working tree dirty" experiments/*/capture.txt`）；
   它們的 README 若也寫「從乾淨的 commit 錄的」，裁判會判 NO。這次沒有處理。
-- 階段 B（14 次，約 54 萬 tokens）照規則放在額度剛重置之後。
+- 階段 B（14 次）依本輪平均每次判定約 8 萬 tokens（含輸出）估算，約 110 萬 tokens、約 $6；照規則放在額度剛重置之後。
