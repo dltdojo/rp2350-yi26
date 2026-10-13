@@ -163,11 +163,7 @@ function seamChecker(sha256) {
 // END seam-check
 
 const $ = (id) => document.getElementById(id);
-let bytes = 0, started = 0;
 const checker = seamChecker(async (b) => new Uint8Array(await crypto.subtle.digest('SHA-256', b)));
-const split = cdcLines();
-const rawLines = [];
-let queue = Promise.resolve();
 
 function cell(j, w) {
   if (!j || w >= j.windows.length) return '<td class="off">—</td>';
@@ -204,31 +200,11 @@ function verdict() {
   v.innerHTML = t;
 }
 
-function received(text, n) {
-  bytes += n;
-  if (!started) started = performance.now();
-  for (const l of split(text)) {
-    queue = queue.then(async () => {
-      const e = await checker.feed(l);
-      rawLines.push(l.length > 120 ? l.slice(0, 117) + '…' : l);
-      if (e.verdict === 'wrong') rawLines.push(`   <- wrong: ${e.why}`);
-      if (rawLines.length > 60) rawLines.splice(0, rawLines.length - 60);
-      if (e.kind === 'STREAM') show(e);
-      const raw = $('raw');
-      const atBottom = raw.scrollHeight - raw.scrollTop - raw.clientHeight < 30;
-      raw.textContent = rawLines.join('\n');
-      if (atBottom) raw.scrollTop = raw.scrollHeight;
-      verdict();
-      $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
-    });
-  }
-}
-
 appliance({
   serial: 'vk26-alice-1',
   page: `vk26-alice-1 seam.html ${$('ver').textContent}`,
   listening: 'A stream every few seconds, six a round; the first round starts with a fresh draw from the TRNG.',
-  onText: received,
+  onText: checkedLines(checker.feed, (e) => { if (e.kind === 'STREAM') show(e); verdict(); }),
   report: () => JSON.stringify(checker.summary()),
 });
 </script>

@@ -10,7 +10,7 @@ part is here once too, since vk26-alice-2's page is the second to need it.
 
 | File | What it is |
 | --- | --- |
-| [`core.js`](./core.js) | connecting, reading, Disconnect, Copy, Save (the same text as a file, for a log too long to paste): `appliance({ serial, page, onText, report })`, `cdcLines()`, `findCdc` (tools/pages/log.html's, byte for byte) |
+| [`core.js`](./core.js) | connecting, reading, Disconnect, Copy, Save (the same text as a file, for a log too long to paste): `appliance({ serial, page, onText, report })`, `cdcLines()`, `checkedLines(feed, after)` (each line through a page's checker, in order, shown in #raw), `findCdc` (tools/pages/log.html's, byte for byte) |
 | [`core.css`](./core.css) | the look |
 | [`health.js`](./health.js) | SP 800-90B's repetition count and adaptive proportion tests a sample at a time, as [`../tools/health.py`](../tools/health.py) has them in Python; the BITS, ROUND and FAIL lines; each stream's samples gathered from its BITS lines (`healthJudge`, `healthLine`, `healthStreams`, `healthWindowBytes`) |
 | [`build.py`](./build.py) | one page, one file: puts `core.js`, `health.js` and `core.css` into a page, for a phone |

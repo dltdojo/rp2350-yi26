@@ -17,6 +17,12 @@
 //     onText    every piece of text as it arrives
 //     report    the page's verdict, one line, for Copy
 //   cdcLines()  USB packets in, whole lines out
+//   checkedLines(feed, after)
+//                onText for a page that checks every line: each line awaited
+//                through `feed`, in order; the last 60 in #raw, a wrong one
+//                with why; #meta the bytes and seconds so far; after(e) with
+//                what feed made of each (vk26-alice-2's page the second to
+//                need it)
 
 const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
 const SET_LINE_CODING        = 0x20;
@@ -31,6 +37,29 @@ function cdcLines() {
     const parts = pending.split('\n');
     pending = parts.pop();
     return parts.map((p) => p.replace(/\r$/, '')).filter((p) => p.trim());
+  };
+}
+
+function checkedLines(feed, after) {
+  const $ = (id) => document.getElementById(id), split = cdcLines(), raw = [];
+  let bytes = 0, started = 0, queue = Promise.resolve();
+  return (text, n) => {
+    bytes += n;
+    if (!started) started = performance.now();
+    for (const l of split(text)) {
+      queue = queue.then(async () => {
+        const e = await feed(l);
+        raw.push(l.length > 120 ? l.slice(0, 117) + '…' : l);
+        if (e.verdict === 'wrong') raw.push(`   <- wrong: ${e.why}`);
+        if (raw.length > 60) raw.splice(0, raw.length - 60);
+        after(e);
+        const box = $('raw');
+        const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 30;
+        box.textContent = raw.join('\n');
+        if (atBottom) box.scrollTop = box.scrollHeight;
+        $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
+      });
+    }
   };
 }
 

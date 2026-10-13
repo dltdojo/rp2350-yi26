@@ -9,7 +9,7 @@
 //                with each of `names` on it. From the page itself when
 //                build.py has put them in it — a built page, or a copy of one
 //                a mutant changed — else from beside this file; and node's
-//                WebCrypto as the page has the browser's
+//                WebCrypto and TextEncoder as the page has the browser's
 //   inPackets(c, cdcLines, text)
 //                text through cdcLines in 64-byte packets, as the USB endpoint
 //                delivers them, each line awaited by c.feed; every stream it
@@ -36,7 +36,7 @@ export function pageContext(page, block, names) {
   const core = html.includes('function cdcLines(') ? html : shared('core.js');
   const at = core.indexOf('function cdcLines(');
   const lines = core.slice(at, core.indexOf('\n}\n', at) + 3);
-  const ctx = { crypto: globalThis.crypto };
+  const ctx = { crypto: globalThis.crypto, TextEncoder };
   vm.createContext(ctx);
   vm.runInContext(`${health}\n${own}\n${lines}\n${names.map((n) => `this.${n} = ${n};`).join(' ')}`, ctx);
   return ctx;

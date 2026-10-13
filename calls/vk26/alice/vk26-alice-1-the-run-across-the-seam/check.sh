@@ -93,16 +93,14 @@ if python3 - "$got" <<'PY'
 import re, sys
 sys.path.insert(0, ".")
 from seam import seam_outcome
+from health import unpack
+from lines import expect_instret
+from trng_sim import stand_in_words
 words = sys.argv[1].split()
-text = open("build/expect.h").read()
-instret = [int(x) for x in re.search(r"INSTRET\[5\] = \{([^}]*)\}", text).group(1).split(",")]
-wants = [int(x) for x in re.findall(r'^    \{"[^"]+", (\d+), \{', text, re.M)]
+instret = expect_instret("build/expect.h")
+wants = [int(x) for x in re.findall(r'^    \{"[^"]+", (\d+), \{', open("build/expect.h").read(), re.M)]
 # tools/hazard3/shell/trng_sim.h's stand-in, DEVICE 0: 128 words from its LCG.
-x, lcg = 222, []
-for _ in range(128):
-    x = (x * 1664525 + 1013904223) & 0xffffffff
-    lcg.append(x)
-trng = seam_outcome([(lcg[i // 32] >> (i % 32)) & 1 for i in range(4096)])[0]
+trng = seam_outcome(unpack(stand_in_words(128)))[0]
 rows, i = [], 0
 while i < len(words) and words[i] == "5354524d":
     rows.append([int(w, 16) for w in words[i + 1:i + 6]])

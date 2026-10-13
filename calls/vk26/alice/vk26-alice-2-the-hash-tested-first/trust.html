@@ -1,0 +1,246 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vk26-alice-2 — the hash tested first</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  vk26-alice-2-the-hash-tested-first — an appliance, not a tool: it knows
+  vk26-alice-2's lines and nothing else.
+
+  The board sends every stream it ran: its 2048 samples, HASH's answer to the
+  known-answer test as the kernel saw it (and whether the shell spoiled it on
+  purpose), the code the proved kernel halted with, and the output when there
+  is one. This page judges every stream again — the KAT's answer against
+  WebCrypto's SHA-256 of the KAT's message, then SP 800-90B's two tests over
+  the start-up window and the next, written here a sample at a time and
+  sharing nothing with the kernel or the C — and asks WebCrypto for SHA-256 of
+  the second window. So a code, a count or an output the board got wrong, or
+  carried wrong, is marked, whatever the kernel, the C, the USB code or the
+  phone did. What it cannot check is the kernel's proof: that is
+  proof/Trust.lean's.
+
+  The shared parts are ../pages/: core.js and core.css (connecting, Copy,
+  Save, the look) and health.js (SP 800-90B's two tests, the BITS lines). To
+  put this on a phone, build one file:
+    python3 ../pages/build.py trust.html build/trust.html
+  and open build/trust.html — Files app -> "Open with Chrome" on Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="../pages/core.css">
+<style>
+  td.pass { color: var(--ok); } td.fail { color: var(--bad); font-weight: 600; } td.off { color: var(--dim); }
+  td.wrong { background: color-mix(in srgb, var(--bad) 15%, transparent); }
+  .key { font-size: 12px; color: var(--dim); }
+</style>
+
+<h1>The hash tested first</h1>
+<p class="sub">vk26-alice-2 &middot; HASH asked a question with a known answer before it is trusted; the start-up
+  window tested and thrown away; the next window tested, and only then hashed — judged again here, every sample,
+  the KAT's answer and the output.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+  <button id="save" class="ghost">Save</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<table id="streams">
+  <thead><tr><th>stream</th><th>halt</th><th>KAT</th><th>start-up window</th><th>second window</th><th>output</th></tr></thead>
+  <tbody></tbody>
+</table>
+<p class="key"><b>KAT</b>: HASH's answer to the known-answer test, against WebCrypto's SHA-256 of its message;
+  <b>spoiled</b> the shell flipped one bit of it on purpose, and the kernel must stop there. Each window:
+  <b>run</b> the longest run of alike samples reached in it, counting a run carried in from the window before;
+  <b>APT</b> how many of its 1024 samples equal its first. A window fails at run 21 or APT 589. Grey: the kernel
+  stopped before it. The output is SHA-256 of the second window only.</p>
+
+<div id="verdict">Nothing checked yet.</div>
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script src="../pages/core.js"></script>
+<script src="../pages/health.js"></script>
+<script>
+// BEGIN trust-check
+// ---------------------------------------------------------------------------
+// What vk26-alice-2's lines say, and whether each stream is judged right.
+// The tests themselves, BITS, ROUND and FAIL are ../pages/health.js's.
+//
+//   BITS round s k w0 … w15        four a stream: the start-up window, then
+//                                  the one whose digest is the output
+//   KAT round s spoil <64 hex>     HASH's answer to the KAT, as the kernel
+//                                  saw it; spoil 1 if the shell flipped bit 0
+//                                  of its first byte on purpose
+//   DIGEST round s 0 <64 hex>      the output: with code 0 only
+//   STREAM round s code want minstret outputs name
+//   ROUND round streams
+//
+// The kernel's specification (proof/Trust.lean's `code`): 2 if HASH's answer
+// to the KAT is not SHA-256 of the KAT's message; else 1 if the start-up
+// window fails; else 3 if the second fails, the run carried across the edge
+// between them; else 0, with SHA-256 of the second window as the output.
+// vk26-alice-2's check.sh runs this block under node, against trust.py on
+// every one of its streams, and over streams right and wrong.
+// ---------------------------------------------------------------------------
+
+const TRUST_WINDOWS = 2;
+// minstret for each halt code, as the Hazard3 RTL counts it: build/expect.h's
+// INSTRET, which check.sh holds this to.
+const TRUST_INSTRET = [34897, 17470, 51, 34885];
+// The KAT's 64-byte message: trust.py's KAT and expect.h's KAT_MSG, which
+// check.sh holds this to.
+const TRUST_KAT = 'vk26-alice-2: the hash is asked this before it is trusted, 64 B.';
+
+const TRUST_WHY = ['both windows pass', 'the start-up window fails', 'HASH fails the KAT', 'the second window fails'];
+
+/** Where the kernel's specification stops, given whether HASH's answer to the KAT was right. */
+function trustJudge(bits, katRight) {
+  if (!katRight) return { passed: 0, windows: [], code: 2 };
+  const j = healthJudge(bits, TRUST_WINDOWS);
+  return { ...j, code: [1, 3, 0][j.passed] };
+}
+
+function trustParse(text) {
+  const t = text.trim(), h = '([0-9a-f]{8})';
+  let m;
+  const e = healthLine(t, 'vk26-alice-2');
+  if (e) return e;
+  if ((m = t.match(new RegExp(`^KAT ${h} ${h} ${h} ([0-9a-f]{64})$`))))
+    return { kind: 'KAT', round: parseInt(m[1], 16), s: parseInt(m[2], 16), spoil: parseInt(m[3], 16), hex: m[4] };
+  if ((m = t.match(new RegExp(`^DIGEST ${h} ${h} 00000000 ([0-9a-f]{64})$`))))
+    return { kind: 'DIGEST', round: parseInt(m[1], 16), s: parseInt(m[2], 16), hex: m[3] };
+  if ((m = t.match(new RegExp(`^STREAM ${h} ${h} ${h} ${h} ${h} ${h} (.+)$`))))
+    return { kind: 'STREAM', round: parseInt(m[1], 16), s: parseInt(m[2], 16), code: parseInt(m[3], 16),
+             want: parseInt(m[4], 16) >>> 0, minstret: parseInt(m[5], 16), outputs: parseInt(m[6], 16), name: m[7] };
+  return { kind: 'other' };
+}
+
+/**
+ * Feed it lines, in order, awaiting each; a STREAM comes back with a verdict:
+ *   ok          every BITS line and the KAT line of it arrived, HASH's answer
+ *               to the KAT is SHA-256's (or SHA-256's with the one bit flipped,
+ *               when the shell says it spoiled it), and the code, minstret and
+ *               the output are what that answer and its samples give
+ *   wrong       one is not, and `why` says which
+ *   incomplete  a BITS line or the KAT line of it is missing: the page joined
+ *               mid-stream, or a line was lost; nothing about it is claimed
+ * and `summary()` counts them. sha256 is (Uint8Array) => Promise<Uint8Array>.
+ */
+function trustChecker(sha256) {
+  const s = { streams: 0, ok: 0, wrong: 0, incomplete: 0, rounds: 0, fails: 0,
+              refused: 0, startup: 0, outputs: 0, firstWrong: null };
+  const samples = healthStreams(4), kats = new Map(), outputs = new Map();
+  const key = (e) => `${e.round}:${e.s}`;
+  let right = null;   // SHA-256 of the KAT's message, from WebCrypto, once
+
+  async function feed(text) {
+    const e = trustParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'ROUND') s.rounds++;
+    if (e.kind === 'BITS') samples.add(e);
+    if (e.kind === 'KAT') kats.set(key(e), e);
+    if (e.kind === 'DIGEST') outputs.set(key(e), e.hex);
+    if (e.kind !== 'STREAM') return e;
+
+    s.streams++;
+    const bits = samples.take(e.round, e.s), kat = kats.get(key(e)), out = outputs.get(key(e));
+    kats.delete(key(e)); outputs.delete(key(e));
+    if (!bits || !kat) {
+      e.verdict = 'incomplete'; e.why = `the ${bits ? 'KAT' : 'a BITS'} line of it never arrived`; s.incomplete++;
+      return e;
+    }
+    if (right === null) right = healthHex(await sha256(new TextEncoder().encode(TRUST_KAT)));
+    const spoiled = (parseInt(right.slice(0, 2), 16) ^ 1).toString(16).padStart(2, '0') + right.slice(2);
+    const j = trustJudge(bits, kat.hex === right);
+    e.kat = kat; e.judged = j;
+    const why = [];
+    if (kat.hex !== (kat.spoil ? spoiled : right))
+      why.push(kat.spoil ? "HASH's answer to the KAT is not SHA-256's with the one bit the shell flips"
+                         : "HASH's answer to the KAT is not SHA-256 of its message, and nothing spoiled it");
+    if (e.code !== j.code) why.push(`code ${j.code} is due — ${TRUST_WHY[j.code]} — not ${e.code}`);
+    if (e.want !== 0xffffffff && e.want !== j.code) why.push(`trust.py's code for it is ${e.want}`);
+    if (e.code <= 3 && e.minstret !== TRUST_INSTRET[e.code])
+      why.push(`minstret ${e.minstret}, not the RTL's ${TRUST_INSTRET[e.code]} for code ${e.code}`);
+    const wantOut = j.code === 0;
+    if (e.outputs !== (wantOut ? 1 : 0) || (out !== undefined) !== wantOut)
+      why.push(`${out === undefined ? 'no' : 'an'} output sent, ${e.outputs} said, `
+               + `${wantOut ? 'one' : 'none'} due: ${wantOut ? 'both windows passed' : 'the kernel stops first'}`);
+    if (wantOut && out !== undefined) {
+      e.outputOk = out === healthHex(await sha256(healthWindowBytes(bits, 1)));
+      if (!e.outputOk) why.push('the output is not SHA-256 of the second window\'s 4096 bytes');
+    }
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s.wrong++;
+      if (!s.firstWrong) s.firstWrong = { round: e.round, s: e.s, name: e.name, why: e.why };
+    } else {
+      e.verdict = 'ok'; s.ok++;
+      if (j.code === 2) s.refused++;
+      if (j.code === 1) s.startup++;
+      if (j.code === 0) s.outputs++;
+    }
+    return e;
+  }
+  return { feed, summary: () => ({ ...s }) };
+}
+// END trust-check
+
+const $ = (id) => document.getElementById(id);
+const checker = trustChecker(async (b) => new Uint8Array(await crypto.subtle.digest('SHA-256', b)));
+
+function cell(j, w) {
+  if (!j || w >= j.windows.length) return '<td class="off">—</td>';
+  const x = j.windows[w];
+  const carried = x.carried ? ` (carried ${x.carried})` : '';
+  return `<td class="${x.fail ? 'fail' : 'pass'}">run ${x.longest}${carried}<br>APT ${x.matches}`
+       + `${x.fail ? `<br>fails: ${x.fail}${x.across ? ', across the edge' : ''}` : ''}</td>`;
+}
+
+const HALT = ['0: output', '1: start-up failed', '2: KAT failed', '3: second window failed'];
+
+function show(e) {
+  const tb = $('streams').tBodies[0];
+  if (e.s === 0) tb.innerHTML = '';
+  const tr = document.createElement('tr'), j = e.judged, mark = e.verdict === 'ok' ? 'pass' : 'wrong';
+  // What the board says happened to HASH's answer: the kernel stopping at the KAT is code 2.
+  const [kat, katClass] = !e.kat ? ['—', 'off']
+    : e.kat.spoil ? (e.code === 2 ? ['spoiled, refused', 'pass'] : ['spoiled, not refused', 'fail'])
+    : j.code === 2 ? ['wrong', 'fail'] : ['right', 'pass'];
+  tr.innerHTML = `<td>${e.s} ${e.name}<br><small>round ${e.round}</small></td>`
+    + `<td class="${mark}">${HALT[e.code] || e.code}</td>`
+    + `<td class="${katClass}">${kat}</td>`
+    + [0, 1].map((w) => cell(j, w)).join('')
+    + `<td class="${mark}">${e.verdict === 'incomplete' ? 'incomplete'
+         : j.code !== 0 ? (e.outputs ? 'sent, none due' : 'none') : e.outputOk ? 'SHA-256\'s' : 'not SHA-256\'s'}</td>`;
+  if (e.verdict !== 'ok') tr.title = e.why;
+  tb.appendChild(tr);
+}
+
+function verdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.streams) { v.textContent = 'No stream yet: the first comes within about ten seconds.'; return; }
+  let t = `<b class="${s.wrong ? 'bad' : 'ok'}">${s.ok} of ${s.streams} streams judged right</b>`
+        + `, ${s.wrong} wrong, ${s.incomplete} incomplete · ${s.rounds} rounds · `
+        + `${s.refused} spoiled hashes refused before a sample was read · `
+        + `${s.startup} stopped by the start-up test · ${s.outputs} outputs, each SHA-256 of the second window`;
+  if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
+  if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, stream ${s.firstWrong.s} `
+                       + `(${s.firstWrong.name}) — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+}
+
+appliance({
+  serial: 'vk26-alice-2',
+  page: `vk26-alice-2 trust.html ${$('ver').textContent}`,
+  listening: 'A stream every few seconds, five a round; each round starts with a fresh draw from the TRNG.',
+  onText: checkedLines(checker.feed, (e) => { if (e.kind === 'STREAM') show(e); verdict(); }),
+  report: () => JSON.stringify(checker.summary()),
+});
+</script>
