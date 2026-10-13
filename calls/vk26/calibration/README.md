@@ -210,3 +210,26 @@ calls/vk26/calibration/run.sh B "$OUT"
 並量新格式的實際用量，再決定步驟 2。第一次探測是 v2 bundle 的判定，已改名為
 `round2/good-exp225-1.v2.txt` 與 `.v2.txt.usage` 保留；不改名，`run.sh` 會當它已完成而跳過，
 新的用量也會混進同一個檔案。
+
+### 第 2 輪重新探測的結果（v3 bundle）
+
+[round2/good-exp225-1.txt](./round2/good-exp225-1.txt)，judge-bundle.sh 與 JUDGE.md 為 commit
+ca971eb，2026-10-13，同一個指令，約 36 秒，沒有 429。
+
+| session | v2（第一次） | v3（這次） |
+| --- | --- | --- |
+| Sonnet，J1/J3/J4 | 送出 58,201 B；輸入 31,656、輸出 1,630 | 送出 53,649 B；輸入 29,217、輸出 1,855 |
+| Opus，J2 切片 | 送出 36,301 B；輸入 21,995、輸出 1,266 | 送出 30,474 B；輸入 19,152、輸出 1,323 |
+| claude 回報的費用 | $0.34 | $0.30 |
+
+- **用量**：縮短行號前綴實際省下輸入 8%（Sonnet）與 13%（Opus），少於以位元組估的
+  14%–18%：路徑前綴的 token 密度比內容低。以這次的比例重估，階段 A 約 48 萬 tokens、
+  階段 B 約 97 萬。兩次探測合計約 10.8 萬。
+- **判定仍不對**：good-exp225 J1 NO，理由有兩項。
+  1. README.md:86–87 的種子組成在 bundle 裡查不到：種子定義在
+     `differential/differential.py`（`seeds()`，第 29 行），v2 起排除了 `differential/`，第 1 輪
+     PASS 時引用過 `differential/differential.py:31`。屬於 bundle 的缺口。
+  2. `shell.c` 已在 bundle 中，裁判仍不接受「LED 會閃 → 四項檢查都成立」的推論，理由是沒有
+     板子紀錄、推論寫成像在晶片上觀察到的。這是 JUDGE.md J1「板子上的宣稱必須對應板子紀錄」
+     的兩種讀法：第 1 輪 Opus 三次都接受「一個人記錄的觀察 ＋ 程式碼推論」，這兩次 Sonnet
+     都不接受。是模型差別還是取樣差別，目前分不出來；要不要改寫 J1 待任務方決定。
