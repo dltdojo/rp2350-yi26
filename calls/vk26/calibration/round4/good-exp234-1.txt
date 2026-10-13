@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:75, README.md:93, README.md:123, README.md:129, README.md:218, README.md:222, README.md:225, README.md:232, board/round1.txt:1, board/round1.txt:6, board/round1.txt:71, capture.txt:50, capture.txt:67, shell/shell.c:135
+reason: Each proved claim matches a theorem in proof/World.lean (`lives`, `still`, `resistance_stays`, `cured_iff`, `answer_world`, `zero_stays`). The six refused mutants, the 19-of-19 board replay and the 4046 minstret match capture.txt and board/round1.txt. The 27-treated, 4-missed, 17-control figures are the page's summary line, which the README says it is. The earlier exp232/exp233 board counts match their logs, and I checked the 12.43% vs 12.715% standard-error comparison and the intervals by hand. The checks 10 and 12 run on every patient in `judge()`. I found no claim beyond its evidence.
+J2: YES
+evidence: README.md:71, proof/World.lean:507, proof/World.lean:508, proof/World.lean:510, proof/World.lean:511, proof/World.lean:187, proof/World.lean:188, proof/World.lean:489, proof/World.lean:490, README.md:72, proof/World.lean:622, README.md:73, proof/World.lean:588, proof/World.lean:589, README.md:74, proof/World.lean:641, proof/World.lean:642, README.md:75, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:704, README.md:76, proof/World.lean:663, proof/World.lean:664
+reason: `from_boot` covers any image that starts with the kernel's 296 bytes, so the masks and inputs are arbitrary. It proves the kernel is still running at 4042 instructions and has halted with 0 at 4043, with memory equal to `lived`: the 768-byte history of `wgen`, overlaid on everything else unchanged. W0, M6, M7, `answer_world` and M8 state what the README table says: the quantifiers range over every body, schedule, mask sequence and ring position `p`, with no hidden restricting hypotheses, and `D` gives 0, 0, 1, 2, 3, 8 for widths 1 to 6.
+J3: YES
+evidence: README.md:5-14, proof/World.lean:489, proof/World.lean:588, proof/World.lean:641, proof/World.lean:718, capture.txt:23
+reason: This is new. Prior work (exp232) had a proved model kernel and an unproved C world. Here the world is a 74-instruction proved kernel (W1), with W0, M6, M7 and M8, and a derived exact failure rate of 3276629119/25769803776. That rate is compared with 40000 simulated patients and a board run.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:57-77, world.py:43-50, world.py:61-66, world.py:69-75
+reason: The reference, `cure.py`, writes the dose and growth cell by cell with loops, while Lean and the kernel use word-level bit operations. `world.py` recomputes the divisions through that code and with `Fraction`, then compares them to D read from the Lean source.
+INJECTION: NONE
+END

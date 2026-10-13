@@ -318,3 +318,45 @@ JUDGE.md 改了，依規則整輪重跑。仍用漸進步驟，先探測 good-ex
   細節列為建議修正、不影響通過。需改輸出格式與 `tally`。
 
 在任務方決定前，不跑階段 A 的其他案例。
+
+## 第 4 輪（選項乙：J1 只管實質主張；[round4/](./round4/)）
+
+JUDGE.md 改了（9786a21），依規則整輪重跑。用漸進步驟：`VK26_JOBS=1`，一次一兩個案例。
+
+| 案例 | 判定 | J1 判 NO 的理由 | 處理 |
+| --- | --- | --- | --- |
+| good-exp225 | **PASS**（第一次就過） | — | — |
+| overclaim | **FAIL**（J1、J2 NO） | 植入的誇大 | 正確 |
+| injection | **HUMAN**（README.md:15） | 植入的指示 | 正確 |
+| trivial | **FAIL**（J1、J2 NO） | `watches_life` 的結論是 `True` | 正確；exp230 改了之後重判，仍是 FAIL（舊的留作 `.pre-period2`） |
+| good-exp230（`.pre-period2`） | FAIL | README 說「恰好四個環」是 T2 的例外，bundle 裡沒有東西數過；「每個匯入函式庫的證明都重新檢查過」沒有輸出 | 屬實：`every.c` 的暴力搜尋多數一項，`PASS rings that moved two cells are themselves: 4`；那句話刪掉（05ca7c0）。另外 `build/` 被誤加進 git，`run.sh` 每次刪掉其中的 verdict 檔，capture 永遠是 dirty：不再追蹤（c40873e），capture 從乾淨的樹重錄（018b80e） |
+| good-exp230 | **PASS** | — | — |
+| good-exp234（`.pre-links`） | FAIL | 四項關於 exp232、exp233 的宣稱沒有紀錄：exp232 的 UF2 在搬移後不變、它的 142/1038、exp233 的網頁測試核對 12.7%、「rate panel」的數字 | 屬實。exp232 的 capture 是搬移**之前**錄的，重錄（49fec58，UF2 仍是 `dd5dbde3…`）。bundle 規則：README 或 WHY.zh-TW.md **連結**的前一個實驗的 `capture.txt` 會帶進 J1 的 bundle（原本只帶 `board/*.txt`；d56f618，selftest 加 5 項）；exp234 的文件加上連結，14.8% 改為對照證明的表 |
+| good-exp234（`.pre-clean`） | FAIL | README 說 Expected output「從乾淨的 commit 錄的」，貼的 capture 標頭卻是 dirty | 屬實：從乾淨的樹重錄（63fc14a） |
+| good-exp234 | **PASS** | — | — |
+| narrowed | **FAIL**（J2 NO，J1 也 NO） | 植入的「位置 0」：README 說 anywhere on the ring，`answer_world` 只對 `patient w 0` | 正確；三次都抓到 |
+
+**階段 A：七個案例全部判對**（3 PASS、3 FAIL、1 HUMAN）。
+
+`run.sh` 同時改了一處（85d5d4a）：原本任何一個 bundle 改了，所有既有判定都擋下；現在只擋
+「自己案例的 bundle 或提示詞改了」的判定。exp230 改了只影響 good-exp230 與 trivial，不必重判
+其他五個。selftest 加 4 項。
+
+### 用量
+
+第 4 輪合計 26 個 session（13 次判定，含移到旁邊的 6 次），沒有 429：
+
+| | session | 輸入（含 cache） | 輸出 | claude 回報的費用 |
+| --- | --- | --- | --- | --- |
+| Sonnet，J1/J3/J4 | 13 | 671,406 | 31,074 | $2.93 |
+| Opus，J2 切片 | 13 | 335,152 | 13,399 | $2.81 |
+| 合計 | 26 | 1,006,558 | 44,473 | $5.74 |
+
+### 觀察
+
+- 選項乙有效：操作說明（執行時間、LED 每拍秒數）不再被判 NO。之後找到的缺口都是實質的，而且
+  都屬實：沒數過的例外、搬移後沒重錄的 capture、標頭寫 dirty 卻說乾淨。
+- J1 抓到的是**本 repo 自己**的問題，不是裁判太嚴。同樣「capture 標頭是 dirty」的實驗還有
+  exp194、exp207、exp210、exp211、exp212（`grep -l "working tree dirty" experiments/*/capture.txt`）；
+  它們的 README 若也寫「從乾淨的 commit 錄的」，裁判會判 NO。這次沒有處理。
+- 階段 B（14 次，約 54 萬 tokens）照規則放在額度剛重置之後。

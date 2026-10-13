@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:75, proof/World.lean:718-720
+reason: The README says that under exp232's answer a lump of 1 to 6 cells "anywhere on the ring" leaves 0, 0, 1, 2, 3 or 8 cells to chance. As stated, `answer_world` only covers `patient w 0`, with no position quantified. `divisions_iter` (World.lean:697) extends the division count to every position, but the cure equivalence at other positions needs rotation invariance of `gen`. That lives in `Tissue.lean`, which is not in the bundle. Every other substantive claim I checked matches a theorem, the capture or a board log.
+J2: NO
+evidence: README.md:75, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:697, proof/World.lean:507, proof/World.lean:511
+reason: `from_boot` is of the right form (kernel bytes, from boot, running at 4042, halted 0 at 4043, memory = `lived`), but `answer_world` is described in the README and its own docstring as covering a lump "anywhere on the ring", while its statement fixes the position at 0 (`patient w 0 ANSWER`). `divisions_iter` transfers only the division count to other positions, not the cure-iff or the model's `(gen … 64).t = 0`, so the main theorem says less than its description.
+J3: YES
+evidence: README.md:71-75, proof/World.lean:79-86, proof/World.lean:641-642
+reason: The experiment adds a new 74-instruction world kernel with a theorem for every mask (W1), M6, M7 and M8, and a new exact failure-rate prediction (M7/`answer_world`). It also adds a checked comparison of that prediction against the board's share. None of the prior-work entries cover these.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61-77, world.py:43-50, differential/differential.py:59-70
+reason: The reference `cure.py` writes the dose and growth cell by cell with `cell()` loops where the Lean kernel uses shifts and bit operations. `world.py` computes D and the rate from that reference with `Fraction`, then compares D against the value parsed from Lean's source. The differential run holds both the Lean model and the RTL to the `cure.py` history.
+INJECTION: NONE
+END
