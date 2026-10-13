@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: proof/Fly.lean:578, proof/Fly.lean:573, README.md:68
+reason: README.md:68-70 claims `watches_life` shows the kernel reports up at least down at every one of the 256 steps, and in total. The theorem's stated conclusion at proof/Fly.lean:578 is `True`, so it proves nothing of the sort. The README's closing claim, that the kernel shown exp225's life reports up at least down at every step (README.md:11-12), has no theorem behind it either. The hypothesis `hlife` is also never used in the visible statement.
+J2: NO
+evidence: README.md:12, README.md:68, README.md:69, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, proof/Fly.lean:496, proof/Fly.lean:559
+reason: `detects` and `detects_boot` are of `from_boot` form and match T1, but `watches_life` concludes only `True`. That says nothing about the kernel's run. The README instead claims it shows the kernel reports up at least down at every one of the 256 steps and in total, and line 12 states this as the experiment's headline result. That main theorem states less than its description.
+J3: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:495, README.md:5
+reason: Nothing in prior work has this Hassenstein–Reichardt motion-detector kernel, its exact-count theorem `detects`, or the new property `life_moves_up` (T3). T3 says Rule 30 is never seen moving down, and it was a conjecture in exp225.
+J4: YES
+evidence: fly.py:30, fly.py:38, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:24
+reason: The reference writes Rule 30 cell by cell and counts bits with `bin().count`, where Lean uses `dn1`/`up1` bit operations and its own recursive `pc`. The kernel uses a shift loop. The only weakness is that `rot_up` and `rot_down` use the same shift-and-OR form as the kernel.
+INJECTION: NONE
+END

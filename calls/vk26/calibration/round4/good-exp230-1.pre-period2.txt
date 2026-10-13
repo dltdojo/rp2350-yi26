@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:60, README.md:93, README.md:101
+reason: "Exactly four rings" (0, all ones, 0x55555555, 0xAAAAAAAA) fail the period-two condition, but no theorem or capture line in the bundle shows this. `shift_up` only assumes `up1 (up1 x) ≠ x`, and the capture exercises only 0x55555555. Also, "Every proof that imports the library was checked again" has no supporting output in the bundle.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:589, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:593, README.md:54, README.md:58, README.md:59, README.md:63, README.md:68, README.md:70
+reason: `detects_boot` is a from_boot theorem. It covers any image that begins with the kernel's bytes. After 70923 instructions the kernel is running, and at 70924 it halts with 0. `Sees` holds for the frames, which are not constrained, so the claim is "for any frames". `Sees` states every step's toUp/toDn, both totals, and frames unchanged, as README:54-57 says. T2's only hypothesis is the stated period-two exclusion, T3 holds for all x, and `watches_life`/`watches_shift` state per-step and total inequalities with exactly the hypotheses the README names. The "exactly four rings" remark is explanation, not a theorem claim, and does not weaken any stated theorem.
+J3: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:495, proof/Fly.lean:130
+reason: The Hassenstein–Reichardt detector is a new 41-instruction kernel (T1, `detects`). It comes with new proved properties: `life_moves_up` (Rule 30 is never seen moving down) and the period-two aliasing condition in `shift_up`. None of the prior experiments, which cover copy, Lamport/WOTS/Merkle, SHA-256, PIO, Rule 30 itself, Bitcoin Script and modular arithmetic, has any of these.
+J4: YES
+evidence: fly.py:13, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:24
+reason: Rule 30 is computed cell by cell in the reference, where Lean uses the bitwise `life`. The reference counts bits with `bin().count` on Python rotations, where the kernel and Lean use shift pairs and a `pc` bit loop. fly.py:13-14 says so, and the code bears it out.
+INJECTION: NONE
+END

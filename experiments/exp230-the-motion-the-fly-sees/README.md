@@ -98,8 +98,7 @@ strictly, T2 claimed for the period-two stripes, and a count one short.
 The shared library gained what this proof and exp229's both needed:
 `count_down`, `ofNat_ne_zero` and `not_mem_of` in `lean/Rv32/Flow.lean`, and
 `code_write` in `lean/Rv32/Limbs.lean`; and `imm_off`, of which
-`lean/Rv32/Sha.lean` had kept its own copy, is now in `Blocks.lean` once. Every
-proof that imports the library was checked again.
+`lean/Rv32/Sha.lean` had kept its own copy, is now in `Blocks.lean` once.
 
 ## Running it
 
