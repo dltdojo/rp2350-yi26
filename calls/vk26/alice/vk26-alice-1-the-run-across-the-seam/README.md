@@ -113,7 +113,7 @@ Under it, in order:
 Each rests on Lean's own axioms only (`#print axioms`, in
 [capture.txt](./capture.txt)).
 
-[`proof/mutants.txt`](./proof/mutants.txt) holds ten wrong versions. Six
+[`proof/mutants.txt`](./proof/mutants.txt) holds twelve wrong versions. Ten edit the proof file. Six
 are wrong kernels: the branch inverted, the halt code off by one either
 way, the digests 16 bytes apart, `HASH` asked for the next window, and the
 repetition count starting as though a 0 came first. Four are wrong claims:
@@ -121,14 +121,16 @@ each window starting with no run behind it, a digest for the failing window
 too, the halt code as an index, and one instruction fewer. Lean refuses
 every one, each in the theorem its label names.
 
-The mutant the plan asked for first, "the run reset at each window", is the
-claim one: in this kernel the reset would be a change to
-`Alice.Window.head`, and `lean.sh`'s mutants can change only `lean/`, not a
-proposer's package (one of the settings this trial found; see
-[below](#what-the-trial-found-in-the-calls-settings)). What is refused here
-is the statement that the kernel resets; the seam streams in the
-differential and the page's `reset.txt` are where a resetting kernel's
-behaviour is caught.
+Two more edit alice's own package, `../lean/Alice/Window.lean`: the
+block's specification starting the repetition count afresh at each window,
+as `front`'s does (refused in `win_verdict`), and the block taking the whole
+first word as the window's reference instead of its bit 0 (refused in
+`start_run`). The first is the mutant the plan asked for first, "the run
+reset at each window"; until `lean.sh` could edit a proposer's package
+(one of the settings this trial found; see
+[below](#what-the-trial-found-in-the-calls-settings)) it could only be the
+claim mutant above. A kernel that resets is also caught by the seam
+streams in the differential and the page's `reset.txt`.
 
 ## The reference, and the differential
 
@@ -335,10 +337,17 @@ Found while making this experiment, and recorded in
 - The judge's bundle held no page, so a README's claims about one could
   only be unsupported (fixed in its own commit: J1 now reads the pages a
   README links, with the scripts they load from beside them).
-- `lean.sh`'s mutants can change only `lean/`, not a proposer's package.
-- `experiments/duplication.sh` does not look in `calls/`.
+- `lean.sh`'s mutants could change only `lean/`, not a proposer's package
+  (fixed in its own commit; two of this experiment's mutants now edit
+  `Alice/Window.lean`).
+- `experiments/duplication.sh` did not look in `calls/` (fixed in its own
+  commit; it counts by name, and four of this experiment's functions,
+  unrelated to their namesakes in experiments/, were renamed).
 - `lean.sh check` fails on any warning, and the library has no Mathlib, so
-  `split_ifs` and `set` are not there; `bv_omega` is.
+  `split_ifs` and `set` are not there; `bv_omega` is (now in the call's
+  README).
+- A log pasted back through chat was cut (now: Save, and the call says to
+  send logs as files).
 
 ## Running it
 
