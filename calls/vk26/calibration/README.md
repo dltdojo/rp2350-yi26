@@ -81,10 +81,7 @@ README 連結的板子紀錄、上限 400 行；JUDGE.md 舉例說明引用格�
 
 - `judge-bundle.sh judge`：提示詞加 bundle 一則訊息、無工具、`claude -p`；預設 Opus，`sonnet` 供自我檢查。
 - bundle 瘦身：Lean 證明步驟改為一行標記（行號不變，定義、敘述、註解保留）；板子紀錄去掉重複行（PATIENT/TRIAL 全留）；PRIOR WORK 每列 250 字；GATES 只留摘要。
-- 實測 bundle 大小：exp225 約 97 → 73 KB，exp230 約 117 → 78 KB，exp234 約 287 → 197 KB。
-  **比原型估計的 43%–57% 保守**：剩下的主要是 README、參考實作 `cure.py`、板子紀錄與 shell.c，
-  這些是 J1/J5 的證據，沒有再刪。一次送入的節省（約 ⅓）才是主要來源，未實測。
-- G1.5：`judge-bundle.sh gates`。四個壞案例中，「定理換成 `True`」會被它擋下。
-- **廢除 J3，交由 G1.5 + G3 機器關卡**：原 J3（定理不平凡、依賴 kernel）實質上已被 G1.5（禁止結論為 True）與 G3（變異體全部拒絕）所涵蓋；LLM 裁判題數精簡為四題（J1 宣稱有根據、J2 定理即是所說、J3 有新東西、J4 參考實作獨立），節省裁判 token 與上下文負荷。
+- **專題切片（Slice Bundle v2）**：`judge-bundle.sh bundle` 排除 `shell/shell.c`、`check.sh`、`differential/*.py` 等與裁判無關的建置檔案；板子日誌僅保留實測結果行並過濾重複輪詢；前人索引精簡為最近 15 項；引用之兄弟模組演算法上限 150 行。新增 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 支援單題切片自檢。
+- 實測 Slice Bundle 大小：exp225 約 51 KB (~14.7k tokens)，exp230 約 63 KB (~18k tokens)，exp234 約 142 KB (~40k tokens，由原先 287 KB 減半)。
 - `run.sh A|B|sonnet`：分階段、並行上限 3。
-- 七個壞案例的缺陷在瘦身後的 bundle 中都仍看得到（`True := …`、`patient w 0 ANSWER`、誇大宣稱、注入文字）。
+- 七個壞案例的缺陷在切片 bundle 中皆完整保留（`True := …`、`patient w 0 ANSWER`、誇大宣稱、注入文字）。

@@ -54,7 +54,7 @@
 
 ### 判定規則
 
-1. 同一份 bundle，由**三個全新的** session 各判一次（模型：Opus 5.5；提示詞：commit 中的 JUDGE.md）。每次由 `judge-bundle.sh judge` 把提示詞與整份 bundle 放在**一則訊息**送出、不給工具，裁判不分段讀檔。bundle 已去掉 Lean 的證明步驟（G1 已驗證），保留定義、定理敘述與註解。
+1. 同一份 bundle，由**三個全新的** session 各判一次（模型：Opus 5.5；提示詞：commit 中的 JUDGE.md）。每次由 `judge-bundle.sh judge` 把提示詞與整份 bundle 放在**一則訊息**送出、不給工具，裁判不分段讀檔。bundle 採用**專題切片（Slice Bundle）**：去掉 Lean 證明步驟、排除裁判無關的建置腳本與 shell.c、篩選板子日誌與前人索引，降低 token 與上下文開銷。開發者亦可使用 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 抽取單題切片進行超低 token 的自我檢查。
 2. 每個回答都必須附上 `檔案:行號` 的證據，而且該行必須真的存在於 bundle 中。缺證據或證據不存在，該回答**無效**。由 `judge-bundle.sh tally` 自動檢查。
 3. 每一題：
    - 三次都有效且都是 YES → **YES**

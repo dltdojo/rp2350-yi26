@@ -4,13 +4,14 @@
 # calls/vk26 — what the LLM judge reads, and what its verdicts add up to.
 # ACCEPTANCE.md says why; JUDGE.md is the prompt the judge is given.
 #
-#   judge-bundle.sh bundle EXPDIR [GATES]   one experiment as the judge reads it,
-#                                           on stdout: every line numbered as
-#                                           path:line| text, so that a citation
-#                                           can be checked. GATES, if given, is a
-#                                           fresh check.sh output; otherwise the
-#                                           PASS/FAIL/SKIP lines of the committed
-#                                           capture.txt
+#   judge-bundle.sh bundle EXPDIR [GATES]   the experiment as the judge reads it,
+#                                           sliced by topic on stdout: every line
+#                                           numbered as path:line| text, so that a
+#                                           citation can be checked. Excludes build
+#                                           artifacts, shell.c, and check.sh (G5/G6
+#                                           check them; judge questions do not).
+#   judge-bundle.sh slice EXPDIR QUESTION   extract only the slice for one question
+#                                           (J1, J2, J3, or J4), for low-token checks.
 #   judge-bundle.sh scan EXPDIR             text in the experiment addressed to
 #                                           a judge; exit 1 if any
 #   judge-bundle.sh gates EXPDIR            G1.5, a machine check on the proof files:
@@ -30,16 +31,16 @@
 #                                           experiment PASS (exit 0), FAIL
 #                                           (exit 1) or HUMAN (exit 2)
 #
-# The bundle holds, in this order: the experiment's README.md and WHY.zh-TW.md;
-# its proof files, their proofs left out (G1 checked those: theorem statements,
-# definitions and docstrings stay, each omitted proof is one marker line, every
-# kept line keeps its real line number), and mutants.txt; its Python (top level and differential/);
-# check.sh; the shell's shell.c; capture.txt; the first 400 lines of each board
-# log with repeated lines dropped, and of each board log in another experiment its README links to; and,
-# under calls/, the proposer's own Lean package. Never kernel.bin,
-# build/ or anything generated. Before them: the experiments that came before
-# it (experiments/README.md's index, each row cut to 250 characters) and the
-# gate summary. It is the same for the same commit: no dates, no absolute paths.
+# The bundle is organized in topic slices:
+# - Prior Work (for J3): condensed prior experiment index rows.
+# - Documentation (for J1, J2, J3): README.md and WHY.zh-TW.md.
+# - Proof & Specification (for J1, J2, J4): Lean definitions, theorem statements
+#   (proof bodies omitted, line numbers preserved), and mutants.txt.
+# - Reference Implementation (for J4): top-level Python algorithms (differential
+#   harnesses omitted; imported sibling algorithms capped).
+# - Empirical Evidence (for J1): capture.txt summary and board log results (PATIENT/
+#   TRIAL lines kept, polling deduplicated).
+# Never kernel.bin, shell.c, check.sh, build/ or anything generated.
 #
 #   VK26_AS=experiments/expNNN-…   bundle EXPDIR as though it were at that path
 #                                  in the repository — which experiments count as
@@ -52,10 +53,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2;;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,55p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,55p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,55p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,55p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,55p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -140,8 +142,10 @@ def gate15(exp):
     return probs
 
 
-def files_of(exp):
-    """The experiment's files the judge reads, as (relative path, max lines)."""
+def files_of(exp, question=None):
+    """The experiment's files the judge reads, as (relative path, max lines).
+    If question is given ('J1', 'J2', 'J3', 'J4'), returns only the files
+    needed for that topic slice. Omits shell.c and check.sh (covered by G5/G6)."""
     out = []
     def add(pattern, cap=4000):
         for p in sorted(glob.glob(os.path.join(exp, pattern))):
@@ -149,36 +153,47 @@ def files_of(exp):
                 rel = os.path.relpath(p, exp)
                 if rel not in [r for r, _ in out]:
                     out.append((rel, cap))
-    add("README.md"); add("WHY.zh-TW.md")
-    add("proof/*.lean"); add("proof/mutants.txt")
-    add("*.py"); add("differential/*.py")
-    # A reference this experiment imports from a sibling experiment (exp234
-    # replays the world with exp232's cure.py): the judge must see it to
-    # answer J5.
-    for rel, _ in list(out):
-        if not rel.endswith(".py"):
-            continue
-        src = open(os.path.join(exp, rel), encoding="utf-8", errors="replace").read()
-        for sib in re.findall(r'os\.path\.join\(HERE,\s*"\.\.",\s*(?:"\.\.",\s*)?"([^"]+)"\)', src):
-            for mod in re.findall(r"^\s*(?:from\s+(\w+)\s+import|import\s+(\w+))", src, re.M):
-                name = mod[0] or mod[1]
-                for base in (os.path.join(exp, "..", sib), os.path.join(exp, "..", "..", sib)):
-                    cand = os.path.normpath(os.path.join(base, name + ".py"))
-                    r = os.path.relpath(cand, exp)
-                    if os.path.isfile(cand) and r not in [x for x, _ in out]:
-                        out.append((r, 4000))
-    add("check.sh"); add("shell/shell.c")
-    add("capture.txt"); add("board/*.txt", 400)
-    # Board logs the README links to in other experiments: evidence the author
-    # cites, which the judge must be able to read (exp234's figures for
-    # exp232's and exp233's boards).
-    readme = os.path.join(exp, "README.md")
-    if os.path.isfile(readme):
-        for link in re.findall(r"\]\((\.\./[^)#\s]+/board/[^)#\s]+\.txt)\)", open(readme, encoding="utf-8").read()):
-            cand = os.path.normpath(os.path.join(exp, link))
-            r = os.path.relpath(cand, exp)
-            if os.path.isfile(cand) and r not in [x for x, _ in out]:
-                out.append((r, 400))
+
+    # Docs: needed by J1, J2, J3, J4
+    add("README.md")
+    if question in (None, "J1", "J2"):
+        add("WHY.zh-TW.md")
+
+    # Lean specification & theorems: needed by J1, J2, J4
+    if question in (None, "J1", "J2", "J4"):
+        add("proof/*.lean")
+        if question in (None, "J1"):
+            add("proof/mutants.txt")
+
+    # Python reference: needed by J4
+    if question in (None, "J4"):
+        add("*.py", 1000)
+        # Sibling reference algorithms (capped at 150 lines)
+        for rel, _ in list(out):
+            if not rel.endswith(".py"):
+                continue
+            src = open(os.path.join(exp, rel), encoding="utf-8", errors="replace").read()
+            for sib in re.findall(r'os\.path\.join\(HERE,\s*"\.\.",\s*(?:"\.\.",\s*)?"([^"]+)"\)', src):
+                for mod in re.findall(r"^\s*(?:from\s+(\w+)\s+import|import\s+(\w+))", src, re.M):
+                    name = mod[0] or mod[1]
+                    for base in (os.path.join(exp, "..", sib), os.path.join(exp, "..", "..", sib)):
+                        cand = os.path.normpath(os.path.join(base, name + ".py"))
+                        r = os.path.relpath(cand, exp)
+                        if os.path.isfile(cand) and r not in [x for x, _ in out]:
+                            out.append((r, 150))
+
+    # Evidence: capture summary and board logs, needed by J1
+    if question in (None, "J1"):
+        add("capture.txt", 200)
+        add("board/*.txt", 100)
+        readme = os.path.join(exp, "README.md")
+        if os.path.isfile(readme):
+            for link in re.findall(r"\]\((\.\./[^)#\s]+/board/[^)#\s]+\.txt)\)", open(readme, encoding="utf-8").read()):
+                cand = os.path.normpath(os.path.join(exp, link))
+                r = os.path.relpath(cand, exp)
+                if os.path.isfile(cand) and r not in [x for x, _ in out]:
+                    out.append((r, 100))
+
     # A proposer's own package: calls/<call>/<proposer>/lean/.
     rel = os.path.relpath(os.path.abspath(exp), REPO).split(os.sep)
     if len(rel) >= 4 and rel[0] == "calls":
@@ -191,10 +206,15 @@ def files_of(exp):
 
 def scan(exp):
     hits = []
-    for rel, cap in files_of(exp):
+    scan_files = []
+    for pattern in ["README.md", "WHY.zh-TW.md", "proof/*.lean", "*.py", "check.sh", "shell/shell.c", "capture.txt", "board/*.txt"]:
+        for p in sorted(glob.glob(os.path.join(exp, pattern))):
+            if os.path.isfile(p):
+                scan_files.append(os.path.relpath(p, exp))
+    for rel in scan_files:
         with open(os.path.join(exp, rel), encoding="utf-8", errors="replace") as f:
             for n, line in enumerate(f, 1):
-                if n > cap:
+                if n > 2000:
                     break
                 low = line.lower()
                 if (re.search(JUDGE_WORD, low) and re.search(ORDER_WORD, low)) or any(re.search(p, low) for p in PHRASES):
@@ -208,7 +228,7 @@ def where(exp):
 
 
 def prior_rows(exp):
-    """experiments/README.md's index rows for the experiments before this one."""
+    """experiments/README.md's index rows for the experiments before this one (last 15, condensed)."""
     rel = where(exp).split(os.sep)
     mine = None
     if rel[0] == "experiments":
@@ -222,11 +242,11 @@ def prior_rows(exp):
         if mine is not None and int(m.group(2)) >= mine:
             continue
         text = re.sub(r"\*\*|`", "", m.group(4))
-        rows.append(f"{m.group(1)} [{m.group(3).strip()}]: {text[:250]}{'…' if len(text) > 250 else ''}")
-    return rows
+        rows.append(f"{m.group(1)} [{m.group(3).strip()}]: {text[:150]}{'…' if len(text) > 150 else ''}")
+    return rows[-15:]
 
 
-def bundle(exp, gates=None):
+def bundle(exp, gates=None, question=None):
     exp = exp.rstrip("/")
     rel = where(exp)
     try:
@@ -235,25 +255,28 @@ def bundle(exp, gates=None):
     except OSError:
         commit, dirty = "unknown", ""
     hits = scan(exp)
-    files = files_of(exp)
-    out = ["=== VK26 BUNDLE v1",
+    files = files_of(exp, question)
+    header = "=== VK26 SLICE BUNDLE v2" + (f" (question: {question})" if question else "")
+    out = [header,
            f"experiment: {rel}",
            f"commit: {commit}{' (with uncommitted changes in the experiment)' if dirty else ''}",
            f"files: {len(files)}",
            f"injection-scan: {len(hits)} hit(s)"]
     out += [f"  {h}" for h in hits]
-    out += ["", "=== PRIOR WORK (experiments/README.md, the experiments before this one)"]
-    out += [f"- {r}" for r in prior_rows(exp)]
-    out += ["", "=== GATES (machine checks; facts, not for the judge to re-decide; the PASS/FAIL lines themselves are in capture.txt)"]
-    src = gates or os.path.join(exp, "capture.txt")
-    if os.path.isfile(src):
-        lines = [l.rstrip("\n") for l in open(src, encoding="utf-8", errors="replace")]
-        kept = [l for l in lines if re.match(r"^(PASS|FAIL|SKIP)\b", l)]
-        out.append(f"source: {'a fresh check.sh run' if gates else 'capture.txt, as committed; not re-run for this bundle'}")
-        fails = sum(1 for l in kept if l.startswith("FAIL"))
-        out.append(f"summary: {len(kept) - fails} PASS or SKIP, {fails} FAIL")
-    else:
-        out.append("(no gate output available)")
+    if question in (None, "J3"):
+        out += ["", "=== SLICE: PRIOR WORK (for J3; the 15 experiments before this one)"]
+        out += [f"- {r}" for r in prior_rows(exp)]
+    if question in (None, "J1"):
+        out += ["", "=== SLICE: GATES (facts, not for the judge to re-decide; details in capture.txt)"]
+        src = gates or os.path.join(exp, "capture.txt")
+        if os.path.isfile(src):
+            lines = [l.rstrip("\n") for l in open(src, encoding="utf-8", errors="replace")]
+            kept = [l for l in lines if re.match(r"^(PASS|FAIL|SKIP)\b", l)]
+            out.append(f"source: {'a fresh check.sh run' if gates else 'capture.txt, as committed; not re-run for this bundle'}")
+            fails = sum(1 for l in kept if l.startswith("FAIL"))
+            out.append(f"summary: {len(kept) - fails} PASS or SKIP, {fails} FAIL")
+        else:
+            out.append("(no gate output available)")
     for f, cap in files:
         out += ["", f"=== BEGIN {f}"]
         with open(os.path.join(exp, f), encoding="utf-8", errors="replace") as fh:
@@ -274,15 +297,18 @@ def bundle(exp, gates=None):
                 out.append(f"{f}:{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
         elif f.startswith("board/") or "/board/" in f:
             seen = set()
+            count = 0
             for n, line in enumerate(raw, 1):
-                if n > cap:
+                if count >= cap:
                     out.append(f"{f}:{n}| … (cut at {cap} lines)")
                     break
-                if line in seen:
-                    continue
-                if not re.match(r"(PATIENT|TRIAL)\b", line):
+                if re.match(r"^(PATIENT|TRIAL|SEARCH|PLAN|#page)\b", line):
+                    out.append(f"{f}:{n}| {line.rstrip()}")
+                    count += 1
+                elif line not in seen and len(seen) < 5:
                     seen.add(line)
-                out.append(f"{f}:{n}| {line.rstrip()}")
+                    out.append(f"{f}:{n}| {line.rstrip()}")
+                    count += 1
         else:
             for n, line in enumerate(raw, 1):
                 if n > cap:
@@ -359,6 +385,8 @@ def tally(bundle_path, verdicts):
 
 if MODE == "bundle":
     bundle(ARGS[0], ARGS[1] if len(ARGS) > 1 else None)
+elif MODE == "slice":
+    bundle(ARGS[0], question=ARGS[1].upper() if len(ARGS) > 1 else "J1")
 elif MODE == "gates":
     probs = gate15(ARGS[0].rstrip("/"))
     for p in probs:

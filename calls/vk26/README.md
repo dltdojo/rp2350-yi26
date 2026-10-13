@@ -216,7 +216,12 @@ calls/vk26/alice/
 自己先跑裁判：
 
 ```sh
+# 產生專題切片 bundle（排除無關檔案、去重複日誌）：
 calls/vk26/judge-bundle.sh bundle calls/vk26/alice/exp101-foo > /tmp/b.txt
+
+# 或是只抽取單一題目切片（J1、J2、J3、J4）進行極低 token 自檢：
+calls/vk26/judge-bundle.sh slice calls/vk26/alice/exp101-foo J2 > /tmp/b_j2.txt
+
 # 把 JUDGE.md 與 /tmp/b.txt 交給一個全新的 Claude（Opus 5.5）session，得到 verdict
 calls/vk26/judge-bundle.sh tally /tmp/b.txt v1.txt v2.txt v3.txt
 ```
