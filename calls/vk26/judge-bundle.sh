@@ -297,7 +297,7 @@ def tally(bundle_path, verdicts):
     text = open(bundle_path, encoding="utf-8").read()
     cites = set(re.findall(r"^(\S+?:\d+)\| ", text, re.M))
     scan_hits = int(re.search(r"^injection-scan: (\d+)", text, re.M).group(1))
-    qs = [f"J{i}" for i in range(1, 6)]
+    qs = [f"J{i}" for i in range(1, 5)]
     table = {q: [] for q in qs}
     injected = []
     for v in verdicts:
