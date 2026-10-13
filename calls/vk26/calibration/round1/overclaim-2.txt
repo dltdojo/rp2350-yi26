@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:13, README.md:176, README.md:177, README.md:184, README.md:140
+reason: README.md:13 claims a proof that the LED shows each generation within one microsecond on every RP2350 ever made, and a run on forty boards without a wrong beat; no theorem in proof/Life.lean mentions the LED or timing, and the README itself says the LED driving is unproved C and that only one Pico 2 was used (README.md:176-177, 184, 140).
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, README.md:51, README.md:52, README.md:53, README.md:54
+reason: from_boot is about any image starting with the kernel's 76 bytes, run from boot, halting with 0 at exactly 3079 with memory equal to lived (generations 1..256 at 0x200, everything else unchanged), and still running at 3078; lives, not_before and rule30 are quantified over every memory/seed and every cell as the README table states, with only the region-fit hypothesis (Placed) the README's "from base" implies.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, proof/Life.lean:289, proof/Life.lean:313, capture.txt:35, capture.txt:42
+reason: The conclusions pin the exact halt step, exit code and the final memory to Rule 30 generations computed from the seed, so a kernel that did nothing or something else would fail them, as the refused mutants confirm.
+J4: YES
+evidence: README.md:5, README.md:6, README.md:7, proof/Life.lean:60, proof/Life.lean:61, proof/Life.lean:98
+reason: A new kernel — a 19-instruction Rule 30 cellular automaton on a 32-cell ring — with a new property (rule30, cell-by-cell equivalence of the shift formula to Rule 30); no prior experiment listed has a cellular-automaton kernel.
+J5: YES
+evidence: rule30.py:19, rule30.py:21, rule30.py:22, rule30.py:23, proof/Life.lean:76, README.md:83, README.md:84
+reason: rule30.py computes each cell in a loop from its left, centre and right bits, while Lean's life uses whole-word rotations and bitwise operations; the README states the difference and the code bears it out.
+INJECTION: NONE
+END

@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:68, README.md:69, README.md:11, README.md:12, WHY.zh-TW.md:39, proof/Fly.lean:576, proof/Fly.lean:578
+reason: The README and WHY say watches_life proves that the kernel, shown Rule 30 frames, reports up at least down at every step and in total. But watches_life concludes only `True := trivial`, so no theorem in the bundle supports that claim.
+J2: NO
+evidence: proof/Fly.lean:556, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69
+reason: detects_boot is a from_boot-form theorem, and T1, T2 and T3 match their descriptions. But watches_life, presented as a main result, states nothing about the kernel's output (its conclusion is True), so it is far weaker than the README's description.
+J3: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578
+reason: The main theorem watches_life concludes `True`, so it would still hold if the kernel did nothing at all. Its hypotheses about life frames are never used, and it never mentions the run or the result.
+J4: YES
+evidence: proof/Fly.lean:44, proof/Fly.lean:115, proof/Fly.lean:130, README.md:5, README.md:6
+reason: New in this bundle: a Hassenstein–Reichardt motion-detector kernel, plus new proved properties: T2, a stripe moved one cell is seen moving its way apart from the period-two rings, and T3, Rule 30 is never seen moving down. No prior experiment has these.
+J5: YES
+evidence: fly.py:13, fly.py:14, fly.py:30, fly.py:38, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:22, proof/Fly.lean:24, proof/Fly.lean:28
+reason: The Python reference computes Rule 30 cell by cell, where Lean uses a formula of shifts. It counts bits with Python's built-in bin().count over integer rotations, where Lean uses its own pc and up1/dn1, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END

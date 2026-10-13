@@ -125,8 +125,10 @@ leave room for (one standard error is 0.17%). exp232's own 2000-patient
 figure, 13.7% of 1038 treated, was 1 standard error above it.
 
 exp232's board treated 30 patients, each boot counting from patient 1: 7 in
-round 1 (1 missed), 7 in round 2 (2 missed), and 16 by patient 40 in exp233's
-round 1 (1 missed, as the page's summary line records the board's TRIAL line).
+round 1 (1 missed, [its log](../exp232-the-cure-the-proof-predicts/board/round1.txt)),
+7 in round 2 (2 missed, [its log](../exp232-the-cure-the-proof-predicts/board/round2.txt)),
+and 16 by patient 40 in exp233's round 1 (1 missed, as the page's summary line
+records the board's TRIAL line, [its log](../exp233-the-trial-on-the-phone/board/round1.txt)).
 4 of 30 were not cured: 13.3%, with a 95% interval of 5.3%–29.7%. exp234's own
 board, round 1 below, treated 27 by patient 44 and 4 were not cured: 14.8%,
 interval 5.9%–32.5%. Together, 8 of 57: 14.0%, interval 7.3%–25.3%, against
@@ -253,7 +255,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp234 — the rate the proof predicts ===
-recorded at 2026-10-12T09:53:32Z from commit dc06c10
+recorded at 2026-10-13T00:30:38Z from commit 17d6407 (working tree dirty — this recording is not reproducible from the commit alone)
 
 >>> the theorems, and what they rest on
 'Exp234.lives' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -318,5 +320,9 @@ PASS  the shell catches a version where a patient's model run keeps the last pat
 PASS  the shell catches a version where the shell reads resistance from the tissue's word — check 12, M6
 PASS  the shell catches a version where the TRNG gives nothing — check 11
 PASS  the shell catches a version where the shell itself traps entering the kernel — a fault, not a check
-SKIP  checking a board's log: none recorded yet (board/*.txt)
+PASS  round1.txt: SEARCH and PLAN are cure.py's (19 times), minstret 4046 throughout; patients 7–25: every model outcome cure.py's, every world replayed by cure.py from its word, to the number (19 of 19), every TRIAL count adding up, every treated patient predicted cured and every control missed
+PASS  a board log with one thing changed is refused: s/word=8fd5a26f/word=8fd5a26e/
+PASS  a board log with one thing changed is refused: s/resistant=1 t24=22 tissue=10/resistant=1 t24=21 tissue=10/
+PASS  a board log with one thing changed is refused: s/n=16 word=4b29cb4d arm=treated width=5 at=20 model=cured world=missed/n=16 word=4b29cb4d arm=treated width=5 at=20 model=cured world=cured/
+PASS  a board log with one thing changed is refused: s/lives=10 minstret=4046/lives=10 minstret=3084/
 ```

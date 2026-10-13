@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:75, WHY.zh-TW.md:40, proof/World.lean:718, proof/World.lean:719, proof/World.lean:707, README.md:212, capture.txt:67
+reason: README and WHY attribute to answer_world a result for "a lump of 1 to 6 cells anywhere on the ring", but answer_world (and answer_zero) are stated only for `patient w 0 ANSWER`, position 0; divisions_iter moves the count but no theorem in the bundle gives the cured-iff part for an arbitrary position. Also, the claim that `world.py --board` replays every patient of round1.txt has no check output in the bundle — the capture's board-log check is SKIP.
+J2: NO
+evidence: README.md:75, proof/World.lean:711, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:725
+reason: from_boot (proof/World.lean:507) has the right form, but answer_world fixes the lump at position 0 (`patient w 0 ANSWER`) while the README and the theorem's own docstring say "anywhere on the ring". That makes the theorem weaker than its description, and line 725 even mentions a `p` that the statement does not bind.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:490, proof/World.lean:507, proof/World.lean:511, proof/World.lean:183, proof/World.lean:641, proof/World.lean:642
+reason: lives and from_boot conclude that running the kernel's bytes halts with 0 at exactly 4043 and leaves memory equal to `lived`, which is the 64 generations of `wnext` from the inputs and masks. That depends on what the kernel computes. cured_iff is a non-trivial biconditional about the world's dynamics.
+J4: YES
+evidence: README.md:28, README.md:30, proof/World.lean:79, proof/World.lean:641, proof/World.lean:588
+reason: Prior work (exp232/exp233) left the world as unproved C. This experiment adds a new proved world kernel that takes the mutation masks as input (W1), plus new properties of it: resistance_stays (M6), and cured_iff (M7) with the division counts it uses to derive a predicted failure rate.
+J5: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:3, ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:66, ../exp232-the-cure-the-proof-predicts/cure.py:168, proof/World.lean:79, differential/differential.py:5
+reason: cure.py computes the dose, growth and resistance with per-cell loops and neighbour tests, while World.lean's wnext uses whole-word bit operations (edge, up1, spread). The README and the differential state this difference, and the code bears it out.
+INJECTION: NONE
+END

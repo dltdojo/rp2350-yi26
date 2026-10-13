@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:95, README.md:96, WHY.zh-TW.md:30, capture.txt:29, differential/differential.py:56, README.md:101
+reason: The claim that from exp225's seed the fly sees 255 steps move up and one not move (README.md:95, WHY.zh-TW.md:30) is not in the bundle's evidence. The capture prints only the totals 2053/1030 (capture.txt:29), the differential never prints per-step directions, and watches_life only rules out steps that move down, not this 255/1 split. Also, "Every proof that imports the library was checked again" (README.md:101) has no output in the bundle.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:484, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:115, proof/Fly.lean:576, proof/Fly.lean:589, README.md:54, README.md:58, README.md:63, README.md:68
+reason: detects_boot is in from_boot form. It runs from boot of any image that begins with the kernel's bytes, is running after 70923 steps, halts with 0 at 70924, and leaves memory holding every step's counts, the totals and the frames unchanged, for any frames. shift_up/shift_dn (with the period-two hypothesis), life_moves_up (for every x) and watches_life/watches_shift say what README.md:54-71 says they do.
+J3: YES
+evidence: proof/Fly.lean:485, proof/Fly.lean:486, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:496, proof/Fly.lean:579, capture.txt:17, capture.txt:19
+reason: The conclusions tie the words the kernel writes after its run to toUp/toDn of the input frames and to their sums, and give an exact halting count. A kernel that did nothing or something else would not satisfy them, as the refused kernel mutants (rounds31, not_round, total_crossed) show.
+J4: YES
+evidence: README.md:5, README.md:63, proof/Fly.lean:115, proof/Fly.lean:44, proof/Fly.lean:576
+reason: The kernel is new: a 41-instruction Hassenstein–Reichardt motion detector. The new property is T3, proved in Lean: one generation of Rule 30 is never seen moving down. Exp225 had it only as a conjecture, and no prior experiment has either.
+J5: YES
+evidence: fly.py:13, fly.py:14, fly.py:30, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:22, proof/Fly.lean:24, proof/Fly.lean:28
+reason: The reference computes Rule 30 cell by cell (rule30.py), where Lean uses a formula of shifts (life = dn1 ^^^ (up1 ||| x)), and it counts bits with Python's bin().count, where Lean uses its own recursive pc. fly.py:13-14 states these differences and the code bears them out.
+INJECTION: NONE
+END

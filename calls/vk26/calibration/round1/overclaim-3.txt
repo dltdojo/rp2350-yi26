@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:13, README.md:176, README.md:177, README.md:184, README.md:185
+reason: README.md:13 claims the experiment proves the LED shows each generation within one microsecond on every RP2350, and that the shell ran on forty boards without a wrong beat. No theorem in proof/Life.lean mentions the LED or timing, and the README itself says the LED path is unproved C and that only one Pico 2 was used (README.md:176-177, 184-185).
+J2: YES
+evidence: proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:313, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: from_boot covers any image that begins with the kernel's 76 bytes, run from boot, and states it halts with 0 at exactly 3079 with memory equal to `lived` (generations 1..256 from 0x200 of the seed at 0x100, everything else unchanged). lives, not_before and rule30 match the README table's quantifiers and conclusions.
+J3: YES
+evidence: proof/Life.lean:289, proof/Life.lean:79, proof/Life.lean:87, proof/Life.lean:92, proof/Life.lean:313
+reason: The conclusions pin the run's exact halt count, exit code 0 and final memory to the Rule 30 history computed from the seed, under satisfiable hypotheses (Placed, CodeAt). A kernel that did nothing or something else would not satisfy them, and the mutants confirm this.
+J4: YES
+evidence: README.md:5, README.md:6, README.md:7, proof/Life.lean:60, proof/Life.lean:61, proof/Life.lean:98
+reason: This is a new kernel: a 19-instruction Rule 30 cellular automaton, proved to write 256 generations, plus a cell-by-cell Rule 30 theorem. No prior experiment has a cellular-automaton kernel.
+J5: YES
+evidence: rule30.py:19, rule30.py:20, rule30.py:21, rule30.py:22, rule30.py:23, proof/Life.lean:76, differential/differential.py:49
+reason: rule30.py computes each cell in a loop from its left, centre and right bits, where Lean's `life` uses whole-word rotates, ORs and XOR. The differential compares the model and RTL regions against this independent reference.
+INJECTION: NONE
+END

@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:75, proof/World.lean:719, README.md:212, capture.txt:67
+reason: README.md:75 credits answer_world with the counts for a lump "anywhere on the ring", but the theorem as written covers only position 0 (`patient w 0 ANSWER`). README.md:212 also says `world.py --board` replays all 19 board patients, yet the only check output in the bundle skips board logs (capture.txt:67), and patient 21 (README.md:228) falls past where the bundled log is cut.
+J2: NO
+evidence: proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, README.md:75, WHY.zh-TW.md:40, proof/World.lean:507
+reason: A from_boot-form theorem exists (World.lean:507-511). But answer_world fixes the lump at position 0 (`patient w 0 ANSWER`), while README.md:75 and WHY.zh-TW.md:40 say "anywhere on the ring", so it is a fixed position where the text claims any. divisions_iter carries only the count across positions, not the cured-iff conjunct.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:490, proof/World.lean:510, proof/World.lean:511, proof/World.lean:641, proof/World.lean:642
+reason: lives and from_boot conclude that this kernel's run halts with 0 at exactly 4043 and memory equals `lived`, the 64 generations of wnext. cured_iff ties the cure to the masks hitting `born` cells. None of these is a tautology or depends on hypotheses that cannot all hold.
+J4: YES
+evidence: README.md:28, proof/World.lean:79, proof/World.lean:641, proof/World.lean:588
+reason: exp232's world was unproved C. Here it is a new 74-instruction kernel proved for every mask (W1), with new properties: M6 resistance_stays and M7 cured_iff, plus the failure rate derived from M7. None of the prior experiments has these.
+J5: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:66, ../exp232-the-cure-the-proof-predicts/cure.py:72, ../exp232-the-cure-the-proof-predicts/cure.py:174, proof/World.lean:80, README.md:110
+reason: cure.py computes the dose (resistant exception included) and growth cell by cell in loops, where Lean's wnext uses edge/spread/up1 bit operations. The README says so and the code bears it out. One caveat: the resistance update (cure.py:174) is a word-level formula that mirrors World.lean:86.
+INJECTION: NONE
+END

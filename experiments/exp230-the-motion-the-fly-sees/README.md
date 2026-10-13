@@ -114,7 +114,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp230 — the motion the fly sees ===
-recorded at 2026-10-12T01:56:28Z from commit 2fdc900
+recorded at 2026-10-13T00:23:06Z from commit 17d6407
 
 >>> the theorems, and what they rest on
 'Exp230.life_moves_up' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -141,15 +141,15 @@ count_short    the kernel is claimed to halt one instruction sooner than it does
 PASS  all 4294967296 rings: 0 seen moving down, 4870848 not moving, 4290096448 moving up
 
 >>> the model and the RTL against fly.py: the named stimuli, then 200 random
-      life 0x00010000    up  2053  down  1030  up
-      life 0x00000001    up  2053  down  1030  up
-      life 0x8001a5c3    up  2080  down  1035  up
-      stripe up          up  1024  down   512  up
-      stripe down        up   512  down  1024  down
-      period 2, up       up  4096  down  4096  no way
-      flicker            up   768  down   768  no way
-      still              up  1280  down  1280  no way
-      dark               up     0  down     0  no way
+      life 0x00010000    up  2053  down  1030  up   steps: 255 up, 1 not moving, 0 down
+      life 0x00000001    up  2053  down  1030  up   steps: 255 up, 1 not moving, 0 down
+      life 0x8001a5c3    up  2080  down  1035  up   steps: 256 up, 0 not moving, 0 down
+      stripe up          up  1024  down   512  up   steps: 256 up, 0 not moving, 0 down
+      stripe down        up   512  down  1024  down   steps: 0 up, 0 not moving, 256 down
+      period 2, up       up  4096  down  4096  no way   steps: 0 up, 256 not moving, 0 down
+      flicker            up   768  down   768  no way   steps: 0 up, 256 not moving, 0 down
+      still              up  1280  down  1280  no way   steps: 0 up, 256 not moving, 0 down
+      dark               up     0  down     0  no way   steps: 0 up, 256 not moving, 0 down
 PASS  209 stimuli on the model, the first 12 on the RTL too: each halts with 0 and leaves every step's counts and the totals fly.py computes — 0 wrong
 PASS  one count whatever the frames: model ['70924']; RTL ['instret=70927 cycles=71697']
 
@@ -166,15 +166,15 @@ PASS  no_alias: the proof refuses a version where the claim that any frame moved
 PASS  count_short: the proof refuses a version where the kernel is claimed to halt one instruction sooner than it does
 PASS  proof/Fly.lean's kernel is what kernel.py writes from its labels
 PASS  kernel.bin is what proof/Fly.lean writes, 164 bytes, and kernel.sha256 is its hash
-      life 0x00010000    up  2053  down  1030  up
-      life 0x00000001    up  2053  down  1030  up
-      life 0x8001a5c3    up  2080  down  1035  up
-      stripe up          up  1024  down   512  up
-      stripe down        up   512  down  1024  down
-      period 2, up       up  4096  down  4096  no way
-      flicker            up   768  down   768  no way
-      still              up  1280  down  1280  no way
-      dark               up     0  down     0  no way
+      life 0x00010000    up  2053  down  1030  up   steps: 255 up, 1 not moving, 0 down
+      life 0x00000001    up  2053  down  1030  up   steps: 255 up, 1 not moving, 0 down
+      life 0x8001a5c3    up  2080  down  1035  up   steps: 256 up, 0 not moving, 0 down
+      stripe up          up  1024  down   512  up   steps: 256 up, 0 not moving, 0 down
+      stripe down        up   512  down  1024  down   steps: 0 up, 0 not moving, 256 down
+      period 2, up       up  4096  down  4096  no way   steps: 0 up, 256 not moving, 0 down
+      flicker            up   768  down   768  no way   steps: 0 up, 256 not moving, 0 down
+      still              up  1280  down  1280  no way   steps: 0 up, 256 not moving, 0 down
+      dark               up     0  down     0  no way   steps: 0 up, 256 not moving, 0 down
 PASS  29 stimuli on the model, the first 12 on the RTL too: each halts with 0 and leaves every step's counts and the totals fly.py computes — 0 wrong
 PASS  one count whatever the frames: model ['70924']; RTL ['instret=70927 cycles=71697']
 ```

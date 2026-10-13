@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:51, README.md:53, README.md:56, README.md:58, README.md:86, README.md:88, README.md:132, README.md:139, README.md:142, README.md:155, README.md:176, proof/Life.lean:98, proof/Life.lean:288, proof/Life.lean:294, proof/Life.lean:309, capture.txt:26, capture.txt:35, capture.txt:54, capture.txt:56, capture.txt:77, differential/differential.py:31, shell/shell.c:77
+reason: The proved claims match the theorems, and the measured claims (20 seeds, 3079 and 3082, eleven refused mutants, the axioms) match the capture and the code. The board claim is recorded as a person's observation of the committed UF2, with what was not recorded stated. The beat length is stated as not measured, and the README says plainly that the LED playback is unproved C.
+J2: YES
+evidence: proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: from_boot covers the actual bytes of any image that begins with the kernel's 76 bytes. It proves the kernel is still running at 3078 and halts with 0 at exactly 3079, with memory equal to `lived` (generations 1 to 256 from the seed at 0x100, everything else unchanged). lives, not_before and rule30 state, with the same quantifiers, what the README table says.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:79, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:289, proof/Life.lean:313, capture.txt:35, capture.txt:39, capture.txt:43
+reason: The conclusions pin the exact halt step, the exit code 0, and the whole memory to Rule 30 generations computed from the seed. A kernel that did nothing or something else would fail them, and the refused mutants (Rule 90, a wrong store offset, halting with 1) confirm this.
+J4: YES
+evidence: proof/Life.lean:51, proof/Life.lean:60, proof/Life.lean:98, proof/Life.lean:288, README.md:5, README.md:142
+reason: None of the prior experiments has this kernel: a new 19-instruction RV32IM Rule 30 cellular-automaton kernel. It comes with a cell-by-cell Rule 30 theorem and a whole-memory proof of 256 generations, and it is run on a board as a self-seeding LED life.
+J5: YES
+evidence: rule30.py:19, rule30.py:20, rule30.py:21, rule30.py:22, rule30.py:23, proof/Life.lean:76, README.md:83, README.md:84, differential/differential.py:49
+reason: rule30.py computes each cell from its left, centre and right bits in a loop. Lean's `life` is a whole-word formula of rotates, ORs and XOR. They are different computations of the same rule, and the differential holds both the model and the RTL to the Python result.
+INJECTION: NONE
+END

@@ -52,8 +52,11 @@ def fly_differential(rv32run, kernel, n):
             ok &= out.startswith("halt code=00000000 ") and result_of(rregion) == want
             rtl_counts.add(" ".join(w for w in out.split() if w.startswith(("instret=", "cycles="))))
         if k < len(stimuli()):
-            _, up, down = want
-            print(f"      {name:18} up {up:5}  down {down:5}  {'up' if up > down else 'down' if down > up else 'no way'}")
+            steps, up, down = want
+            s_up = sum(1 for u, d in steps if u > d)
+            s_dn = sum(1 for u, d in steps if d > u)
+            print(f"      {name:18} up {up:5}  down {down:5}  {'up' if up > down else 'down' if down > up else 'no way'}"
+                  f"   steps: {s_up} up, {len(steps) - s_up - s_dn} not moving, {s_dn} down")
         if not ok:
             failed += 1
             if failed <= 5:

@@ -1,0 +1,4 @@
+# Built output of proposers' packages and experiments; never committed.
+*/lean/.lake/
+build/
+__pycache__/

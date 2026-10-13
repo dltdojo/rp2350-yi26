@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:95, README.md:96, WHY.zh-TW.md:30, capture.txt:29
+reason: The claim that the fly sees 255 steps move up and one not move for exp225's seed is a measured per-step result. The capture prints only that seed's totals (2053 up, 1030 down) and never the per-step split, and no theorem gives it. watches_life proves only that no step goes down.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:577, proof/Fly.lean:591, README.md:54, README.md:58, README.md:63, README.md:68
+reason: detects_boot is in from_boot form: for any image that begins with the kernel's bytes, the run from boot halts with 0 at exactly instruction 70924, with every step's counts, both totals and the unchanged frames in memory (Sees). T2, T3, watches_life and watches_shift match the README's quantifiers and hypotheses: any x, the period-two exclusion stated in the hypothesis, and frames that are Rule 30 generations or upward shifts.
+J3: YES
+evidence: proof/Fly.lean:485, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:496, proof/Fly.lean:115, proof/mutants.txt:5, proof/mutants.txt:7
+reason: The conclusion of detects says that memory after the run holds toUp and toDn of the input frames, plus their sums. That depends on what the kernel computes, and the proof refuses mutated kernels (31 rounds, crossed totals). life_moves_up is a nontrivial inequality, and its strict version is refused.
+J4: YES
+evidence: proof/Fly.lean:44, proof/Fly.lean:115, proof/Fly.lean:495, README.md:14, README.md:15
+reason: It adds a new kernel, a 41-instruction Hassenstein-Reichardt motion detector, proved correct. It also proves T3, which exp225 left as a conjecture: Rule 30 is never seen moving down. No prior experiment has either.
+J5: YES
+evidence: ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:22, fly.py:13, fly.py:38, fly.py:39, README.md:78
+reason: The reference writes Rule 30 cell by cell, where Lean uses a formula of word rotations. It counts bits with Python's bin().count, where Lean uses its own pc. T3 is also checked by brute force with the cell-by-cell rule, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END

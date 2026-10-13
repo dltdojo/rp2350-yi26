@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:7, README.md:51, README.md:52, README.md:53, README.md:54, proof/Life.lean:67, proof/Life.lean:98, proof/Life.lean:288, proof/Life.lean:294, proof/Life.lean:309, capture.txt:59, capture.txt:77, README.md:137, README.md:142, README.md:144, shell/shell.c:75, shell/shell.c:77, shell/shell.c:82, shell/shell.c:87, README.md:132, README.md:155, README.md:176
+reason: Each proof claim (19 instructions, 3079-instruction halt with 0 for any seed, not before 3078, Rule 30 cell by cell, from_boot for any image starting with the 76 bytes) matches a theorem, and the RTL and differential claims match the capture. The board claim is the recorded observation of one Pico 2's LED, and what it implies (all four checks held) follows from shell.c playing only after checks 1-4; beat timing, LED fidelity and run length are explicitly disclaimed.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:91, proof/Life.lean:87, proof/Life.lean:98, proof/Life.lean:99, README.md:51, README.md:53, README.md:54
+reason: from_boot runs `boot env.region img` for any image whose first 76 bytes are the kernel's bytes, still running at 3078 and halted with 0 at exactly 3079 with memory equal to `lived` (the original memory overlaid at 0x200 with generations 1..256 of life from the seed word at 0x100, little-endian). That is what the README table states, with no fixed seed, base or registers, and rule30 is quantified over every word and every cell i < 32.
+J3: YES
+evidence: proof/Life.lean:289, proof/Life.lean:91, proof/Life.lean:92, proof/Life.lean:76, proof/Life.lean:79, proof/Life.lean:313, capture.txt:35, capture.txt:39, capture.txt:41, capture.txt:43
+reason: The conclusion pins the exact halt step, the exit code 0 and every byte of memory to 256 iterations of `life` from the seed, which a kernel that did nothing or something else would not satisfy. The refused mutants (Rule 90, wrong store offset, 255 generations, halt with 1) show that the theorems depend on what the kernel computes.
+J4: YES
+evidence: README.md:5, README.md:7, proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288, README.md:142
+reason: None of the prior experiments has a cellular automaton. This adds a new 19-instruction Rule 30 kernel, the new property `rule30` (the word formula is Rule 30 cell by cell) and `lives`/`from_boot` for it, and a new board run that chains lives seeded by the previous generation.
+J5: YES
+evidence: rule30.py:19, rule30.py:21, rule30.py:22, rule30.py:23, proof/Life.lean:76, README.md:83, README.md:84, differential/differential.py:49, differential/differential.py:51, differential/differential.py:53
+reason: rule30.py computes each of the 32 cells separately with modular neighbour indices (left ^ (centre | right)), whereas Lean's `life` is a whole-word formula of rotates built from shifts and ORs. The differential compares both the model's and the RTL's whole region against it, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END
