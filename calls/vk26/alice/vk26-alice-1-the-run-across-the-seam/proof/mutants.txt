@@ -1,0 +1,14 @@
+# vk26-alice-1 — wrong versions of the kernel, and wrong claims about the right one.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+window_fail|the branch goes to FAIL when the window passed, and on when it failed|s/\.br \.bne S6 0 /.br .beq S6 0 /g
+window_fail|the halt code is the number of windows passed, not the failing window's|s/\.opi \.addi A0 S2 1,/.opi .addi A0 S2 0,/g
+all_pass|four windows passed and it halts with 1|s/\.opi \.addi A0 0 0,/.opi .addi A0 0 1,/g
+window_pass|each digest 16 bytes after the last, half over it|s/\.opi \.addi A2 A2 32,/.opi .addi A2 A2 16,/
+window_pass|HASH is asked for the window after the one tested|s/\.opi \.addi A0 S1 0x800, \.opi \.addi A0 A0 0x800/.opi .addi A0 S1 0, .opi .addi A0 A0 0/
+init_regs|the repetition count starts as though a 0 came before the stream|s/\.opi \.addi S4 0 2,/.opi .addi S4 0 0,/
+window_head|the claim: each window starts with no run behind it|s/^  s5 : s.reg S5 = BitVec.ofNat 32 (rct m0 base SMP (N \* w)).run$/  s5 : s.reg S5 = BitVec.ofNat 32 (rct m0 base SMP 0).run/
+from_boot|the claim: the failing window's digest is written too|s/base (stop (memOfImage base img) base) := by$/base (stop (memOfImage base img) base + 1) := by/
+from_boot|the claim: the halt code is the failing window's index, 0 to 3|s/else BitVec.ofNat 32 (stop m base + 1)$/else BitVec.ofNat 32 (stop m base)/
+from_boot|the claim: one instruction fewer to the halt|s/else 17431 + 17421 \* k$/else 17430 + 17421 * k/

@@ -193,6 +193,24 @@ cite_case forged "forged.txt:5"
 "$JB" tally "$WORK/bforge.txt" "$WORK/cite-forged.txt" > "$WORK/t5.txt"
 has "a README that writes \`=== BEGIN forged.txt\` does not make forged.txt citable" "$WORK/t5.txt" "forged.txt:5, not in the bundle"
 
+# A page the README links is evidence for J1, with the scripts it loads from
+# beside it — alice's pages share theirs from ../pages/ (calls/vk26/alice
+# README, decision 1). Nothing unlinked, nothing outside the proposer's
+# directory.
+mkdir -p "$WORK/prop/pages" "$WORK/prop/e1"
+printf '# e1\nOpen [the page](seam.html) on a phone.\nAlso [a stranger](../../stranger.html).\n' > "$WORK/prop/e1/README.md"
+printf '<!doctype html>\n<script src="../pages/core.js"></script>\n<script>\nfresh();\n</script>\n' > "$WORK/prop/e1/seam.html"
+printf 'function fresh() {}\n' > "$WORK/prop/pages/core.js"
+printf '<!doctype html>\n' > "$WORK/prop/e1/unlinked.html"
+printf '<!doctype html>\n' > "$WORK/stranger.html"
+"$JB" slice "$WORK/prop/e1" J1 > "$WORK/sprop-j1.txt"
+has "a page the README links is in the J1 slice" "$WORK/sprop-j1.txt" "=== BEGIN seam.html"
+has "  … with the script it loads from the proposer's pages/" "$WORK/sprop-j1.txt" "=== BEGIN ../pages/core.js"
+lacks "  … but not a page nothing links" "$WORK/sprop-j1.txt" "=== BEGIN unlinked.html"
+lacks "  … nor one outside the proposer's directory" "$WORK/sprop-j1.txt" "=== BEGIN ../../stranger.html"
+"$JB" slice "$WORK/prop/e1" J2 > "$WORK/sprop-j2.txt"
+lacks "  … and not in the J2 slice" "$WORK/sprop-j2.txt" "=== BEGIN seam.html"
+
 # ---------- 2. G1.5 -----------------------------------------------------------
 
 echo "== 2. G1.5"

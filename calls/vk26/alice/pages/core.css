@@ -1,0 +1,26 @@
+/* SPDX-License-Identifier: Apache-2.0
+   calls/vk26/alice/pages — the look every one of alice's pages shares. */
+:root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --acc:#1a5fb4; --led:#2fb84a; }
+@media (prefers-color-scheme: dark) {
+  :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --acc:#78aeed; --led:#4ef06e; }
+}
+body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+       margin: 0 auto; max-width: 44rem; padding: 1.2rem 16px 4rem; }
+h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+p.sub { color: var(--dim); margin: 0 0 1rem; }
+button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+         background: var(--acc); color: #fff; cursor: pointer; margin: 0 .3rem .4rem 0; }
+button.ghost { background: transparent; color: var(--acc); }
+button:disabled { opacity: .45; cursor: default; }
+#status { margin: .6rem 0; padding: .6rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+#status.ok { border-color: var(--ok); color: var(--fg); }
+#status.bad { border-color: var(--bad); color: var(--fg); }
+#verdict { margin: .8rem 0; font-size: 14px; }
+#verdict b.ok, .ok { color: var(--ok); } #verdict b.bad, .bad { color: var(--bad); }
+#raw { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .6rem; border-radius: 6px;
+       font-family: ui-monospace, monospace; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap;
+       word-break: break-all; height: 11rem; overflow-y: auto; }
+.meta { font-size: 13px; color: var(--dim); margin-top: .4rem; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { border-bottom: 1px solid var(--line); padding: .3rem .35rem; text-align: left; vertical-align: top; }
+th { color: var(--dim); font-weight: 500; }
