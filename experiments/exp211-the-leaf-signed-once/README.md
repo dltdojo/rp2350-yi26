@@ -207,7 +207,7 @@ cloud half:
 
 ```text
 === exp211 — the leaf signed once (cloud half) ===
-recorded at 2026-10-06T06:44:35Z from commit 787611f (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-13T09:06:27Z from commit a9f6244
 
 >>> every check
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back
