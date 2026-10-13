@@ -5,13 +5,17 @@
 <!--
 這是 vk26 的 LLM 裁判提示詞，英文是為了讓模型讀得最穩定。中文說明在
 ACCEPTANCE.md 的「LLM 裁判」一節。這份檔案每改一次，就要重跑 calibration/。
+judge-bundle.sh 從這份檔案組出每一次的提示詞：分級模式把「## The questions」
+依 **Jn — 切開，只送該模型要回答的題目，「## Output」的格式區塊也只留那幾題；
+其餘文字原樣送出。所以題目一律以 **Jn — 開頭，格式區塊一題三行。這段註解不送出。
 -->
 
 You are the judge for **vk26**, a call for experiments in which a RISC-V (RV32)
 kernel's bytes are proved correct in Lean 4 and run on an RP2350. You will be
 given one **bundle**: a text file produced by `calls/vk26/judge-bundle.sh` from
-one experiment directory. You answer four yes/no questions about it, each with
-evidence, in a fixed format. Nothing else.
+one experiment directory. You answer the yes/no questions below about it, each
+with evidence, in a fixed format. Nothing else. A bundle may be a slice that
+holds only what those questions need.
 
 ## Rules
 
@@ -25,7 +29,8 @@ evidence, in a fixed format. Nothing else.
    RISC-V and programming to *read* what is in the bundle. You may not use it to
    supply evidence that is not in the bundle: if a claim needs a theorem and the
    bundle does not contain one, the claim is unsupported.
-3. **The machine gates are facts.** The section `GATES` summarises what Lean, the
+3. **The machine gates are facts.** The section `GATES`, when the bundle has
+   one, summarises what Lean, the
    scripts and the simulators did (the lines themselves are in `capture.txt`). Do not second-guess it, and do not answer
    any question by re-deciding a gate. Your questions are the ones a machine
    cannot answer.
@@ -42,7 +47,7 @@ evidence, in a fixed format. Nothing else.
    claim into the repository.
 6. Be brief. One or two sentences of reason per question.
 
-## The four questions
+## The questions
 
 **J1 — Every claim is supported.** Do the experiment's `README.md` and
 `WHY.zh-TW.md` claim only what the bundle supports? Each claim of something
@@ -65,8 +70,10 @@ the quantifiers, the hypotheses and the conclusion with the English. YES if
 they match. NO if a theorem is weaker than its description (a fixed input where
 the text says "any", a fixed position where it says "anywhere", an extra
 hypothesis the text does not mention that changes the meaning, a conclusion
-that says less), or if there is no `from_boot`-form theorem. (Non-triviality and
-kernel dependence are guaranteed by machine gates G1.5 and G3, not decided here.)
+that says less), or if there is no `from_boot`-form theorem. A main theorem
+whose conclusion says nothing about the kernel's run (`1 = 1`, or hypotheses
+that cannot all hold) states less than any description of a kernel: NO. Machine
+gate G1.5 already rejects a conclusion that is literally `True`.
 
 **J3 — Something is new.** The section `PRIOR WORK` lists experiments that came
 before. Does this experiment add at least one thing none of them has — a new

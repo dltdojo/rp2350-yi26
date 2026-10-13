@@ -5,8 +5,8 @@
 # never more than three sessions at a time (twenty at once is what hit the
 # session limit in round 2; see README.md).
 #
-#   run.sh A OUTDIR     stage A: one run per case, 7 runs (tiered: Opus for J2,
-#                       Sonnet for J1/J3/J4; saves ~90% Opus tokens & quota)
+#   run.sh A OUTDIR     stage A: one run per case, 7 runs (tiered: Opus for J2
+#                       on the J2 slice, Sonnet for J1/J3/J4; two sessions a run)
 #   run.sh B OUTDIR     stage B: two more runs per case, 14 runs; start it only
 #                       once stage A was all correct. Then tallies each case.
 #   run.sh sonnet OUTDIR  one run per case with Sonnet only (fast self-check)

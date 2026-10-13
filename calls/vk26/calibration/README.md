@@ -80,10 +80,36 @@ README 連結的板子紀錄、上限 400 行；JUDGE.md 舉例說明引用格�
 ### 已實作（尚未重跑校準）
 
 - `judge-bundle.sh judge`：提示詞加 bundle 一則訊息、無工具、`claude -p`；預設 Opus，`sonnet` 供自我檢查。
-- bundle 瘦身：Lean 證明步驟改為一行標記（行號不變，定義、敘述、註解保留）；板子紀錄去掉重複行（PATIENT/TRIAL 全留）；PRIOR WORK 每列 250 字；GATES 只留摘要。
-- **專題切片（Slice Bundle v2）**：`judge-bundle.sh bundle` 排除 `shell/shell.c`、`check.sh`、`differential/*.py` 等與裁判無關的建置檔案；板子日誌僅保留實測結果行並過濾重複輪詢；前人索引精簡為最近 15 項；引用之兄弟模組演算法上限 150 行。新增 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 支援單題切片自檢。
+- bundle 瘦身：Lean 證明步驟改為一行標記（行號不變，定義、敘述、註解保留）；板子紀錄去掉重複行（PATIENT/TRIAL 全留）；PRIOR WORK 每列 150 字；GATES 只留摘要。
+- **專題切片（Slice Bundle v2）**：`judge-bundle.sh bundle` 排除 `shell/shell.c`、`check.sh`、`differential/*.py` 等與裁判無關的建置檔案；板子日誌僅保留實測結果行並過濾重複輪詢；前人索引每列 150 字（原為最近 15 項，會漏掉 exp203–exp219，已改為 exp201 之後全部列出）；引用之兄弟模組演算法上限 150 行。新增 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 支援單題切片自檢。
 - 實測 Slice Bundle 大小：exp225 約 51 KB (~14.7k tokens)，exp230 約 63 KB (~18k tokens)，exp234 約 142 KB (~40k tokens，由原先 287 KB 減半)。
-- **模型分級裁判（Tiered Judge）**：`judge-bundle.sh judge` 預設採分級模式。J2（牽涉細微量詞與數學邏輯）專由 Opus 5.5 在獨立 J2 切片（~1,000–8,000 tokens）上判定；J1、J3、J4（檢索與比對）由 Sonnet 5.5 判定。兩者自動整合成完整 `VERDICT vk26` 紀錄，單次 Opus 額度開銷下降約 85%–90%。
-- **抽檢模式（Spot-Check Mode）**：提案驗收預設採單次確認（1 run），5 個實驗抽驗 1 個跑完整 3 次判定。整份提案判定 session 數由 15 次降為 7 次，次數減少 60%–70%。
+- **模型分級裁判（Tiered Judge）**：`judge-bundle.sh judge` 預設採分級模式。J2（牽涉細微量詞與數學邏輯）專由 Opus 5.5 在獨立 J2 切片上判定；J1、J3、J4（檢索與比對）由 Sonnet 5.5 判定。兩者自動整合成完整 `VERDICT vk26` 紀錄。實測 J2 切片為完整 bundle 的 42%–61%（32k–59k 字元，以字元數估算約 9k–17k tokens），Opus 讀的量約為單獨判四題時的一半（先前寫的 1k–8k tokens、省 85%–90% 不是實測值）。兩個 session 的提示詞都由 JUDGE.md 組出。
+- **抽檢模式（Spot-Check Mode）**：提案驗收預設採單次確認（1 run），5 個實驗抽驗 1 個跑完整 3 次判定。整份提案判定次數由 15 次降為 7 次，減少 53%（分級模式每次判定兩個 session，共 14 個 session）。抽驗的實驗隨機抽；抽驗沒通過，其餘四個補滿三次。
 - `run.sh A|B|sonnet|opus`：分階段執行、並行上限 3。階段 A 與 B 預設採 `tiered` 分級模式。
 - 七個壞案例的缺陷在切片 bundle 中皆完整保留（`True := …`、`patient w 0 ANSWER`、誇大宣稱、注入文字）。
+
+### 實作的修正（依評估結果，尚未重跑校準）
+
+上面幾項合併後再檢查，有五處實作和文件說的不一樣，已修正；每一處都在
+[`../selftest.sh`](../selftest.sh) 有回歸測試（不呼叫模型，`claude` 由假指令代替），
+修改前的版本跑同一份測試有 44 項失敗。
+
+- **Lean 敘述被切掉結論**：原本在定理的第一個 `:=` 切開，`{ s with pc := 1 }` 與預設參數
+  `(h : P := by decide)` 也算，既有實驗有 10 個定理的結論因此被當成證明省略（如 exp228
+  `Script.lean:1348`、exp217 `Invert.lean:32`）。改為只在括號外的 `:=` 切開；以 `|` 開頭的
+  模式比對證明也算證明。
+- **PRIOR WORK 只列最近 15 個**：提案只看得到 exp220–exp234，重做 exp207（常數時間）或
+  exp208（SHA-256）時 J3 會判「有新東西」。改為 exp201 之後全部列出。
+- **G1.5 對指令數只認數字**：exp205 的 `run env (4141 + 3 * steps …) (boot …)` 被判 FAIL。
+  改為接受由參數算出的式子；被 `∃`、`∀` 綁住的變數（exp224 的 `∃ n`、exp207 的 `∀ n`）
+  則明確判為「不是確定的指令數」。`x = x ∧ True` 不再被誤判成結論就是 `True`。
+- **分級提示詞另寫了一份**：少了引用格式的範例（第 1 輪 trivial-2 無效正是因此）與 J1 的
+  閱讀規則。改為由 JUDGE.md 組出，`judge-bundle.sh prompt` 可印出實際送出的內容。J2 的題目
+  不再寫「非平凡性由 G1.5 與 G3 保證」，改為要求 `1 = 1` 這類結論判 NO。
+- **`audit-proposal.sh`**：一次 429 就以 exit 123 中止且留下錯誤檔，重跑時錯誤檔被當成判定
+  跳過，該實驗永遠是 HUMAN；抽驗固定是第 3 個實驗；抽驗失敗後補滿三次沒有實作。三者皆已
+  修正，抽驗改為隨機並記在 `OUTDIR/audit-target.txt`。
+
+JUDGE.md 與 bundle 的組法都改了，依規則校準要重跑；第 1 輪的結果是全 Opus、舊提示詞，
+不能沿用。板子紀錄的去重複仍只認 exp232–exp234 的行首（`PATIENT`、`TRIAL`……），其他
+提案的紀錄可能被刪到只剩 5 行，尚未處理。

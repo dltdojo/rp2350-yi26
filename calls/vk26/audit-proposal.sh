@@ -7,13 +7,22 @@
 #
 # Per ACCEPTANCE.md:
 # - A proposal consists of five experiments exp101..exp105 in PROPOSER_DIR.
-# - Spot-check mode: 4 experiments receive 1 judge session (single confirmation).
-#   1 sampled experiment receives 3 judge sessions (consensus audit).
-# - Reduces judge sessions from 15 to 7 (~60% reduction).
+# - Spot-check mode: 4 experiments receive 1 judge run (single confirmation),
+#   1 sampled experiment receives 3 (consensus audit): 7 runs where every
+#   experiment at three would be 15, 53% fewer. A tiered run is two sessions.
+# - The sampled experiment is drawn at random, so a proposer cannot know which
+#   one it will be; AUDIT_EXP names it instead (a self-check, a re-audit). The
+#   choice is written to OUTDIR/audit-target.txt, and a second start in the same
+#   OUTDIR keeps it.
+# - If the sampled experiment does not PASS, single confirmation is withdrawn:
+#   the other four get runs 2 and 3 and are tallied on three.
+# - A run that did not produce a VERDICT block (HTTP 429, a crash) is moved to
+#   <name>.failed and the audit stops before tallying; start it again to retry
+#   only what is missing.
 #
 # Environment variables:
 #   MODEL: judge model (default: tiered; J2 Opus, J1/J3/J4 Sonnet)
-#   JOBS: max parallel sessions (default: 3)
+#   JOBS: max parallel judge runs (default: 3)
 #   DRY_RUN: if set to 1, generates bundles and checks gates without calling LLM.
 
 set -eu
@@ -44,8 +53,20 @@ if (( ${#EXPS[@]} != 5 )); then
     exit 1
 fi
 
-# Determine which experiment is sampled for 3 runs (default: exp103 or 3rd experiment)
-AUDIT_TARGET="${3:-$(basename "${EXPS[2]}")}"
+# Which experiment is sampled for 3 runs: AUDIT_EXP, else the one an earlier
+# start in OUTDIR drew, else one drawn now.
+NAMES=("${EXPS[@]##*/}")
+if [[ -n "${3:-}" ]]; then
+    AUDIT_TARGET="$3"
+elif [[ -s "$OUT/audit-target.txt" ]]; then
+    AUDIT_TARGET="$(<"$OUT/audit-target.txt")"
+else
+    AUDIT_TARGET="$(printf '%s\n' "${NAMES[@]}" | shuf -n1 --random-source=/dev/urandom)"
+fi
+printf '%s\n' "${NAMES[@]}" | grep -qxF -- "$AUDIT_TARGET" || {
+    echo "FAIL: $AUDIT_TARGET is not one of: ${NAMES[*]}" >&2; exit 2; }
+echo "$AUDIT_TARGET" > "$OUT/audit-target.txt"
+
 echo "=== vk26 Proposal Spot-Check Audit: $PROPOSER ==="
 echo "Model: $MODEL"
 echo "Sampled audit experiment (3 runs): $AUDIT_TARGET"
@@ -91,56 +112,77 @@ fi
 
 # Step 3: Run LLM Judge
 echo "--- Step 3: Running Judge Sessions ---"
+is_verdict() { [[ -f "$1" ]] && grep -q '^VERDICT vk26' "$1"; }
 run_judge() {
-    local exp="$1"
-    local run_num="$2"
-    local bpath="$OUT/bundles/$exp.txt"
+    local exp="$1" run_num="$2"
     local vpath="$OUT/$exp-$run_num.txt"
-    if [[ -f "$vpath" && -s "$vpath" ]]; then
+    if is_verdict "$vpath"; then
         echo "Skipping existing verdict: $vpath"
         return 0
     fi
     echo "Judging $exp (run $run_num, model $MODEL)..."
-    "$BUNDLE" judge "$bpath" "$vpath" "$MODEL"
+    "$BUNDLE" judge "$OUT/bundles/$exp.txt" "$vpath" "$MODEL"
+}
+export -f is_verdict run_judge
+export BUNDLE OUT MODEL
+
+# Run "exp n" items, at most JOBS at a time. Anything that is not a verdict
+# afterwards is moved aside, and the audit stops: tallying a missing run would
+# count it as an invalid answer.
+run_all() {
+    (( $# )) || return 0
+    printf '%s\n' "$@" | xargs -P "$JOBS" -L1 bash -c 'run_judge "$@"' _ || true
+    local item exp n f missing=0
+    for item in "$@"; do
+        read -r exp n <<< "$item"
+        f="$OUT/$exp-$n.txt"
+        is_verdict "$f" && continue
+        if [[ -f "$f" ]]; then
+            mv -f "$f" "$f.failed"
+            echo "not a verdict: $exp run $n (see $f.failed)" >&2
+        else
+            echo "no verdict written: $exp run $n" >&2
+        fi
+        missing=$((missing + 1))
+    done
+    if (( missing )); then
+        echo "STOPPED: $missing run(s) gave no verdict; start the audit again to retry them." >&2
+        exit 2
+    fi
 }
 
-# Queue runs: 3 for sampled experiment, 1 for the other 4 experiments
-runs_list=()
-for e in "${EXPS[@]}"; do
-    ename="$(basename "$e")"
-    if [[ "$ename" == "$AUDIT_TARGET" ]]; then
-        runs_list+=("$ename 1" "$ename 2" "$ename 3")
-    else
-        runs_list+=("$ename 1")
-    fi
-done
-
-export -f run_judge
-export BUNDLE OUT MODEL
-printf '%s\n' "${runs_list[@]}" | xargs -P "$JOBS" -L1 bash -c 'run_judge "$@"' _
+others=()
+for e in "${NAMES[@]}"; do [[ "$e" == "$AUDIT_TARGET" ]] || others+=("$e"); done
+first=("$AUDIT_TARGET 1" "$AUDIT_TARGET 2" "$AUDIT_TARGET 3")
+for e in "${others[@]}"; do first+=("$e 1"); done
+run_all "${first[@]}"
 echo "Judge runs complete."
 echo ""
 
 # Step 4: Tally and Report
 echo "--- Step 4: Tallying Results ---"
 audit_failed=0
-for e in "${EXPS[@]}"; do
-    ename="$(basename "$e")"
+tally() { # exp run...
+    local exp="$1"; shift
+    local files=() n
+    for n in "$@"; do files+=("$OUT/$exp-$n.txt"); done
     echo "=================================================="
-    echo "Experiment: $ename"
-    bpath="$OUT/bundles/$ename.txt"
-    if [[ "$ename" == "$AUDIT_TARGET" ]]; then
-        echo "Mode: 3-run Consensus Audit"
-        if ! "$BUNDLE" tally "$bpath" "$OUT/$ename-1.txt" "$OUT/$ename-2.txt" "$OUT/$ename-3.txt"; then
-            audit_failed=1
-        fi
-    else
-        echo "Mode: Single Confirmation"
-        if ! "$BUNDLE" tally "$bpath" "$OUT/$ename-1.txt"; then
-            audit_failed=1
-        fi
-    fi
-done
+    echo "Experiment: $exp"
+    echo "Mode: $( (( $# == 1 )) && echo "Single Confirmation" || echo "$#-run Consensus Audit")"
+    "$BUNDLE" tally "$OUT/bundles/$exp.txt" "${files[@]}" || { audit_failed=1; return 1; }
+}
+
+if tally "$AUDIT_TARGET" 1 2 3; then
+    for e in "${others[@]}"; do tally "$e" 1 || true; done
+else
+    echo "=================================================="
+    echo "ESCALATED: the sampled experiment $AUDIT_TARGET did not PASS, so single"
+    echo "confirmation is withdrawn; the other four get runs 2 and 3."
+    more=()
+    for e in "${others[@]}"; do more+=("$e 2" "$e 3"); done
+    run_all "${more[@]}"
+    for e in "${others[@]}"; do tally "$e" 1 2 3 || true; done
+fi
 
 echo "=================================================="
 if (( audit_failed )); then
