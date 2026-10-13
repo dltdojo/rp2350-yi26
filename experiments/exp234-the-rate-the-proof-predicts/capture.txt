@@ -1,5 +1,5 @@
 === exp234 — the rate the proof predicts ===
-recorded at 2026-10-12T09:53:32Z from commit dc06c10
+recorded at 2026-10-13T00:30:38Z from commit 17d6407 (working tree dirty — this recording is not reproducible from the commit alone)
 
 >>> the theorems, and what they rest on
 'Exp234.lives' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -64,4 +64,8 @@ PASS  the shell catches a version where a patient's model run keeps the last pat
 PASS  the shell catches a version where the shell reads resistance from the tissue's word — check 12, M6
 PASS  the shell catches a version where the TRNG gives nothing — check 11
 PASS  the shell catches a version where the shell itself traps entering the kernel — a fault, not a check
-SKIP  checking a board's log: none recorded yet (board/*.txt)
+PASS  round1.txt: SEARCH and PLAN are cure.py's (19 times), minstret 4046 throughout; patients 7–25: every model outcome cure.py's, every world replayed by cure.py from its word, to the number (19 of 19), every TRIAL count adding up, every treated patient predicted cured and every control missed
+PASS  a board log with one thing changed is refused: s/word=8fd5a26f/word=8fd5a26e/
+PASS  a board log with one thing changed is refused: s/resistant=1 t24=22 tissue=10/resistant=1 t24=21 tissue=10/
+PASS  a board log with one thing changed is refused: s/n=16 word=4b29cb4d arm=treated width=5 at=20 model=cured world=missed/n=16 word=4b29cb4d arm=treated width=5 at=20 model=cured world=cured/
+PASS  a board log with one thing changed is refused: s/lives=10 minstret=4046/lives=10 minstret=3084/
