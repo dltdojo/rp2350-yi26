@@ -62,7 +62,7 @@ calls/vk26/alice/
     lakefile.toml
     Alice.lean
     Alice/Common.lean
-  exp101-<slug>/                 實驗編號固定是 101 到 105
+  vk26-alice-1-<slug>/           實驗識別碼 vk26-alice-1，n 固定是 1 到 5
     README.md  WHY.zh-TW.md
     check.sh  run.sh  capture.txt
     proof/<Name>.lean  proof/mutants.txt
@@ -70,18 +70,28 @@ calls/vk26/alice/
     <參考實作>.py  differential/
     shell/  build.sh  gen.py  <name>.uf2.sha256  build-toolchain.txt
     board/round1.txt
-  exp102-<slug>/
-  exp103-<slug>/
-  exp104-<slug>/
-  exp105-<slug>/
+  vk26-alice-2-<slug>/
+  vk26-alice-3-<slug>/
+  vk26-alice-4-<slug>/
+  vk26-alice-5-<slug>/
 ```
 
-- 實驗編號 **101–105 只在你的目錄裡有意義**，和 `experiments/exp101-board-bringup`
-  無關。因為每個人的目錄不同，編號不會衝突。
+- **每個實驗有一個識別碼 `vk26-<帳號>-<n>`**，n 是 1 到 5，例如 `vk26-alice-1`。
+  它在整個 repo、所有徵求、所有提案者之間都不會重複，也不會和 `experiments/expNNN`
+  混淆（主線用三位數的 `exp` 編號，這裡沒有 `exp`）。識別碼一律寫全名：
+  - 目錄名稱：`vk26-alice-1-<slug>`，識別碼在最前面；
+  - 韌體的 USB 名稱與序號：`SPEAK_NAME`、`SPEAK_SERIAL` 都用 `vk26-alice-1`，手機
+    WebUSB 選擇裝置與現場驗收（G7）時，看序號就知道板子上跑的是誰的哪一個實驗；
+  - `capture.txt` 的標題、`board/` 紀錄、commit 訊息、issue 與 PR 的討論。
+
+  同一份提案的討論串裡可以簡稱 `alice-1`；跨提案、跨徵求時用全名。
+- **長度上限**：USB 字串最長 34 個字元（`tools/hazard3/shell/usbdev.c` 的 `STRING_MAX`），
+  所以識別碼最多 34 個字元，帳號最多 27 個字元。帳號更長的提案者，由任務方在指派時給一個
+  27 個字元以內的代號，目錄與識別碼都用那個代號。
+- 識別碼裡只用小寫英文字母、數字與連字號。Lean 的命名空間不能有連字號，用你的套件名稱加
+  實驗號，例如 `Alice.E1`。
 - **只能新增或修改自己的目錄**。PR 裡只要有一個檔案在 `calls/vk26/<你的帳號>/` 之外，
   就不會被合併（ACCEPTANCE.md 的 S2）。
-- 韌體的 USB 名稱與序號要能和別人、和 `experiments/` 區分：`SPEAK_NAME` 用
-  `alice-exp101`，`SPEAK_SERIAL` 用 `alice-101`。供手機 WebUSB 介面選擇裝置及現場驗收（G7）時確認板子上跑的是誰的韌體。
 - `check.sh` 照 `experiments/` 的寫法，`source ../../../../experiments/lib.sh` 以使用
   `pass`、`fail`、`require_supported_platform`、`capture_header`、`capture_tee`。
   `presence_check` 與 `usb_check` 讀的是 `experiments/README.md` 的表格，**不要**呼叫；
@@ -230,10 +240,10 @@ calls/vk26/judge-bundle.sh prompt J2
 calls/vk26/judge-bundle.sh usage v1.txt.usage
 
 # 產生專題切片 bundle（排除無關檔案、去重複日誌）：
-calls/vk26/judge-bundle.sh bundle calls/vk26/alice/exp101-foo > /tmp/b.txt
+calls/vk26/judge-bundle.sh bundle calls/vk26/alice/vk26-alice-1-foo > /tmp/b.txt
 
 # 或是只抽取單一題目切片（J1、J2、J3、J4）進行極低 token 自檢：
-calls/vk26/judge-bundle.sh slice calls/vk26/alice/exp101-foo J2 > /tmp/b_j2.txt
+calls/vk26/judge-bundle.sh slice calls/vk26/alice/vk26-alice-1-foo J2 > /tmp/b_j2.txt
 
 # 執行模型分級裁判（J2 由深層模型判 J2 切片，J1/J3/J4 由快速模型判完整 bundle，共兩個 session；
 # 兩個模型由 models.env 指定）：

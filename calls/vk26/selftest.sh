@@ -241,7 +241,7 @@ gate "a numeral passes" PASS "$WORK/fb/num"
 # ---------- 3. PRIOR WORK -----------------------------------------------------
 
 echo "== 3. PRIOR WORK"
-VK26_AS=calls/vk26/zz/exp101-x "$JB" bundle "$E225" > "$WORK/bprop.txt"
+VK26_AS=calls/vk26/zz/vk26-zz-1-x "$JB" bundle "$E225" > "$WORK/bprop.txt"
 for e in exp203 exp207 exp208 exp213 exp234; do
     has "a proposal's prior work lists $e" "$WORK/bprop.txt" "- $e-"
 done
@@ -395,12 +395,26 @@ fi
 echo "== 6. audit-proposal.sh"
 mkdir -p "$WORK/prop/zz"
 for i in 1 2 3 4 5; do
-    cp -a "$E225" "$WORK/prop/zz/exp10$i-life"
-    rm -rf -- "${WORK:?}/prop/zz/exp10$i-life/build" "${WORK:?}/prop/zz/exp10$i-life/__pycache__"
+    cp -a "$E225" "$WORK/prop/zz/vk26-zz-$i-life"
+    rm -rf -- "${WORK:?}/prop/zz/vk26-zz-$i-life/build" "${WORK:?}/prop/zz/vk26-zz-$i-life/__pycache__"
 done
-NAMES="exp101-life exp102-life exp103-life exp104-life exp105-life"
+NAMES="vk26-zz-1-life vk26-zz-2-life vk26-zz-3-life vk26-zz-4-life vk26-zz-5-life"
 AUD="$HERE/audit-proposal.sh"
 O="$WORK/aud1"
+
+# S1: five directories named by the experiments' ids, one of each number.
+s1() { # name dirs... — the audit of a proposer dir holding these, refused at S1?
+    local d="$WORK/s1/$1"; shift; rm -rf -- "$d"; mkdir -p "$d"
+    for x in "$@"; do mkdir "$d/$x"; done
+    fresh_sent; DRY_RUN=1 "$AUD" "$d" "$WORK/s1-out-$(basename "$d")" > "$WORK/s1.txt" 2>&1
+    local rc=$?; [[ $rc == 1 && $(sent) == 0 ]] && grep -q "^FAIL S1" "$WORK/s1.txt"
+}
+s1 zz exp101-a exp102-a exp103-a exp104-a exp105-a && pass "S1 refuses the old names, exp101 to exp105" || fail "S1: old names" "$(tail -2 "$WORK/s1.txt")"
+s1 zz vk26-zz-1-a vk26-zz-2-a vk26-zz-3-a vk26-zz-4-a vk26-zz-4-b && pass "S1 refuses two of one number and none of another" || fail "S1: duplicate number" "$(tail -2 "$WORK/s1.txt")"
+s1 zz vk26-zz-1-a vk26-zz-2-a vk26-zz-3-a vk26-zz-4-a vk26-yy-5-a && pass "S1 refuses another proposer's id" || fail "S1: other proposer" "$(tail -2 "$WORK/s1.txt")"
+long=abcdefghijklmnopqrstuvwxyz12
+s1 $long vk26-$long-{1,2,3,4,5}-a && grep -q "a USB serial holds 34" "$WORK/s1.txt" \
+    && pass "S1 refuses an id longer than a USB serial holds: a 28-character name" || fail "S1: long id" "$(tail -2 "$WORK/s1.txt")"
 
 fresh_sent
 STUB_FAIL=opus JOBS=1 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a1.txt" 2>&1; rc=$?
@@ -428,12 +442,12 @@ fresh_sent
 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a3.txt" 2>&1; rc=$?
 [[ $rc == 0 && $(sent) == 0 ]] && pass "a third start finds every verdict and calls no model" || fail "third start" "exit $rc, $(sent) sessions"
 
-echo "STUB-SAYS-NO" >> "$WORK/prop/zz/exp103-life/README.md"
+echo "STUB-SAYS-NO" >> "$WORK/prop/zz/vk26-zz-3-life/README.md"
 fresh_sent
-"$AUD" "$WORK/prop/zz" "$WORK/aud2" exp103-life > "$WORK/a4.txt" 2>&1; rc=$?
+"$AUD" "$WORK/prop/zz" "$WORK/aud2" vk26-zz-3-life > "$WORK/a4.txt" 2>&1; rc=$?
 [[ $rc == 1 ]] && grep -q "^ESCALATED" "$WORK/a4.txt" && pass "a sampled experiment that fails escalates the other four, and the audit fails" \
     || fail "escalation: expected ESCALATED and exit 1, got $rc" "$(tail -2 "$WORK/a4.txt")"
-ok3=1; for e in exp101 exp102 exp104 exp105; do [[ -f "$WORK/aud2/$e-life-2.txt" && -f "$WORK/aud2/$e-life-3.txt" ]] || ok3=0; done
+ok3=1; for e in vk26-zz-1 vk26-zz-2 vk26-zz-4 vk26-zz-5; do [[ -f "$WORK/aud2/$e-life-2.txt" && -f "$WORK/aud2/$e-life-3.txt" ]] || ok3=0; done
 (( ok3 )) && [[ $(sent) == 30 ]] && pass "  … each of them gets runs 2 and 3: 15 runs, 30 sessions" || fail "  … escalation runs" "$(sent) sessions"
 [[ $(grep -c "^Mode: 3-run Consensus Audit" "$WORK/a4.txt") == 5 ]] && pass "  … and all five are tallied on three runs" || fail "  … not all tallied on three"
 
