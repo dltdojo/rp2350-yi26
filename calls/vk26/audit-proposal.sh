@@ -6,7 +6,9 @@
 #   audit-proposal.sh PROPOSER_DIR [OUTDIR] [AUDIT_EXP]
 #
 # Per ACCEPTANCE.md:
-# - A proposal consists of five experiments exp101..exp105 in PROPOSER_DIR.
+# - A proposal consists of five experiments in PROPOSER_DIR, one directory
+#   each, vk26-<proposer>-1-<slug> to vk26-<proposer>-5-<slug>: the
+#   experiment's id, vk26-<proposer>-<n>, then a slug (README.md section 3).
 # - Spot-check mode: 4 experiments receive 1 judge run (single confirmation),
 #   1 sampled experiment receives 3 (consensus audit): 7 runs where every
 #   experiment at three would be 15, 53% fewer. A tiered run is two sessions.
@@ -36,7 +38,7 @@ BUNDLE="$HERE/judge-bundle.sh"
 PROPOSER_DIR="${1:-}"
 [[ -n "$PROPOSER_DIR" && -d "$PROPOSER_DIR" ]] || {
     echo "Usage: $0 PROPOSER_DIR [OUTDIR] [AUDIT_EXP]" >&2
-    echo "  e.g. $0 calls/vk26/alice /tmp/alice_audit exp103-foo" >&2
+    echo "  e.g. $0 calls/vk26/alice /tmp/alice_audit vk26-alice-3-foo" >&2
     exit 2
 }
 
@@ -48,11 +50,19 @@ DRY_RUN="${DRY_RUN:-0}"
 
 mkdir -p "$OUT/bundles"
 
-# Check S1: exactly five experiments exp101..exp105
-EXPS=($(find "$PROPOSER_DIR" -mindepth 1 -maxdepth 1 -type d -name "exp10[1-5]-*" | sort))
-if (( ${#EXPS[@]} != 5 )); then
-    echo "FAIL S1: expected exactly 5 experiments exp101..exp105 in $PROPOSER_DIR, found ${#EXPS[@]}" >&2
+# Check S1: exactly five experiments, vk26-<proposer>-1-<slug> to -5-<slug>,
+# one of each number, every id short enough to be the USB serial (34
+# characters, tools/hazard3/shell/usbdev.c's STRING_MAX).
+ID="vk26-$PROPOSER"
+EXPS=($(find "$PROPOSER_DIR" -mindepth 1 -maxdepth 1 -type d -name "$ID-[1-5]-*" | sort))
+nums="$(for e in "${EXPS[@]}"; do b="${e##*/}"; echo "${b:${#ID}+1:1}"; done | sort -u | tr -d '\n')"
+if (( ${#EXPS[@]} != 5 )) || [[ "$nums" != 12345 ]]; then
+    echo "FAIL S1: expected exactly 5 experiments $ID-1-<slug> to $ID-5-<slug> in $PROPOSER_DIR, one of each, found ${#EXPS[@]}" >&2
     for e in "${EXPS[@]}"; do echo "  - $(basename "$e")" >&2; done
+    exit 1
+fi
+if (( ${#ID} + 2 > 34 )); then
+    echo "FAIL S1: the id $ID-<n> is $(( ${#ID} + 2 )) characters, and a USB serial holds 34; the call assigns a shorter name" >&2
     exit 1
 fi
 

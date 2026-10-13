@@ -6,10 +6,12 @@
 看 repo 的結構、工具與規則會在哪裡卡住。`alice` 是 [README.md 第 3 節](../README.md#3-目錄與編號)
 用的示範帳號。
 
-這份文件目前是**規劃稿**，供討論。討論定案後，依序實作 exp101 → exp105。每做完一個，
+這份文件目前是**規劃稿**，供討論。討論定案後，依序實作 vk26-alice-1 到 vk26-alice-5。每做完一個，
 就回頭檢討徵集設定（[README.md](../README.md)、[ACCEPTANCE.md](../ACCEPTANCE.md)、
 `judge-bundle.sh` 等）需不需要修改，邊做邊修。實作完成後，這份 README 改寫成 S4 要求的
 索引表，規劃內容移到各實驗的 README。
+
+五個實驗的識別碼是 `vk26-alice-1` 到 `vk26-alice-5`（[README.md 第 3 節](../README.md#3-目錄與編號)），目錄名稱、USB 名稱與序號、紀錄、commit 一律用這個全名；本提案的討論中可簡稱 `alice-1`。這是試跑找到的第一個設定問題：原本規定的 `exp101`–`exp105` 和主線 `experiments/exp101` 同名，每份提案也都一樣，討論時無法分辨，已改掉。
 
 文中所有數字（指令數、時間、位元組數）都是**預估**，不是量測結果；實作後以 capture 為準。
 
@@ -31,7 +33,7 @@
 （`run` 在整個樣本流上累計），而 `Health.lean` 的 `front` 每次進入都把計數歸零（`s4 = 2`）。
 exp222、exp223 只判一個視窗，所以這不是錯誤；但若把 `front` 逐窗套用在連續的樣本流上，
 一段跨越視窗邊界的 21 個相同樣本（例如前一窗最後 11 個加上下一窗最前面 10 個）就會被漏掉。
-SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始。
+SP 800-90B 的 RCT 是對整個樣本流連續計數的。vk26-alice-1 從這裡開始。
 
 ---
 
@@ -39,13 +41,13 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始
 
 | 實驗 | 一句話 | 主要定理（預定名稱） | 網頁展示 |
 | --- | --- | --- | --- |
-| **exp101** the run across the seam | 4 個視窗連續做健康測試，RCT 跨窗計數；第一個失敗的視窗之後全部停止輸出（錯誤鎖存） | `latch`：輸出恰好是「第一個失敗之前」每個視窗的雜湊，之後一個位元組都不寫 | 每窗判定、跨窗最長連續、APT 計數；網頁自己重算並用 WebCrypto 驗雜湊 |
-| **exp102** the hash tested first | 先對 `HASH`（晶片上是硬體 SHA-256）做已知答案測試（KAT），再丟棄啟動視窗、才開始 conditioning | `trusts_after_kat`：KAT 不符就停在錯誤碼、記憶體不變；符合才輸出 `env.hash(樣本)` | 顯示 KAT、啟動測試、摘要；故意壞掉的雜湊來源被擋下 |
-| **exp103** the count the estimate rests on | SP 800-90B §6.3.1 最常見值（MCV）估計所需的計數：位元組直方圖與最大次數，無分支、指令數固定 | `counts`：最大次數等於規格的最常見值次數；`Ct` 證明耗時與樣本無關 | 即時直方圖；網頁由次數算出 p_u 與 H_min，與參考實作比對 |
-| **exp104** the state the generator keeps | SP 800-90A Hash_DRBG（SHA-256，seedlen 440 位元）的 Generate：Hashgen 與狀態更新 `V = V + H + C + counter mod 2^440` | `generates`：輸出與新狀態等於規格，對任何 `env.hash` 都成立；55 位元組大端序加法的進位 | 每次 Generate 的輸出與 V；網頁用 WebCrypto 重算整個 DRBG |
-| **exp105** the seed the tests passed | 串起前四個：健康測試 → KAT → conditioning → Hash_df instantiate → Generate | `chain`：亂數輸出存在，若且唯若每個視窗都通過且 KAT 相符，且輸出等於規格串起來的結果 | 整條鏈的每一階段；網頁從原始樣本一路重算到最後的亂數 |
+| **vk26-alice-1** the run across the seam | 4 個視窗連續做健康測試，RCT 跨窗計數；第一個失敗的視窗之後全部停止輸出（錯誤鎖存） | `latch`：輸出恰好是「第一個失敗之前」每個視窗的雜湊，之後一個位元組都不寫 | 每窗判定、跨窗最長連續、APT 計數；網頁自己重算並用 WebCrypto 驗雜湊 |
+| **vk26-alice-2** the hash tested first | 先對 `HASH`（晶片上是硬體 SHA-256）做已知答案測試（KAT），再丟棄啟動視窗、才開始 conditioning | `trusts_after_kat`：KAT 不符就停在錯誤碼、記憶體不變；符合才輸出 `env.hash(樣本)` | 顯示 KAT、啟動測試、摘要；故意壞掉的雜湊來源被擋下 |
+| **vk26-alice-3** the count the estimate rests on | SP 800-90B §6.3.1 最常見值（MCV）估計所需的計數：位元組直方圖與最大次數，無分支、指令數固定 | `counts`：最大次數等於規格的最常見值次數；`Ct` 證明耗時與樣本無關 | 即時直方圖；網頁由次數算出 p_u 與 H_min，與參考實作比對 |
+| **vk26-alice-4** the state the generator keeps | SP 800-90A Hash_DRBG（SHA-256，seedlen 440 位元）的 Generate：Hashgen 與狀態更新 `V = V + H + C + counter mod 2^440` | `generates`：輸出與新狀態等於規格，對任何 `env.hash` 都成立；55 位元組大端序加法的進位 | 每次 Generate 的輸出與 V；網頁用 WebCrypto 重算整個 DRBG |
+| **vk26-alice-5** the seed the tests passed | 串起前四個：健康測試 → KAT → conditioning → Hash_df instantiate → Generate | `chain`：亂數輸出存在，若且唯若每個視窗都通過且 KAT 相符，且輸出等於規格串起來的結果 | 整條鏈的每一階段；網頁從原始樣本一路重算到最後的亂數 |
 
-### exp101 — the run across the seam
+### vk26-alice-1 — the run across the seam
 
 - **Kernel**：4 個視窗、每窗 1024 個樣本（每個樣本在一個字的 bit 0，同 exp222）。
   - RCT 的 `run` 與 `last` 跨窗延續。
@@ -64,7 +66,7 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始
 - **來源**：TRNG、卡在 1、exp114 的「九個 1 一個 0」，再加一個新的**跨邊界來源**：前一窗結尾 11 個 1、下一窗開頭 10 個 1。這個來源 `front` 逐窗套用會漏掉，這裡必須抓到。
 - **網頁**：顯示每窗的判定、跨窗最長連續、APT 計數。網頁收到樣本後自己重算兩個測試，並用 WebCrypto 的 SHA-256 驗每個雜湊。
 
-### exp102 — the hash tested first
+### vk26-alice-2 — the hash tested first
 
 - **Kernel**：
   1. 先對一則固定 64 位元組訊息呼叫 `HASH`，和映像裡的預期摘要（由 `gen.py` 以 hashlib 算出）逐位元組比對；不符就停在錯誤碼。
@@ -80,7 +82,7 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始
 - **晶片上**：shell 多一個「壞雜湊」模式，把硬體結果翻轉一個位元，kernel 必須在 KAT 停下。
 - **網頁**：顯示 KAT 結果、啟動測試、輸出摘要，並用 WebCrypto 重算。
 
-### exp103 — the count the estimate rests on
+### vk26-alice-3 — the count the estimate rests on
 
 - **Kernel**：4096 個位元組樣本（取自 TRNG 的字）。
   1. 清空 256 格直方圖。
@@ -93,7 +95,7 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始
 - **新東西**：exp222、exp223 都寫明「熵的評估不在這裡」，這是評估裡可以被證明的那一半。
 - **網頁**：即時直方圖；由板子送出的最大次數算出 H_min，並和自己從樣本算出的比對。
 
-### exp104 — the state the generator keeps
+### vk26-alice-4 — the state the generator keeps
 
 - **Kernel**：Hash_DRBG（SP 800-90A Rev. 1 §10.1.1，SHA-256，seedlen = 440 位元 = 55 位元組）的 Generate，不帶 additional input：
   1. Hashgen：`Hash(V)`、`Hash(V+1)`……
@@ -107,14 +109,14 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始
 - **參考實作**：Python 照 SP 800-90A 的文字寫。若能取得 NIST CAVP 的 Hash_DRBG 測試向量，再加一層比對；**能否取得要實作時確認**（雲端 VM 的網路可能不通）。
 - **網頁**：每次 Generate 的輸出與 V；網頁以 WebCrypto 重算整個 DRBG。
 
-### exp105 — the seed the tests passed
+### vk26-alice-5 — the seed the tests passed
 
-- **Kernel**：exp101 的健康測試區塊、exp102 的 KAT 區塊、exp104 的 Generate 區塊，加上 Hash_df 與 Instantiate：
+- **Kernel**：vk26-alice-1 的健康測試區塊、vk26-alice-2 的 KAT 區塊、vk26-alice-4 的 Generate 區塊，加上 Hash_df 與 Instantiate：
   - `seed_material` = conditioning 後的摘要 ‖ nonce；
   - `V = Hash_df(seed_material)`、`C = Hash_df(0x00 ‖ V)`；
   - 最後做一次 Generate。
-- **Lean**：`chain`。亂數輸出存在，若且唯若 KAT 相符且每個視窗都通過；且輸出等於規格把整條鏈串起來的值。這是組合定理，各段在 exp101、102、104 已證。
-- **抽出共用**：三個區塊在這裡第二次被用到，依規則搬進 `alice/lean/Alice/`，並讓 exp101、102、104 改為引用，`kernel.bin` 不變。這同時驗證 README 第 4 節的提案者套件機制。
+- **Lean**：`chain`。亂數輸出存在，若且唯若 KAT 相符且每個視窗都通過；且輸出等於規格把整條鏈串起來的值。這是組合定理，各段在 vk26-alice-1、2、4 已證。
+- **抽出共用**：三個區塊在這裡第二次被用到，依規則搬進 `alice/lean/Alice/`，並讓 vk26-alice-1、2、4 改為引用，`kernel.bin` 不變。這同時驗證 README 第 4 節的提案者套件機制。
 - **網頁**：顯示整條鏈的每一階段，從原始樣本一路重算到最後的亂數。
 
 ---
@@ -135,19 +137,21 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始
 
 ---
 
-## 四、要先討論的事
+## 四、討論的結果
+
+以下五點都依建議定案（2026-10-13）。
 
 1. **網頁放哪裡**（同時是徵集設定的問題）：
    - (a) 每個實驗一頁：裁判的資料包看得到。但 WebUSB 連線、CDC 解析這段程式在五頁各一份，違反「第二份就抽出」。
    - (b) 一頁五種模式，放在 `alice/pages/`：只有一份。但目前 `judge-bundle.sh` 不收 `.html`、`.mjs`，各實驗 README 對網頁的宣稱，J1 會找不到證據。
    - (c) 共用部分放 `alice/pages/`，各實驗一個薄頁，由建置步驟合成單一檔案。
-   - **建議 (c)**，並修改 `judge-bundle.sh`：README 連結到的頁面與它的測試輸出要帶進 J1。這要先改徵集設定。
-2. **`front` 的變體放哪裡**：主線 `Health.lean` 不能改（S2）。exp101 需要「計數由上一窗帶入」的版本，只能在 `alice/lean/` 另寫一個區塊。這不是複製，是不同的區塊；但合併後主線可能想把兩者統一。README 第 4 節已有「PR 說明裡寫出來，合併後由任務方搬移」的流程，這次實際走一遍。
-3. **exp101 的雜湊用 `ecall HASH` 還是被證明的軟體 SHA-256**：
-   - 建議 ecall。定理對任何雜湊函數都成立，4 窗只需幾千條指令；被證明的軟體版每窗約 33 萬條。
-   - 「雜湊是否就是 SHA-256」交給 exp102 的 KAT。
-4. **Hash_DRBG 的測試向量**：NIST CAVP 向量能否在雲端取得，實作 exp104 時先確認。取不到，就只有 Python 參考實作與網頁兩個獨立寫成的實作互相比對，README 要照實寫。
-5. **順序與節奏**：照 101 → 105 實作，每做完一個就停下來檢討設定，再做下一個。exp104 的大端序進位與 exp105 的組合證明最重；若時間不夠，可以先把 exp103（MCV 計數）提前。
+   - **定案：(c)**。同時修改 `judge-bundle.sh`，讓 README 連結到的頁面與它的測試輸出進入 J1 的 bundle；這是徵集設定的修改，在 vk26-alice-1 的網頁完成前做。
+2. **`front` 的變體放哪裡**：主線 `Health.lean` 不能改（S2）。vk26-alice-1 需要「計數由上一窗帶入」的版本，只能在 `alice/lean/` 另寫一個區塊。這不是複製，是不同的區塊；但合併後主線可能想把兩者統一。README 第 4 節已有「PR 說明裡寫出來，合併後由任務方搬移」的流程，這次實際走一遍。
+3. **vk26-alice-1 的雜湊用 `ecall HASH` 還是被證明的軟體 SHA-256**：
+   - **定案：ecall**。定理對任何雜湊函數都成立，4 窗只需幾千條指令；被證明的軟體版每窗約 33 萬條。
+   - 「雜湊是否就是 SHA-256」交給 vk26-alice-2 的 KAT。
+4. **Hash_DRBG 的測試向量**：NIST CAVP 向量能否在雲端取得，實作 vk26-alice-4 時先確認。取不到，就只有 Python 參考實作與網頁兩個獨立寫成的實作互相比對，README 要照實寫。
+5. **順序與節奏**：照 1 → 5 實作，每做完一個就停下來檢討設定，再做下一個。vk26-alice-4 的大端序進位與 vk26-alice-5 的組合證明最重；若時間不夠，可以先把 vk26-alice-3（MCV 計數）提前。
 
 ## 五、預期會測到的徵集設定問題
 
@@ -156,7 +160,7 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。exp101 從這裡開始
 | 項目 | 現況 | 可能的影響 |
 | --- | --- | --- |
 | `experiments/duplication.sh` | 只掃 `experiments/*` 的 `.rs`、`.py`、`.sh` | `alice/` 內的重複不會被抓到；README 第 4 節「第二份就抽出」沒有機器檢查 |
-| J3 的 PRIOR WORK | 只取 `experiments/README.md` exp201 起的索引列 | exp102–105 的 J3 看不到 alice 自己的 exp101 等，可能把延續自 exp101 的部分判為「新」 |
+| J3 的 PRIOR WORK | 只取 `experiments/README.md` exp201 起的索引列 | vk26-alice-2 到 5 的 J3 看不到 alice 自己的 vk26-alice-1 等，可能把延續自 vk26-alice-1 的部分判為「新」 |
 | 網頁不在 bundle | `judge-bundle.sh` 不收 `.html`、`.mjs` | 網頁相關的宣稱在 J1 無證據（見第四節第 1 點） |
 | 提案者 Lake 套件 | `lean.sh` 已支援 `calls/<徵求>/<帳號>/lean/`，但從未被真正的提案用過 | 第一次實際使用：路徑、`once_key`、mutant 限制（不能改主線函式庫） |
 | 路徑深度 | 實驗在 `calls/vk26/alice/exp10x/`，比 `experiments/expNNN/` 深兩層 | `source ../../../../experiments/lib.sh`、`tools/hazard3/shell/` 的相對路徑、`run.sh` 的開跑前檢查 |
