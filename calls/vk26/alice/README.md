@@ -22,7 +22,7 @@ S4 的索引表，做完一個填一列。Needs 照 [experiments/README.md](../.
 | 實驗 | Needs | USB 介面 | 傳什麼 | 主機端 | 跑誰的韌體 | 一句話 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [vk26-alice-1](./vk26-alice-1-the-run-across-the-seam/) | 2 | CDC | log | WebUSB（[seam.html](./vk26-alice-1-the-run-across-the-seam/seam.html)） | 自己的 | 四個視窗的 SP 800-90B 健康測試，RCT 跨窗連續計數，第一個失敗的視窗之後一個位元組都不寫；Lean 證明對每個輸入成立（`Seam.from_boot`），指令數由停止窗號決定。Pico 2 上板一次，紀錄 7 條完整樣本流全對（[board/round1.txt](./vk26-alice-1-the-run-across-the-seam/board/round1.txt)） |
-| [vk26-alice-2](./vk26-alice-2-the-hash-tested-first/) | 2 | CDC | log | WebUSB（[trust.html](./vk26-alice-2-the-hash-tested-first/trust.html)） | 自己的 | 讀樣本之前先以已知答案測試（KAT）考 `HASH`（晶片上是 SHA-256 硬體區塊），答錯就在 43 條指令後以 2 停下、一個樣本都不讀；再做 SP 800-90B 的啟動測試並丟棄那 1024 個樣本，下一窗通過才輸出 `HASH`；Lean 證明對任何 `HASH` 成立（`Trust.trusts_after_kat`）。shell 每輪故意弄壞一次答案，kernel 都擋下。尚未上板 |
+| [vk26-alice-2](./vk26-alice-2-the-hash-tested-first/) | 2 | CDC | log | WebUSB（[trust.html](./vk26-alice-2-the-hash-tested-first/trust.html)） | 自己的 | 讀樣本之前先以已知答案測試（KAT）考 `HASH`（晶片上是 SHA-256 硬體區塊），答錯就在 43 條指令後以 2 停下、一個樣本都不讀；再做 SP 800-90B 的啟動測試並丟棄那 1024 個樣本，下一窗通過才輸出 `HASH`；Lean 證明對任何 `HASH` 成立（`Trust.trusts_after_kat`）。shell 每輪故意弄壞一次答案，kernel 都擋下。Pico 2 上板一次，紀錄 18 條完整樣本流全對，弄壞的答案 4 次都被擋下（[board/round1.txt](./vk26-alice-2-the-hash-tested-first/board/round1.txt)） |
 | vk26-alice-3 | | | | | | （未實作） |
 | vk26-alice-4 | | | | | | （未實作） |
 | vk26-alice-5 | | | | | | （未實作） |

@@ -21,7 +21,12 @@ both pass is `HASH` of the second window written as the output. A
 On the RTL the shell runs five streams, one of them with `HASH`'s answer to
 the KAT spoiled on purpose: the kernel stops there, every time. Two wrong
 shells — `HASH` writing its digest a word late, and hashing 64 bytes too
-few — are caught by the KAT itself. Nothing here has run on a board yet.**
+few — are caught by the KAT itself. On a Pico 2, read on a phone through the
+page: the LED blinked as it should, and all 18 whole streams in the saved
+log, over three rounds, halted with trust.py's code at the RTL's minstret;
+the spoiled KAT was refused all four times it came up, before a sample was
+read, and each of the seven outputs was hashlib's SHA-256 of its second
+window.**
 
 This is the second experiment of [alice's trial proposal](../README.md) for
 the vk26 call; the first is
@@ -290,9 +295,43 @@ Needs a Pico 2 and an Android phone with Chrome; one BOOTSEL press.
 `check.sh` then holds every whole stream in it to trust.py and hashlib, and
 runs it through the page's block.
 
+## On the board
+
+[`board/round1.txt`](./board/round1.txt): a Pico 2, the page on a phone,
+the file Save gave back, kept as it came. The LED blinked as described:
+long, two, three, long, one, round after round.
+
+The page, as it saved: 18 streams, 18 judged right, 0 wrong, 0 incomplete,
+3 rounds, 4 spoiled hashes refused, 3 stopped by the start-up test, 7
+outputs, no FAIL line. The log starts at round 6's second stream and ends
+after round 9's fourth; every stream in it is whole. By `fixtures.py
+--board` (trust.py and hashlib) and by the page's block under node, all 18:
+
+| Stream | Rounds | Code (chip = trust.py) | minstret (= RTL) | KAT answer | Output |
+| --- | --- | --- | --- | --- | --- |
+| trng | 7, 8, 9 | 0 | 34897 | SHA-256's | hashlib's, of window 2 |
+| fair, spoiled | 6, 7, 8, 9 | 2 | 51 | SHA-256's, bit 0 of byte 0 flipped | none |
+| seam 11+10 | 6, 7, 8, 9 | 3 | 34885 | SHA-256's | none |
+| seam 10+10 | 6, 7, 8, 9 | 0 | 34897 | SHA-256's | hashlib's, of window 2 |
+| stuck at 1 from the start | 6, 7, 8 | 1 | 17470 | SHA-256's | none |
+
+What it adds to the RTL:
+
+- **The chip counts as the RTL does**, at all four codes, the one more at
+  codes 0, 1 and 2 included: 34897, 17470, 51 — and 34885 at code 3, with
+  none. So the pattern seen across both experiments is the core's or
+  tools/hazard3/harness's, not the testbench's. It is still not explained.
+- **The SHA-256 block answered the KAT right every time it was asked
+  honestly** (14 times here), and the kernel went on; every time the shell
+  spoiled the answer (4), the kernel stopped at instruction 43 and wrote no
+  output.
+- **The TRNG's three draws**, judged here afterwards: longest runs 11, 12
+  and 11; 516 and 508, 501 and 522, 518 and 527 of each window equal to its
+  first — far from 21 and 589, and code 0, as trust.py says.
+
 ## What it does not say
 
-- It has not run on a board.
+- One board, one phone, one log: 18 streams, three TRNG draws.
 - The KAT asks one question: 64 bytes, one block. A `HASH` that is right
   for one block and wrong for 64 — the output's length — passes it. The
   shell's check 4 and the page hold the output to SHA-256 afterwards; the
@@ -303,7 +342,7 @@ runs it through the page's block.
   every stream with 2, which is the differential's three bad wants.
 - The spoiled stream is the shell flipping a bit, not the block failing. It
   shows the KAT fires; it is not evidence about how the block fails.
-- The one more instruction on the RTL for codes 0 to 2 is measured, not
+- The one more instruction for codes 0 to 2, on the RTL and on the chip, is measured, not
   explained.
 
 ## What the trial found in the call's settings
