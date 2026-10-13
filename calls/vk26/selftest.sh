@@ -257,6 +257,14 @@ has "the J2 prompt asks J2" "$WORK/p2.txt" "**J2 — The theorem is what the tex
 lacks "  … and not J1" "$WORK/p2.txt" "**J1 —"
 lacks "  … nor asks for J1 in its output" "$WORK/p2.txt" "J1: YES|NO"
 has "the J1/J3/J4 prompt keeps J1's reading rule" "$WORK/p134.txt" "Explanations, analogies and motivation are not"
+# Option B (round 2's third probe): a person's recorded observation of the
+# board counts, with its conditions; an inference from it needs the code; a
+# number from a board still needs the log; build commits are not checked.
+has "  … and J1's rule for a person's observation of the board" "$WORK/p134.txt" "A board claim may also rest on a person's recorded observation"
+has "  … that an inference from it cites the code" "$WORK/p134.txt" "is supported when the code it relies on is in the"
+has "  … that a number from a board still needs the log" "$WORK/p134.txt" "a board still needs the board log"
+has "  … and that a build commit is not checked" "$WORK/p134.txt" "Which commit something was built at is"
+lacks "  … none of which reaches the J2 prompt" "$WORK/p2.txt" "A board claim may also rest on"
 has "  … asks J4" "$WORK/p134.txt" "**J4 — The reference is independent.**"
 lacks "  … and not J2" "$WORK/p134.txt" "**J2 —"
 for q in J1 J2 J3 J4; do has "the full prompt asks $q" "$WORK/pall.txt" "$q: YES|NO"; done

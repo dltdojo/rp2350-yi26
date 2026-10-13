@@ -65,6 +65,17 @@ needs a theorem quantified over every input. "On the board, N of M" needs a
 board log with those numbers. Explanations, analogies and motivation are not
 claims. Statements that something was *not* done are not claims to check.
 
+A board claim may also rest on a person's recorded observation, when the
+README says plainly that it is one and states how it was made: which UF2 (its
+name or SHA-256), which board, and how it was run. Such a line is its own
+evidence for what the person saw; cite it. A conclusion drawn from that
+observation through the code — "the LED beats only once every check has held,
+so every check held" — is supported when the code it relies on is in the
+bundle; cite the code as well. Any number, count or log line said to come from
+a board still needs the board log. Which commit something was built at is
+history the bundle cannot hold: it is not a claim to check, unless the bundle
+contradicts it (a different hash for the same file).
+
 **J2 — The theorem is what the text says.** Is there at least one theorem of
 `from_boot` form — about the kernel's actual bytes, executed from boot, halting
 after an exact number of instructions with a stated result — and do the main
