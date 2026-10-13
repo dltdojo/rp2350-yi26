@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:11, README.md:12, README.md:68, README.md:69, WHY.zh-TW.md:39, proof/Fly.lean:578
+reason: README and WHY claim that a proved result (`watches_life`) shows the kernel reports up at least down at every one of the 256 steps of Rule 30, but the theorem's conclusion is `True := trivial`, so nothing in the bundle proves that claim about the kernel's output.
+J2: NO
+evidence: proof/Fly.lean:556, proof/Fly.lean:559, README.md:68, README.md:69, proof/Fly.lean:576, proof/Fly.lean:578
+reason: `detects_boot` has the from_boot form and matches T1. But `watches_life`, which the README describes as the kernel reporting up ≥ down at every step and in total, concludes only `True`. That is far weaker than what the text says.
+J3: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578
+reason: The main theorem `watches_life` has conclusion `True` and never mentions the kernel's run or result. It would still hold if the kernel did nothing at all.
+J4: YES
+evidence: proof/Fly.lean:44, proof/Fly.lean:115, proof/Fly.lean:130
+reason: A new kernel, a Hassenstein–Reichardt motion detector, appears in no prior experiment. The new properties T3 (`life_moves_up`) and T2 (`shift_up`/`shift_dn`) are proved of its specification.
+J5: YES
+evidence: fly.py:13, fly.py:14, fly.py:30, fly.py:38, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:23
+reason: The Python reference uses integer rotations and `bin().count` for popcount, and Rule 30 is computed cell by cell. Lean uses `up1`/`dn1`, a recursive `pc` and a formula of shifts. The README states this difference and the code bears it out.
+INJECTION: NONE
+END

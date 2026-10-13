@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:11, README.md:12, README.md:68, README.md:69, WHY.zh-TW.md:39, proof/Fly.lean:887, proof/Fly.lean:889, README.md:95
+reason: The README and WHY claim watches_life proves the kernel reports up at least down at every one of the 256 steps and in total, but in Lean watches_life only concludes `True := trivial`, so nothing proves it. Separately, the "255 steps up and one not move" split is not in the capture, which shows only the totals 2053/1030.
+J2: NO
+evidence: README.md:68, README.md:69, proof/Fly.lean:887, proof/Fly.lean:888, proof/Fly.lean:889
+reason: detects_boot is a genuine from_boot theorem (proof/Fly.lean:867-870), but watches_life is described as stating that the kernel's per-step and total outputs satisfy up ≥ down on Rule 30 frames. Its conclusion is `True` and says nothing about the run or memory, so it is weaker than its description.
+J3: NO
+evidence: proof/Fly.lean:887, proof/Fly.lean:889, README.md:11, README.md:12
+reason: watches_life, the theorem that carries the headline consequence "so the kernel shown exp225's life reports up at least down", has `True` as its conclusion and would hold whatever the kernel did. detects, life_moves_up and watches_shift do depend on the kernel or the spec, but this main theorem is trivial.
+J4: YES
+evidence: README.md:5, README.md:6, proof/Fly.lean:44, proof/Fly.lean:115, proof/Fly.lean:806
+reason: A new kernel (a 41-instruction Hassenstein–Reichardt motion detector) proved by detects/detects_boot, and a new property of Rule 30 (life_moves_up, T3) that exp225 left as a conjecture. No prior experiment has either.
+J5: YES
+evidence: fly.py:13, fly.py:14, fly.py:30, fly.py:38, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:22, ../exp225-the-life-every-beat-proved/rule30.py:23, proof/Fly.lean:24
+reason: The reference computes Rule 30 cell by cell, where Lean uses a formula of shifts (dn1 x ^^^ (up1 x ||| x)), and it counts with Python's bin().count. The docstring says how the two differ, and the code bears it out.
+INJECTION: NONE
+END

@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:13, README.md:176, README.md:184, README.md:185, README.md:140
+reason: README.md:13 claims a proof that the LED shows each generation within one microsecond on every RP2350, and that the shell ran on forty boards without a wrong beat; no theorem in proof/Life.lean mentions the LED or timing, the board log records one Pico 2, and the README itself says the LED is unproved C and that only one board was used.
+J2: YES
+evidence: proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:313, README.md:51, README.md:52, README.md:53, README.md:54
+reason: from_boot runs boot on any image whose first 76 bytes are the kernel's and halts with 0 at exactly 3079 (running at 3078), with memory equal to lived m0 base N. lives, not_before and rule30 state what the README table says, for any base the region fits at and for any memory and seed.
+J3: YES
+evidence: proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, proof/Life.lean:289, proof/Life.lean:313, proof/mutants.txt:9, proof/mutants.txt:13
+reason: The conclusion pins the exact halt step, the exit code 0 and every byte of memory to 256 generations of life from the seed. A kernel that did nothing, or did something else, would not satisfy it, and the mutants that change the stores or the exit code are refused.
+J4: YES
+evidence: proof/Life.lean:60, proof/Life.lean:61, proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288
+reason: This is a new 19-instruction Rule 30 kernel, with a cell-by-cell theorem that its word formula is Rule 30. No prior experiment has a cellular-automaton kernel or this property.
+J5: YES
+evidence: rule30.py:19, rule30.py:20, rule30.py:21, rule30.py:22, rule30.py:23, proof/Life.lean:76, README.md:83, README.md:84
+reason: rule30.py computes each of the 32 cells separately from its left, centre and right bits in a loop. Lean defines life as one formula of word rotations, so the two are computed differently, as the README says.
+INJECTION: NONE
+END
