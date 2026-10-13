@@ -21,7 +21,7 @@ S4 的索引表，做完一個填一列。Needs 照 [experiments/README.md](../.
 
 | 實驗 | Needs | USB 介面 | 傳什麼 | 主機端 | 跑誰的韌體 | 一句話 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [vk26-alice-1](./vk26-alice-1-the-run-across-the-seam/) | 2 | CDC | log | WebUSB（[seam.html](./vk26-alice-1-the-run-across-the-seam/seam.html)） | 自己的 | 四個視窗的 SP 800-90B 健康測試，RCT 跨窗連續計數，第一個失敗的視窗之後一個位元組都不寫；Lean 證明對每個輸入成立（`Seam.from_boot`），指令數由停止窗號決定。**尚未上板** |
+| [vk26-alice-1](./vk26-alice-1-the-run-across-the-seam/) | 2 | CDC | log | WebUSB（[seam.html](./vk26-alice-1-the-run-across-the-seam/seam.html)） | 自己的 | 四個視窗的 SP 800-90B 健康測試，RCT 跨窗連續計數，第一個失敗的視窗之後一個位元組都不寫；Lean 證明對每個輸入成立（`Seam.from_boot`），指令數由停止窗號決定。Pico 2 上板一次，紀錄 7 條完整樣本流全對（[board/round1.txt](./vk26-alice-1-the-run-across-the-seam/board/round1.txt)） |
 | vk26-alice-2 | | | | | | （未實作） |
 | vk26-alice-3 | | | | | | （未實作） |
 | vk26-alice-4 | | | | | | （未實作） |
@@ -180,7 +180,7 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。vk26-alice-1 從這裡
 | `check.sh` | 不能呼叫 `presence_check`、`usb_check`（README 第 3 節） | Needs 與 USB 資訊只在 alice 的索引表，沒有機器檢查 | 確認：資訊寫在上面的索引表，沒有機器檢查 |
 | S2 | PR 只能動 `alice/` | 試跑中對徵集設定的修正要另開 PR，不能混進 alice 的提交，才能如實測到 S2 | 兩個設定修正都是獨立 commit，只動 `tools/lean/lean.sh` 或 `calls/vk26/` 的設定檔 |
 | 裁判用量 | 7 次判定 × 2 個 session | 依第 4 輪，約 $4–5；`audit-proposal.sh` 第一次對真提案執行 | 未到（五個做完才跑） |
-| G7 | 需要人、板子、手機 | 每個實驗需要一次手機上板；五個實驗共 5 次 | alice-1 的 UF2 與網頁已備妥，**尚未上板** |
+| G7 | 需要人、板子、手機 | 每個實驗需要一次手機上板；五個實驗共 5 次 | alice-1 上板一次（Pico 2 + 手機網頁）。手機的 Copy 貼回時被截斷（網頁看到 11 條，貼回 7 條），長紀錄經由聊天貼回可能需要改成分段或存檔 |
 
 ## 六、這份規劃參考過的既有工作
 

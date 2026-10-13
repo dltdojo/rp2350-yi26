@@ -19,8 +19,11 @@ So 11 ones at the end of one window and 10 at the start of the next are a
 run of 21, and stop the kernel at the second window, where
 `lean/Rv32/Health.lean`'s `front`, applied window by window, passes both.
 On the RTL the shell runs six streams, the run across the seam among them,
-each halting with the reference's code and the RTL's count for it. Nothing
-here has run on a board yet.**
+each halting with the reference's code and the RTL's count for it. On a
+Pico 2, read on a phone through the page: the LED blinked as it should, and
+all seven whole streams in the log — the TRNG's among them — halted with
+seam.py's code at the RTL's minstret, each digest hashlib's SHA-256 of its
+window; the seam stream stopped at window 2.**
 
 This is the first experiment of [alice's trial proposal](../README.md) for
 the vk26 call: a real proposal, made before the call is announced, to find
@@ -268,17 +271,53 @@ Needs a Pico 2 and an Android phone with Chrome; one BOOTSEL press.
 `check.sh` then holds every whole stream in it to seam.py and hashlib, and
 runs it through the page's block.
 
+## On the board
+
+[`board/round1.txt`](./board/round1.txt): a Pico 2, the page on a phone,
+the log Copy gave back. The LED blinked as described: one long light, two
+flashes, one long light, one, three, four.
+
+The page, as it copied: 11 streams, 11 judged right, 0 wrong, 0
+incomplete, 2 rounds, 2 stopped by a run across an edge, no FAIL line. The
+log as pasted holds fewer: it starts at round 3's last stream and is cut
+part way through a status line after round 4's last, so it has seven whole
+streams and one ROUND line. Those seven, by `fixtures.py --board` (seam.py
+and hashlib) and by the page's block under node:
+
+| Round | Stream | Code (chip = seam.py) | minstret (= RTL) | Digests |
+| --- | --- | --- | --- | --- |
+| 3 | nine ones then a zero, window 4 | 4 | 69709 | 3, hashlib's |
+| 4 | trng | 0 | 69719 | 4, hashlib's |
+| 4 | seam 11+10 | 2 | 34859 | 1, hashlib's |
+| 4 | seam 10+10 | 0 | 69719 | 4, hashlib's |
+| 4 | stuck at 1, window 1 | 1 | 17434 | 0 |
+| 4 | 21 alike in window 3 | 3 | 52284 | 2, hashlib's |
+
+What it adds to the RTL:
+
+- **The chip counts as the RTL does**, at every code, the extra one at
+  code 0 included: 69719, not 69718. So the extra instruction is in the
+  core or in tools/hazard3/harness, which both run, not in the testbench's
+  simulation. It is still not explained.
+- **The TRNG's digests are SHA-256's**, by hashlib on this machine, not
+  only the SHA-256 block checked against itself. Its round-4 samples: the
+  longest run 11, and 530, 496, 516 and 502 of each window equal to its
+  first — far from 21 and 589, and code 0, as seam.py says.
+- **The seam stream stopped at window 2 on silicon**, with one digest,
+  window 1's.
+
 ## What it does not say
 
-- It has not run on a board. Every claim about the chip above is what the
-  shell is built to check, not what a chip did.
-- The proof says nothing about which function `HASH` is. The chip's
-  SHA-256 block is held to hashlib on the five fixed streams; the TRNG's
-  digests only to the same block, again.
+- One board, one phone, one log, and the log as pasted is part of what the
+  page saw: seven whole streams, one TRNG draw.
+- The proof says nothing about which function `HASH` is. On the chip the
+  shell holds the SHA-256 block to hashlib's digests on the five fixed
+  streams, and the TRNG's only to the same block again; that the TRNG's
+  were SHA-256's is this log's, checked here afterwards.
 - The TRNG's own halt code is not predicted; on the RTL the stand-in's
   samples pass, as seam.py says they should.
-- The extra instruction the RTL counts at code 0 is measured, not
-  explained.
+- The extra instruction counted at code 0, on the RTL and on the chip, is
+  measured, not explained.
 - One window at a time is still how the adaptive proportion test runs, and
   the stream is four windows: what happens after the fourth (a fifth
   window, a reseed) is not here.
