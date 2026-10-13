@@ -57,8 +57,9 @@
 #   harnesses omitted; imported sibling algorithms capped).
 # - Empirical Evidence (for J1): capture.txt summary, shell/shell.c (what a board
 #   claim argues from), differential/*.py (what a measured claim's inputs are:
-#   exp225's twenty seeds), and board log results (PATIENT/TRIAL lines kept,
-#   polling deduplicated).
+#   exp225's twenty seeds), board log results (PATIENT/TRIAL lines kept,
+#   polling deduplicated), and every page README.md or WHY.zh-TW.md links
+#   (.html, .mjs) with the scripts the page loads from beside it.
 # Never kernel.bin, check.sh, build/ or anything generated.
 #
 #   VK26_AS=experiments/expNNN-…   bundle EXPDIR as though it were at that path
@@ -355,6 +356,28 @@ def files_of(exp, question=None):
                 r = os.path.relpath(cand, exp)
                 if os.path.isfile(cand) and r not in [x for x, _ in out]:
                     out.append((r, 200 if r.endswith("capture.txt") else 100))
+            # A page the README says a person opens is what its claims about
+            # the page rest on: the page, and the scripts it loads from beside
+            # it (`<script src="../pages/core.js">`), which is how one
+            # proposer's pages share their code. A page nothing links, and
+            # anything outside the directory the experiment sits in (the
+            # proposer's, or experiments/), stay out.
+            root = os.path.dirname(os.path.abspath(exp)) + os.sep
+            for link in re.findall(r"\]\(((?:\.\./)?[\w./-]+\.(?:html|mjs))\)", text):
+                page = os.path.normpath(os.path.join(os.path.abspath(exp), link))
+                if not os.path.isfile(page) or not page.startswith(root):
+                    continue
+                found = [page]
+                if page.endswith(".html"):
+                    src = open(page, encoding="utf-8", errors="replace").read()
+                    for js in re.findall(r'<script src="([\w./-]+\.m?js)"></script>', src):
+                        cand = os.path.normpath(os.path.join(os.path.dirname(page), js))
+                        if os.path.isfile(cand) and cand.startswith(root):
+                            found.append(cand)
+                for cand in found:
+                    r = os.path.relpath(cand, os.path.abspath(exp))
+                    if r not in [x for x, _ in out]:
+                        out.append((r, 2000))
 
     # A proposer's own package: calls/<call>/<proposer>/lean/.
     rel = os.path.relpath(os.path.abspath(exp), REPO).split(os.sep)
