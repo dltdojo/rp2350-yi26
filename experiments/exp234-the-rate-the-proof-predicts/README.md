@@ -125,8 +125,10 @@ leave room for (one standard error is 0.17%). exp232's own 2000-patient
 figure, 13.7% of 1038 treated, was 1 standard error above it.
 
 exp232's board treated 30 patients, each boot counting from patient 1: 7 in
-round 1 (1 missed), 7 in round 2 (2 missed), and 16 by patient 40 in exp233's
-round 1 (1 missed, as the page's summary line records the board's TRIAL line).
+round 1 (1 missed, [its log](../exp232-the-cure-the-proof-predicts/board/round1.txt)),
+7 in round 2 (2 missed, [its log](../exp232-the-cure-the-proof-predicts/board/round2.txt)),
+and 16 by patient 40 in exp233's round 1 (1 missed, as the page's summary line
+records the board's TRIAL line, [its log](../exp233-the-trial-on-the-phone/board/round1.txt)).
 4 of 30 were not cured: 13.3%, with a 95% interval of 5.3%–29.7%. exp234's own
 board, round 1 below, treated 27 by patient 44 and 4 were not cured: 14.8%,
 interval 5.9%–32.5%. Together, 8 of 57: 14.0%, interval 7.3%–25.3%, against

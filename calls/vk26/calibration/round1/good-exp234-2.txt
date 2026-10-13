@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:212, README.md:213, README.md:228, capture.txt:67
+reason: The README says `world.py --board` replays all 19 patients in board/round1.txt "to the number", but the bundle has no output from that run. The capture it pastes, and the gates, report "SKIP checking a board's log: none recorded yet". It also names patient 21 as cured, and that patient is not in the board log lines the bundle carries (they end at patient 17).
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:510, proof/World.lean:511, proof/World.lean:489, proof/World.lean:641, proof/World.lean:642, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:588, README.md:71, README.md:74, README.md:75
+reason: from_boot runs the kernel's 296 bytes from boot and states that it halts with 0 at exactly 4043 instructions, with memory equal to `lived` (64 generations of wnext, nothing else changed). It holds for any memory beyond the code, so for every input and mask. cured_iff, answer_world (for every position p, widths 1–6) and resistance_stays match their README rows in quantifiers, hypotheses and conclusion.
+J3: YES
+evidence: proof/World.lean:490, proof/World.lean:188, proof/World.lean:184, proof/World.lean:642, capture.txt:15, capture.txt:16, capture.txt:17
+reason: The conclusions pin the run's exact count, its result and the bytes it leaves to the wgen history. Kernel mutants (dose kills resistant cells; resistant cells have no resistant daughters) and a count off by one are each refused, so the theorems depend on what the kernel computes.
+J4: YES
+evidence: proof/World.lean:79, proof/World.lean:641, proof/World.lean:718, README.md:28, README.md:30
+reason: exp232's world (resistance) was unproved C. Here it is a new 74-instruction kernel proved for every mask, plus new properties: M7 cured_iff, answer_world's division counts, and the 12.715% failure rate derived from them.
+J5: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:66, ../exp232-the-cure-the-proof-predicts/cure.py:72, ../exp232-the-cure-the-proof-predicts/cure.py:168, proof/World.lean:79, differential/differential.py:66
+reason: cure.py computes the dose and growth one cell at a time, with neighbour lookups, where Lean's wnext uses whole-word edge/spread/up1 operations. The differential checks the model's and the RTL's regions against it byte for byte. Only the one-line resistance update is written word-wise in both.
+INJECTION: NONE
+END

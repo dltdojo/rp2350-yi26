@@ -30,9 +30,11 @@ evidence, in a fixed format. Nothing else.
    any question by re-deciding a gate. Your questions are the ones a machine
    cannot answer.
 4. **Every answer needs evidence**: one or more citations of the exact form
-   `path:line`, where `path` and `line` are as printed at the start of a
-   bundle line (`path:line| text`). A citation that does not appear in the
-   bundle makes the answer invalid. Cite the lines that decide the answer —
+   `path:line`, copied from the start of a bundle line (`path:line| text`).
+   For the bundle line `proof/Fly.lean:578|     True := trivial` the citation
+   is `proof/Fly.lean:578`. Never cite the line numbers your file viewer adds
+   to the bundle itself: those count the bundle's lines, not the file's. A
+   citation that does not appear in the bundle makes the answer invalid. Cite the lines that decide the answer —
    for a NO, the line that is wrong or unsupported; for a YES, the lines
    that support it.
 5. **When in doubt, answer NO** and say exactly what is missing. A NO with a

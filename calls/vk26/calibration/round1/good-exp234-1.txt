@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:127, README.md:130, README.md:132, README.md:212, capture.txt:67
+reason: Most round-1 claims match board/round1.txt (38 seen, 27 treated, 4 missed, patients 7 and 16), but README.md:127-133 rests on exp232's board figures (30 treated, 4 not cured, "8 of 57"), and no log of exp232's is in the bundle. README.md:212 says `world.py --board` replayed all 19 patients "to the number", yet the only recorded run of that check is a SKIP with no board log (capture.txt:67), so no output in the bundle supports it.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:511, proof/World.lean:622, proof/World.lean:588, proof/World.lean:641, proof/World.lean:642, proof/World.lean:663, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720
+reason: from_boot covers any image that begins with the kernel's 296 bytes. It is still running at 4042 and halts with 0 at 4043, and memory is then `lived` (the 768 history bytes of wgen over whatever masks and inputs are in memory, everything else unchanged), which is W1 as described. still, resistance_stays (its hypothesis `inside` is the README's "inside the tumour"), cured_iff, zero_stays and answer_world (any p, w from 1 to 6, D = 0,0,1,2,3,8) match their descriptions in the README table.
+J3: YES
+evidence: proof/World.lean:511, proof/World.lean:188, proof/World.lean:185, proof/World.lean:79, proof/mutants.txt:5, proof/mutants.txt:6, capture.txt:15, capture.txt:16
+reason: The conclusion pins the memory after the halt to the generations of wnext computed from the inputs and masks in memory, so a kernel that did nothing, or something else, fails. The kills_resistant and not_inherited kernel mutants are refused, which shows the proof depends on what the kernel computes.
+J4: YES
+evidence: README.md:28, README.md:30, proof/World.lean:617, proof/World.lean:641, proof/World.lean:718
+reason: exp232's world with resistance was unproved C. Here it is a new proved 74-instruction kernel (W1) with new theorems: M6, M7 cured_iff, and answer_world's exact count of divisions left to chance, from which the 12.715% failure rate is derived. Nothing in prior work has these.
+J5: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:66, ../exp232-the-cure-the-proof-predicts/cure.py:72, ../exp232-the-cure-the-proof-predicts/cure.py:174, proof/World.lean:80, differential/differential.py:66
+reason: cure.py works out dose, edge and growth cell by cell in loops, where Lean's wnext uses whole-word bit operations, and the differential holds the kernel's output on the model and on the RTL to cure.py's world. Only the one-line resistance update (cure.py:174) has the same bitwise shape as Lean's.
+INJECTION: NONE
+END

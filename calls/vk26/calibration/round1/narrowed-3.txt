@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:212, README.md:213, capture.txt:67, README.md:164, README.md:165
+reason: The README claims `world.py --board` replayed all 19 board patients "to the number", but the only check output in the bundle (capture.txt) skips board logs ("none recorded yet"), so nothing shows that check ran. The claim that exp232's UF2 is still byte for byte `dd5dbde3…` also has no supporting output in the bundle.
+J2: NO
+evidence: README.md:75, WHY.zh-TW.md:40, proof/World.lean:711, proof/World.lean:718, proof/World.lean:719
+reason: `from_boot`, `lives`, `still`, `resistance_stays` and `cured_iff` match their descriptions. But `answer_world` is described as covering "a lump of 1 to 6 cells anywhere on the ring", while the theorem as written covers only `patient w 0 ANSWER`, a lump at position 0. That is a fixed position where the text says "anywhere".
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:490, proof/World.lean:507, proof/World.lean:511, proof/World.lean:641, proof/World.lean:642, capture.txt:18
+reason: `lives` and `from_boot` say the kernel's run halts at exactly instruction 4043 with memory equal to `lived`, the 64 `wnext` generations, so they depend on what the kernel computes. `cured_iff` is a real two-way condition: the `masks_free` mutant, which drops the mask condition, is refused.
+J4: YES
+evidence: README.md:28, README.md:30, proof/World.lean:79, proof/World.lean:641, proof/World.lean:718
+reason: In exp232 the world with resistance was unproved C. This experiment adds a new proved kernel for that world (W1), the M6, M7 and M8 properties, and a predicted failure rate derived from `answer_world`. None of the prior experiments has these.
+J5: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:3, ../exp232-the-cure-the-proof-predicts/cure.py:66, ../exp232-the-cure-the-proof-predicts/cure.py:68, ../exp232-the-cure-the-proof-predicts/cure.py:72, world.py:43, differential/differential.py:66
+reason: cure.py works out the dose and the growth cell by cell with explicit neighbour tests, where the Lean uses shifts and masks, and `world.py`'s division count is built on that cell-by-cell code. One caveat: the resistance-inheritance line (cure.py:174) is word-level, like the Lean, but the reference as a whole is not a line-by-line transcription.
+INJECTION: NONE
+END

@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:212, README.md:213, README.md:321, capture.txt:67, README.md:127, README.md:130
+reason: The README says `world.py --board` replays all 19 patients in board/round1.txt "to the number". The bundle has no output from that check, and the only capture says "SKIP checking a board's log: none recorded yet". The exp232/exp233 board figures (4 of 30, and so 8 of 57) also have no board log or check output anywhere in the bundle.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:511, proof/World.lean:489, proof/World.lean:622, proof/World.lean:588, proof/World.lean:641, proof/World.lean:718, proof/World.lean:663, README.md:71, README.md:72, README.md:73, README.md:74, README.md:75, README.md:76
+reason: `from_boot` is about any image that begins with the kernel's 296 bytes, and says it halts with 0 at exactly 4043 with memory = `lived` (the 64 generations of `wnext` over the masks in memory). `still`, `resistance_stays` (with `inside`, which README calls "inside the tumour"), `cured_iff`, `answer_world` (any w in 1..6, any p) and `zero_stays` each state what the README table says, with the same quantifiers.
+J3: YES
+evidence: proof/World.lean:490, proof/World.lean:188, proof/World.lean:79, proof/World.lean:642, proof/World.lean:720, capture.txt:15, capture.txt:16, capture.txt:17
+reason: The conclusions pin the kernel's final memory to the generations `wnext` computes from the given inputs and masks. They also give a non-tautological iff and exact division counts. Kernel mutants and claim mutants are refused.
+J4: YES
+evidence: proof/World.lean:79, proof/World.lean:153, proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, README.md:28, README.md:30
+reason: exp232's resistance world was unproved C. Here it is a new 74-instruction kernel proved for every mask (W1). It adds new theorems M6, M7 (cured_iff) and answer_world, and derives a predicted failure rate from them. None of this is in prior work.
+J5: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:66, ../exp232-the-cure-the-proof-predicts/cure.py:72, ../exp232-the-cure-the-proof-predicts/cure.py:174, proof/World.lean:80, proof/World.lean:86, differential/differential.py:66
+reason: cure.py computes the dose (including sparing resistant cells) and growth cell by cell in loops, where Lean uses word-level bit operations. The one-line resistance update at cure.py:174 is the same set formula as World.lean:86, but the cell rules it depends on are written independently.
+INJECTION: NONE
+END

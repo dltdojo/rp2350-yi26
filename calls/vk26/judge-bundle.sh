@@ -21,8 +21,9 @@
 #
 # The bundle holds, in this order: the experiment's README.md and WHY.zh-TW.md;
 # its proof files and mutants.txt; its Python (top level and differential/);
-# check.sh; the shell's shell.c; capture.txt; the first 80 lines of each board
-# log; and, under calls/, the proposer's own Lean package. Never kernel.bin,
+# check.sh; the shell's shell.c; capture.txt; the first 400 lines of each board
+# log, and of each board log in another experiment its README links to; and,
+# under calls/, the proposer's own Lean package. Never kernel.bin,
 # build/ or anything generated. Before them: the experiments that came before
 # it (experiments/README.md's index, each row cut to 700 characters) and the
 # gates. It is the same for the same commit: no dates, no absolute paths.
@@ -91,7 +92,17 @@ def files_of(exp):
                     if os.path.isfile(cand) and r not in [x for x, _ in out]:
                         out.append((r, 4000))
     add("check.sh"); add("shell/shell.c")
-    add("capture.txt"); add("board/*.txt", 80)
+    add("capture.txt"); add("board/*.txt", 400)
+    # Board logs the README links to in other experiments: evidence the author
+    # cites, which the judge must be able to read (exp234's figures for
+    # exp232's and exp233's boards).
+    readme = os.path.join(exp, "README.md")
+    if os.path.isfile(readme):
+        for link in re.findall(r"\]\((\.\./[^)#\s]+/board/[^)#\s]+\.txt)\)", open(readme, encoding="utf-8").read()):
+            cand = os.path.normpath(os.path.join(exp, link))
+            r = os.path.relpath(cand, exp)
+            if os.path.isfile(cand) and r not in [x for x, _ in out]:
+                out.append((r, 400))
     # A proposer's own package: calls/<call>/<proposer>/lean/.
     rel = os.path.relpath(os.path.abspath(exp), REPO).split(os.sep)
     if len(rel) >= 4 and rel[0] == "calls":

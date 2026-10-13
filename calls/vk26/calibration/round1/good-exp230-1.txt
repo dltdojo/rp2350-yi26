@@ -1,0 +1,18 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:95, README.md:96, WHY.zh-TW.md:30, capture.txt:29, differential/differential.py:56
+reason: The claim that, from exp225's seed, 255 steps are seen moving up and one not moving is a measured per-step figure that no output in the bundle shows: the capture and differential.py print only the totals (up 2053, down 1030), and watches_life proves only that no step is seen moving down. The other claims (70924, T1–T3, the 2^32 brute force, the RTL counts) match theorems or the capture.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:486, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:589, proof/Fly.lean:590, proof/Fly.lean:591, README.md:54, README.md:55, README.md:56, README.md:57, README.md:58, README.md:59, README.md:63, README.md:68, README.md:69, README.md:70, README.md:71
+reason: detects_boot is in from_boot form: from boot of any image that begins with the kernel's bytes, it halts with 0 at exactly 70924 and Sees holds. detects, shift_up/shift_dn (with the period-two hypothesis the README states), life_moves_up (for every x), watches_life and watches_shift (none of period two, as the README says) state what the README says they state, with the same quantifiers and hypotheses.
+J3: YES
+evidence: proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:486, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:496, proof/Fly.lean:28, proof/Fly.lean:31, capture.txt:17, capture.txt:18, capture.txt:19, capture.txt:23
+reason: The conclusion pins the kernel's run, which halts at exactly 70924 with 0, and requires memory to hold popcount(up1 before AND now) and popcount(dn1 before AND now) for each of the 256 steps, plus their totals. A kernel that did nothing or something else would fail it, and kernel mutants are refused in step_run and setup_run.
+J4: YES
+evidence: README.md:5, README.md:6, README.md:7, README.md:10, README.md:11, proof/Fly.lean:44, proof/Fly.lean:115, proof/Fly.lean:576
+reason: Prior work has Rule 30 (exp225) but no motion-detector kernel. This adds a new 41-instruction Hassenstein–Reichardt kernel proved correct, and a new property relating it to Rule 30 (life_moves_up, which exp225 had only as a conjecture), carried to the kernel by watches_life.
+J5: YES
+evidence: fly.py:13, fly.py:14, fly.py:30, fly.py:31, fly.py:34, fly.py:35, fly.py:38, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:20, ../exp225-the-life-every-beat-proved/rule30.py:21, ../exp225-the-life-every-beat-proved/rule30.py:22, ../exp225-the-life-every-beat-proved/rule30.py:23, proof/Fly.lean:24, proof/Fly.lean:28
+reason: The reference uses Python integers, rotations and bin().count("1") for popcount where Lean uses its own pc over BitVec. Its Rule 30 is written cell by cell where Lean uses a formula of shifts, and fly.py states this difference, which the code bears out.
+INJECTION: NONE
+END
