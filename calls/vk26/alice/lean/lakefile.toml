@@ -1,0 +1,9 @@
+name = "alice"
+defaultTargets = ["Alice"]
+
+[[require]]
+name = "yi26"
+path = "../../../../lean"
+
+[[lean_lib]]
+name = "Alice"
