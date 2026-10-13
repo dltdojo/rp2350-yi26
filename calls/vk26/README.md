@@ -223,6 +223,9 @@ calls/vk26/selftest.sh
 # 看裁判實際收到的提示詞（由 JUDGE.md 組出）：
 calls/vk26/judge-bundle.sh prompt J2
 
+# 每次判定後，看 claude 回報的實際用量（每個 session 一行，另附各模型合計）：
+calls/vk26/judge-bundle.sh usage v1.txt.usage
+
 # 產生專題切片 bundle（排除無關檔案、去重複日誌）：
 calls/vk26/judge-bundle.sh bundle calls/vk26/alice/exp101-foo > /tmp/b.txt
 

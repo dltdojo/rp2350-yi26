@@ -29,7 +29,7 @@ E228="$E/exp228-the-script-the-kernel-runs"
 E230="$E/exp230-the-motion-the-fly-sees"
 E234="$E/exp234-the-rate-the-proof-predicts"
 WORK="$(mktemp -d)"
-trap 'rm -rf -- "$WORK"' EXIT
+trap 'rm -rf -- "${WORK:?}"' EXIT
 
 has()   { grep -qF -- "$3" "$2" && pass "$1" || fail "$1" "not in $(basename "$2"): $3"; }
 lacks() { grep -qF -- "$3" "$2" && fail "$1" "in $(basename "$2"): $3" || pass "$1"; }
@@ -187,26 +187,39 @@ lacks "  … and not J2" "$WORK/p134.txt" "**J2 —"
 for q in J1 J2 J3 J4; do has "the full prompt asks $q" "$WORK/pall.txt" "$q: YES|NO"; done
 
 # The stub: answers YES with citations from exp225's bundle, NO to J2 when the
-# bundle carries STUB-SAYS-NO, and fails like a 429 for the model in STUB_FAIL.
+# bundle carries STUB-SAYS-NO. Like `claude -p --output-format json` it prints
+# one result object, and reports as input_tokens the bytes it was sent, so the
+# usage record can be checked against what actually went out. STUB_FAIL=model
+# fails like a 429 (exit 1), STUB_ERROR_RC0=model reports is_error with exit 0,
+# STUB_PLAIN=1 prints the bare text, as a claude without JSON output would.
 mkdir -p "$WORK/bin" "$WORK/sent"
 cat > "$WORK/bin/claude" <<'SH'
 #!/usr/bin/env bash
-model=""
-while (( $# )); do [[ $1 == --model ]] && model="$2"; shift; done
+model="" fmt=text
+while (( $# )); do case "$1" in --model) model="$2";; --output-format) fmt="$2";; esac; shift; done
 f="$(mktemp "$STUB_SENT/$model-XXXXXX")"
 cat > "$f"
-[[ "$model" == "${STUB_FAIL:-}" ]] && { echo "API Error: 429 You've hit your session limit" >&2; exit 1; }
+emit() { # is_error text
+    if [[ "$fmt" == json && -z "${STUB_PLAIN:-}" ]]; then
+        python3 -c 'import json, sys; e, t, n, m = sys.argv[1:]; print(json.dumps({"type": "result", "subtype": "success", "is_error": e == "1", "result": t, "usage": {"input_tokens": int(n), "cache_creation_input_tokens": 0, "cache_read_input_tokens": 7, "output_tokens": 42}, "total_cost_usd": 0.01, "modelUsage": {"stub-" + m: {}}}))' "$1" "$2" "$(wc -c < "$f")" "$model"
+    else
+        printf '%s\n' "$2"
+    fi
+}
+[[ "$model" == "${STUB_FAIL:-}" ]] && { emit 1 "API Error: 429 You've hit your session limit"; echo "429" >&2; exit 1; }
+[[ "$model" == "${STUB_ERROR_RC0:-}" ]] && { emit 1 "API Error: Overloaded"; exit 0; }
 j2=YES; grep -q STUB-SAYS-NO "$f" && j2=NO
-echo "VERDICT vk26"
-grep -q '^\*\*J1 — ' "$f" && printf 'J1: YES\nevidence: README.md:1\nreason: stub\n'
-grep -q '^\*\*J2 — ' "$f" && printf 'J2: %s\nevidence: proof/Life.lean:1\nreason: stub\n' "$j2"
-grep -q '^\*\*J3 — ' "$f" && printf 'J3: YES\nevidence: README.md:2\nreason: stub\n'
-grep -q '^\*\*J4 — ' "$f" && printf 'J4: YES\nevidence: rule30.py:1\nreason: stub\n'
-printf 'INJECTION: NONE\nEND\n'
+v="VERDICT vk26"
+grep -q '^\*\*J1 — ' "$f" && v+=$'\nJ1: YES\nevidence: README.md:1\nreason: stub'
+grep -q '^\*\*J2 — ' "$f" && v+=$'\nJ2: '"$j2"$'\nevidence: proof/Life.lean:1\nreason: stub'
+grep -q '^\*\*J3 — ' "$f" && v+=$'\nJ3: YES\nevidence: README.md:2\nreason: stub'
+grep -q '^\*\*J4 — ' "$f" && v+=$'\nJ4: YES\nevidence: rule30.py:1\nreason: stub'
+emit 0 "$v"$'\nINJECTION: NONE\nEND'
 SH
 chmod +x "$WORK/bin/claude"
-export PATH="$WORK/bin:$PATH" STUB_SENT="$WORK/sent" STUB_FAIL=""
+export PATH="$WORK/bin:$PATH" STUB_SENT="$WORK/sent" STUB_FAIL="" STUB_ERROR_RC0="" STUB_PLAIN=""
 sent() { find "$STUB_SENT" -type f | wc -l; }
+fresh_sent() { rm -rf -- "${STUB_SENT:?}"/*; }
 
 "$JB" judge "$WORK/b225.txt" "$WORK/v-tiered.txt" > /dev/null
 s="$(ls "$STUB_SENT"/sonnet-* 2>/dev/null | head -1)"; o="$(ls "$STUB_SENT"/opus-* 2>/dev/null | head -1)"
@@ -223,40 +236,73 @@ else
 fi
 "$JB" tally "$WORK/b225.txt" "$WORK/v-tiered.txt" > "$WORK/t.txt" && pass "tiered: the merged verdict tallies PASS" || fail "tiered: merged verdict" "$(tail -1 "$WORK/t.txt")"
 
-# ---------- 5. audit-proposal.sh ---------------------------------------------
+# ---------- 5. usage records --------------------------------------------------
 
-echo "== 5. audit-proposal.sh"
+echo "== 5. usage records"
+python3 - "$WORK/v-tiered.txt.usage" "$STUB_SENT" <<'PY' && pass "each session's usage is recorded: model, questions, bytes sent = bytes claude received" || fail "the usage record does not match the sessions"
+import glob, json, os, sys
+rows = [json.loads(l) for l in open(sys.argv[1], encoding="utf-8")]
+sent = {os.path.basename(p).split("-")[0]: os.path.getsize(p) for p in glob.glob(sys.argv[2] + "/*")}
+want = [("sonnet", "J1,J3,J4"), ("opus", "J2")]
+ok = [(r["model"], r["questions"]) for r in rows] == want and all(
+    r["ok"] and r["message_bytes"] == r["input_tokens"] == sent[r["model"]] and r["served"] == ["stub-" + r["model"]]
+    and r["cache_read_input_tokens"] == 7 and r["output_tokens"] == 42 for r in rows)
+sys.exit(0 if ok else 1)
+PY
+"$JB" usage "$WORK/v-tiered.txt.usage" > "$WORK/u.txt"
+want=$(( $(cat "$STUB_SENT"/sonnet-* | wc -c) + $(cat "$STUB_SENT"/opus-* | wc -c) + 14 ))
+has "\`usage\` sums the prompt tokens (input + cache) and output over both sessions" "$WORK/u.txt" "TOTAL: 2 session(s), prompt $want tokens, output 84 tokens"
+
+STUB_ERROR_RC0=opus "$JB" judge "$WORK/b225.txt" "$WORK/v-rc0.txt" > /dev/null; rc=$?
+[[ $rc == 1 ]] && head -1 "$WORK/v-rc0.txt" | grep -q '^ERROR deep_model' && pass "is_error with exit 0 is a failure, not an empty verdict" \
+    || fail "is_error with exit 0" "exit $rc: $(head -1 "$WORK/v-rc0.txt")"
+grep -q '"model": "opus".*"ok": false' "$WORK/v-rc0.txt.usage" && pass "  … and the failed session is recorded too" || fail "  … failed session not recorded"
+
+STUB_PLAIN=1 "$JB" judge "$WORK/b225.txt" "$WORK/v-plain.txt" > /dev/null
+"$JB" tally "$WORK/b225.txt" "$WORK/v-plain.txt" > /dev/null && pass "a claude that prints no JSON still gives a verdict" || fail "plain-text output"
+"$JB" usage "$WORK/v-plain.txt.usage" > "$WORK/u2.txt"
+has "  … and its sessions are counted as usage unknown, not as zero" "$WORK/u2.txt" "2 with no usage reported"
+
+# ---------- 6. audit-proposal.sh ---------------------------------------------
+
+echo "== 6. audit-proposal.sh"
 mkdir -p "$WORK/prop/zz"
 for i in 1 2 3 4 5; do
     cp -a "$E225" "$WORK/prop/zz/exp10$i-life"
-    rm -rf "$WORK/prop/zz/exp10$i-life/build" "$WORK/prop/zz/exp10$i-life/__pycache__"
+    rm -rf -- "${WORK:?}/prop/zz/exp10$i-life/build" "${WORK:?}/prop/zz/exp10$i-life/__pycache__"
 done
 NAMES="exp101-life exp102-life exp103-life exp104-life exp105-life"
 AUD="$HERE/audit-proposal.sh"
 O="$WORK/aud1"
 
-rm -rf "$STUB_SENT"/*
-STUB_FAIL=opus JOBS=3 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a1.txt" 2>&1; rc=$?
+fresh_sent
+STUB_FAIL=opus JOBS=1 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a1.txt" 2>&1; rc=$?
 target="$(cat "$O/audit-target.txt" 2>/dev/null)"
 [[ $rc == 2 ]] && pass "a run that hits a 429 stops the audit before the tally (exit 2)" || fail "429: expected exit 2, got $rc" "$(tail -2 "$WORK/a1.txt")"
 n_failed=$(ls "$O"/*.failed 2>/dev/null | wc -l); n_kept=$(ls "$O"/*-[123].txt 2>/dev/null | wc -l)
-[[ $n_failed == 7 && $n_kept == 0 ]] && pass "  … all 7 error files moved to .failed, none left to be mistaken for a verdict" \
-    || fail "  … expected 7 .failed and 0 verdict files" "$n_failed .failed, $n_kept left"
+[[ $n_failed == 1 && $n_kept == 0 && $(sent) == 2 ]] && pass "  … with JOBS=1, after the first failure no further run starts: 1 run, 2 sessions" \
+    || fail "  … expected 1 .failed, 0 verdicts, 2 sessions" "$n_failed .failed, $n_kept left, $(sent) sessions"
+[[ $(grep -c "^no verdict written" "$WORK/a1.txt") == 6 ]] && pass "  … the 6 runs never started are named" || fail "  … runs not started are not named"
+has "  … and the usage so far is reported" "$WORK/a1.txt" "TOTAL: 2 session(s)"
+fresh_sent
+STUB_FAIL=opus JOBS=3 "$AUD" "$WORK/prop/zz" "$WORK/aud0" > /dev/null 2>&1
+n=$(ls "$STUB_SENT"/opus-* | wc -l)
+(( n <= 3 )) && pass "with JOBS=3, at most the 3 runs already started reach Opus ($n did), not all 7" || fail "JOBS=3: $n runs reached Opus"
 [[ " $NAMES " == *" $target "* ]] && pass "  … the sampled experiment is recorded: $target" || fail "  … no sampled experiment recorded" "$target"
 
-rm -rf "$STUB_SENT"/*
+fresh_sent
 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a2.txt" 2>&1; rc=$?
 [[ $rc == 0 ]] && grep -q "ALL 5 EXPERIMENTS PASSED" "$WORK/a2.txt" && pass "started again, it retries the failed runs and passes" \
     || fail "retry: expected PASS, got exit $rc" "$(tail -2 "$WORK/a2.txt")"
 [[ $(sent) == 14 ]] && pass "  … 7 runs, 14 sessions (tiered: two a run)" || fail "  … expected 14 sessions" "$(sent)"
 [[ "$(cat "$O/audit-target.txt")" == "$target" ]] && pass "  … the same experiment stays sampled" || fail "  … the sampled experiment changed"
 
-rm -rf "$STUB_SENT"/*
+fresh_sent
 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a3.txt" 2>&1; rc=$?
 [[ $rc == 0 && $(sent) == 0 ]] && pass "a third start finds every verdict and calls no model" || fail "third start" "exit $rc, $(sent) sessions"
 
 echo "STUB-SAYS-NO" >> "$WORK/prop/zz/exp103-life/README.md"
-rm -rf "$STUB_SENT"/*
+fresh_sent
 "$AUD" "$WORK/prop/zz" "$WORK/aud2" exp103-life > "$WORK/a4.txt" 2>&1; rc=$?
 [[ $rc == 1 ]] && grep -q "^ESCALATED" "$WORK/a4.txt" && pass "a sampled experiment that fails escalates the other four, and the audit fails" \
     || fail "escalation: expected ESCALATED and exit 1, got $rc" "$(tail -2 "$WORK/a4.txt")"
@@ -271,6 +317,42 @@ for i in $(seq 12); do
 done
 n=$(tr ' ' '\n' <<< "$draws" | sort -u | grep -c .)
 (( n >= 2 )) && pass "the sampled experiment is drawn at random ($n different in 12 draws)" || fail "the sampled experiment is always the same" "$draws"
+
+# ---------- 7. calibration/run.sh --------------------------------------------
+
+echo "== 7. calibration/run.sh"
+RUN="$HERE/calibration/run.sh"
+C="$WORK/cal"
+mkdir -p "$C/bundles"
+"$HERE/calibration/cases.sh" "$C/bundles" > /dev/null
+VK26_CASES=no-such-case "$RUN" A "$C" > /dev/null 2>&1; rc=$?
+[[ $rc == 2 ]] && pass "an unknown VK26_CASES name is refused before anything runs" || fail "unknown case: exit $rc"
+
+fresh_sent
+STUB_FAIL=opus VK26_JOBS=1 "$RUN" A "$C" > "$WORK/r1.txt" 2>&1; rc=$?
+[[ $rc == 2 && $(sent) == 2 ]] && pass "stage A stops at the first 429: 1 run, 2 sessions, exit 2" || fail "stage A after a 429" "exit $rc, $(sent) sessions"
+has "  … the failed run is moved aside" "$WORK/r1.txt" "good-exp225-1.txt.failed"
+has "  … the stage says it stopped short" "$WORK/r1.txt" "STOPPED: 7 of 7 run(s) have no verdict"
+has "  … a case with no run is named, not tallied" "$WORK/r1.txt" "== narrowed: 0 of 1 run(s), not tallied"
+has "  … the usage so far is reported" "$WORK/r1.txt" "TOTAL: 2 session(s)"
+
+fresh_sent
+VK26_CASES=good-exp225 "$RUN" A "$C" > "$WORK/r2.txt" 2>&1; rc=$?
+[[ $rc == 0 && $(sent) == 2 ]] && pass "VK26_CASES=good-exp225 runs that one case: 1 run, 2 sessions" || fail "one case" "exit $rc, $(sent) sessions"
+has "  … and tallies it" "$WORK/r2.txt" "OVERALL: PASS"
+lacks "  … and no other case" "$WORK/r2.txt" "narrowed"
+has "  … usage counts the failed attempt too" "$WORK/r2.txt" "TOTAL: 4 session(s)"
+
+fresh_sent
+"$RUN" A "$C" > "$WORK/r3.txt" 2>&1; rc=$?
+[[ $rc == 0 && $(sent) == 12 ]] && pass "stage A started again runs only the 6 runs left: 12 sessions" || fail "stage A resumed" "exit $rc, $(sent) sessions"
+[[ $(grep -c "^OVERALL" "$WORK/r3.txt") == 7 ]] && pass "  … and tallies all seven cases" || fail "  … not all seven tallied"
+
+fresh_sent
+STUB_FAIL=opus "$RUN" B "$C" > /dev/null 2>&1; rc=$?
+n=$(ls "$STUB_SENT"/opus-* | wc -l)
+[[ $rc == 2 ]] && (( n <= 3 )) && pass "stage B at 3 jobs: a 429 lets at most the 3 runs already started reach Opus ($n did), not 14" \
+    || fail "stage B after a 429" "exit $rc, $n runs reached Opus"
 
 echo
 (( FAILED )) && { echo "selftest: FAIL"; exit 1; }

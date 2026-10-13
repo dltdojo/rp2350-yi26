@@ -113,3 +113,51 @@ README 連結的板子紀錄、上限 400 行；JUDGE.md 舉例說明引用格�
 JUDGE.md 與 bundle 的組法都改了，依規則校準要重跑；第 1 輪的結果是全 Opus、舊提示詞，
 不能沿用。板子紀錄的去重複仍只認 exp232–exp234 的行首（`PATIENT`、`TRIAL`……），其他
 提案的紀錄可能被刪到只剩 5 行，尚未處理。
+
+## 第 2 輪重跑：漸進步驟
+
+裁判的 `claude -p` 和開發用的是同一個帳號，應視為共用同一份用量額度。第 2 輪就是在
+開發之後一次開 20 個 session，一開始全部 429。所以分段跑，每一段都先看實際用量再決定
+下一段，不要讓一次失敗把後面排著的判定一起燒掉。
+
+兩個機制讓這件事做得到：
+
+- **遇錯即停**：`run.sh` 與 `audit-proposal.sh` 碰到第一個失敗的判定（429、當掉）就不再
+  啟動新的判定；已經在跑的會跑完。`VK26_JOBS=1` 時，失敗最多浪費那一次。完成的部分照樣
+  統計，沒跑完的案例會寫明「not tallied」，exit 2；額度恢復後再啟動同一個指令，只補缺的。
+- **用量紀錄**：每個 session 以 `claude -p --output-format json` 執行，把 claude 回報的
+  input、cache、output tokens 與費用附加到 `<判定檔>.usage`（失敗的 session 也記）。
+  `judge-bundle.sh usage FILE.usage...` 列出明細與各模型合計，`run.sh` 結束時印出合計。
+
+估計值（以第 1 輪「97 KB 約 30k tokens」的比例換算，只算送入的內容，未含每個 session
+的固定開銷與輸出；步驟 1 會量出實際值）：
+
+| 案例 | bundle | Sonnet（J1/J3/J4） | Opus（J2 切片） |
+| --- | --- | --- | --- |
+| good-exp225、overclaim、injection | 約 52 KB | 各約 18k | 各約 11k |
+| good-exp230、trivial | 約 64 KB | 各約 22k | 各約 13k |
+| good-exp234、narrowed | 約 142 KB | 各約 47k | 各約 21k |
+| 階段 A 合計（7 次，14 個 session） | | 約 19 萬 | 約 10 萬 |
+| 階段 B 合計（14 次，28 個 session） | | 約 39 萬 | 約 20 萬 |
+
+```sh
+OUT=calls/vk26/calibration/round2      # bundles/ 會重新產生，已列入 .gitignore
+
+# 1. 探測：最小的一個案例跑一次，看兩個 session 實際用了多少（約 3 萬）
+VK26_JOBS=1 VK26_CASES=good-exp225 calls/vk26/calibration/run.sh A "$OUT"
+calls/vk26/judge-bundle.sh usage "$OUT"/*.usage
+
+# 2. 階段 A 前半：其餘的小案例，一次一個（約 12 萬）
+VK26_JOBS=1 VK26_CASES="overclaim injection good-exp230 trivial" calls/vk26/calibration/run.sh A "$OUT"
+
+# 3. 階段 A 後半：兩個大案例（約 14 萬）；之後不帶 VK26_CASES 再跑一次，
+#    七個都已有判定，不呼叫模型，只印出完整統計
+VK26_JOBS=1 VK26_CASES="good-exp234 narrowed" calls/vk26/calibration/run.sh A "$OUT"
+calls/vk26/calibration/run.sh A "$OUT"
+
+# 4. 階段 B：七個都判對才跑，且放在額度剛重置之後
+calls/vk26/calibration/run.sh B "$OUT"
+```
+
+每一步之後，用步驟 1 量到的數字乘上 bundle 大小的比例，重新估計下一步；剩餘額度不夠
+下一步，就等重置，不要硬跑。

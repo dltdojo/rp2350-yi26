@@ -16,9 +16,11 @@
 #   OUTDIR keeps it.
 # - If the sampled experiment does not PASS, single confirmation is withdrawn:
 #   the other four get runs 2 and 3 and are tallied on three.
-# - A run that did not produce a VERDICT block (HTTP 429, a crash) is moved to
-#   <name>.failed and the audit stops before tallying; start it again to retry
-#   only what is missing.
+# - The first run that fails (HTTP 429, a crash) starts nothing more; a run
+#   without a VERDICT block is moved to <name>.failed and the audit stops
+#   before tallying. Start it again to retry only what is missing.
+# - What each session used, as claude reports it, goes to OUTDIR/*.usage and
+#   is summed at the end.
 #
 # Environment variables:
 #   MODEL: judge model (default: tiered; J2 Opus, J1/J3/J4 Sonnet)
@@ -121,17 +123,25 @@ run_judge() {
         return 0
     fi
     echo "Judging $exp (run $run_num, model $MODEL)..."
-    "$BUNDLE" judge "$OUT/bundles/$exp.txt" "$vpath" "$MODEL"
+    # 255 on failure: xargs then starts no further run, so a 429 costs one run,
+    # not every run still queued behind it.
+    "$BUNDLE" judge "$OUT/bundles/$exp.txt" "$vpath" "$MODEL" || return 255
+}
+report_usage() {
+    local usage=("$OUT"/*.usage)
+    [[ -f "${usage[0]}" ]] || return 0
+    echo "--- Usage recorded in $OUT so far (failed sessions included) ---"
+    "$BUNDLE" usage "${usage[@]}" | grep '^TOTAL'
 }
 export -f is_verdict run_judge
 export BUNDLE OUT MODEL
 
-# Run "exp n" items, at most JOBS at a time. Anything that is not a verdict
-# afterwards is moved aside, and the audit stops: tallying a missing run would
-# count it as an invalid answer.
+# Run "exp n" items, at most JOBS at a time; the first failure starts nothing
+# more. Anything that is not a verdict afterwards is moved aside, and the audit
+# stops: tallying a missing run would count it as an invalid answer.
 run_all() {
     (( $# )) || return 0
-    printf '%s\n' "$@" | xargs -P "$JOBS" -L1 bash -c 'run_judge "$@"' _ || true
+    printf '%s\n' "$@" | xargs -P "$JOBS" -L1 bash -c 'run_judge "$@"' _ 2>&1 || true
     local item exp n f missing=0
     for item in "$@"; do
         read -r exp n <<< "$item"
@@ -147,6 +157,7 @@ run_all() {
     done
     if (( missing )); then
         echo "STOPPED: $missing run(s) gave no verdict; start the audit again to retry them." >&2
+        report_usage
         exit 2
     fi
 }
@@ -185,6 +196,7 @@ else
 fi
 
 echo "=================================================="
+report_usage
 if (( audit_failed )); then
     echo "PROPOSAL AUDIT RESULT: FAIL or HUMAN INTERVENTION NEEDED" >&2
     exit 1

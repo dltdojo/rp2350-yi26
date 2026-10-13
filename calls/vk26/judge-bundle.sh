@@ -30,7 +30,10 @@
 #                                           about half of what it would alone); or
 #                                           `opus` or `sonnet` for one session with
 #                                           every question. Each session gets its
-#                                           prompt and its bundle in ONE message.
+#                                           prompt and its bundle in ONE message, and
+#                                           appends what it used, as claude reports
+#                                           it, to OUT.usage (one JSON line each)
+#   judge-bundle.sh usage FILE.usage...     those sessions, and the tokens per model
 #   judge-bundle.sh prompt [J1,J3,J4]       the prompt a judge run sends for those
 #                                           questions (default all four), built
 #                                           from JUDGE.md: what `judge` puts before
@@ -64,16 +67,19 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,60p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,60p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,60p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,60p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    *) sed -n '3,60p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
+import datetime
 import glob
+import json
 import os
 import re
 import subprocess
@@ -612,10 +618,76 @@ def merge_verdicts(j134, j2):
     return "\n".join(out)
 
 
-def run_claude(model, prompt, content):
-    msg = prompt + "\n\n=== THE BUNDLE DATA ===\n\n" + content
-    cmd = ["claude", "-p", "--model", model, "--tools", "", "--no-session-persistence", "--disable-slash-commands"]
-    return subprocess.run(cmd, input=msg, capture_output=True, text=True)
+USAGE_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+
+
+def run_claude(model, questions, content, out_path):
+    """One judge session: the prompt for these questions and the bundle in one
+    message, no tools. Returns (ok, text, error). Appends one JSON line to
+    OUT.usage with what `claude -p --output-format json` reports the session
+    used — failed sessions too, since they may have cost something — so that
+    the next estimate is a measurement, not a guess."""
+    msg = judge_prompt(questions) + "\n\n=== THE BUNDLE DATA ===\n\n" + content
+    cmd = ["claude", "-p", "--model", model, "--tools", "", "--no-session-persistence",
+           "--disable-slash-commands", "--output-format", "json"]
+    r = subprocess.run(cmd, input=msg, capture_output=True, text=True)
+    try:
+        obj = json.loads(r.stdout)
+        if isinstance(obj, list):
+            obj = [o for o in obj if isinstance(o, dict) and o.get("type") == "result"][-1]
+    except (ValueError, IndexError):
+        obj = None
+    if isinstance(obj, dict):
+        text = obj.get("result") or ""
+        ok = r.returncode == 0 and not obj.get("is_error")
+        usage = obj.get("usage") or {}
+        rec = {k: usage.get(k, 0) for k in USAGE_KEYS}
+        rec["total_cost_usd"] = obj.get("total_cost_usd")
+        rec["served"] = sorted((obj.get("modelUsage") or {}).keys())
+        error = "" if ok else f"exit {r.returncode}: {text}\n{r.stderr}"
+    else:
+        text, ok = r.stdout, r.returncode == 0
+        rec = {"tokens": "unknown: claude printed no JSON"}
+        error = "" if ok else f"exit {r.returncode}: {r.stderr}\n{r.stdout}"
+    entry = {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+             "verdict": os.path.basename(out_path), "model": model, "questions": ",".join(questions),
+             "message_bytes": len(msg.encode()), "ok": ok, **rec}
+    with open(out_path + ".usage", "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    return ok, text, error
+
+
+def usage_report(paths):
+    """The sessions recorded in .usage files, and their totals per model."""
+    rows = []
+    for p in paths:
+        for line in open(p, encoding="utf-8"):
+            if line.strip():
+                rows.append(json.loads(line))
+    per = {}
+    for e in rows:
+        t = per.setdefault(e["model"], {"sessions": 0, "failed": 0, "unknown": 0, "prompt": 0, "output": 0, "cost": 0.0})
+        t["sessions"] += 1
+        t["failed"] += not e["ok"]
+        if "input_tokens" not in e:
+            t["unknown"] += 1
+            continue
+        prompt = sum(e.get(k) or 0 for k in USAGE_KEYS[:3])
+        t["prompt"] += prompt
+        t["output"] += e.get("output_tokens") or 0
+        t["cost"] += e.get("total_cost_usd") or 0
+        print(f"{e['verdict']:24} {e['model']:8} {e['questions']:9} {'ok    ' if e['ok'] else 'FAILED'} "
+              f"sent {e['message_bytes']:>7} B  prompt {prompt:>7}  output {e.get('output_tokens') or 0:>5}")
+    total = {"prompt": 0, "output": 0, "unknown": 0}
+    for m, t in per.items():
+        print(f"TOTAL {m}: {t['sessions']} session(s), {t['failed']} failed, prompt {t['prompt']} tokens "
+              f"(input + cache), output {t['output']} tokens, ${t['cost']:.4f} as reported"
+              + (f"; {t['unknown']} with no usage reported" if t["unknown"] else ""))
+        total["prompt"] += t["prompt"]
+        total["output"] += t["output"]
+        total["unknown"] += t["unknown"]
+    print(f"TOTAL: {len(rows)} session(s), prompt {total['prompt']} tokens, output {total['output']} tokens"
+          + (f"; {total['unknown']} with no usage reported, not counted" if total["unknown"] else ""))
 
 
 if MODE == "bundle":
@@ -624,6 +696,8 @@ elif MODE == "slice":
     bundle(ARGS[0], question=ARGS[1].upper() if len(ARGS) > 1 else "J1")
 elif MODE == "prompt":
     print(judge_prompt([q.upper() for q in ARGS[0].split(",")] if ARGS else QUESTIONS), end="")
+elif MODE == "usage":
+    usage_report(ARGS)
 elif MODE == "gates":
     probs = gate15(ARGS[0].rstrip("/"))
     for p in probs:
@@ -641,27 +715,26 @@ elif MODE == "judge":
         fast_model = parts[1] if len(parts) > 1 else os.environ.get("VK26_FAST_MODEL", "sonnet")
         deep_model = parts[2] if len(parts) > 2 else os.environ.get("VK26_DEEP_MODEL", "opus")
 
-        r134 = run_claude(fast_model, judge_prompt(["J1", "J3", "J4"]), bundle_text)
-        if r134.returncode != 0:
-            open(out_path, "w", encoding="utf-8").write(f"ERROR fast_model ({fast_model}) exit {r134.returncode}:\n{r134.stderr}\n{r134.stdout}")
-            sys.exit(r134.returncode)
+        ok, t134, err = run_claude(fast_model, ["J1", "J3", "J4"], bundle_text, out_path)
+        if not ok:
+            open(out_path, "w", encoding="utf-8").write(f"ERROR fast_model ({fast_model}) {err}")
+            sys.exit(1)
 
-        j2_slice = extract_j2_slice(bundle_text)
-        r2 = run_claude(deep_model, judge_prompt(["J2"]), j2_slice)
-        if r2.returncode != 0:
-            open(out_path, "w", encoding="utf-8").write(f"ERROR deep_model ({deep_model}) exit {r2.returncode}:\n{r2.stderr}\n{r2.stdout}")
-            sys.exit(r2.returncode)
+        ok, t2, err = run_claude(deep_model, ["J2"], extract_j2_slice(bundle_text), out_path)
+        if not ok:
+            open(out_path, "w", encoding="utf-8").write(f"ERROR deep_model ({deep_model}) {err}")
+            sys.exit(1)
 
-        merged = merge_verdicts(r134.stdout, r2.stdout)
+        merged = merge_verdicts(t134, t2)
         if not merged:
-            open(out_path, "w", encoding="utf-8").write("INVALID MERGE:\n--- J134 ---\n" + r134.stdout + "\n--- J2 ---\n" + r2.stdout)
+            open(out_path, "w", encoding="utf-8").write("INVALID MERGE:\n--- J134 ---\n" + t134 + "\n--- J2 ---\n" + t2)
             sys.exit(1)
         open(out_path, "w", encoding="utf-8").write(merged)
         sys.exit(0)
     else:
-        r = run_claude(model, judge_prompt(), bundle_text)
-        open(out_path, "w", encoding="utf-8").write(r.stdout + (("\n" + r.stderr) if r.returncode else ""))
-        sys.exit(r.returncode)
+        ok, text, err = run_claude(model, QUESTIONS, bundle_text, out_path)
+        open(out_path, "w", encoding="utf-8").write(text if ok else f"ERROR model ({model}) {err}")
+        sys.exit(0 if ok else 1)
 elif MODE == "scan":
     hits = scan(ARGS[0].rstrip("/"))
     for h in hits:
