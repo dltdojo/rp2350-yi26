@@ -396,7 +396,7 @@ cases' per-case lines left out here (they are in `capture.txt`) and the
 
 ```
 === exp228 — the script the kernel runs ===
-recorded at 2026-10-11T07:10:50Z from commit cdfeb0a
+recorded at 2026-10-13T07:03:31Z from commit 824b054
 
 >>> the theorems, and what they rest on
 'Exp228.decode_k' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -500,6 +500,7 @@ PASS  a status line saying the board has dropped four lines: four, once, not a c
 PASS  a round of revision 2's 33 cases, ending in ROUND 33: whole and right, and named an older firmware
 PASS  a FAIL line from speak.h is counted
 PASS  round1-log.txt: all 51 cases from a board as the page says; rounds seen whole: 1; 13 status lines, 0 dropped, 0 gaps
+PASS  round4-page.txt: all 52 cases from a board as the page says; rounds seen whole: 1; 6 status lines, 0 dropped, 0 gaps
 PASS  the tests catch a page where OP_ADD subtracts: the page's interpreter is script.py's on all 1006 scripts — 34 by hand, 672 of arithmetic at the edges, 300 
 PASS  the tests catch a page where negative zero is true: the page's interpreter is script.py's on all 1006 scripts — 34 by hand, 672 of arithmetic at the edges, 300 
 PASS  the tests catch a page where a second signature is checked: the page's interpreter is script.py's on all 1006 scripts — 34 by hand, 672 of arithmetic at the edges, 300 
@@ -521,6 +522,7 @@ PASS  code.txt: 34 tiles, the last round's every case on them (14 accepted, 20 r
 PASS  code.txt: the case the board sent last, run here in 6 rows, beside the board's columns; no script error
 PASS  code.txt: Copy puts the verdict and every line received on the clipboard (10406 characters)
 PASS  board/round1-log.txt: 51 CASE lines over rounds 6–8, each its case's verdict, minstret and signatures; 2 ROUND lines, 1 closing a round the log holds whole (7); 13 status lines, nothing dropped, no bus error
+PASS  board/round4-page.txt: 52 CASE lines over rounds 4–6, each its case's verdict, minstret and signatures; 2 ROUND lines, 1 closing a round the log holds whole (5); 6 status lines, nothing dropped, no bus error
 PASS  board.py catches a log one instruction off for one case
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where the first case is said to be rejected — check 2
@@ -531,5 +533,7 @@ PASS  the shell catches a version where BIP340's challenge leaves the key out �
 PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check
 ```
 
-The run took 47m33s, of which the mutants are 13m48s and the differentials'
-3000 fuzzed scripts 11m54s.
+The run took 19m36s, of which the differentials' 3000 fuzzed scripts are
+5m47s and the mutants 5m38s. It took 47m33s when Lean checked
+`Script.lean` five times in one run and judged two mutants at a time
+(tools/lean/lean.sh now checks it once and fits the mutants to the memory).

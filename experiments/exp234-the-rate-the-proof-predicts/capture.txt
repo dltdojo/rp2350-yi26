@@ -1,5 +1,5 @@
 === exp234 — the rate the proof predicts ===
-recorded at 2026-10-13T06:12:08Z from commit e2489df
+recorded at 2026-10-13T06:49:21Z from commit e5c016f
 
 >>> the theorems, and what they rest on
 'Exp234.lives' depends on axioms: [propext, Classical.choice, Quot.sound]

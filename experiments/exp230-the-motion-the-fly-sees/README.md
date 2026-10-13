@@ -113,7 +113,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp230 — the motion the fly sees ===
-recorded at 2026-10-13T05:46:20Z from commit c40873e
+recorded at 2026-10-13T06:42:12Z from commit 0b63fba
 
 >>> the theorems, and what they rest on
 'Exp230.life_moves_up' depends on axioms: [propext, Classical.choice, Quot.sound]

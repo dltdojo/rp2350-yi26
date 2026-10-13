@@ -10,7 +10,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 
 LEAN=../../tools/lean/lean.sh
-export LEAN_JOBS="${LEAN_JOBS:-2}"
 # check.sh reads the mutants' verdicts from the table above rather than refusing
 # each a second time (tools/lean/lean.sh says how).
 export LEAN_VERDICTS="$PWD/build/verdicts"; rm -rf -- "$LEAN_VERDICTS"
