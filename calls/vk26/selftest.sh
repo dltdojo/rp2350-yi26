@@ -461,6 +461,19 @@ fresh_sent
 "$RUN" A "$WORK/cal-stale" > "$WORK/r5.txt" 2>&1; rc=$?
 [[ $rc == 2 && $(sent) == 0 ]] && pass "a bundle that changed under existing verdicts: the stage refuses, no run" || fail "stale bundle" "exit $rc, $(sent) sessions"
 has "  … and says which, and on what verdicts" "$WORK/r5.txt" "REFUSED: good-exp225.txt differ from what"
+cp -r "$C" "$WORK/cal-other"
+rm "$WORK/cal-other"/trivial-*.txt
+sed -i 's/^\(1| \)/\1STALE /' "$WORK/cal-other/bundles/trivial.txt"
+fresh_sent
+VK26_CASES=good-exp225 "$RUN" A "$WORK/cal-other" > /dev/null 2>&1; rc=$?
+[[ $rc == 0 && $(sent) == 0 ]] && pass "a changed bundle no verdict rests on does not hold up the other cases' verdicts" || fail "other case changed" "exit $rc, $(sent) sessions"
+cmp -s "$WORK/cal-other/bundles/trivial.txt" "$C/bundles/trivial.txt" && pass "  … and the new bundle replaces it" || fail "  … the old trivial bundle was kept"
+cp -r "$C" "$WORK/cal-prompt"
+sed -i 's/^\(\*\*J2 — \)/\1STALE /' "$WORK/cal-prompt/bundles/prompt-J2.txt"
+fresh_sent
+VK26_CASES=trivial "$RUN" A "$WORK/cal-prompt" > "$WORK/r6.txt" 2>&1; rc=$?
+[[ $rc == 2 && $(sent) == 0 ]] && pass "a changed prompt is under every verdict: the stage refuses, no run" || fail "stale prompt" "exit $rc, $(sent) sessions"
+has "  … and names every verdict" "$WORK/r6.txt" "injection-1.txt"
 mkdir -p "$WORK/cal-v2"
 cp -r "$WORK/cal-stale/bundles" "$WORK/cal-v2/"
 cp "$C/good-exp225-1.txt" "$WORK/cal-v2/good-exp225-1.v2.txt"

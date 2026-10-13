@@ -43,10 +43,11 @@ for c in "${CASES[@]}"; do
 done
 
 # The bundles and the prompts are made afresh on every start and compared with
-# OUTDIR/bundles: a stage judged half on one bundle and half on another tallies
+# OUTDIR/bundles: a case judged half on one bundle and half on another tallies
 # into nothing. Only the `commit:` line may differ — committing a stage's
-# verdicts moves HEAD. Changed, with no verdict judged on the old ones yet, the
-# new ones replace them; changed after verdicts exist, the stage refuses.
+# verdicts moves HEAD. A verdict rests on its own case's bundle and on the
+# prompts: when either changed under a verdict, the stage refuses; when only
+# bundles no verdict rests on changed, the new ones replace the old.
 mkdir -p "$OUT/bundles"
 fresh="$(mktemp -d)"
 trap 'rm -rf -- "${fresh:?}"' EXIT
@@ -59,9 +60,12 @@ changed=()
 for f in "$fresh"/*; do same "$f" "$OUT/bundles/${f##*/}" || changed+=("${f##*/}"); done
 if (( ${#changed[@]} )); then
     judged=()
-    for c in "${ALL[@]}"; do for n in 1 2 3 s1; do
-        grep -qs '^VERDICT vk26' "$OUT/$c-$n.txt" && judged+=("$c-$n.txt")
-    done; done
+    for c in "${ALL[@]}"; do
+        [[ " ${changed[*]} " == *" $c.txt "* || " ${changed[*]} " == *" prompt-"* ]] || continue
+        for n in 1 2 3 s1; do
+            grep -qs '^VERDICT vk26' "$OUT/$c-$n.txt" && judged+=("$c-$n.txt")
+        done
+    done
     if (( ${#judged[@]} )); then
         echo "REFUSED: ${changed[*]} differ from what ${judged[*]} were judged on." >&2
         echo "Move those verdicts aside (as round2/*.v2.txt), or use a new OUTDIR." >&2
