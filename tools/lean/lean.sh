@@ -46,6 +46,12 @@
 #
 # A FILE that imports `Rv32` or `Pio` is about the shared library in lean/ (from exp201
 # on): the library is built with `lake` first, and FILE is checked against it.
+#
+# A FILE under calls/<call>/<proposer>/ is checked against that proposer's own
+# Lake package, calls/<call>/<proposer>/lean/, when there is one: a package
+# that requires lean/ by path, so a proposer's five experiments share their own
+# modules without copying lean/ and without editing it (calls/vk26/README.md
+# says why). Its build reuses lean/'s, so nothing in lean/ is built twice.
 # The library's own theorems are checked by that build, so a mutant of the
 # library can be refused by the build before FILE is ever read.
 #
@@ -76,13 +82,27 @@ if [[ ! -x "$LEAN" ]]; then
     esac
 fi
 
-uses_lib() { grep -qE '^import (Rv32|Pio)' "$1"; }
+# The proposer's package for a FILE under calls/<call>/<proposer>/, if it has one.
+proposer_lib() { # file -> prints the package directory, status 1 if none
+    local d
+    d="$(cd "$(dirname "$1")" && pwd)"
+    while [[ "$d" == "$REPO"/calls/*/*/* ]]; do d="$(dirname "$d")"; done
+    [[ "$d" == "$REPO"/calls/*/* && -f "$d/lean/lakefile.toml" ]] || return 1
+    echo "$d/lean"
+}
+
+# Decided once, from FILE itself: a mutant is a copy of FILE in a scratch
+# directory, and must be checked against the same package FILE is.
+LIB_DEFAULT="$REPO/lean"
+[[ -n "$file" && -f "$file" ]] && LIB_DEFAULT="$(proposer_lib "$file" || echo "$REPO/lean")"
+
+uses_lib() { grep -qE '^import (Rv32|Pio)' "$1" || [[ "$LIB_DEFAULT" != "$REPO/lean" ]]; }
 
 # Lean on FILE, against the library in LIB when FILE imports it. A library that
 # does not build is reported the way a proof that does not check is: Lean's
 # own errors, and a non-zero status.
 lean_on() { # file [lib]
-    local f lib="${2:-$REPO/lean}"
+    local f lib="${2:-$LIB_DEFAULT}"
     f="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
     if uses_lib "$f"; then
         (cd "$lib" && PATH="$BIN:$PATH" lake build -q 2>&1 | grep -E 'error|warning' | head -20
@@ -132,6 +152,12 @@ one_mutant() { # callback label what expr dir
     # shape, last on the line, and only that.
     if [[ "$expr" =~ ^(.*)\|(lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
         expr="${BASH_REMATCH[1]}"; target="${BASH_REMATCH[2]}"
+    fi
+    if [[ -n "$target" && "$LIB_DEFAULT" != "$REPO/lean" ]]; then
+        # A proposer's package requires lean/ by path, so a copy of lean/ would
+        # not be the one it builds against: the mutant would test nothing.
+        echo "FAIL  $label: the proof refuses a version where $what — inconclusive: a mutant of lean/ is not supported for a proposer's package"
+        return
     fi
     if [[ -n "$target" ]]; then
         lib="$(mutant_lib "$expr" "$target")"
@@ -195,7 +221,8 @@ judge_mutant() {
 # by their bytes, so that a verdict is reused only for the inputs it judged.
 verdicts_key() {
     { realpath "$file"; cat "$file" "$mutants"
-      find "$REPO/lean" -name '*.lean' -not -path '*/.lake/*' | sort | xargs cat; } | sha256sum | cut -c1-32
+      find "$REPO/lean" $(proposer_lib "$file") -name '*.lean' -not -path '*/.lake/*' | sort | xargs cat; } \
+        | sha256sum | cut -c1-32
 }
 
 # Where the checker stopped, as the theorem it stopped in: the first step that
