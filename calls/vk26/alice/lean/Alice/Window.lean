@@ -18,6 +18,7 @@ unchanged. Whatever the last sample, the run and the failure flag were in
 `s4`, `s5` and `s6` on the way in, they are the stream's on the way out.
 -/
 import Rv32.Health
+import Rv32.Blocks
 
 namespace Alice.Window
 open Rv32 Rv32.Health
@@ -403,7 +404,41 @@ theorem winOk_congr {m m' : Word → Byte} (h : ∀ j < N * (w + 1), bit m' base
   rw [rct_congr h, agree_congr (m := m) (m' := m') (fun i hi => by
       rw [bit_window, bit_window]; exact h _ (by simp only [N] at hi ⊢; omega)) (by decide)]
 
+/-- The 4096 bytes of window `w` of the stream at `src`, as HASH reads them. -/
+def windowBytes (m : Word → Byte) (base : Word) (src w : Nat) : List Byte :=
+  readBytes m (base + BitVec.ofNat 32 (src + 4 * (N * w))) (4 * N)
+
+/-- **A write elsewhere leaves the samples' bits alone**: memory that changed
+only in the `n` bytes from `S` (a digest, a known-answer test's scratch)
+gives the same bit for every one of `K` samples from `src`, if the two places
+do not overlap. -/
+theorem bit_of_keeps (hfit : base.toNat + 0x10000 ≤ 2^32) {S n src K : Nat} {m m' : Word → Byte}
+    (h : Keeps (base + BitVec.ofNat 32 S) n m m') (hSn : S + n < 0x10000) (hK : src + 4 * K ≤ 0x10000)
+    (hsep : S + n ≤ src ∨ src + 4 * K ≤ S) : ∀ j < K, bit m' base src j = bit m base src j := by
+  intro j hj
+  simp only [bit, sample]
+  congr 1
+  apply readLE_four_congr
+  intro d hd
+  rw [off_add hfit _ _ (by omega)]
+  exact h.off hfit hSn (by omega) (by omega)
+
+/-- …and every window's bytes. -/
+theorem windowBytes_of_keeps (hfit : base.toNat + 0x10000 ≤ 2^32) {S n src w : Nat} {m m' : Word → Byte}
+    (h : Keeps (base + BitVec.ofNat 32 S) n m m') (hSn : S + n < 0x10000)
+    (hw : src + 4 * (N * (w + 1)) ≤ 0x10000)
+    (hsep : S + n ≤ src + 4 * (N * w) ∨ src + 4 * (N * (w + 1)) ≤ S) :
+    windowBytes m' base src w = windowBytes m base src w := by
+  unfold windowBytes
+  apply readBytes_congr
+  intro d hd
+  simp only [N] at *
+  rw [off_add hfit _ _ (by omega)]
+  exact h.off hfit hSn (c := src + 4 * (1024 * w) + d) (by omega) (by omega)
+
 #print axioms win_run
 #print axioms winOk_congr
+#print axioms bit_of_keeps
+#print axioms windowBytes_of_keeps
 
 end Alice.Window
