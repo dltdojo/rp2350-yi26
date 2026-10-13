@@ -13,7 +13,11 @@
 #                  of the code, each written with sed; Lean must refuse every
 #                  one. Without the last field the sed edits the proof itself;
 #                  with it, it edits that file of the shared library in lean/,
-#                  and the proof is checked against the edited library
+#                  and the proof is checked against the edited library. For a
+#                  proof under calls/, the last field may instead name a file
+#                  of its proposer's own package,
+#                  calls/<call>/<handle>/lean/<file>.lean, and that package
+#                  is copied and edited instead
 #
 #   lean.sh check FILE      PASS/FAIL: it checks, with no errors or warnings, and
 #                           every `#print axioms` lists Lean's own axioms only
@@ -122,14 +126,27 @@ lean_on() { # file [lib]
 # A copy of lean/ with one sed applied to one of its files, and built. The
 # build output already in lean/.lake comes along, so only what the edit
 # touches is rebuilt.
+#
+# Or, for a target in a proposer's package, calls/<call>/<handle>/lean/, a
+# copy of that package at the same depth in the scratch directory, with
+# scratch/lean a link to lean/: the package requires lean/ by a relative
+# path, which then still finds it, unedited and already built.
+# vk26-alice-1 found that a proposer could not mutate its own package.
 mutant_lib() { # sed target -> prints the copy's directory; status 3 = sed matched nothing
-    local expr="$1" target="$2" scratch rel
+    local expr="$1" target="$2" scratch pkg rel
     scratch="$(mktemp -d)"
-    cp -r "$REPO/lean" "$scratch/lean"
-    rel="${target#lean/}"
-    sed -i "$expr" "$scratch/lean/$rel"
-    echo "$scratch/lean"
-    cmp -s "$REPO/$target" "$scratch/lean/$rel" && return 3
+    if [[ "$target" =~ ^(calls/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/lean)/(.+)$ ]]; then
+        pkg="${BASH_REMATCH[1]}"; rel="${BASH_REMATCH[2]}"
+        mkdir -p "$scratch/$(dirname "$pkg")"
+        cp -r "$REPO/$pkg" "$scratch/$pkg"
+        ln -s "$REPO/lean" "$scratch/lean"
+    else
+        pkg=lean; rel="${target#lean/}"
+        cp -r "$REPO/lean" "$scratch/lean"
+    fi
+    sed -i "$expr" "$scratch/$pkg/$rel"
+    echo "$scratch/$pkg"
+    cmp -s "$REPO/$target" "$scratch/$pkg/$rel" && return 3
     return 0
 }
 
@@ -138,8 +155,9 @@ mutant_lib() { # sed target -> prints the copy's directory; status 3 = sed match
 # refused rather than resolved — `dirname ""` is `.`.
 drop_lib() { # lib
     local lib="$1" tmp="${TMPDIR:-/tmp}"
-    if [[ "$lib" =~ ^${tmp%/}/tmp\.[A-Za-z0-9]+/lean$ && -f "$lib/lakefile.toml" ]]; then
-        rm -rf -- "${lib%/lean}"
+    if [[ "$lib" =~ ^(${tmp%/}/tmp\.[A-Za-z0-9]+)/(lean|calls/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/lean)$ \
+          && -f "$lib/lakefile.toml" ]]; then
+        rm -rf -- "${BASH_REMATCH[1]}"
     else
         echo "refusing to remove '$lib': not a library copy this script made" >&2
         return 1
@@ -220,13 +238,17 @@ one_mutant() { # callback label what expr dir
     [[ "$mode" == table && -n "${LEAN_VERDICTS-}" ]] && VERDICT_OUT="$dir/verdict"
     # A sed may itself contain `|`, so the target is recognised by its
     # shape, last on the line, and only that.
-    if [[ "$expr" =~ ^(.*)\|(lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
+    if [[ "$expr" =~ ^(.*)\|((calls/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/)?lean/[A-Za-z0-9_/]+\.lean)$ ]]; then
         expr="${BASH_REMATCH[1]}"; target="${BASH_REMATCH[2]}"
     fi
-    if [[ -n "$target" && "$LIB_DEFAULT" != "$REPO/lean" ]]; then
+    if [[ "$target" == lean/* && "$LIB_DEFAULT" != "$REPO/lean" ]]; then
         # A proposer's package requires lean/ by path, so a copy of lean/ would
         # not be the one it builds against: the mutant would test nothing.
-        echo "FAIL  $label: the proof refuses a version where $what — inconclusive: a mutant of lean/ is not supported for a proposer's package"
+        echo "FAIL  $label: the proof refuses a version where $what — inconclusive: a mutant of lean/ is not supported for a proposer's package; mutate the package itself"
+        return
+    fi
+    if [[ "$target" == calls/* && "$REPO/${target%%/lean/*}/lean" != "$LIB_DEFAULT" ]]; then
+        echo "FAIL  $label: the proof refuses a version where $what — inconclusive: $target is not in the package this proof is checked against"
         return
     fi
     if [[ -n "$target" ]]; then
