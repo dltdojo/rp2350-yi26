@@ -22,7 +22,7 @@ RV32 核心（Hazard3）上執行「被 Lean 證明的程式」：證明說的�
 接任務者須同時符合：
 
 1. **會使用 GitHub**：fork、branch、pull request、issue。
-2. **具備可使用先進推理模型的 AI 工具或環境**（如 Claude、Antigravity 等）。本 repo 的開發方式是人與 AI 在雲端 VM 結對編程，由 AI 協助編寫 Lean 定理證明、Python 參考實作、RTL 模擬與 UF2 韌體建置。
+2. **能使用公告指定的 AI 模型**（見第 8 節）。每一期徵求針對特定模型，指定的模型與取得方式另行公告，不在本文寫死。本 repo 的開發方式是人與 AI 在雲端 VM 結對編程，由 AI 協助編寫 Lean 定理證明、Python 參考實作、RTL 模擬與 UF2 韌體建置。
 3. **能用手機的 USB 複製燒錄 RP2350 韌體**：按住 BOOTSEL 接上板子，把 `.uf2`
    複製進 `RP2350` 磁碟（手機的檔案管理員即可）。
 4. **能到指定的大學當面測試**：由任務方提供 RP2350 開發板，現場燒錄、收紀錄、確認
@@ -214,7 +214,7 @@ calls/vk26/alice/
   說的那件事、相對既有實驗有沒有新東西、參考實作是否獨立（原 J3「定理不平凡」已併入 J2；G1.5 機器關卡先擋下結論就是 `True` 的定理）。每個回答都
   必須引用 `檔案:行號`。
   - **抽檢模式**：五個實驗中，四個實驗預設採**單次確認**，隨機抽驗一個實驗跑**三次判定**，判定次數由 15 次降為 7 次（減少 53%）；抽驗沒通過，其餘四個補滿三次。
-  - **模型分級**：J2 專送 Opus（J2 切片，實測約為完整 bundle 的 42%–61%），其餘 J1/J3/J4 送 Sonnet；Opus 讀的量約為單獨判四題時的一半。
+  - **模型分級**：J2 送公告指定的深層模型（J2 切片，實測約為完整 bundle 的 42%–61%），其餘 J1/J3/J4 送公告指定的快速模型；深層模型讀的量約為單獨判四題時的一半。兩個模型的實際名稱寫在 [models.env](./models.env)，換模型只改那個檔案，並重跑校準。
   - LLM 不能推翻機器關卡的結果。
 
 自己先跑裁判：
@@ -235,7 +235,8 @@ calls/vk26/judge-bundle.sh bundle calls/vk26/alice/exp101-foo > /tmp/b.txt
 # 或是只抽取單一題目切片（J1、J2、J3、J4）進行極低 token 自檢：
 calls/vk26/judge-bundle.sh slice calls/vk26/alice/exp101-foo J2 > /tmp/b_j2.txt
 
-# 執行模型分級裁判（J2 由 Opus 判 J2 切片，J1/J3/J4 由 Sonnet 判完整 bundle，共兩個 session）：
+# 執行模型分級裁判（J2 由深層模型判 J2 切片，J1/J3/J4 由快速模型判完整 bundle，共兩個 session；
+# 兩個模型由 models.env 指定）：
 calls/vk26/judge-bundle.sh judge /tmp/b.txt v1.txt
 
 # 單次確認統計（一般實驗）：
@@ -247,6 +248,9 @@ calls/vk26/judge-bundle.sh tally /tmp/b.txt v1.txt v2.txt v3.txt
 
 ## 8. 尚待公告
 
+- **指定的模型**：提案者開發使用的模型，以及裁判使用的快速模型與深層模型。裁判模型公告後寫入
+  [models.env](./models.env)，本文與 [ACCEPTANCE.md](./ACCEPTANCE.md) 不寫模型名稱；換了裁判模型，
+  就要重跑校準（[calibration/](./calibration/)）。
 - 現場測試的大學、時段與頻率。
 - 獎勵與其他條款（智慧財產、授權以外的權利義務等）。
 

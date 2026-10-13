@@ -23,7 +23,8 @@
 #   is summed at the end.
 #
 # Environment variables:
-#   MODEL: judge model (default: tiered; J2 Opus, J1/J3/J4 Sonnet)
+#   MODEL: judge model (default: tiered; J2 to the deep model, J1/J3/J4 to
+#          the fast model, as models.env names them; or fast, or deep)
 #   JOBS: max parallel judge runs (default: 3)
 #   DRY_RUN: if set to 1, generates bundles and checks gates without calling LLM.
 

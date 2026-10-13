@@ -320,6 +320,9 @@ emit 0 "$v"$'\nINJECTION: NONE\nEND'
 SH
 chmod +x "$WORK/bin/claude"
 export PATH="$WORK/bin:$PATH" STUB_SENT="$WORK/sent" STUB_FAIL="" STUB_ERROR_RC0="" STUB_PLAIN=""
+# The tests below name the two judges `sonnet` and `opus`, whatever models.env
+# announces; the environment wins over models.env, which is tested on its own.
+export VK26_FAST_MODEL=sonnet VK26_DEEP_MODEL=opus
 sent() { find "$STUB_SENT" -type f | wc -l; }
 fresh_sent() { rm -rf -- "${STUB_SENT:?}"/*; }
 
@@ -365,6 +368,27 @@ STUB_PLAIN=1 "$JB" judge "$WORK/b225.txt" "$WORK/v-plain.txt" > /dev/null
 "$JB" tally "$WORK/b225.txt" "$WORK/v-plain.txt" > /dev/null && pass "a claude that prints no JSON still gives a verdict" || fail "plain-text output"
 "$JB" usage "$WORK/v-plain.txt.usage" > "$WORK/u2.txt"
 has "  … and its sessions are counted as usage unknown, not as zero" "$WORK/u2.txt" "2 with no usage reported"
+
+# The judges are the announced models: models.env names them, and nothing else
+# in the call does.
+fresh_sent
+env -u VK26_FAST_MODEL -u VK26_DEEP_MODEL "$JB" judge "$WORK/b225.txt" "$WORK/v-env.txt" > /dev/null
+fm="$(sed -n 's/^VK26_FAST_MODEL=\([^[:space:]]*\).*/\1/p' "$HERE/models.env")"
+dm="$(sed -n 's/^VK26_DEEP_MODEL=\([^[:space:]]*\).*/\1/p' "$HERE/models.env")"
+[[ -n "$fm" && -n "$dm" && $(ls "$STUB_SENT" | grep -c "^$fm-") == 1 && $(ls "$STUB_SENT" | grep -c "^$dm-") == 1 ]] \
+    && pass "models.env announces the judges: J1/J3/J4 to $fm, J2 to $dm" || fail "models.env not read" "$(ls "$STUB_SENT")"
+fresh_sent
+VK26_DEEP_MODEL=deepx "$JB" judge "$WORK/b225.txt" "$WORK/v-deepx.txt" > /dev/null
+[[ $(ls "$STUB_SENT" | grep -c '^deepx-') == 1 ]] && pass "  … and the environment wins, for tests and self-checks" || fail "  … VK26_DEEP_MODEL ignored" "$(ls "$STUB_SENT")"
+fresh_sent
+"$JB" judge "$WORK/b225.txt" "$WORK/v-fast.txt" fast > /dev/null
+[[ $(sent) == 1 && $(ls "$STUB_SENT" | grep -c '^sonnet-') == 1 ]] && grep -q '^J2:' "$WORK/v-fast.txt" \
+    && pass "\`judge … fast\`: one session, every question, to the fast model" || fail "judge fast" "$(ls "$STUB_SENT")"
+if grep -n -i -E 'opus|sonnet|haiku|claude-[a-z]' "$HERE/README.md" "$HERE/ACCEPTANCE.md" "$HERE/JUDGE.md" > "$WORK/names.txt"; then
+    fail "README, ACCEPTANCE and JUDGE name no model: the call announces them" "$(head -3 "$WORK/names.txt")"
+else
+    pass "README, ACCEPTANCE and JUDGE name no model: the call announces them, in models.env"
+fi
 
 # ---------- 6. audit-proposal.sh ---------------------------------------------
 

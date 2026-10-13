@@ -24,13 +24,15 @@
 #                                           if not
 #   judge-bundle.sh judge BUNDLE OUT [MODEL]
 #                                           one judge run: default MODEL is `tiered`,
-#                                           two sessions — J1/J3/J4 to Sonnet on the
-#                                           whole bundle, J2 to Opus on the J2 slice
-#                                           (README, WHY and the Lean: 42–61% of the
-#                                           bundle on exp225/230/234, so Opus reads
-#                                           about half of what it would alone); or
-#                                           `opus` or `sonnet` for one session with
-#                                           every question. Each session gets its
+#                                           two sessions — J1/J3/J4 to the fast model
+#                                           on the whole bundle, J2 to the deep model
+#                                           on the J2 slice (README, WHY and the Lean:
+#                                           42–61% of the bundle on exp225/230/234, so
+#                                           the deep model reads about half of what it
+#                                           would alone); or `fast` or `deep` for one
+#                                           session with every question. Which models
+#                                           those are is models.env's: the announced
+#                                           ones. Each session gets its
 #                                           prompt and its bundle in ONE message, and
 #                                           appends what it used, as claude reports
 #                                           it, to OUT.usage (one JSON line each)
@@ -70,13 +72,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    usage) [[ -f "${2-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -658,6 +660,19 @@ def merge_verdicts(j134, j2):
 USAGE_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
 
 
+def announced(key):
+    """The model models.env names for a role: the call's announcement. An
+    environment variable of the same name wins, for tests and self-checks."""
+    if os.environ.get(key):
+        return os.environ[key]
+    path = os.path.join(REPO, "calls", "vk26", "models.env")
+    for line in open(path, encoding="utf-8"):
+        m = re.match(r"\s*" + key + r"\s*=\s*(\S+)\s*$", line)
+        if m:
+            return m.group(1)
+    sys.exit(f"{path} names no {key}")
+
+
 def run_claude(model, questions, content, out_path):
     """One judge session: the prompt for these questions and the bundle in one
     message, no tools. Returns (ok, text, error). Appends one JSON line to
@@ -746,11 +761,13 @@ elif MODE == "judge":
     bundle_path, out_path = ARGS[0], ARGS[1]
     model = ARGS[2] if len(ARGS) > 2 else "tiered"
     bundle_text = open(bundle_path, encoding="utf-8").read()
+    if model in ("fast", "deep"):
+        model = announced("VK26_FAST_MODEL" if model == "fast" else "VK26_DEEP_MODEL")
 
     if model == "tiered" or model.startswith("tiered:"):
         parts = model.split(":")
-        fast_model = parts[1] if len(parts) > 1 else os.environ.get("VK26_FAST_MODEL", "sonnet")
-        deep_model = parts[2] if len(parts) > 2 else os.environ.get("VK26_DEEP_MODEL", "opus")
+        fast_model = parts[1] if len(parts) > 1 else announced("VK26_FAST_MODEL")
+        deep_model = parts[2] if len(parts) > 2 else announced("VK26_DEEP_MODEL")
 
         ok, t134, err = run_claude(fast_model, ["J1", "J3", "J4"], bundle_text, out_path)
         if not ok:
