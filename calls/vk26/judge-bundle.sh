@@ -5,11 +5,12 @@
 # ACCEPTANCE.md says why; JUDGE.md is the prompt the judge is given.
 #
 #   judge-bundle.sh bundle EXPDIR [GATES]   the experiment as the judge reads it,
-#                                           sliced by topic on stdout: every line
-#                                           numbered as path:line| text, so that a
-#                                           citation can be checked. Excludes build
-#                                           artifacts, shell.c, and check.sh (G5/G6
-#                                           check them; judge questions do not).
+#                                           sliced by topic on stdout: each file
+#                                           between `=== BEGIN path` and `=== END
+#                                           path`, each of its lines as `line| text`,
+#                                           so that a citation path:line can be
+#                                           checked. Excludes build artifacts and
+#                                           check.sh (G5/G6 run it).
 #   judge-bundle.sh slice EXPDIR QUESTION   extract only the slice for one question
 #                                           (J1, J2, J3, or J4), for low-token checks.
 #   judge-bundle.sh scan EXPDIR             text in the experiment addressed to
@@ -52,9 +53,10 @@
 #   (proof bodies omitted, line numbers preserved), and mutants.txt.
 # - Reference Implementation (for J4): top-level Python algorithms (differential
 #   harnesses omitted; imported sibling algorithms capped).
-# - Empirical Evidence (for J1): capture.txt summary and board log results (PATIENT/
-#   TRIAL lines kept, polling deduplicated).
-# Never kernel.bin, shell.c, check.sh, build/ or anything generated.
+# - Empirical Evidence (for J1): capture.txt summary, shell/shell.c (what a board
+#   claim argues from), and board log results (PATIENT/TRIAL lines kept, polling
+#   deduplicated).
+# Never kernel.bin, check.sh, build/ or anything generated.
 #
 #   VK26_AS=experiments/expNNN-…   bundle EXPDIR as though it were at that path
 #                                  in the repository — which experiments count as
@@ -67,13 +69,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    usage) [[ -f "${2-}" ]] || { sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,63p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,65p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -287,7 +289,7 @@ def gate15(exp):
 def files_of(exp, question=None):
     """The experiment's files the judge reads, as (relative path, max lines).
     If question is given ('J1', 'J2', 'J3', 'J4'), returns only the files
-    needed for that topic slice. Omits shell.c and check.sh (covered by G5/G6)."""
+    needed for that topic slice. Omits check.sh (G5/G6 run it)."""
     out = []
     def add(pattern, cap=4000):
         for p in sorted(glob.glob(os.path.join(exp, pattern))):
@@ -324,8 +326,11 @@ def files_of(exp, question=None):
                         if os.path.isfile(cand) and r not in [x for x, _ in out]:
                             out.append((r, 150))
 
-    # Evidence: capture summary and board logs, needed by J1
+    # Evidence: capture summary, the shell and board logs, needed by J1. The
+    # shell is what turns "the LED beats" into "every check held": exp225's
+    # README argues from it, and without it J1 rightly found that unsupported.
     if question in (None, "J1"):
+        add("shell/shell.c", 1000)
         add("capture.txt", 200)
         add("board/*.txt", 100)
         readme = os.path.join(exp, "README.md")
@@ -400,7 +405,7 @@ def bundle(exp, gates=None, question=None):
         commit, dirty = "unknown", ""
     hits = scan(exp)
     files = files_of(exp, question)
-    header = "=== VK26 SLICE BUNDLE v2" + (f" (question: {question})" if question else "")
+    header = "=== VK26 SLICE BUNDLE v3" + (f" (question: {question})" if question else "")
     out = [header,
            f"experiment: {rel}",
            f"commit: {commit}{' (with uncommitted changes in the experiment)' if dirty else ''}",
@@ -434,38 +439,57 @@ def bundle(exp, gates=None, question=None):
                     run = (run[0], n) if run else (n, n)
                     continue
                 if run:
-                    out.append(f"{f}:{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
+                    out.append(f"{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
                     run = None
-                out.append(f"{f}:{n}| {text}")
+                out.append(f"{n}| {text}")
             if run:
-                out.append(f"{f}:{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
+                out.append(f"{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
         elif f.startswith("board/") or "/board/" in f:
             seen = set()
             count = 0
             for n, line in enumerate(raw, 1):
                 if count >= cap:
-                    out.append(f"{f}:{n}| … (cut at {cap} lines)")
+                    out.append(f"{n}| … (cut at {cap} lines)")
                     break
                 if re.match(r"^(PATIENT|TRIAL|SEARCH|PLAN|#page)\b", line):
-                    out.append(f"{f}:{n}| {line.rstrip()}")
+                    out.append(f"{n}| {line.rstrip()}")
                     count += 1
                 elif line not in seen and len(seen) < 5:
                     seen.add(line)
-                    out.append(f"{f}:{n}| {line.rstrip()}")
+                    out.append(f"{n}| {line.rstrip()}")
                     count += 1
         else:
             for n, line in enumerate(raw, 1):
                 if n > cap:
-                    out.append(f"{f}:{n}| … (cut at {cap} lines)")
+                    out.append(f"{n}| … (cut at {cap} lines)")
                     break
-                out.append(f"{f}:{n}| {line.rstrip()}")
+                out.append(f"{n}| {line.rstrip()}")
         out.append(f"=== END {f}")
     print("\n".join(out))
 
 
+def bundle_cites(text):
+    """The citations a bundle supports: `path:line` for every `line| ` inside
+    `=== BEGIN path` … `=== END path`. Each line carries only its number; the
+    path is said once, at the top of its file — the path on every line was a
+    fifth of the bundle. No line of a file can start a BEGIN of its own, since
+    every one of them starts with its number."""
+    cites, cur = set(), None
+    for line in text.split("\n"):
+        if line.startswith("=== BEGIN "):
+            cur = line[len("=== BEGIN "):].strip()
+        elif line.startswith("=== END "):
+            cur = None
+        elif cur:
+            m = re.match(r"(\d+)\| ", line)
+            if m:
+                cites.add(f"{cur}:{m.group(1)}")
+    return cites
+
+
 def tally(bundle_path, verdicts):
     text = open(bundle_path, encoding="utf-8").read()
-    cites = set(re.findall(r"^(\S+?:\d+)\| ", text, re.M))
+    cites = bundle_cites(text)
     scan_hits = int(re.search(r"^injection-scan: (\d+)", text, re.M).group(1))
     qs = QUESTIONS
     table = {q: [] for q in qs}

@@ -81,7 +81,7 @@ README 連結的板子紀錄、上限 400 行；JUDGE.md 舉例說明引用格�
 
 - `judge-bundle.sh judge`：提示詞加 bundle 一則訊息、無工具、`claude -p`；預設 Opus，`sonnet` 供自我檢查。
 - bundle 瘦身：Lean 證明步驟改為一行標記（行號不變，定義、敘述、註解保留）；板子紀錄去掉重複行（PATIENT/TRIAL 全留）；PRIOR WORK 每列 150 字；GATES 只留摘要。
-- **專題切片（Slice Bundle v2）**：`judge-bundle.sh bundle` 排除 `shell/shell.c`、`check.sh`、`differential/*.py` 等與裁判無關的建置檔案；板子日誌僅保留實測結果行並過濾重複輪詢；前人索引每列 150 字（原為最近 15 項，會漏掉 exp203–exp219，已改為 exp201 之後全部列出）；引用之兄弟模組演算法上限 150 行。新增 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 支援單題切片自檢。
+- **專題切片（Slice Bundle v2）**：`judge-bundle.sh bundle` 排除 `check.sh`、`differential/*.py` 等與裁判無關的建置檔案（原本也排除 `shell/shell.c`，第 2 輪探測發現 J1 需要它，v3 已加回）；板子日誌僅保留實測結果行並過濾重複輪詢；前人索引每列 150 字（原為最近 15 項，會漏掉 exp203–exp219，已改為 exp201 之後全部列出）；引用之兄弟模組演算法上限 150 行。新增 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 支援單題切片自檢。
 - 實測 Slice Bundle 大小：exp225 約 51 KB (~14.7k tokens)，exp230 約 63 KB (~18k tokens)，exp234 約 142 KB (~40k tokens，由原先 287 KB 減半)。
 - **模型分級裁判（Tiered Judge）**：`judge-bundle.sh judge` 預設採分級模式。J2（牽涉細微量詞與數學邏輯）專由 Opus 5.5 在獨立 J2 切片上判定；J1、J3、J4（檢索與比對）由 Sonnet 5.5 判定。兩者自動整合成完整 `VERDICT vk26` 紀錄。實測 J2 切片為完整 bundle 的 42%–61%（32k–59k 字元，以字元數估算約 9k–17k tokens），Opus 讀的量約為單獨判四題時的一半（先前寫的 1k–8k tokens、省 85%–90% 不是實測值）。兩個 session 的提示詞都由 JUDGE.md 組出。
 - **抽檢模式（Spot-Check Mode）**：提案驗收預設採單次確認（1 run），5 個實驗抽驗 1 個跑完整 3 次判定。整份提案判定次數由 15 次降為 7 次，減少 53%（分級模式每次判定兩個 session，共 14 個 session）。抽驗的實驗隨機抽；抽驗沒通過，其餘四個補滿三次。
@@ -130,7 +130,7 @@ JUDGE.md 與 bundle 的組法都改了，依規則校準要重跑；第 1 輪的
   `judge-bundle.sh usage FILE.usage...` 列出明細與各模型合計，`run.sh` 結束時印出合計。
 
 估計值（以第 1 輪「97 KB 約 30k tokens」的比例換算，只算送入的內容，未含每個 session
-的固定開銷與輸出；步驟 1 會量出實際值）：
+的固定開銷與輸出；步驟 1 量到的實際值約為這裡的 1.8 倍，見下文「步驟 1 的結果」）：
 
 | 案例 | bundle | Sonnet（J1/J3/J4） | Opus（J2 切片） |
 | --- | --- | --- | --- |
@@ -164,7 +164,7 @@ calls/vk26/calibration/run.sh B "$OUT"
 
 ### 第 2 輪步驟 1（探測）的結果
 
-[round2/](./round2/)，judge-bundle.sh 與 JUDGE.md 為 commit 4c40348，2026-10-13，
+[round2/good-exp225-1.v2.txt](./round2/good-exp225-1.v2.txt)，judge-bundle.sh 與 JUDGE.md 為 commit 4c40348，2026-10-13，
 `VK26_JOBS=1 VK26_CASES=good-exp225 run.sh A`，約 33 秒，沒有 429。
 
 | session | 估計 | 實測（claude 回報） |
@@ -180,3 +180,33 @@ calls/vk26/calibration/run.sh B "$OUT"
   PASS 的三次中有兩次正是引用 `shell/shell.c:75–87`。Slice Bundle v2 排除 `shell.c` 拿掉了 J1
   的證據；只有一次判定，不能完全排除 Sonnet 與 Opus 的差別。依階段 A 的規則，先修正，
   不跑步驟 2。
+
+### 探測之後的修正（Slice Bundle v3，尚未重跑探測）
+
+- **`shell/shell.c` 加回 J1 用的 bundle**：板子上的宣稱（「LED 會閃，代表四項檢查都成立」）
+  要靠它佐證。只給 J1/J3/J4 的 Sonnet session，不進 J2 切片。exp225 的 `shell.c` 是 91 行、
+  約 3 KB。
+- **行號前綴縮短**：每行原本是 `path:line| text`，路徑佔 bundle 位元組的 21%–27%。改為
+  路徑只寫在 `=== BEGIN path`，每行只寫 `line| text`；引用格式仍是 `path:line`，由 `tally`
+  依所在的檔案區段核對，JUDGE.md 第 4 條改寫為新格式的說明與範例。檔案的每一行都以行號
+  開頭，所以檔案內容不能偽造出自己的 `=== BEGIN` 區段（有回歸測試）。
+- **`run.sh` 每次都重新產生 bundle 與提示詞**：原本只要 `OUTDIR/bundles/` 裡已有檔案就沿用，
+  重跑探測會拿到舊的 v2 bundle。現在每次啟動都重新產生，和既有的比對（`commit:` 那一行除外，
+  提交判定本身就會改變 HEAD）：不同且還沒有判定 → 換成新的；不同但已有判定 → 拒絕執行，
+  避免一個階段混用兩種 bundle 的判定。實際送出的提示詞也存在 `bundles/prompt-*.txt`。
+- 七個案例的大小（同一份 cases.sh）：
+
+| 案例 | bundle | J2 切片 |
+| --- | --- | --- |
+| good-exp225、overclaim、injection | 52 → 48 KB（−9%，含加回的 shell.c） | 32 → 26 KB（−18%） |
+| good-exp230、trivial | 64 → 53 KB（−18%） | 36 → 29 KB（−18%） |
+| good-exp234、narrowed | 142 → 119 KB（−16%） | 63 → 52 KB（−18%） |
+
+  以探測量到的比例（Sonnet 1.84 B、Opus 1.65 B 一個 token）估計，階段 A 由約 55 萬降為約
+  48 萬 tokens（−14%），階段 B 約 95 萬。比例是舊格式量到的，新格式少了大量重複的路徑，
+  實際比例可能不同，下一次探測會量出來。
+
+下一步：重跑步驟 1 的探測（good-exp225 一次，估計約 5 萬 tokens），確認 J1 回到 YES、
+並量新格式的實際用量，再決定步驟 2。第一次探測是 v2 bundle 的判定，已改名為
+`round2/good-exp225-1.v2.txt` 與 `.v2.txt.usage` 保留；不改名，`run.sh` 會當它已完成而跳過，
+新的用量也會混進同一個檔案。

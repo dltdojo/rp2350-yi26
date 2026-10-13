@@ -12,7 +12,9 @@
 #   run.sh sonnet OUTDIR  one run per case with Sonnet only (fast self-check)
 #   run.sh opus OUTDIR    full Opus for all questions (all-Opus baseline)
 #
-# OUTDIR is created; the bundles go to OUTDIR/bundles, the verdicts to
+# OUTDIR is created; the bundles and prompts go to OUTDIR/bundles (made afresh
+# on every start; a stage refuses to go on if they changed under verdicts it
+# already has), the verdicts to
 # OUTDIR/<case>-<n>.txt, and what each session used, as claude reports it, to
 # OUTDIR/<case>-<n>.txt.usage. A run whose verdict already exists is skipped,
 # so an interrupted stage can simply be started again.
@@ -32,7 +34,7 @@ set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE="$HERE/../judge-bundle.sh"
 STAGE="${1:-}"; OUT="${2:-}"
-[[ "$STAGE" =~ ^(A|B|sonnet|opus)$ && -n "$OUT" ]] || { sed -n '3,29p' "${BASH_SOURCE[0]}"; exit 2; }
+[[ "$STAGE" =~ ^(A|B|sonnet|opus)$ && -n "$OUT" ]] || { sed -n '3,31p' "${BASH_SOURCE[0]}"; exit 2; }
 JOBS="${VK26_JOBS:-3}"; (( JOBS > 3 )) && JOBS=3
 ALL=(good-exp225 good-exp230 good-exp234 overclaim trivial narrowed injection)
 read -r -a CASES <<< "${VK26_CASES:-${ALL[*]}}"
@@ -40,8 +42,34 @@ for c in "${CASES[@]}"; do
     [[ " ${ALL[*]} " == *" $c "* ]] || { echo "unknown case: $c (cases: ${ALL[*]})" >&2; exit 2; }
 done
 
+# The bundles and the prompts are made afresh on every start and compared with
+# OUTDIR/bundles: a stage judged half on one bundle and half on another tallies
+# into nothing. Only the `commit:` line may differ — committing a stage's
+# verdicts moves HEAD. Changed, with no verdict judged on the old ones yet, the
+# new ones replace them; changed after verdicts exist, the stage refuses.
 mkdir -p "$OUT/bundles"
-[[ -f "$OUT/bundles/good-exp225.txt" ]] || "$HERE/cases.sh" "$OUT/bundles" >/dev/null
+fresh="$(mktemp -d)"
+trap 'rm -rf -- "${fresh:?}"' EXIT
+"$HERE/cases.sh" "$fresh" >/dev/null
+for q in J1,J3,J4 J2 J1,J2,J3,J4; do "$BUNDLE" prompt "$q" > "$fresh/prompt-$q.txt"; done
+same() { # a b — equal but for the commit line
+    [[ -f "$2" ]] && cmp -s <(grep -v '^commit: ' "$1") <(grep -v '^commit: ' "$2")
+}
+changed=()
+for f in "$fresh"/*; do same "$f" "$OUT/bundles/${f##*/}" || changed+=("${f##*/}"); done
+if (( ${#changed[@]} )); then
+    judged=()
+    for c in "${ALL[@]}"; do for n in 1 2 3 s1; do
+        grep -qs '^VERDICT vk26' "$OUT/$c-$n.txt" && judged+=("$c-$n.txt")
+    done; done
+    if (( ${#judged[@]} )); then
+        echo "REFUSED: ${changed[*]} differ from what ${judged[*]} were judged on." >&2
+        echo "Move those verdicts aside (as round2/*.v2.txt), or use a new OUTDIR." >&2
+        exit 2
+    fi
+    rm -rf -- "${OUT:?}/bundles"
+    cp -r "$fresh" "$OUT/bundles"
+fi
 
 case "$STAGE" in
     A) RUNS=(1); MODEL=tiered;;
