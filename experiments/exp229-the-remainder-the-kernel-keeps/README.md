@@ -124,7 +124,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp229 — the remainder the kernel keeps ===
-recorded at 2026-10-12T00:55:54Z from commit b71d11e
+recorded at 2026-10-13T06:55:58Z from commit 2cf2069
 
 >>> the theorems, and what they rest on
 'Exp229.addm_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
