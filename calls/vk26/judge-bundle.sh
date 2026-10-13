@@ -49,7 +49,8 @@
 #                                           (exit 1) or HUMAN (exit 2)
 #
 # The bundle is organized in topic slices:
-# - Prior Work (for J3): every index row from exp201 on, 150 characters each.
+# - Prior Work (for J3): every index row from exp201 on, 150 characters each,
+#   and for a proposal, its own earlier experiments' rows (its S4 table).
 # - Documentation (for J1, J2, J3): README.md and WHY.zh-TW.md.
 # - Proof & Specification (for J1, J2, J4): Lean definitions, theorem statements
 #   (proof bodies omitted, line numbers preserved), and mutants.txt.
@@ -415,7 +416,13 @@ def where(exp):
 def prior_rows(exp):
     """experiments/README.md's index rows from exp201 on, for the experiments
     before this one, each cut to 150 characters. All of them: a proposal that
-    redoes exp207 or exp208 has to find them here, or J3 calls it new."""
+    redoes exp207 or exp208 has to find them here, or J3 calls it new.
+
+    And for a proposal's experiment, the proposal's own earlier ones: the rows
+    of the S4 index table in the README beside its directory (experiment,
+    Needs, …, one sentence), numbered below it. vk26-alice-2 carries
+    vk26-alice-1's repetition count across a window's edge; without
+    vk26-alice-1 here, J3 would credit that to vk26-alice-2 as new."""
     rel = where(exp).split(os.sep)
     mine = None
     if rel[0] == "experiments":
@@ -430,6 +437,15 @@ def prior_rows(exp):
             continue
         text = re.sub(r"\*\*|`", "", m.group(4))
         rows.append(f"{m.group(1)} [{m.group(3).strip()}]: {text[:150]}{'…' if len(text) > 150 else ''}")
+    own = re.match(r"([a-z0-9]+-[a-z0-9]+)-(\d+)-", rel[3]) if rel[0] == "calls" and len(rel) > 3 else None
+    index = os.path.join(os.path.dirname(os.path.abspath(exp)), "README.md")
+    if own and os.path.isfile(index):
+        for line in open(index, encoding="utf-8"):
+            m = re.match(r"\| \[(" + re.escape(own.group(1)) + r"-(\d+))\]\([^)]*\) \| ([^|]*) \|.*\| ([^|]*) \|\s*$", line)
+            if not m or int(m.group(2)) >= int(own.group(2)):
+                continue
+            text = re.sub(r"\*\*|`", "", m.group(4))
+            rows.append(f"{m.group(1)} (this proposal) [{m.group(3).strip()}]: {text[:150]}{'…' if len(text) > 150 else ''}")
     return rows
 
 

@@ -96,6 +96,10 @@ calls/vk26/alice/
   `pass`、`fail`、`require_supported_platform`、`capture_header`、`capture_tee`。
   `presence_check` 與 `usb_check` 讀的是 `experiments/README.md` 的表格，**不要**呼叫；
   同樣的資訊寫在你自己的 `README.md` 索引表裡。
+- 這張索引表也是 J3 的材料：裁判判第 n 個實驗「有沒有新東西」時，PRIOR WORK 除了
+  `experiments/` 自 exp201 起的每一列，還有你自己編號小於 n 的那幾列（實驗、Needs、
+  最後一欄的一句話）。所以每做完一個就填一列，一句話寫清楚它證明了什麼；後面的實驗
+  沿用前面的東西時，J3 才分得出哪些是新的。
 
 ## 4. 共用程式的議題：複製、指定版本，還是直接引用
 
