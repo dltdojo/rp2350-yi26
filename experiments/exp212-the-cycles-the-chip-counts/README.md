@@ -262,7 +262,7 @@ cloud half:
 
 ```text
 === exp212 — the cycles the chip counts (cloud half) ===
-recorded at 2026-10-06T05:41:50Z from commit 4e1e232 (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-13T09:10:31Z from commit a9f6244
 
 >>> every check
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back

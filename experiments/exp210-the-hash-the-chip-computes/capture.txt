@@ -1,5 +1,5 @@
 === exp210 — the hash the chip computes (cloud half) ===
-recorded at 2026-10-05T03:19:23Z from commit 78b87bd (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-13T09:02:18Z from commit a9f6244
 
 >>> every check
 PASS  no lifeline, and it says why: no USB at all — the LED is the only channel, and BOOTSEL by hand is the way back

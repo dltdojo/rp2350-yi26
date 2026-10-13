@@ -170,7 +170,7 @@ Needs Lean (`tools/lean/setup.sh`) and the Hazard3 testbench
 
 ```text
 === exp207 — the trace the seed cannot move ===
-recorded at 2026-10-06T03:02:18Z from commit 36d004f (working tree dirty — this recording is not reproducible from the commit alone)
+recorded at 2026-10-13T08:52:47Z from commit a9f6244
 
 >>> the theorems, and what they rest on
     Lean (version 4.34.0, x86_64-unknown-linux-gnu, commit 293d5d0c0c3f3dded4688b3ccd6a33939ac5102b, Release)

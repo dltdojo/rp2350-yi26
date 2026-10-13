@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:14, README.md:71, README.md:129-136, README.md:218-236, proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, capture.txt:23, board/round1.txt:1, ../exp232-the-cure-the-proof-predicts/board/round2.txt:3
+reason: Each proved claim (W1, W0, M6, M7, M8, `answer_world`) matches a theorem. The 12.715% rate is checked as arithmetic in `world.py --check`, and the 40000-patient table matches the capture. The pooled 8-of-57 figure and its intervals recompute from the cited exp232/exp233 logs. The round-1 board claims (38 patients agreed, 4 of 27 missed, 17 controls missed, widths 1 and 2 cured) match the log and the page's summary line, and the README says plainly that this is one person's run with a named UF2.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:510, proof/World.lean:511, proof/World.lean:489, proof/World.lean:490, proof/World.lean:188, README.md:71, README.md:72, proof/World.lean:622, README.md:73, proof/World.lean:588, proof/World.lean:589, README.md:74, proof/World.lean:642, README.md:75, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, README.md:76, proof/World.lean:663, proof/World.lean:664
+reason: `from_boot` covers any image starting with the kernel's 296 bytes, run from `boot`. It is still running at 4042 steps and halted with 0 at 4043, with memory equal to `lived`, which overlays only the 768 history bytes, matching W1's "exactly 4043… nothing else… every input and mask". `still`, `resistance_stays` (inside plus one resistant cell, any schedule and masks, tumour never zero), `cured_iff` (iff over all masks), `answer_world` (all masks, any position p, 1≤w≤6, divisions = D w) and `zero_stays` state what the README table says, with no hidden narrowing.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, README.md:78-83
+reason: No prior experiment has a proved kernel for the resistant world with the random draw as an input (W1, `wnext`). Nor do any prior experiments have the M7 characterisation (`cured_iff`) or the per-width division counts 0, 0, 1, 2, 3, 8 that give an exact predicted failure rate, later checked against a board.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:3-4, ../exp232-the-cure-the-proof-predicts/cure.py:57-77, world.py:43-50, README.md:110-111
+reason: `cure.py` writes the dose and growth rule cell by cell with a loop and modular index, while the Lean kernel uses word-level shifts and bit operations. `world.py` takes its division counts from that cell-by-cell code and compares them against the D read out of the Lean source, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END

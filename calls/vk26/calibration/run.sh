@@ -45,7 +45,10 @@ done
 # The bundles and the prompts are made afresh on every start and compared with
 # OUTDIR/bundles: a case judged half on one bundle and half on another tallies
 # into nothing. Only the `commit:` line may differ — committing a stage's
-# verdicts moves HEAD. A verdict rests on its own case's bundle and on the
+# verdicts moves HEAD — and a clean capture's `recorded at … from commit …`
+# line, which re-recording the same capture from a later commit moves the same
+# way. A capture that was dirty and is clean, or the other way, is a change:
+# round 4's J1 judged exactly that line. A verdict rests on its own case's bundle and on the
 # prompts: when either changed under a verdict, the stage refuses; when only
 # bundles no verdict rests on changed, the new ones replace the old.
 mkdir -p "$OUT/bundles"
@@ -53,8 +56,9 @@ fresh="$(mktemp -d)"
 trap 'rm -rf -- "${fresh:?}"' EXIT
 "$HERE/cases.sh" "$fresh" >/dev/null
 for q in J1,J3,J4 J2 J1,J2,J3,J4; do "$BUNDLE" prompt "$q" > "$fresh/prompt-$q.txt"; done
-same() { # a b — equal but for the commit line
-    [[ -f "$2" ]] && cmp -s <(grep -v '^commit: ' "$1") <(grep -v '^commit: ' "$2")
+HISTORY='^commit: |^[0-9]+\| recorded at [0-9TZ:-]+ from commit [0-9a-f]+$'
+same() { # a b — equal but for the commit line and clean capture headers
+    [[ -f "$2" ]] && cmp -s <(grep -vE "$HISTORY" "$1") <(grep -vE "$HISTORY" "$2")
 }
 changed=()
 for f in "$fresh"/*; do same "$f" "$OUT/bundles/${f##*/}" || changed+=("${f##*/}"); done

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:129-138, README.md:218-236, board/round1.txt:1, ../exp232-the-cure-the-proof-predicts/board/round1.txt:67, ../exp232-the-cure-the-proof-predicts/board/round2.txt:113, ../exp233-the-trial-on-the-phone/board/round1.txt:1, capture.txt:67, capture.txt:23-31
+reason: The proof claims match the theorems (`lives`, `still`, `resistance_stays`, `cured_iff`, `zero_stays`, `answer_world`), and capture.txt shows the six mutants refused. The rate, the 40000-patient table and the 1.7 standard errors match capture.txt. The 4 of 30, 4 of 27 and 8 of 57 counts match the three earlier board logs and the page summary in board/round1.txt:1. The 19-of-19 replay, minstret 4046 and no FAIL line are supported by capture.txt:67 and the page summary. WHY.zh-TW.md repeats the same claims, and I found no claim beyond the evidence.
+J2: NO
+evidence: README.md:75, README.md:89, proof/World.lean:711, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:707, proof/World.lean:697, proof/World.lean:507, proof/World.lean:511
+reason: `from_boot` is a genuine from-boot theorem (any image beginning with the kernel's 296 bytes, halts with 0 after exactly 4043 instructions, memory = `lived`), but `answer_world` fixes the lump at position 0 (`patient w 0 ANSWER`, World.lean:718-719) while the README and its docstring say "anywhere on the ring"; `divisions_iter` (World.lean:697) transfers only the division count, and nothing in the bundle proves the cured-iff equivalence, or that the model cures (only `answer_zero` at position 0, World.lean:707), for any other position.
+J3: YES
+evidence: proof/World.lean:79, proof/World.lean:641, proof/World.lean:718, README.md:71-75, README.md:210-236
+reason: It adds a new proved kernel (the world kernel, with the random draw as an input), new theorems (`still`, `resistance_stays`, `cured_iff`, `answer_world`, `zero_stays`), and a rate derived from them (12.715%) that is checked against a board run. None of the prior experiments listed has any of these.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61-77, world.py:43-50, world.py:61-78, README.md:110-111
+reason: `cure.py` computes each generation cell by cell with a per-cell loop, where the Lean model uses 32-bit word operations. `world.py` counts divisions independently and compares them against the `D` it reads from the Lean source, then does the rate arithmetic with `Fraction`. The README states that the two share nothing.
+INJECTION: NONE
+END

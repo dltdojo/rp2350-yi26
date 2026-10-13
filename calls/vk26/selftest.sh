@@ -464,6 +464,19 @@ sed -i 's/^commit: .*/commit: 0000000000000000000000000000000000000000/' "$WORK/
 fresh_sent
 "$RUN" A "$WORK/cal-commit" > /dev/null 2>&1; rc=$?
 [[ $rc == 0 && $(sent) == 0 ]] && pass "a bundle that differs only in its commit line is the same bundle: no run, exit 0" || fail "commit line" "exit $rc, $(sent) sessions"
+# A capture re-recorded clean from a later commit is the same capture.
+cp -r "$C" "$WORK/cal-header"
+sed -i 's/^\([0-9]*| recorded at \)[0-9TZ:-]* from commit [0-9a-f]*$/\12000-01-01T00:00:00Z from commit 0000000/' "$WORK/cal-header/bundles/good-exp225.txt"
+grep -q '^[0-9]*| recorded at 2000-01-01T00:00:00Z from commit 0000000$' "$WORK/cal-header/bundles/good-exp225.txt" \
+    || fail "  … the test could not find a clean capture header to change"
+fresh_sent
+"$RUN" A "$WORK/cal-header" > /dev/null 2>&1; rc=$?
+[[ $rc == 0 && $(sent) == 0 ]] && pass "a capture re-recorded clean from another commit is the same bundle: no run, exit 0" || fail "clean header" "exit $rc, $(sent) sessions"
+cp -r "$C" "$WORK/cal-dirty"
+sed -i 's/^\([0-9]*| recorded at [0-9TZ:-]* from commit [0-9a-f]*\)$/\1 (working tree dirty — this recording is not reproducible from the commit alone)/' "$WORK/cal-dirty/bundles/good-exp225.txt"
+fresh_sent
+"$RUN" A "$WORK/cal-dirty" > /dev/null 2>&1; rc=$?
+[[ $rc == 2 && $(sent) == 0 ]] && pass "  … but a capture that was dirty and is clean is a change: the stage refuses" || fail "dirty header" "exit $rc, $(sent) sessions"
 cp -r "$C" "$WORK/cal-stale"
 sed -i 's/^\(1| \)/\1STALE /' "$WORK/cal-stale/bundles/good-exp225.txt"
 fresh_sent

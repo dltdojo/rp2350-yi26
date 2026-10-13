@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:68, README.md:69, README.md:11, proof/Fly.lean:576, proof/Fly.lean:578
+reason: README says `watches_life` proves the kernel reports up at least down at every one of the 256 steps and in total. As stated in the bundle, its conclusion is `True` (Fly.lean:578), which proves nothing. The same gap leaves the summary claim at README.md:11-12 without a theorem behind it. T3 itself (`life_moves_up`, Fly.lean:115) and T1 are stated properly, but the kernel-level corollary is not.
+J2: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69, proof/Fly.lean:556, proof/Fly.lean:559
+reason: `detects_boot` is a valid from_boot theorem, and T1, T2 and T3 match their descriptions. But `watches_life`, which README.md:68-69 says shows the kernel reports up at least down at every step and in total, concludes only `True`, so it says nothing about the kernel's run and is weaker than its description.
+J3: YES
+evidence: README.md:5, proof/Fly.lean:44, proof/Fly.lean:115, proof/Fly.lean:130
+reason: A Hassenstein–Reichardt motion-detector kernel, new in the prior-work list, comes with a new property proved of Rule 30 (`life_moves_up`) and a T2 theorem that exposes the four period-two aliasing rings. None of the listed experiments has a motion detector or these properties.
+J4: YES
+evidence: fly.py:30, fly.py:38, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:22
+reason: The reference computes the moves as Python-integer rotations and the count with `bin().count`, not the kernel's shift-and-OR loop or Lean's `pc`. Rule 30 is written cell by cell, where Lean uses whole-word bit operations. The fly.py header says the same (fly.py:13-14).
+INJECTION: NONE
+END
