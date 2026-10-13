@@ -122,7 +122,9 @@ nothing with the kernel — over 40000 treated patients:
 
 12.43% is 1.7 standard errors below the prediction, which 40000 patients
 leave room for (one standard error is 0.17%). exp232's own 2000-patient
-figure, 13.7% of 1038 treated, was 1 standard error above it.
+figure, 142 of 1038 treated, 13.7%
+([its capture](../exp232-the-cure-the-proof-predicts/capture.txt)), was 1
+standard error above it.
 
 exp232's board treated 30 patients, each boot counting from patient 1: 7 in
 round 1 (1 missed, [its log](../exp232-the-cure-the-proof-predicts/board/round1.txt)),
@@ -163,8 +165,10 @@ generation of anything.
 
 What exp232 and exp234 share moved to `tools/hazard3/shell`: the ring
 arithmetic and the trial's endpoint (`ring.h`), and the board layer on the
-chip and the RTL (`trial_chip.h`, `trial_sim.h`). exp232's UF2 is byte for
-byte what it was, `dd5dbde3…`, and so is its RTL build.
+chip and the RTL (`trial_chip.h`, `trial_sim.h`). exp232's capture, recorded
+after the move, builds its UF2 byte for byte the committed one, `dd5dbde3…`,
+and passes every check on its RTL build
+([its capture](../exp232-the-cure-the-proof-predicts/capture.txt)).
 
 ## The LED
 
@@ -222,8 +226,9 @@ and the page's verdict on 7–44.
   patient, and a failure stops the trial; the board was still treating at
   patient 44 and sent no FAIL line.
 - **The trial at 44:** 27 treated, the model predicting all 27 cured; the
-  world cured 23 and 4 missed the endpoint. 17 controls, all missed. The rate
-  panel's prediction is 12.7%; the board's share was 14.8%, with 3.4 expected.
+  world cured 23 and 4 missed the endpoint. 17 controls, all missed. The proof
+  predicts 12.7% (the table above); the board's 4 of 27 is 14.8%, with 3.4
+  expected.
 - **What M7 says about the four**, for the two in the file: patient 7, a lump
   of 6 (8 divisions to chance), and patient 16, a lump of 5 (3), each became
   resistant and missed. Every width-1 and width-2 treated patient in the file
