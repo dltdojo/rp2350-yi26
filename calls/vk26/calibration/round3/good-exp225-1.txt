@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:191, README.md:127, README.md:146
+reason: README.md:191 gives a measured "40 s" from `build/capture-timing.txt`, which is not in the bundle, and capture.txt has no timing. README.md:127 gives "about 0.36 s" per beat and "about 92 s" per life, and README.md:146 says the beat is reached in only one way. Both depend on `board_play`, `board_fail` and the beat length in `board.h` and `led.h`, which are not in the bundle.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` is in from_boot form: for any image whose first 76 bytes are the kernel's, `boot` is still running after 3078 instructions and halts with 0 at 3079, with memory equal to `lived`, i.e. the original memory overlaid with generations 1–256 of `life` from the seed at 0x100, little-endian, over 1024 bytes from 0x200. `lives`, `not_before` and `rule30` quantify over an arbitrary machine state, seed and cell index exactly as the README describes; the only extra hypothesis is `Placed env base`, the placement condition that the README's "from base" and the docstring's "every base the region fits at" already cover.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288
+reason: This is a new kernel, Rule 30 as a 19-instruction program, with a new theorem `lives` and a cell-by-cell proof `rule30`. None of the prior-work entries mentions a cellular automaton or this kernel.
+J4: YES
+evidence: rule30.py:19-24, proof/Life.lean:76, differential/differential.py:50-52
+reason: `rule30.py` computes each cell separately from its three neighbours, while Lean and the kernel use whole-word shifts and ORs. The differential compares both the model and the RTL against it on 20 seeds.
+INJECTION: NONE
+END

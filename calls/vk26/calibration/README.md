@@ -291,3 +291,30 @@ J1 NO 的第二項（「LED 會閃 → 四項檢查都成立」的推論要不�
   重跑校準。
 
 依階段 A 的規則，判定不對就先處理、不跑步驟 2。
+
+## 第 3 輪（選項 B：J1 接受有寫明條件的人的觀察；[round3/](./round3/)）
+
+JUDGE.md 改了，依規則整輪重跑。仍用漸進步驟，先探測 good-exp225 一次。
+
+| 探測 | bundle | J1 判 NO 的理由 | 處理 |
+| --- | --- | --- | --- |
+| 1（`good-exp225-1.pre-instret.txt`） | 317ec38 + 選項 B | README.md:88–89 說二十個種子 RTL 都數到 3082，differential 只檢查停止碼。**板子觀察已被接受**（裁判明寫「person's recorded board observation … names the UF2 SHA, the board and how it was run」） | 屬實：exp225 的 differential 改為記錄每個種子的 `instret` 並要求只有一個值，`instret=3082` 二十個都相同；capture 重錄（e45bdcc）。commit a0ae72b、e791e3c |
+| 2（`good-exp225-1.txt`） | e791e3c | README.md:127 的「每拍約 0.36 s、一代約 92 s」靠 `board_chip.c` 與 `led.h` 的常數，不在 bundle；README.md:191 的「40 s」是 `run.sh` 的執行時間，capture 沒有 | 屬實，**尚未處理** |
+
+每次探測約 5 萬 tokens（含輸出）、約 $0.30；第 3 輪兩次合計 100,291 + 6,896 tokens，$0.61。
+
+**觀察**：選項 B 有效，板子觀察的爭議已消失。但連續四次探測（第 2 輪 v2、v3、v4，第 3 輪兩次）
+每一次 J1 都抓到 README 裡**另一個**小地方缺證據，而且每次都屬實。照這樣一處一處補，探測次數
+沒有上限。這是 J1 要多嚴的問題，需任務方決定：
+
+- **甲. 繼續嚴格，bundle 補齊**：J1 用的 bundle 收入整個 `shell/`（含 `board_chip.c`、`board.h`）
+  與它 `#include` 的共用標頭；README 裡的執行時間等數字由提案者附上輸出（例如把
+  `capture-timing.txt` 的摘要放進 capture）。代價是 bundle 變大、提案者負擔變重，且不保證下一次
+  不會再找到別的。
+- **乙. J1 只管實質宣稱**：在 J1 寫明「操作上的說明（指令跑多久、檔案多大、LED 每拍幾秒）與由
+  bundle 內常數直接算出的數字，不是要查的宣稱；要查的是實驗的主張：證明了什麼、量到了什麼、
+  板子上發生了什麼」。改 JUDGE.md 依規則要重跑。
+- **丙. J1 的 NO 分輕重**：裁判把缺證據的宣稱分成「主張」與「細節」，只有主張缺證據才判 NO，
+  細節列為建議修正、不影響通過。需改輸出格式與 `tally`。
+
+在任務方決定前，不跑階段 A 的其他案例。
