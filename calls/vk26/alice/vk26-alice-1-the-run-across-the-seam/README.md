@@ -241,7 +241,9 @@ line of it was lost. It also counts the streams stopped by a run begun in
 the window before.
 
 The connecting, Copy and the look are alice's shared
-[`../pages/core.js`](../pages/core.js) and `core.css`.
+[`../pages/core.js`](../pages/core.js) and `core.css`; both tests, and the
+BITS lines they read, are [`../pages/health.js`](../pages/health.js), which
+vk26-alice-2's page judges with too (page build p3: p2's, moved there).
 [`../pages/build.py`](../pages/build.py) puts them into the page, so a phone
 opens one file: `build/seam.html`.
 
@@ -252,8 +254,9 @@ rounds, a digest flipped, a kernel that resets the run at each edge (it
 passes the seam stream with four digests, each SHA-256 of its window — the
 page says its samples stop at window 2), one that writes after the first
 failure, minstret off by one, a line lost, and a page that joins
-mid-stream. [`page_browser.mjs`](./page_browser.mjs) runs the built page in
-headless Chromium against a stand-in board. Six wrong pages are caught.
+mid-stream. [`../pages/browser.mjs`](../pages/browser.mjs) runs the built
+page in headless Chromium against a stand-in board. Six wrong pages are
+caught, each made on the built page, health.js's part of it included.
 
 What the page cannot check: that the kernel that ran is the proved one
 (the shell's check 1 is), and the proof itself.

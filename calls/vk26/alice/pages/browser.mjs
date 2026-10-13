@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// vk26-alice-1 — the built seam.html in a real browser, headless, with no
-// board, through tools/pages/headless.mjs: a stand-in for vk26-alice-1's
-// device — serial vk26-alice-1 — hands back a fixture in 64-byte packets.
-// What it reaches that page_test.mjs does not: the page's own code around the
-// checked block — ../pages/core.js put in by build.py, the connection, the
-// control transfers, the browser's WebCrypto, the table, the verdict line,
-// Copy, Save — running where it will run.
+// calls/vk26/alice/pages — an alice page, built, in a real browser, headless,
+// with no board, through tools/pages/headless.mjs: a stand-in for the
+// experiment's device hands back a fixture in 64-byte packets. What it
+// reaches that an experiment's page_test.mjs does not: the page's own code
+// around its checked block — core.js and health.js put in by build.py, the
+// connection, the control transfers, the browser's WebCrypto, the table, the
+// verdict line, Copy, Save — running where it will run. vk26-alice-1 wrote it
+// for seam.html; vk26-alice-2's trust.html is the second page to need it.
 //
-//   node page_browser.mjs PAGE FIXTURE WANT ROWS
+//   node browser.mjs PAGE FIXTURE WANT ROWS SERIAL PRODUCT
 //
 // WANT is a piece of text the verdict line must contain; ROWS how many
-// streams the table must show. Prints PASS/FAIL.
+// streams the table (#streams) must show; SERIAL and PRODUCT the stand-in's
+// USB strings, the experiment's. Prints PASS/FAIL.
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { openWithBoard, checker } from '../../../../tools/pages/headless.mjs';
 
-const [page, fixture, want, rows] = process.argv.slice(2);
+const [page, fixture, want, rows, serial, product] = process.argv.slice(2);
 const stream = fs.readFileSync(fixture, 'utf8');
-const run = await openWithBoard(page, stream, { productName: 'vk26-alice-1 the run across the seam',
-                                                serialNumber: 'vk26-alice-1' });
+const run = await openWithBoard(page, stream, { productName: product, serialNumber: serial });
 const { tab, errors } = run;
 const { check, failed } = checker();
 await tab.waitForFunction((w) => document.getElementById('verdict').textContent.includes(w), want, { timeout: 20000 })
@@ -41,9 +43,9 @@ check(sent.startsWith('claim 0, claim 1, ctl 32 0 0, ctl 34 3 0'),
 check(verdict.includes(want), `${name}: the verdict line says "${want}"`, verdict);
 check(shown === Number(rows) && errors.length === 0,
   `${name}: the table shows the last round's ${rows} streams, and no script error`, `${shown} rows; ${errors.join('; ')}`);
-check(status.startsWith('Copied') && clip.startsWith('#page vk26-alice-1 seam.html') && clip.endsWith(stream),
+check(status.startsWith('Copied') && clip.startsWith(`#page ${serial} ${path.basename(page)}`) && clip.endsWith(stream),
   `${name}: Copy puts the verdict and every line received on the clipboard (${clip.length} characters)`, status);
-check(saved === clip && dl.suggestedFilename().startsWith('vk26-alice-1-') && savedStatus.startsWith(`Saved ${saved.length} characters`),
+check(saved === clip && dl.suggestedFilename().startsWith(`${serial}-`) && savedStatus.startsWith(`Saved ${saved.length} characters`),
   `${name}: Save downloads the same text as a file, ${dl.suggestedFilename().replace(/-\d{4}-.*/, '-<time>.txt')}, and says how long it is`,
   savedStatus);
 await run.close();
