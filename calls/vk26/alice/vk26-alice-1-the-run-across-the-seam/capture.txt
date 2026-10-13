@@ -1,5 +1,5 @@
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-13T11:28:33Z from commit 474b4c7
+recorded at 2026-10-13T12:25:46Z from commit e744097
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -107,6 +107,7 @@ PASS  a kernel that writes the next window after a failure: caught at the stuck 
 PASS  minstret one more than the RTL's for a stream: caught
 PASS  a BITS line lost: that stream incomplete, nothing called wrong, the other 11 judged
 PASS  joined mid-stream: the first stream incomplete, every one after it judged
+PASS  round1.txt: 7 of 7 streams from a board judged right, 0 incomplete, 1 rounds, 1 stopped across an edge
 PASS  the tests catch a page where the run is reset at each window's edge: the page's tests stop where seam.py's do, on all 0 of seam.py's streams — seam 11+10: seam.py says 2, the pa
 PASS  the tests catch a page where the adaptive proportion cutoff is 590: the page's tests stop where seam.py's do, on all 6 of seam.py's streams — 589 of window 2: seam.py says 2, t
 PASS  the tests catch a page where each window's reference is the stream's first sample: the page's tests stop where seam.py's do, on all 9 of seam.py's streams — nine ones then a zero, window 4: s
@@ -121,7 +122,7 @@ PASS  reset.txt: the page claims interfaces 0 and 1, sets the line coding, then 
 PASS  reset.txt: the verdict line says "1 wrong"
 PASS  reset.txt: the table shows the last round's 6 streams, and no script error
 PASS  reset.txt: Copy puts the verdict and every line received on the clipboard (11366 characters)
-SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  round1.txt: 7 whole streams from a board, each code, minstret and digest as seam.py and hashlib give them
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where the seam stream is said to pass — check 2
 PASS  the shell catches a version where the chip is asked to count one more for code 2 — check 3

@@ -350,11 +350,11 @@ python3 ../pages/build.py seam.html build/seam.html   # the page, as one file
 
 [capture.txt](./capture.txt), recorded by `run.sh` from a clean commit.
 
-Pasted from it — the theorems, the mutants, and the six streams on the RTL:
+Pasted from it — the theorems, the mutants, the six streams on the RTL:
 
 ```
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-13T11:28:33Z from commit 474b4c7
+recorded at 2026-10-13T12:25:46Z from commit e744097
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -389,8 +389,9 @@ from_boot    the claim: one instruction fewer to the halt                       
 5354524d 00000005 00000004 00000004 0001104d 00000003 444f4e45 00000006 exit=0 
 ```
 
-and then 68 PASS, 0 FAIL and the one SKIP:
+and the phone's log, among 70 PASS, 0 FAIL and 0 SKIP:
 
 ```
-SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  round1.txt: 7 of 7 streams from a board judged right, 0 incomplete, 1 rounds, 1 stopped across an edge
+PASS  round1.txt: 7 whole streams from a board, each code, minstret and digest as seam.py and hashlib give them
 ```
