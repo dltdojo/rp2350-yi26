@@ -5,12 +5,15 @@
 # never more than three sessions at a time (twenty at once is what hit the
 # session limit in round 2; see README.md).
 #
-#   run.sh A OUTDIR     stage A: one run per case, 7 runs (tiered: Opus for J2
-#                       on the J2 slice, Sonnet for J1/J3/J4; two sessions a run)
+#   run.sh A OUTDIR     stage A: one run per case, 7 runs (tiered: the deep
+#                       model for J2 on the J2 slice, the fast model for
+#                       J1/J3/J4; two sessions a run; ../models.env names them)
 #   run.sh B OUTDIR     stage B: two more runs per case, 14 runs; start it only
 #                       once stage A was all correct. Then tallies each case.
-#   run.sh sonnet OUTDIR  one run per case with Sonnet only (fast self-check)
-#   run.sh opus OUTDIR    full Opus for all questions (all-Opus baseline)
+#   run.sh fast OUTDIR    one run per case, every question to the fast model
+#                         (a cheap self-check)
+#   run.sh deep OUTDIR    three runs per case, every question to the deep model
+#                         (a baseline for the tiered judge)
 #
 # OUTDIR is created; the bundles and prompts go to OUTDIR/bundles (made afresh
 # on every start; a stage refuses to go on if they changed under verdicts it
@@ -34,7 +37,7 @@ set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE="$HERE/../judge-bundle.sh"
 STAGE="${1:-}"; OUT="${2:-}"
-[[ "$STAGE" =~ ^(A|B|sonnet|opus)$ && -n "$OUT" ]] || { sed -n '3,31p' "${BASH_SOURCE[0]}"; exit 2; }
+[[ "$STAGE" =~ ^(A|B|fast|deep)$ && -n "$OUT" ]] || { sed -n '3,34p' "${BASH_SOURCE[0]}"; exit 2; }
 JOBS="${VK26_JOBS:-3}"; (( JOBS > 3 )) && JOBS=3
 ALL=(good-exp225 good-exp230 good-exp234 overclaim trivial narrowed injection)
 read -r -a CASES <<< "${VK26_CASES:-${ALL[*]}}"
@@ -82,8 +85,8 @@ fi
 case "$STAGE" in
     A) RUNS=(1); MODEL=tiered;;
     B) RUNS=(2 3); MODEL=tiered;;
-    sonnet) RUNS=(s1); MODEL=sonnet;;
-    opus) RUNS=(1 2 3); MODEL=opus;;
+    fast) RUNS=(s1); MODEL=fast;;
+    deep) RUNS=(1 2 3); MODEL=deep;;
 esac
 
 jobs_list=()
@@ -120,8 +123,8 @@ done
 # not tallied, so a stopped stage reads as unfinished rather than as wrong.
 case "$STAGE" in
     A) echo "== Stage A single confirmation tally =="; TALLY=(1);;
-    B|opus) echo "== Stage B consensus tally =="; TALLY=(1 2 3);;
-    sonnet) echo "== Sonnet self-check tally =="; TALLY=(s1);;
+    B|deep) echo "== Stage B consensus tally =="; TALLY=(1 2 3);;
+    fast) echo "== Fast-model self-check tally =="; TALLY=(s1);;
 esac
 for c in "${CASES[@]}"; do
     files=(); have=0
