@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:139-149, shell/shell.c:75-87, capture.txt:77-78, capture.txt:35-45, capture.txt:86-92
+reason: Each proved claim matches a theorem (`lives`, `not_before`, `rule30`, `from_boot`). The counts (3079, 3082, 20 seeds, eleven refused wrong versions, six caught shell faults) match the capture. The board claim is a recorded observation that names the UF2 SHA-256, the board and how it was run, and the inference "all four checks held" follows from the shell code. One gap: that `board_fail` never returns rests on `board.h`, which is not in this slice, so that step is trusted rather than seen. The bundle does not contain WHY.zh-TW.md, so it was not checked.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:84, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` starts from `boot env.region img` for any image whose first 76 bytes are the kernel's, and proves the machine is still running at 3078 instructions and halts with 0 at 3079, with memory equal to `lived`: the original memory overlaid at 0x200 by 4·256 = 1024 bytes of generations 1..N of `life`, little-endian, from the word at 0x100. `lives`, `not_before` and `rule30` hold for an arbitrary machine state, seed and cell index under only placement and code-at-base hypotheses, so they match the README table, including "whatever the seed" and mod-32 neighbours.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:288-289, proof/Life.lean:98-99, README.md:139-142
+reason: No prior experiment covers a cellular automaton. This one adds a new 19-instruction Rule 30 kernel with a proved exact count of 3079 and a proved "not before" bound, and a board run where the LED plays its output.
+J4: YES
+evidence: rule30.py:19-24, proof/Life.lean:76, differential/differential.py:49-52
+reason: `rule30.py` computes each cell separately from left, centre and right in a loop. Lean's `life` is a shift-and-OR word formula, so a mistake copied into both is unlikely. The differential compares both the Lean model and the RTL against that Python history.
+INJECTION: NONE
+END

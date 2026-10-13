@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:8, README.md:47-48, README.md:60-62, README.md:78-79, README.md:95-96, proof/Fly.lean:115, proof/Fly.lean:496, capture.txt:26-27, capture.txt:30, capture.txt:40
+reason: The claims about T1, T2, T3 and the two corollaries match theorems of those statements in Fly.lean, and the 9 axiom lines are in the capture. The measured claims match the capture: 2^32 rings with 0 seen moving down and 4,870,848 not moving, exactly 4 rings moved two cells equal to themselves, 255 up and 1 not moving with totals 2053/1030, and RTL instret 70927 over 71697 cycles. Notes on Plan C, library moves and the "C program" are history or operating detail, not substantive claims. No board claim is made.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:486, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:589, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:592, proof/Fly.lean:593, README.md:54, README.md:55, README.md:56, README.md:57, README.md:58, README.md:59, README.md:60, README.md:63, README.md:68, README.md:69, README.md:70, README.md:71
+reason: `detects_boot` is the from_boot-form theorem. It takes any image that begins with the kernel's bytes, has it running at 70923 instructions and halted with 0 at 70924, and its conclusion `Sees` gives every step's `toUp` and `toDn`, both totals, and all 257 frames unchanged, which is what README T1 says. T2 (`shift_up`/`shift_dn`, with the period-two exclusion the README states), T3 (`life_moves_up`, for every ring `x`), `watches_life` and `watches_shift` each match their English in quantifiers, hypotheses and conclusion.
+J3: YES
+evidence: README.md:5-12, proof/Fly.lean:24-31, proof/Fly.lean:115, proof/Fly.lean:130
+reason: A Hassenstein–Reichardt motion-detector kernel is new, as are T3 (Rule 30 is never seen moving down), which no prior experiment lists, and the T2 aliasing exception for four rings. Prior work covers Rule 30 life (exp225) and the other kernels, but not motion detection or any property of this kind.
+J4: YES
+evidence: fly.py:30-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24, fly.py:13-14
+reason: fly.py computes the moves with Python integer rotations and a string popcount, not Lean's `up1`/`dn1`/`pc` or the kernel's shift-and-loop, and the README says so. Rule 30 is computed cell by cell in rule30.py, where the Lean `life` uses whole-word bit operations. The detector's defining formula is necessarily shared, but the implementations differ.
+INJECTION: NONE
+END

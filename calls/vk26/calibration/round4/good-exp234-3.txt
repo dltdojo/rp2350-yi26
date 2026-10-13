@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:75, README.md:228, README.md:129, board/round1.txt:1, capture.txt:67, capture.txt:23, proof/World.lean:642, proof/World.lean:719
+reason: Each proved claim (W1, W0, M6, M7, M8 and the 0, 0, 1, 2, 3, 8 divisions) matches a theorem that passed the axioms check in capture.txt:5-11. The rate 12.715% matches capture.txt:23. The board figures (38 patients agreed, 27 treated, 4 missed, 17 controls missed) match the page summary at board/round1.txt:1, and the 19-patient replay matches capture.txt:67. The exp232 and exp233 board counts match their own logs. The README names the TRNG-independence assumption as unproved.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:510, proof/World.lean:511, proof/World.lean:188, proof/World.lean:489, proof/World.lean:490, README.md:71, proof/World.lean:622, README.md:72, proof/World.lean:588, proof/World.lean:589, README.md:73, proof/World.lean:641, proof/World.lean:642, README.md:74, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, README.md:75, proof/World.lean:663, proof/World.lean:664, README.md:76
+reason: `from_boot` is the required form: any image whose first 296 bytes are the kernel's runs 4042 steps without halting, then halts with 0 at step 4043, and memory equals `lived`, an overlay of the 64 `wnext` generations from 0x400 with every other byte unchanged; inputs and masks are left free. W0, M6, M7, `answer_world` (any `p`, `w` from 1 to 6) and M8 state what the README table says, and M8's extra `inside` hypothesis does not narrow the claim, since the tumour stays zero without it.
+J3: YES
+evidence: proof/World.lean:641-642, proof/World.lean:718-720, proof/World.lean:588-589, README.md:78-83, board/round1.txt:1
+reason: This adds a new 74-instruction world kernel with the mask as an input. It proves M6, M7 and M8, derives the exact failure rate 3276629119/25769803776 from `answer_world`, and checks that rate against a board trial. exp232 had only the unproved C world and no such theorem or rate.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:57-77, world.py:43-50, world.py:53-58, world.py:61-75, differential/differential.py:63-70
+reason: The reference `cure.py` is written cell by cell with a per-cell loop, where the Lean kernel uses shifts and bitwise operations. `world.py` recomputes the divisions with it, computes the rate with `Fraction`, and checks them against the D table read from the Lean source. The differential compares both the model and the RTL to the reference's history byte for byte.
+INJECTION: NONE
+END

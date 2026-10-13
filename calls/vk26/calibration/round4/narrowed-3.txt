@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:73, README.md:74, README.md:75, README.md:129, README.md:136, README.md:218, README.md:222, board/round1.txt:1, board/round1.txt:6, board/round1.txt:71, capture.txt:23, capture.txt:67, ../exp232-the-cure-the-proof-predicts/board/round1.txt:11, ../exp232-the-cure-the-proof-predicts/board/round2.txt:43, ../exp233-the-trial-on-the-phone/board/round1.txt:1, proof/World.lean:489, proof/World.lean:588, proof/World.lean:641, proof/World.lean:718
+reason: Each proved claim (W1, W0, M6, M7, answer_world, M8) matches a theorem, and capture.txt:5-11 shows those theorems rest on Lean's own axioms only. The board claims match round1.txt: the page's summary gives 38 ok and 27 treated with 4 missed, and the file's 19 patients are replayed 19 of 19. The 30-patient exp232 total matches its three logs, and the arithmetic (1.7 standard errors, the intervals) checks out. I found no claim beyond its evidence.
+J2: NO
+evidence: README.md:75, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:697, README.md:89
+reason: `from_boot` (proof/World.lean:507-511) is a proper from_boot-form theorem, and `lives`, `still`, `resistance_stays`, `cured_iff` and `zero_stays` match their descriptions. But `answer_world` is described as covering "a lump of 1 to 6 cells anywhere on the ring", while it is stated only for `patient w 0 ANSWER`, a fixed position 0. `divisions_iter` carries the count to any `p`, but no theorem in the bundle gives the cured-iff equivalence, or `(gen (patient w p ANSWER) 64).t = 0`, for p ≠ 0, so the main theorem is weaker than its description.
+J3: YES
+evidence: proof/World.lean:79, proof/World.lean:588, proof/World.lean:641, proof/World.lean:663, proof/World.lean:718, README.md:14
+reason: It adds a 74-instruction kernel for the resistant-cell world, proved for every mask (`lives`). It also adds new theorems (`still`, `resistance_stays`, `cured_iff`, `zero_stays`) and the exact predicted failure rate derived from `answer_world`. Prior work proved only the resistance-free model and ran the world as unproved C. exp234 also checks the new prediction against a board run.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:1-3, ../exp232-the-cure-the-proof-predicts/cure.py:57-77, world.py:43-50, world.py:61-66, capture.txt:23
+reason: The reference, cure.py, writes the dose and growth cell by cell with `cell(x, i)` loops, where the Lean kernel uses word-level shifts and masks. world.py computes D from that and checks it against the D parsed out of the Lean source (`lean_d`), and the divisions match exactly. The differential also compares the Lean model and the RTL against cure.py's world cell by cell (differential.py:65-70).
+INJECTION: NONE
+END

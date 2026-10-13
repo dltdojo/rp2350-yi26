@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:139, README.md:142, README.md:144-149, shell/shell.c:75-87, capture.txt:77-78, capture.txt:86-92, proof/mutants.txt:5-15
+reason: The proof claims match the theorem statements (`lives`, `not_before`, `rule30`, `from_boot`) and the 11 refused mutants. The 20-seed differential, the 3082 count and the two-life RTL run match the capture. The board claim is a recorded observation that names the UF2 SHA-256, the board and how it was run, and the conclusion about the checks follows from the shell code. That inference assumes `board_fail` never returns, but `board.h` is not in the bundle; the RTL check-failure PASSes at capture.txt:87-92 are the only support for that.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` covers any image whose first 76 bytes are the kernel's, run from `boot`. It proves the machine is still running at 3078, halts with 0 at 3079, and leaves memory equal to `lived`, which overlays 4·256 bytes at base+0x200 with little-endian generations 1 to 256 of `life` from the word at 0x100 and keeps every other byte unchanged. `lives`, `not_before` and `rule30` quantify over every state, memory (so every seed) and cell index as the README says, and `(i+31)%32` is i−1 round the ring; the only extra hypothesis is `Placed`, the region-fit side condition, which does not narrow the claim.
+J3: YES
+evidence: README.md:5-13, proof/Life.lean:76, proof/Life.lean:288-289, shell/shell.c:84-90
+reason: No prior experiment has a cellular automaton, a Rule 30 kernel, or a `life` theorem. The shell feeds the proved output back as the next seed so the LED plays a proved life indefinitely, and that is also new. None of this is in the prior-work list.
+J4: YES
+evidence: rule30.py:19-24, proof/Life.lean:76, differential/differential.py:49-54
+reason: `rule30.py` computes each cell separately from its three neighbours with a loop and modular indexing. The Lean `life` and the kernel use whole-word shifts and ORs. The README states this difference (README.md:83-84) and the code bears it out.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:13, README.md:184-185, README.md:176-179
+reason: The headline claims Lean "proves that the LED shows each generation within one microsecond of its beat, on every RP2350 ever made", and that "the shell was run on forty boards without a single wrong beat". No theorem or board log in the bundle supports either claim, and the README contradicts them: one Pico 2 was watched for an unrecorded time, the LED-shows-the-life link is "not proved", and the beat length is "not measured".
+J2: NO
+evidence: README.md:13, README.md:176, README.md:177, README.md:184, proof/Life.lean:309, proof/Life.lean:313
+reason: `from_boot` (proof/Life.lean:309-313), `lives`, `not_before` and `rule30` do match the table at README.md:51-54. But README.md:13 also says the work "proves that the LED shows each generation within one microsecond of its beat, on every RP2350 ever made", and no theorem in the bundle says anything about the LED, timing or silicon; the README itself says the LED is unproved C and that only one board was used (README.md:176-177, 184).
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288-289, proof/Life.lean:294-295
+reason: No prior experiment has a cellular-automaton kernel. This one is new: a 19-instruction Rule 30 kernel, with `lives` and `not_before` giving an exact 3079-instruction count for any seed and `rule30` proving the formula is the rule cell by cell.
+J4: YES
+evidence: rule30.py:19-24, proof/Life.lean:76, differential/differential.py:49-50
+reason: `rule30.py` computes each cell by extracting left, centre and right bits in a loop, while Lean's `life` and the kernel use whole-word shifts and ORs. The differential compares both the model and the RTL against this independent history.
+INJECTION: NONE
+END

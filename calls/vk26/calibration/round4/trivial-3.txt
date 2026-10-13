@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: proof/Fly.lean:578, README.md:68
+reason: README says `watches_life` proves the kernel reports up at least down at every one of the 256 steps and in total. The theorem as stated in the bundle concludes only `True` (proof/Fly.lean:578), which proves nothing of the sort. The docstring at proof/Fly.lean:573 makes the claim, but the statement does not support it. Other claims checked (T1 at line 496, T3 at line 115, the RTL count, the 4,870,848 brute-force figure and the four period-two rings) match the Lean statements and the capture.
+J2: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69, README.md:11, README.md:12
+reason: T1 (`detects`/`detects_boot`), T2 and T3 match their descriptions, but `watches_life` concludes only `True`, so it says nothing about the kernel's run. That leaves the README's claim, made in its headline and in its theorem list, that the kernel reports up at least down at every one of the 256 steps and in total without a supporting theorem.
+J3: YES
+evidence: README.md:63, proof/Fly.lean:115, proof/Fly.lean:44
+reason: It adds a new 41-instruction Hassenstein–Reichardt detector kernel with its exact-count theorem T1 (proof/Fly.lean:496). It also adds T3, `life_moves_up` (proof/Fly.lean:115), a property proved of Rule 30 that earlier experiments only had as a conjecture, and the T2 aliasing finding. None of the listed prior experiments contain these.
+J4: YES
+evidence: fly.py:31, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:22
+reason: The reference computes the moves with Python integer rotations and counts with `bin().count`, where the kernel uses shift pairs and a bit loop and Lean uses `up1`/`dn1`/`pc`. Rule 30 is written cell by cell (rule30.py:22), not as the Lean bitwise `life`, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END
