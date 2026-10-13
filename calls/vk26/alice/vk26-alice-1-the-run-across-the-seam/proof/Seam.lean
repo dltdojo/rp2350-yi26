@@ -289,6 +289,223 @@ theorem count_up (n d : Nat) (hd : d < 2048) :
     BitVec.ofNat 32 n + (BitVec.ofNat 12 d).signExtend 32 = BitVec.ofNat 32 (n + d) := by
   rw [se_small d hd, BitVec.ofNat_add]
 
+/-- Each window's branch to FAIL, by the numbers. -/
+theorem bne_off {w : Nat} (hw : w < 4) :
+    BitVec.ofNat 32 (4 * (36 + 30 * w)) + ((BitVec.ofNat 12 (2 * (99 - 30 * w))) ++ 0#1).signExtend 32
+      = BitVec.ofNat 32 (4 * 135) := by
+  rcases cases4 hw with rfl | rfl | rfl | rfl
+  · exact jump_ok (BitVec.ofNat 12 198) (by decide) 36 135 (by decide) (by decide) (by decide)
+  · exact jump_ok (BitVec.ofNat 12 138) (by decide) 66 135 (by decide) (by decide) (by decide)
+  · exact jump_ok (BitVec.ofNat 12 78) (by decide) 96 135 (by decide) (by decide) (by decide)
+  · exact jump_ok (BitVec.ofNat 12 18) (by decide) 126 135 (by decide) (by decide) (by decide)
+
+/-! ## A window -/
+
+/-- Window `w`'s tests, from its top to its branch: `s6` says whether it passed. -/
+theorem window_head (hp : Placed env base) {m0 : Word → Byte} (hc0 : CodeAt m0 base kernel) {w : Nat}
+    (hw : w < 4) {s : Machine} (he : Entry env m0 base w s) :
+    ∃ s', run env (4 + 17 * N + 3) s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * (36 + 30 * w))
+      ∧ s'.mem = wrote env.hash m0 base w
+      ∧ s'.reg S1 = base + BitVec.ofNat 32 (SMP + 4 * (N * (w + 1)))
+      ∧ s'.reg S6 = (if WinOk m0 base SMP w then 0#32 else 1#32)
+      ∧ (WinOk m0 base SMP w →
+          s'.reg S4 = BitVec.ofNat 32 (rct m0 base SMP (N * (w + 1))).last ∧
+          s'.reg S5 = BitVec.ofNat 32 (rct m0 base SMP (N * (w + 1))).run)
+      ∧ s'.reg A1 = s.reg A1 ∧ s'.reg A2 = s.reg A2 ∧ s'.reg T0 = s.reg T0 ∧ s'.reg S2 = s.reg S2 := by
+  have hcode : CodeAt s.mem base kernel := by rw [he.mem]; exact wrote_code hp.fit (by omega) hc0
+  have r0 : rct s.mem base SMP (N * w) = rct m0 base SMP (N * w) := by
+    rw [he.mem]; exact wrote_rct hp.fit (by omega) (by simp only [N]; omega)
+  have r1 : rct s.mem base SMP (N * (w + 1)) = rct m0 base SMP (N * (w + 1)) := by
+    rw [he.mem]; exact wrote_rct hp.fit (by omega) (by simp only [N]; omega)
+  have hok : WinOk s.mem base SMP w ↔ WinOk m0 base SMP w := by
+    rw [he.mem]; exact wrote_winOk hp.fit (by omega) hw
+  obtain ⟨sV, eV, pV, mV, g1, g6, g45, kV⟩ := win_run hp (at_win hw) (src := SMP) (w := w)
+    (by simp only [SMP, N]; omega) (by decide) s (by rw [he.pc]) hcode he.s1
+    (by rw [he.s6, r0, he.ok]; rfl) (fun _ => by rw [r0]; exact ⟨he.s4, he.s5⟩)
+  refine ⟨sV, eV, by rw [pV, show 12 + 30 * w + 24 = 36 + 30 * w by omega], by rw [mV, he.mem], g1,
+    by rw [g6]; simp only [hok], fun h => by rw [← r1]; exact g45 (hok.2 h),
+    kV A1 (by decide), kV A2 (by decide), kV T0 (by decide), kV S2 (by decide)⟩
+
+/-- **A window that fails**: after 17418 instructions the kernel is still
+running, and the next halts it with the window's number; nothing written
+since the window began. -/
+theorem window_fail (hp : Placed env base) {m0 : Word → Byte} (hc0 : CodeAt m0 base kernel) {w : Nat}
+    (hw : w < 4) (hbad : ¬ WinOk m0 base SMP w) {s : Machine} (he : Entry env m0 base w s) :
+    ∃ s1, run env 17418 s = .running s1 ∧ run env 1 s1 = .halted (BitVec.ofNat 32 (w + 1)) s1
+      ∧ s1.mem = wrote env.hash m0 base w := by
+  obtain ⟨sV, eV, pV, mV, -, g6, -, -, -, -, k2⟩ := window_head hp hc0 hw he
+  have hcV : CodeAt sV.mem base kernel := by rw [mV]; exact wrote_code hp.fit (by omega) hc0
+  have h6 : sV.reg S6 = 1#32 := by rw [g6]; simp [hbad]
+  obtain ⟨sB, eB, pB, mB, rB⟩ := brStep hp (36 + 30 * w) (by rw [kernel_length]; omega) hcV pV (at_bne hw)
+    (k' := 135) (bne_off hw) hlen
+  have pB' : sB.pc = base + BitVec.ofNat 32 (4 * 135) := by
+    rw [pB, h6]; simp [taken]
+  have hcB : CodeAt sB.mem base kernel := by rw [mB]; exact hcV
+  have eF := run_line hp failSet (by decide) 135 sB at_fail (by rw [kernel_length]; decide) hcB pB' hlen
+  have gA0 : (sB.line failSet).reg A0 = BitVec.ofNat 32 (w + 1) := by
+    have : (sB.line failSet).reg A0 = sB.reg S2 + (1 : BitVec 12).signExtend 32 := by
+      simp [Machine.line, failSet, Machine.alu, reg_setReg, aluI, A0, T0, S2]
+    rw [this, rB, k2, he.s2]; exact count_up w 1 (by decide)
+  have gT0 : (sB.line failSet).reg T0 = 1#32 := by
+    simp [Machine.line, failSet, Machine.alu, reg_setReg, aluI, A0, T0, S2]
+  have pF : (sB.line failSet).pc = base + BitVec.ofNat 32 (4 * 137) := line_pc_at failSet pB' (by decide)
+  have hH := haltStep hp 137 (by rw [kernel_length]; decide) (by rw [line_mem]; exact hcB) pF rfl gT0 hlen 0
+  refine ⟨sB.line failSet, ?_, by rw [hH, gA0], by rw [line_mem, mB, mV]⟩
+  rw [show 17418 = (4 + 17 * N + 3) + (1 + failSet.length) by rfl, run_add_running eV, run_add_running eB, eF]
+
+/-- **A window that passes**: 17421 instructions, its digest written, and
+the next window's top. -/
+theorem window_pass (hp : Placed env base) {m0 : Word → Byte} (hc0 : CodeAt m0 base kernel) {w : Nat}
+    (hw : w < 4) (hgood : WinOk m0 base SMP w) {s : Machine} (he : Entry env m0 base w s) :
+    ∃ s', run env 17421 s = .running s' ∧ Entry env m0 base (w + 1) s' := by
+  obtain ⟨sV, eV, pV, mV, g1, g6, g45, k1, k2, k0, kS2⟩ := window_head hp hc0 hw he
+  have hcV : CodeAt sV.mem base kernel := by rw [mV]; exact wrote_code hp.fit (by omega) hc0
+  have h6 : sV.reg S6 = 0#32 := by rw [g6]; simp [hgood]
+  obtain ⟨sB, eB, pB, mB, rB⟩ := brStep hp (36 + 30 * w) (by rw [kernel_length]; omega) hcV pV (at_bne hw)
+    (k' := 135) (bne_off hw) hlen
+  have pB' : sB.pc = base + BitVec.ofNat 32 (4 * (37 + 30 * w)) := by
+    rw [pB, h6, reg_zero, ite_eq_right (by decide), show 36 + 30 * w + 1 = 37 + 30 * w by omega]
+  have hcB : CodeAt sB.mem base kernel := by rw [mB]; exact hcV
+  -- a0 = s1 - 4096: the window just tested
+  have eP := run_line hp preHash (by decide) (37 + 30 * w) sB (at_pre hw)
+    (by rw [kernel_length, show preHash.length = 2 by rfl]; omega) hcB pB' hlen
+  generalize hsP : sB.line preHash = sP at eP
+  have gA0 : sP.reg A0 = base + BitVec.ofNat 32 (SMP + 4 * (N * w)) := by
+    have : sP.reg A0 = sB.reg S1 + (0x800 : BitVec 12).signExtend 32 + (0x800 : BitVec 12).signExtend 32 := by
+      rw [← hsP]; simp [Machine.line, preHash, Machine.alu, reg_setReg, aluI, A0, S1]
+    rw [this, rB, g1, back4096 _ (by simp only [SMP, N]; omega) (by simp only [SMP, N]; omega)]
+    congr 2
+  have kP : ∀ r, r ≠ A0 → sP.reg r = sB.reg r := fun r hr => by
+    rw [← hsP, line_keeps _ _ r (by simp [preHash, rdOf]; exact Ne.symm hr)]
+  have pP : sP.pc = base + BitVec.ofNat 32 (4 * (39 + 30 * w)) := by
+    rw [← hsP, line_pc_at preHash pB' (by rw [show preHash.length = 2 by rfl]; omega),
+      show preHash.length = 2 by rfl, show 37 + 30 * w + 2 = 39 + 30 * w by omega]
+  have hcP : CodeAt sP.mem base kernel := by rw [← hsP, line_mem]; exact hcB
+  -- HASH
+  have ha1 : sP.reg A1 = BitVec.ofNat 32 4096 := by rw [kP A1 (by decide), rB, k1, he.a1]
+  have ha2 : sP.reg A2 = base + BitVec.ofNat 32 (DIG + 32 * w) := by rw [kP A2 (by decide), rB, k2, he.a2]
+  have ht0 : sP.reg T0 = 0 := by rw [kP T0 (by decide), rB, k0, he.t0]
+  have hexec := exec_hash (env := env) (s := sP) ht0 (by rw [ha1]; decide)
+    (by rw [gA0]; exact align_off hp.align hp.fit _ (by simp only [SMP, N]; omega) (by simp only [SMP]; omega))
+    (by rw [ha2]; exact align_off hp.align hp.fit _ (by simp only [DIG]; omega) (by simp only [DIG]; omega))
+    (by rw [gA0, ha1]; exact ok_off hp _ _ (by simp only [SMP, N]; omega) (by simp only [SMP, N]; simp; omega))
+    (by rw [ha2]; exact ok_off hp _ _ (by simp only [DIG]; omega) (by simp only [DIG]; omega))
+  have eH := stepK hp (39 + 30 * w) (by rw [kernel_length]; omega) hcP pP (at_hash hw) hexec 0 hlen
+  generalize hsH : ({ sP with mem := writeBytes sP.mem (sP.reg A2) (env.hash (readBytes sP.mem (sP.reg A0) (sP.reg A1).toNat)) } : Machine).next = sH at eH
+  have eH1 : run env 1 sP = .running sH := eH.trans (run_zero _ _)
+  have mH : sH.mem = wrote env.hash m0 base (w + 1) := by
+    have hm : sP.mem = wrote env.hash m0 base w := by rw [← hsP, line_mem, mB, mV]
+    have hw4 : (sP.reg A1).toNat = 4 * N := by rw [ha1]; rfl
+    rw [← hsH, next_mem]
+    show writeBytes sP.mem (sP.reg A2) (env.hash (readBytes sP.mem (sP.reg A0) (sP.reg A1).toNat)) = _
+    rw [hw4, gA0, ha2, hm]
+    show _ = writeBytes (wrote env.hash m0 base w) (base + BitVec.ofNat 32 (DIG + 32 * w)) (env.hash (windowBytes m0 base w))
+    rw [← wrote_window hp.fit (H := env.hash) (m := m0) (k := w) (by omega) hw]
+    rfl
+  have pH : sH.pc = base + BitVec.ofNat 32 (4 * (40 + 30 * w)) := by
+    rw [← hsH, next_pc]; show sP.pc + 4 = _; rw [pP, pc_next hp.fit (39 + 30 * w) (by omega), show 39 + 30 * w + 1 = 40 + 30 * w by omega]
+  have kH : ∀ r, sH.reg r = sP.reg r := fun r => by rw [← hsH]; rfl
+  have hcH : CodeAt sH.mem base kernel := by rw [mH]; exact wrote_code hp.fit (by omega) hc0
+  -- a2 += 32, s2 += 1
+  have eQ := run_line hp postHash (by decide) (40 + 30 * w) sH (at_post hw)
+    (by rw [kernel_length, show postHash.length = 2 by rfl]; omega) hcH pH hlen
+  have kQ : ∀ r, r ≠ A2 → r ≠ S2 → (sH.line postHash).reg r = sH.reg r := fun r a b => by
+    rw [line_keeps _ _ r (by simp [postHash, rdOf]; exact ⟨Ne.symm a, Ne.symm b⟩)]
+  refine ⟨sH.line postHash, ?_, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  · rw [show 17421 = (4 + 17 * N + 3) + (1 + (preHash.length + (1 + postHash.length))) by rfl,
+      run_add_running eV, run_add_running eB, run_add_running eP, run_add_running eH1, eQ]
+  · rw [line_pc_at postHash pH (by rw [show postHash.length = 2 by rfl]; omega)]
+    rw [show 40 + 30 * w + postHash.length = 12 + 30 * (w + 1) by rw [show postHash.length = 2 by rfl]; omega]
+  · rw [line_mem, mH]
+  · rw [kQ S1 (by decide) (by decide), kH, kP S1 (by decide), rB, g1]
+  · have : (sH.line postHash).reg A2 = sH.reg A2 + (32 : BitVec 12).signExtend 32 := by
+      simp [Machine.line, postHash, Machine.alu, reg_setReg, aluI, A2, S2]
+    rw [this, kH, ha2, show (32 : BitVec 12) = BitVec.ofNat 12 32 from rfl, se_small 32 (by decide),
+      off_add hp.fit _ _ (by simp only [DIG]; omega)]
+    congr 2
+  · rw [kQ A1 (by decide) (by decide), kH, ha1]
+  · rw [kQ T0 (by decide) (by decide), kH, ht0]
+  · have : (sH.line postHash).reg S2 = sH.reg S2 + (1 : BitVec 12).signExtend 32 := by
+      simp [Machine.line, postHash, Machine.alu, reg_setReg, aluI, A2, S2]
+    rw [this, kH, kP S2 (by decide), rB, kS2, he.s2]; exact count_up w 1 (by decide)
+  · rw [kQ S6 (by decide) (by decide), kH, kP S6 (by decide), rB, h6]; rfl
+  · rw [kQ S4 (by decide) (by decide), kH, kP S4 (by decide), rB]; exact (g45 hgood).1
+  · rw [kQ S5 (by decide) (by decide), kH, kP S5 (by decide), rB]; exact (g45 hgood).2
+  · exact hgood.1
+
+/-- **All four passed**: three more instructions halt it with 0. -/
+theorem all_pass (hp : Placed env base) {m0 : Word → Byte} (hc0 : CodeAt m0 base kernel) {s : Machine}
+    (he : Entry env m0 base 4 s) :
+    ∃ s1, run env 2 s = .running s1 ∧ run env 1 s1 = .halted 0 s1 ∧ s1.mem = wrote env.hash m0 base 4 := by
+  have hcode : CodeAt s.mem base kernel := by rw [he.mem]; exact wrote_code hp.fit (by omega) hc0
+  have hpc : s.pc = base + BitVec.ofNat 32 (4 * 132) := he.pc
+  have eS := run_line hp passSet (by decide) 132 s at_pass (by rw [kernel_length]; decide) hcode hpc hlen
+  have gA0 : (s.line passSet).reg A0 = 0 := by simp [Machine.line, passSet, Machine.alu, reg_setReg, aluI, A0, T0]
+  have gT0 : (s.line passSet).reg T0 = 1#32 := by simp [Machine.line, passSet, Machine.alu, reg_setReg, aluI, A0, T0]
+  have pS : (s.line passSet).pc = base + BitVec.ofNat 32 (4 * 134) := line_pc_at passSet hpc (by decide)
+  have hH := haltStep hp 134 (by rw [kernel_length]; decide) (by rw [line_mem]; exact hcode) pS rfl gT0 hlen 0
+  exact ⟨s.line passSet, eS, by rw [hH, gA0], by rw [line_mem, he.mem]⟩
+
+/-! ## From the boot -/
+
+/-- Every window before the stop is entered: `12 + 17421k` instructions to
+window `k`'s top. -/
+theorem runs_to (hp : Placed env base) {m0 : Word → Byte} (hc0 : CodeAt m0 base kernel) {s0 : Machine}
+    (hpc : s0.pc = base) (hm : s0.mem = m0) :
+    ∀ k ≤ stop m0 base, ∃ s, run env (12 + 17421 * k) s0 = .running s ∧ Entry env m0 base k s
+  | 0, _ => by
+    obtain ⟨s, e, h⟩ := setup_run hp s0 hpc (by rw [hm]; exact hc0)
+    exact ⟨s, e, hm ▸ h⟩
+  | k + 1, hk => by
+    obtain ⟨s, e, h⟩ := runs_to hp hc0 hpc hm k (by omega)
+    have h4 := stop_le m0 base
+    obtain ⟨s', e', h'⟩ := window_pass hp hc0 (by omega) ((stop_spec m0 base).1 k (by omega)) h
+    exact ⟨s', by rw [show 12 + 17421 * (k + 1) = (12 + 17421 * k) + 17421 by omega, run_add_running e, e'], h'⟩
+
+/-- **From the boot**: the image starts with the kernel's 552 bytes. Then
+after exactly `cost (stop …)` instructions the kernel halts — with 0 if all
+four windows passed, else with the first failing window's number — and the
+region is the image with one digest, `HASH` of that window's 4096 bytes, for
+each window before the stop, and nothing else changed. One instruction
+earlier it is still running. -/
+theorem from_boot (hp : Placed env base) (img : ByteArray) (hsize : 552 ≤ img.size)
+    (himg : ∀ d (h : d < 552), img.get d (by omega) = bytes.getD d 0) :
+    (∃ s1, run env (cost (stop (memOfImage base img) base) - 1) (boot env.region img) = .running s1) ∧
+    ∃ s', run env (cost (stop (memOfImage base img) base)) (boot env.region img)
+        = .halted (code (memOfImage base img) base) s'
+      ∧ s'.mem = wrote env.hash (memOfImage base img) base (stop (memOfImage base img) base) := by
+  have hpc : (boot env.region img).pc = base := by simp [boot, hp.region]
+  have hmem : (boot env.region img).mem = memOfImage base img := by simp [boot, hp.region]
+  have hc0 : CodeAt (memOfImage base img) base kernel :=
+    code_of_image hp.fit (by rw [kernel_length]; decide) (toBytes_words kernel) img
+      (by rw [kernel_length]; omega) (fun d h => himg d (by rw [kernel_length] at h; omega))
+  generalize memOfImage base img = m0 at hc0 hmem ⊢
+  have h4 := stop_le m0 base
+  have hfail := (stop_spec m0 base).2
+  obtain ⟨s, e, h⟩ := runs_to hp hc0 hpc hmem (stop m0 base) (Nat.le_refl _)
+  unfold code
+  generalize stop m0 base = k at h4 hfail e h ⊢
+  by_cases hk : k = 4
+  · subst hk
+    obtain ⟨s1, e1, h1, m1⟩ := all_pass hp hc0 h
+    refine ⟨⟨s1, ?_⟩, s1, ?_, m1⟩
+    · rw [show cost 4 - 1 = (12 + 17421 * 4) + 2 by decide, run_add_running e, e1]
+    · rw [show cost 4 = (12 + 17421 * 4) + (2 + 1) by decide, run_add_running e, run_add_running e1, h1]; rfl
+  · obtain ⟨s1, e1, h1, m1⟩ := window_fail hp hc0 (by omega) (hfail (by omega)) h
+    have hc : cost k = (12 + 17421 * k) + (17418 + 1) := by simp only [cost, hk, ↓reduceIte]; omega
+    refine ⟨⟨s1, ?_⟩, s1, ?_, m1⟩
+    · rw [hc, show 12 + 17421 * k + (17418 + 1) - 1 = (12 + 17421 * k) + 17418 by omega, run_add_running e, e1]
+    · rw [hc, run_add_running e, run_add_running e1, h1]; simp only [hk, ↓reduceIte]
+
+#print axioms init_regs
+#print axioms setup_run
+#print axioms window_head
+#print axioms window_fail
+#print axioms window_pass
+#print axioms all_pass
+#print axioms runs_to
+#print axioms from_boot
+
 end Seam
 
 def main (args : List String) : IO Unit := do
