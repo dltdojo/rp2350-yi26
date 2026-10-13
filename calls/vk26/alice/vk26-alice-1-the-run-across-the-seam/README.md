@@ -366,7 +366,7 @@ Pasted from it — the theorems, the mutants, the six streams on the RTL:
 
 ```
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-13T12:25:46Z from commit e744097
+recorded at 2026-10-13T14:01:14Z from commit 107caf0
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -380,17 +380,18 @@ recorded at 2026-10-13T12:25:46Z from commit e744097
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
-window_fail  the branch goes to FAIL when the window passed, and on when it failed     refused in window_fail
-window_fail  the halt code is the number of windows passed, not the failing window's   refused in window_fail
-all_pass     four windows passed and it halts with 1                                   refused in all_pass
-window_pass  each digest 16 bytes after the last, half over it                         refused in window_pass
-window_pass  HASH is asked for the window after the one tested                         refused in window_pass
-init_regs    the repetition count starts as though a 0 came before the stream          refused in init_regs
-window_head  the claim: each window starts with no run behind it                       refused in window_head
-from_boot    the claim: the failing window's digest is written too                     refused in from_boot
-from_boot    the claim: the halt code is the failing window's index, 0 to 3            refused in from_boot
-from_boot    the claim: one instruction fewer to the halt                              refused in from_boot
-
+window_fail  the branch goes to FAIL when the window passed, and on when it failed                   refused in window_fail
+window_fail  the halt code is the number of windows passed, not the failing window's                 refused in window_fail
+all_pass     four windows passed and it halts with 1                                                 refused in all_pass
+window_pass  each digest 16 bytes after the last, half over it                                       refused in window_pass
+window_pass  HASH is asked for the window after the one tested                                       refused in window_pass
+init_regs    the repetition count starts as though a 0 came before the stream                        refused in init_regs
+window_head  the claim: each window starts with no run behind it                                     refused in window_head
+from_boot    the claim: the failing window's digest is written too                                   refused in from_boot
+from_boot    the claim: the halt code is the failing window's index, 0 to 3                          refused in from_boot
+from_boot    the claim: one instruction fewer to the halt                                            refused in from_boot
+win_verdict  the specification: the repetition count starts afresh at each window, as front's does   refused in win_verdict
+start_run    the block takes the whole first word as the window's reference, not its bit 0           refused in start_run
 ...
 >>> on the RTL, every stream: STRM s code want minstret digests, then DONE streams
 5354524d 00000000 00000000 ffffffff 00011057 00000004
@@ -401,7 +402,7 @@ from_boot    the claim: one instruction fewer to the halt                       
 5354524d 00000005 00000004 00000004 0001104d 00000003 444f4e45 00000006 exit=0 
 ```
 
-and the phone's log, among 70 PASS, 0 FAIL and 0 SKIP:
+and the phone's log, among 74 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  round1.txt: 7 of 7 streams from a board judged right, 0 incomplete, 1 rounds, 1 stopped across an edge

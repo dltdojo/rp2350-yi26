@@ -1,5 +1,5 @@
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-13T12:25:46Z from commit e744097
+recorded at 2026-10-13T14:01:14Z from commit 107caf0
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -13,16 +13,18 @@ recorded at 2026-10-13T12:25:46Z from commit e744097
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
-window_fail  the branch goes to FAIL when the window passed, and on when it failed     refused in window_fail
-window_fail  the halt code is the number of windows passed, not the failing window's   refused in window_fail
-all_pass     four windows passed and it halts with 1                                   refused in all_pass
-window_pass  each digest 16 bytes after the last, half over it                         refused in window_pass
-window_pass  HASH is asked for the window after the one tested                         refused in window_pass
-init_regs    the repetition count starts as though a 0 came before the stream          refused in init_regs
-window_head  the claim: each window starts with no run behind it                       refused in window_head
-from_boot    the claim: the failing window's digest is written too                     refused in from_boot
-from_boot    the claim: the halt code is the failing window's index, 0 to 3            refused in from_boot
-from_boot    the claim: one instruction fewer to the halt                              refused in from_boot
+window_fail  the branch goes to FAIL when the window passed, and on when it failed                   refused in window_fail
+window_fail  the halt code is the number of windows passed, not the failing window's                 refused in window_fail
+all_pass     four windows passed and it halts with 1                                                 refused in all_pass
+window_pass  each digest 16 bytes after the last, half over it                                       refused in window_pass
+window_pass  HASH is asked for the window after the one tested                                       refused in window_pass
+init_regs    the repetition count starts as though a 0 came before the stream                        refused in init_regs
+window_head  the claim: each window starts with no run behind it                                     refused in window_head
+from_boot    the claim: the failing window's digest is written too                                   refused in from_boot
+from_boot    the claim: the halt code is the failing window's index, 0 to 3                          refused in from_boot
+from_boot    the claim: one instruction fewer to the halt                                            refused in from_boot
+win_verdict  the specification: the repetition count starts afresh at each window, as front's does   refused in win_verdict
+start_run    the block takes the whole first word as the window's reference, not its bit 0           refused in start_run
 
 >>> seam.py's streams, and what it gives each
 seam 11+10                         halt 2  digests 1  window 2: 21 alike in a row
@@ -71,6 +73,8 @@ PASS  window_head: the proof refuses a version where the claim: each window star
 PASS  from_boot: the proof refuses a version where the claim: the failing window's digest is written too
 PASS  from_boot: the proof refuses a version where the claim: the halt code is the failing window's index, 0 to 3
 PASS  from_boot: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  win_verdict: the proof refuses a version where the specification: the repetition count starts afresh at each window, as front's does
+PASS  start_run: the proof refuses a version where the block takes the whole first word as the window's reference, not its bit 0
 PASS  kernel.bin is what proof/Seam.lean writes, 552 bytes, and kernel.sha256 is its hash
 PASS  seam 11+10: window 2: 21 alike in a row; the model and the RTL halt with 2, the model after 34852; 1 digest(s), hashlib's, and nothing else written
 PASS  seam 10+10: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
@@ -118,10 +122,12 @@ PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then r
 PASS  good.txt: the verdict line says "12 of 12 streams judged right"
 PASS  good.txt: the table shows the last round's 6 streams, and no script error
 PASS  good.txt: Copy puts the verdict and every line received on the clipboard (21747 characters)
+PASS  good.txt: Save downloads the same text as a file, vk26-alice-1-<time>.txt, and says how long it is
 PASS  reset.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
 PASS  reset.txt: the verdict line says "1 wrong"
 PASS  reset.txt: the table shows the last round's 6 streams, and no script error
 PASS  reset.txt: Copy puts the verdict and every line received on the clipboard (11366 characters)
+PASS  reset.txt: Save downloads the same text as a file, vk26-alice-1-<time>.txt, and says how long it is
 PASS  round1.txt: 7 whole streams from a board, each code, minstret and digest as seam.py and hashlib give them
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where the seam stream is said to pass — check 2
