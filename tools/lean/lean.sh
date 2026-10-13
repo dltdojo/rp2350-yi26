@@ -327,7 +327,7 @@ case "$mode" in
     exec)
         f="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
         shift 2
-        lib="$REPO/lean"
+        lib="$LIB_DEFAULT"
         if [[ $# -gt 0 && -f "${1}/lakefile.toml" ]]; then lib="$1"; shift; fi
         # Checked once already, or now: main runs from FILE's .olean, through a
         # driver that imports it — 0.4 s where checking FILE again took a minute.
