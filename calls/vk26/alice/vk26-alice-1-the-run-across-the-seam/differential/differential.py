@@ -27,7 +27,7 @@ from expect import model  # noqa: E402
 from seam import DIGESTS, WINDOWS, image, outcome, streams  # noqa: E402
 from sigfile import read_sig  # noqa: E402
 
-PASS_COST, FAIL_COST, INIT, DONE = 17424, 17419, 9, 3
+PASS_COST, FAIL_COST, INIT, DONE = 17421, 17419, 12, 3
 
 
 def count(code):
