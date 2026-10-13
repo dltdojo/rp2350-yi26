@@ -161,3 +161,22 @@ calls/vk26/calibration/run.sh B "$OUT"
 
 每一步之後，用步驟 1 量到的數字乘上 bundle 大小的比例，重新估計下一步；剩餘額度不夠
 下一步，就等重置，不要硬跑。
+
+### 第 2 輪步驟 1（探測）的結果
+
+[round2/](./round2/)，judge-bundle.sh 與 JUDGE.md 為 commit 4c40348，2026-10-13，
+`VK26_JOBS=1 VK26_CASES=good-exp225 run.sh A`，約 33 秒，沒有 429。
+
+| session | 估計 | 實測（claude 回報） |
+| --- | --- | --- |
+| Sonnet，J1/J3/J4，送出 58,201 B | 約 18k | 輸入 31,656（快取讀取 535）、輸出 1,630，$0.14 |
+| Opus，J2 切片，送出 36,301 B | 約 11k | 輸入 21,995（快取讀取 535）、輸出 1,266，$0.20 |
+
+- **估計低了約 1.8 倍**：實際每個 token 只有 1.84 B（Sonnet）與 1.65 B（Opus），不是第 1 輪
+  推得的 3.2 B。每個 session 的固定開銷很小（快取讀取 535 tokens）。以實測比例重估：階段 A
+  約 55 萬 tokens，階段 B 約 111 萬，合計約為第 1 輪（252 萬）的三分之二。
+- **判定不對**：good-exp225 應得 PASS，實得 J1 NO。裁判指 README.md:144–147（「shell 只在四項
+  檢查都成立時才閃」推出板子上的事實）沒有證據，並寫明 `shell.c` 不在 bundle 裡。第 1 輪判
+  PASS 的三次中有兩次正是引用 `shell/shell.c:75–87`。Slice Bundle v2 排除 `shell.c` 拿掉了 J1
+  的證據；只有一次判定，不能完全排除 Sonnet 與 Opus 的差別。依階段 A 的規則，先修正，
+  不跑步驟 2。
