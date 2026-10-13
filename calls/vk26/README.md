@@ -12,7 +12,8 @@ RV32 核心（Hazard3）上執行「被 Lean 證明的程式」：證明說的�
 | 徵求期間 | 即日起，不設截止，持續受理 |
 | 交付 | 一位提案者、一個目錄、**五個**驗證過的實驗、一個 PR |
 | 驗收 | [ACCEPTANCE.md](./ACCEPTANCE.md)：機器關卡 G1–G7，加上 LLM 裁判的四個是非題 |
-| LLM 裁判 | [JUDGE.md](./JUDGE.md) 與 [judge-bundle.sh](./judge-bundle.sh)；**校準尚未完成**，第 2 輪因用量額度耗盡中止，見 [calibration/README.md](./calibration/README.md) |
+| LLM 裁判 | [JUDGE.md](./JUDGE.md) 與 [judge-bundle.sh](./judge-bundle.sh)；**校準進行中**：第 4 輪階段 A 七個案例全部判對，階段 B 尚未跑，見 [calibration/README.md](./calibration/README.md) |
+| 概念導讀 | [CONCEPTS.zh-TW.md](./CONCEPTS.zh-TW.md)：機器碼與組合語言、ISA、Lean 的指令與機器模型，以及證明保證了什麼、沒保證什麼 |
 | 現場測試地點與頻率 | 依後續公告指定的大學 |
 | 獎勵與其他條款 | 依後續公告 |
 
@@ -159,6 +160,8 @@ calls/vk26/alice/
 8. **合併**：全部通過後合併。
 
 ## 6. 依賴的既有實驗：先讀這些
+
+第一次接觸這些概念，先讀 [CONCEPTS.zh-TW.md](./CONCEPTS.zh-TW.md)，再照下面的順序讀實驗。
 
 ### 第 1 層：每一份提案都依賴的地基
 
