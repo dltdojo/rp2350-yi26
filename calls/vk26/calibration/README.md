@@ -356,9 +356,13 @@ JUDGE.md 改了（9786a21），依規則整輪重跑。用漸進步驟：`VK26_J
 
 - 選項乙有效：操作說明（執行時間、LED 每拍秒數）不再被判 NO。之後找到的缺口都是實質的，而且
   都屬實：沒數過的例外、搬移後沒重錄的 capture、標頭寫 dirty 卻說乾淨。
-- J1 抓到的是**本 repo 自己**的問題，不是裁判太嚴。同樣「capture 標頭是 dirty」的實驗還有
-  exp194、exp207、exp210、exp211、exp212（`grep -l "working tree dirty" experiments/*/capture.txt`）；
-  它們的 README 若也寫「從乾淨的 commit 錄的」，裁判會判 NO。這次沒有處理。
+- J1 抓到的是**本 repo 自己**的問題，不是裁判太嚴。當時另有幾個實驗的 capture 標頭也是 dirty
+  （`grep -l "working tree dirty" experiments/*/capture.txt`），README 若也寫「從乾淨的 commit
+  錄的」，送審就會被判 NO：
+  - exp207、exp210、exp211、exp212：之後都從乾淨的 a9f6244 重錄，只有標頭改變。
+  - exp194：不屬於 vk26。它是 CTAP-HID 驗證器路線的實驗，不在第 6 節的依賴清單裡，也不是校準案例。
+    它的 capture 是 `drift.sh` 接著板子刷六個韌體錄下的紀錄，雲端無法重錄；`check.sh` 檢查這份
+    紀錄仍會通過，要等有板子時再重跑 `drift.sh` 才能換成乾淨的標頭。
 - 階段 B 見下一節。
 
 ### 階段 B（2026-10-13，[round4/](./round4/) 的 `*-2.txt`、`*-3.txt`）
