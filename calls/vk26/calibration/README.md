@@ -254,3 +254,40 @@ J1 NO 的第二項（「LED 會閃 → 四項檢查都成立」的推論要不�
 這次沒有改，仍待任務方決定。下一步：用同一個指令重跑步驟 1 的探測（good-exp225 一次）。
 既有的 `round2/good-exp225-1.txt` 是 v3 bundle 的判定，重跑前要先改名保留，否則 `run.sh`
 會因 bundle 不同而拒絕執行。
+
+### 第 2 輪第三次探測的結果（v4 bundle，含 differential）
+
+[round2/good-exp225-1.txt](./round2/good-exp225-1.txt)，judge-bundle.sh 為 commit 317ec38，2026-10-13，
+`VK26_JOBS=1 VK26_CASES=good-exp225 run.sh A`，約 31 秒，沒有 429。v3 的判定改名為
+`good-exp225-1.v3.txt` 保留。
+
+| session | v3 | v4（這次） |
+| --- | --- | --- |
+| Sonnet，J1/J3/J4 | 送出 53,649 B；輸入 29,217、輸出 1,855 | 送出 56,650 B；輸入 30,619、輸出 1,155 |
+| Opus，J2 切片 | 送出 30,474 B；輸入 19,152、輸出 1,323 | 送出 30,474 B；輸入 19,149、輸出 1,133 |
+| claude 回報的費用 | $0.30 | $0.29 |
+
+- **用量**：加回 `differential/` 讓 Sonnet 的輸入多 1,402 tokens（+4.8%）；J2 切片不變。三次探測
+  合計約 16 萬 tokens（含輸出）。
+- **種子的缺口已補上**：這次 J1 的理由沒有再提 README.md:86–87。
+- **J1 仍是 NO**，理由三項，第一與第三項同源：
+  1. README.md:12 的板子結果（Pixel 9a、「an irregular beat」）沒有板子紀錄。exp225 本來就沒有
+     `board/` 紀錄，那一輪是一個人在展場看 LED。這就是上一次記下的 J1 讀法問題。
+  2. README.md:139 的「built at a5927c7 and unchanged since」：bundle 裡的 capture 是 commit
+     f24df95 錄的，它能佐證「UF2 雜湊等於提交的那一個」（capture.txt:56、:84），但佐證不了
+     「在 a5927c7 建置」。這是 git 歷史，bundle 裡沒有；依 J1 的嚴格讀法，判 NO 有道理。
+  3. README.md:144–149 由「LED 會閃」推出「晶片上第一代就是被證明的那一代」，建立在第 1 項
+     那個沒有紀錄的觀察上。
+- 裁判另寫「WHY.zh-TW.md 不在 bundle 裡」：exp225 本來就沒有這個檔案，不是缺漏。
+
+**結論**：bundle 的缺口（`shell.c`、`differential/`）都已補上，剩下的 J1 NO 全部來自 J1 的讀法：
+一個人在現場的觀察（沒有 `board/` 紀錄）算不算板子上的宣稱的證據，以及 README 裡關於 git
+歷史的小宣稱要不要有證據。這要任務方決定，可能的做法：
+
+- **A. 維持嚴格讀法**：exp225 依規則就是 J1 NO，不能當「已知好」的校準案例；改用有 `board/`
+  紀錄的實驗（例如 exp232）或把 exp225 的板子段落改寫成「一個人的觀察，沒有紀錄」。
+- **B. 放寬 J1**：在 JUDGE.md 明寫「README 明確標示為人的觀察、並寫出觀察條件（UF2 雜湊、
+  板子、方式）者，視為有根據；從程式碼推出的結論需引用程式碼」。改 JUDGE.md 依規則要整輪
+  重跑校準。
+
+依階段 A 的規則，判定不對就先處理、不跑步驟 2。
