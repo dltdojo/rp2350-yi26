@@ -144,10 +144,34 @@ calls/vk26/alice/
 - 套件裡的模組，命名空間用你的帳號（`Alice.…`），以免和主線或別人撞名。
 - **第二次用到就抽出來**（本 repo 的規則）：同一段 Lean、Python、C 或 shell 在你的
   兩個實驗裡出現，就搬進你自己的 `lean/` 或一個 `calls/vk26/<帳號>/tools/`。
+  `experiments/duplication.sh --check` 也會讀你的實驗（`.rs`、`.py`、`.sh`）：它以
+  **函式名稱**計數，所以和主線某個實驗同名、但做的是別的事的函式，也會被算成新的
+  重複。請用說得出用途的名稱（`seam_outcome`，而不是 `outcome`）。
 - 你覺得某個引理該進主線 `lean/`：在 PR 說明裡寫出來，合併後由任務方另開 PR 搬移，
   並負責讓所有使用者繼續通過。
-- 限制：`mutants.txt` 裡以 `|lean/…` 結尾、改主線函式庫的 mutant，對提案者套件不
-  支援（`lean.sh` 會判為 FAIL「inconclusive」）。mutant 請改你自己的證明檔。
+- mutant 可以改你自己的證明檔，也可以改你的套件：`mutants.txt` 一行的最後一欄寫
+  `calls/vk26/<帳號>/lean/<檔案>.lean`，`lean.sh` 會複製整個套件、套用 sed、重新建置
+  後再檢查。以 `|lean/…` 結尾、改主線函式庫的 mutant 對提案者套件**不**支援（會判為
+  FAIL「inconclusive」），因為你的套件建置時用的是 repo 裡那一份 `lean/`。
+
+### Lean 的寫法限制
+
+`lean/` 只依賴 Lean 本身，**沒有 Mathlib**。`lean.sh check` 除了錯誤，**任何警告都算
+失敗**。第一次寫證明的人最常撞到的：
+
+| 想用的 | 這裡沒有／會失敗 | 改用 |
+| --- | --- | --- |
+| `split_ifs` | Mathlib 的戰術 | `by_cases h : 條件` 後各自 `simp only [h, ↓reduceIte]` |
+| `set x := e with h` | Mathlib 的戰術 | `generalize h : e = x at …` |
+| 位元向量的線性等式 | `omega` 不懂 `BitVec` | `bv_omega`（Lean 內建）；`bv_decide` 與 `native_decide` 不行（`check` 只接受 Lean 自己的公理） |
+| `simp [a, b, c]` 裡用不到的參數 | 「unused simp args」警告 → 失敗 | 刪掉用不到的；或改 `simp only` 並只列需要的 |
+| 已淘汰的引理（如 `if_neg`、`if_false`） | 淘汰警告 → 失敗 | 照警告建議的新名稱 |
+
+另外兩個實務上的提醒：
+- 目標裡有大定義（例如 `WinOk`）時，`assumption`、`decide` 可能把它整個展開而跑很久，
+  甚至耗盡記憶體；直接 `exact h` 指名要用的假設。
+- Lean 耗盡記憶體時，錯誤訊息可能被吃掉，只看到很久沒有輸出。先單獨檢查最後改的那
+  個引理，再往回找。
 
 同樣的原則適用於 `tools/`（例如 `tools/hazard3/shell/` 的 `speak.h`、`trng.h`、
 `ring.h`、`trial_chip.h`）與 `crates/`：直接引用，不要複製；需要改它們時先開 issue。
@@ -161,7 +185,10 @@ calls/vk26/alice/
    先讀既有的實驗與文件，不要重新推導已經回答過的問題。
 4. **自我檢查**：
    - **雲端 VM 內**：五個 `check.sh` 都 exit 0；`run.sh` 在 VM 錄製純軟體與模擬關卡的 `capture.txt`（含 Lean 證明、mutants、RTL 模擬檢查），並貼進 README 的 Expected output；`build.sh` 建置出 `<name>.uf2`。
-   - **手機端測試**：將 `.uf2` 下載至手機，以 USB 連接 RP2350 拖曳刷機；從手機網頁（例如 `exp227`/`exp233` 的 WebUSB 測試頁 Copy）或手機串口取得實際運行紀錄，貼回 VM 存成 `board/round1.txt`，並由參考實作驗證。
+   - **手機端測試**：將 `.uf2` 下載至手機，以 USB 連接 RP2350 拖曳刷機；從手機網頁或手機串口取得實際運行紀錄，存成 `board/round1.txt`，並由參考實作驗證。
+     - **紀錄要以檔案傳回，不要貼進聊天或表單**。幾輪的紀錄就超過一則訊息能裝的長度，貼上時會被截斷，而且截斷處不一定看得出來：vk26-alice-1 的網頁判了 11 條樣本流，貼回來的只剩 7 條，最後一行斷在欄位中間。
+     - 所以你的網頁除了 Copy，還要有 **Save**：把同一份文字存成檔案（手機的「下載」資料夾），狀態列寫出字元數與行數，收到的人才能核對是否完整。寫法可參考 [alice/pages/core.js](./alice/pages/core.js) 的 `save()`。
+     - 參考實作的 `--board` 檢查只核對**完整**的樣本流或案例；被截掉的部分不會被當成錯，但也不算數。
    - **裁判自檢**：可使用 `judge-bundle.sh` 對自己的實驗先跑一次 LLM 裁判自檢（第 7 節）。
 5. **PR**：一個 PR，包含五個實驗。標題 `vk26/<帳號>: <五個主題>`。
 6. **機器關卡與 LLM 裁判**：任務方在 PR head 上執行 G1–G6 與 J1–J4，結果貼在 PR。
@@ -207,7 +234,7 @@ calls/vk26/alice/
 
 ### 第 4 層：規則與指南，動手之前讀
 
-- [docs/debugging-on-a-phone.md](../../docs/debugging-on-a-phone.md)：**雲端開發與手機除錯的核心指南**（寫程式的機器建 UF2 與網頁，手機接板子與複製紀錄；以文字日誌和 LED 為溝通介面）。
+- [docs/debugging-on-a-phone.md](../../docs/debugging-on-a-phone.md)：**雲端開發與手機除錯的核心指南**（寫程式的機器建 UF2 與網頁，手機接板子與複製紀錄；以文字日誌和 LED 為溝通介面）。紀錄的長度超過一則訊息時，以 Save 存檔傳回（第 5 節第 4 步）。
 - [docs/debugging-without-a-board.md](../../docs/debugging-without-a-board.md)、[docs/the-board-is-the-loop.md](../../docs/the-board-is-the-loop.md)：無板環境下的工作節奏（先搜尋既有文獻，RTL 模擬與軟體檢查先行；LED 樣式設計）。
 - [docs/what-belongs-to-an-experiment.md](../../docs/what-belongs-to-an-experiment.md)：一個實驗的目錄只放它要問的東西；共用程式碼抽出至自己目錄的 `lean/` 或 `tools/`（不要改動主線根目錄）。
 - [experiments/README.md](../../experiments/README.md)：How this repository is developed、Captures are pasted, never predicted、Platform、Which layer of USB is this。
