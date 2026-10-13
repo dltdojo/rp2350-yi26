@@ -6,7 +6,7 @@
 // What it reaches that page_test.mjs does not: the page's own code around the
 // checked block — ../pages/core.js put in by build.py, the connection, the
 // control transfers, the browser's WebCrypto, the table, the verdict line,
-// Copy — running where it will run.
+// Copy, Save — running where it will run.
 //
 //   node page_browser.mjs PAGE FIXTURE WANT ROWS
 //
@@ -31,6 +31,9 @@ await tab.click('#copy');
 await tab.waitForTimeout(100);
 const status = await tab.textContent('#status');
 const clip = await tab.evaluate(() => navigator.clipboard.readText());
+const [dl] = await Promise.all([tab.waitForEvent('download'), tab.click('#save')]);
+const saved = fs.readFileSync(await dl.path(), 'utf8');
+const savedStatus = await tab.textContent('#status');
 
 const name = fixture.split('/').pop();
 check(sent.startsWith('claim 0, claim 1, ctl 32 0 0, ctl 34 3 0'),
@@ -40,5 +43,8 @@ check(shown === Number(rows) && errors.length === 0,
   `${name}: the table shows the last round's ${rows} streams, and no script error`, `${shown} rows; ${errors.join('; ')}`);
 check(status.startsWith('Copied') && clip.startsWith('#page vk26-alice-1 seam.html') && clip.endsWith(stream),
   `${name}: Copy puts the verdict and every line received on the clipboard (${clip.length} characters)`, status);
+check(saved === clip && dl.suggestedFilename().startsWith('vk26-alice-1-') && savedStatus.startsWith(`Saved ${saved.length} characters`),
+  `${name}: Save downloads the same text as a file, ${dl.suggestedFilename().replace(/-\d{4}-.*/, '-<time>.txt')}, and says how long it is`,
+  savedStatus);
 await run.close();
 process.exit(failed() ? 1 : 0);

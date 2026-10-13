@@ -2,7 +2,7 @@
 //
 // calls/vk26/alice/pages — what every one of alice's five pages does the same
 // way: find the board's CDC pair, claim it, raise DTR, read 64-byte packets
-// and cut them into lines; Disconnect; Copy. Each experiment's page is thin:
+// and cut them into lines; Disconnect; Copy; Save. Each experiment's page is thin:
 // its own checked block, its own drawing, and a call to `appliance`. build.py
 // puts this file into the page, so that the phone opens one file.
 //
@@ -10,6 +10,7 @@
 // to that (tools/pages/pagecheck.sh's page_findcdc), on the built page.
 //
 //   appliance({ serial, product, page, onText, report, onStart })
+//                a #save button, if the page has one, saves what Copy copies
 //     serial    the USB serial the board must give ("vk26-alice-1")
 //     product   what to call it when it does not
 //     page      the first word of Copy's first line ("vk26-alice-1 seam.html p1")
@@ -130,12 +131,32 @@ function appliance(opt) {
     say('Disconnected. The board goes on without a listener.');
   }
 
+  // What Copy and Save give: the page's verdict, then every line as it arrived.
+  const report = () => `#page ${opt.page}: ${opt.report()}\n` + captured;
+
+  // Save: the same text as a file, in the phone's Downloads. vk26-alice-1's
+  // board log came back through a chat paste cut short — the page had seen 11
+  // streams and the paste held 7 — so a whole log goes back as a file, sent
+  // as an attachment, never pasted. The status line says how long it is, so
+  // whoever receives it can tell a whole file from a cut one.
+  function save() {
+    const text = report();
+    const name = `${opt.serial}-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    say(`Saved ${text.length} characters, ${text.split('\n').length - 1} lines, as ${name} (Downloads). `
+        + 'Send that file back as an attachment; do not paste it.', 'ok');
+  }
+
   // Copy, in two ways, and saying which one worked. exp226's round 4 found
   // Copy doing nothing on a Pixel 9a while the log streamed and working after
   // Disconnect; nothing said why. So: the Clipboard API first, then a selected
   // textarea and execCommand, and the status line names what failed.
   async function copy() {
-    const text = `#page ${opt.page}: ${opt.report()}\n` + captured;
+    const text = report();
     let first = '';
     try {
       await navigator.clipboard.writeText(text);
@@ -159,6 +180,7 @@ function appliance(opt) {
   };
   $('stop').onclick = stop;
   $('copy').onclick = copy;
+  if ($('save')) $('save').onclick = save;
 
   (async () => {
     if (!('usb' in navigator)) { say('This browser has no WebUSB. Chrome on Android, or a Chromium browser.', 'bad'); $('connect').disabled = true; return; }

@@ -265,8 +265,11 @@ Needs a Pico 2 and an Android phone with Chrome; one BOOTSEL press.
 2. Watch the LED: one long light, two flashes, one long light, one flash,
    three, four, then again.
 3. Open `build/seam.html` from the Files app with Chrome, press Connect and
-   choose "vk26-alice-1". Wait for two ROUND lines, then Copy, and paste
-   what it gives into `board/round1.txt`.
+   choose "vk26-alice-1". Wait for two ROUND lines, then press Save, and
+   send the file it puts in Downloads back as an attachment; it goes into
+   `board/` as it is. Copy gives the same text, but a log of a few rounds
+   is longer than a chat message holds: round 1's was cut on the way (see
+   below), which is why page build p2 has Save.
 
 `check.sh` then holds every whole stream in it to seam.py and hashlib, and
 runs it through the page's block.

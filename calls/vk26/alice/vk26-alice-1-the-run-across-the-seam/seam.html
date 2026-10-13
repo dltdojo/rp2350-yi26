@@ -15,7 +15,7 @@
   phone did. What it cannot check is the kernel's proof: that is
   proof/Seam.lean's.
 
-  The shared parts (connecting, Copy, the look) are ../pages/core.js and
+  The shared parts (connecting, Copy, Save, the look) are ../pages/core.js and
   ../pages/core.css. To put this on a phone, build one file:
     python3 ../pages/build.py seam.html build/seam.html
   and open build/seam.html — Files app -> "Open with Chrome" on Android.
@@ -36,12 +36,13 @@
 <h1>The run across the seam</h1>
 <p class="sub">vk26-alice-1 &middot; four windows of 1024 samples, the repetition count carried across every edge,
   nothing written after the first window that fails — judged again here, every sample and every digest.<br>
-  <small>page build <b id="ver">p1</b></small></p>
+  <small>page build <b id="ver">p2</b></small></p>
 
 <p>
   <button id="connect">Connect</button>
   <button id="stop" class="ghost" disabled>Disconnect</button>
   <button id="copy" class="ghost">Copy</button>
+  <button id="save" class="ghost">Save</button>
 </p>
 
 <div id="status">Not connected.</div>

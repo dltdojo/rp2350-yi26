@@ -4,11 +4,11 @@ Every vk26-alice experiment has a page a person opens on a phone, with the
 board plugged into it (the call's rule). The five pages differ in what they
 check and what they draw, and in nothing else: they find the board's CDC
 pair, claim it, raise DTR, read 64-byte packets and cut them into lines,
-disconnect, copy. That part is here once.
+disconnect, copy, save. That part is here once.
 
 | File | What it is |
 | --- | --- |
-| [`core.js`](./core.js) | connecting, reading, Disconnect, Copy: `appliance({ serial, page, onText, report })`, `cdcLines()`, `findCdc` (tools/pages/log.html's, byte for byte) |
+| [`core.js`](./core.js) | connecting, reading, Disconnect, Copy, Save (the same text as a file, for a log too long to paste): `appliance({ serial, page, onText, report })`, `cdcLines()`, `findCdc` (tools/pages/log.html's, byte for byte) |
 | [`core.css`](./core.css) | the look |
 | [`build.py`](./build.py) | one page, one file: puts `core.js` and `core.css` into a page, for a phone |
 
