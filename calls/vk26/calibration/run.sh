@@ -53,8 +53,19 @@ for f in "$OUT"/*-[0-9s]*.txt; do
     [[ -f "$f" ]] && ! grep -q '^VERDICT vk26' "$f" && { echo "not a verdict, removed: $f" >&2; mv "$f" "$f.failed"; }
 done
 
-if [[ "$STAGE" == B ]]; then
+if [[ "$STAGE" == A ]]; then
+    echo "== Stage A single confirmation tally =="
+    for c in "${CASES[@]}"; do
+        echo "== $c"; "$BUNDLE" tally "$OUT/bundles/$c.txt" "$OUT/$c-1.txt" || true
+    done
+elif [[ "$STAGE" == B || "$STAGE" == opus ]]; then
+    echo "== Stage B consensus tally =="
     for c in "${CASES[@]}"; do
         echo "== $c"; "$BUNDLE" tally "$OUT/bundles/$c.txt" "$OUT/$c"-[123].txt || true
+    done
+elif [[ "$STAGE" == sonnet ]]; then
+    echo "== Sonnet self-check tally =="
+    for c in "${CASES[@]}"; do
+        echo "== $c"; "$BUNDLE" tally "$OUT/bundles/$c.txt" "$OUT/$c-s1.txt" || true
     done
 fi

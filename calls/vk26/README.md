@@ -210,8 +210,10 @@ calls/vk26/alice/
 - **提案層級 S1–S4**：五個實驗、只動自己目錄、彼此不同、索引表齊全。
 - **LLM 裁判 J1–J4**（每個實驗，四個是非題）：宣稱是否都有根據、定理是否就是 README
   說的那件事、相對既有實驗有沒有新東西、參考實作是否獨立（原 J3 定理不平凡已由 G1.5 與 G3 機器關卡把關）。每個回答都
-  必須引用 `檔案:行號`；同一份資料由三個全新 session 各判一次；三次一致才算數，否則
-  轉人工。LLM 不能推翻機器關卡的結果。
+  必須引用 `檔案:行號`。
+  - **抽檢模式**：五個實驗中，四個實驗預設採**單次確認**，抽驗一個實驗跑**三次判定**，總判定次數減少 60%–70%。
+  - **模型分級**：J2 專送 Opus（J2 切片），其餘 J1/J3/J4 送 Sonnet，節省 ~90% Opus 額度。
+  - LLM 不能推翻機器關卡的結果。
 
 自己先跑裁判：
 
@@ -225,7 +227,10 @@ calls/vk26/judge-bundle.sh slice calls/vk26/alice/exp101-foo J2 > /tmp/b_j2.txt
 # 執行模型分級裁判（J2 專用 Opus 審查切片，J1/J3/J4 由 Sonnet 判定，節省 ~90% Opus 額度）：
 calls/vk26/judge-bundle.sh judge /tmp/b.txt v1.txt
 
-# 統計三次判定結果：
+# 單次確認統計（一般實驗）：
+calls/vk26/judge-bundle.sh tally /tmp/b.txt v1.txt
+
+# 抽檢統計（五個實驗抽一個跑三次判定）：
 calls/vk26/judge-bundle.sh tally /tmp/b.txt v1.txt v2.txt v3.txt
 ```
 

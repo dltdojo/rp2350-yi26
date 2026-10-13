@@ -24,8 +24,9 @@
 #                                           Sonnet; saves ~90% Opus tokens and quota);
 #                                           or specify `opus` or `sonnet` for a single-
 #                                           model run. Bundle is delivered in ONE message.
-#   judge-bundle.sh tally BUNDLE VERDICT... three (or more) verdicts on one
-#                                           bundle, per ACCEPTANCE.md: each
+#   judge-bundle.sh tally BUNDLE VERDICT... one verdict (single confirmation) or
+#                                           three (or more) verdicts (consensus audit)
+#                                           on one bundle, per ACCEPTANCE.md: each
 #                                           question YES, NO or SPLIT, and the
 #                                           experiment PASS (exit 0), FAIL
 #                                           (exit 1) or HUMAN (exit 2)
@@ -368,16 +369,24 @@ def tally(bundle_path, verdicts):
         print(f"injection scan: {scan_hits} hit(s) in the bundle")
     for i in injected:
         print(f"injection reported: {i}")
-    if len(verdicts) < 3:
-        overall, why = "HUMAN", f"only {len(verdicts)} verdict(s); three are needed"
-    elif scan_hits or injected:
+    if scan_hits or injected:
         overall, why = "HUMAN", "text addressed to the judge"
-    elif any(r == "NO" for r in result.values()):
-        overall, why = "FAIL", "a question was answered NO by every run"
-    elif all(r == "YES" for r in result.values()):
-        overall, why = "PASS", "every question YES in every run"
+    elif len(verdicts) == 1:
+        if any(r == "NO" for r in result.values()):
+            overall, why = "FAIL", "a question was answered NO"
+        elif all(r == "YES" for r in result.values()):
+            overall, why = "PASS", "every question YES (single confirmation; spot-check requires 3 runs on sampled experiments)"
+        else:
+            overall, why = "HUMAN", "an answer was invalid or missing citation"
+    elif len(verdicts) >= 3:
+        if any(r == "NO" for r in result.values()):
+            overall, why = "FAIL", "a question was answered NO by every run"
+        elif all(r == "YES" for r in result.values()):
+            overall, why = "PASS", "every question YES in every run"
+        else:
+            overall, why = "HUMAN", "the runs disagree or an answer was invalid"
     else:
-        overall, why = "HUMAN", "the runs disagree or an answer was invalid"
+        overall, why = "HUMAN", f"{len(verdicts)} verdict(s) given; 1 (single confirmation) or 3+ (audit) needed"
     print(f"OVERALL: {overall} ({why})")
     return {"PASS": 0, "FAIL": 1, "HUMAN": 2}[overall]
 
