@@ -24,7 +24,7 @@ sys.path.insert(0, EXP)
 sys.path.insert(0, os.path.join(TOOLS, "shell"))
 sys.path.insert(0, TOOLS)
 from expect import model  # noqa: E402
-from seam import DIGESTS, WINDOWS, image, outcome, streams  # noqa: E402
+from seam import DIGESTS, WINDOWS, image, seam_outcome, streams  # noqa: E402
 from sigfile import read_sig  # noqa: E402
 
 PASS_COST, FAIL_COST, INIT, DONE = 17421, 17419, 12, 3
@@ -51,7 +51,7 @@ def main():
     kernel = open(os.path.join(EXP, "kernel.bin"), "rb").read()
     failed = 0
     for name, words in streams().items():
-        code, digests, why = outcome(words)
+        code, digests, why = seam_outcome(words)
         img = image(kernel, words)
         want = bytearray(img) + bytes(0x10000 - len(img))
         for w, d in enumerate(digests):

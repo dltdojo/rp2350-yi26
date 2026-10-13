@@ -91,7 +91,7 @@ got="$(shell_words build/sim.bin 400000000)"
 if python3 - "$got" <<'PY'
 import re, sys
 sys.path.insert(0, ".")
-from seam import outcome
+from seam import seam_outcome
 words = sys.argv[1].split()
 text = open("build/expect.h").read()
 instret = [int(x) for x in re.search(r"INSTRET\[5\] = \{([^}]*)\}", text).group(1).split(",")]
@@ -101,7 +101,7 @@ x, lcg = 222, []
 for _ in range(128):
     x = (x * 1664525 + 1013904223) & 0xffffffff
     lcg.append(x)
-trng = outcome([(lcg[i // 32] >> (i % 32)) & 1 for i in range(4096)])[0]
+trng = seam_outcome([(lcg[i // 32] >> (i % 32)) & 1 for i in range(4096)])[0]
 rows, i = [], 0
 while i < len(words) and words[i] == "5354524d":
     rows.append([int(w, 16) for w in words[i + 1:i + 6]])

@@ -16,7 +16,7 @@ written for it or for any window after it.
 
   judge(bits)        how many windows passed before the first failure (4 if
                      none failed), and why the first failure failed
-  outcome(words)     what the kernel must leave: the halt code (0 if every
+  seam_outcome(words) what the kernel must leave: the halt code (0 if every
                      window passed, else the failing window's number, 1 to 4)
                      and the SHA-256 of each window that passed, in order
 
@@ -57,7 +57,7 @@ def window_bytes(words, w):
     return struct.pack(f"<{N}I", *words[w * N:(w + 1) * N])
 
 
-def outcome(words):
+def seam_outcome(words):
     passed, why = judge([x & 1 for x in words])
     code = 0 if passed == WINDOWS else passed + 1
     digests = [hashlib.sha256(window_bytes(words, w)).digest() for w in range(passed)]
@@ -153,5 +153,5 @@ def _longest(bits):
 
 if __name__ == "__main__":
     for name, words in streams().items():
-        code, digests, why = outcome(words)
+        code, digests, why = seam_outcome(words)
         print(f"{name:34} halt {code}  digests {len(digests)}  {why or 'every window passed'}")
