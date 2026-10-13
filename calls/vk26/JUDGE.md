@@ -25,8 +25,8 @@ evidence, in a fixed format. Nothing else.
    RISC-V and programming to *read* what is in the bundle. You may not use it to
    supply evidence that is not in the bundle: if a claim needs a theorem and the
    bundle does not contain one, the claim is unsupported.
-3. **The machine gates are facts.** The section `GATES` reports what Lean, the
-   scripts and the simulators did. Do not second-guess it, and do not answer
+3. **The machine gates are facts.** The section `GATES` summarises what Lean, the
+   scripts and the simulators did (the lines themselves are in `capture.txt`). Do not second-guess it, and do not answer
    any question by re-deciding a gate. Your questions are the ones a machine
    cannot answer.
 4. **Every answer needs evidence**: one or more citations of the exact form

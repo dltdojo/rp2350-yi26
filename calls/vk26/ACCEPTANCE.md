@@ -27,6 +27,7 @@
 
 | | 條件 | 怎麼判斷 |
 | --- | --- | --- |
+| **G1.5 預檢** | `proof/*.lean` 至少一個定理的敘述含 `run env N (boot …)`（`from_boot` 形式存在），且沒有任何定理的結論就是 `True` | `judge-bundle.sh gates <實驗>`；只擋最粗糙的情形，J2、J3 仍照問 |
 | **G1 證明** | 證明檔通過 `tools/lean/lean.sh check`：沒有錯誤、沒有警告、沒有 `sorry`；每個 `#print axioms` 只列 `propext`、`Classical.choice`、`Quot.sound` 之中的公理；不用 `native_decide`、`bv_decide`；不 import Mathlib。至少一個定理是 `from_boot` 形式：從開機執行 `kernel.bin` 的位元組，剛好 N 條指令後以 0 停止，留下規格所說的結果 | `lean.sh check`；`from_boot` 形式由 J2 確認 |
 | **G2 位元組** | `lean.sh exec proof/<Name>.lean <out>` 寫出的檔案與 commit 進來的 `kernel.bin` 逐位元組相同，`kernel.sha256` 是它的雜湊 | `cmp`、`sha256sum` |
 | **G3 定理有牙齒** | `proof/mutants.txt` 至少 **4** 個錯誤版本，至少一個改 kernel 的指令、至少一個改宣稱；Lean 全部拒絕 | `lean.sh mutants` 全部 PASS |
@@ -52,7 +53,7 @@
 
 ### 判定規則
 
-1. 同一份 bundle，由**三個全新的** session 各判一次（模型：Opus 5.5；提示詞：commit 中的 JUDGE.md）。
+1. 同一份 bundle，由**三個全新的** session 各判一次（模型：Opus 5.5；提示詞：commit 中的 JUDGE.md）。每次由 `judge-bundle.sh judge` 把提示詞與整份 bundle 放在**一則訊息**送出、不給工具，裁判不分段讀檔。bundle 已去掉 Lean 的證明步驟（G1 已驗證），保留定義、定理敘述與註解。
 2. 每個回答都必須附上 `檔案:行號` 的證據，而且該行必須真的存在於 bundle 中。缺證據或證據不存在，該回答**無效**。由 `judge-bundle.sh tally` 自動檢查。
 3. 每一題：
    - 三次都有效且都是 YES → **YES**
@@ -77,7 +78,13 @@
   - 定理被縮窄（只對位置 0 成立），README 仍說「任何位置」 → J2 NO
   - 夾帶給裁判的指示加上誇大宣稱 → 注入命中、J1 NO、結果 HUMAN
 
-JUDGE.md 每改一次，就重跑一次校準。
+JUDGE.md、bundle 的組法每改一次，就重跑一次校準。**校準一律用 Opus 5.5**（與正式驗收同一模型）。
+分兩階段，由 `calibration/run.sh` 執行，同時最多 3 個 session：
+
+- **階段 A**：每個案例一次（7 次）。有任何一個不對，就先修正，不進階段 B。
+- **階段 B**：階段 A 全對，才每個案例再跑兩次，湊足三次，統計。
+
+提案者的自我檢查可用 `calibration/run.sh sonnet`（Sonnet 5.5，一次）；它只能抓格式與引用錯誤，**不算校準**，也不能取代正式的三次 Opus。
 
 ## 現場上板（G7，每個有韌體的實驗）
 
