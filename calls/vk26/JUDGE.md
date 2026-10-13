@@ -76,6 +76,13 @@ a board still needs the board log. Which commit something was built at is
 history the bundle cannot hold: it is not a claim to check, unless the bundle
 contradicts it (a different hash for the same file).
 
+Check the experiment's substantive claims: what is proved, what was measured
+or run and what came out, and what happened on a board. Operating notes are
+not claims to check — how long a script takes, how large a file or a build
+is, how long the LED stays on for each beat, what to type to run something —
+and neither is a number worked out directly from constants in the code. Answer
+NO only for a substantive claim the bundle does not support.
+
 **J2 — The theorem is what the text says.** Is there at least one theorem of
 `from_boot` form — about the kernel's actual bytes, executed from boot, halting
 after an exact number of instructions with a stated result — and do the main

@@ -145,7 +145,9 @@ lacks "  … but not in the J2 slice" "$WORK/s225-j2.txt" "=== BEGIN shell/shell
 # The differential is what a measured claim rests on: exp225's README.md:86-87
 # names the twenty seeds, and differential.py's seeds() is where they are. v2
 # left it out and round 2's re-probe found that claim unsupported.
-has_line "the differential is in the bundle: exp225's twenty seeds are its seeds()" "$WORK/b225.txt" differential/differential.py "29| def seeds():"
+seeds_line=$(in_file "$WORK/b225.txt" differential/differential.py | sed -n 's/^\([0-9]*\)| def seeds():.*/\1/p')
+[[ -n "$seeds_line" ]] && pass "the differential is in the bundle: exp225's twenty seeds are its seeds(), line $seeds_line" \
+    || fail "the differential is in the bundle: exp225's twenty seeds are its seeds()" "no \`N| def seeds():\` in differential/differential.py of b225.txt"
 has "  … and in the J1 slice" "$WORK/s225-j1.txt" "=== BEGIN differential/differential.py"
 lacks "  … but not in the J2 slice" "$WORK/s225-j2.txt" "=== BEGIN differential/differential.py"
 "$JB" slice "$E225" J4 > "$WORK/s225-j4.txt"
@@ -157,11 +159,11 @@ n_rule30=$(in_file "$WORK/b225.txt" rule30.py | wc -l)
 cite_case() { # name evidence
     printf 'VERDICT vk26\nJ1: YES\nevidence: %s\nreason: t\nJ2: YES\nevidence: proof/Life.lean:1\nreason: t\nJ3: YES\nevidence: README.md:2\nreason: t\nJ4: YES\nevidence: rule30.py:1\nreason: t\nINJECTION: NONE\nEND\n' "$2" > "$WORK/cite-$1.txt"
 }
-cite_case shell "shell/shell.c:77, README.md:144, differential/differential.py:29"
+cite_case shell "shell/shell.c:77, README.md:144, differential/differential.py:${seeds_line:-1}"
 cite_case wrongfile "rule30.py:$(( n_rule30 + 1 ))"
 cite_case nofile "shell/speak.h:3"
 cite_case viewer "b225.txt:120"
-"$JB" tally "$WORK/b225.txt" "$WORK/cite-shell.txt" > "$WORK/t1.txt" && pass "tally accepts shell/shell.c:77, README.md:144 and differential/differential.py:29" || fail "tally refused a line that is there" "$(grep -m1 cites "$WORK/t1.txt")"
+"$JB" tally "$WORK/b225.txt" "$WORK/cite-shell.txt" > "$WORK/t1.txt" && pass "tally accepts shell/shell.c:77, README.md:144 and differential/differential.py:${seeds_line:-1}" || fail "tally refused a line that is there" "$(grep -m1 cites "$WORK/t1.txt")"
 (( n_readme > n_rule30 + 1 )) && { "$JB" tally "$WORK/b225.txt" "$WORK/cite-wrongfile.txt" > "$WORK/t2.txt"; has "  … refuses rule30.py:$(( n_rule30 + 1 )), a number README.md has but rule30.py does not" "$WORK/t2.txt" "not in the bundle"; }
 "$JB" tally "$WORK/b225.txt" "$WORK/cite-nofile.txt" > "$WORK/t3.txt"; has "  … refuses a file the bundle does not hold" "$WORK/t3.txt" "not in the bundle"
 "$JB" tally "$WORK/b225.txt" "$WORK/cite-viewer.txt" > "$WORK/t4.txt"; has "  … refuses the bundle's own line numbers" "$WORK/t4.txt" "not in the bundle"
@@ -265,6 +267,14 @@ has "  … that an inference from it cites the code" "$WORK/p134.txt" "is suppor
 has "  … that a number from a board still needs the log" "$WORK/p134.txt" "a board still needs the board log"
 has "  … and that a build commit is not checked" "$WORK/p134.txt" "Which commit something was built at is"
 lacks "  … none of which reaches the J2 prompt" "$WORK/p2.txt" "A board claim may also rest on"
+# Option 乙 (round 3's second probe): J1 checks substantive claims only, not
+# operating notes (a script's run time, a beat's length) or numbers worked out
+# from constants in the code.
+has "the J1/J3/J4 prompt limits J1 to substantive claims" "$WORK/p134.txt" "Check the experiment's substantive claims"
+has "  … names operating notes as not claims" "$WORK/p134.txt" "Operating notes are"
+has "  … nor numbers worked out from constants" "$WORK/p134.txt" "a number worked out directly from constants in the code"
+has "  … and says NO only for a substantive claim" "$WORK/p134.txt" "NO only for a substantive claim the bundle does not support"
+lacks "  … none of which reaches the J2 prompt" "$WORK/p2.txt" "substantive claims"
 has "  … asks J4" "$WORK/p134.txt" "**J4 — The reference is independent.**"
 lacks "  … and not J2" "$WORK/p134.txt" "**J2 —"
 for q in J1 J2 J3 J4; do has "the full prompt asks $q" "$WORK/pall.txt" "$q: YES|NO"; done
