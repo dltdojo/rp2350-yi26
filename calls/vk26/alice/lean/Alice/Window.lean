@@ -379,6 +379,31 @@ theorem win_run (hp : Placed env base) (ha : At prog k0) (hs : src + 4 * (N * (w
   refine ⟨sV, by rw [Nat.add_assoc, run_add_running e4, run_add_running eL, eV], pV, mV, ?_, gV, g45, kV⟩
   rw [g1, invL.s1, show N * w + N = N * (w + 1) by rw [Nat.mul_succ]]
 
+/-! ## The tests read only the samples
+
+What the stream's tests say depends on the samples' bit 0 and nothing else:
+memory that agrees with `m` on those bits gives the same counts and the same
+verdict. A kernel that writes elsewhere (a digest, a known-answer test's
+scratch) leaves every later window's verdict as it was. -/
+
+theorem rct_congr {m m' : Word → Byte} {src n : Nat} (h : ∀ j < n, bit m' base src j = bit m base src j) :
+    rct m' base src n = rct m base src n := by
+  unfold rct bits
+  congr 1
+  exact List.map_congr_left (fun j hj => h j (List.mem_range.1 hj))
+
+theorem agree_congr {m m' : Word → Byte} {src n : Nat} (h : ∀ j < n, bit m' base src j = bit m base src j)
+    (h0 : 0 < n) : agree m' base src n = agree m base src n := by
+  unfold agree bits
+  rw [List.map_congr_left (fun j hj => h j (List.mem_range.1 hj)), h 0 h0]
+
+theorem winOk_congr {m m' : Word → Byte} (h : ∀ j < N * (w + 1), bit m' base src j = bit m base src j) :
+    WinOk m' base src w ↔ WinOk m base src w := by
+  unfold WinOk
+  rw [rct_congr h, agree_congr (m := m) (m' := m') (fun i hi => by
+      rw [bit_window, bit_window]; exact h _ (by simp only [N] at hi ⊢; omega)) (by decide)]
+
 #print axioms win_run
+#print axioms winOk_congr
 
 end Alice.Window

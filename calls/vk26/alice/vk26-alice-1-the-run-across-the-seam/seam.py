@@ -3,7 +3,8 @@
 """vk26-alice-1 — the reference: SP 800-90B's two continuous health tests over
 four windows of 1024 samples, written the way exp114's crate
 (crates/entropy-health) writes them, one sample at a time, and nothing like
-the kernel's registers.
+the kernel's registers. The tests themselves are alice/tools/health.py's,
+shared with vk26-alice-2; this file is what alice-1 does with them.
 
   seam.py            print every stream in streams() and what it gives
 
@@ -23,11 +24,17 @@ written for it or for any window after it.
 A sample is the word the shell writes; the tests see its bit 0.
 """
 import hashlib
+import os
 import random
 import struct
+import sys
 
-N, WINDOWS = 1024, 4
-RCT_CUTOFF, APT_CUTOFF = 21, 589
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "tools"))
+from health import APT_CUTOFF, N, RCT_CUTOFF, fair as _fair, judge as _judge, longest as _longest  # noqa: E402,F401
+from health import window_bytes  # noqa: E402,F401
+
+WINDOWS = 4
 
 # Where things are in the 64 KiB region, from its base.
 SAMPLES = 0x400                       # four windows of 1024 words, one after another
@@ -36,25 +43,8 @@ IMAGE_END = DIGESTS
 
 
 def judge(bits):
-    last, run = None, 0
-    for w in range(WINDOWS):
-        window = bits[w * N:(w + 1) * N]
-        ref, matches, longest = window[0], 0, 0
-        for b in window:
-            run = run + 1 if b == last else 1
-            last = b
-            longest = max(longest, run)
-            if b == ref:
-                matches += 1
-        if longest >= RCT_CUTOFF:
-            return w, f"window {w + 1}: {longest} alike in a row"
-        if matches >= APT_CUTOFF:
-            return w, f"window {w + 1}: {matches} of 1024 equal its first"
-    return WINDOWS, None
-
-
-def window_bytes(words, w):
-    return struct.pack(f"<{N}I", *words[w * N:(w + 1) * N])
+    """alice/tools/health.py's tests, over this experiment's four windows."""
+    return _judge(bits, WINDOWS)
 
 
 def seam_outcome(words):
@@ -73,14 +63,6 @@ def image(kernel, words):
 
 def _run(bit, n):
     return [bit] * n
-
-
-def _fair(rng, n):
-    """Alternating pairs, shuffled a little: never 21 alike, never 589 of a window alike."""
-    out = []
-    while len(out) < n:
-        out += [0, 1] if rng.random() < 0.5 else [1, 0]
-    return out[:n]
 
 
 def streams():
@@ -139,16 +121,6 @@ def streams():
     for name, words in s.items():
         assert len(words) == 4 * N, name
     return s
-
-
-def _longest(bits):
-    best = run = 0
-    last = None
-    for b in bits:
-        run = run + 1 if b == last else 1
-        last = b
-        best = max(best, run)
-    return best
 
 
 if __name__ == "__main__":

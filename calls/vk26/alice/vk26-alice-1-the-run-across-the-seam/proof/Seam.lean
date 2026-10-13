@@ -30,6 +30,7 @@ after each HASH) or `t0`: the window's block leaves every register outside
 `Health.written` alone, and HASH writes only memory.
 -/
 import Alice.Window
+import Alice.Addr
 import Rv32.Blocks
 import Rv32.Line
 import Rv32.Asm
@@ -38,7 +39,7 @@ import Rv32.Flow
 set_option maxRecDepth 20000
 
 namespace Seam
-open Rv32 Rv32.Health Alice.Window
+open Rv32 Rv32.Health Alice.Window Alice.Addr
 
 def init : List Instr := [
   .opi .addi S1 S0 0x400, .opi .addi T1 0 1, .sh .slli T1 T1 14, .op .add A2 S1 T1,
@@ -152,24 +153,10 @@ theorem wrote_bit (hfit : base.toNat + 0x10000 ≤ 2^32) {H : List Byte → Fin 
   simp only [N] at hj
   rw [off_add hfit _ _ (by simp only [SMP]; omega), wrote_below hfit hk (by simp only [SMP, DIG]; omega)]
 
-theorem rct_congr {m m' : Word → Byte} {src n : Nat} (h : ∀ j < n, bit m' base src j = bit m base src j) :
-    rct m' base src n = rct m base src n := by
-  unfold rct bits
-  congr 1
-  exact List.map_congr_left (fun j hj => h j (List.mem_range.1 hj))
-
-theorem agree_congr {m m' : Word → Byte} {src n : Nat} (h : ∀ j < n, bit m' base src j = bit m base src j)
-    (h0 : 0 < n) : agree m' base src n = agree m base src n := by
-  unfold agree bits
-  rw [List.map_congr_left (fun j hj => h j (List.mem_range.1 hj)), h 0 h0]
-
 theorem wrote_winOk (hfit : base.toNat + 0x10000 ≤ 2^32) {H : List Byte → Fin 32 → Byte} {m : Word → Byte}
     {k w : Nat} (hk : k ≤ 4) (hw : w < 4) :
-    WinOk (wrote H m base k) base SMP w ↔ WinOk m base SMP w := by
-  unfold WinOk
-  rw [rct_congr (fun j hj => wrote_bit hfit hk (by simp only [N] at hj ⊢; omega)),
-    agree_congr (m := m) (m' := wrote H m base k) (fun i hi => by
-      rw [bit_window, bit_window]; exact wrote_bit hfit hk (by simp only [N] at hi ⊢; omega)) (by decide)]
+    WinOk (wrote H m base k) base SMP w ↔ WinOk m base SMP w :=
+  winOk_congr (fun j hj => wrote_bit hfit hk (by simp only [N] at hj ⊢; omega))
 
 theorem wrote_rct (hfit : base.toNat + 0x10000 ≤ 2^32) {H : List Byte → Fin 32 → Byte} {m : Word → Byte}
     {k n : Nat} (hk : k ≤ 4) (hn : n ≤ 4 * N) :
@@ -274,20 +261,7 @@ def passSet : List Instr := [ .opi .addi A0 0 0, .opi .addi T0 0 1 ]
 theorem at_fail : (kernel.drop 135).take failSet.length = failSet := rfl
 theorem at_pass : (kernel.drop 132).take passSet.length = passSet := rfl
 
-/-! ## Arithmetic on addresses -/
-
-/-- `addi a0, s1, -2048; addi a0, a0, -2048`: 4096 back. -/
-theorem back4096 (c : Nat) (h1 : 4096 ≤ c) (h2 : c < 0x10000) :
-    base + BitVec.ofNat 32 c + (0x800 : BitVec 12).signExtend 32 + (0x800 : BitVec 12).signExtend 32
-      = base + BitVec.ofNat 32 (c - 4096) := by
-  rw [show (0x800 : BitVec 12) = BitVec.ofNat 12 2048 from rfl, se_neg 2048 (by decide) (by decide)]
-  have hb := base.isLt
-  bv_omega
-
-/-- `addi r, r, d` for a small `d`. -/
-theorem count_up (n d : Nat) (hd : d < 2048) :
-    BitVec.ofNat 32 n + (BitVec.ofNat 12 d).signExtend 32 = BitVec.ofNat 32 (n + d) := by
-  rw [se_small d hd, BitVec.ofNat_add]
+/-! ## Arithmetic on addresses: `Alice.Addr` -/
 
 /-- Each window's branch to FAIL, by the numbers. -/
 theorem bne_off {w : Nat} (hw : w < 4) :
