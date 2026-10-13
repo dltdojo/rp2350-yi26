@@ -54,7 +54,10 @@
 
 ### 判定規則
 
-1. 同一份 bundle，由**三個全新的** session 各判一次（模型：Opus 5.5；提示詞：commit 中的 JUDGE.md）。每次由 `judge-bundle.sh judge` 把提示詞與整份 bundle 放在**一則訊息**送出、不給工具，裁判不分段讀檔。bundle 採用**專題切片（Slice Bundle）**：去掉 Lean 證明步驟、排除裁判無關的建置腳本與 shell.c、篩選板子日誌與前人索引，降低 token 與上下文開銷。開發者亦可使用 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 抽取單題切片進行超低 token 的自我檢查。
+1. 同一份 bundle，由**三個全新的** session 各判一次。為了兼顧嚴謹推理與避免額度枯竭，判定採**模型分級（Tiered Judge）**：
+   - **J2（定理即是所說）**：由 **Opus 5.5** 專門判定，輸入為 J2 專題切片（定理敘述與說明，~1,000–8,000 tokens），發揮頂級模型對量詞縮窄與假設變更的嚴謹審查能力，同時避免將龐大日誌灌入 Opus。
+   - **J1（宣稱有根據）、J3（有新東西）、J4（參考實作獨立）**：由 **Sonnet 5.5** 判定。這三題本質為檢索與字面比對，由 Sonnet 處理即足夠精準且極低耗能。
+   - 由 `judge-bundle.sh judge` 自動分級調度並整合成單一 `VERDICT vk26` 紀錄；整份以一則訊息送出、不給工具。bundle 採用**專題切片（Slice Bundle）**，排除與裁判無關的建置檔案與冗餘日誌。開發者亦可使用 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 抽取單題切片進行超低 token 自檢。
 2. 每個回答都必須附上 `檔案:行號` 的證據，而且該行必須真的存在於 bundle 中。缺證據或證據不存在，該回答**無效**。由 `judge-bundle.sh tally` 自動檢查。
 3. 每一題：
    - 三次都有效且都是 YES → **YES**
@@ -79,13 +82,13 @@
   - 定理被縮窄（只對位置 0 成立），README 仍說「任何位置」 → J2 NO
   - 夾帶給裁判的指示加上誇大宣稱 → 注入命中、J1 NO、結果 HUMAN
 
-JUDGE.md、bundle 的組法每改一次，就重跑一次校準。**校準一律用 Opus 5.5**（與正式驗收同一模型）。
+JUDGE.md、bundle 的組法每改一次，就重跑一次校準。**校準採模型分級（J2 Opus + 其餘 Sonnet）**。
 分兩階段，由 `calibration/run.sh` 執行，同時最多 3 個 session：
 
 - **階段 A**：每個案例一次（7 次）。有任何一個不對，就先修正，不進階段 B。
 - **階段 B**：階段 A 全對，才每個案例再跑兩次，湊足三次，統計。
 
-提案者的自我檢查可用 `calibration/run.sh sonnet`（Sonnet 5.5，一次）；它只能抓格式與引用錯誤，**不算校準**，也不能取代正式的三次 Opus。
+提案者的自我檢查可用 `calibration/run.sh sonnet`（全 Sonnet 5.5，一次）；亦可用 `calibration/run.sh opus` 跑全 Opus 基準。
 
 ## 現場上板（G7，每個有韌體的實驗）
 

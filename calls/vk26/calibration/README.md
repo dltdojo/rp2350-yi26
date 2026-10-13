@@ -83,5 +83,6 @@ README 連結的板子紀錄、上限 400 行；JUDGE.md 舉例說明引用格�
 - bundle 瘦身：Lean 證明步驟改為一行標記（行號不變，定義、敘述、註解保留）；板子紀錄去掉重複行（PATIENT/TRIAL 全留）；PRIOR WORK 每列 250 字；GATES 只留摘要。
 - **專題切片（Slice Bundle v2）**：`judge-bundle.sh bundle` 排除 `shell/shell.c`、`check.sh`、`differential/*.py` 等與裁判無關的建置檔案；板子日誌僅保留實測結果行並過濾重複輪詢；前人索引精簡為最近 15 項；引用之兄弟模組演算法上限 150 行。新增 `judge-bundle.sh slice <EXPDIR> <J1|J2|J3|J4>` 支援單題切片自檢。
 - 實測 Slice Bundle 大小：exp225 約 51 KB (~14.7k tokens)，exp230 約 63 KB (~18k tokens)，exp234 約 142 KB (~40k tokens，由原先 287 KB 減半)。
-- `run.sh A|B|sonnet`：分階段、並行上限 3。
+- **模型分級裁判（Tiered Judge）**：`judge-bundle.sh judge` 預設採分級模式。J2（牽涉細微量詞與數學邏輯）專由 Opus 5.5 在獨立 J2 切片（~1,000–8,000 tokens）上判定；J1、J3、J4（檢索與比對）由 Sonnet 5.5 判定。兩者自動整合成完整 `VERDICT vk26` 紀錄，單次 Opus 額度開銷下降約 85%–90%。
+- `run.sh A|B|sonnet|opus`：分階段執行、並行上限 3。階段 A 與 B 預設採 `tiered` 分級模式。
 - 七個壞案例的缺陷在切片 bundle 中皆完整保留（`True := …`、`patient w 0 ANSWER`、誇大宣稱、注入文字）。

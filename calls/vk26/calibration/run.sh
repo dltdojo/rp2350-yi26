@@ -5,11 +5,12 @@
 # never more than three sessions at a time (twenty at once is what hit the
 # session limit in round 2; see README.md).
 #
-#   run.sh A OUTDIR     stage A: one run per case, 7 runs
+#   run.sh A OUTDIR     stage A: one run per case, 7 runs (tiered: Opus for J2,
+#                       Sonnet for J1/J3/J4; saves ~90% Opus tokens & quota)
 #   run.sh B OUTDIR     stage B: two more runs per case, 14 runs; start it only
 #                       once stage A was all correct. Then tallies each case.
-#   run.sh sonnet OUTDIR  one run per case with sonnet: a self-check for a
-#                       proposer, NOT calibration (calibration is opus only)
+#   run.sh sonnet OUTDIR  one run per case with Sonnet only (fast self-check)
+#   run.sh opus OUTDIR    full Opus for all questions (all-Opus baseline)
 #
 # OUTDIR is created; the bundles go to OUTDIR/bundles, the verdicts to
 # OUTDIR/<case>-<n>.txt. A run whose file already exists is skipped, so an
@@ -20,7 +21,7 @@ set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE="$HERE/../judge-bundle.sh"
 STAGE="${1:-}"; OUT="${2:-}"
-[[ "$STAGE" =~ ^(A|B|sonnet)$ && -n "$OUT" ]] || { sed -n '3,19p' "${BASH_SOURCE[0]}"; exit 2; }
+[[ "$STAGE" =~ ^(A|B|sonnet|opus)$ && -n "$OUT" ]] || { sed -n '3,19p' "${BASH_SOURCE[0]}"; exit 2; }
 JOBS="${VK26_JOBS:-3}"; (( JOBS > 3 )) && JOBS=3
 
 mkdir -p "$OUT/bundles"
@@ -28,9 +29,10 @@ mkdir -p "$OUT/bundles"
 CASES=(good-exp225 good-exp230 good-exp234 overclaim trivial narrowed injection)
 
 case "$STAGE" in
-    A) RUNS=(1); MODEL=opus;;
-    B) RUNS=(2 3); MODEL=opus;;
+    A) RUNS=(1); MODEL=tiered;;
+    B) RUNS=(2 3); MODEL=tiered;;
     sonnet) RUNS=(s1); MODEL=sonnet;;
+    opus) RUNS=(1 2 3); MODEL=opus;;
 esac
 
 jobs_list=()
