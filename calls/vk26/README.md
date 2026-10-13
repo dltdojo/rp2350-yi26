@@ -21,8 +21,7 @@ RV32 核心（Hazard3）上執行「被 Lean 證明的程式」：證明說的�
 接任務者須同時符合：
 
 1. **會使用 GitHub**：fork、branch、pull request、issue。
-2. **具備 Claude Pro 訂閱**，可使用 Opus 5.5 模型。本 repo 的開發方式就是人與 AI
-   一起做，[AGENTS.md](../../AGENTS.md) 是給 AI 的規則，提案者的 AI 也要遵守。
+2. **具備可使用先進推理模型的 AI 工具或環境**（如 Claude、Antigravity 等）。本 repo 的開發方式是人與 AI 在雲端 VM 結對編程，由 AI 協助編寫 Lean 定理證明、Python 參考實作、RTL 模擬與 UF2 韌體建置。
 3. **能用手機的 USB 複製燒錄 RP2350 韌體**：按住 BOOTSEL 接上板子，把 `.uf2`
    複製進 `RP2350` 磁碟（手機的檔案管理員即可）。
 4. **能到指定的大學當面測試**：由任務方提供 RP2350 開發板，現場燒錄、收紀錄、確認
@@ -81,8 +80,7 @@ calls/vk26/alice/
 - **只能新增或修改自己的目錄**。PR 裡只要有一個檔案在 `calls/vk26/<你的帳號>/` 之外，
   就不會被合併（ACCEPTANCE.md 的 S2）。
 - 韌體的 USB 名稱與序號要能和別人、和 `experiments/` 區分：`SPEAK_NAME` 用
-  `alice-exp101`，`SPEAK_SERIAL` 用 `alice-101`。本 repo 的工具（`yi26 port`）靠序號
-  認出板子上跑的是誰的韌體。
+  `alice-exp101`，`SPEAK_SERIAL` 用 `alice-101`。供手機 WebUSB 介面選擇裝置及現場驗收（G7）時確認板子上跑的是誰的韌體。
 - `check.sh` 照 `experiments/` 的寫法，`source ../../../../experiments/lib.sh` 以使用
   `pass`、`fail`、`require_supported_platform`、`capture_header`、`capture_tee`。
   `presence_check` 與 `usb_check` 讀的是 `experiments/README.md` 的表格，**不要**呼叫；
@@ -150,9 +148,10 @@ calls/vk26/alice/
 3. **開發**：fork、開 branch，照第 3、4 節放檔案。開始每個實驗前，照
    [experiments/README.md 的「How this repository is developed」](../../experiments/README.md#how-this-repository-is-developed)
    先讀既有的實驗與文件，不要重新推導已經回答過的問題。
-4. **自我檢查**：五個 `check.sh` 都 exit 0；`run.sh` 從乾淨的 commit 錄 `capture.txt`
-   並貼進 README 的 Expected output；用自己的板子跑一輪，存成 `board/round1.txt`。也可以
-   用 [JUDGE.md](./JUDGE.md) 對自己的實驗先跑一次 LLM 裁判（第 7 節）。
+4. **自我檢查**：
+   - **雲端 VM 內**：五個 `check.sh` 都 exit 0；`run.sh` 在 VM 錄製純軟體與模擬關卡的 `capture.txt`（含 Lean 證明、mutants、RTL 模擬檢查），並貼進 README 的 Expected output；`build.sh` 建置出 `<name>.uf2`。
+   - **手機端測試**：將 `.uf2` 下載至手機，以 USB 連接 RP2350 拖曳刷機；從手機網頁（例如 `exp227`/`exp233` 的 WebUSB 測試頁 Copy）或手機串口取得實際運行紀錄，貼回 VM 存成 `board/round1.txt`，並由參考實作驗證。
+   - **裁判自檢**：可使用 `judge-bundle.sh` 對自己的實驗先跑一次 LLM 裁判自檢（第 7 節）。
 5. **PR**：一個 PR，包含五個實驗。標題 `vk26/<帳號>: <五個主題>`。
 6. **機器關卡與 LLM 裁判**：任務方在 PR head 上執行 G1–G6 與 J1–J4，結果貼在 PR。
    不通過的項目會寫明原因與證據位置，修正後重跑。
@@ -193,12 +192,12 @@ calls/vk26/alice/
 | [exp231](../../experiments/exp231-the-fly-on-the-phone/) | 兩個 kernel 共用一個區域，加上手機網頁 |
 | [exp232](../../experiments/exp232-the-cure-the-proof-predicts/) / [exp233](../../experiments/exp233-the-trial-on-the-phone/) / [exp234](../../experiments/exp234-the-rate-the-proof-predicts/) | TRNG 抽樣、`ring.h`、`trial_chip.h`、手機的 Copy 回傳、`board/*.txt` 由參考實作核對 |
 
-### 第 4 層：規則，動手之前讀
+### 第 4 層：規則與指南，動手之前讀
 
-- [AGENTS.md](../../AGENTS.md)：給 AI 的規則（讀紀錄用 `yi26 log --json`，不要截圖瀏覽器；沒有板子時先搜尋既有文件；LED 就是除錯管道）。
-- [docs/what-belongs-to-an-experiment.md](../../docs/what-belongs-to-an-experiment.md)：一個實驗的 `src` 只放它要問的東西。
+- [docs/debugging-on-a-phone.md](../../docs/debugging-on-a-phone.md)：**雲端開發與手機除錯的核心指南**（寫程式的機器建 UF2 與網頁，手機接板子與複製紀錄；以文字日誌和 LED 為溝通介面）。
+- [docs/debugging-without-a-board.md](../../docs/debugging-without-a-board.md)、[docs/the-board-is-the-loop.md](../../docs/the-board-is-the-loop.md)：無板環境下的工作節奏（先搜尋既有文獻，RTL 模擬與軟體檢查先行；LED 樣式設計）。
+- [docs/what-belongs-to-an-experiment.md](../../docs/what-belongs-to-an-experiment.md)：一個實驗的目錄只放它要問的東西；共用程式碼抽出至自己目錄的 `lean/` 或 `tools/`（不要改動主線根目錄）。
 - [experiments/README.md](../../experiments/README.md)：How this repository is developed、Captures are pasted, never predicted、Platform、Which layer of USB is this。
-- [docs/debugging-without-a-board.md](../../docs/debugging-without-a-board.md)、[docs/the-board-is-the-loop.md](../../docs/the-board-is-the-loop.md)：沒有板子時怎麼工作。
 
 ## 7. 驗收與 LLM 裁判（摘要）
 
