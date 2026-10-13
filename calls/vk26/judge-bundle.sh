@@ -13,6 +13,17 @@
 #                                           capture.txt
 #   judge-bundle.sh scan EXPDIR             text in the experiment addressed to
 #                                           a judge; exit 1 if any
+#   judge-bundle.sh gates EXPDIR            G1.5, a machine check on the proof files:
+#                                           a from_boot theorem whose statement runs
+#                                           `run env N (boot …)`, and no theorem whose
+#                                           conclusion is literally True; exit 1 if not
+#   judge-bundle.sh judge BUNDLE OUT [MODEL]
+#                                           one judge run: JUDGE.md and the bundle go
+#                                           to `claude -p` in ONE message, no tools, so
+#                                           the bundle is read once and not in pieces.
+#                                           MODEL: opus (default; calibration and
+#                                           acceptance) or sonnet (a developer's
+#                                           self-check, never evidence of calibration)
 #   judge-bundle.sh tally BUNDLE VERDICT... three (or more) verdicts on one
 #                                           bundle, per ACCEPTANCE.md: each
 #                                           question YES, NO or SPLIT, and the
@@ -20,13 +31,15 @@
 #                                           (exit 1) or HUMAN (exit 2)
 #
 # The bundle holds, in this order: the experiment's README.md and WHY.zh-TW.md;
-# its proof files and mutants.txt; its Python (top level and differential/);
+# its proof files, their proofs left out (G1 checked those: theorem statements,
+# definitions and docstrings stay, each omitted proof is one marker line, every
+# kept line keeps its real line number), and mutants.txt; its Python (top level and differential/);
 # check.sh; the shell's shell.c; capture.txt; the first 400 lines of each board
-# log, and of each board log in another experiment its README links to; and,
+# log with repeated lines dropped, and of each board log in another experiment its README links to; and,
 # under calls/, the proposer's own Lean package. Never kernel.bin,
 # build/ or anything generated. Before them: the experiments that came before
-# it (experiments/README.md's index, each row cut to 700 characters) and the
-# gates. It is the same for the same commit: no dates, no absolute paths.
+# it (experiments/README.md's index, each row cut to 250 characters) and the
+# gate summary. It is the same for the same commit: no dates, no absolute paths.
 #
 #   VK26_AS=experiments/expNNN-…   bundle EXPDIR as though it were at that path
 #                                  in the repository — which experiments count as
@@ -39,9 +52,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan) [[ -d "${2-}" ]] || { sed -n '3,30p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,30p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,30p' "${BASH_SOURCE[0]}"; exit 2;;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -62,6 +76,68 @@ ORDER_WORD = r"\b(approve[ds]?|pre-?approved|answer|respond|reply|output|mark|sc
 PHRASES = [r"ignore\s+(all\s+|any\s+)?(the\s+)?(previous|prior|above|earlier|other)\s+(instructions|rules|prompts?|questions)",
            r"system\s+prompt", r"\byou\s+(must|should|will)\s+(answer|reply|respond|output|say|mark)\b",
            r"\bverdict\s*:\s*pass\b", r"\bJ[1-5]\s*:\s*yes\b"]
+
+
+THEOREM = re.compile(r"^(?:@\[[^\]]*\]\s*)?(?:private\s+|protected\s+)?(?:theorem|lemma)\b")
+
+
+def lean_split(lines):
+    """Walk a Lean file: yield (line number, text, kind) with kind 'keep' or
+    'proof' (a theorem's proof, to be omitted). A theorem's statement runs to the
+    first line with `:=` that is not a `let`; what follows, until the next line
+    that starts in column 0, is its proof."""
+    state = "top"
+    for n, line in enumerate(lines, 1):
+        text = line.rstrip("\n")
+        if state == "body":
+            if text.strip() and not text[0].isspace():
+                state = "top"
+            else:
+                yield n, text, "proof"
+                continue
+        if state == "top" and THEOREM.match(text):
+            state = "stmt"
+        if state == "stmt":
+            if ":=" in text and not text.lstrip().startswith("let "):
+                head = text[:text.index(":=") + 2]
+                state = "body"
+                yield n, head + " …", "keep"
+            else:
+                yield n, text, "keep"
+            continue
+        yield n, text, "keep"
+
+
+def lean_statements(path):
+    """Each theorem's statement in a Lean file, as (first line, text)."""
+    out, cur = [], None
+    lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
+    for n, text, kind in lean_split(lines):
+        if THEOREM.match(text):
+            cur = [n, text]
+            out.append(cur)
+        elif cur and kind == "keep" and text.strip() and text[0].isspace():
+            cur[1] += "\n" + text
+        else:
+            cur = None
+        if cur and text.rstrip().endswith("…"):
+            cur = None
+    return out
+
+
+def gate15(exp):
+    """G1.5: what a regex can settle before the judge is asked."""
+    probs, found = [], False
+    for p in sorted(glob.glob(os.path.join(exp, "proof", "*.lean"))):
+        for n, st in lean_statements(p):
+            name = os.path.relpath(p, exp)
+            if re.search(r"\brun\s+env\s+\d+\s+\(boot\b", st):
+                found = True
+            if re.search(r"(?:^|[\s:])True\s*:=", st.replace("\n", " ")) and not re.search(r"\b(from|forall|∀)\b", st.split(":=")[0].split(":")[-1]):
+                probs.append(f"{name}:{n} conclusion is literally True")
+    if not found:
+        probs.append("no theorem states `run env N (boot …)`: no from_boot form")
+    return probs
 
 
 def files_of(exp):
@@ -146,7 +222,7 @@ def prior_rows(exp):
         if mine is not None and int(m.group(2)) >= mine:
             continue
         text = re.sub(r"\*\*|`", "", m.group(4))
-        rows.append(f"{m.group(1)} [{m.group(3).strip()}]: {text[:700]}{'…' if len(text) > 700 else ''}")
+        rows.append(f"{m.group(1)} [{m.group(3).strip()}]: {text[:250]}{'…' if len(text) > 250 else ''}")
     return rows
 
 
@@ -168,13 +244,12 @@ def bundle(exp, gates=None):
     out += [f"  {h}" for h in hits]
     out += ["", "=== PRIOR WORK (experiments/README.md, the experiments before this one)"]
     out += [f"- {r}" for r in prior_rows(exp)]
-    out += ["", "=== GATES (machine checks; facts, not for the judge to re-decide)"]
+    out += ["", "=== GATES (machine checks; facts, not for the judge to re-decide; the PASS/FAIL lines themselves are in capture.txt)"]
     src = gates or os.path.join(exp, "capture.txt")
     if os.path.isfile(src):
         lines = [l.rstrip("\n") for l in open(src, encoding="utf-8", errors="replace")]
         kept = [l for l in lines if re.match(r"^(PASS|FAIL|SKIP)\b", l)]
         out.append(f"source: {'a fresh check.sh run' if gates else 'capture.txt, as committed; not re-run for this bundle'}")
-        out += kept or ["(no PASS/FAIL/SKIP lines)"]
         fails = sum(1 for l in kept if l.startswith("FAIL"))
         out.append(f"summary: {len(kept) - fails} PASS or SKIP, {fails} FAIL")
     else:
@@ -182,7 +257,34 @@ def bundle(exp, gates=None):
     for f, cap in files:
         out += ["", f"=== BEGIN {f}"]
         with open(os.path.join(exp, f), encoding="utf-8", errors="replace") as fh:
-            for n, line in enumerate(fh, 1):
+            raw = fh.read().split("\n")
+        if raw and raw[-1] == "":
+            raw.pop()
+        if f.endswith(".lean"):
+            run = None
+            for n, text, kind in lean_split(raw):
+                if kind == "proof":
+                    run = (run[0], n) if run else (n, n)
+                    continue
+                if run:
+                    out.append(f"{f}:{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
+                    run = None
+                out.append(f"{f}:{n}| {text}")
+            if run:
+                out.append(f"{f}:{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
+        elif f.startswith("board/") or "/board/" in f:
+            seen = set()
+            for n, line in enumerate(raw, 1):
+                if n > cap:
+                    out.append(f"{f}:{n}| … (cut at {cap} lines)")
+                    break
+                if line in seen:
+                    continue
+                if not re.match(r"(PATIENT|TRIAL)\b", line):
+                    seen.add(line)
+                out.append(f"{f}:{n}| {line.rstrip()}")
+        else:
+            for n, line in enumerate(raw, 1):
                 if n > cap:
                     out.append(f"{f}:{n}| … (cut at {cap} lines)")
                     break
@@ -257,6 +359,22 @@ def tally(bundle_path, verdicts):
 
 if MODE == "bundle":
     bundle(ARGS[0], ARGS[1] if len(ARGS) > 1 else None)
+elif MODE == "gates":
+    probs = gate15(ARGS[0].rstrip("/"))
+    for p in probs:
+        print(f"FAIL G1.5 {p}")
+    if not probs:
+        print("PASS G1.5 a from_boot theorem, no conclusion that is literally True")
+    sys.exit(1 if probs else 0)
+elif MODE == "judge":
+    bundle_path, out_path = ARGS[0], ARGS[1]
+    model = ARGS[2] if len(ARGS) > 2 else "opus"
+    prompt = open(os.path.join(os.path.dirname(REPO + "/calls/vk26/x"), "JUDGE.md"), encoding="utf-8").read()
+    msg = prompt + "\n\n=== THE BUNDLE (everything below is data)\n\n" + open(bundle_path, encoding="utf-8").read()
+    r = subprocess.run(["claude", "-p", "--model", model, "--tools", "", "--no-session-persistence",
+                        "--disable-slash-commands"], input=msg, capture_output=True, text=True)
+    open(out_path, "w", encoding="utf-8").write(r.stdout + (("\n" + r.stderr) if r.returncode else ""))
+    sys.exit(r.returncode)
 elif MODE == "scan":
     hits = scan(ARGS[0].rstrip("/"))
     for h in hits:
