@@ -1,0 +1,282 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vk26-alice-1 — the run across the seam</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  vk26-alice-1-the-run-across-the-seam — an appliance, not a tool: it knows
+  vk26-alice-1's lines and nothing else.
+
+  The board sends every stream it judged: its 4096 samples, the code the
+  proved kernel halted with, and the digest the kernel wrote for each window
+  that passed. This page judges every stream again, written here a sample at
+  a time and sharing nothing with the kernel or the C, and asks WebCrypto for
+  SHA-256 of each window — so a code, a count or a digest the board got wrong,
+  or carried wrong, is marked, whatever the kernel, the C, the USB code or the
+  phone did. What it cannot check is the kernel's proof: that is
+  proof/Seam.lean's.
+
+  The shared parts (connecting, Copy, the look) are ../pages/core.js and
+  ../pages/core.css. To put this on a phone, build one file:
+    python3 ../pages/build.py seam.html build/seam.html
+  and open build/seam.html — Files app -> "Open with Chrome" on Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="../pages/core.css">
+<style>
+  td.pass { color: var(--ok); } td.fail { color: var(--bad); font-weight: 600; } td.off { color: var(--dim); }
+  td.wrong { background: color-mix(in srgb, var(--bad) 15%, transparent); }
+  .seam { font-size: 12px; color: var(--dim); }
+</style>
+
+<h1>The run across the seam</h1>
+<p class="sub">vk26-alice-1 &middot; four windows of 1024 samples, the repetition count carried across every edge,
+  nothing written after the first window that fails — judged again here, every sample and every digest.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<table id="streams">
+  <thead><tr><th>stream</th><th>halt</th><th>window 1</th><th>window 2</th><th>window 3</th><th>window 4</th><th>digests</th></tr></thead>
+  <tbody></tbody>
+</table>
+<p class="seam">Each window: <b>run</b> the longest run of alike samples reached in it, counting a run carried
+  in from the window before (<b>carried</b>); <b>APT</b> how many of its 1024 samples equal its first. A window
+  fails at run 21 or APT 589. Grey: the kernel stopped before it.</p>
+
+<div id="verdict">Nothing checked yet.</div>
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script src="../pages/core.js"></script>
+<script>
+// BEGIN seam-check
+// ---------------------------------------------------------------------------
+// What the board's lines say, and whether each stream is judged right.
+//
+//   BITS round s k w0 … w15        samples 512k to 512k + 511 of stream s:
+//                                  sample i is bit i % 32 of word i / 32
+//   DIGEST round s w <64 hex>      what the kernel wrote for window w
+//   STREAM round s code want minstret digests name
+//   ROUND round streams
+//
+// SP 800-90B's repetition count and adaptive proportion tests are written
+// here one sample at a time, as the standard states them and as exp114's
+// crate runs them: the run is not reset at a window's edge; each window's
+// first sample is its reference. vk26-alice-1's check.sh runs this block
+// under node, against seam.py on every one of its streams, and over streams
+// right and wrong.
+// ---------------------------------------------------------------------------
+
+const SEAM_N = 1024, SEAM_WINDOWS = 4, SEAM_RCT = 21, SEAM_APT = 589, SEAM_WORDS = 128;
+// minstret for each halt code, as the Hazard3 RTL counts it: build/expect.h's
+// INSTRET, which check.sh holds this to.
+const SEAM_INSTRET = [69719, 17434, 34859, 52284, 69709];
+
+/** 128 words in, 4096 samples out. */
+function seamSamples(words) {
+  const bits = new Array(SEAM_N * SEAM_WINDOWS);
+  for (let i = 0; i < bits.length; i++) bits[i] = (words[i >>> 5] >>> (i & 31)) & 1;
+  return bits;
+}
+
+/**
+ * The kernel's specification, a sample at a time: where it stops and why. For
+ * each window reached: the run carried into it from the window before, the
+ * longest run in it (carried part included), how many samples equal its first,
+ * what failed, and whether the run that reached 21 began in an earlier window.
+ */
+function seamJudge(bits) {
+  let last = -1, run = 0;
+  const windows = [];
+  for (let w = 0; w < SEAM_WINDOWS; w++) {
+    const start = w * SEAM_N, ref = bits[start];
+    const carried = bits[start] === last ? run : 0;
+    let matches = 0, longest = 0, across = false, hit = false;
+    for (let i = start; i < start + SEAM_N; i++) {
+      run = bits[i] === last ? run + 1 : 1;
+      last = bits[i];
+      if (run > longest) longest = run;
+      if (run === SEAM_RCT && !hit) { hit = true; across = i - SEAM_RCT + 1 < start; }
+      if (bits[i] === ref) matches++;
+    }
+    const fail = longest >= SEAM_RCT ? 'run' : matches >= SEAM_APT ? 'APT' : null;
+    windows.push({ carried, longest, matches, fail, across });
+    if (fail) return { passed: w, code: w + 1, windows };
+  }
+  return { passed: SEAM_WINDOWS, code: 0, windows };
+}
+
+/** The 4096 bytes HASH reads for window w: its samples as little-endian words. */
+function seamWindowBytes(bits, w) {
+  const b = new Uint8Array(4 * SEAM_N);
+  for (let i = 0; i < SEAM_N; i++) b[4 * i] = bits[w * SEAM_N + i];
+  return b;
+}
+
+function seamParse(text) {
+  const t = text.trim(), h = '([0-9a-f]{8})';
+  let m;
+  if ((m = t.match(new RegExp(`^BITS ${h} ${h} ${h}((?: [0-9a-f]{8}){16})$`))))
+    return { kind: 'BITS', round: parseInt(m[1], 16), s: parseInt(m[2], 16), k: parseInt(m[3], 16),
+             words: m[4].trim().split(' ').map((x) => parseInt(x, 16) >>> 0) };
+  if ((m = t.match(new RegExp(`^DIGEST ${h} ${h} ${h} ([0-9a-f]{64})$`))))
+    return { kind: 'DIGEST', round: parseInt(m[1], 16), s: parseInt(m[2], 16), w: parseInt(m[3], 16), hex: m[4] };
+  if ((m = t.match(new RegExp(`^STREAM ${h} ${h} ${h} ${h} ${h} ${h} (.+)$`))))
+    return { kind: 'STREAM', round: parseInt(m[1], 16), s: parseInt(m[2], 16), code: parseInt(m[3], 16),
+             want: parseInt(m[4], 16) >>> 0, minstret: parseInt(m[5], 16), digests: parseInt(m[6], 16), name: m[7] };
+  if ((m = t.match(new RegExp(`^ROUND ${h} ${h}$`))))
+    return { kind: 'ROUND', round: parseInt(m[1], 16), streams: parseInt(m[2], 16) };
+  if (/^vk26-alice-1 usb=/.test(t)) return { kind: 'status' };
+  if (/^FAIL /.test(t)) return { kind: 'FAIL' };
+  return { kind: 'other' };
+}
+
+const seamHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+
+/**
+ * Feed it lines, in order, awaiting each; a STREAM comes back with a verdict:
+ *   ok          every BITS line of it arrived, and the code, minstret, the
+ *               number of digests and each digest are what its samples give
+ *   wrong       one is not, and `why` says which
+ *   incomplete  a BITS line of it is missing: the page joined mid-stream, or
+ *               a line was lost; nothing about it is claimed
+ * and `summary()` counts them. sha256 is (Uint8Array) => Promise<Uint8Array>.
+ */
+function seamChecker(sha256) {
+  const s = { streams: 0, ok: 0, wrong: 0, incomplete: 0, rounds: 0, fails: 0, seamCaught: 0, firstWrong: null };
+  const parts = new Map(), digests = new Map();
+  const key = (e) => `${e.round}:${e.s}`;
+
+  async function feed(text) {
+    const e = seamParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'ROUND') s.rounds++;
+    if (e.kind === 'BITS') {
+      if (!parts.has(key(e))) parts.set(key(e), new Array(8).fill(null));
+      if (e.k < 8) parts.get(key(e))[e.k] = e.words;
+    }
+    if (e.kind === 'DIGEST') {
+      if (!digests.has(key(e))) digests.set(key(e), []);
+      digests.get(key(e))[e.w] = e.hex;
+    }
+    if (e.kind !== 'STREAM') return e;
+
+    s.streams++;
+    const p = parts.get(key(e)), d = digests.get(key(e)) || [];
+    parts.delete(key(e)); digests.delete(key(e));
+    if (!p || p.some((x) => x === null)) {
+      e.verdict = 'incomplete'; e.why = 'a BITS line of it never arrived'; s.incomplete++;
+      return e;
+    }
+    const bits = seamSamples([].concat(...p));
+    const j = seamJudge(bits);
+    e.judged = j;
+    const why = [];
+    if (e.code !== j.code) why.push(`its samples stop at ${j.code === 0 ? 'no window' : `window ${j.code}`}, `
+                                    + `code ${j.code}, not ${e.code}`);
+    if (e.want !== 0xffffffff && e.want !== j.code) why.push(`seam.py's code for it is ${e.want}`);
+    if (e.code <= SEAM_WINDOWS && e.minstret !== SEAM_INSTRET[e.code])
+      why.push(`minstret ${e.minstret}, not the RTL's ${SEAM_INSTRET[e.code]} for code ${e.code}`);
+    if (e.digests !== j.passed || d.length !== j.passed || d.some((x) => x === undefined))
+      why.push(`${d.filter((x) => x).length} digests sent, ${e.digests} said, ${j.passed} windows passed`);
+    e.digestOk = [];
+    for (let w = 0; w < Math.min(j.passed, d.length); w++) {
+      const want = seamHex(await sha256(seamWindowBytes(bits, w)));
+      e.digestOk.push(d[w] === want);
+      if (d[w] !== want) why.push(`window ${w + 1}'s digest is not SHA-256 of its 4096 bytes`);
+    }
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s.wrong++;
+      if (!s.firstWrong) s.firstWrong = { round: e.round, s: e.s, name: e.name, why: e.why };
+    } else {
+      e.verdict = 'ok'; s.ok++;
+      // The run across the seam: a window that failed on a run begun before it.
+      if (j.windows[j.windows.length - 1].across) s.seamCaught++;
+    }
+    return e;
+  }
+  return { feed, summary: () => ({ ...s }) };
+}
+// END seam-check
+
+const $ = (id) => document.getElementById(id);
+let bytes = 0, started = 0;
+const checker = seamChecker(async (b) => new Uint8Array(await crypto.subtle.digest('SHA-256', b)));
+const split = cdcLines();
+const rawLines = [];
+let queue = Promise.resolve();
+
+function cell(j, w) {
+  if (!j || w >= j.windows.length) return '<td class="off">—</td>';
+  const x = j.windows[w];
+  const carried = x.carried ? ` (carried ${x.carried})` : '';
+  return `<td class="${x.fail ? 'fail' : 'pass'}">run ${x.longest}${carried}<br>APT ${x.matches}`
+       + `${x.fail ? `<br>fails: ${x.fail}${x.across ? ', across the edge' : ''}` : ''}</td>`;
+}
+
+function show(e) {
+  const tb = $('streams').tBodies[0];
+  if (e.s === 0) tb.innerHTML = '';
+  const tr = document.createElement('tr');
+  const j = e.judged;
+  const code = e.code === 0 ? '0: all passed' : `${e.code}: stopped`;
+  tr.innerHTML = `<td>${e.s} ${e.name}<br><small>round ${e.round}</small></td>`
+    + `<td class="${e.verdict === 'ok' ? 'pass' : 'wrong'}">${code}</td>`
+    + [0, 1, 2, 3].map((w) => cell(j, w)).join('')
+    + `<td class="${e.verdict === 'ok' ? 'pass' : 'wrong'}">${e.verdict === 'incomplete' ? 'incomplete'
+         : `${(e.digestOk || []).filter((x) => x).length} of ${j.passed} SHA-256's`}</td>`;
+  if (e.verdict !== 'ok') tr.title = e.why;
+  tb.appendChild(tr);
+}
+
+function verdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.streams) { v.textContent = 'No stream yet: the first comes within about ten seconds.'; return; }
+  let t = `<b class="${s.wrong ? 'bad' : 'ok'}">${s.ok} of ${s.streams} streams judged right</b>`
+        + `, ${s.wrong} wrong, ${s.incomplete} incomplete · ${s.rounds} rounds · `
+        + `${s.seamCaught} stopped by a run carried across a window's edge`;
+  if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
+  if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, stream ${s.firstWrong.s} `
+                       + `(${s.firstWrong.name}) — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+}
+
+function received(text, n) {
+  bytes += n;
+  if (!started) started = performance.now();
+  for (const l of split(text)) {
+    queue = queue.then(async () => {
+      const e = await checker.feed(l);
+      rawLines.push(l.length > 120 ? l.slice(0, 117) + '…' : l);
+      if (e.verdict === 'wrong') rawLines.push(`   <- wrong: ${e.why}`);
+      if (rawLines.length > 60) rawLines.splice(0, rawLines.length - 60);
+      if (e.kind === 'STREAM') show(e);
+      const raw = $('raw');
+      const atBottom = raw.scrollHeight - raw.scrollTop - raw.clientHeight < 30;
+      raw.textContent = rawLines.join('\n');
+      if (atBottom) raw.scrollTop = raw.scrollHeight;
+      verdict();
+      $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
+    });
+  }
+}
+
+appliance({
+  serial: 'vk26-alice-1',
+  page: `vk26-alice-1 seam.html ${$('ver').textContent}`,
+  listening: 'A stream every few seconds, six a round; the first round starts with a fresh draw from the TRNG.',
+  onText: received,
+  report: () => JSON.stringify(checker.summary()),
+});
+</script>
