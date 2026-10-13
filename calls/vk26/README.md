@@ -12,7 +12,7 @@ RV32 核心（Hazard3）上執行「被 Lean 證明的程式」：證明說的�
 | 徵求期間 | 即日起，不設截止，持續受理 |
 | 交付 | 一位提案者、一個目錄、**五個**驗證過的實驗、一個 PR |
 | 驗收 | [ACCEPTANCE.md](./ACCEPTANCE.md)：機器關卡 G1–G7，加上 LLM 裁判的五個是非題 |
-| LLM 裁判 | [JUDGE.md](./JUDGE.md) 與 [judge-bundle.sh](./judge-bundle.sh)；校準紀錄在 [calibration/](./calibration/) |
+| LLM 裁判 | [JUDGE.md](./JUDGE.md) 與 [judge-bundle.sh](./judge-bundle.sh)；**校準尚未完成**，第 2 輪因用量額度耗盡中止，見 [calibration/README.md](./calibration/README.md) |
 | 現場測試地點與頻率 | 依後續公告指定的大學 |
 | 獎勵與其他條款 | 依後續公告 |
 

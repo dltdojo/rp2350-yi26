@@ -38,7 +38,10 @@ mkdir "$work/experiments"
 # The altered copies, beside the experiments their Python imports from.
 copy() { cp -a "$REPO/experiments/$1" "$work/experiments/$1"; rm -rf "$work/experiments/$1/build" "$work/experiments/$1/__pycache__"; }
 for e in $E225 $E230 $E234; do copy "$e"; done
+# exp232 for the reference exp234 imports; exp232's and exp233's boards for
+# the logs exp234's README links to.
 ln -s "$REPO/experiments/$E232" "$work/experiments/$E232"
+ln -s "$REPO/experiments/exp233-the-trial-on-the-phone" "$work/experiments/exp233-the-trial-on-the-phone"
 
 edit() { # file python-expression-on-s
     python3 - "$1" "$2" <<'PY'
