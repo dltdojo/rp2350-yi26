@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:259, capture.txt:2
+reason: README.md:259 says the Expected output was "recorded by ./run.sh from a clean commit", but the capture it pastes (README.md:263, capture.txt:2) says "working tree dirty — this recording is not reproducible from the commit alone". Here the bundle contradicts the README, so this is not just unrecoverable commit history. Every other substantive claim I checked matches a theorem, the capture or the round1 board log. These include the rate 3276629119/25769803776, the 19 of 19 replay, 4 of 27, and the 8 of 57 total with its interval. The fix is to re-record from a clean tree or reword line 259.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:509, proof/World.lean:510, proof/World.lean:511, proof/World.lean:183, proof/World.lean:184, proof/World.lean:187, proof/World.lean:188, proof/World.lean:489, proof/World.lean:490, proof/World.lean:622, proof/World.lean:588, proof/World.lean:589, proof/World.lean:641, proof/World.lean:642, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:663, proof/World.lean:664, README.md:71, README.md:72, README.md:73, README.md:74, README.md:75, README.md:76
+reason: `from_boot` is in the required form. It covers any image whose first 296 bytes are the kernel's bytes, and arbitrary memory otherwise, so it holds for every input and mask. It proves the kernel is still running at 4042 instructions and halts with 0 at exactly 4043. Memory at the halt is `lived`, which overlays only the history region with `wgen` generations 1–64 and leaves the rest as it was. W0, M6, M7, `answer_world` (for all positions p and widths 1–6, the divisions equal D w) and M8 quantify and conclude what the README table says. The extra hypotheses `inside` and `Placed` do not change the meaning.
+J3: YES
+evidence: proof/World.lean:641-642, proof/World.lean:718-720, proof/World.lean:489-490
+reason: Prior exp232 proved only the tumour-and-drug model. This experiment adds a proved kernel of the resistant world that is correct for every mask (`lives`). It also adds `cured_iff` and `answer_world`, which give the exact set of failing patients and the divisions 0, 0, 1, 2, 3, 8. From those it derives a predicted failure rate and checks it against a board run.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61-77, world.py:43-50, world.py:53-58
+reason: The reference is cure.py, which the README says shares nothing with the kernel. `dose_and_grow` loops over cells one at a time, where Lean uses word-wide bit operations (`wnext`, `edge`, `spread`). `world.py` recomputes D and the exact rate from it with Fractions. `lean_d` then compares that D against the Lean source.
+INJECTION: NONE
+END
