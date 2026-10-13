@@ -13,9 +13,7 @@ SHA-256 of its 4096 bytes, on both; and the model's region afterwards is the
 image with those digests and nothing else.
 """
 import os
-import subprocess
 import sys
-import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXP = os.path.join(HERE, "..")
@@ -23,9 +21,10 @@ TOOLS = os.path.join(EXP, "..", "..", "..", "..", "tools", "hazard3")
 sys.path.insert(0, EXP)
 sys.path.insert(0, os.path.join(TOOLS, "shell"))
 sys.path.insert(0, TOOLS)
+sys.path.insert(0, os.path.join(EXP, "..", "tools"))
 from expect import model  # noqa: E402
+from region import rtl_region as rtl  # noqa: E402
 from seam import DIGESTS, WINDOWS, image, seam_outcome, streams  # noqa: E402
-from sigfile import read_sig  # noqa: E402
 
 PASS_COST, FAIL_COST, INIT, DONE = 17421, 17419, 12, 3
 
@@ -36,15 +35,6 @@ def count(code):
     if code == 0:
         return INIT + WINDOWS * PASS_COST + DONE
     return INIT + (code - 1) * PASS_COST + FAIL_COST
-
-
-def rtl(img):
-    with tempfile.TemporaryDirectory() as work:
-        path, sig = os.path.join(work, "image.bin"), os.path.join(work, "region.sig")
-        open(path, "wb").write(img)
-        ran = subprocess.run([os.path.join(TOOLS, "sim.sh"), "run", path, "--cycles", "5000000",
-                              "--dump", "65536", sig], capture_output=True, text=True).stdout.strip()
-        return ran, read_sig(sig)
 
 
 def main():
