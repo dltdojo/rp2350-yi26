@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:166, README.md:167, WHY.zh-TW.md:109
+reason: The proof, capture and board claims are supported. Three claims are not. README.md:166-167 says exp232's UF2 (`dd5dbde3…`) and its RTL build are byte for byte unchanged, but nothing in the bundle checks exp232's UF2 or RTL build. WHY.zh-TW.md:109 says a test checks the page's own 12.7% against 0, 0, 1, 2, 3, 8, and no page code or test output is in the bundle. The README's "rate panel" figures (README.md:226) are likewise not in `board/round1.txt`. The bundle also holds no source for exp232's 13.7% of 1038 (README.md:125).
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:510, proof/World.lean:511, proof/World.lean:188, proof/World.lean:622, proof/World.lean:588, proof/World.lean:642, proof/World.lean:663, proof/World.lean:718, proof/World.lean:720, README.md:71, README.md:72, README.md:73, README.md:74, README.md:75, README.md:76
+reason: `from_boot` covers any image that starts with the kernel's 296 bytes, with masks and inputs taken from that image. It states the run is still going at 4042, halts with 0 at 4043, and leaves memory equal to `lived`, which overlays only the 768 history bytes, so it matches W1's "exactly 4043… changed nothing else… every input and every mask". `still`, `resistance_stays` (inside b, r ≠ 0, any ms and schedule), `cured_iff`, `answer_world` (any ms, any position p, 1 ≤ w ≤ 6, iff plus divisions = D w) and `zero_stays` each state what the README table says, with no hidden hypothesis that weakens them.
+J3: YES
+evidence: proof/World.lean:642, proof/World.lean:720, README.md:83, board/round1.txt:1
+reason: It adds a proved world kernel with the random draw as an input (`lives`), the exact condition for who fails (`cured_iff`), the per-width counts and the exact 3276629119/25769803776 rate (`answer_world`). It also adds board data from the new kernel, none of which is in prior work.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:77, world.py:43, world.py:50, world.py:61, differential/differential.py:65
+reason: `cure.py` computes the generation cell by cell with loops, while Lean and the kernel use shifts and bitwise operations. `world.py` recomputes the divisions with `cure.py` and compares them to the `D` read from the Lean source. The differential compares the Lean model and the RTL against `cure.py`'s history.
+INJECTION: NONE
+END

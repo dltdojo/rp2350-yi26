@@ -135,6 +135,15 @@ for p in sys.argv[1:]:
 PY
 lacks "  … no line carries its path any more" "$WORK/b234.txt" "README.md:1| "
 has_line "a board log's line keeps its own number (exp234's round1.txt)" "$WORK/b234.txt" board/round1.txt "2| exp234 usb=6"
+# A claim about an earlier experiment rests on that experiment's record, and
+# the link to it brings it in: round 4 found exp234's claims about exp232's UF2
+# and exp233's page test unsupported while neither capture was in the bundle.
+has "a board log another experiment's README links is in the bundle" "$WORK/b234.txt" "=== BEGIN ../exp232-the-cure-the-proof-predicts/board/round1.txt"
+has "  … and so is a capture the README links" "$WORK/b234.txt" "=== BEGIN ../exp232-the-cure-the-proof-predicts/capture.txt"
+has "  … and a capture WHY.zh-TW.md links" "$WORK/b234.txt" "=== BEGIN ../exp233-the-trial-on-the-phone/capture.txt"
+lacks "  … but not a capture nothing links" "$WORK/b234.txt" "=== BEGIN ../exp231-"
+"$JB" slice "$E234" J2 > "$WORK/s234-j2.txt"
+lacks "  … and a linked capture is not in the J2 slice" "$WORK/s234-j2.txt" "=== BEGIN ../exp232-the-cure-the-proof-predicts/capture.txt"
 
 "$JB" bundle "$E225" > "$WORK/b225.txt"
 has_line "the shell is in the bundle: exp225's board claim argues from it" "$WORK/b225.txt" shell/shell.c "77| "

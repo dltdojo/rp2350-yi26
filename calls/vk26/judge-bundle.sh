@@ -339,13 +339,20 @@ def files_of(exp, question=None):
         add("differential/*.py", 1000)
         add("capture.txt", 200)
         add("board/*.txt", 100)
-        readme = os.path.join(exp, "README.md")
-        if os.path.isfile(readme):
-            for link in re.findall(r"\]\((\.\./[^)#\s]+/board/[^)#\s]+\.txt)\)", open(readme, encoding="utf-8").read()):
+        # A claim about an earlier experiment rests on that experiment's
+        # record: its board logs, or its capture. The README or WHY.zh-TW.md
+        # links the record, and the link brings it into the bundle; a claim
+        # about another experiment that links nothing stays unsupported.
+        for doc in ("README.md", "WHY.zh-TW.md"):
+            path = os.path.join(exp, doc)
+            if not os.path.isfile(path):
+                continue
+            text = open(path, encoding="utf-8").read()
+            for link in re.findall(r"\]\((\.\./[^)#\s]+/(?:board/[^)#\s]+\.txt|capture\.txt))\)", text):
                 cand = os.path.normpath(os.path.join(exp, link))
                 r = os.path.relpath(cand, exp)
                 if os.path.isfile(cand) and r not in [x for x, _ in out]:
-                    out.append((r, 100))
+                    out.append((r, 200 if r.endswith("capture.txt") else 100))
 
     # A proposer's own package: calls/<call>/<proposer>/lean/.
     rel = os.path.relpath(os.path.abspath(exp), REPO).split(os.sep)
