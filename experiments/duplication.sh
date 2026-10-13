@@ -39,6 +39,9 @@
 #   py   experiments/*/*.py          the drivers and the verifiers
 #   sh   experiments/*/*.sh          the run, drop and check scripts
 #
+# and the same three in every call's experiments,
+# calls/<call>/<handle>/<call>-<handle>-<n>-<slug>/, each its own experiment.
+#
 # For each name: how many experiments define it, and how many textually distinct
 # versions exist between them. A name defined in twelve experiments with seven
 # distinct bodies is seven things to fix when it turns out to be wrong, and
@@ -129,18 +132,27 @@ def body_of(lang, src, start):
     return src[start:]
 
 
+# A call's experiments are experiments too: calls/<call>/<handle>/ holds a
+# proposer's five, each named <call>-<handle>-<n>-<slug>, and a copy between
+# two of them, or between one of them and experiments/, is the same bill.
+# vk26-alice-1 found this script reading experiments/ alone.
+CALL_EXP = re.compile(r'^([a-z0-9]+-[a-z0-9]+-[1-9])-')
+units = [(d, d.name[:6]) for d in sorted(pathlib.Path(".").glob("exp*/"))]
+units += [(d, CALL_EXP.match(d.name).group(1)) for d in sorted(pathlib.Path("../calls").glob("*/*/*/"))
+          if CALL_EXP.match(d.name)]
+
 fns = collections.defaultdict(list)
 for lang, glob, pattern, skip in LANGS:
-    for f in sorted(pathlib.Path(".").glob(glob)):
-        exp = f.parts[0][:6]
-        src = f.read_text(errors="replace")
-        for m in pattern.finditer(src):
-            name = m.group(1)
-            if name in skip:
-                continue
-            body = body_of(lang, src, m.start())
-            h = hashlib.sha1(re.sub(r'\s+', ' ', body).encode()).hexdigest()[:8]
-            fns[f"{lang}:{name}"].append((exp, h, body.count("\n") + 1))
+    for d, exp in units:
+        for f in sorted(d.glob(glob.split("/", 1)[1])):
+            src = f.read_text(errors="replace")
+            for m in pattern.finditer(src):
+                name = m.group(1)
+                if name in skip:
+                    continue
+                body = body_of(lang, src, m.start())
+                h = hashlib.sha1(re.sub(r'\s+', ' ', body).encode()).hexdigest()[:8]
+                fns[f"{lang}:{name}"].append((exp, h, body.count("\n") + 1))
 
 rows = []
 for name, lst in fns.items():
