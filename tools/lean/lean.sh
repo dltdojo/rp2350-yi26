@@ -27,6 +27,12 @@
 #                           FILE, its mutants.txt and every .lean in lean/,
 #                           by their bytes. A run.sh sets it, so its check.sh
 #                           does not refuse every mutant a second time.
+#                           It also keeps FILE checked once: `run`, `check`
+#                           and `exec` (without LIB) read that one check, its
+#                           output and FILE's .olean, rather than each checking
+#                           FILE again; and the check's peak memory sets how
+#                           many mutants run side by side, when LEAN_JOBS does
+#                           not
 #   lean.sh exec FILE [LIB] [ARGS...]
 #                           `lean --run FILE ARGS...`: run its `main`, against
 #                           the library copy LIB if given (a directory with a
@@ -140,10 +146,74 @@ drop_lib() { # lib
     fi
 }
 
+# FILE checked once per run. exp234's run.sh checked World.lean three times,
+# a minute each, all on the same bytes: `run` for the axioms, `check` for
+# errors and warnings, `exec` for main's kernel.bin. With LEAN_VERDICTS set,
+# the first of them checks FILE against the default library and keeps, under a
+# key of FILE's and the library's bytes, what Lean printed, its status, the
+# peak memory of the check, and FILE's .olean; the others read that.
+once_key() {
+    { realpath "$file"; cat "$file"
+      find "$REPO/lean" $(proposer_lib "$file") -name '*.lean' -not -path '*/.lake/*' | sort | xargs cat; } \
+        | sha256sum | cut -c1-32
+}
+
+# Runs a command and writes its peak memory, in KB, to a file: python's view of
+# its children, since this machine's `time` is the shell's and says no more.
+peak() { # file command...
+    python3 -c 'import resource, subprocess, sys
+r = subprocess.call(sys.argv[2:])
+open(sys.argv[1], "w").write("%d\n" % resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss)
+sys.exit(128 - r if r < 0 else r)' "$@"
+}
+
+ONCE=""   # the directory lean_once kept FILE's check in, once it has one
+lean_once() { # -> what lean_on FILE prints, and its status
+    [[ -n "${LEAN_VERDICTS-}" ]] || { lean_on "$file"; return; }
+    local f dir tmp mod
+    f="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+    dir="$LEAN_VERDICTS/once-$(once_key)"
+    if [[ ! -f "$dir/status" ]]; then
+        mkdir -p "$LEAN_VERDICTS"
+        tmp="$(mktemp -d "$LEAN_VERDICTS/.once.XXXXXX")"
+        mod="$(basename "$f" .lean)"
+        # --root makes FILE the module named after it, so that a driver which
+        # imports it can call its main.
+        if uses_lib "$f"; then
+            (cd "$LIB_DEFAULT" && PATH="$BIN:$PATH" lake build -q 2>&1 | grep -E 'error|warning' | head -20
+             [[ ${PIPESTATUS[0]} -eq 0 ]] || exit 1
+             PATH="$BIN:$PATH" peak "$tmp/peak" lake env lean --root="$(dirname "$f")" -o "$tmp/$mod.olean" "$f") \
+                > "$tmp/out" 2>&1
+        else
+            peak "$tmp/peak" "$LEAN" --root="$(dirname "$f")" -o "$tmp/$mod.olean" "$f" > "$tmp/out" 2>&1
+        fi
+        echo $? > "$tmp/status"
+        # Two checks side by side: the first to finish is kept.
+        mv -T "$tmp" "$dir" 2>/dev/null || rm -rf -- "$tmp"
+    fi
+    ONCE="$dir"
+    cat "$dir/out"
+    return "$(cat "$dir/status")"
+}
+
 # Each mutant is judged on its own copy, so they run side by side: LEAN_JOBS
-# at a time (the cores, at most four — each is a Lean build), their lines
-# printed in mutants.txt's order once all are done.
+# at a time; without it, the cores, at most four — each is a Lean build — and
+# no more than the memory holds, when lean_once measured what one check of FILE
+# takes. exp228 to exp234 said `LEAN_JOBS=2` each, a guess copied from one to
+# the next; their checks take 0.6 to 2.3 GB, and exp223's 5.7.
 JOBS="${LEAN_JOBS:-$(n="$(nproc 2>/dev/null || echo 1)"; echo $(( n < 4 ? n : 4 )))}"
+jobs_for_memory() {
+    [[ -z "${LEAN_JOBS-}" && -n "${LEAN_VERDICTS-}" ]] || return 0
+    local kept="$LEAN_VERDICTS/once-$(once_key)/peak" avail fit
+    [[ -s "$kept" ]] || return 0
+    avail="$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo 2>/dev/null)"
+    [[ -n "$avail" ]] || return 0
+    # Four fifths of what is free, for the mutants and nothing else.
+    fit=$(( avail * 4 / 5 / $(cat "$kept") ))
+    (( fit < 1 )) && fit=1
+    (( fit < JOBS )) && JOBS=$fit
+    return 0
+}
 
 one_mutant() { # callback label what expr dir
     local cb="$1" label="$2" what="$3" expr="$4" dir="$5" target="" lib
@@ -252,14 +322,24 @@ case "$mode" in
     version)
         "$LEAN" --version;;
     run)
-        lean_on "$file" 2>&1
+        lean_once 2>&1
         echo "exit $?";;
     exec)
         f="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
         shift 2
         lib="$REPO/lean"
         if [[ $# -gt 0 && -f "${1}/lakefile.toml" ]]; then lib="$1"; shift; fi
-        if uses_lib "$f"; then
+        # Checked once already, or now: main runs from FILE's .olean, through a
+        # driver that imports it — 0.4 s where checking FILE again took a minute.
+        if [[ -n "${LEAN_VERDICTS-}" && "$lib" == "$LIB_DEFAULT" ]] && lean_once > /dev/null 2>&1; then
+            mod="$(basename "$f" .lean)"
+            printf 'import %s\n' "$mod" > "$ONCE/main-of-$mod.lean"
+            path="$ONCE"
+            if uses_lib "$f"; then
+                path="$ONCE:$(cd "$lib" && PATH="$BIN:$PATH" lake env printenv LEAN_PATH)"
+            fi
+            LEAN_PATH="$path" "$LEAN" --run "$ONCE/main-of-$mod.lean" "$@"
+        elif uses_lib "$f"; then
             # Built in the library's directory, run in the caller's, so that
             # a relative path among ARGS means what the caller meant by it.
             (cd "$lib" && PATH="$BIN:$PATH" lake build -q > /dev/null) || exit 1
@@ -289,7 +369,7 @@ case "$mode" in
         fi
         echo "$lib";;
     check)
-        out="$(lean_on "$file" 2>&1)"; code=$?
+        out="$(lean_once 2>&1)"; code=$?
         if [[ $code -eq 0 ]] && ! grep -qE 'error|warning' <<< "$out"; then
             echo "PASS  $(basename "$file") checks, with no errors and no warnings"
         else
@@ -312,9 +392,11 @@ case "$mode" in
         if [[ -n "$kept" && -s "$kept" ]]; then
             cat "$kept"; ! grep -q '^FAIL' "$kept" || status=1
         else
+            jobs_for_memory
             each_mutant judge_mutant
         fi;;
     table)
+        jobs_for_memory
         width="$(awk -F'|' '!/^#/ && NF >= 3 { if (length($2) > w) w = length($2) } END { print (w + 2 > 54 ? w + 2 : 54) }' "$mutants")"
         lw="$(awk -F'|' '!/^#/ && NF >= 3 { if (length($1) > w) w = length($1) } END { print w }' "$mutants")"
         each_mutant where_refused;;

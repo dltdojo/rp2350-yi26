@@ -445,6 +445,9 @@ What the rule protected is kept, because it was never about merging:
   and an experiment's index row says so while it is true.
 - **Every capture names its commit** (see below), so a capture that predates a
   change is visibly older than the code it describes.
+  A `run.sh` that records one refuses to start on a dirty tree and names the
+  files, rather than saying so in the header of a capture that took ten minutes;
+  `CAPTURE_DIRTY=1 ./run.sh` records from the working tree on purpose.
 
 This matters because the gap between "it compiles" and "it works" is where
 learners get stranded. An experiment that only ever built cleanly is not

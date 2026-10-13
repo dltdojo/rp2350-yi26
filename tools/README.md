@@ -567,6 +567,13 @@ tools/lean/lean.sh exe     rv32run                 # the model, compiled; prints
 tools/lean/lean.sh exec    experiments/exp203-*/proof/Copy64.lean kernel.bin   # run a file's main
 ```
 
+A `run.sh` sets `LEAN_VERDICTS`, and then the proof is checked once for the
+whole recording: `run`, `check` and `exec` read that one check, and `exec` runs
+`main` from the file's `.olean` instead of checking the file again. exp234's
+`World.lean` had been checked three times, a minute each. That check's peak
+memory also caps how many mutants run side by side, when `LEAN_JOBS` is not
+set: four fifths of the free memory, divided by what one check took.
+
 `check` also refuses `Lean.ofReduceBool` and `Lean.trustCompiler`, the axioms
 `native_decide` and `bv_decide` leave behind: a proof that runs compiled code
 trusts the compiler, and none here does.

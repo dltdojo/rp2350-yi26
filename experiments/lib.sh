@@ -306,11 +306,15 @@ usb_check() {
 # without the exclusion every recording reports a dirty tree — including one
 # made from a clean checkout, which would make the warning mean nothing within a
 # day of existing.
+capture_dirty() { # what makes the tree dirty, capture.txt aside; empty if clean
+    git -C "$(dirname "${BASH_SOURCE[0]}")" status --porcelain -- ':(exclude)*capture.txt' 2>/dev/null
+}
+
 capture_header() { # title
     local root commit dirty
     root="$(dirname "${BASH_SOURCE[0]}")"
     commit="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-    if [[ -n "$(git -C "$root" status --porcelain -- ':(exclude)*capture.txt' 2>/dev/null)" ]]; then
+    if [[ -n "$(capture_dirty)" ]]; then
         dirty=" (working tree dirty — this recording is not reproducible from the commit alone)"
     else
         dirty=""
@@ -319,6 +323,39 @@ capture_header() { # title
     echo "recorded at $(date -u +%Y-%m-%dT%H:%M:%SZ) from commit $commit$dirty"
     echo
 }
+
+# ---------- a dirty tree is refused before the recording, not after ----------
+#
+# The header above is decided in the first second of a recording and read after
+# the last. calls/vk26's round 4 recorded exp230 three times and exp232 twice to
+# get one clean header each — twenty minutes of waiting — because what made the
+# tree dirty (a tracked file run.sh deletes, a verdict not yet committed) was
+# only found in the finished capture.
+#
+# So a run.sh that records a capture refuses to start on a dirty tree, and says
+# which files. Committing them is the fix. When a recording from a working tree
+# is what is wanted — trying a change before committing it — say so:
+#
+#   CAPTURE_DIRTY=1 ./run.sh
+#
+# and the header says dirty, as it always has.
+capture_preflight() { # the sourcing script
+    local src="$1"
+    [[ "${src##*/}" == run.sh && -z "${CAPTURE_DIRTY-}" ]] || return 0
+    [[ -f "$src" ]] || src="$PWD/run.sh"
+    grep -qE '^[[:space:]]*capture_header ' "$src" 2>/dev/null || return 0
+    local dirty
+    dirty="$(capture_dirty)"
+    [[ -z "$dirty" ]] && return 0
+    {
+        echo "REFUSED: the working tree is dirty, so this capture could not be reproduced"
+        echo "from the commit alone. Commit these first:"
+        sed 's/^/    /' <<< "$dirty"
+        echo "or record from the working tree anyway, and say so: CAPTURE_DIRTY=1 ./run.sh"
+    } >&2
+    exit 3
+}
+capture_preflight "${BASH_SOURCE[1]-}"
 
 # ---------- how long did each part of this recording take? -------------------
 #
