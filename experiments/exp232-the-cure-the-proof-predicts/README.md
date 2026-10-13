@@ -310,7 +310,7 @@ Pasted from `capture.txt`, recorded by `./run.sh` from a clean commit:
 
 ```text
 === exp232 — the cure the proof predicts ===
-recorded at 2026-10-13T06:04:14Z from commit d56f618
+recorded at 2026-10-13T06:46:08Z from commit 0b63fba
 
 >>> the theorems, and what they rest on
 'Exp232.apart' depends on axioms: [propext, Classical.choice, Quot.sound]
