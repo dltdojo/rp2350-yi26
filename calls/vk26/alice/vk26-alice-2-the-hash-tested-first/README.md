@@ -333,3 +333,52 @@ Found while making this experiment, and recorded in
 ./build.sh     # build/vk26-alice-2.uf2 and build/sim.bin
 python3 ../pages/build.py trust.html build/trust.html   # the page, as one file
 ```
+
+## Expected output
+
+[capture.txt](./capture.txt), recorded by `run.sh` from a clean commit.
+
+Pasted from it — the theorems, the mutants, the five streams on the RTL:
+
+```
+=== vk26-alice-2 — the hash tested first ===
+recorded at 2026-10-13T16:06:53Z from commit 92c6418
+
+>>> the theorems, and what they rest on
+'Trust.compare_iff' depends on axioms: [propext, Quot.sound]
+'Trust.kat_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.halts' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.window_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.output_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.trusts_after_kat' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+from_boot    the KAT's branch is inverted: on to the samples when the hash failed                                           refused in from_boot
+cmp_at       the KAT's answer is compared with the bytes four after the expected digest                                     refused in cmp_at
+cmp_at       the comparison keeps only the bits every word disagrees in (and, not or)                                       refused in cmp_at
+output_run   the output is HASH of the start-up window, the samples it was to discard                                       refused in output_run
+at_bne       a failed start-up window halts with 3, as though the next had failed                                           refused in at_bne
+from_boot    the claim: a failed KAT halts with 0                                                                           refused in from_boot
+from_boot    the claim: the output is written whether or not the hash passed its KAT                                        refused in from_boot
+from_boot    the claim: the output is HASH of the start-up window                                                           refused in from_boot
+compare_iff  the claim: the hash is trusted when its answer equals the scratch it was written to, not the expected digest   refused in compare_iff
+from_boot    the claim: a failed KAT halts one instruction sooner                                                           refused in from_boot
+win_verdict  the specification: the repetition count starts afresh at each window, as front's does                          refused in win_verdict
+...
+>>> on the RTL, every stream: STRM s code want minstret spoil, then DONE streams
+5354524d 00000000 00000000 ffffffff 00008851 00000000
+5354524d 00000001 00000002 00000002 00000033 00000001
+5354524d 00000002 00000003 00000003 00008845 00000000
+5354524d 00000003 00000000 00000000 00008851 00000000
+5354524d 00000004 00000001 00000001 0000443e 00000000 444f4e45 00000005 exit=0 
+```
+
+and the KAT at work, among 81 PASS, 0 FAIL and 1 SKIP (no phone log yet):
+
+```
+PASS  on the RTL the shell runs all five streams, SHA-256 answering HASH, each halting with trust.py's code and the RTL's count for it, the spoiled one at the KAT
+PASS  the shell catches a version where HASH writes its digest a word late — the KAT refuses it: check 2, code 2 unspoiled
+PASS  the shell catches a version where HASH hashes 64 bytes too few — the KAT refuses it: check 2, code 2 unspoiled
+```
