@@ -1,7 +1,0 @@
-PASS  rounds31: the proof refuses a version where the bit loop runs 31 rounds: the top cell is never counted
-PASS  not_round: the proof refuses a version where the move up loses the top cell instead of bringing it round to the bottom: a shift, not a rotation
-PASS  total_crossed: the proof refuses a version where the down total adds the up count
-PASS  mirror_life: the proof refuses a version where the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, which the fly sees moving down
-PASS  always_up: the proof refuses a version where the claim that the fly sees Rule 30 move up strictly, every step: 4,870,848 rings it sees not move
-PASS  no_alias: the proof refuses a version where the claim that any frame moved up is seen moving up, the stripes of period two included
-PASS  count_short: the proof refuses a version where the kernel is claimed to halt one instruction sooner than it does
