@@ -35,7 +35,13 @@ kernel twice, back to back. All 14 second runs took 7,343,697 cycles, as
 predicted, while the first runs again took several numbers. The slow first
 runs came only after the shell copied a fixed stream out of flash across
 the XIP cache sets that hold the harness's `mret` and trap entry, in both
-revisions' builds. The raw TRNG leaned to 0 in all four draws.**
+revisions' builds. Revision 3 set the cache on purpose before each first
+run, and its prediction failed in part. Sweeping those sets made stream 3
+slow for the first time (2 of 3 rounds). Reading the two words of `mret`
+and the trap entry back did not keep streams 2 and 4 fast (3 of 6 slow).
+So flash reads over those sets cause the cost, but a miss on that one
+line is not the whole of it. The raw TRNG leaned to 0 in all seven
+draws.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -442,22 +448,113 @@ remembers one branch, and a miss costs one cycle (Hazard3's
 `instruction_timings.adoc`).
 
 **What it does not settle.** This is a fit across two builds, not an
-intervention. A revision 3 could move `FIXED` by 4 KiB, so that stream 3's
-copy covers the trap's sets and stream 2's and 4's do not. The slow first
-runs would then move to stream 3. It is not built.
+intervention. Revision 3, next, is the intervention.
 
 **The raw TRNG, again.** Its bits were 1 in 48.84% and 48.68% (4.2 and 4.8
 standard deviations below even, if independent), per-bit H 0.947 and
 0.943. With its tests on: 49.76%, 50.16%, 50.49%, per-bit H 0.966 to
 0.975. All four raw draws over both runs leaned to 0.
 
+## Revision 3: the cache set on purpose
+
+Revision 3 changes one thing: what the shell reads from flash last, just
+before each stream's first run ([`shell.c`](./shell/shell.c),
+`next_stream`). Everything else is revision 2's, the second run included.
+
+| Stream | Last read before the first run | Why |
+| --- | --- | --- |
+| 0, 1 (the TRNG's) | nothing, as before | the control |
+| 2, 4 | the two words at `trap` − 4 and `trap`: `mret` and the trap entry, read back into the cache | undo what the copy of `FIXED[0]` or `FIXED[2]` did |
+| 3 | all of `FIXED[0]`'s words, then all of `FIXED[2]`'s | fill both ways of the trap's sets with something else |
+
+Moving `FIXED` in flash, the other way to do it, would take a linker
+script change in `tools/`, which S2 keeps out of a proposal. Reading
+through the uncached window would risk a bus error if the boot ROM has set
+`NO_UNCACHED_SEC` (rp-pac 7.0.0's `XIP_CTRL`). These are plain loads, and
+the XIP cache serves both loads and instruction fetches. `check.sh` holds
+the build to the layout the prediction rests on: `FIXED[0]` and `FIXED[2]`
+over the trap's sets, `FIXED[1]` not.
+
+What revision 3's run will say, stated before it happens:
+- every count right, both runs at the RTL's minstret, and every second run
+  7,343,697, as in revision 2;
+- **streams 0, 1, 2 and 4: every first run 7,343,697**, in every round;
+- **stream 3: every first run more than 7,343,697**, in every round.
+
+Stream 3's "every round" assumes the cache replaces the least recently used
+way, so that two sweeps over different tags push the trap out. If it
+replaces at random, some of stream 3's first runs would stay at 7,343,697;
+that would be a finding about the cache, not a fail of the explanation.
+What would fail it: streams 2 and 4 still slow, or stream 3 never slow.
+
+### What revision 3's board said
+
+[`board/round3.txt`](./board/round3.txt): the same Pico 2, the page (build
+p2) on a phone, the file Save gave back, kept as it came. The LED looked
+the same as before ("LED 一樣"), as it should: revision 3 changed nothing
+it shows. The log starts at round 1's first stream, 3rd BITS line, and
+ends in round 4's first.
+
+**Which firmware, from the log alone.** Revision 2 and revision 3 send
+lines of the same form, so nothing in this file says which UF2 the board
+ran. It was sent revision 3's (`34e09bd7…`). What the numbers show fits
+that: stream 3's first run had never been slow in 6 tries under revisions
+1 and 2, and here it was slow twice in 3. A firmware that names its
+revision in its status line would have made this a reading, not an
+inference. The next revision should.
+
+The page, as it saved: 15 streams, 14 judged right, 0 wrong, 1 incomplete
+(round 1's stream 0, joined mid-stream), 3 rounds, no FAIL line. All 14
+whole streams' counts are count.py's, both runs at the RTL's minstret.
+
+| Round:stream | Stream | Last read before the first run | First run − RTL | Second run − RTL |
+| --- | --- | --- | --- | --- |
+| 1:0, 2:0, 3:0 | the TRNG, its tests on | nothing | +64, +64, +64 | +64, +64, +64 |
+| 1:1, 2:1, 3:1 | the TRNG, raw | nothing | +64, +64, +64 | +64, +64, +64 |
+| 1:2, 2:2, 3:2 | each value 16 times | `mret` and the trap entry | +64, +184, +184 | +64, +64, +64 |
+| 1:3, 2:3, 3:3 | 0xa5 at 1000 places | all of `FIXED[0]` and `FIXED[2]` | +184, +234, +64 | +64, +64, +64 |
+| 1:4, 2:4, 3:4 | bits 1 three times in four | `mret` and the trap entry | +64, +184, +64 | +64, +64, +64 |
+
+Round 1's stream 0 is the incomplete one; its STREAM and AGAIN lines say
++64 and +64.
+
+Against the prediction, stated before the run:
+- **Held:** every count right, and every second run 7,343,697 (14 of 14).
+  Streams 0 and 1 stayed at +64.
+- **Held in part:** stream 3 slow in 2 of 3 rounds, not every round.
+- **Failed:** streams 2 and 4 were to stay at +64 every round. They were
+  slow 3 times in 6: stream 2 in 2 of 3, stream 4 in 1 of 3. Under
+  revisions 1 and 2, with nothing read back, they were slow 9 times in 11.
+
+**What it says.**
+- Reading `FIXED[0]` and `FIXED[2]` through the cache made a stream slow
+  that never had been. Their sets include those of the harness's code
+  from 0x10000000 to 0x10000410, and of other shell code. That is an
+  intervention, and the cost followed it.
+- Reading back the one line that holds `mret` and the trap entry did not
+  undo the cost reliably. So that line's miss is not the whole cost, if it
+  is part of it at all.
+
+**What fits, not shown.** The frontend fetches ahead. When `mret`
+redirects to the kernel in SRAM, or when the trap redirects to 0x134, a
+fetch already sent to flash for the next line has to finish first. A miss
+there would be counted, and the next word, 0x10000138, holds `csrw
+mscratch, sp`. Revision 3 read 0x130 to 0x137 back, not 0x138 onward.
+Nothing here shows this.
+
+**The raw TRNG, again.** Its bits were 1 in 48.99%, 48.54% and 48.70% (3.6,
+5.3 and 4.7 standard deviations below even, if independent), per-bit H
+0.951, 0.939, 0.943. With its tests on: 49.77% and 50.05%. All seven raw
+draws over three runs leaned to 0.
+
 ## What it does not say
 
-- That the XIP cache is why the first runs moved. Revision 2 shows the
-  extra cost is left behind by the shell, and the addresses fit the cache
-  in both builds. Moving the data and watching the cost move would show it.
-- That the raw TRNG is biased in general: four draws of 32,768 bits on one
-  board, at the shared driver's settings.
+- Exactly what in the cache the first runs pay for. Revision 3 shows that
+  flash reads over the sets of the harness's code bring the cost on, and
+  that reading back the line of `mret` and the trap entry does not take it
+  away.
+- That the raw TRNG is biased in general: seven draws of 32,768 bits on
+  one board, at the shared driver's settings.
 - The estimate's formula is not proved: count.py and the page agree on it,
   and on §6.3.1's example, which is two implementations, not a proof.
 - 4096 samples are not an assessment (§3.1.1), and a byte is not this
@@ -501,7 +598,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-14T03:01:07Z from commit 52695e2
+recorded at 2026-10-14T05:12:40Z from commit d3d8273
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -539,10 +636,11 @@ accepted      the claim: at both heads the value is at most 254                 
 5354524d 00000004 000001b8 000001b8 00600b0f 00700e11 00600b0f 00700e11 444f4e45 00000005 exit=0 
 ```
 
-the time, among 90 PASS, 0 FAIL and 0 SKIP:
+the time, among 94 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  the RTL takes the same time on all 12 streams: cycles=7343633
+PASS  the chip build's layout is revision 3's: FIXED[0] and FIXED[2] over the cache sets of mret and the trap entry, FIXED[1] not
 PASS  on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs
 PASS  §6.3.1's own example, p̂ 0.4 of 20: p_u 0.6895, H 0.5363
 PASS  one stream taking 4 cycles more: no count is wrong, and the page says the cycles differ
@@ -555,6 +653,8 @@ and the phones' logs, by the page and by count.py:
 PASS  round1.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817 cycles, no second runs (revision 1)
 PASS  round2.txt: every one of 14 second runs took one mcycle, 7343697
 PASS  round2.txt: 14 of 15 streams from a board counted right, 1 incomplete, 3 rounds; the page reads 14 timed streams as 7343697/7343747/7343797/7343817/7343867 cycles, 14 second runs as 7343697
+PASS  round3.txt: every one of 14 second runs took one mcycle, 7343697
+PASS  round3.txt: 14 of 15 streams from a board counted right, 1 incomplete, 3 rounds; the page reads 14 timed streams as 7343697/7343817/7343867 cycles, 14 second runs as 7343697
 PASS  round1.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 2:3 3:0 3:1 3:3 3:4 4:0 4:1 4:3 5:0; 7343797 at 2:4; 7343817 at 3:2 4:2 4:4
       the TRNG, its tests on: H per byte 6.499 (0.967 a bit), 6.711 (0.980 a bit), 6.539 (0.962 a bit)
@@ -564,4 +664,9 @@ PASS  round2.txt: 14 whole streams from a board, each of the 256 counts and the 
       mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0
       the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.975 a bit), 6.499 (0.966 a bit)
       the TRNG, raw: H per byte 6.758 (0.947 a bit), 6.666 (0.943 a bit)
+PASS  round3.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 1:1 1:2 1:4 2:0 2:1 3:0 3:1 3:3 3:4; 7343817 at 1:3 2:2 2:4 3:2; 7343867 at 2:3
+      mcycle of the second run, straight after the first: 7343697 at 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0 3:1 3:2 3:3 3:4
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.978 a bit)
+      the TRNG, raw: H per byte 6.580 (0.951 a bit), 6.622 (0.939 a bit), 6.666 (0.943 a bit)
 ```
