@@ -1,0 +1,238 @@
+=== vk26-alice-4 — the state the generator keeps ===
+recorded at 2026-10-14T07:44:45Z from commit 05083dd
+
+>>> the theorems, and what they rest on
+'Drbg.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.reseed_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.generate_twice' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.after_out' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+reseed_run    reseed when the counter equals the interval, not only past it (§10.1.1.4 step 1)   refused in reseed_run
+generate_run  V is copied to data one byte short                                                  refused in generate_run
+gen_iter      Hashgen hashes 54 bytes of data, not seedlen's 55                                   refused in gen_iter
+generate_run  H is Hash(V), the 0x03 left off                                                     refused in generate_run
+generate_run  V += H twice, C never added                                                         refused in generate_run
+generate_run  the counter's third byte is written over its second                                 refused in generate_run
+generate_run  the counter is stored back as it was                                                refused in generate_run
+add_iter      ADD's carry is the sum shifted by 9, not 8                                          refused in add_iter
+generate_run  the claim: one instruction fewer to the halt                                        refused in generate_run
+generate_run  the specification: V's next value leaves the counter out                            refused in generate_run
+generate_run  the specification: H is Hash(0x02 ‖ V)                                            refused in generate_run
+blocks_out    the claim: block j is the hash of V + j + 1                                         refused in blocks_out
+
+>>> drbg.py, from SP 800-90A's text, against NIST's vectors
+120 of 120 NIST cases: instantiate, Generate twice, the second's 1024 bits NIST's
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: kernel de65172659774701…, 120 NIST cases, RTL minstret a Generate 4318, the reseed check 11: the proof's 4294 and 7
+build/vk26-alice-4.bin  48968 bytes, the build allows 65536
+build/vk26-alice-4.uf2  98304 bytes  sha256 4843dec170130112df02522e98daf47363e603bf77de9299c28901d5385dc615
+
+>>> on the RTL, every NIST case: CASE i, then minstret mcycle of each of its three runs; then DONE cases
+43415345 00000000 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000001 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000002 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000003 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000004 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000005 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000006 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000007 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000008 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000009 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000000a 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000000b 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000000c 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000000d 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000000e 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000000f 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000010 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000011 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000012 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000013 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000014 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000015 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000016 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000017 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000018 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000019 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000001a 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000001b 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000001c 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000001d 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000001e 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000001f 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000020 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000021 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000022 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000023 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000024 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000025 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000026 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000027 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000028 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000029 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000002a 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000002b 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000002c 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000002d 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000002e 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000002f 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000030 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000031 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000032 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000033 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000034 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000035 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000036 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000037 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000038 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000039 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000003a 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000003b 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000003c 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000003d 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000003e 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000003f 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000040 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000041 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000042 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000043 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000044 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000045 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000046 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000047 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000048 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000049 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000004a 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000004b 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000004c 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000004d 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000004e 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000004f 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000050 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000051 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000052 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000053 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000054 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000055 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000056 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000057 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000058 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000059 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000005a 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000005b 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000005c 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000005d 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000005e 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000005f 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000060 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000061 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000062 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000063 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000064 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000065 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000066 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000067 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000068 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000069 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000006a 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000006b 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000006c 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000006d 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000006e 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 0000006f 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000070 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000071 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000072 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000073 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000074 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000075 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000076 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000077 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+444f4e45 00000078 exit=0 
+
+>>> the checks
+PASS  Drbg.lean checks, with no errors and no warnings
+PASS  all 4 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  reseed_run: the proof refuses a version where reseed when the counter equals the interval, not only past it (§10.1.1.4 step 1)
+PASS  generate_run: the proof refuses a version where V is copied to data one byte short
+PASS  gen_iter: the proof refuses a version where Hashgen hashes 54 bytes of data, not seedlen's 55
+PASS  generate_run: the proof refuses a version where H is Hash(V), the 0x03 left off
+PASS  generate_run: the proof refuses a version where V += H twice, C never added
+PASS  generate_run: the proof refuses a version where the counter's third byte is written over its second
+PASS  generate_run: the proof refuses a version where the counter is stored back as it was
+PASS  add_iter: the proof refuses a version where ADD's carry is the sum shifted by 9, not 8
+PASS  generate_run: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  generate_run: the proof refuses a version where the specification: V's next value leaves the counter out
+PASS  generate_run: the proof refuses a version where the specification: H is Hash(0x02 ‖ V)
+PASS  blocks_out: the proof refuses a version where the claim: block j is the hash of V + j + 1
+PASS  drbg.py gives NIST's ReturnedBits for all 120 cases
+PASS  kernel.bin is what proof/Drbg.lean writes, 280 bytes, and kernel.sha256 is its hash
+PASS  all 120 NIST cases, on the model and on the RTL: two Generates of 4 blocks each, chained through the kernel's own region, the model after 4294 instructions each, every region drbg.py's, and the second's 1024 bits NIST's ReturnedBits
+      the RTL's minstret for a Generate of 4 blocks: instret=4318
+PASS  V and C all ones: every byte carries, and the sum wraps: the model and the RTL halt with 0, the model after 3162; the region drbg.py's  [instret=3178]
+PASS  V all ones, C zero: data + 1 wraps to zero: the model and the RTL halt with 0, the model after 3728; the region drbg.py's  [instret=3748]
+PASS  V and C zero: the model and the RTL halt with 0, the model after 2596; the region drbg.py's  [instret=2608]
+PASS  the counter 0x00ffffff: its bytes carry into V: the model and the RTL halt with 0, the model after 3162; the region drbg.py's  [instret=3178]
+PASS  the counter at the interval: allowed: the model and the RTL halt with 0, the model after 2596; the region drbg.py's  [instret=2608]
+PASS  the counter one past the interval: reseed required: the model and the RTL halt with 1, the model after 7; the region drbg.py's  [instret=11]
+PASS  the counter at 2^32 - 2, the largest the kernel allows: the model and the RTL halt with 0, the model after 2596; the region drbg.py's  [instret=2608]
+PASS  seven blocks: the model and the RTL halt with 0, the model after 5992; the region drbg.py's  [instret=6028]
+PASS  one block: the model and the RTL halt with 0, the model after 2596; the region drbg.py's  [instret=2608]
+PASS  forty blocks: the model and the RTL halt with 0, the model after 24670; the region drbg.py's  [instret=24838]
+PASS  the shell builds for the chip and for the RTL, the chip's in 48968 of the 65536 bytes it may use
+PASS  all 192 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 64 KiB of flash, 0x10000000..0x10010000
+PASS  together they are exactly the 48968-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 4843dec170130112…
+the RTL: 120 cases, minstret 4318 4318 11 each, mcycle (with HASHB in software) [(42739, 42739, 15)]
+PASS  on the RTL the shell runs all 120 NIST cases: two Generates each, minstret the RTL's, the second's bits NIST's and the region drbg.py's; then HALT 1, reseed required, nothing written
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's minstrets, interval and block count are expect.h's
+PASS  V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits and V
+PASS  two rounds as the board sends them, in 64-byte packets: all 240 cases generated right, each run one mcycle
+PASS  one bit of a block of the second Generate: the page says which Generate and which block
+PASS  one bit of V after the first Generate: caught, and the second Generate, from the page's own V, still right
+PASS  the first Generate leaving the counter at 3: caught
+PASS  the third run generating instead of refusing: caught
+PASS  the second Generate's minstret one more than the RTL's: caught
+PASS  a BLOCK line lost: that case incomplete, nothing called wrong, the other 11 generated
+PASS  joined mid-case: the first case incomplete, every one after it generated
+PASS  one Generate taking 30 cycles more: nothing wrong, and the page says the cycles differ
+PASS  the tests catch a page where H is Hash(0x02 ‖ V): V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits a
+PASS  the tests catch a page where V's next value leaves the counter out: V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits a
+PASS  the tests catch a page where Hashgen hashes V every time, never V + 1: V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits a
+PASS  the tests catch a page where the counter does not move: V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits a
+PASS  the tests catch a page where the blocks are not compared: one bit of a block of the second Generate: the page says which Generate and which block — cases 12 ok 12 wro
+PASS  the tests catch a page where the third run's halt code is not compared: the third run generating instead of refusing: caught — cases 12 ok 12 wrong 0 [] incomplete 0 rounds 1 revis
+PASS  the tests catch a page where a Generate's minstret is not compared: the second Generate's minstret one more than the RTL's: caught — cases 12 ok 12 wrong 0 [] incomplete 0 roun
+PASS  the tests catch a page where the second Generate starts from the board's V, not the page's own: one bit of V after the first Generate: caught, and the second Generate, from the page's own V, still right —
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "240 of 240 cases generated right"
+PASS  good.txt: the table shows the last round's 120 streams, and no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (405574 characters)
+PASS  good.txt: Save downloads the same text as a file, vk26-alice-4-<time>.txt, and says how long it is
+PASS  cycles.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  cycles.txt: the verdict line says "the cycles differ"
+PASS  cycles.txt: the table shows the last round's 12 streams, and no script error
+PASS  cycles.txt: Copy puts the verdict and every line received on the clipboard (41517 characters)
+PASS  cycles.txt: Save downloads the same text as a file, vk26-alice-4-<time>.txt, and says how long it is
+PASS  block.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  block.txt: the verdict line says "first wrong: round 0, case 5"
+PASS  block.txt: the table shows the last round's 12 streams, and no script error
+PASS  block.txt: Copy puts the verdict and every line received on the clipboard (20927 characters)
+PASS  block.txt: Save downloads the same text as a file, vk26-alice-4-<time>.txt, and says how long it is
+SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
+PASS  the shell catches a version where HASHB is answered one byte short — check 4, NIST's bits
+PASS  the shell catches a version where the counter starts at 2: the second Generate is refused — check 2
+PASS  the shell catches a version where the interval is 3, not the one gen.py's region holds — check 4, after the second
+PASS  the shell catches a version where the chip is asked to count one more instruction — check 3
+PASS  the shell catches a version where the number 1 is put in a byte early, as 256 — check 4
+PASS  the shell catches a version where a byte past the window is left set — check 4, the region
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check

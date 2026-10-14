@@ -367,3 +367,51 @@ Found while making this experiment, and recorded in
 ./build.sh     # build/vk26-alice-4.uf2 and build/sim.bin
 python3 ../pages/build.py drbg.html build/drbg.html   # the page, as one file
 ```
+
+## Expected output
+
+[capture.txt](./capture.txt), recorded by `run.sh` from a clean commit.
+
+Pasted from it — the theorems, the mutants, NIST's vectors, the build, the
+first and last cases on the RTL:
+
+```
+=== vk26-alice-4 — the state the generator keeps ===
+recorded at 2026-10-14T07:44:45Z from commit 05083dd
+
+>>> the theorems, and what they rest on
+'Drbg.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.reseed_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.generate_twice' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.after_out' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+reseed_run    reseed when the counter equals the interval, not only past it (§10.1.1.4 step 1)   refused in reseed_run
+generate_run  V is copied to data one byte short                                                  refused in generate_run
+gen_iter      Hashgen hashes 54 bytes of data, not seedlen's 55                                   refused in gen_iter
+generate_run  H is Hash(V), the 0x03 left off                                                     refused in generate_run
+generate_run  V += H twice, C never added                                                         refused in generate_run
+generate_run  the counter's third byte is written over its second                                 refused in generate_run
+generate_run  the counter is stored back as it was                                                refused in generate_run
+add_iter      ADD's carry is the sum shifted by 9, not 8                                          refused in add_iter
+generate_run  the claim: one instruction fewer to the halt                                        refused in generate_run
+generate_run  the specification: V's next value leaves the counter out                            refused in generate_run
+generate_run  the specification: H is Hash(0x02 ‖ V)                                            refused in generate_run
+blocks_out    the claim: block j is the hash of V + j + 1                                         refused in blocks_out
+
+>>> drbg.py, from SP 800-90A's text, against NIST's vectors
+120 of 120 NIST cases: instantiate, Generate twice, the second's 1024 bits NIST's
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: kernel de65172659774701…, 120 NIST cases, RTL minstret a Generate 4318, the reseed check 11: the proof's 4294 and 7
+build/vk26-alice-4.bin  48968 bytes, the build allows 65536
+build/vk26-alice-4.uf2  98304 bytes  sha256 4843dec170130112df02522e98daf47363e603bf77de9299c28901d5385dc615
+
+>>> on the RTL, every NIST case: CASE i, then minstret mcycle of each of its three runs; then DONE cases
+43415345 00000000 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+43415345 00000001 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+...
+43415345 00000077 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
+444f4e45 00000078 exit=0 
+```
