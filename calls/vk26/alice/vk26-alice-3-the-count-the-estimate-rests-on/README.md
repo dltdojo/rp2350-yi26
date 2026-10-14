@@ -501,7 +501,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-14T02:30:24Z from commit 59ee475
+recorded at 2026-10-14T03:01:07Z from commit 52695e2
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -539,7 +539,7 @@ accepted      the claim: at both heads the value is at most 254                 
 5354524d 00000004 000001b8 000001b8 00600b0f 00700e11 00600b0f 00700e11 444f4e45 00000005 exit=0 
 ```
 
-the time, among 87 PASS, 0 FAIL and 0 SKIP:
+the time, among 90 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  the RTL takes the same time on all 12 streams: cycles=7343633
@@ -549,12 +549,19 @@ PASS  one stream taking 4 cycles more: no count is wrong, and the page says the 
 PASS  cycles.txt: the verdict line says "the cycles differ"
 ```
 
-and the phone's log, by the page and by count.py:
+and the phones' logs, by the page and by count.py:
 
 ```
-PASS  round1.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817 cycles
+PASS  round1.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817 cycles, no second runs (revision 1)
+PASS  round2.txt: every one of 14 second runs took one mcycle, 7343697
+PASS  round2.txt: 14 of 15 streams from a board counted right, 1 incomplete, 3 rounds; the page reads 14 timed streams as 7343697/7343747/7343797/7343817/7343867 cycles, 14 second runs as 7343697
 PASS  round1.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 2:3 3:0 3:1 3:3 3:4 4:0 4:1 4:3 5:0; 7343797 at 2:4; 7343817 at 3:2 4:2 4:4
       the TRNG, its tests on: H per byte 6.499 (0.967 a bit), 6.711 (0.980 a bit), 6.539 (0.962 a bit)
       the TRNG, raw: H per byte 6.622 (0.930 a bit), 6.580 (0.935 a bit)
+PASS  round2.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 0:3 1:0 1:1 1:3 1:4 2:0 2:1 2:3 3:0; 7343747 at 1:2; 7343797 at 2:2; 7343817 at 0:2; 7343867 at 0:4 2:4
+      mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.975 a bit), 6.499 (0.966 a bit)
+      the TRNG, raw: H per byte 6.758 (0.947 a bit), 6.666 (0.943 a bit)
 ```
