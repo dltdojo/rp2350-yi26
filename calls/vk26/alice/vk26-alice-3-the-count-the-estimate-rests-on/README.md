@@ -41,9 +41,14 @@ slow for the first time (2 of 3 rounds). Reading the two words of `mret`
 and the trap entry back did not keep streams 2 and 4 fast (3 of 6 slow).
 So flash reads over those sets cause the cost, but a miss on that one
 line is not the whole of it. The raw TRNG leaned to 0 in all seven
-draws. Revision 4 asks the rest in one flash, a probe of 34 conditions
-with the XIP cache's own counters, and is the last revision on the timing
-question; it has not run on a board yet.**
+draws. Revision 4 asked the rest in one flash, with a probe of 34
+conditions, and settled it. Warm, the window into and out of the kernel
+takes the RTL's 8 cycles on silicon too. Of the 32 lines of the harness's
+code probed, only two cost anything when evicted: 0x10000130 (`mret` and
+the trap entry) and 0x10000138 (the next), about 110 cycles each, every
+time. Revision 3 had read back only the first. The 64 cycles a warm kernel
+run takes over the RTL are inside the kernel, not in the window. That was
+the last revision on the timing question.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -596,13 +601,74 @@ set out to show, a count proved for every input and constant-time by
 proof, was settled by revision 1. The cycles are a side question it
 raised, and three trips is what that question has had.
 
+### What revision 4's board said
+
+[`board/round4.txt`](./board/round4.txt): the same Pico 2, the page (build
+p2) on a phone, the file Save gave back, kept as it came. **`REVISION
+00000004` is in it, three times**, so this time the log names its firmware.
+It starts at round 0's stream 2 and ends partway into round 3's first: 13
+whole streams, all counted right, both runs at the RTL's minstret, every
+second run 7,343,697. Three rounds of the probe, 408 runs, every one
+halting with 0 at minstret 6 and with 132 XIP accesses.
+
+The probe, by `fixtures.py --board`:
+
+| Condition | Runs | mcycle | XIP misses in the span |
+| --- | --- | --- | --- |
+| nothing first | 12 | 8 every time | 0 to 13 |
+| `FIXED[0]` and `FIXED[2]` read | 12 | 8, 108, 128 or 178 | 38 to 47 |
+| 0x10000130 evicted (`mret`, the trap entry) | 12 | **118 every time** | 1 |
+| 0x10000138 evicted (`csrw mscratch, sp`) | 12 | **118 every time** | 1 |
+| each of the other 30 lines, 0x10000100 to 0x100001f8 | 360 | 8 every time | 0 to 13 |
+
+Against the prediction, stated before the run:
+- **Held:** every count right, every second run 7,343,697. Nothing-first
+  took one mcycle every time. **Evicting 0x10000138 made the payload
+  slower**, in 12 of 12 runs. Every line outside 0x10000128 to 0x1000013f
+  changed nothing, in 360 of 360 runs.
+- **Did not hold as written:** the misses. The miss count did not settle
+  to one number with nothing done first: it ranged from 0 to 13. The
+  counters span more than the timed window. They are read in C, before
+  `enter_payload` and after the trap's register saves, and the extra misses
+  come and go with no cycle cost. So "more misses wherever slower" could
+  not be tested. The cycles, which cover the window exactly, are what
+  locate the cost.
+- **Not predicted:** 0x10000130 costs as much as 0x10000138.
+
+**What it settles.**
+- **On silicon, warm, the window costs what it does on the RTL**: 8 cycles
+  for a two-instruction payload, minstret 6, on both. So the 64 cycles a
+  warm run of the kernel takes over the RTL come from inside the kernel's
+  6.3 million instructions, not from the trap or `mret`.
+- **The cost of a cold first run is two cache lines of the harness**,
+  0x10000130 and 0x10000138, fetched from flash inside the timed window.
+  Evicting either alone costs about 110 cycles, every time. Evicting any
+  of the other 30 lines nearby costs nothing.
+- **That is why revision 3 failed for streams 2 and 4.** It read back
+  0x10000130 and left 0x10000138 to the copy. In this run, under revision
+  3's stream treatment unchanged, stream 3 was slow 3 times in 3, stream 2
+  2 in 3 and stream 4 1 in 3.
+- **The amount is not one number.** One line evicted on purpose cost 110.
+  The sweep, and the streams' own first runs, cost 100, 120 or 170 over
+  the warm figure, and the streams 50 as well. What makes a miss cost 100
+  one time and 120 another, the flash or the bus, this run cannot say.
+
+So the proof's statement holds on the chip as far as anything here can
+show: the samples never moved the cycles. What moved them was two lines
+of the harness's own code leaving the XIP cache.
+
+**The raw TRNG, again.** Its bits were 1 in 48.72% and 48.40% (4.7 and 5.8
+standard deviations below even, if independent). With its tests on:
+49.59% and 49.99%. All nine raw draws over four runs leaned to 0.
+
 ## What it does not say
 
-- Exactly what in the cache the first runs pay for. Revision 3 shows that
-  flash reads over the sets of the harness's code bring the cost on, and
-  that reading back the line of `mret` and the trap entry does not take it
-  away.
-- That the raw TRNG is biased in general: seven draws of 32,768 bits on
+- Why one miss costs 100 cycles one time and 120 another. Revision 4
+  found which lines cost; it did not take the flash interface apart.
+- Where inside the kernel the 64 cycles over the RTL go. The silicon's
+  Hazard3 is not the RTL's (exp202, exp209), and this is that difference,
+  not a timing leak: it is the same for every sample.
+- That the raw TRNG is biased in general: nine draws of 32,768 bits on
   one board, at the shared driver's settings.
 - The estimate's formula is not proved: count.py and the page agree on it,
   and on §6.3.1's example, which is two implementations, not a proof.
@@ -629,6 +695,17 @@ Found while making this experiment, and recorded in
   and `lean.sh check` shows only an error's first line. Both, with a timeout
   over `List.range 256`, are now in the call README's Lean table (in a
   commit of its own).
+- **The shared harness times two lines of flash.** `tools/hazard3/harness`
+  puts `mret` and the trap entry in `.text.harness`, and
+  `tools/hazard3/shell/link_chip.ld` puts that in flash. On the chip,
+  every timed run therefore depends on whether 0x10000130 and 0x10000138
+  are still in the XIP cache, which depends on what the shell read last.
+  It cost 50 to 170 cycles in the runs here when they were not. Any
+  experiment that compares `mcycle` across runs on the chip, as exp212
+  does, inherits it.
+  The fix belongs in `tools/` (the harness in RAM, or its lines warmed
+  just before entry), which S2 keeps out of a proposal; it is recorded
+  here and not made.
 
 ## Running it
 
