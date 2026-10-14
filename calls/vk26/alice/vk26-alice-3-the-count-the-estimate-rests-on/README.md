@@ -397,7 +397,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-14T01:26:09Z from commit 8b40ce7
+recorded at 2026-10-14T01:49:05Z from commit 6c0e349
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -435,7 +435,7 @@ accepted      the claim: at both heads the value is at most 254                 
 5354524d 00000004 000001b8 000001b8 00600b0f 00700e11 444f4e45 00000005 exit=0 
 ```
 
-and the time, among 74 PASS, 0 FAIL and 1 SKIP (no phone log yet):
+the time, among 76 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  the RTL takes the same time on all 12 streams: cycles=7343633
@@ -443,4 +443,14 @@ PASS  on the RTL the shell runs all five streams, every count the shell's own, m
 PASS  §6.3.1's own example, p̂ 0.4 of 20: p_u 0.6895, H 0.5363
 PASS  one stream taking 4 cycles more: no count is wrong, and the page says the cycles differ
 PASS  cycles.txt: the verdict line says "the cycles differ"
+```
+
+and the phone's log, by the page and by count.py:
+
+```
+PASS  round1.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817 cycles
+PASS  round1.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 2:3 3:0 3:1 3:3 3:4 4:0 4:1 4:3 5:0; 7343797 at 2:4; 7343817 at 3:2 4:2 4:4
+      the TRNG, its tests on: H per byte 6.499 (0.967 a bit), 6.711 (0.980 a bit), 6.539 (0.962 a bit)
+      the TRNG, raw: H per byte 6.622 (0.930 a bit), 6.580 (0.935 a bit)
 ```
