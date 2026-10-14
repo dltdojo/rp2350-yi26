@@ -27,9 +27,10 @@
 #      §6.3.1's own example; it tells right streams from wrong ones and says
 #      when the cycles differ; wrong pages are caught; in headless Chromium;
 #   6. every log a phone gave back (board/*.txt): each stream's 256 counts by
-#      count.py, the mcycles, and by the page.
+#      count.py and by the page; the mcycles printed as read, not judged —
+#      one was predicted, and the first board run gave three.
 #
-# What none of it reaches: the chip running it, a phone reading it, and
+# What none of it reaches: why the chip's mcycle moved, and
 # whether the TRNG's estimate means anything — 4096 samples, not the
 # million SP 800-90B §3.1.1 asks for.
 #

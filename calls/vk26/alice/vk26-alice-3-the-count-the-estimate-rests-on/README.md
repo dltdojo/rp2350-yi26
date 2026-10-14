@@ -24,7 +24,13 @@ On the RTL the kernel takes 7,343,633 cycles on all 12 streams of the
 differential and all 5 of the shell. The shell's TRNG streams come both
 with the TRNG's own tests on and with them bypassed. The estimate itself
 needs a square root and a logarithm: it is on the page, not in the proof.
-Nothing here has run on a board yet.**
+On a Pico 2, read on a phone through the page: the LED blinked as it should,
+and all 13 whole streams in the saved log were counted right at the RTL's
+minstret. The prediction that every stream would take one `mcycle` did not
+hold: three numbers, 64, 164 and 184 cycles over the RTL's, and the same
+fixed samples took different ones in different rounds. The raw TRNG's bits
+were 1 about 48.3% of the time in both draws, about six standard deviations
+from even; with its tests on, about 50%.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -272,16 +278,82 @@ Needs a Pico 2 and an Android phone with Chrome; one BOOTSEL press.
    choose "vk26-alice-3". Wait for two ROUND lines, then press Save and send
    the file back as an attachment; it goes into `board/` as it is.
 
-What the run will say, stated before it happens:
+What the run will say, stated before it happens (what it said is in *On
+the board*, next):
 - every count right, as on the RTL;
 - every stream after the first one mcycle, as exp212 found for its kernels;
 - for the TRNG with its tests on, an H per byte near the random streams'
   6.7.
 - **For the raw TRNG nothing is predicted:** that is the question.
 
+## On the board
+
+[`board/round1.txt`](./board/round1.txt): a Pico 2 running
+`vk26-alice-3.uf2` (`ab367127…6442293a6`, as committed), the page on a
+phone, the file Save gave back, kept as it came. The LED blinked as
+described ("LED 如預期閃"): a long light per stream.
+
+The page, as it saved: 13 streams, 13 judged right, 0 wrong, 0 incomplete,
+3 rounds, no FAIL line, and three cycle values. The log starts at round 2's
+fourth stream and ends after round 5's first; every stream in it is whole.
+By `fixtures.py --board` (count.py) and by the page's block under node:
+
+| Round:stream | Stream | Most | H a byte | H a bit | Ones | mcycle − RTL |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2:3, 3:3, 4:3 | 0xa5 at 1000 places | 1012 | 1.919 | 0.974 | 0.4981 | +64, +64, +64 |
+| 2:4, 3:4, 4:4 | bits 1 three times in four | 440 | 3.060 | 0.400 | 0.7516 | +164, +64, +184 |
+| 3:0 | the TRNG, its tests on | 31 | 6.499 | 0.967 | 0.4954 | +64 |
+| 3:1 | the TRNG, raw | 28 | 6.622 | 0.930 | 0.4823 | +64 |
+| 3:2, 4:2 | each value 16 times | 16 | 7.284 | 0.980 | 0.5000 | +184, +184 |
+| 4:0 | the TRNG, its tests on | 26 | 6.711 | 0.980 | 0.5000 | +64 |
+| 4:1 | the TRNG, raw | 29 | 6.580 | 0.935 | 0.4841 | +64 |
+| 5:0 | the TRNG, its tests on | 30 | 6.539 | 0.962 | 0.5061 | +64 |
+
+The RTL took 7,343,633 cycles on every stream; the chip took 7,343,697,
+7,343,797 or 7,343,817.
+
+What it adds to the RTL:
+
+- **The count holds on the chip.** All 13 streams' 256 counts and largest
+  are count.py's, at the RTL's minstret, 6,294,287. The three fixed streams
+  gave gen.py's largest every time.
+- **The cycle prediction failed, and the samples are not why.** The
+  prediction, stated before the run, was one `mcycle` for every stream
+  after the first. The chip gave three. "Bits 1 three times in four" is
+  the same 4096 bytes in every round, and it took +164, +64 and +184. So
+  the difference is not a function of the samples, which is what
+  `count_constant_time` says it cannot be. It is something outside the
+  kernel's trace that changed between rounds.
+- **What fits, from prior work, not shown here.** exp212 wrote down that
+  the counted window includes the harness's `mret` and its trap entry, and
+  on the chip they are fetched from flash through the XIP cache
+  ([`link_chip.ld`](../../../../tools/hazard3/shell/link_chip.ld) puts
+  `.text.harness` in flash). Whether that line is cached depends on what
+  the shell ran before, which differs between streams: the TRNG's driver,
+  the raw driver, the copy of a fixed stream, USB status lines. exp212's
+  shell did the same thing before every timed run; this one does not. The
+  explanation fits every number here, and nothing here singles it out.
+- **The raw TRNG leans to 0.** Its bits were 1 in 48.23% and 48.41% of
+  32,768: 6.4 and 5.8 standard deviations below even, if the bits were
+  independent. Its per-bit MCV estimate was 0.930 and 0.935, against 0.962
+  to 0.980 with the tests on. The balancer's output was 49.54%, 50.00% and
+  50.61%. Per byte, all five TRNG draws look alike (6.50 to 6.71): 4096
+  bytes cannot see a lean of this size, and a bit can.
+
+## What the next revision would ask
+
+Not built. To tell the cache from anything else: run each stream's kernel
+twice back to back on the same samples, and report both `mcycle`s. If the
+second run always takes one number while the first moves, the cost is what
+the shell left behind; if the second moves too, it is not. That is exp212's
+warm-up, applied to every stream.
+
 ## What it does not say
 
-- It has not run on a board.
+- Why the chip's `mcycle` moved. The proof rules out the samples; the
+  board shows identical samples moving; what moves it is a hypothesis.
+- That the raw TRNG is biased in general: two draws of 32,768 bits on one
+  board, at the shared driver's settings.
 - The estimate's formula is not proved: count.py and the page agree on it,
   and on §6.3.1's example, which is two implementations, not a proof.
 - 4096 samples are not an assessment (§3.1.1), and a byte is not this

@@ -12,9 +12,9 @@ the page must tell apart.
   fixtures.py --board EXPECT_H LOG...
                                every STREAM line a phone gave back, counted
                                again by count.py from its BITS lines, against
-                               its HIST lines and EXPECT_H's INSTRET; then the
-                               mcycles, and the TRNG's two estimates;
-                               prints PASS/FAIL
+                               its HIST lines and EXPECT_H's INSTRET, PASS or
+                               FAIL; then, as measurements, each stream's
+                               mcycle and the TRNG's two estimates
 
 EXPECT_H is build/expect.h: the RTL's minstret, and the streams the shell
 runs after the TRNG's two.
@@ -116,7 +116,7 @@ def write_count_fixtures(d, expect_h):
 
 
 def count_board(expect_h, logs):
-    """Each STREAM line of each log against count.py; the mcycles; the TRNG's estimates."""
+    """Each STREAM line of each log against count.py; then the mcycles and the TRNG's estimates, as read."""
     instret = count_instret(expect_h)
     failed = 0
     for log in logs:
@@ -142,11 +142,14 @@ def count_board(expect_h, logs):
               f"counts and the largest as count.py gives them, minstret the RTL's"
               f"{'' if ok else ' — ' + (bad[0] if bad else 'none')}")
         failed |= not ok
-        after = {c for k, c in cycles.items() if k != (0, 0)}
-        print(f"{'PASS' if len(after) == 1 else 'FAIL'}  {os.path.basename(log)}: every stream took "
-              f"{'the same mcycle, ' + str(next(iter(after))) if len(after) == 1 else 'one mcycle — ' + str(sorted(after))}"
-              f"{', round 0 stream 0 aside' if (0, 0) in cycles else ''}")
-        failed |= len(after) != 1
+        # A measurement, not a check: one mcycle was predicted, and the first
+        # board run gave three (README, "On the board").
+        by = {}
+        for (rnd, s), c in sorted(cycles.items()):
+            if (rnd, s) != (0, 0):
+                by.setdefault(c, []).append(f"{rnd}:{s}")
+        print(f"      mcycle, round:stream{', round 0 stream 0 aside' if (0, 0) in cycles else ''}: "
+              + "; ".join(f"{c} at {' '.join(at)}" for c, at in sorted(by.items())))
         for s, name in ((0, "the TRNG, its tests on"), (1, "the TRNG, raw")):
             if s in est:
                 hs = ", ".join(f"{h:.3f} ({hb:.3f} a bit)" for h, hb in est[s])
