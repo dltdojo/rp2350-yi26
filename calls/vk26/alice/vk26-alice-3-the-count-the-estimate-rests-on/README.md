@@ -30,9 +30,12 @@ minstret. The prediction that every stream would take one `mcycle` did not
 hold: three numbers, 64, 164 and 184 cycles over the RTL's, and the same
 fixed samples took different ones in different rounds. The raw TRNG's bits
 were 1 about 48.3% of the time in both draws, about six standard deviations
-from even; with its tests on, about 50%. Revision 2 runs every stream's
-kernel twice, back to back, and reports both `mcycle`s, to tell what the
-shell left behind from anything else. It has not run on a board yet.**
+from even; with its tests on, about 50%. Revision 2 ran every stream's
+kernel twice, back to back. All 14 second runs took 7,343,697 cycles, as
+predicted, while the first runs again took several numbers. The slow first
+runs came only after the shell copied a fixed stream out of flash across
+the XIP cache sets that hold the harness's `mret` and trap entry, in both
+revisions' builds. The raw TRNG leaned to 0 in all four draws.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -376,11 +379,84 @@ If the second runs move too, then what the shell ran before the timed
 window is not the explanation, and neither is the harness's trap entry in
 the XIP cache.
 
+### What revision 2's board said
+
+[`board/round2.txt`](./board/round2.txt): the same Pico 2 running revision
+2's `vk26-alice-3.uf2` (`9615f592…4b4701686`), the page (build p2) on a
+phone, the file Save gave back, kept as it came. The LED blinked as
+described ("LED如預期閃"). The board had just been flashed (`lives=0`), so
+the log starts in round 0, at stream 1's 27th BITS line, and ends after
+round 3's first stream.
+
+The page, as it saved: 15 streams, 14 judged right, 0 wrong, 1 incomplete
+(round 0's stream 1, joined mid-stream), 3 rounds, no FAIL line. By
+`fixtures.py --board` and by the page's block under node, all 14 whole
+streams' counts are count.py's, both runs at the RTL's minstret.
+
+| Round:stream | Stream | First run − RTL | Second run − RTL |
+| --- | --- | --- | --- |
+| 1:0, 2:0, 3:0 | the TRNG, its tests on | +64, +64, +64 | +64, +64, +64 |
+| 1:1, 2:1 | the TRNG, raw | +64, +64 | +64, +64 |
+| 0:2, 1:2, 2:2 | each value 16 times | +184, +114, +164 | +64, +64, +64 |
+| 0:3, 1:3, 2:3 | 0xa5 at 1000 places | +64, +64, +64 | +64, +64, +64 |
+| 0:4, 1:4, 2:4 | bits 1 three times in four | +234, +64, +234 | +64, +64, +64 |
+
+- **The prediction held.** Every second run took 7,343,697 cycles: 14 runs,
+  every stream, round 0 included. That is revision 1's smallest number,
+  and no more. So with the shell's leftovers out of the way, this kernel
+  takes one number of cycles on silicon, 64 more than the RTL's, whatever
+  the samples.
+- **The first runs moved again, by the same kind of amount.** They were
+  +0, +50, +100, +120 or +170 over the second run on the same samples. The
+  kernel and its region were the same both times, so the extra was in what
+  the shell left behind.
+- **Only after streams 2 and 4, in both revisions.** Over the two logs,
+  every slow first run was stream 2 (5 of 5) or stream 4 (4 of 6); streams
+  0, 1 and 3 took +64 every time (16 of 16).
+
+**Why those two, from the builds.**
+- Streams 2 to 4 are copied out of flash just before their first run: 4096
+  bytes of gen.py's `FIXED[0]`, `FIXED[1]` and `FIXED[2]`. The TRNG's two
+  read no flash data.
+- Inside the counted window the chip fetches two harness instructions from
+  flash: `mret` at 0x10000130 and the trap entry's `csrwi` at 0x10000134
+  (`llvm-objdump` of `build/chip.elf`). The RTL fetches them from RAM.
+- The XIP cache is 16 KiB (exp212) in two ways (rp-pac 7.0.0's
+  `SPLIT_WAYS` documents way 0 and way 1). So each way is 8 KiB, and an
+  address's set is its offset modulo 0x2000.
+- `FIXED` in each build, by `llvm-nm`; revision 1 rebuilt from its own
+  sources to its committed UF2, byte for byte:
+
+| Build | `FIXED[0]`'s words, offset mod 0x2000 | `FIXED[1]`'s | `FIXED[2]`'s |
+| --- | --- | --- | --- |
+| revision 1 | 0x11fc–0x01fc, over 0x130 | 0x0204–0x1204, not | 0x120c–0x020c, over 0x130 |
+| revision 2 | 0x1370–0x0370, over 0x130 | 0x0378–0x1378, not | 0x1380–0x0380, over 0x130 |
+
+The streams whose copy passes over the sets of `mret` and the trap entry
+are 2 and 4, the streams whose first runs were slow. Stream 3's copy
+passes over the other half of the sets, and its first run was never slow.
+A copy sweeping a set replaces one of its two ways. That would explain why
+stream 4 was slow most times but not every time: which way goes depends on
+the cache's state. The branch predictor is not the explanation: it
+remembers one branch, and a miss costs one cycle (Hazard3's
+`instruction_timings.adoc`).
+
+**What it does not settle.** This is a fit across two builds, not an
+intervention. A revision 3 could move `FIXED` by 4 KiB, so that stream 3's
+copy covers the trap's sets and stream 2's and 4's do not. The slow first
+runs would then move to stream 3. It is not built.
+
+**The raw TRNG, again.** Its bits were 1 in 48.84% and 48.68% (4.2 and 4.8
+standard deviations below even, if independent), per-bit H 0.947 and
+0.943. With its tests on: 49.76%, 50.16%, 50.49%, per-bit H 0.966 to
+0.975. All four raw draws over both runs leaned to 0.
+
 ## What it does not say
 
-- Why the chip's `mcycle` moved. The proof rules out the samples; the
-  board shows identical samples moving; what moves it is a hypothesis.
-- That the raw TRNG is biased in general: two draws of 32,768 bits on one
+- That the XIP cache is why the first runs moved. Revision 2 shows the
+  extra cost is left behind by the shell, and the addresses fit the cache
+  in both builds. Moving the data and watching the cost move would show it.
+- That the raw TRNG is biased in general: four draws of 32,768 bits on one
   board, at the shared driver's settings.
 - The estimate's formula is not proved: count.py and the page agree on it,
   and on §6.3.1's example, which is two implementations, not a proof.

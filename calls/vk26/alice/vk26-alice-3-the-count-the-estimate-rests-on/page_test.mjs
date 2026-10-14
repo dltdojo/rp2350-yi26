@@ -90,6 +90,12 @@ check(s.incomplete === 1 && s.wrong === 0 && s.ok === 9,
 
 for (const log of logs) {
   s = await run(fs.readFileSync(log, 'utf8'));
+  // Revision 2's prediction, stated before its board ran, and held.
+  if (s.againTimed) {
+    check(s.againValues.length === 1,
+      `${path.basename(log)}: every one of ${s.againTimed} second runs took one mcycle, ${s.againValues.join('/')}`,
+      brief(s));
+  }
   check(s.ok > 0 && s.wrong === 0 && !s.fails,
     `${path.basename(log)}: ${s.ok} of ${s.streams} streams from a board counted right, ${s.incomplete} incomplete, `
     + `${s.rounds} rounds; the page reads ${s.timed} timed streams as ${s.cycleValues.join('/')} cycles`
