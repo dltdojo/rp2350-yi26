@@ -213,6 +213,34 @@ theorem read_holds (hfit : base.toNat + 0x10000 ≤ 2^32) {m : Word → Byte} {F
 theorem setF_setF (F : Nat → Byte) (X N K : Nat) : setF (setF F X N) X K = setF F X K := by
   funext o; simp only [setF]; split <;> rfl
 
+/-- `F` with the 4 bytes from `c` holding `n`, little-endian: a `sw`. -/
+def setW (F : Nat → Byte) (c n : Nat) : Nat → Byte := fun o =>
+  if c ≤ o ∧ o < c + 4 then BitVec.ofNat 8 (n / 256 ^ (o - c)) else F o
+
+theorem view_writeLE (hfit : base.toNat + 0x10000 ≤ 2^32) {m : Word → Byte} {F : Nat → Byte}
+    (hv : View m base F) {c : Nat} (hc : c + 4 ≤ 0x10000) (n : Nat) :
+    View (writeLE m (base + BitVec.ofNat 32 c) n 4) base (setW F c n) := by
+  intro o ho
+  rw [writeLE_apply _ _ _ _ (by decide), dist_view hfit ho (by omega)]
+  simp only [setW]
+  by_cases h1 : c ≤ o ∧ o < c + 4
+  · simp only [h1.1, ↓reduceIte, show o - c < 4 by omega, h1, and_self]
+  · simp only [h1, ↓reduceIte]
+    by_cases h2 : c ≤ o
+    · simp only [h2, ↓reduceIte, show ¬ o - c < 4 by omega]; exact hv o ho
+    · simp only [h2, ↓reduceIte, show ¬ 2 ^ 32 - (c - o) < 4 by omega]; exact hv o ho
+
+/-- The word at `c`, little-endian, as `lw` reads it. -/
+def word (F : Nat → Byte) (c : Nat) : Nat :=
+  (F c).toNat + 256 * (F (c + 1)).toNat + 65536 * (F (c + 2)).toNat + 16777216 * (F (c + 3)).toNat
+
+theorem readLE_view (hfit : base.toNat + 0x10000 ≤ 2^32) {m : Word → Byte} {F : Nat → Byte}
+    (hv : View m base F) {c : Nat} (hc : c + 4 ≤ 0x10000) : readLE m (base + BitVec.ofNat 32 c) 4 = word F c := by
+  rw [readLE_four, word, hv c (by omega), show (1 : Word) = BitVec.ofNat 32 1 from rfl,
+    show (2 : Word) = BitVec.ofNat 32 2 from rfl, show (3 : Word) = BitVec.ofNat 32 3 from rfl,
+    off_add hfit _ _ (by omega), off_add hfit _ _ (by omega), off_add hfit _ _ (by omega),
+    hv _ (by omega), hv _ (by omega), hv _ (by omega)]
+
 theorem View.congr {m : Word → Byte} {F G : Nat → Byte} (hv : View m base F)
     (h : ∀ o, o < 0x10000 → F o = G o) : View m base G := fun o ho => (hv o ho).trans (h o ho)
 
@@ -484,6 +512,65 @@ theorem add_run (hp : Placed env base) {M0 : Word → Byte} {F0 F : Nat → Byte
   · have e1' : run env 4 s = .running s1 := e1
     rw [show ADD = 4 + (10 * 55 + 1) by rfl, run_add_running e1', run_add_running e2, e3]
   · rw [r3, h2.kept r a b' c d e f]
+
+/-! ## A hash as a number -/
+
+/-- The number whose `k` big-endian digits are `g 0`, …, `g (k - 1)`. -/
+def beN (g : Nat → Nat) : Nat → Nat
+  | 0 => 0
+  | k + 1 => beN g k * 256 + g k
+
+theorem beN_lt (g : Nat → Nat) (hg : ∀ d, g d < 256) : ∀ k, beN g k < 256 ^ k := by
+  intro k
+  induction k with
+  | zero => simp [beN]
+  | succ k ih => simp only [beN, Nat.pow_succ]; have := hg k; omega
+
+theorem beN_digit (g : Nat → Nat) (hg : ∀ d, g d < 256) :
+    ∀ k d, d < k → beN g k / 256 ^ (k - 1 - d) % 256 = g d := by
+  intro k
+  induction k with
+  | zero => intro d hd; omega
+  | succ k ih =>
+    intro d hd
+    have hk := hg k
+    by_cases e : d = k
+    · subst e; simp only [beN, Nat.add_sub_cancel, Nat.sub_self, Nat.pow_zero, Nat.div_one]; omega
+    · rw [show k + 1 - 1 - d = (k - 1 - d) + 1 by omega, Nat.pow_succ, Nat.mul_comm (256 ^ _) 256,
+        ← Nat.div_div_eq_div_mul, beN, show (beN g k * 256 + g k) / 256 = beN g k by omega]
+      exact ih d (by omega)
+
+/-- A hash's 32 bytes, as a number. -/
+def hnum (h : Fin 32 → Byte) : Nat := beN (fun d => if hd : d < 32 then (h ⟨d, hd⟩).toNat else 0) 32
+
+/-- A field of 23 zeros and then a hash's 32 bytes holds the hash's number. -/
+theorem holds_hash {F : Nat → Byte} {X : Nat} {h : Fin 32 → Byte} (hz : ∀ i, i < 23 → F (X + i) = 0)
+    (hh : ∀ d (hd : d < 32), F (X + 23 + d) = h ⟨d, hd⟩) : Holds F X (hnum h) := by
+  have hg : ∀ d, (fun d => if hd : d < 32 then (h ⟨d, hd⟩).toNat else 0) d < 256 := by
+    intro d; simp only; split
+    · exact (h _).isLt
+    · decide
+  intro i hi
+  by_cases h23 : i < 23
+  · rw [hz i h23]
+    have : hnum h < 256 ^ (54 - i) := Nat.lt_of_lt_of_le (beN_lt _ hg 32)
+      (Nat.pow_le_pow_right (by decide) (by omega))
+    rw [Nat.div_eq_of_lt this]; rfl
+  · rw [show X + i = X + 23 + (i - 23) by omega, hh (i - 23) (by omega)]
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_ofNat, show 54 - i = 32 - 1 - (i - 23) by omega, hnum, beN_digit _ hg 32 (i - 23) (by omega)]
+    simp only [show i - 23 < 32 by omega, ↓reduceDIte]
+
+/-- A field of 51 zeros and then a word's 4 bytes, big-endian, holds the word. -/
+theorem holds_word {F : Nat → Byte} {X n : Nat} (hn : n < 2 ^ 32) (hz : ∀ i, i < 51 → F (X + i) = 0)
+    (hw : ∀ d, d < 4 → F (X + 51 + d) = BitVec.ofNat 8 (n / 256 ^ (3 - d))) : Holds F X n := by
+  intro i hi
+  by_cases h51 : i < 51
+  · have hp : 2 ^ 32 ≤ 256 ^ (54 - i) :=
+      calc 2 ^ 32 = 256 ^ 4 := by rfl
+        _ ≤ 256 ^ (54 - i) := Nat.pow_le_pow_right (by decide) (by omega)
+    rw [hz i h51, Nat.div_eq_of_lt (by omega)]; rfl
+  · rw [show X + i = X + 51 + (i - 51) by omega, hw (i - 51) (by omega), show 54 - i = 3 - (i - 51) by omega]
 
 /-! ## The places -/
 
@@ -771,7 +858,651 @@ theorem gen_iter (hp : Placed env base) {M0 : Word → Byte} {F0 : Nat → Byte}
   · intro r a b c d e f g t ra s1' s2'
     rw [r7, k6 r s1' s2', b5 r a b c d e f g t ra, h.kept r a b c d e f g t ra s1' s2']
 
+theorem copy_loop (hp : Placed env base) {M0 : Word → Byte} {F0 F : Nat → Byte} (hc0 : CodeAt M0 base kernel)
+    (hv0 : View M0 base F0) (hFc : ∀ o, o < 4 * 70 → F o = F0 o) {keep : Reg → Word} {s : Machine}
+    (h : CInv base F 0 keep s) : ∀ i, i ≤ 55 → ∃ s', run env (6 * i) s = .running s' ∧ CInv base F i keep s' := by
+  intro i hi
+  induction i with
+  | zero => exact ⟨s, rfl, h⟩
+  | succ i ih =>
+    obtain ⟨s', e, hs'⟩ := ih (by omega)
+    obtain ⟨s'', e', hs''⟩ := copy_iter hp hc0 hv0 hFc (by omega) hs'
+    exact ⟨s'', by rw [show 6 * (i + 1) = 6 * i + 6 by omega, run_add_running e, e'], hs''⟩
+
+theorem gen_loop (hp : Placed env base) {M0 : Word → Byte} {F0 : Nat → Byte} (hc0 : CodeAt M0 base kernel)
+    (hv0 : View M0 base F0) {F : Nat → Byte} (hFl : ∀ o, o < OUT → F o = F0 o) (hone : Holds F0 ONE 1)
+    {v m : Nat} (hm : OUT + 32 * m < 0x10000) {keep : Reg → Word} (k0 : keep S0 = base) {s : Machine}
+    (h : GInv env base F v m 0 keep s) :
+    ∀ j, j ≤ m → ∃ s', run env (566 * j) s = .running s' ∧ GInv env base F v m j keep s' := by
+  intro j hj
+  induction j with
+  | zero => exact ⟨s, rfl, h⟩
+  | succ j ih =>
+    obtain ⟨s', e, hs'⟩ := ih (by omega)
+    obtain ⟨s'', e', hs''⟩ := gen_iter hp hc0 hv0 hFl hone hm k0 (by omega) hs'
+    exact ⟨s'', by rw [show 566 * (j + 1) = 566 * j + 566 by omega, run_add_running e, e'], hs''⟩
+
+/-! ## The first three instructions, and the reseed check -/
+
+theorem word_lt (F : Nat → Byte) (c : Nat) : word F c < 2 ^ 32 := by
+  simp only [word]
+  have := (F c).isLt; have := (F (c + 1)).isLt; have := (F (c + 2)).isLt; have := (F (c + 3)).isLt
+  omega
+
+theorem head_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F0 : Nat → Byte}
+    (hv0 : View s.mem base F0) (hc0 : CodeAt s.mem base kernel) :
+    ∃ s3, run env 3 s = .running s3 ∧ s3.pc = base + BitVec.ofNat 32 (4 * 3) ∧ s3.mem = s.mem
+      ∧ s3.reg S0 = base ∧ s3.reg T1 = BitVec.ofNat 32 (word F0 (PAR + 4))
+      ∧ s3.reg S3 = BitVec.ofNat 32 (word F0 (PAR + 8))
+      ∧ ∀ r, r ≠ S0 → r ≠ T1 → r ≠ S3 → s3.reg r = s.reg r := by
+  obtain ⟨s1, e1, p1, m1, r1⟩ := regStep (prog := kernel) hp 0 (by decide)
+    (by exact hc0) (by rw [hpc]; simp) (i := .auipc S0 0) rfl (rd := S0) (v := s.pc + (0#20 ++ 0#12)) rfl hlen
+  have b1 : s1.reg S0 = base := by
+    rw [reg_wrote r1 (by decide), hpc, show (0#20 ++ 0#12 : BitVec 32) = 0#32 by decide, BitVec.add_zero]
+  have se404 : (0x404 : BitVec 12).signExtend 32 = BitVec.ofNat 32 (PAR + 4) := by decide
+  have se408 : (0x408 : BitVec 12).signExtend 32 = BitVec.ofNat 32 (PAR + 8) := by decide
+  obtain ⟨s2, e2, p2, m2, r2⟩ := loadStep hp 1 (by decide) (by rw [m1]; exact hc0) p1
+    (rd := T1) (rs1 := S0) (imm := 0x404) rfl (PAR + 4) (by rw [b1, se404]) (by decide) (by decide) hlen
+  obtain ⟨s3, e3, p3, m3, r3⟩ := loadStep hp 2 (by decide) (by rw [m2, m1]; exact hc0) p2
+    (rd := S3) (rs1 := S0) (imm := 0x408) rfl (PAR + 8)
+    (by rw [reg_kept r2 (by decide), b1, se408]) (by decide) (by decide) hlen
+  refine ⟨s3, ?_, p3, by rw [m3, m2, m1], ?_, ?_, ?_, fun r a b c => ?_⟩
+  · rw [show 3 = 1 + (1 + 1) by rfl, run_add_running e1, run_add_running e2, e3]
+  · rw [reg_kept r3 (by decide), reg_kept r2 (by decide), b1]
+  · rw [reg_kept r3 (by decide), reg_wrote r2 (by decide), m1, readLE_view hp.fit hv0 (by decide)]
+  · rw [reg_wrote r3 (by decide), m2, m1, readLE_view hp.fit hv0 (by decide)]
+  · rw [reg_kept r3 c, reg_kept r2 b, reg_kept r1 a]
+
+/-- **Reseed required**: when the counter is past the interval, HALT 1
+after seven instructions, memory as it was. -/
+theorem reseed_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F0 : Nat → Byte}
+    (hv0 : View s.mem base F0) (hc0 : CodeAt s.mem base kernel)
+    (hgt : word F0 (PAR + 4) < word F0 (PAR + 8)) :
+    ∃ s', run env 7 s = .halted 1 s' ∧ s'.mem = s.mem := by
+  obtain ⟨s3, e3, p3, m3, b0, bt, b3, _⟩ := head_run hp hpc hv0 hc0
+  have hc3 : CodeAt s3.mem base kernel := by rw [m3]; exact hc0
+  obtain ⟨s4, e4, p4, m4, r4⟩ := brStep hp 3 (by rw [kernel_length]; decide) hc3 p3
+    (op := .bltu) (rs1 := T1) (rs2 := S3) (off := BitVec.ofInt 12 (2 * (52 - 3 : Int))) rfl (k' := 52) (by decide) hlen
+  have tk : taken .bltu (s3.reg T1) (s3.reg S3) = true := by
+    rw [bt, b3]; simp only [taken, BitVec.ult, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt (word_lt F0 _), decide_eq_true_eq]; exact hgt
+  rw [tk] at p4; simp only [↓reduceIte] at p4
+  have hc4 : CodeAt s4.mem base kernel := by rw [m4]; exact hc3
+  have e5 := run_line hp [.opi .addi A0 0 1, .opi .addi T0 0 1] (by decide) 52 s4 (by decide)
+    (by rw [kernel_length]; decide) hc4 p4 hlen
+  generalize hs5 : s4.line [.opi .addi A0 0 1, .opi .addi T0 0 1] = s5 at e5
+  have g0 : s5.reg A0 = 1 := by rw [← hs5]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, T0]
+  have g5 : s5.reg T0 = 1 := by rw [← hs5]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, T0]
+  have p5 : s5.pc = base + BitVec.ofNat 32 (4 * (52 + 2)) := by rw [← hs5]; exact line_pc_at _ p4 (by decide)
+  have hc5 : CodeAt s5.mem base kernel := by rw [← hs5, line_mem]; exact hc4
+  have e6 := haltStep hp 54 (by rw [kernel_length]; decide) hc5 p5 rfl g5 hlen 0
+  have e5' : run env 2 s4 = .running s5 := e5
+  refine ⟨s5, ?_, by rw [← hs5, line_mem, m4, m3]⟩
+  rw [show 7 = 3 + (1 + (2 + (0 + 1))) by rfl, run_add_running e3, run_add_running e4, run_add_running e5', e6, g0]
+
+/-- **A call of ADD**: `a0`, `a1` set from `s0`, `jal ra`; back three
+instructions on with the field at `X` holding `a + b`. -/
+theorem call_add (hp : Placed env base) {M0 : Word → Byte} {F0 F : Nat → Byte} (hc0 : CodeAt M0 base kernel)
+    (hv0 : View M0 base F0) (hFc : ∀ o, o < 4 * 70 → F o = F0 o) {X Y a b : Nat} (hf : Fields X Y)
+    (ha : Holds F X a) (hb : Holds F Y b) {xi yi : BitVec 12} (hxi : xi.signExtend 32 = BitVec.ofNat 32 X)
+    (hyi : yi.signExtend 32 = BitVec.ofNat 32 Y) {k : Nat} (hk : k + 3 ≤ 70)
+    (hseg : (kernel.drop k).take 2 = [.opi .addi A0 S0 xi, .opi .addi A1 S0 yi]) {off : BitVec 20}
+    (hj : kernel.getD (k + 2) .ecall = .jal 1 off)
+    (hoff : BitVec.ofNat 32 (4 * (k + 2)) + (off ++ 0#1).signExtend 32 = BitVec.ofNat 32 (4 * 55))
+    {s : Machine} (hpc : s.pc = base + BitVec.ofNat 32 (4 * k)) (hmem : View s.mem base F) (hs0 : s.reg S0 = base) :
+    ∃ s', run env (3 + ADD) s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * (k + 3))
+      ∧ View s'.mem base (setF F X (a + b))
+      ∧ ∀ r, r ≠ T1 → r ≠ A4 → r ≠ A0 → r ≠ A1 → r ≠ T2 → r ≠ A3 → r ≠ RA → s'.reg r = s.reg r := by
+  have hcode : CodeAt s.mem base kernel := code_of_view hp hc0 hv0 hmem hFc
+  have e1 := run_line hp [.opi .addi A0 S0 xi, .opi .addi A1 S0 yi] rfl k s hseg
+    (by simp only [List.length_cons, List.length_nil, kernel_length]; omega) hcode hpc hlen
+  generalize hs1 : s.line [.opi .addi A0 S0 xi, .opi .addi A1 S0 yi] = s1 at e1
+  have g0 : s1.reg A0 = base + BitVec.ofNat 32 X := by
+    have : s1.reg A0 = s.reg S0 + xi.signExtend 32 := by
+      rw [← hs1]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, S0]
+    rw [this, hs0, hxi]
+  have g1 : s1.reg A1 = base + BitVec.ofNat 32 Y := by
+    have : s1.reg A1 = s.reg S0 + yi.signExtend 32 := by
+      rw [← hs1]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, S0]
+    rw [this, hs0, hyi]
+  have k1 : ∀ r, r ≠ A0 → r ≠ A1 → s1.reg r = s.reg r := fun r a b => by
+    rw [← hs1]; refine line_keeps _ _ r (fun i hi => ?_)
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+    rcases hi with rfl | rfl <;> simp [rdOf] <;> first | exact fun e => a e.symm | exact fun e => b e.symm
+  have p1 : s1.pc = base + BitVec.ofNat 32 (4 * (k + 2)) := by
+    rw [← hs1]; exact line_pc_at _ hpc (by simp only [List.length_cons, List.length_nil]; omega)
+  have hc1 : CodeAt s1.mem base kernel := by rw [← hs1, line_mem]; exact hcode
+  obtain ⟨s2, e2, p2, m2, r2⟩ := callStep hp (k + 2) (by rw [kernel_length]; omega) hc1 p1 hj hoff hlen
+  obtain ⟨s3, e3, p3, mv3, k3⟩ := add_run hp hc0 hv0 hFc hf ha hb p2
+    (by rw [m2, ← hs1, line_mem]; exact hmem) (by rw [r2]; simp only [show A0 ≠ 1 by decide, ↓reduceIte, g0])
+    (by rw [r2]; simp only [show A1 ≠ 1 by decide, ↓reduceIte, g1]) (ret := k + 3) (by rw [r2]; simp [RA])
+    (by omega)
+  have e1' : run env 2 s = .running s1 := e1
+  refine ⟨s3, ?_, p3, mv3, fun r a b c d e f g => ?_⟩
+  · rw [show 3 + ADD = 2 + (1 + ADD) by rfl, run_add_running e1', run_add_running e2, e3]
+  · rw [k3 r a b c d e f, r2]
+    simp only [show ¬ r = 1 from g, ↓reduceIte]
+    exact k1 r c d
+
+/-- `srli t1, s3, sh` and `sb t1, imm(s0)`: byte `c` one byte of the counter's. -/
+theorem shift_sb (hp : Placed env base) {M0 : Word → Byte} {F0 F : Nat → Byte} (hc0 : CodeAt M0 base kernel)
+    (hv0 : View M0 base F0) (hFc : ∀ o, o < 4 * 70 → F o = F0 o) {k : Nat} (hk : k + 2 ≤ 70)
+    {sh : BitVec 5} {imm : BitVec 12} (hseg : (kernel.drop k).take 1 = [.sh .srli T1 S3 sh])
+    (hsb : kernel.getD (k + 1) .ecall = .st .sb S0 T1 imm) {j c : Nat} (hsh : sh.toNat = j)
+    (himm : imm.signExtend 32 = BitVec.ofNat 32 c) (hc : c < 0x10000) {cnt : Nat} (hcnt : cnt < 2 ^ 32)
+    {s : Machine} (hpc : s.pc = base + BitVec.ofNat 32 (4 * k)) (hmem : View s.mem base F)
+    (hs0 : s.reg S0 = base) (hs3 : s.reg S3 = BitVec.ofNat 32 cnt) :
+    ∃ s', run env 2 s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 (4 * (k + 2))
+      ∧ View s'.mem base (setB F c (BitVec.ofNat 8 (cnt / 2 ^ j))) ∧ ∀ r, r ≠ T1 → s'.reg r = s.reg r := by
+  have hcode : CodeAt s.mem base kernel := code_of_view hp hc0 hv0 hmem hFc
+  have e1 := run_line hp [.sh .srli T1 S3 sh] rfl k s hseg
+    (by simp only [List.length_cons, List.length_nil, kernel_length]; omega) hcode hpc hlen
+  generalize hs1 : s.line [.sh .srli T1 S3 sh] = s1 at e1
+  have t1 : s1.reg T1 = s.reg S3 >>> sh.toNat := by
+    rw [← hs1]; simp [Machine.line, Machine.alu, reg_setReg, shiftI, T1, S3]
+  have k1 : ∀ r, r ≠ T1 → s1.reg r = s.reg r := fun r a => by
+    rw [← hs1]; refine line_keeps _ _ r (fun i hi => ?_)
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+    rcases hi with rfl; simp [rdOf]; exact fun e => a e.symm
+  have p1 : s1.pc = base + BitVec.ofNat 32 (4 * (k + 1)) := by
+    rw [← hs1]; exact line_pc_at _ hpc (by simp only [List.length_cons, List.length_nil]; omega)
+  have ms1 : s1.mem = s.mem := by rw [← hs1, line_mem]
+  obtain ⟨s2, e2, p2, m2, r2⟩ := sbStep hp (k + 1) (by rw [kernel_length]; omega) (by rw [ms1]; exact hcode) p1
+    hsb c (by rw [k1 S0 (by decide), hs0, himm]) hc hlen
+  have e1' : run env 1 s = .running s1 := e1
+  refine ⟨s2, by rw [show 2 = 1 + 1 by rfl, run_add_running e1', e2], p2, ?_, fun r a => by rw [r2, k1 r a]⟩
+  rw [m2, ms1, t1, hs3, BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hcnt,
+    Nat.shiftRight_eq_div_pow, hsh]
+  exact view_writeByte hp.fit hmem hc _
+
+theorem setB_low {F F0 : Nat → Byte} (hF : ∀ o, o < 4 * 70 → F o = F0 o) {c : Nat} (hc : 4 * 70 ≤ c) (v : Byte) :
+    ∀ o, o < 4 * 70 → setB F c v o = F0 o := fun o ho => by
+  simp only [setB, show ¬ o = c by omega, ↓reduceIte]; exact hF o ho
+
+/-! ## The specification of a Generate
+
+Memory afterwards, from the image's bytes `F0`, the state `v`, `c`, `cnt`
+it held, and `m` blocks asked for: the `m` blocks; data at `v + m`; H at
+0x517; the counter's bytes at 0x573; V the new V; the counter word one more.
+Everything else is the image's. -/
+
+/-- Hash(0x03 ‖ V), §10.1.1.4 step 3. -/
+def hpre (env : Env) (v : Nat) : Fin 32 → Byte := env.hash (BitVec.ofNat 8 3 :: digs v)
+
+/-- `F` with the counter's 4 bytes, big-endian, at the end of its field. -/
+def setT (F : Nat → Byte) (n : Nat) : Nat → Byte := fun o =>
+  if CB + 51 ≤ o ∧ o < CB + 55 then BitVec.ofNat 8 (n / 256 ^ (CB + 54 - o)) else F o
+
+/-- The four bytes `sb` puts there are the counter's. -/
+theorem setT_bytes (G : Nat → Byte) (n : Nat) :
+    setB (setB (setB (setB G (CB + 51) (BitVec.ofNat 8 (n / 2 ^ 24))) (CB + 52) (BitVec.ofNat 8 (n / 2 ^ 16)))
+      (CB + 53) (BitVec.ofNat 8 (n / 2 ^ 8))) (CB + 54) (BitVec.ofNat 8 n) = setT G n := by
+  funext o; simp only [setB, setT, CB]
+  by_cases h0 : o = 0x540 + 54
+  · subst h0; simp
+  by_cases h1 : o = 0x540 + 53
+  · subst h1; simp
+  by_cases h2 : o = 0x540 + 52
+  · subst h2; simp
+  by_cases h3 : o = 0x540 + 51
+  · subst h3; simp
+  simp only [h0, h1, h2, h3, ↓reduceIte, show ¬ (0x540 + 51 ≤ o ∧ o < 0x540 + 55) by omega]
+
+theorem setF_setT (G : Nat → Byte) (a b n : Nat) : setF (setT (setF G VV a) n) VV b = setF (setT G n) VV b := by
+  funext o; simp only [setF, setT]
+  by_cases h : VV ≤ o ∧ o < VV + 55
+  · simp only [h, and_self, ↓reduceIte]
+  · simp only [h, ↓reduceIte]
+
+/-- **V's next value**, §10.1.1.4 step 4: V + H + C + reseed_counter. A field
+holds it mod 2^440. -/
+def vnext (env : Env) (v c cnt : Nat) : Nat := v + hnum (hpre env v) + c + cnt
+
+def after (env : Env) (F0 : Nat → Byte) (v c cnt m : Nat) : Nat → Byte :=
+  setW (setF (setT (setH (setF (blocks env F0 v m) DATA (v + m)) (HB + 23) (hpre env v)) cnt) VV (vnext env v c cnt))
+    (PAR + 8) (cnt + 1)
+
+/-- Instructions to the halt, for `m` blocks. -/
+def COST (m : Nat) : Nat := 2030 + 566 * m
+
+theorem generate_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F0 : Nat → Byte}
+    (hv0 : View s.mem base F0) (hc0 : CodeAt s.mem base kernel)
+    {v c m cnt : Nat} (hV : Holds F0 VV v) (hC : Holds F0 CC c) (hone : Holds F0 ONE 1)
+    (hpre3 : F0 PRE = 3) (hhb : ∀ i, i < 23 → F0 (HB + i) = 0) (hcb : ∀ i, i < 51 → F0 (CB + i) = 0)
+    (hm : word F0 PAR = m) (hcnt : word F0 (PAR + 8) = cnt) (hm1 : 1 ≤ m) (hm2 : OUT + 32 * m < 0x10000)
+    (hiv : word F0 (PAR + 4) < 2 ^ 32 - 1) (hok : cnt ≤ word F0 (PAR + 4)) :
+    ∃ s', run env (COST m) s = .halted 0 s' ∧ View s'.mem base (after env F0 v c cnt m) := by
+  obtain ⟨s3, e3, p3, m3, b0, bt, b3, k3⟩ := head_run hp hpc hv0 hc0
+  have hc3 : CodeAt s3.mem base kernel := by rw [m3]; exact hc0
+  obtain ⟨s4, e4, p4, m4, r4⟩ := brStep hp 3 (by rw [kernel_length]; decide) hc3 p3
+    (op := .bltu) (rs1 := T1) (rs2 := S3) (off := BitVec.ofInt 12 (2 * (52 - 3 : Int))) rfl (k' := 52) (by decide) hlen
+  have tk : taken .bltu (s3.reg T1) (s3.reg S3) = false := by
+    rw [bt, b3, hcnt]; simp only [taken, BitVec.ult, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt (word_lt F0 _), Nat.mod_eq_of_lt (show cnt < 2 ^ 32 by rw [← hcnt]; exact word_lt _ _),
+      decide_eq_false_iff_not, Nat.not_lt]; exact hok
+  rw [tk] at p4; simp only [Bool.false_eq_true, ↓reduceIte] at p4
+  have mv4 : View s4.mem base F0 := by rw [m4, m3]; exact hv0
+  have hc4 : CodeAt s4.mem base kernel := by rw [m4]; exact hc3
+  -- COPY
+  have e5 := run_line hp [.opi .addi A0 S0 0x440, .opi .addi A1 S0 0x4c0, .opi .addi T2 0 55] (by decide) 4 s4
+    (by decide) (by rw [kernel_length]; decide) hc4 p4 hlen
+  generalize hs5 : s4.line [.opi .addi A0 S0 0x440, .opi .addi A1 S0 0x4c0, .opi .addi T2 0 55] = s5 at e5
+  have s40 : s4.reg S0 = base := by rw [r4, b0]
+  have hC0 : CInv base F0 0 s5.reg s5 := by
+    refine ⟨by rw [← hs5]; exact line_pc_at _ p4 (by decide), ?_, ?_, ?_, ?_, fun _ _ _ _ _ => rfl⟩
+    · rw [← hs5, line_mem]; exact mv4.congr (fun o _ => by simp only [copyView, Nat.add_zero]; split <;> first | omega | rfl)
+    · have : s5.reg A0 = s4.reg S0 + (0x440 : BitVec 12).signExtend 32 := by
+        rw [← hs5]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, T2, S0]
+      rw [this, s40]; rfl
+    · have : s5.reg A1 = s4.reg S0 + (0x4c0 : BitVec 12).signExtend 32 := by
+        rw [← hs5]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, T2, S0]
+      rw [this, s40]; rfl
+    · rw [← hs5]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, T2, S0]
+  have hFc0 : ∀ o, o < 4 * 70 → F0 o = F0 o := fun _ _ => rfl
+  obtain ⟨s6, e6, h6⟩ := copy_loop hp hc0 hv0 hFc0 hC0 55 (Nat.le_refl _)
+  have p6 : s6.pc = base + BitVec.ofNat 32 (4 * 13) := by rw [h6.pc]; simp
+  have mv6 := h6.mem
+  rw [copy_done F0 hV] at mv6
+  have k5 : ∀ r, r ≠ A0 → r ≠ A1 → r ≠ T2 → s5.reg r = s4.reg r := fun r a b c => by
+    rw [← hs5]; refine line_keeps _ _ r (fun i hi => ?_)
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+    rcases hi with rfl | rfl | rfl <;> simp [rdOf] <;>
+      first | exact fun e => a e.symm | exact fun e => b e.symm | exact fun e => c e.symm
+  have b6 : ∀ r, r ≠ T1 → r ≠ A0 → r ≠ A1 → r ≠ T2 → s6.reg r = s3.reg r := fun r a b c d => by
+    rw [h6.kept r a b c d, k5 r b c d, r4]
+  have hlowD : ∀ o, o < 4 * 70 → setF F0 DATA v o = F0 o := fun o ho => by
+    simp only [setF, DATA, show ¬ (0x4c0 ≤ o ∧ o < 0x4c0 + 55) by omega, ↓reduceIte]
+  have hc6 : CodeAt s6.mem base kernel := code_of_view hp hc0 hv0 mv6 hlowD
+  -- s1 = m, s2 = the first block's place
+  obtain ⟨s7, e7, p7, m7, r7⟩ := loadStep hp 13 (by rw [kernel_length]; decide) hc6 p6
+    (rd := S1) (rs1 := S0) (imm := 0x400) rfl PAR
+    (by rw [b6 S0 (by decide) (by decide) (by decide) (by decide), b0,
+      show (0x400 : BitVec 12).signExtend 32 = BitVec.ofNat 32 PAR by decide]) (by decide) (by decide) hlen
+  have hc7 : CodeAt s7.mem base kernel := by rw [m7]; exact hc6
+  have e8 := run_line hp [.opi .addi S2 S0 0x600] (by decide) 14 s7 (by decide) (by rw [kernel_length]; decide) hc7 p7 hlen
+  generalize hs8 : s7.line [.opi .addi S2 S0 0x600] = s8 at e8
+  have hG0 : GInv env base F0 v m 0 s8.reg s8 := by
+    refine ⟨by rw [← hs8, line_pc_at _ p7 (by decide)]; simp [show 0 < m by omega], ?_, ?_, ?_, fun _ _ _ _ _ _ _ _ _ _ _ _ => rfl⟩
+    · rw [← hs8, line_mem, m7]; simp only [blocks, Nat.add_zero]; exact mv6
+    · have : s8.reg S1 = s7.reg S1 := by rw [← hs8]; simp [Machine.line, Machine.alu, reg_setReg, aluI, S1, S2, S0]
+      rw [this, reg_wrote r7 (by decide), readLE_view hp.fit mv6 (by decide)]
+      have : word (setF F0 DATA v) PAR = word F0 PAR := by
+        simp only [word, setF, DATA, PAR, show ¬ (0x4c0 ≤ 0x400 ∧ 0x400 < 0x4c0 + 55) by decide,
+          show ¬ (0x4c0 ≤ 0x400 + 1 ∧ 0x400 + 1 < 0x4c0 + 55) by decide,
+          show ¬ (0x4c0 ≤ 0x400 + 2 ∧ 0x400 + 2 < 0x4c0 + 55) by decide,
+          show ¬ (0x4c0 ≤ 0x400 + 3 ∧ 0x400 + 3 < 0x4c0 + 55) by decide, ↓reduceIte]
+      rw [this, hm, Nat.sub_zero]
+    · have : s8.reg S2 = s7.reg S0 + (0x600 : BitVec 12).signExtend 32 := by
+        rw [← hs8]; simp [Machine.line, Machine.alu, reg_setReg, aluI, S2, S0]
+      rw [this, reg_kept r7 (by decide), b6 S0 (by decide) (by decide) (by decide) (by decide), b0]; rfl
+  -- GEN, m times
+  have k8 : ∀ r, r ≠ S2 → s8.reg r = s7.reg r := fun r a => by
+    rw [← hs8]; refine line_keeps _ _ r (fun i hi => ?_)
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+    rcases hi with rfl; simp [rdOf]; exact fun e => a e.symm
+  have s80 : s8.reg S0 = base := by
+    rw [k8 S0 (by decide), reg_kept r7 (by decide), b6 S0 (by decide) (by decide) (by decide) (by decide), b0]
+  have s83 : s8.reg S3 = BitVec.ofNat 32 cnt := by
+    rw [k8 S3 (by decide), reg_kept r7 (by decide), b6 S3 (by decide) (by decide) (by decide) (by decide), b3, hcnt]
+  obtain ⟨s9, e9, h9⟩ := gen_loop hp hc0 hv0 (fun _ _ => rfl) hone hm2 s80 hG0 m (Nat.le_refl _)
+  have p9 : s9.pc = base + BitVec.ofNat 32 (4 * 26) := by rw [h9.pc]; simp
+  have k9 : ∀ r, r ≠ T1 → r ≠ A4 → r ≠ A0 → r ≠ A1 → r ≠ A2 → r ≠ T2 → r ≠ A3 → r ≠ T0 → r ≠ RA → r ≠ S1 → r ≠ S2 →
+      s9.reg r = s8.reg r := h9.kept
+  have s90 : s9.reg S0 = base := by
+    rw [k9 S0 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide), s80]
+  have s93 : s9.reg S3 = BitVec.ofNat 32 cnt := by
+    rw [k9 S3 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide), s83]
+  generalize hFm : setF (blocks env F0 v m) DATA (v + m) = Fm
+  have mv9 : View s9.mem base Fm := by rw [← hFm]; exact h9.mem
+  have hFm0 : ∀ o, o < OUT → ¬ (DATA ≤ o ∧ o < DATA + 55) → Fm o = F0 o := fun o h1 h2 => by
+    rw [← hFm]; simp only [setF, h2, ↓reduceIte]; exact blocks_low F0 v m o h1
+  have hFmc : ∀ o, o < 4 * 70 → Fm o = F0 o := fun o ho => hFm0 o (by simp only [OUT]; omega)
+    (by simp only [DATA]; omega)
+  have hc9 : CodeAt s9.mem base kernel := code_of_view hp hc0 hv0 mv9 hFmc
+  -- H = Hash(0x03 ‖ V), to 0x517
+  have e10 := run_line hp [.opi .addi A0 S0 0x43f, .opi .addi A1 0 56, .opi .addi A2 S0 0x517, .opi .addi T0 0 2]
+    (by decide) 26 s9 (by decide) (by rw [kernel_length]; decide) hc9 p9 hlen
+  generalize hs10 : s9.line [.opi .addi A0 S0 0x43f, .opi .addi A1 0 56, .opi .addi A2 S0 0x517, .opi .addi T0 0 2]
+    = s10 at e10
+  have q0 : s10.reg A0 = base + BitVec.ofNat 32 PRE := by
+    have : s10.reg A0 = s9.reg S0 + (0x43f : BitVec 12).signExtend 32 := by
+      rw [← hs10]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, A2, T0, S0]
+    rw [this, s90]; rfl
+  have q1 : s10.reg A1 = BitVec.ofNat 32 56 := by
+    rw [← hs10]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, A2, T0, S0]
+  have q2 : s10.reg A2 = base + BitVec.ofNat 32 (HB + 23) := by
+    have : s10.reg A2 = s9.reg S0 + (0x517 : BitVec 12).signExtend 32 := by
+      rw [← hs10]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, A2, T0, S0]
+    rw [this, s90]; rfl
+  have q3 : s10.reg T0 = 2 := by
+    rw [← hs10]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, A1, A2, T0, S0]
+  have k10 : ∀ r, r ≠ A0 → r ≠ A1 → r ≠ A2 → r ≠ T0 → s10.reg r = s9.reg r := fun r a b c d => by
+    rw [← hs10]; refine line_keeps _ _ r (fun i hi => ?_)
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+    rcases hi with rfl | rfl | rfl | rfl <;> simp [rdOf] <;>
+      first | exact fun e => a e.symm | exact fun e => b e.symm | exact fun e => c e.symm | exact fun e => d e.symm
+  have p10 : s10.pc = base + BitVec.ofNat 32 (4 * (26 + 4)) := by rw [← hs10]; exact line_pc_at _ p9 (by decide)
+  have ms10 : s10.mem = s9.mem := by rw [← hs10, line_mem]
+  have hrd : readBytes s10.mem (s10.reg A0) (s10.reg A1).toNat = BitVec.ofNat 8 3 :: digs v := by
+    rw [q0, q1, BitVec.toNat_ofNat, ms10, readBytes_view hp.fit mv9 PRE (by decide), List.range_succ_eq_map,
+      List.map_cons, List.map_map, Nat.add_zero, hFm0 PRE (by decide) (by decide), hpre3, digs]
+    congr 1
+    apply List.map_congr_left; intro d hd
+    have hd' := List.mem_range.mp hd
+    simp only [Function.comp]
+    rw [show PRE + (d + 1) = VV + d by simp only [PRE, VV]; omega,
+      hFm0 _ (by simp only [VV, OUT]; omega) (by simp only [VV, DATA]; omega), hV d hd']
+  have e11 := stepK (prog := kernel) hp 30 (by rw [kernel_length]; decide) (by rw [ms10]; exact hc9) p10 rfl
+    (exec_hashb (env := env) (s := s10) q3
+      (by rw [q0, q1, BitVec.toNat_ofNat]; exact ok_off hp _ _ (by decide) (by decide))
+      (by rw [q2]; exact ok_off hp _ _ (by decide) (by decide))) 0 hlen
+  rw [run_zero] at e11
+  generalize hs11 : ({ s10 with mem := writeBytes s10.mem (s10.reg A2) (env.hash (readBytes s10.mem (s10.reg A0) (s10.reg A1).toNat)) } : Machine).next = s11 at e11
+  have p11 : s11.pc = base + BitVec.ofNat 32 (4 * 31) := by
+    rw [← hs11, next_pc]; simp only; rw [p10]; exact pc_next hp.fit _ (by decide)
+  have mv11 : View s11.mem base (setH Fm (HB + 23) (hpre env v)) := by
+    rw [← hs11]; simp only [next_mem]; rw [hrd, q2, ms10]
+    exact view_writeBytes hp.fit mv9 (by decide) _
+  have r11 : ∀ r, s11.reg r = s10.reg r := fun r => by rw [← hs11]; rfl
+  have s110 : s11.reg S0 = base := by rw [r11, k10 S0 (by decide) (by decide) (by decide) (by decide), s90]
+  have s113 : s11.reg S3 = BitVec.ofNat 32 cnt := by
+    rw [r11, k10 S3 (by decide) (by decide) (by decide) (by decide), s93]
+  generalize hG1 : setH Fm (HB + 23) (hpre env v) = G1 at mv11
+  have hG1c : ∀ o, o < 0x517 → G1 o = Fm o := fun o ho => by
+    rw [← hG1]; simp only [setH, HB, show ¬ (0x500 + 23 ≤ o ∧ o < 0x500 + 23 + 32) by omega, ↓reduceDIte]
+  have hG1lo : ∀ o, o < 0x517 → ¬ (DATA ≤ o ∧ o < DATA + 55) → G1 o = F0 o := fun o h1 h2 => by
+    rw [hG1c o h1, hFm0 o (by simp only [OUT]; omega) h2]
+  -- V += H
+  have hVv : Holds G1 VV v := fun i hi => by
+    rw [hG1lo _ (by simp only [VV]; omega) (by simp only [VV, DATA]; omega)]; exact hV i hi
+  have hHB : Holds G1 HB (hnum (hpre env v)) := holds_hash
+    (fun i hi => by rw [hG1lo _ (by simp only [HB]; omega) (by simp only [HB, DATA]; omega)]; exact hhb i hi)
+    (fun d hd => by
+      rw [← hG1]; simp only [setH, show HB + 23 ≤ HB + 23 + d ∧ HB + 23 + d < HB + 23 + 32 by omega, and_self,
+        ↓reduceDIte, Nat.add_sub_cancel_left])
+  have hG1code : ∀ o, o < 4 * 70 → G1 o = F0 o := fun o ho =>
+    hG1lo o (by omega) (by simp only [DATA]; omega)
+  obtain ⟨s12, e12, p12, mv12, k12⟩ := call_add hp hc0 hv0 hG1code ⟨by decide, by decide, Or.inl (by decide)⟩
+    hVv hHB (xi := 0x440) (yi := 0x500) (by decide) (by decide) (k := 31) (by decide) (by decide)
+    (off := BitVec.ofInt 20 (2 * (55 - 33 : Int))) rfl (by decide) p11 mv11 s110
+  have s120 : s12.reg S0 = base := by
+    rw [k12 S0 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), s110]
+  have s123 : s12.reg S3 = BitVec.ofNat 32 cnt := by
+    rw [k12 S3 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), s113]
+  -- V += C
+  have hCc : Holds (setF G1 VV (v + hnum (hpre env v))) CC c := fun i hi => by
+    simp only [setF, VV, CC, show ¬ (0x440 ≤ 0x480 + i ∧ 0x480 + i < 0x440 + 55) by omega, ↓reduceIte]
+    rw [hG1lo _ (by omega) (by simp only [DATA]; omega)]; exact hC i hi
+  obtain ⟨s13, e13, p13, mv13, k13⟩ := call_add hp hc0 hv0
+    (fun o ho => by simp only [setF, VV, show ¬ (0x440 ≤ o ∧ o < 0x440 + 55) by omega, ↓reduceIte]; exact hG1code o ho)
+    ⟨by decide, by decide, Or.inl (by decide)⟩ (setF_holds _ _ _) hCc (xi := 0x440) (yi := 0x480) (by decide) (by decide)
+    (k := 34) (by decide) (by decide) (off := BitVec.ofInt 20 (2 * (55 - 36 : Int))) rfl (by decide)
+    (by rw [p12]) mv12 s120
+  rw [setF_setF] at mv13
+  have s130 : s13.reg S0 = base := by
+    rw [k13 S0 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), s120]
+  have s133 : s13.reg S3 = BitVec.ofNat 32 cnt := by
+    rw [k13 S3 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), s123]
+  -- the counter's bytes, big-endian, at 0x573
+  have hcnt32 : cnt < 2 ^ 32 := hcnt ▸ word_lt _ _
+  generalize hG2 : setF G1 VV (v + hnum (hpre env v) + c) = G2 at mv13
+  have hG2c : ∀ o, o < 4 * 70 → G2 o = F0 o := fun o ho => by
+    rw [← hG2]; simp only [setF, VV, show ¬ (0x440 ≤ o ∧ o < 0x440 + 55) by omega, ↓reduceIte]; exact hG1code o ho
+  obtain ⟨s14, e14, p14, mv14, k14⟩ := shift_sb hp hc0 hv0 hG2c (k := 37) (by decide) (sh := 24) (imm := 0x573)
+    rfl rfl (c := CB + 51) rfl (by decide) (by decide) hcnt32 (by rw [p13]) mv13 s130 s133
+  obtain ⟨s15, e15, p15, mv15, k15⟩ := shift_sb hp hc0 hv0 (setB_low hG2c (by decide) _) (k := 39) (by decide)
+    (sh := 16) (imm := 0x574) rfl rfl (c := CB + 52) rfl (by decide) (by decide) hcnt32 p14 mv14
+    (by rw [k14 S0 (by decide), s130]) (by rw [k14 S3 (by decide), s133])
+  obtain ⟨s16, e16, p16, mv16, k16⟩ := shift_sb hp hc0 hv0 (setB_low (setB_low hG2c (by decide) _) (by decide) _)
+    (k := 41) (by decide) (sh := 8) (imm := 0x575) rfl rfl (c := CB + 53) rfl (by decide) (by decide) hcnt32 p15 mv15
+    (by rw [k15 S0 (by decide), k14 S0 (by decide), s130]) (by rw [k15 S3 (by decide), k14 S3 (by decide), s133])
+  have s160 : s16.reg S0 = base := by rw [k16 S0 (by decide), k15 S0 (by decide), k14 S0 (by decide), s130]
+  have s163 : s16.reg S3 = BitVec.ofNat 32 cnt := by
+    rw [k16 S3 (by decide), k15 S3 (by decide), k14 S3 (by decide), s133]
+  have hc16 : CodeAt s16.mem base kernel := code_of_view hp hc0 hv0 mv16
+    (setB_low (setB_low (setB_low hG2c (by decide) _) (by decide) _) (by decide) _)
+  obtain ⟨s17, e17, p17, m17, r17⟩ := sbStep hp 43 (by rw [kernel_length]; decide) hc16 p16
+    (rs1 := S0) (rs2 := S3) (imm := 0x576) rfl (CB + 54) (by rw [s160]; rfl) (by decide) hlen
+  have mv17 : View s17.mem base (setT G2 cnt) := by
+    rw [m17, s163, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hcnt32, ← setT_bytes]
+    exact view_writeByte hp.fit mv16 (by decide) _
+  -- V += the counter
+  have hTc : ∀ o, o < 4 * 70 → setT G2 cnt o = F0 o := fun o ho => by
+    simp only [setT, CB, show ¬ (0x540 + 51 ≤ o ∧ o < 0x540 + 55) by omega, ↓reduceIte]; exact hG2c o ho
+  have hTV : Holds (setT G2 cnt) VV (v + hnum (hpre env v) + c) := fun i hi => by
+    simp only [setT, CB, VV, show ¬ (0x540 + 51 ≤ 0x440 + i ∧ 0x440 + i < 0x540 + 55) by omega, ↓reduceIte]
+    rw [← hG2]; exact setF_holds G1 VV _ i hi
+  have hTC : Holds (setT G2 cnt) CB cnt := holds_word hcnt32
+    (fun i hi => by
+      rw [← hG2, ← hG1]
+      simp only [setT, setF, setH, CB, VV, HB, show ¬ (0x540 + 51 ≤ 0x540 + i ∧ 0x540 + i < 0x540 + 55) by omega,
+        show ¬ (0x440 ≤ 0x540 + i ∧ 0x540 + i < 0x440 + 55) by omega,
+        show ¬ (0x500 + 23 ≤ 0x540 + i ∧ 0x540 + i < 0x500 + 23 + 32) by omega, ↓reduceIte, ↓reduceDIte]
+      rw [hFm0 _ (by simp only [OUT]; omega) (by simp only [DATA]; omega)]; exact hcb i hi)
+    (fun d hd => by
+      simp only [setT, show CB + 51 ≤ CB + 51 + d ∧ CB + 51 + d < CB + 55 by omega, and_self, ↓reduceIte,
+        show CB + 54 - (CB + 51 + d) = 3 - d by omega])
+  have s170 : s17.reg S0 = base := by rw [r17, s160]
+  obtain ⟨s18, e18, p18, mv18, k18⟩ := call_add hp hc0 hv0 hTc ⟨by decide, by decide, Or.inl (by decide)⟩
+    hTV hTC (xi := 0x440) (yi := 0x540) (by decide) (by decide) (k := 44) (by decide) (by decide)
+    (off := BitVec.ofInt 20 (2 * (55 - 46 : Int))) rfl (by decide) p17 mv17 s170
+  have s180 : s18.reg S0 = base := by
+    rw [k18 S0 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), s170]
+  have s183 : s18.reg S3 = BitVec.ofNat 32 cnt := by
+    rw [k18 S3 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide), r17, s163]
+  have hc18 : CodeAt s18.mem base kernel := code_of_view hp hc0 hv0 mv18 (fun o ho => by
+    simp only [setF, VV, show ¬ (0x440 ≤ o ∧ o < 0x440 + 55) by omega, ↓reduceIte]; exact hTc o ho)
+  -- the counter one more, stored
+  have e19 := run_line hp [.opi .addi S3 S3 1] (by decide) 47 s18 (by decide) (by rw [kernel_length]; decide) hc18 p18 hlen
+  generalize hs19 : s18.line [.opi .addi S3 S3 1] = s19 at e19
+  have s193 : s19.reg S3 = BitVec.ofNat 32 (cnt + 1) := by
+    have : s19.reg S3 = s18.reg S3 + (1 : BitVec 12).signExtend 32 := by
+      rw [← hs19]; simp [Machine.line, Machine.alu, reg_setReg, aluI, S3]
+    rw [this, s183]; apply BitVec.eq_of_toNat_eq; simp [BitVec.toNat_add]
+  have s190 : s19.reg S0 = s18.reg S0 := by rw [← hs19]; simp [Machine.line, Machine.alu, reg_setReg, aluI, S3, S0]
+  have p19 : s19.pc = base + BitVec.ofNat 32 (4 * (47 + 1)) := by rw [← hs19]; exact line_pc_at _ p18 (by decide)
+  have ms19 : s19.mem = s18.mem := by rw [← hs19, line_mem]
+  obtain ⟨s20, e20, p20, m20, r20⟩ := storeStep hp 48 (by rw [kernel_length]; decide) (by rw [ms19]; exact hc18) p19
+    (rs1 := S0) (rs2 := S3) (imm := 0x408) rfl (PAR + 8) (by rw [s190, s180]; rfl) (by decide) (by decide) hlen
+  have hcnt1 : cnt + 1 < 2 ^ 32 := by omega
+  have mv20 : View s20.mem base (setW (setF (setT G2 cnt) VV (v + hnum (hpre env v) + c + cnt)) (PAR + 8) (cnt + 1)) := by
+    rw [m20, ms19, s193, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hcnt1]
+    exact view_writeLE hp.fit mv18 (by decide) _
+  -- HALT 0
+  have hc20 : CodeAt s20.mem base kernel := code_of_view hp hc0 hv0 mv20 (fun o ho => by
+    simp only [setW, setF, PAR, VV, show ¬ (0x400 + 8 ≤ o ∧ o < 0x400 + 8 + 4) by omega,
+      show ¬ (0x440 ≤ o ∧ o < 0x440 + 55) by omega, ↓reduceIte]; exact hTc o ho)
+  have e21 := run_line hp [.opi .addi A0 0 0, .opi .addi T0 0 1] (by decide) 49 s20 (by decide)
+    (by rw [kernel_length]; decide) hc20 p20 hlen
+  generalize hs21 : s20.line [.opi .addi A0 0 0, .opi .addi T0 0 1] = s21 at e21
+  have g0 : s21.reg A0 = 0 := by rw [← hs21]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, T0]
+  have g5 : s21.reg T0 = 1 := by rw [← hs21]; simp [Machine.line, Machine.alu, reg_setReg, aluI, A0, T0]
+  have p21 : s21.pc = base + BitVec.ofNat 32 (4 * (49 + 2)) := by rw [← hs21]; exact line_pc_at _ p20 (by decide)
+  have hc21 : CodeAt s21.mem base kernel := by rw [← hs21, line_mem]; exact hc20
+  have e22 := haltStep hp 51 (by rw [kernel_length]; decide) hc21 p21 rfl g5 hlen 0
+  rw [g0] at e22
+  refine ⟨s21, ?_, ?_⟩
+  · have e5' : run env 3 s4 = .running s5 := e5
+    have e8' : run env 1 s7 = .running s8 := e8
+    have e10' : run env 4 s9 = .running s10 := e10
+    have e19' : run env 1 s18 = .running s19 := e19
+    have e21' : run env 2 s20 = .running s21 := e21
+    rw [show COST m = 3 + (1 + (3 + (6 * 55 + (1 + (1 + (566 * m + (4 + ((0 + 1) + ((3 + ADD) + ((3 + ADD)
+      + (2 + (2 + (2 + (1 + ((3 + ADD) + (1 + (1 + (2 + (0 + 1))))))))))))))))))) by simp only [COST, ADD]; omega,
+      run_add_running e3, run_add_running e4, run_add_running e5', run_add_running e6, run_add_running e7,
+      run_add_running e8', run_add_running e9, run_add_running e10', run_add_running e11, run_add_running e12,
+      run_add_running e13, run_add_running e14, run_add_running e15, run_add_running e16, run_add_running e17,
+      run_add_running e18, run_add_running e19', run_add_running e20, run_add_running e21', e22]
+  · rw [← hs21, line_mem]
+    simp only [after, vnext]; rw [hFm, hG1, ← setF_setT G1 (v + hnum (hpre env v) + c), hG2]; exact mv20
+
+/-! ## What `after` holds -/
+
+/-- Block `j`'s byte `d` is byte `d` of Hash(V + j): Hashgen, §10.1.1.4 step 2. -/
+theorem blocks_out (F : Nat → Byte) (v : Nat) : ∀ m j d, j < m → ∀ (hd : d < 32),
+    blocks env F v m (OUT + 32 * j + d) = env.hash (digs (v + j)) ⟨d, hd⟩ := by
+  intro m
+  induction m with
+  | zero => intro j d hj; omega
+  | succ m ih =>
+    intro j d hj hd
+    simp only [blocks, setH]
+    by_cases hjm : j = m
+    · subst hjm
+      simp only [show OUT + 32 * j ≤ OUT + 32 * j + d ∧ OUT + 32 * j + d < OUT + 32 * j + 32 by omega, and_self,
+        ↓reduceDIte, Nat.add_sub_cancel_left]
+    · simp only [show ¬ (OUT + 32 * m ≤ OUT + 32 * j + d ∧ OUT + 32 * j + d < OUT + 32 * m + 32) by omega,
+        ↓reduceDIte]
+      exact ih j d (by omega) hd
+
+/-- Away from what a Generate writes, `after` is the image. -/
+theorem after_keeps (F0 : Nat → Byte) (v c cnt m : Nat) {o : Nat} (h1 : o < OUT) (h2 : ¬ (DATA ≤ o ∧ o < DATA + 55))
+    (h3 : ¬ (HB + 23 ≤ o ∧ o < HB + 55)) (h4 : ¬ (CB + 51 ≤ o ∧ o < CB + 55)) (h5 : ¬ (VV ≤ o ∧ o < VV + 55))
+    (h6 : ¬ (PAR + 8 ≤ o ∧ o < PAR + 8 + 4)) : after env F0 v c cnt m o = F0 o := by
+  simp only [after, setW, setF, setT, setH, h6, h5, ↓reduceIte, show ¬ (CB + 51 ≤ o ∧ o < CB + 55) from h4,
+    show ¬ (HB + 23 ≤ o ∧ o < HB + 23 + 32) by omega, ↓reduceDIte, h2]
+  exact blocks_low F0 v m o h1
+
+/-- The bytes Generate returns, as `after` holds them. -/
+theorem after_out (F0 : Nat → Byte) (v c cnt : Nat) {m j d : Nat} (hj : j < m) (hd : d < 32) :
+    after env F0 v c cnt m (OUT + 32 * j + d) = env.hash (digs (v + j)) ⟨d, hd⟩ := by
+  simp only [after, setW, setF, setT, setH, PAR, VV, CB, HB, DATA, OUT,
+    show ¬ (0x400 + 8 ≤ 0x600 + 32 * j + d ∧ 0x600 + 32 * j + d < 0x400 + 8 + 4) by omega,
+    show ¬ (0x440 ≤ 0x600 + 32 * j + d ∧ 0x600 + 32 * j + d < 0x440 + 55) by omega,
+    show ¬ (0x540 + 51 ≤ 0x600 + 32 * j + d ∧ 0x600 + 32 * j + d < 0x540 + 55) by omega,
+    show ¬ (0x500 + 23 ≤ 0x600 + 32 * j + d ∧ 0x600 + 32 * j + d < 0x500 + 23 + 32) by omega,
+    show ¬ (0x4c0 ≤ 0x600 + 32 * j + d ∧ 0x600 + 32 * j + d < 0x4c0 + 55) by omega, ↓reduceIte, ↓reduceDIte]
+  exact blocks_out F0 v m j d hj hd
+
+theorem word_setW (F : Nat → Byte) (c : Nat) {n : Nat} (hn : n < 2 ^ 32) : word (setW F c n) c = n := by
+  simp only [word, setW, show c ≤ c ∧ c < c + 4 by omega, show c ≤ c + 1 ∧ c + 1 < c + 4 by omega,
+    show c ≤ c + 2 ∧ c + 2 < c + 4 by omega, show c ≤ c + 3 ∧ c + 3 < c + 4 by omega, and_self, ↓reduceIte,
+    BitVec.toNat_ofNat, Nat.sub_self, Nat.add_sub_cancel_left]
+  simp only [Nat.pow_zero, Nat.div_one, show (256 : Nat) ^ 2 = 65536 by rfl,
+    show (256 : Nat) ^ 3 = 16777216 by rfl, show (2 : Nat) ^ 8 = 256 by rfl]
+  omega
+
+/-! ## From boot -/
+
+/-- The image's bytes, by offset; 0 past its end. -/
+def imgF (img : ByteArray) : Nat → Byte := fun o => if h : o < img.size then BitVec.ofNat 8 (img.get o h).toNat else 0
+
+theorem view_image (img : ByteArray) : View (memOfImage base img) base (imgF img) := by
+  intro o ho; unfold memOfImage imgF; simp only [Ct.off_of base o (by omega)]
+
+/-- An image that begins with the kernel's 280 bytes holds the kernel. -/
+theorem code_of_image (hfit : base.toNat + 0x10000 ≤ 2^32) (img : ByteArray)
+    (hsize : 280 ≤ img.size) (himg : ∀ d (h : d < 280), img.get d (by omega) = bytes.getD d 0) :
+    CodeAt (memOfImage base img) base kernel :=
+  Rv32.code_of_image hfit (by rw [kernel_length]; decide) (toBytes_words kernel) img
+    (by rw [kernel_length]; exact hsize)
+    (fun d h => himg d (by rw [kernel_length] at h; exact h))
+
+/-- **Generate, from boot.** An image holding the kernel and a state (V, C,
+reseed_counter) with the counter at most the interval: `COST m` instructions
+later the kernel halts with 0, the region `after`: Hashgen's `m` blocks at
+0x600 (`after_out`), V the next V, the counter one more. -/
+theorem from_boot (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤ img.size)
+    (himg : ∀ d (h : d < 280), img.get d (by omega) = bytes.getD d 0)
+    {v c m cnt : Nat} (hV : Holds (imgF img) VV v) (hC : Holds (imgF img) CC c) (hone : Holds (imgF img) ONE 1)
+    (hpre3 : imgF img PRE = 3) (hhb : ∀ i, i < 23 → imgF img (HB + i) = 0)
+    (hcb : ∀ i, i < 51 → imgF img (CB + i) = 0)
+    (hm : word (imgF img) PAR = m) (hcnt : word (imgF img) (PAR + 8) = cnt) (hm1 : 1 ≤ m)
+    (hm2 : OUT + 32 * m < 0x10000) (hiv : word (imgF img) (PAR + 4) < 2 ^ 32 - 1)
+    (hok : cnt ≤ word (imgF img) (PAR + 4)) :
+    ∃ s', run env (COST m) (boot env.region img) = .halted 0 s'
+      ∧ View s'.mem base (after env (imgF img) v c cnt m) := by
+  have hpc : (boot env.region img).pc = base := by simp [boot, hp.region]
+  have hmem : (boot env.region img).mem = memOfImage base img := by simp [boot, hp.region]
+  exact generate_run hp hpc (by rw [hmem]; exact view_image img)
+    (by rw [hmem]; exact code_of_image hp.fit img hsize himg) hV hC hone hpre3 hhb hcb hm hcnt hm1 hm2 hiv hok
+
+/-- **Reseed required, from boot**: the counter past the interval, HALT 1
+after seven instructions, the region the image. -/
+theorem reseed_boot (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤ img.size)
+    (himg : ∀ d (h : d < 280), img.get d (by omega) = bytes.getD d 0)
+    (hgt : word (imgF img) (PAR + 4) < word (imgF img) (PAR + 8)) :
+    ∃ s', run env 7 (boot env.region img) = .halted 1 s' ∧ s'.mem = memOfImage base img := by
+  have hpc : (boot env.region img).pc = base := by simp [boot, hp.region]
+  have hmem : (boot env.region img).mem = memOfImage base img := by simp [boot, hp.region]
+  rw [← hmem]
+  exact reseed_run hp hpc (by rw [hmem]; exact view_image img)
+    (by rw [hmem]; exact code_of_image hp.fit img hsize himg) hgt
+
+/-- **The second Generate**, as the shell runs it for NIST's vectors: the
+kernel started again on the region the first left, any registers. It halts
+with 0 after `COST m` more, its blocks Hashgen of the next V, the counter
+two more, as long as one more is still at most the interval. -/
+theorem generate_twice (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤ img.size)
+    (himg : ∀ d (h : d < 280), img.get d (by omega) = bytes.getD d 0)
+    {v c m cnt : Nat} (hV : Holds (imgF img) VV v) (hC : Holds (imgF img) CC c) (hone : Holds (imgF img) ONE 1)
+    (hpre3 : imgF img PRE = 3) (hhb : ∀ i, i < 23 → imgF img (HB + i) = 0)
+    (hcb : ∀ i, i < 51 → imgF img (CB + i) = 0)
+    (hm : word (imgF img) PAR = m) (hcnt : word (imgF img) (PAR + 8) = cnt) (hm1 : 1 ≤ m)
+    (hm2 : OUT + 32 * m < 0x10000) (hiv : word (imgF img) (PAR + 4) < 2 ^ 32 - 1)
+    (hok : cnt + 1 ≤ word (imgF img) (PAR + 4)) {s : Machine} (hs : s.pc = base)
+    (hrun : ∃ s1, run env (COST m) (boot env.region img) = .halted 0 s1 ∧ s.mem = s1.mem) :
+    ∃ s', run env (COST m) s = .halted 0 s'
+      ∧ View s'.mem base (after env (after env (imgF img) v c cnt m) (vnext env v c cnt) c (cnt + 1) m) := by
+  obtain ⟨s1, e1, ms⟩ := hrun
+  obtain ⟨s1', e1', mv1⟩ := from_boot hp img hsize himg hV hC hone hpre3 hhb hcb hm hcnt hm1 hm2 hiv (by omega)
+  rw [e1] at e1'; cases e1'
+  rw [← ms] at mv1
+  have hk : ∀ o, o < OUT → ¬ (DATA ≤ o ∧ o < DATA + 55) → ¬ (HB + 23 ≤ o ∧ o < HB + 55) →
+      ¬ (CB + 51 ≤ o ∧ o < CB + 55) → ¬ (VV ≤ o ∧ o < VV + 55) → ¬ (PAR + 8 ≤ o ∧ o < PAR + 8 + 4) →
+      after env (imgF img) v c cnt m o = imgF img o := fun o a b c' d e f => after_keeps _ v c cnt m a b c' d e f
+  have hcnt32 : cnt < 2 ^ 32 := hcnt ▸ word_lt _ _
+  have hw : ∀ c', c' + 4 ≤ PAR + 8 → word (after env (imgF img) v c cnt m) c' = word (imgF img) c' := by
+    intro c' hc'
+    simp only [word]
+    rw [hk c' (by simp only [OUT, PAR] at *; omega) (by simp only [DATA, PAR] at *; omega)
+        (by simp only [HB, PAR] at *; omega) (by simp only [CB, PAR] at *; omega) (by simp only [VV, PAR] at *; omega)
+        (by omega),
+      hk (c' + 1) (by simp only [OUT, PAR] at *; omega) (by simp only [DATA, PAR] at *; omega)
+        (by simp only [HB, PAR] at *; omega) (by simp only [CB, PAR] at *; omega) (by simp only [VV, PAR] at *; omega)
+        (by omega),
+      hk (c' + 2) (by simp only [OUT, PAR] at *; omega) (by simp only [DATA, PAR] at *; omega)
+        (by simp only [HB, PAR] at *; omega) (by simp only [CB, PAR] at *; omega) (by simp only [VV, PAR] at *; omega)
+        (by omega),
+      hk (c' + 3) (by simp only [OUT, PAR] at *; omega) (by simp only [DATA, PAR] at *; omega)
+        (by simp only [HB, PAR] at *; omega) (by simp only [CB, PAR] at *; omega) (by simp only [VV, PAR] at *; omega)
+        (by omega)]
+  have hcode : ∀ o, o < 4 * 70 → after env (imgF img) v c cnt m o = imgF img o := fun o ho =>
+    hk o (by simp only [OUT]; omega) (by simp only [DATA]; omega) (by simp only [HB]; omega)
+      (by simp only [CB]; omega) (by simp only [VV]; omega) (by simp only [PAR]; omega)
+  have hfield : ∀ X N, Holds (imgF img) X N → X + 55 ≤ HB + 23 ∨ (HB + 55 ≤ X ∧ X + 55 ≤ CB + 51) ∨
+      (CB + 55 ≤ X ∧ X + 55 ≤ OUT) → ¬ (X < VV + 55 ∧ VV < X + 55) → ¬ (X < DATA + 55 ∧ DATA < X + 55) →
+      PAR + 12 ≤ X → Holds (after env (imgF img) v c cnt m) X N := fun X N h hx h1 h2 h3 i hi => by
+    rw [hk (X + i) (by simp only [OUT, HB, CB] at *; omega) (by simp only [DATA] at *; omega)
+      (by simp only [HB, CB, OUT] at *; omega) (by simp only [HB, CB, OUT] at *; omega)
+      (by simp only [VV] at *; omega) (by simp only [PAR] at *; omega)]
+    exact h i hi
+  refine generate_run hp hs mv1 (code_of_view hp (code_of_image hp.fit img hsize himg) (view_image img)
+    mv1 hcode) ?_ (hfield CC c hC (by simp only [CC, HB]; omega) (by simp only [CC, VV]; omega)
+      (by simp only [CC, DATA]; omega) (by simp only [CC, PAR]; omega))
+    (hfield ONE 1 hone (by simp only [ONE, CB, OUT]; omega) (by simp only [ONE, VV]; omega)
+      (by simp only [ONE, DATA]; omega) (by simp only [ONE, PAR]; omega))
+    ?_ ?_ ?_ (by rw [hw PAR (by simp only [PAR]; omega), hm])
+    (by simp only [after]; rw [word_setW _ _ (by omega)]) hm1 hm2
+    (by rw [hw (PAR + 4) (by omega)]; exact hiv) (by rw [hw (PAR + 4) (by omega)]; exact hok)
+  · intro i hi; simp only [after, setW, PAR, VV, show ¬ (0x400 + 8 ≤ 0x440 + i ∧ 0x440 + i < 0x400 + 8 + 4) by omega,
+      ↓reduceIte]; exact setF_holds _ VV _ i hi
+  · rw [hk PRE (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)]; exact hpre3
+  · intro i hi
+    rw [hk (HB + i) (by simp only [HB, OUT]; omega) (by simp only [HB, DATA]; omega) (by simp only [HB]; omega)
+      (by simp only [HB, CB]; omega) (by simp only [HB, VV]; omega) (by simp only [HB, PAR]; omega)]; exact hhb i hi
+  · intro i hi
+    rw [hk (CB + i) (by simp only [CB, OUT]; omega) (by simp only [CB, DATA]; omega) (by simp only [CB, HB]; omega)
+      (by simp only [CB]; omega) (by simp only [CB, VV]; omega) (by simp only [CB, PAR]; omega)]; exact hcb i hi
+
 end Drbg
+
+#print axioms Drbg.from_boot
+#print axioms Drbg.reseed_boot
+#print axioms Drbg.generate_twice
+#print axioms Drbg.after_out
 
 def main (args : List String) : IO Unit := do
   match args with
