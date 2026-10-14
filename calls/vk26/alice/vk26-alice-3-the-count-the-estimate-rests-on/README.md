@@ -35,9 +35,13 @@ kernel twice, back to back. All 14 second runs took 7,343,697 cycles, as
 predicted, while the first runs again took several numbers. The slow first
 runs came only after the shell copied a fixed stream out of flash across
 the XIP cache sets that hold the harness's `mret` and trap entry, in both
-revisions' builds. The raw TRNG leaned to 0 in all four draws. Revision 3
-sets the cache on purpose before each first run, to move the slow first
-run from streams 2 and 4 to stream 3; it has not run on a board yet.**
+revisions' builds. Revision 3 set the cache on purpose before each first
+run, and its prediction failed in part. Sweeping those sets made stream 3
+slow for the first time (2 of 3 rounds). Reading the two words of `mret`
+and the trap entry back did not keep streams 2 and 4 fast (3 of 6 slow).
+So flash reads over those sets cause the cost, but a miss on that one
+line is not the whole of it. The raw TRNG leaned to 0 in all seven
+draws.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -483,13 +487,74 @@ replaces at random, some of stream 3's first runs would stay at 7,343,697;
 that would be a finding about the cache, not a fail of the explanation.
 What would fail it: streams 2 and 4 still slow, or stream 3 never slow.
 
+### What revision 3's board said
+
+[`board/round3.txt`](./board/round3.txt): the same Pico 2, the page (build
+p2) on a phone, the file Save gave back, kept as it came. The LED looked
+the same as before ("LED 一樣"), as it should: revision 3 changed nothing
+it shows. The log starts at round 1's first stream, 3rd BITS line, and
+ends in round 4's first.
+
+**Which firmware, from the log alone.** Revision 2 and revision 3 send
+lines of the same form, so nothing in this file says which UF2 the board
+ran. It was sent revision 3's (`34e09bd7…`). What the numbers show fits
+that: stream 3's first run had never been slow in 6 tries under revisions
+1 and 2, and here it was slow twice in 3. A firmware that names its
+revision in its status line would have made this a reading, not an
+inference. The next revision should.
+
+The page, as it saved: 15 streams, 14 judged right, 0 wrong, 1 incomplete
+(round 1's stream 0, joined mid-stream), 3 rounds, no FAIL line. All 14
+whole streams' counts are count.py's, both runs at the RTL's minstret.
+
+| Round:stream | Stream | Last read before the first run | First run − RTL | Second run − RTL |
+| --- | --- | --- | --- | --- |
+| 1:0, 2:0, 3:0 | the TRNG, its tests on | nothing | +64, +64, +64 | +64, +64, +64 |
+| 1:1, 2:1, 3:1 | the TRNG, raw | nothing | +64, +64, +64 | +64, +64, +64 |
+| 1:2, 2:2, 3:2 | each value 16 times | `mret` and the trap entry | +64, +184, +184 | +64, +64, +64 |
+| 1:3, 2:3, 3:3 | 0xa5 at 1000 places | all of `FIXED[0]` and `FIXED[2]` | +184, +234, +64 | +64, +64, +64 |
+| 1:4, 2:4, 3:4 | bits 1 three times in four | `mret` and the trap entry | +64, +184, +64 | +64, +64, +64 |
+
+Round 1's stream 0 is the incomplete one; its STREAM and AGAIN lines say
++64 and +64.
+
+Against the prediction, stated before the run:
+- **Held:** every count right, and every second run 7,343,697 (14 of 14).
+  Streams 0 and 1 stayed at +64.
+- **Held in part:** stream 3 slow in 2 of 3 rounds, not every round.
+- **Failed:** streams 2 and 4 were to stay at +64 every round. They were
+  slow 3 times in 6: stream 2 in 2 of 3, stream 4 in 1 of 3. Under
+  revisions 1 and 2, with nothing read back, they were slow 9 times in 11.
+
+**What it says.**
+- Reading `FIXED[0]` and `FIXED[2]` through the cache made a stream slow
+  that never had been. Their sets include those of the harness's code
+  from 0x10000000 to 0x10000410, and of other shell code. That is an
+  intervention, and the cost followed it.
+- Reading back the one line that holds `mret` and the trap entry did not
+  undo the cost reliably. So that line's miss is not the whole cost, if it
+  is part of it at all.
+
+**What fits, not shown.** The frontend fetches ahead. When `mret`
+redirects to the kernel in SRAM, or when the trap redirects to 0x134, a
+fetch already sent to flash for the next line has to finish first. A miss
+there would be counted, and the next word, 0x10000138, holds `csrw
+mscratch, sp`. Revision 3 read 0x130 to 0x137 back, not 0x138 onward.
+Nothing here shows this.
+
+**The raw TRNG, again.** Its bits were 1 in 48.99%, 48.54% and 48.70% (3.6,
+5.3 and 4.7 standard deviations below even, if independent), per-bit H
+0.951, 0.939, 0.943. With its tests on: 49.77% and 50.05%. All seven raw
+draws over three runs leaned to 0.
+
 ## What it does not say
 
-- That the XIP cache is why the first runs moved. Revision 2 shows the
-  extra cost is left behind by the shell, and the addresses fit the cache
-  in both builds. Revision 3 moves it on purpose; it has not run.
-- That the raw TRNG is biased in general: four draws of 32,768 bits on one
-  board, at the shared driver's settings.
+- Exactly what in the cache the first runs pay for. Revision 3 shows that
+  flash reads over the sets of the harness's code bring the cost on, and
+  that reading back the line of `mret` and the trap entry does not take it
+  away.
+- That the raw TRNG is biased in general: seven draws of 32,768 bits on
+  one board, at the shared driver's settings.
 - The estimate's formula is not proved: count.py and the page agree on it,
   and on §6.3.1's example, which is two implementations, not a proof.
 - 4096 samples are not an assessment (§3.1.1), and a byte is not this
