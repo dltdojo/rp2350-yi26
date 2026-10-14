@@ -35,7 +35,7 @@ echo ">>> the shell, for the chip and for the RTL"
 ./build.sh
 echo
 
-echo ">>> on the RTL, every stream: STRM s most want minstret mcycle, then DONE streams"
+echo ">>> on the RTL, every stream twice: STRM s most want minstret mcycle, the second run's minstret mcycle, then DONE streams"
 shell_words build/sim.bin 400000000 | sed 's/ 5354524d /\n5354524d /g'
 echo
 echo

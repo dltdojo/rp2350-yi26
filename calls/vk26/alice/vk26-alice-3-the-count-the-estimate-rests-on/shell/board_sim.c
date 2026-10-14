@@ -5,7 +5,8 @@
 // the TRNG — both kinds of draw, the same words — and one round instead of
 // forever.
 //
-//   STRM s most want minstret mcycle    one stream run
+//   STRM s most want minstret mcycle minstret mcycle
+//                                       one stream: both runs
 //   DONE streams, FAIL, FAUL            alice/shell/sim.h's
 
 #include "board.h"
@@ -14,7 +15,8 @@
 int board_trng_raw(uint32_t *words, uint32_t n) { return board_trng(words, n); }
 
 void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *words, const uint32_t *counts,
-                  uint32_t most, uint32_t want, uint32_t instret, uint32_t cycles) {
+                  uint32_t most, uint32_t want, uint32_t instret, uint32_t cycles, uint32_t again_instret,
+                  uint32_t again_cycles) {
     (void)round;
     (void)name;
     (void)words;
@@ -25,4 +27,6 @@ void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *
     IO_PRINT_U32 = want;
     IO_PRINT_U32 = instret;
     IO_PRINT_U32 = cycles;
+    IO_PRINT_U32 = again_instret;
+    IO_PRINT_U32 = again_cycles;
 }

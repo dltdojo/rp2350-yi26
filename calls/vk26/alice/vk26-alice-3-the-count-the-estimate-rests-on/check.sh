@@ -19,9 +19,9 @@
 #   3. the shell builds for the chip, into the first 32 KiB of flash, and its
 #      UF2 reads back as built — byte for byte the committed one when the
 #      toolchain is the recorded one;
-#   4. on the RTL the shell runs all five streams, each count checked against
-#      the shell's own, minstret the RTL's, mcycle one number; wrong shells
-#      are caught;
+#   4. on the RTL the shell runs all five streams, each twice back to back,
+#      each count checked against the shell's own, minstret the RTL's, mcycle
+#      one number for all ten runs; wrong shells are caught;
 #   5. count.html, the page a phone shows the board on, built into one file:
 #      its count and both estimates are count.py's on every stream, and
 #      §6.3.1's own example; it tells right streams from wrong ones and says
@@ -88,7 +88,8 @@ else
     echo "SKIP  the UF2 against the committed hash: built with $(clang --version | head -1), recorded with $(cat build-toolchain.txt)"
 fi
 
-# Every stream on the RTL: STRM s most want minstret mcycle, then DONE 5.
+# Every stream on the RTL: STRM s most want minstret mcycle, and the second
+# run's minstret mcycle, then DONE 5.
 got="$(shell_words build/sim.bin 400000000)"
 if python3 - "$got" <<'PY'
 import re, sys
@@ -103,19 +104,19 @@ wants = [int(x) for x in re.findall(r'^    \{"[^"]+", (\d+), \{', text, re.M)]
 trng = max(histogram(from_words(stand_in_words(1024))))
 rows, i = [], 0
 while i < len(words) and words[i] == "5354524d":
-    rows.append([int(w, 16) for w in words[i + 1:i + 6]])
-    i += 6
+    rows.append([int(w, 16) for w in words[i + 1:i + 8]])
+    i += 8
 ok = len(rows) == 2 + len(wants) and words[i:] == ["444f4e45", f"{len(rows):08x}", "exit=0"]
-for s, (k, most, want, n, cycles) in enumerate(rows):
+for s, (k, most, want, n, cycles, n2, cycles2) in enumerate(rows):
     w = trng if s < 2 else wants[s - 2]
-    ok &= k == s and most == w and want == (0xffffffff if s < 2 else w) and n == instret
-ok &= len({r[4] for r in rows}) == 1
+    ok &= k == s and most == w and want == (0xffffffff if s < 2 else w) and n == n2 == instret
+ok &= len({r[4] for r in rows} | {r[6] for r in rows}) == 1
 print(f"the TRNG's stand-in: count.py's largest {trng}; the RTL: {' '.join(str(r[1]) for r in rows)}, "
-      f"mcycle {' '.join(str(r[4]) for r in rows)}")
+      f"mcycle {' '.join(f'{r[4]}+{r[6]}' for r in rows)}")
 sys.exit(0 if ok else 1)
 PY
 then
-    pass "on the RTL the shell runs all five streams, every count the shell's own, minstret the RTL's, and one mcycle for all"
+    pass "on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs"
 else
     fail "on the RTL the shell runs every stream to count.py's largest" "$got"
 fi
@@ -150,12 +151,17 @@ else
         build/count.html node page_test.mjs @ build/page
     page_mutant "the first run after boot is timed too" 's/if (!(e.round === 0 \&\& e.s === 0)) s.cycles.push(e.cycles);/s.cycles.push(e.cycles);/' \
         build/count.html node page_test.mjs @ build/page
+    page_mutant "the second run's minstret is not compared" "s/if (again.minstret !== COUNT_INSTRET)/if (false)/" \
+        build/count.html node page_test.mjs @ build/page
+    page_mutant "the second runs' cycles are kept with the first runs'" 's/s.again.push(again.cycles);/s.cycles.push(again.cycles);/' \
+        build/count.html node page_test.mjs @ build/page
     page_mutant "a stream with a HIST line missing is judged anyway" 's/if (!words || !hp || hp.some((x) => x === null)) {/if (!words || !hp) {/' \
         build/count.html node page_test.mjs @ build/page
     if page_playwright; then
         ID=(vk26-alice-3 "vk26-alice-3 the count the estimate rests on")
         node ../pages/browser.mjs build/count.html build/page/good.txt "10 of 10 streams counted right" 5 "${ID[@]}" || FAILED=1
         node ../pages/browser.mjs build/count.html build/page/cycles.txt "the cycles differ" 5 "${ID[@]}" || FAILED=1
+        node ../pages/browser.mjs build/count.html build/page/again.txt "second runs: the cycles differ" 5 "${ID[@]}" || FAILED=1
     else
         echo "SKIP  the page in a browser: Playwright is not installed"
     fi
@@ -171,8 +177,8 @@ else
 fi
 
 # Wrong shells and wrong expectations: each is caught by the check it names.
-T0="5354524d 00000000 0000001a ffffffff 00600b0f 00700e11 "
-T1="5354524d 00000001 0000001a ffffffff 00600b0f 00700e11 "
+T0="5354524d 00000000 0000001a ffffffff 00600b0f 00700e11 00600b0f 00700e11 "
+T1="5354524d 00000001 0000001a ffffffff 00600b0f 00700e11 00600b0f 00700e11 "
 side_by_side_begin
 side_by_side shell_mutant "kernel.sha256 is not kernel.bin's hash — check 1" expect.h \
     's/KERNEL_SHA\[32\] = {0x[0-9a-f][0-9a-f]/KERNEL_SHA[32] = {0x00/' "4641494c 00000001 00000000 "
@@ -187,6 +193,8 @@ side_by_side shell_mutant "the samples go in a word late — check 4, at gen.py'
 side_by_side shell_mutant "the largest count is left in the region — check 4" shell.c \
     's/for (uint32_t i = HIST \/ 4; i <= MOST \/ 4; i++) w\[i\] = 0;/for (uint32_t i = HIST \/ 4; i < MOST \/ 4; i++) w[i] = 0;/' \
     "4641494c 00000004 00000000 "
+side_by_side shell_mutant "there is no second run: the first's halt is never recorded — check 2" shell.c \
+    's/    if (run == 0) {/    if (0) {/' "4641494c 00000002 00000000 "
 side_by_side shell_mutant "the shell itself traps in step 3 — a fault, not a check" shell.c \
     's/^    step = 3;$/    step = 3;\n    __asm__ volatile (".word 0");/' "4641554c 00000003 00000002 "
 side_by_side_end

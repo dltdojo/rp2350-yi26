@@ -23,7 +23,7 @@ S4 的索引表，做完一個填一列。Needs 照 [experiments/README.md](../.
 | --- | --- | --- | --- | --- | --- | --- |
 | [vk26-alice-1](./vk26-alice-1-the-run-across-the-seam/) | 2 | CDC | log | WebUSB（[seam.html](./vk26-alice-1-the-run-across-the-seam/seam.html)） | 自己的 | 四個視窗的 SP 800-90B 健康測試，RCT 跨窗連續計數，第一個失敗的視窗之後一個位元組都不寫；Lean 證明對每個輸入成立（`Seam.from_boot`），指令數由停止窗號決定。Pico 2 上板一次，紀錄 7 條完整樣本流全對（[board/round1.txt](./vk26-alice-1-the-run-across-the-seam/board/round1.txt)） |
 | [vk26-alice-2](./vk26-alice-2-the-hash-tested-first/) | 2 | CDC | log | WebUSB（[trust.html](./vk26-alice-2-the-hash-tested-first/trust.html)） | 自己的 | 讀樣本之前先以已知答案測試（KAT）考 `HASH`（晶片上是 SHA-256 硬體區塊），答錯就在 43 條指令後以 2 停下、一個樣本都不讀；再做 SP 800-90B 的啟動測試並丟棄那 1024 個樣本，下一窗通過才輸出 `HASH`；Lean 證明對任何 `HASH` 成立（`Trust.trusts_after_kat`）。shell 每輪故意弄壞一次答案，kernel 都擋下。Pico 2 上板一次，紀錄 18 條完整樣本流全對，弄壞的答案 4 次都被擋下（[board/round1.txt](./vk26-alice-2-the-hash-tested-first/board/round1.txt)） |
-| [vk26-alice-3](./vk26-alice-3-the-count-the-estimate-rests-on/) | 2 | CDC | log | WebUSB（[count.html](./vk26-alice-3-the-count-the-estimate-rests-on/count.html)） | 自己的 | SP 800-90B §6.3.1 最常見值估計所依賴的那個數字：4096 個位元組樣本、256 格的次數與最大值；Lean 證明對每個輸入成立，恰好 6,294,284 條指令（`Count.from_boot`），且執行軌跡不受樣本影響（`Count.count_constant_time`，直接索引的直方圖被拒絕）。開根號與對數的公式不在證明裡。TRNG 每輪取兩種：測試開著的、旁路平衡器的原始位元。Pico 2 上板一次，紀錄 13 條完整樣本流的次數全對；「每條流週期數相同」的預測沒有成立（三個數字，同樣的固定樣本在不同輪也不同，所以不是樣本造成的）；原始位元是 1 的比例約 48.3%（[board/round1.txt](./vk26-alice-3-the-count-the-estimate-rests-on/board/round1.txt)） |
+| [vk26-alice-3](./vk26-alice-3-the-count-the-estimate-rests-on/) | 2 | CDC | log | WebUSB（[count.html](./vk26-alice-3-the-count-the-estimate-rests-on/count.html)） | 自己的 | SP 800-90B §6.3.1 最常見值估計所依賴的那個數字：4096 個位元組樣本、256 格的次數與最大值；Lean 證明對每個輸入成立，恰好 6,294,284 條指令（`Count.from_boot`），且執行軌跡不受樣本影響（`Count.count_constant_time`，直接索引的直方圖被拒絕）。開根號與對數的公式不在證明裡。TRNG 每輪取兩種：測試開著的、旁路平衡器的原始位元。Pico 2 上板一次，紀錄 13 條完整樣本流的次數全對；「每條流週期數相同」的預測沒有成立（三個數字，同樣的固定樣本在不同輪也不同，所以不是樣本造成的）；原始位元是 1 的比例約 48.3%（[board/round1.txt](./vk26-alice-3-the-count-the-estimate-rests-on/board/round1.txt)）。revision 2 每條流連跑兩次：14 次第二次全是同一個週期數（預測成立），變慢的第一次只出現在 shell 從 flash 複製的資料掃過 trap 入口所在快取組之後（[board/round2.txt](./vk26-alice-3-the-count-the-estimate-rests-on/board/round2.txt)） |
 | vk26-alice-4 | | | | | | （未實作） |
 | vk26-alice-5 | | | | | | （未實作） |
 
@@ -180,7 +180,7 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。vk26-alice-1 從這裡
 | `check.sh` | 不能呼叫 `presence_check`、`usb_check`（README 第 3 節） | Needs 與 USB 資訊只在 alice 的索引表，沒有機器檢查 | 確認：資訊寫在上面的索引表，沒有機器檢查 |
 | S2 | PR 只能動 `alice/` | 試跑中對徵集設定的修正要另開 PR，不能混進 alice 的提交，才能如實測到 S2 | 兩個設定修正都是獨立 commit，只動 `tools/lean/lean.sh` 或 `calls/vk26/` 的設定檔。alice-3 需要旁路 TRNG 測試的驅動程式，共用的 `trng.h` 沒有這個選項、S2 又不讓提案改 `tools/`：放在 alice 自己的 `shell/trng_raw.h`，重用 `trng.h` 的函式而不複製 |
 | 裁判用量 | 7 次判定 × 2 個 session | 依第 4 輪，約 $4–5；`audit-proposal.sh` 第一次對真提案執行 | 未到（五個做完才跑） |
-| G7 | 需要人、板子、手機 | 每個實驗需要一次手機上板；五個實驗共 5 次 | alice-1 上板一次。紀錄經聊天貼回時被截斷（網頁看到 11 條，貼回 7 條）。**已修**：alice 的網頁加了 Save（存檔，狀態列寫出字元數與行數）；徵集 README 與 ACCEPTANCE 改成紀錄一律以檔案傳回。alice-2 上板一次，紀錄以 Save 存的檔案傳回、原樣放進 `board/`，網頁看到的 18 條樣本流全在檔案裡，沒有截斷：改用檔案之後確實解決了。alice-3 上板一次，同樣以檔案傳回，13 條樣本流全在 |
+| G7 | 需要人、板子、手機 | 每個實驗需要一次手機上板；五個實驗共 5 次 | alice-1 上板一次。紀錄經聊天貼回時被截斷（網頁看到 11 條，貼回 7 條）。**已修**：alice 的網頁加了 Save（存檔，狀態列寫出字元數與行數）；徵集 README 與 ACCEPTANCE 改成紀錄一律以檔案傳回。alice-2 上板一次，紀錄以 Save 存的檔案傳回、原樣放進 `board/`，網頁看到的 18 條樣本流全在檔案裡，沒有截斷：改用檔案之後確實解決了。alice-3 上板兩次（revision 1、2），同樣以檔案傳回，13 條、15 條樣本流全在 |
 
 ## 六、這份規劃參考過的既有工作
 

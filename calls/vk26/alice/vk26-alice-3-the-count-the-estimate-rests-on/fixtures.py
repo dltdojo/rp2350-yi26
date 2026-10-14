@@ -33,8 +33,9 @@ SERIAL = "vk26-alice-3"
 TRNG = 0xffffffff
 WORDS = L // 4
 # A board's mcycle for a run, made up; the first run after boot a little
-# more, as exp212 found silicon's first run.
-CYCLES, FIRST = 7348211, 7348977
+# more, as exp212 found silicon's first run; and the second run, straight
+# after the first (revision 2's AGAIN), a little less.
+CYCLES, FIRST, AGAIN = 7348211, 7348977, 7348140
 
 
 def count_instret(path):
@@ -48,13 +49,17 @@ def as_words(samples):
 
 def count_lines(rnd, s, name, samples, want, instret, **change):
     """What board_stream sends for one stream; the counts, the largest,
-    minstret and mcycle are the kernel's unless `change` gives them."""
+    minstret and mcycle are the kernel's unless `change` gives them, and so
+    are the second run's (`again`, a pair; None for revision 1's lines)."""
     counts = change.get("counts", histogram(samples))
     most = change.get("most", max(counts))
     cycles = change.get("cycles", FIRST if (rnd, s) == (0, 0) else CYCLES)
     out = bits_lines(rnd, s, as_words(samples))
     for k in range(16):
         out.append(f"HIST {rnd:08x} {s:08x} {k:08x} " + " ".join(f"{c:08x}" for c in counts[16 * k:16 * k + 16]))
+    again = change.get("again", (instret, AGAIN))
+    if again:
+        out.append(f"AGAIN {rnd:08x} {s:08x} {again[0]:08x} {again[1]:08x}")
     out.append(f"STREAM {rnd:08x} {s:08x} {most:08x} {want:08x} {change.get('minstret', instret):08x} "
                f"{cycles:08x} {name}")
     return out
@@ -107,6 +112,11 @@ def write_count_fixtures(d, expect_h):
     save("minstret.txt", one(lambda r, s: s == 3 and {"minstret": instret + 1}))
     # Round 1's raw stream took 4 cycles more than the others.
     save("cycles.txt", count_rounds(instret, fixed, 2, lambda r, s: (r, s) == (1, 1) and {"cycles": CYCLES + 4}))
+    # Round 1's raw stream's second run took 20 cycles more; its minstret one more.
+    save("again.txt", count_rounds(instret, fixed, 2, lambda r, s: (r, s) == (1, 1) and {"again": (instret, AGAIN + 20)}))
+    save("againinstret.txt", one(lambda r, s: s == 3 and {"again": (instret + 1, AGAIN)}))
+    # Revision 1's lines: no AGAIN.
+    save("revision1.txt", count_rounds(instret, fixed, 2, lambda r, s: {"again": None}))
     # One BITS line, and one HIST line, never arrived.
     save("lost.txt", [x for x in good if not x.startswith("BITS 00000001 00000000 00000020 ")])
     save("histlost.txt", [x for x in good if not x.startswith("HIST 00000000 00000002 00000003 ")])
@@ -120,7 +130,7 @@ def count_board(expect_h, logs):
     instret = count_instret(expect_h)
     failed = 0
     for log in logs:
-        n, bad, cycles, est = 0, [], {}, {}
+        n, bad, cycles, again, est = 0, [], {}, {}, {}
         for t, words, other in logged_streams(log, 64):
             hist = {int(h[3], 16): [int(c, 16) for c in h[4:]] for h in other.get("HIST", []) if len(h) == 20}
             if words is None or sorted(hist) != list(range(16)):
@@ -135,6 +145,11 @@ def count_board(expect_h, logs):
             if not ok:
                 bad.append(f"round {rnd} stream {s} ({' '.join(t[7:])}): most {most}, count.py {max(counts)}")
             cycles[(rnd, s)] = cyc
+            for a in other.get("AGAIN", [])[-1:]:
+                if len(a) == 5:
+                    again[(rnd, s)] = int(a[4], 16)
+                    if int(a[3], 16) != instret:
+                        bad.append(f"round {rnd} stream {s}: the second run's minstret {int(a[3], 16)}")
             if s < 2:
                 est.setdefault(s, []).append((mcv(max(counts), L)[2], per_bit(smp)[2]))
         ok = n > 0 and not bad
@@ -144,12 +159,16 @@ def count_board(expect_h, logs):
         failed |= not ok
         # A measurement, not a check: one mcycle was predicted, and the first
         # board run gave three (README, "On the board").
-        by = {}
-        for (rnd, s), c in sorted(cycles.items()):
-            if (rnd, s) != (0, 0):
-                by.setdefault(c, []).append(f"{rnd}:{s}")
+        def at(runs, aside):
+            by = {}
+            for (rnd, s), c in sorted(runs.items()):
+                if (rnd, s) != aside:
+                    by.setdefault(c, []).append(f"{rnd}:{s}")
+            return "; ".join(f"{c} at {' '.join(w)}" for c, w in sorted(by.items()))
         print(f"      mcycle, round:stream{', round 0 stream 0 aside' if (0, 0) in cycles else ''}: "
-              + "; ".join(f"{c} at {' '.join(at)}" for c, at in sorted(by.items())))
+              + at(cycles, (0, 0)))
+        if again:
+            print(f"      mcycle of the second run, straight after the first: {at(again, None)}")
         for s, name in ((0, "the TRNG, its tests on"), (1, "the TRNG, raw")):
             if s in est:
                 hs = ", ".join(f"{h:.3f} ({hb:.3f} a bit)" for h, hb in est[s])

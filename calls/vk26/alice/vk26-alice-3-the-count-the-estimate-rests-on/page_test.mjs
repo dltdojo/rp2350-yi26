@@ -8,9 +8,10 @@
 //   node page_test.mjs PAGE FIXTURES [BOARD-LOG...]
 //
 // FIXTURES is what fixtures.py wrote. A board log is what Save gave back from
-// a phone; it must hold whole streams, none of them wrong. Its mcycles are
-// printed as the page reads them, not judged: one was predicted, and the
-// first board run gave three (README, "On the board").
+// a phone; it must hold whole streams, none of them wrong. Its mcycles, the
+// first runs' and from revision 2 the second's, are printed as the page
+// reads them, not judged: one was predicted, and revision 1's board gave
+// three (README, "On the board").
 // Prints PASS/FAIL lines; exits 1 if any failed.
 
 import fs from 'node:fs';
@@ -29,7 +30,8 @@ async function run(text) {
 }
 const fixture = (name) => run(fs.readFileSync(path.join(dir, name), 'utf8'));
 const brief = (s) => `streams ${s.streams} ok ${s.ok} wrong ${s.wrong} [${s.wrongAt}] incomplete ${s.incomplete} `
-  + `rounds ${s.rounds} timed ${s.timed} cycles ${s.cycleValues.join('/')} fails ${s.fails}`
+  + `rounds ${s.rounds} timed ${s.timed} cycles ${s.cycleValues.join('/')} `
+  + `again ${s.againTimed} ${s.againValues.join('/')} fails ${s.fails}`
   + `${s.firstWrong ? ` first: ${s.firstWrong.why}` : ''}`;
 
 // The page's count and estimate against count.py's, on every stream count.py has.
@@ -51,9 +53,10 @@ check(Math.abs(ex.pu - 0.6895) < 5e-5 && Math.abs(ex.h - 0.5363) < 5e-5,
 
 let s = await fixture('good.txt');
 check(s.streams === 10 && s.ok === 10 && s.wrong === 0 && s.incomplete === 0 && s.rounds === 2
-      && s.cycleValues.length === 1 && s.timed === 9,
-  'two rounds as the board sends them, in 64-byte packets: all 10 streams counted right, and the 9 after the '
-  + 'first one mcycle — the first after boot set aside', brief(s));
+      && s.cycleValues.length === 1 && s.timed === 9 && s.againValues.length === 1 && s.againTimed === 10
+      && s.againValues[0] !== s.cycleValues[0],
+  'two rounds as the board sends them, in 64-byte packets: all 10 streams counted right, the 9 after the '
+  + 'first one mcycle — the first after boot set aside — and all 10 second runs another', brief(s));
 s = await fixture('count.txt');
 check(s.wrong === 1 && s.wrongAt === '0:1' && /counted \d+ of the value 7, this page \d+/.test(s.firstWrong.why),
   'one of the kernel\'s 256 counts one short: the page says which value', brief(s));
@@ -65,6 +68,16 @@ check(s.wrong === 1 && /minstret/.test(s.firstWrong.why), 'minstret one more tha
 s = await fixture('cycles.txt');
 check(s.wrong === 0 && s.cycleValues.length === 2,
   'one stream taking 4 cycles more: no count is wrong, and the page says the cycles differ', brief(s));
+s = await fixture('again.txt');
+check(s.wrong === 0 && s.cycleValues.length === 1 && s.againValues.length === 2,
+  'one second run taking 20 cycles more: no count is wrong, the first runs one number, the second runs two',
+  brief(s));
+s = await fixture('againinstret.txt');
+check(s.wrong === 1 && /the second run's minstret/.test(s.firstWrong.why),
+  'the second run\'s minstret one more than the RTL\'s: caught', brief(s));
+s = await fixture('revision1.txt');
+check(s.ok === 10 && s.wrong === 0 && s.againTimed === 0 && s.cycleValues.length === 1,
+  'revision 1\'s lines, no AGAIN: all 10 counted right, no second run claimed', brief(s));
 s = await fixture('lost.txt');
 check(s.incomplete === 1 && s.wrong === 0 && s.ok === 9,
   'a BITS line lost: that stream incomplete, nothing called wrong, the other 9 counted', brief(s));
@@ -77,8 +90,16 @@ check(s.incomplete === 1 && s.wrong === 0 && s.ok === 9,
 
 for (const log of logs) {
   s = await run(fs.readFileSync(log, 'utf8'));
+  // Revision 2's prediction, stated before its board ran, and held.
+  if (s.againTimed) {
+    check(s.againValues.length === 1,
+      `${path.basename(log)}: every one of ${s.againTimed} second runs took one mcycle, ${s.againValues.join('/')}`,
+      brief(s));
+  }
   check(s.ok > 0 && s.wrong === 0 && !s.fails,
     `${path.basename(log)}: ${s.ok} of ${s.streams} streams from a board counted right, ${s.incomplete} incomplete, `
-    + `${s.rounds} rounds; the page reads ${s.timed} timed streams as ${s.cycleValues.join('/')} cycles`, brief(s));
+    + `${s.rounds} rounds; the page reads ${s.timed} timed streams as ${s.cycleValues.join('/')} cycles`
+    + (s.againTimed ? `, ${s.againTimed} second runs as ${s.againValues.join('/')}` : ', no second runs (revision 1)'),
+    brief(s));
 }
 process.exit(failed() ? 1 : 0);

@@ -14,10 +14,13 @@
 //                                  Sixty-four lines a stream
 //   HIST round s k c0 … c15        the counts the kernel wrote for the values
 //                                  16k to 16k + 15. Sixteen lines a stream
+//   AGAIN round s minstret mcycle  the second run, straight after the first
+//                                  (revision 2)
 //   STREAM round s most want minstret mcycle name
 //                                  the largest count the kernel wrote,
 //                                  gen.py's (ffffffff for the TRNG's),
-//                                  minstret, and the kernel's mcycle
+//                                  minstret, and the kernel's mcycle: the
+//                                  first run's
 //   ROUND round streams            every stream run and as it should be
 //
 // The LED, after each stream: one long light, then 2 s dark. A healthy round
@@ -33,7 +36,8 @@
 #include "lines_chip.h"
 
 void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *words, const uint32_t *counts,
-                  uint32_t most, uint32_t want, uint32_t instret, uint32_t cycles) {
+                  uint32_t most, uint32_t want, uint32_t instret, uint32_t cycles, uint32_t again_instret,
+                  uint32_t again_cycles) {
     last_instret = instret;
     lives = round;
     REG(SIO_OUT_CLR) = LED;
@@ -46,6 +50,12 @@ void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *
         for (uint32_t i = 0; i < 16; i++) put_hex(counts[16 * k + i]);
         say();
     }
+    put("AGAIN");
+    put_hex(round);
+    put_hex(s);
+    put_hex(again_instret);
+    put_hex(again_cycles);
+    say();
     put("STREAM");
     put_hex(round);
     put_hex(s);

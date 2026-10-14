@@ -13,7 +13,9 @@
 // Sample i is byte i % 4 of word i / 4. For each: the 64 KiB region zeroed,
 // kernel.bin's 116 bytes at its start (checked against kernel.sha256), the
 // 4096 samples at 0x400; the region hashed. The kernel runs; it calls
-// nothing. When it halts, the checks board.h numbers:
+// nothing. When it halts it runs again at once, on the same region: between
+// the two, only the trap's way into handle() and back out through
+// enter_payload. When the second halts, the checks board.h numbers, on both:
 //
 //   1 the kernel's bytes were kernel.sha256's
 //   2 it halted with 0, by HALT
@@ -23,9 +25,12 @@
 //     for a fixed stream; and with those cleared the region hashes as it did
 //     before the run
 //
-// mcycle is read and sent, not checked: the proof says no sample can move
-// it, and exp212 found silicon's cycles are not the RTL's, so the page
-// compares the streams with each other.
+// mcycle is read and sent for both runs, not checked: the proof says no
+// sample can move it, and exp212 found silicon's cycles are not the RTL's,
+// so the page compares the streams with each other. Revision 1 ran each
+// stream once and saw three numbers, the same samples moving between rounds;
+// the second run is revision 2's question: does a run straight after another
+// take one number?
 //
 // A step counter is written before each step, for a trap in the shell itself
 // to be named.
@@ -49,7 +54,8 @@
 extern void enter_payload(void) __attribute__((noreturn));
 
 static volatile uint32_t step;
-static uint32_t round, si, kernel_ok;
+static uint32_t round, si, kernel_ok, run;
+static uint32_t first_cause, first_x5, first_a0, first_instret, first_cycles;
 static uint32_t words[WORDS], counts[256], mine[256];
 static uint8_t before[32];
 
@@ -81,6 +87,7 @@ __attribute__((noreturn)) static void next_stream(void) {
     sha256((const uint8_t *)REGION, KERNEL_LEN, d);
     kernel_ok = same(d, KERNEL_SHA, 32);
     if (!board_hash((const uint8_t *)REGION, REGION_SIZE, before)) board_fail(4, si);
+    run = 0;
     enter_payload();
 }
 
@@ -99,10 +106,24 @@ void handle(uint32_t *x) {
     if (((csrr(mstatus) >> 11) & 3) == 3) board_fault(step, cause);
     __asm__ volatile ("csrwi mcountinhibit, 4");   // the harness held mcycle too; the TRNG's wait needs it
 
+    // The first run straight into the second: nothing else between them.
+    if (run == 0) {
+        run = 1;
+        first_cause = cause;
+        first_x5 = x[5];
+        first_a0 = x[10];
+        first_instret = instret;
+        first_cycles = cycles;
+        enter_payload();
+    }
+
     step = 5;
+    if (first_cause != 8 || first_x5 != 1) board_fail(2, first_cause);
     if (cause != 8 || x[5] != 1) board_fail(2, cause);
     if (!kernel_ok) board_fail(1, si);
+    if (first_a0 != 0) board_fail(2, first_a0);
     if (x[10] != 0) board_fail(2, x[10]);
+    if (first_instret != INSTRET) board_fail(3, first_instret);
     if (instret != INSTRET) board_fail(3, instret);
 
     step = 6;
@@ -124,7 +145,7 @@ void handle(uint32_t *x) {
 
     step = 7;
     board_stream(round, si, si == 0 ? "trng" : si == 1 ? "trng raw" : FIXED[si - 2].name, words, counts, most,
-                 want, instret, cycles);
+                 want, first_instret, first_cycles, instret, cycles);
     si++;
     if (si == NSTREAMS) {
         board_round(round, NSTREAMS);
