@@ -30,7 +30,7 @@ static void say(void) {
     pwait(unit / 4);
 }
 
-static void put_bytes(const uint8_t *b, uint32_t n) {
+__attribute__((unused)) static void put_bytes(const uint8_t *b, uint32_t n) {
     put(" ");
     for (uint32_t i = 0; i < n; i++) {
         line[at++] = "0123456789abcdef"[b[i] >> 4];
