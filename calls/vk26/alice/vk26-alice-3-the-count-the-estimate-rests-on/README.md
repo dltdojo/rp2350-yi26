@@ -533,7 +533,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-14T03:01:07Z from commit 52695e2
+recorded at 2026-10-14T04:09:47Z from commit 6971f6f
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -571,10 +571,11 @@ accepted      the claim: at both heads the value is at most 254                 
 5354524d 00000004 000001b8 000001b8 00600b0f 00700e11 00600b0f 00700e11 444f4e45 00000005 exit=0 
 ```
 
-the time, among 90 PASS, 0 FAIL and 0 SKIP:
+the time, among 91 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  the RTL takes the same time on all 12 streams: cycles=7343633
+PASS  the chip build's layout is revision 3's: FIXED[0] and FIXED[2] over the cache sets of mret and the trap entry, FIXED[1] not
 PASS  on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs
 PASS  §6.3.1's own example, p̂ 0.4 of 20: p_u 0.6895, H 0.5363
 PASS  one stream taking 4 cycles more: no count is wrong, and the page says the cycles differ
