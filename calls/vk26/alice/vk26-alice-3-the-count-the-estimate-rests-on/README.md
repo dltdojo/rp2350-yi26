@@ -41,7 +41,14 @@ slow for the first time (2 of 3 rounds). Reading the two words of `mret`
 and the trap entry back did not keep streams 2 and 4 fast (3 of 6 slow).
 So flash reads over those sets cause the cost, but a miss on that one
 line is not the whole of it. The raw TRNG leaned to 0 in all seven
-draws.**
+draws. Revision 4 asked the rest in one flash, with a probe of 34
+conditions, and settled it. Warm, the window into and out of the kernel
+takes the RTL's 8 cycles on silicon too. Of the 32 lines of the harness's
+code probed, only two cost anything when evicted: 0x10000130 (`mret` and
+the trap entry) and 0x10000138 (the next), about 110 cycles each, every
+time. Revision 3 had read back only the first. The 64 cycles a warm kernel
+run takes over the RTL are inside the kernel, not in the window. That was
+the last revision on the timing question.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -252,6 +259,8 @@ BITS round s k w0 … w15          64 a stream: the 1024 words
 HIST round s k c0 … c15          16 a stream: the kernel's counts
 AGAIN round s minstret mcycle    revision 2: the second run
 STREAM round s most want minstret mcycle name    the first run's
+PROBE round i addr minstret mcycle accesses misses   revision 4: 136 a round
+REVISION 4                       revision 4: before every ROUND
 ROUND round streams
 ```
 
@@ -547,13 +556,119 @@ Nothing here shows this.
 0.951, 0.939, 0.943. With its tests on: 49.77% and 50.05%. All seven raw
 draws over three runs leaned to 0.
 
+## Revision 4: the rest in one flash, and the last
+
+Three revisions took three trips, one guess each. That is the cost
+[`docs/the-board-is-the-loop.md`](../../../../docs/the-board-is-the-loop.md)
+measures for exp156, and its lever 2 is the fix: let the board run the
+matrix. Revision 4 changes three things:
+
+1. **It counts the misses instead of inferring them.** RP2350's XIP_CTRL
+   has a cache hit counter and an access counter (`CTR_HIT`, `CTR_ACC`,
+   0x400c800c and 0x400c8010 in rp-pac 7.0.0). The shell clears them, reads
+   them just before a run and just after it, and sends the difference. If
+   a write does not clear them, the difference still holds.
+2. **It runs the matrix itself.** After each round's streams, a probe runs
+   a two-instruction payload (`t0` = 1, `ecall`: HALT 0) 4 times under each
+   of 34 conditions:
+   - 0: nothing first;
+   - 1: `FIXED[0]` and `FIXED[2]` read through, as stream 3 in revision 3;
+   - 2 to 33: one 8-byte line of the harness's code, 0x10000100 to
+     0x100001f8, evicted first. The line's aliases 8, 16 and 24 KiB on are
+     read, twice over, so neither of the cache's two ways keeps it.
+
+   Each run sends `PROBE round i addr minstret mcycle accesses misses`.
+   That is 136 runs a round, in well under a second. The payload is not the
+   proved kernel. It is an instrument for the window that every run of the
+   kernel shares: `mret` in, the trap out.
+3. **It names itself.** `REVISION 4` comes before every ROUND line.
+
+The streams are revision 3's, unchanged. On the RTL, all 136 probe runs
+take one minstret (6) and one mcycle (8), and there is no cache to count.
+
+What revision 4's run will say, stated before it happens:
+- every count right, every second run 7,343,697, as in revisions 2 and 3;
+- condition 0 takes one mcycle and one miss count in every run;
+- **evicting the line at 0x10000138 makes the payload slower, with at
+  least one miss more** than condition 0. That is the line after `mret`
+  and the trap entry, which revision 3 did not read back;
+- evicting a line outside 0x10000128 to 0x1000013f changes nothing;
+- wherever the payload is slower, the miss count is higher too.
+
+**Revision 4 is the last revision on this question.** Whatever its log
+says is written down, and the experiment stops there. What vk26-alice-3
+set out to show, a count proved for every input and constant-time by
+proof, was settled by revision 1. The cycles are a side question it
+raised, and three trips is what that question has had.
+
+### What revision 4's board said
+
+[`board/round4.txt`](./board/round4.txt): the same Pico 2, the page (build
+p2) on a phone, the file Save gave back, kept as it came. **`REVISION
+00000004` is in it, three times**, so this time the log names its firmware.
+It starts at round 0's stream 2 and ends partway into round 3's first: 13
+whole streams, all counted right, both runs at the RTL's minstret, every
+second run 7,343,697. Three rounds of the probe, 408 runs, every one
+halting with 0 at minstret 6 and with 132 XIP accesses.
+
+The probe, by `fixtures.py --board`:
+
+| Condition | Runs | mcycle | XIP misses in the span |
+| --- | --- | --- | --- |
+| nothing first | 12 | 8 every time | 0 to 13 |
+| `FIXED[0]` and `FIXED[2]` read | 12 | 8, 108, 128 or 178 | 38 to 47 |
+| 0x10000130 evicted (`mret`, the trap entry) | 12 | **118 every time** | 1 |
+| 0x10000138 evicted (`csrw mscratch, sp`) | 12 | **118 every time** | 1 |
+| each of the other 30 lines, 0x10000100 to 0x100001f8 | 360 | 8 every time | 0 to 13 |
+
+Against the prediction, stated before the run:
+- **Held:** every count right, every second run 7,343,697. Nothing-first
+  took one mcycle every time. **Evicting 0x10000138 made the payload
+  slower**, in 12 of 12 runs. Every line outside 0x10000128 to 0x1000013f
+  changed nothing, in 360 of 360 runs.
+- **Did not hold as written:** the misses. The miss count did not settle
+  to one number with nothing done first: it ranged from 0 to 13. The
+  counters span more than the timed window. They are read in C, before
+  `enter_payload` and after the trap's register saves, and the extra misses
+  come and go with no cycle cost. So "more misses wherever slower" could
+  not be tested. The cycles, which cover the window exactly, are what
+  locate the cost.
+- **Not predicted:** 0x10000130 costs as much as 0x10000138.
+
+**What it settles.**
+- **On silicon, warm, the window costs what it does on the RTL**: 8 cycles
+  for a two-instruction payload, minstret 6, on both. So the 64 cycles a
+  warm run of the kernel takes over the RTL come from inside the kernel's
+  6.3 million instructions, not from the trap or `mret`.
+- **The cost of a cold first run is two cache lines of the harness**,
+  0x10000130 and 0x10000138, fetched from flash inside the timed window.
+  Evicting either alone costs about 110 cycles, every time. Evicting any
+  of the other 30 lines nearby costs nothing.
+- **That is why revision 3 failed for streams 2 and 4.** It read back
+  0x10000130 and left 0x10000138 to the copy. In this run, under revision
+  3's stream treatment unchanged, stream 3 was slow 3 times in 3, stream 2
+  2 in 3 and stream 4 1 in 3.
+- **The amount is not one number.** One line evicted on purpose cost 110.
+  The sweep, and the streams' own first runs, cost 100, 120 or 170 over
+  the warm figure, and the streams 50 as well. What makes a miss cost 100
+  one time and 120 another, the flash or the bus, this run cannot say.
+
+So the proof's statement holds on the chip as far as anything here can
+show: the samples never moved the cycles. What moved them was two lines
+of the harness's own code leaving the XIP cache.
+
+**The raw TRNG, again.** Its bits were 1 in 48.72% and 48.40% (4.7 and 5.8
+standard deviations below even, if independent). With its tests on:
+49.59% and 49.99%. All nine raw draws over four runs leaned to 0.
+
 ## What it does not say
 
-- Exactly what in the cache the first runs pay for. Revision 3 shows that
-  flash reads over the sets of the harness's code bring the cost on, and
-  that reading back the line of `mret` and the trap entry does not take it
-  away.
-- That the raw TRNG is biased in general: seven draws of 32,768 bits on
+- Why one miss costs 100 cycles one time and 120 another. Revision 4
+  found which lines cost; it did not take the flash interface apart.
+- Where inside the kernel the 64 cycles over the RTL go. The silicon's
+  Hazard3 is not the RTL's (exp202, exp209), and this is that difference,
+  not a timing leak: it is the same for every sample.
+- That the raw TRNG is biased in general: nine draws of 32,768 bits on
   one board, at the shared driver's settings.
 - The estimate's formula is not proved: count.py and the page agree on it,
   and on §6.3.1's example, which is two implementations, not a proof.
@@ -580,6 +695,17 @@ Found while making this experiment, and recorded in
   and `lean.sh check` shows only an error's first line. Both, with a timeout
   over `List.range 256`, are now in the call README's Lean table (in a
   commit of its own).
+- **The shared harness times two lines of flash.** `tools/hazard3/harness`
+  puts `mret` and the trap entry in `.text.harness`, and
+  `tools/hazard3/shell/link_chip.ld` puts that in flash. On the chip,
+  every timed run therefore depends on whether 0x10000130 and 0x10000138
+  are still in the XIP cache, which depends on what the shell read last.
+  It cost 50 to 170 cycles in the runs here when they were not. Any
+  experiment that compares `mcycle` across runs on the chip, as exp212
+  does, inherits it.
+  The fix belongs in `tools/` (the harness in RAM, or its lines warmed
+  just before entry), which S2 keeps out of a proposal; it is recorded
+  here and not made.
 
 ## Running it
 
@@ -598,7 +724,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-14T05:12:40Z from commit d3d8273
+recorded at 2026-10-14T06:18:49Z from commit c273227
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -628,26 +754,33 @@ accepted      the claim: at both heads the value is at most 254                 
 >>> count.py's streams, their counts and estimates, and §6.3.1's example
 §6.3.1's example: p̂ 0.4000  p_u 0.6895  H 0.5363
 ...
->>> on the RTL, every stream twice: STRM s most want minstret mcycle, the second run's minstret mcycle, then DONE streams
+>>> on the RTL, every stream twice: STRM s most want minstret mcycle, the second run's minstret mcycle;
+>>> then the probe, PROB i addr minstret mcycle accesses misses; then DONE streams
 5354524d 00000000 0000001a ffffffff 00600b0f 00700e11 00600b0f 00700e11
 5354524d 00000001 0000001a ffffffff 00600b0f 00700e11 00600b0f 00700e11
 5354524d 00000002 00000010 00000010 00600b0f 00700e11 00600b0f 00700e11
 5354524d 00000003 000003f4 000003f4 00600b0f 00700e11 00600b0f 00700e11
-5354524d 00000004 000001b8 000001b8 00600b0f 00700e11 00600b0f 00700e11 444f4e45 00000005 exit=0 
+5354524d 00000004 000001b8 000001b8 00600b0f 00700e11 00600b0f 00700e11
+50524f42 00000000 00000000 00000006 00000008 00000000 00000000
+50524f42 00000000 00000000 00000006 00000008 00000000 00000000
+...
+50524f42 00000021 800001f8 00000006 00000008 00000000 00000000
+444f4e45 00000005 exit=0 
 ```
 
-the time, among 94 PASS, 0 FAIL and 0 SKIP:
+the time, among 98 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  the RTL takes the same time on all 12 streams: cycles=7343633
 PASS  the chip build's layout is revision 3's: FIXED[0] and FIXED[2] over the cache sets of mret and the trap entry, FIXED[1] not
-PASS  on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs
+PASS  on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs; then the probe, 136 runs alike
+PASS  the probe report names the one evicted line that cost cycles, and no other
 PASS  §6.3.1's own example, p̂ 0.4 of 20: p_u 0.6895, H 0.5363
 PASS  one stream taking 4 cycles more: no count is wrong, and the page says the cycles differ
 PASS  cycles.txt: the verdict line says "the cycles differ"
 ```
 
-and the phones' logs, by the page and by count.py:
+and the phones' logs, by the page and by count.py (of round4.txt's probe, the two lines that cost):
 
 ```
 PASS  round1.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817 cycles, no second runs (revision 1)
@@ -655,6 +788,8 @@ PASS  round2.txt: every one of 14 second runs took one mcycle, 7343697
 PASS  round2.txt: 14 of 15 streams from a board counted right, 1 incomplete, 3 rounds; the page reads 14 timed streams as 7343697/7343747/7343797/7343817/7343867 cycles, 14 second runs as 7343697
 PASS  round3.txt: every one of 14 second runs took one mcycle, 7343697
 PASS  round3.txt: 14 of 15 streams from a board counted right, 1 incomplete, 3 rounds; the page reads 14 timed streams as 7343697/7343817/7343867 cycles, 14 second runs as 7343697
+PASS  round4.txt: every one of 13 second runs took one mcycle, 7343697
+PASS  round4.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817/7343867 cycles, 13 second runs as 7343697
 PASS  round1.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 2:3 3:0 3:1 3:3 3:4 4:0 4:1 4:3 5:0; 7343797 at 2:4; 7343817 at 3:2 4:2 4:4
       the TRNG, its tests on: H per byte 6.499 (0.967 a bit), 6.711 (0.980 a bit), 6.539 (0.962 a bit)
@@ -669,4 +804,13 @@ PASS  round3.txt: 14 whole streams from a board, each of the 256 counts and the 
       mcycle of the second run, straight after the first: 7343697 at 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0 3:1 3:2 3:3 3:4
       the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.978 a bit)
       the TRNG, raw: H per byte 6.580 (0.951 a bit), 6.622 (0.939 a bit), 6.666 (0.943 a bit)
+PASS  round4.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 0:4 1:0 1:1 1:4 2:0 2:1 2:2; 7343797 at 2:3; 7343817 at 0:2 0:3 1:2 2:4; 7343867 at 1:3
+      mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4
+      the TRNG, its tests on: H per byte 6.711 (0.968 a bit), 6.666 (0.979 a bit)
+      the TRNG, raw: H per byte 6.666 (0.944 a bit), 6.460 (0.935 a bit)
+      probe, 408 runs: nothing first, mcycle 8, accesses 132, misses 0/1/2/4/9/11/13
+      FIXED[0] and FIXED[2] read: mcycle 8/108/128/178, misses 38/39/40/41/42/43/44/47, in 12 runs
+      0x10000130 evicted: mcycle 118, misses 1, in 12 runs
+      0x10000138 evicted: mcycle 118, misses 1, in 12 runs
 ```

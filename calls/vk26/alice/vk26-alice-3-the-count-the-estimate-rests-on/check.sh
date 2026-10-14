@@ -23,7 +23,9 @@
 #      `mret` and the trap entry, FIXED[1] does not;
 #   4. on the RTL the shell runs all five streams, each twice back to back,
 #      each count checked against the shell's own, minstret the RTL's, mcycle
-#      one number for all ten runs; wrong shells are caught;
+#      one number for all ten runs; then revision 4's probe, 34 conditions 4
+#      runs each, one minstret and one mcycle, no cache to count; wrong shells
+#      are caught;
 #   5. count.html, the page a phone shows the board on, built into one file:
 #      its count and both estimates are count.py's on every stream, and
 #      §6.3.1's own example; it tells right streams from wrong ones and says
@@ -114,7 +116,8 @@ else
 fi
 
 # Every stream on the RTL: STRM s most want minstret mcycle, and the second
-# run's minstret mcycle, then DONE 5.
+# run's minstret mcycle; then PROB i addr minstret mcycle accesses misses, 34
+# conditions 4 times each; then DONE 5.
 got="$(shell_words build/sim.bin 400000000)"
 if python3 - "$got" <<'PY'
 import re, sys
@@ -131,7 +134,19 @@ rows, i = [], 0
 while i < len(words) and words[i] == "5354524d":
     rows.append([int(w, 16) for w in words[i + 1:i + 8]])
     i += 8
+probes = []
+while i < len(words) and words[i] == "50524f42":
+    probes.append([int(w, 16) for w in words[i + 1:i + 7]])
+    i += 7
 ok = len(rows) == 2 + len(wants) and words[i:] == ["444f4e45", f"{len(rows):08x}", "exit=0"]
+# The probe: conditions 0 to 33 in order, 4 runs each; the lines from the
+# trap's address rounded down to 256 bytes, 8 bytes apart; on the RTL one
+# minstret, one mcycle, and no cache to count.
+base = next((p[1] for p in probes if p[0] == 2), 0) & ~0xff
+ok &= [p[0] for p in probes] == [k for k in range(34) for _ in range(4)]
+ok &= all(p[1] == (0 if p[0] < 2 else base + 8 * (p[0] - 2)) for p in probes)
+ok &= len({(p[2], p[3]) for p in probes}) == 1 and all(p[4] == p[5] == 0 for p in probes)
+print(f"the probe on the RTL: {len(probes)} runs, minstret/mcycle {sorted({(p[2], p[3]) for p in probes})}")
 for s, (k, most, want, n, cycles, n2, cycles2) in enumerate(rows):
     w = trng if s < 2 else wants[s - 2]
     ok &= k == s and most == w and want == (0xffffffff if s < 2 else w) and n == n2 == instret
@@ -141,7 +156,7 @@ print(f"the TRNG's stand-in: count.py's largest {trng}; the RTL: {' '.join(str(r
 sys.exit(0 if ok else 1)
 PY
 then
-    pass "on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs"
+    pass "on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs; then the probe, 136 runs alike"
 else
     fail "on the RTL the shell runs every stream to count.py's largest" "$got"
 fi
@@ -190,6 +205,15 @@ else
     else
         echo "SKIP  the page in a browser: Playwright is not installed"
     fi
+fi
+
+# Revision 4's probe report, on a made-up board whose line at 0x10000138 costs
+# 50 cycles and a miss when evicted: the report names that line and no other.
+report="$(python3 fixtures.py --board build/expect.h build/page/good.txt | grep -A40 '      probe, ')"
+if [[ "$(grep -c ' evicted: \| read: ' <<< "$report")" == 1 ]] && grep -q '0x10000138 evicted: mcycle 122, misses 1, in 8 runs' <<< "$report"; then
+    pass "the probe report names the one evicted line that cost cycles, and no other"
+else
+    fail "the probe report names the one evicted line that cost cycles" "$report"
 fi
 
 # Every log a phone gave back, by count.py.

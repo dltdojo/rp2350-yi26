@@ -35,8 +35,9 @@ echo ">>> the shell, for the chip and for the RTL"
 ./build.sh
 echo
 
-echo ">>> on the RTL, every stream twice: STRM s most want minstret mcycle, the second run's minstret mcycle, then DONE streams"
-shell_words build/sim.bin 400000000 | sed 's/ 5354524d /\n5354524d /g'
+echo ">>> on the RTL, every stream twice: STRM s most want minstret mcycle, the second run's minstret mcycle;"
+echo ">>> then the probe, PROB i addr minstret mcycle accesses misses; then DONE streams"
+shell_words build/sim.bin 400000000 | sed 's/ \(5354524d\|50524f42\|444f4e45\) /\n\1 /g'
 echo
 echo
 

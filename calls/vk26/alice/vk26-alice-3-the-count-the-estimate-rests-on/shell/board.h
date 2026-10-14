@@ -19,6 +19,17 @@ int board_hash(const uint8_t *src, uint32_t len, uint8_t *dst);
 void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *words, const uint32_t *counts,
                   uint32_t most, uint32_t want, uint32_t instret, uint32_t cycles, uint32_t again_instret,
                   uint32_t again_cycles);
+// Revision 4's probe. Evict the cache line holding `addr` (on the RTL, which
+// has no cache, nothing); clear the XIP cache's access and hit counters; read
+// them (the shell subtracts what it read just before the run, so a counter
+// that a write does not clear still gives a difference); and send one probe
+// run: condition i, the address it evicted, minstret, mcycle, and the XIP
+// accesses and misses during it.
+void board_evict(uint32_t addr);
+void board_xip_clear(void);
+void board_xip(uint32_t *acc, uint32_t *hit);
+void board_probe(uint32_t round, uint32_t i, uint32_t addr, uint32_t instret, uint32_t cycles, uint32_t acc,
+                 uint32_t miss);
 // Every stream run and as it should be. On the RTL, the end; on the chip, a
 // pause, and the streams again with new draws from the TRNG.
 void board_round(uint32_t round, uint32_t streams);
