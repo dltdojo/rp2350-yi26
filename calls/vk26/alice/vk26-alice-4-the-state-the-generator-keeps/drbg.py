@@ -16,6 +16,8 @@ kernel's registers; and what the kernel's region must hold before and after.
                      the kernel keeps it (the header of proof/Drbg.lean)
   drbg_outcome(state, interval, m)
                      (halt code, {offset: bytes}): what Generate leaves
+  drbg_region(img, state, interval, m)
+                     (halt code, the whole 64 KiB region afterwards)
   cavp_cases()       the NIST cases, as dicts
 
 Instantiate's Hash_df is here so that NIST's vectors can be used. It is not
@@ -100,6 +102,14 @@ def drbg_outcome(state, interval, m):
     bits, (v2, _, counter2) = made
     return 0, {OUT: bits, V_AT: v2, PARAMS + 8: struct.pack("<I", counter2), DATA: plus(v, m),
                HB + SEEDLEN - 32: sha256(b"\x03" + v), CB + SEEDLEN - 4: counter.to_bytes(4, "big")}
+
+
+def drbg_region(img, state, interval, m):
+    code, writes = drbg_outcome(state, interval, m)
+    out = bytearray(img) + bytes(0x10000 - len(img))
+    for at, b in writes.items():
+        out[at:at + len(b)] = b
+    return code, bytes(out)
 
 
 def cavp_cases(path=os.path.join(HERE, "cavp", "Hash_DRBG_SHA256.txt")):

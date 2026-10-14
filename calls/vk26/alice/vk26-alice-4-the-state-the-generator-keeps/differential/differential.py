@@ -29,7 +29,7 @@ sys.path.insert(0, TOOLS)
 sys.path.insert(0, os.path.join(EXP, "..", "tools"))
 from expect import model  # noqa: E402
 from region import rtl_region as rtl  # noqa: E402
-from drbg import OUT, SEEDLEN, cavp_cases, drbg_image, drbg_outcome, drbg_generate, drbg_instantiate  # noqa: E402
+from drbg import OUT, SEEDLEN, cavp_cases, drbg_image, drbg_outcome, drbg_generate, drbg_instantiate, drbg_region  # noqa: E402
 
 
 def cost(m):
@@ -42,18 +42,10 @@ def cost(m):
 RESEED = 7   # to the reseed check, then HALT 1
 
 
-def expected(img, state, interval, m):
-    code, writes = drbg_outcome(state, interval, m)
-    out = bytearray(img) + bytes(0x10000 - len(img))
-    for at, b in writes.items():
-        out[at:at + len(b)] = b
-    return code, bytes(out)
-
-
 def one(rv32run, img, state, interval, m, where):
     """One Generate, from `img`, on `where` ('model' or 'rtl'): the region
     afterwards, and what is wrong."""
-    code, want = expected(img, state, interval, m)
+    code, want = drbg_region(img, state, interval, m)
     if where == "model":
         ran, region = model(rv32run, img, cost(m) + 10)
         ok = ran == f"halt code={code:08x} count={cost(m) if code == 0 else RESEED}"
