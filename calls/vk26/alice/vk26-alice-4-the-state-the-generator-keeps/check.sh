@@ -24,14 +24,22 @@
 #   4. on the RTL the shell runs all 120 cases, three runs each: two
 #      Generates, their minstret the RTL's and the second's bits NIST's, the
 #      region drbg.py's; then the reseed check, HALT 1, nothing written;
-#      wrong shells are caught.
+#      wrong shells are caught;
+#   5. drbg.html, the page a phone shows the board on, built into one file:
+#      its own Generate, with WebCrypto's SHA-256 and BigInt, is drbg.py's at
+#      the edges; it tells right cases from wrong ones, each in the way it is
+#      wrong, and says when the cycles differ; wrong pages are caught; in
+#      headless Chromium;
+#   6. every log a phone gave back (board/*.txt): each case against NIST's
+#      vectors by fixtures.py and generated again by the page; the mcycles
+#      printed as read, not judged.
 #
 # What none of it reaches: the chip's SHA-256 block on HASHB's lengths, 55
 # and 56 bytes, which only a board runs — the board is what says whether
 # board_chip.c's padding is right.
 #
 # Needs Lean (tools/lean/setup.sh), the Hazard3 testbench
-# (tools/hazard3/setup.sh), clang, lld, llvm-objcopy, cargo and python3.
+# (tools/hazard3/setup.sh), clang, lld, llvm-objcopy, cargo, python3 and node.
 # Without Lean or the testbench it says SKIP. About six minutes, most of it
 # the RTL.
 #
@@ -42,6 +50,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 TOOLS=../../../../tools
 source ../../../../experiments/lib.sh
+source "$TOOLS/pages/pagecheck.sh"
 require_supported_platform
 
 LEAN=$TOOLS/lean/lean.sh
@@ -114,6 +123,64 @@ then
     pass "on the RTL the shell runs all 120 NIST cases: two Generates each, minstret the RTL's, the second's bits NIST's and the region drbg.py's; then HALT 1, reseed required, nothing written"
 else
     fail "on the RTL the shell runs every case" "$got"
+fi
+
+# The page: one file, as a phone gets it; its Generate against drbg.py's; its
+# verdicts on logs right and wrong; in a browser.
+if ! command -v node > /dev/null; then
+    echo "SKIP  the page: node is not installed"
+else
+    python3 ../pages/build.py drbg.html build/drbg.html
+    python3 fixtures.py build/page build/expect.h
+    page_parses build/drbg.html build
+    page_findcdc build/drbg.html
+    same=1
+    for pair in DRBG_INSTRET_GEN:INSTRET_GEN DRBG_INSTRET_RESEED:INSTRET_RESEED DRBG_INTERVAL:INTERVAL DRBG_M:M; do
+        mine="$(grep -oE "${pair%%:*} = [0-9]+" drbg.html | grep -oE '[0-9]+$')"
+        theirs="$(sed -n "s/^#define ${pair##*:} \([0-9]*\)u\{0,1\}$/\1/p" build/expect.h)"
+        [[ -n "$mine" && "$mine" == "$theirs" ]] || same=0
+    done
+    if (( same )); then
+        pass "the page's minstrets, interval and block count are expect.h's"
+    else
+        fail "the page's minstrets, interval and block count are expect.h's"
+    fi
+    shopt -s nullglob
+    node page_test.mjs build/drbg.html build/page board/*.txt || FAILED=1
+    # On the built page, as a phone runs it.
+    page_mutant "H is Hash(0x02 ‖ V)" 's/^  pre\[0\] = 3;$/  pre[0] = 2;/' \
+        build/drbg.html node page_test.mjs @ build/page
+    page_mutant "V's next value leaves the counter out" 's/ + drbgBig(c) + BigInt(counter)) % DRBG_MOD;/ + drbgBig(c)) % DRBG_MOD;/' \
+        build/drbg.html node page_test.mjs @ build/page
+    page_mutant "Hashgen hashes V every time, never V + 1" 's/data = (data + 1n) % DRBG_MOD;/data = data % DRBG_MOD;/' \
+        build/drbg.html node page_test.mjs @ build/page
+    page_mutant "the counter does not move" 's/return { bits, v: drbgBytes(next, DRBG_SEEDLEN), counter: counter + 1 };/return { bits, v: drbgBytes(next, DRBG_SEEDLEN), counter };/' \
+        build/drbg.html node page_test.mjs @ build/page
+    page_mutant "the blocks are not compared" 's/if (!drbgSame(p.blocks\[n\]\[j\], g.bits.subarray(32 \* j, 32 \* j + 32)))/if (false)/' \
+        build/drbg.html node page_test.mjs @ build/page
+    page_mutant "the third run's halt code is not compared" 's/if (run.code !== 1)/if (false)/' \
+        build/drbg.html node page_test.mjs @ build/page
+    page_mutant "a Generate's minstret is not compared" 's/if (run.minstret !== DRBG_INSTRET_GEN)/if (false)/' \
+        build/drbg.html node page_test.mjs @ build/page
+    page_mutant "the second Generate starts from the board's V, not the page's own" 's/^      v = g.v;$/      v = p.state[n + 1];/' \
+        build/drbg.html node page_test.mjs @ build/page
+    if page_playwright; then
+        ID=(vk26-alice-4 "vk26-alice-4 the state the generator keeps")
+        node ../pages/browser.mjs build/drbg.html build/page/good.txt "240 of 240 cases generated right" 120 "${ID[@]}" || FAILED=1
+        node ../pages/browser.mjs build/drbg.html build/page/cycles.txt "the cycles differ" 12 "${ID[@]}" || FAILED=1
+        node ../pages/browser.mjs build/drbg.html build/page/block.txt "first wrong: round 0, case 5" 12 "${ID[@]}" || FAILED=1
+    else
+        echo "SKIP  the page in a browser: Playwright is not installed"
+    fi
+fi
+
+# Every log a phone gave back, against NIST's vectors.
+shopt -s nullglob
+logs=(board/*.txt)
+if (( ${#logs[@]} )); then
+    python3 fixtures.py --board build/expect.h "${logs[@]}" || FAILED=1
+else
+    echo "SKIP  checking a phone's log: none recorded yet (board/*.txt)"
 fi
 
 # Wrong shells and wrong expectations: each is caught by the check it names.

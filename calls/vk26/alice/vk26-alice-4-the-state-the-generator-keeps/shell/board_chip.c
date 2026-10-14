@@ -21,9 +21,10 @@
 //   REVISION 1                     which firmware this is, every round
 //   ROUND round cases              every case run and as it should be
 //
-// The LED: on while a case runs and is sent, so a healthy round flickers;
-// then one long light and 2 s dark. And speak.h's stage and error counts: an
-// error is 2 s of light first, then as many flashes as the check that failed.
+// The LED: a short blink as each case ends, about one a second; after the
+// 120th, one long light and then 2 s dark. And speak.h's stage and error
+// counts: an error is 2 s of light first, then as many flashes as the check
+// that failed.
 
 #define SPEAK_NAME "vk26-alice-4"
 #define SPEAK_PRODUCT "vk26-alice-4 the state the generator keeps"
@@ -71,7 +72,6 @@ int board_hashb(const uint8_t *src, uint32_t len, uint8_t *dst) {
 }
 
 void board_state(uint32_t round, uint32_t i, const uint8_t *v, const uint8_t *c) {
-    REG(SIO_OUT_SET) = LED;
     for (uint32_t k = 0; k < 2; k++) {
         put("STATE");
         put_hex(round);
@@ -120,7 +120,7 @@ void board_case(uint32_t round, uint32_t i, const char *name) {
     put(" ");
     put(name);
     say();
-    REG(SIO_OUT_CLR) = LED;
+    flash(unit / 2, unit / 2);
 }
 
 void board_round(uint32_t round, uint32_t cases) {

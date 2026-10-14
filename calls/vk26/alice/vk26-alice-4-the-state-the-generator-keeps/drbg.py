@@ -113,21 +113,24 @@ def drbg_region(img, state, interval, m):
 
 
 def cavp_cases(path=os.path.join(HERE, "cavp", "Hash_DRBG_SHA256.txt")):
-    cases, group = [], {}
+    cases, group, groups = [], {}, -1
     for line in open(path):
         line = line.strip()
-        if line.startswith("[") and " = " in line:
+        if line == "[SHA-256]":
+            groups += 1
+        elif line.startswith("[") and " = " in line:
             k, v = line[1:-1].split(" = ")
             group[k] = v
         elif line.startswith("COUNT"):
-            cases.append({"group": dict(group), "count": int(line.split("=")[1])})
+            cases.append({"group": dict(group), "g": groups, "count": int(line.split("=")[1])})
         elif "=" in line and cases and not line.startswith("#"):
             k, _, v = line.partition("=")
             cases[-1].setdefault(k.strip(), []).append(v.strip())
     for c in cases:
         c["entropy"], c["nonce"] = bytes.fromhex(c["EntropyInput"][0]), bytes.fromhex(c["Nonce"][0])
         c["pers"], c["want"] = bytes.fromhex(c["PersonalizationString"][0]), bytes.fromhex(c["ReturnedBits"][0])
-        c["name"] = f"CAVP P{c['group']['PersonalizationStringLen']} #{c['count']}"
+        # The file's groups repeat their headers, so a case is named by its group's place.
+        c["name"] = f"CAVP {c['g']}.{c['count']} P{c['group']['PersonalizationStringLen']}"
     return cases
 
 

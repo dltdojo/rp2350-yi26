@@ -1,0 +1,278 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vk26-alice-4 — the state the generator keeps</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  vk26-alice-4-the-state-the-generator-keeps — an appliance, not a tool: it
+  knows vk26-alice-4's lines and nothing else.
+
+  The board runs NIST's 120 Hash_DRBG cases through a proved kernel, three
+  runs a case: two Generates, then one that must be refused because the
+  counter is past the interval. For every case it sends the V and C it
+  started from, every block it returned, V after each Generate, and each
+  run's halt code, counter, minstret and cycles. This page generates every
+  case again from that V and C — SP 800-90A §10.1.1.4 written here, with the
+  browser's own SHA-256 (WebCrypto) and its own big numbers, sharing nothing
+  with the kernel, the shell or the chip's SHA-256 block — and holds each
+  block, each V, each counter and each halt code to its own.
+
+  The shared parts are ../pages/: core.js and core.css (connecting, Copy,
+  Save, the look). To put this on a phone, build one file:
+    python3 ../pages/build.py drbg.html build/drbg.html
+  and open build/drbg.html — Files app -> "Open with Chrome" on Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="../pages/core.css">
+<style>
+  td.pass { color: var(--ok); }
+  td.wrong { background: color-mix(in srgb, var(--bad) 15%, transparent); }
+  .key { font-size: 12px; color: var(--dim); }
+  #last { font-family: ui-monospace, monospace; font-size: 11.5px; word-break: break-all; color: var(--dim); }
+</style>
+
+<h1>The state the generator keeps</h1>
+<p class="sub">vk26-alice-4 &middot; SP 800-90A's Hash_DRBG Generate, run on the board by a kernel proved to
+  compute it, on every one of NIST's 120 SHA-256 cases — and generated again here, with this browser's SHA-256,
+  from the state the board says it started from.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+  <button id="save" class="ghost">Save</button>
+</p>
+
+<div id="status">Not connected.</div>
+<div id="verdict">Nothing checked yet.</div>
+<p id="last"></p>
+
+<table id="streams">
+  <thead><tr><th>case</th><th>Generate 1</th><th>Generate 2</th><th>3rd: reseed</th><th>mcycle</th></tr></thead>
+  <tbody></tbody>
+</table>
+<p class="key">Each case: the board's V and C, as drbg.py instantiates them from NIST's inputs. <b>Generate 1,
+  2</b>: its 4 blocks, V afterwards, the counter and minstret, each against this page's own Generate.
+  <b>3rd</b>: the counter is now 3, past the interval 2, so the kernel must halt with 1, write nothing and take
+  the RTL's 11 instructions. NIST's ReturnedBits are the second Generate's: the board checks them itself.
+  <b>mcycle</b>: each run's cycles, HASHB's on the chip's SHA-256 block included; read, not judged.</p>
+
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script src="../pages/core.js"></script>
+<script>
+// BEGIN drbg-check
+// ---------------------------------------------------------------------------
+// What vk26-alice-4's lines say, and whether each case is generated right.
+// Hex bytes are in the order they lie in the region; the other fields are
+// eight hex digits.
+//
+//   STATE round i k bytes          k = 0 V and 1 C before the first run;
+//                                  2 V after the first Generate, 3 after the second
+//   BLOCK round i n j bytes        block j of Generate n
+//   RUN round i n code counter minstret mcycle
+//   CASE round i name
+//   REVISION r, ROUND round cases, FAIL check got
+//
+// vk26-alice-4's check.sh runs this block under node, against drbg.py, over
+// logs right and wrong.
+// ---------------------------------------------------------------------------
+
+const DRBG_SEEDLEN = 55, DRBG_M = 4;
+// What the shell puts in the region (shell.c, build/expect.h): the counter
+// it starts at and the interval. check.sh holds these to expect.h.
+const DRBG_COUNTER0 = 1, DRBG_INTERVAL = 2;
+// minstret for a Generate of DRBG_M blocks and for the reseed check, as the
+// Hazard3 RTL counts them: build/expect.h's INSTRET_GEN and INSTRET_RESEED.
+const DRBG_INSTRET_GEN = 4318, DRBG_INSTRET_RESEED = 11;
+const DRBG_MOD = 1n << BigInt(8 * DRBG_SEEDLEN);
+
+function drbgHex(s) {
+  const b = new Uint8Array(s.length / 2);
+  for (let i = 0; i < b.length; i++) b[i] = parseInt(s.slice(2 * i, 2 * i + 2), 16);
+  return b;
+}
+function drbgBig(bytes) { let n = 0n; for (const x of bytes) n = (n << 8n) | BigInt(x); return n; }
+function drbgBytes(n, len) {
+  const b = new Uint8Array(len);
+  for (let i = len - 1; i >= 0; i--) { b[i] = Number(n & 255n); n >>= 8n; }
+  return b;
+}
+async function drbgHash(bytes) { return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }
+
+/** SP 800-90A Rev. 1 §10.1.1.4 with no additional input, the reseed check aside:
+ *  m blocks of Hashgen(V), and V and the counter afterwards. */
+async function drbgGenerate(v, c, counter, m) {
+  const bits = new Uint8Array(32 * m);
+  let data = drbgBig(v);
+  for (let i = 0; i < m; i++) {
+    bits.set(await drbgHash(drbgBytes(data, DRBG_SEEDLEN)), 32 * i);
+    data = (data + 1n) % DRBG_MOD;
+  }
+  const pre = new Uint8Array(1 + DRBG_SEEDLEN);
+  pre[0] = 3;
+  pre.set(v, 1);
+  const h = drbgBig(await drbgHash(pre));
+  const next = (drbgBig(v) + h + drbgBig(c) + BigInt(counter)) % DRBG_MOD;
+  return { bits, v: drbgBytes(next, DRBG_SEEDLEN), counter: counter + 1 };
+}
+
+function drbgParse(text) {
+  const t = text.trim(), h = '([0-9a-f]{8})';
+  let m;
+  if ((m = t.match(new RegExp(`^STATE ${h} ${h} ${h} ([0-9a-f]{${2 * DRBG_SEEDLEN}})$`))))
+    return { kind: 'STATE', round: parseInt(m[1], 16), i: parseInt(m[2], 16), k: parseInt(m[3], 16), bytes: drbgHex(m[4]) };
+  if ((m = t.match(new RegExp(`^BLOCK ${h} ${h} ${h} ${h} ([0-9a-f]{64})$`))))
+    return { kind: 'BLOCK', round: parseInt(m[1], 16), i: parseInt(m[2], 16), n: parseInt(m[3], 16), j: parseInt(m[4], 16),
+             bytes: drbgHex(m[5]) };
+  if ((m = t.match(new RegExp(`^RUN ${h} ${h} ${h} ${h} ${h} ${h} ${h}$`))))
+    return { kind: 'RUN', round: parseInt(m[1], 16), i: parseInt(m[2], 16), n: parseInt(m[3], 16), code: parseInt(m[4], 16),
+             counter: parseInt(m[5], 16), minstret: parseInt(m[6], 16), cycles: parseInt(m[7], 16) };
+  if ((m = t.match(new RegExp(`^CASE ${h} ${h} (.+)$`))))
+    return { kind: 'CASE', round: parseInt(m[1], 16), i: parseInt(m[2], 16), name: m[3] };
+  if ((m = t.match(new RegExp(`^REVISION ${h}$`)))) return { kind: 'REVISION', revision: parseInt(m[1], 16) };
+  if ((m = t.match(new RegExp(`^ROUND ${h} ${h}$`)))) return { kind: 'ROUND', round: parseInt(m[1], 16), cases: parseInt(m[2], 16) };
+  if (t.startsWith('vk26-alice-4 usb=')) return { kind: 'status' };
+  if (/^FAIL /.test(t)) return { kind: 'FAIL' };
+  return { kind: 'other' };
+}
+
+const drbgSame = (a, b) => a.length === b.length && a.every((x, k) => x === b[k]);
+
+/**
+ * Feed it lines, in order; a CASE comes back with a verdict:
+ *   ok          every line of it arrived, and each of its three runs is what
+ *               this page's own Generate says: Generates while the counter
+ *               is at most the interval, with their blocks, V, counter and
+ *               minstret; then the refusal, halt 1, the counter unchanged
+ *   wrong       one is not, and `why` says which
+ *   incomplete  a line of it is missing: nothing is claimed
+ * and `summary()` counts them, with each run's mcycles as read.
+ */
+function drbgChecker() {
+  const s = { cases: 0, ok: 0, wrong: 0, incomplete: 0, rounds: 0, fails: 0, revision: null, firstWrong: null };
+  const cycles = [[], [], []], open = new Map();
+  const key = (e) => `${e.round}:${e.i}`;
+  const part = (e) => {
+    if (!open.has(key(e))) open.set(key(e), { state: [null, null, null, null], blocks: [[], [], []], runs: [] });
+    return open.get(key(e));
+  };
+
+  async function judge(e, p) {
+    const why = [];
+    let v = p.state[0], counter = DRBG_COUNTER0;
+    const c = p.state[1];
+    for (let n = 1; n <= 3; n++) {
+      const run = p.runs[n];
+      if (counter > DRBG_INTERVAL) {
+        if (run.code !== 1) why.push(`run ${n} halted with ${run.code}: the counter ${counter} is past the interval, so 1`);
+        if (run.counter !== counter) why.push(`run ${n} left the counter at ${run.counter}, not ${counter}`);
+        if (run.minstret !== DRBG_INSTRET_RESEED) why.push(`run ${n}'s minstret ${run.minstret}, not the RTL's ${DRBG_INSTRET_RESEED}`);
+        continue;
+      }
+      const g = await drbgGenerate(v, c, counter, DRBG_M);
+      if (run.code !== 0) why.push(`Generate ${n} halted with ${run.code}, not 0`);
+      for (let j = 0; j < DRBG_M; j++)
+        if (!drbgSame(p.blocks[n][j], g.bits.subarray(32 * j, 32 * j + 32))) {
+          why.push(`Generate ${n}'s block ${j} is not this page's`);
+          break;
+        }
+      if (!drbgSame(p.state[n + 1], g.v)) why.push(`V after Generate ${n} is not this page's`);
+      if (run.counter !== g.counter) why.push(`Generate ${n} left the counter at ${run.counter}, not ${g.counter}`);
+      if (run.minstret !== DRBG_INSTRET_GEN) why.push(`Generate ${n}'s minstret ${run.minstret}, not the RTL's ${DRBG_INSTRET_GEN}`);
+      v = g.v;
+      counter = g.counter;
+    }
+    return why;
+  }
+
+  async function feed(text) {
+    const e = drbgParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'ROUND') s.rounds++;
+    if (e.kind === 'REVISION') s.revision = e.revision;
+    if (e.kind === 'STATE' && e.k < 4) part(e).state[e.k] = e.bytes;
+    if (e.kind === 'BLOCK' && e.n >= 1 && e.n <= 2 && e.j < DRBG_M) part(e).blocks[e.n][e.j] = e.bytes;
+    if (e.kind === 'RUN' && e.n >= 1 && e.n <= 3) part(e).runs[e.n] = e;
+    if (e.kind !== 'CASE') return e;
+
+    s.cases++;
+    const p = open.get(key(e));
+    open.delete(key(e));
+    const whole = p && p.state.every((x) => x) && [1, 2].every((n) => [...Array(DRBG_M).keys()].every((j) => p.blocks[n][j]))
+      && [1, 2, 3].every((n) => p.runs[n]);
+    if (!whole) {
+      e.verdict = 'incomplete'; e.why = 'a line of it never arrived'; s.incomplete++;
+      return e;
+    }
+    e.runs = p.runs.slice(1);
+    for (let n = 0; n < 3; n++) cycles[n].push(e.runs[n].cycles);
+    const why = await judge(e, p);
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s.wrong++;
+      if (!s.firstWrong) s.firstWrong = { round: e.round, i: e.i, name: e.name, why: e.why };
+    } else {
+      e.verdict = 'ok'; s.ok++;
+    }
+    return e;
+  }
+  function summary() {
+    const sets = cycles.map((c) => [...new Set(c)].sort((x, y) => x - y));
+    return { ...s, timed: cycles[0].length, cycleValues: sets };
+  }
+  return { feed, summary };
+}
+// END drbg-check
+
+const $ = (id) => document.getElementById(id);
+const checker = drbgChecker();
+
+function show(e) {
+  const tb = $('streams').tBodies[0];
+  if (e.i === 0) tb.innerHTML = '';
+  const tr = document.createElement('tr'), mark = e.verdict === 'ok' ? 'pass' : 'wrong';
+  const r = e.runs || [];
+  const cell = (n) => (r[n] ? `${e.verdict === 'ok' ? 'right' : '—'}<br><small>halt ${r[n].code}, counter ${r[n].counter}</small>` : '—');
+  tr.innerHTML = `<td>${e.i} ${e.name}<br><small>round ${e.round}</small></td>`
+    + `<td class="${mark}">${cell(0)}</td><td class="${mark}">${cell(1)}</td><td class="${mark}">${cell(2)}</td>`
+    + `<td>${r.map((x) => x.cycles).join('<br>')}</td>`;
+  if (e.verdict !== 'ok') tr.title = e.why;
+  tb.appendChild(tr);
+}
+
+function verdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.cases) { v.textContent = 'No case yet: the first comes within a few seconds.'; return; }
+  let t = `<b class="${s.wrong ? 'bad' : 'ok'}">${s.ok} of ${s.cases} cases generated right</b>`
+        + `, ${s.wrong} wrong, ${s.incomplete} incomplete · ${s.rounds} rounds`
+        + (s.revision === null ? '' : ` · revision ${s.revision}`);
+  const names = ['Generate 1', 'Generate 2', 'the reseed check'];
+  t += '<br>mcycle, as read: ' + s.cycleValues.map((c, n) => `${names[n]} ${c.length === 1 ? c[0] : c.length
+    ? `<b class="bad">${c.length} values: ${c.join(', ')}</b>` : '—'}`).join(' · ');
+  if (s.cycleValues.some((c) => c.length > 1)) t += ' · <b class="bad">the cycles differ</b>';
+  if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
+  if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, case ${s.firstWrong.i} `
+                       + `(${s.firstWrong.name}) — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+}
+
+appliance({
+  serial: 'vk26-alice-4',
+  page: `vk26-alice-4 drbg.html ${$('ver').textContent}`,
+  listening: 'A case every second or so, 120 a round; each is generated again here as it arrives.',
+  onText: checkedLines(checker.feed, (e) => {
+    if (e.kind === 'CASE') {
+      show(e);
+      $('last').textContent = `last: round ${e.round}, case ${e.i}, ${e.name} — ${e.verdict}`;
+    }
+    verdict();
+  }),
+  report: () => JSON.stringify(checker.summary()),
+});
+</script>
