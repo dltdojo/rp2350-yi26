@@ -47,6 +47,20 @@
 //
 // On the RTL there is no cache, and these are reads of RAM.
 //
+// Revision 4 asks the rest in one flash instead of one guess a flash
+// (docs/the-board-is-the-loop.md, lever 2). After each round's streams, a
+// probe: a two-instruction payload (t0 = 1, ecall: HALT 0) run REPS times
+// under each of NPROBE conditions, each run's mcycle and minstret sent with
+// the XIP cache's own access and hit counters (board.h):
+//
+//   0          nothing done first
+//   1          FIXED[0] and FIXED[2] read through, as stream 3 in revision 3
+//   2 .. 33    one 8-byte line of the harness's code, from `trap` rounded
+//              down to 256 bytes, evicted first: its aliases 8, 16 and 24 KiB
+//              on read twice over, so neither of the cache's two ways keeps it
+//
+// The probe changes nothing the streams claim; the kernel is not run in it.
+//
 // A step counter is written before each step, for a trap in the shell itself
 // to be named.
 
@@ -76,6 +90,15 @@ static uint32_t words[WORDS], counts[256], mine[256];
 static uint8_t before[32];
 static volatile uint32_t sink;
 
+#define NPROBE 34u
+#define REPS   4u
+static const uint32_t PAYLOAD[2] = {0x00100293u, 0x00000073u};   // addi t0, x0, 1; ecall
+static uint32_t probing, pi, rep, acc0, hit0;
+
+static uint32_t probe_addr(uint32_t i) {
+    return i < 2 ? 0 : (((uint32_t)trap) & ~0xffu) + 8 * (i - 2);
+}
+
 static void read_through(const uint32_t *p, uint32_t n) {
     uint32_t x = 0;
     for (uint32_t i = 0; i < n; i++) x += ((const volatile uint32_t *)p)[i];
@@ -86,6 +109,25 @@ static int same(const volatile uint8_t *a, const uint8_t *b, uint32_t n) {
     for (uint32_t i = 0; i < n; i++)
         if (a[i] != b[i]) return 0;
     return 1;
+}
+
+
+// One probe run: the payload at the region's start, the condition, the
+// counters cleared, and in.
+__attribute__((noreturn)) static void next_probe(void) {
+    step = 8;
+    volatile uint32_t *w = (volatile uint32_t *)REGION;
+    w[0] = PAYLOAD[0];
+    w[1] = PAYLOAD[1];
+    if (pi == 1) {
+        read_through(FIXED[0].words, WORDS);
+        read_through(FIXED[2].words, WORDS);
+    } else if (pi >= 2) {
+        board_evict(probe_addr(pi));
+    }
+    board_xip_clear();
+    board_xip(&acc0, &hit0);
+    enter_payload();
 }
 
 __attribute__((noreturn)) static void next_stream(void) {
@@ -135,6 +177,26 @@ void handle(uint32_t *x) {
     if (((csrr(mstatus) >> 11) & 3) == 3) board_fault(step, cause);
     __asm__ volatile ("csrwi mcountinhibit, 4");   // the harness held mcycle too; the TRNG's wait needs it
 
+    if (probing) {
+        uint32_t acc, hit;
+        board_xip(&acc, &hit);
+        step = 9;
+        if (cause != 8 || x[5] != 1 || x[10] != 0) board_fail(2, cause);
+        acc -= acc0;
+        hit -= hit0;
+        board_probe(round, pi, probe_addr(pi), instret, cycles, acc, acc - hit);
+        if (++rep == REPS) {
+            rep = 0;
+            pi++;
+        }
+        if (pi < NPROBE) next_probe();
+        probing = 0;
+        board_round(round, NSTREAMS);
+        round++;
+        si = 0;
+        next_stream();
+    }
+
     // The first run straight into the second: nothing else between them.
     if (run == 0) {
         run = 1;
@@ -177,9 +239,10 @@ void handle(uint32_t *x) {
                  want, first_instret, first_cycles, instret, cycles);
     si++;
     if (si == NSTREAMS) {
-        board_round(round, NSTREAMS);
-        round++;
-        si = 0;
+        probing = 1;
+        pi = 0;
+        rep = 0;
+        next_probe();
     }
     next_stream();
 }

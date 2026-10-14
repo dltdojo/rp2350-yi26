@@ -36,6 +36,19 @@ WORDS = L // 4
 # more, as exp212 found silicon's first run; and the second run, straight
 # after the first (revision 2's AGAIN), a little less.
 CYCLES, FIRST, AGAIN = 7348211, 7348977, 7348140
+# Revision 4's probe (shell.c): 34 conditions, 4 runs each, the payload's
+# minstret on the RTL; a board's mcycle and XIP counts for it, made up, with
+# the line at 0x10000138 evicted costing 50 cycles and one miss.
+NPROBE, REPS, PROBE_BASE, PROBE_INSTRET = 34, 4, 0x10000100, 6
+PROBE_CYCLES, PROBE_ACC, SLOW_LINE = 72, 40, 0x10000138
+
+
+def probe_addr(i):
+    return 0 if i < 2 else PROBE_BASE + 8 * (i - 2)
+
+
+def probe_name(i, addr):
+    return "nothing first" if i == 0 else "FIXED[0] and FIXED[2] read" if i == 1 else f"{addr:#010x} evicted"
 
 
 def count_instret(path):
@@ -80,7 +93,39 @@ def count_rounds(instret, fixed, n=2, change=None):
             out += count_lines(r, s, name, smp, want, instret, **((change and change(r, s)) or {}))
             if s == 2:
                 out.append(status_line(SERIAL, r))
+        for i in range(NPROBE):
+            slow = probe_addr(i) == SLOW_LINE
+            for _ in range(REPS):
+                out.append(f"PROBE {r:08x} {i:08x} {probe_addr(i):08x} {PROBE_INSTRET:08x} "
+                           f"{PROBE_CYCLES + 50 * slow:08x} {PROBE_ACC:08x} {int(slow):08x}")
+        out.append("REVISION 00000004")
         out.append(f"ROUND {r:08x} {len(plays):08x}")
+    return out
+
+
+def logged_probes(log):
+    """Every PROBE line of a log: condition -> [(addr, minstret, mcycle, accesses, misses)]."""
+    runs = {}
+    for line in open(log, encoding="utf-8", errors="replace"):
+        t = line.split()
+        if len(t) == 8 and t[0] == "PROBE" and all(re.fullmatch(r"[0-9a-f]{8}", x) for x in t[1:]):
+            runs.setdefault(int(t[2], 16), []).append(tuple(int(x, 16) for x in t[3:]))
+    return runs
+
+
+def probe_report(runs):
+    """What the probe says, as lines: the baseline, then every condition whose
+    mcycle or misses were not the baseline's."""
+    base = runs.get(0, [])
+    cyc0, miss0 = {r[2] for r in base}, {r[4] for r in base}
+    out = [f"probe, {sum(len(v) for v in runs.values())} runs: nothing first, mcycle "
+           f"{'/'.join(map(str, sorted(cyc0)))}, accesses {'/'.join(map(str, sorted({r[3] for r in base})))}, "
+           f"misses {'/'.join(map(str, sorted(miss0)))}"]
+    for i in sorted(runs):
+        cyc, miss = sorted({r[2] for r in runs[i]}), sorted({r[4] for r in runs[i]})
+        if i and (set(cyc) != cyc0 or set(miss) != miss0):
+            out.append(f"{probe_name(i, runs[i][0][0])}: mcycle {'/'.join(map(str, cyc))}, misses "
+                       f"{'/'.join(map(str, miss))}, in {len(runs[i])} runs")
     return out
 
 
@@ -173,6 +218,10 @@ def count_board(expect_h, logs):
             if s in est:
                 hs = ", ".join(f"{h:.3f} ({hb:.3f} a bit)" for h, hb in est[s])
                 print(f"      {name}: H per byte {hs}")
+        runs = logged_probes(log)
+        if runs:
+            for line in probe_report(runs):
+                print(f"      {line}")
     return failed
 
 

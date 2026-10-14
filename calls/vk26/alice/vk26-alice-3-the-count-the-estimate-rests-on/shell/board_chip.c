@@ -21,6 +21,10 @@
 //                                  gen.py's (ffffffff for the TRNG's),
 //                                  minstret, and the kernel's mcycle: the
 //                                  first run's
+//   PROBE round i addr minstret mcycle accesses misses
+//                                  revision 4: one probe run (shell.c), and
+//                                  the XIP cache's accesses and misses in it
+//   REVISION 4                     which firmware this is, every round
 //   ROUND round streams            every stream run and as it should be
 //
 // The LED, after each stream: one long light, then 2 s dark. A healthy round
@@ -75,7 +79,42 @@ void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *
     pwait(11 * unit);
 }
 
+// RP2350's XIP_CTRL (rp-pac 7.0.0): CTR_HIT and CTR_ACC.
+#define XIP_CTR_HIT (*(volatile uint32_t *)0x400c800cu)
+#define XIP_CTR_ACC (*(volatile uint32_t *)0x400c8010u)
+
+void board_evict(uint32_t addr) {
+    for (uint32_t pass = 0; pass < 2; pass++)
+        for (uint32_t k = 1; k <= 3; k++) (void)*(const volatile uint32_t *)(addr + k * 0x2000u);
+}
+
+void board_xip_clear(void) {
+    XIP_CTR_HIT = 0;
+    XIP_CTR_ACC = 0;
+}
+
+void board_xip(uint32_t *acc, uint32_t *hit) {
+    *acc = XIP_CTR_ACC;
+    *hit = XIP_CTR_HIT;
+}
+
+void board_probe(uint32_t round, uint32_t i, uint32_t addr, uint32_t instret, uint32_t cycles, uint32_t acc,
+                 uint32_t miss) {
+    put("PROBE");
+    put_hex(round);
+    put_hex(i);
+    put_hex(addr);
+    put_hex(instret);
+    put_hex(cycles);
+    put_hex(acc);
+    put_hex(miss);
+    say();
+}
+
 void board_round(uint32_t round, uint32_t streams) {
+    put("REVISION");
+    put_hex(4);
+    say();
     put("ROUND");
     put_hex(round);
     put_hex(streams);

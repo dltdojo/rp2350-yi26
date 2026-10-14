@@ -41,7 +41,9 @@ slow for the first time (2 of 3 rounds). Reading the two words of `mret`
 and the trap entry back did not keep streams 2 and 4 fast (3 of 6 slow).
 So flash reads over those sets cause the cost, but a miss on that one
 line is not the whole of it. The raw TRNG leaned to 0 in all seven
-draws.**
+draws. Revision 4 asks the rest in one flash, a probe of 34 conditions
+with the XIP cache's own counters, and is the last revision on the timing
+question; it has not run on a board yet.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -252,6 +254,8 @@ BITS round s k w0 … w15          64 a stream: the 1024 words
 HIST round s k c0 … c15          16 a stream: the kernel's counts
 AGAIN round s minstret mcycle    revision 2: the second run
 STREAM round s most want minstret mcycle name    the first run's
+PROBE round i addr minstret mcycle accesses misses   revision 4: 136 a round
+REVISION 4                       revision 4: before every ROUND
 ROUND round streams
 ```
 
@@ -546,6 +550,51 @@ Nothing here shows this.
 5.3 and 4.7 standard deviations below even, if independent), per-bit H
 0.951, 0.939, 0.943. With its tests on: 49.77% and 50.05%. All seven raw
 draws over three runs leaned to 0.
+
+## Revision 4: the rest in one flash, and the last
+
+Three revisions took three trips, one guess each. That is the cost
+[`docs/the-board-is-the-loop.md`](../../../../docs/the-board-is-the-loop.md)
+measures for exp156, and its lever 2 is the fix: let the board run the
+matrix. Revision 4 changes three things:
+
+1. **It counts the misses instead of inferring them.** RP2350's XIP_CTRL
+   has a cache hit counter and an access counter (`CTR_HIT`, `CTR_ACC`,
+   0x400c800c and 0x400c8010 in rp-pac 7.0.0). The shell clears them, reads
+   them just before a run and just after it, and sends the difference. If
+   a write does not clear them, the difference still holds.
+2. **It runs the matrix itself.** After each round's streams, a probe runs
+   a two-instruction payload (`t0` = 1, `ecall`: HALT 0) 4 times under each
+   of 34 conditions:
+   - 0: nothing first;
+   - 1: `FIXED[0]` and `FIXED[2]` read through, as stream 3 in revision 3;
+   - 2 to 33: one 8-byte line of the harness's code, 0x10000100 to
+     0x100001f8, evicted first. The line's aliases 8, 16 and 24 KiB on are
+     read, twice over, so neither of the cache's two ways keeps it.
+
+   Each run sends `PROBE round i addr minstret mcycle accesses misses`.
+   That is 136 runs a round, in well under a second. The payload is not the
+   proved kernel. It is an instrument for the window that every run of the
+   kernel shares: `mret` in, the trap out.
+3. **It names itself.** `REVISION 4` comes before every ROUND line.
+
+The streams are revision 3's, unchanged. On the RTL, all 136 probe runs
+take one minstret (6) and one mcycle (8), and there is no cache to count.
+
+What revision 4's run will say, stated before it happens:
+- every count right, every second run 7,343,697, as in revisions 2 and 3;
+- condition 0 takes one mcycle and one miss count in every run;
+- **evicting the line at 0x10000138 makes the payload slower, with at
+  least one miss more** than condition 0. That is the line after `mret`
+  and the trap entry, which revision 3 did not read back;
+- evicting a line outside 0x10000128 to 0x1000013f changes nothing;
+- wherever the payload is slower, the miss count is higher too.
+
+**Revision 4 is the last revision on this question.** Whatever its log
+says is written down, and the experiment stops there. What vk26-alice-3
+set out to show, a count proved for every input and constant-time by
+proof, was settled by revision 1. The cycles are a side question it
+raised, and three trips is what that question has had.
 
 ## What it does not say
 
