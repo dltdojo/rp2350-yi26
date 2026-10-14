@@ -26,7 +26,7 @@ H=$TOOLS/hazard3/harness
 S=$TOOLS/hazard3/shell
 
 sim() { # shell-dir include-dir out device
-    shell_sim "$3" -DDEVICE="${4:-0}" -I "$2" -I "$1" "$1/shell.c" "$1/board_sim.c" "$H/sha256.c"
+    shell_sim "$3" -DDEVICE="${4:-0}" -I "$2" -I "$1" -I ../shell "$1/shell.c" "$1/board_sim.c" "$H/sha256.c"
 }
 
 if [[ "${1-}" == sim ]]; then
@@ -38,7 +38,7 @@ mkdir -p build
 RUN="$("$TOOLS/lean/lean.sh" exe rv32run)"
 python3 gen.py build/expect.h "$RUN"
 
-shell_chip 32768 build/chip -I build -I shell shell/shell.c shell/board_chip.c \
+shell_chip 32768 build/chip -I build -I shell -I ../shell shell/shell.c shell/board_chip.c \
     "$S/usb_chip.c" "$S/usbdev.c" "$H/sha256.c"
 mv build/chip.bin build/vk26-alice-1.bin
 mv build/chip.uf2 build/vk26-alice-1.uf2

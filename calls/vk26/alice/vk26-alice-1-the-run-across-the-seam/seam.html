@@ -15,8 +15,8 @@
   phone did. What it cannot check is the kernel's proof: that is
   proof/Seam.lean's.
 
-  The shared parts (connecting, Copy, the look) are ../pages/core.js and
-  ../pages/core.css. To put this on a phone, build one file:
+  The shared parts are ../pages/: core.js and core.css (connecting, Copy,
+  Save, the look) and health.js (SP 800-90B's two tests, the BITS lines). To put this on a phone, build one file:
     python3 ../pages/build.py seam.html build/seam.html
   and open build/seam.html — Files app -> "Open with Chrome" on Android.
 
@@ -36,12 +36,13 @@
 <h1>The run across the seam</h1>
 <p class="sub">vk26-alice-1 &middot; four windows of 1024 samples, the repetition count carried across every edge,
   nothing written after the first window that fails — judged again here, every sample and every digest.<br>
-  <small>page build <b id="ver">p1</b></small></p>
+  <small>page build <b id="ver">p3</b></small></p>
 
 <p>
   <button id="connect">Connect</button>
   <button id="stop" class="ghost" disabled>Disconnect</button>
   <button id="copy" class="ghost">Copy</button>
+  <button id="save" class="ghost">Save</button>
 </p>
 
 <div id="status">Not connected.</div>
@@ -59,90 +60,45 @@
 <div class="meta" id="meta"></div>
 
 <script src="../pages/core.js"></script>
+<script src="../pages/health.js"></script>
 <script>
 // BEGIN seam-check
 // ---------------------------------------------------------------------------
-// What the board's lines say, and whether each stream is judged right.
+// What vk26-alice-1's lines say, and whether each stream is judged right.
+// The tests themselves, BITS, ROUND and FAIL are ../pages/health.js's.
 //
-//   BITS round s k w0 … w15        samples 512k to 512k + 511 of stream s:
-//                                  sample i is bit i % 32 of word i / 32
+//   BITS round s k w0 … w15        eight a stream: four windows of 1024
 //   DIGEST round s w <64 hex>      what the kernel wrote for window w
 //   STREAM round s code want minstret digests name
 //   ROUND round streams
 //
-// SP 800-90B's repetition count and adaptive proportion tests are written
-// here one sample at a time, as the standard states them and as exp114's
-// crate runs them: the run is not reset at a window's edge; each window's
-// first sample is its reference. vk26-alice-1's check.sh runs this block
-// under node, against seam.py on every one of its streams, and over streams
-// right and wrong.
+// vk26-alice-1's check.sh runs this block under node, against seam.py on
+// every one of its streams, and over streams right and wrong.
 // ---------------------------------------------------------------------------
 
-const SEAM_N = 1024, SEAM_WINDOWS = 4, SEAM_RCT = 21, SEAM_APT = 589, SEAM_WORDS = 128;
+const SEAM_WINDOWS = 4;
 // minstret for each halt code, as the Hazard3 RTL counts it: build/expect.h's
 // INSTRET, which check.sh holds this to.
 const SEAM_INSTRET = [69719, 17434, 34859, 52284, 69709];
 
-/** 128 words in, 4096 samples out. */
-function seamSamples(words) {
-  const bits = new Array(SEAM_N * SEAM_WINDOWS);
-  for (let i = 0; i < bits.length; i++) bits[i] = (words[i >>> 5] >>> (i & 31)) & 1;
-  return bits;
-}
-
-/**
- * The kernel's specification, a sample at a time: where it stops and why. For
- * each window reached: the run carried into it from the window before, the
- * longest run in it (carried part included), how many samples equal its first,
- * what failed, and whether the run that reached 21 began in an earlier window.
- */
+/** Where the kernel's specification stops, and why: health.js's judgement, and the halt code. */
 function seamJudge(bits) {
-  let last = -1, run = 0;
-  const windows = [];
-  for (let w = 0; w < SEAM_WINDOWS; w++) {
-    const start = w * SEAM_N, ref = bits[start];
-    const carried = bits[start] === last ? run : 0;
-    let matches = 0, longest = 0, across = false, hit = false;
-    for (let i = start; i < start + SEAM_N; i++) {
-      run = bits[i] === last ? run + 1 : 1;
-      last = bits[i];
-      if (run > longest) longest = run;
-      if (run === SEAM_RCT && !hit) { hit = true; across = i - SEAM_RCT + 1 < start; }
-      if (bits[i] === ref) matches++;
-    }
-    const fail = longest >= SEAM_RCT ? 'run' : matches >= SEAM_APT ? 'APT' : null;
-    windows.push({ carried, longest, matches, fail, across });
-    if (fail) return { passed: w, code: w + 1, windows };
-  }
-  return { passed: SEAM_WINDOWS, code: 0, windows };
-}
-
-/** The 4096 bytes HASH reads for window w: its samples as little-endian words. */
-function seamWindowBytes(bits, w) {
-  const b = new Uint8Array(4 * SEAM_N);
-  for (let i = 0; i < SEAM_N; i++) b[4 * i] = bits[w * SEAM_N + i];
-  return b;
+  const j = healthJudge(bits, SEAM_WINDOWS);
+  return { ...j, code: j.passed === SEAM_WINDOWS ? 0 : j.passed + 1 };
 }
 
 function seamParse(text) {
   const t = text.trim(), h = '([0-9a-f]{8})';
   let m;
-  if ((m = t.match(new RegExp(`^BITS ${h} ${h} ${h}((?: [0-9a-f]{8}){16})$`))))
-    return { kind: 'BITS', round: parseInt(m[1], 16), s: parseInt(m[2], 16), k: parseInt(m[3], 16),
-             words: m[4].trim().split(' ').map((x) => parseInt(x, 16) >>> 0) };
+  const e = healthLine(t, 'vk26-alice-1');
+  if (e) return e;
   if ((m = t.match(new RegExp(`^DIGEST ${h} ${h} ${h} ([0-9a-f]{64})$`))))
     return { kind: 'DIGEST', round: parseInt(m[1], 16), s: parseInt(m[2], 16), w: parseInt(m[3], 16), hex: m[4] };
   if ((m = t.match(new RegExp(`^STREAM ${h} ${h} ${h} ${h} ${h} ${h} (.+)$`))))
     return { kind: 'STREAM', round: parseInt(m[1], 16), s: parseInt(m[2], 16), code: parseInt(m[3], 16),
              want: parseInt(m[4], 16) >>> 0, minstret: parseInt(m[5], 16), digests: parseInt(m[6], 16), name: m[7] };
-  if ((m = t.match(new RegExp(`^ROUND ${h} ${h}$`))))
-    return { kind: 'ROUND', round: parseInt(m[1], 16), streams: parseInt(m[2], 16) };
-  if (/^vk26-alice-1 usb=/.test(t)) return { kind: 'status' };
-  if (/^FAIL /.test(t)) return { kind: 'FAIL' };
   return { kind: 'other' };
 }
-
-const seamHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 
 /**
  * Feed it lines, in order, awaiting each; a STREAM comes back with a verdict:
@@ -155,17 +111,14 @@ const seamHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).joi
  */
 function seamChecker(sha256) {
   const s = { streams: 0, ok: 0, wrong: 0, incomplete: 0, rounds: 0, fails: 0, seamCaught: 0, firstWrong: null };
-  const parts = new Map(), digests = new Map();
+  const samples = healthStreams(8), digests = new Map();
   const key = (e) => `${e.round}:${e.s}`;
 
   async function feed(text) {
     const e = seamParse(text);
     if (e.kind === 'FAIL') s.fails++;
     if (e.kind === 'ROUND') s.rounds++;
-    if (e.kind === 'BITS') {
-      if (!parts.has(key(e))) parts.set(key(e), new Array(8).fill(null));
-      if (e.k < 8) parts.get(key(e))[e.k] = e.words;
-    }
+    if (e.kind === 'BITS') samples.add(e);
     if (e.kind === 'DIGEST') {
       if (!digests.has(key(e))) digests.set(key(e), []);
       digests.get(key(e))[e.w] = e.hex;
@@ -173,13 +126,12 @@ function seamChecker(sha256) {
     if (e.kind !== 'STREAM') return e;
 
     s.streams++;
-    const p = parts.get(key(e)), d = digests.get(key(e)) || [];
-    parts.delete(key(e)); digests.delete(key(e));
-    if (!p || p.some((x) => x === null)) {
+    const bits = samples.take(e.round, e.s), d = digests.get(key(e)) || [];
+    digests.delete(key(e));
+    if (!bits) {
       e.verdict = 'incomplete'; e.why = 'a BITS line of it never arrived'; s.incomplete++;
       return e;
     }
-    const bits = seamSamples([].concat(...p));
     const j = seamJudge(bits);
     e.judged = j;
     const why = [];
@@ -192,7 +144,7 @@ function seamChecker(sha256) {
       why.push(`${d.filter((x) => x).length} digests sent, ${e.digests} said, ${j.passed} windows passed`);
     e.digestOk = [];
     for (let w = 0; w < Math.min(j.passed, d.length); w++) {
-      const want = seamHex(await sha256(seamWindowBytes(bits, w)));
+      const want = healthHex(await sha256(healthWindowBytes(bits, w)));
       e.digestOk.push(d[w] === want);
       if (d[w] !== want) why.push(`window ${w + 1}'s digest is not SHA-256 of its 4096 bytes`);
     }
@@ -211,11 +163,7 @@ function seamChecker(sha256) {
 // END seam-check
 
 const $ = (id) => document.getElementById(id);
-let bytes = 0, started = 0;
 const checker = seamChecker(async (b) => new Uint8Array(await crypto.subtle.digest('SHA-256', b)));
-const split = cdcLines();
-const rawLines = [];
-let queue = Promise.resolve();
 
 function cell(j, w) {
   if (!j || w >= j.windows.length) return '<td class="off">—</td>';
@@ -252,31 +200,11 @@ function verdict() {
   v.innerHTML = t;
 }
 
-function received(text, n) {
-  bytes += n;
-  if (!started) started = performance.now();
-  for (const l of split(text)) {
-    queue = queue.then(async () => {
-      const e = await checker.feed(l);
-      rawLines.push(l.length > 120 ? l.slice(0, 117) + '…' : l);
-      if (e.verdict === 'wrong') rawLines.push(`   <- wrong: ${e.why}`);
-      if (rawLines.length > 60) rawLines.splice(0, rawLines.length - 60);
-      if (e.kind === 'STREAM') show(e);
-      const raw = $('raw');
-      const atBottom = raw.scrollHeight - raw.scrollTop - raw.clientHeight < 30;
-      raw.textContent = rawLines.join('\n');
-      if (atBottom) raw.scrollTop = raw.scrollHeight;
-      verdict();
-      $('meta').textContent = `${bytes} bytes, ${((performance.now() - started) / 1000).toFixed(1)} s`;
-    });
-  }
-}
-
 appliance({
   serial: 'vk26-alice-1',
   page: `vk26-alice-1 seam.html ${$('ver').textContent}`,
   listening: 'A stream every few seconds, six a round; the first round starts with a fresh draw from the TRNG.',
-  onText: received,
+  onText: checkedLines(checker.feed, (e) => { if (e.kind === 'STREAM') show(e); verdict(); }),
   report: () => JSON.stringify(checker.summary()),
 });
 </script>

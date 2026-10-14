@@ -22,7 +22,8 @@
 #      seam.py's code and the RTL's count for it, each digest SHA-256's;
 #      wrong shells are caught;
 #   5. seam.html, the page a phone shows the board on, built into one file by
-#      ../pages/build.py: its tests stop where seam.py's do on every stream;
+#      ../pages/build.py with ../pages/health.js's tests in it: they stop
+#      where seam.py's do on every stream;
 #      it tells right streams from wrong ones, in 64-byte packets, with
 #      WebCrypto's SHA-256; wrong pages are caught; in headless Chromium
 #      against a stand-in board;
@@ -91,17 +92,15 @@ got="$(shell_words build/sim.bin 400000000)"
 if python3 - "$got" <<'PY'
 import re, sys
 sys.path.insert(0, ".")
-from seam import outcome
+from seam import seam_outcome
+from health import unpack
+from lines import expect_instret
+from trng_sim import stand_in_words
 words = sys.argv[1].split()
-text = open("build/expect.h").read()
-instret = [int(x) for x in re.search(r"INSTRET\[5\] = \{([^}]*)\}", text).group(1).split(",")]
-wants = [int(x) for x in re.findall(r'^    \{"[^"]+", (\d+), \{', text, re.M)]
+instret = expect_instret("build/expect.h")
+wants = [int(x) for x in re.findall(r'^    \{"[^"]+", (\d+), \{', open("build/expect.h").read(), re.M)]
 # tools/hazard3/shell/trng_sim.h's stand-in, DEVICE 0: 128 words from its LCG.
-x, lcg = 222, []
-for _ in range(128):
-    x = (x * 1664525 + 1013904223) & 0xffffffff
-    lcg.append(x)
-trng = outcome([(lcg[i // 32] >> (i % 32)) & 1 for i in range(4096)])[0]
+trng = seam_outcome(unpack(stand_in_words(128)))[0]
 rows, i = [], 0
 while i < len(words) and words[i] == "5354524d":
     rows.append([int(w, 16) for w in words[i + 1:i + 6]])
@@ -137,21 +136,23 @@ else
     fi
     shopt -s nullglob
     node page_test.mjs build/seam.html build/page board/*.txt || FAILED=1
+    # On the built page: health.js's tests and the page's own block, as a phone runs them.
     page_mutant "the run is reset at each window's edge" 's/      run = bits\[i\] === last ? run + 1 : 1;/      run = bits[i] === last \&\& i !== start ? run + 1 : 1;/' \
-        seam.html node page_test.mjs @ build/page
-    page_mutant "the adaptive proportion cutoff is 590" 's/SEAM_APT = 589/SEAM_APT = 590/' \
-        seam.html node page_test.mjs @ build/page
-    page_mutant "each window's reference is the stream's first sample" 's/const start = w \* SEAM_N, ref = bits\[start\];/const start = w * SEAM_N, ref = bits[0];/' \
-        seam.html node page_test.mjs @ build/page
+        build/seam.html node page_test.mjs @ build/page
+    page_mutant "the adaptive proportion cutoff is 590" 's/HEALTH_APT = 589/HEALTH_APT = 590/' \
+        build/seam.html node page_test.mjs @ build/page
+    page_mutant "each window's reference is the stream's first sample" 's/const start = w \* HEALTH_N, ref = bits\[start\];/const start = w * HEALTH_N, ref = bits[0];/' \
+        build/seam.html node page_test.mjs @ build/page
     page_mutant "a digest is never compared" "s/if (d\[w\] !== want) why.push/if (false) why.push/" \
-        seam.html node page_test.mjs @ build/page
+        build/seam.html node page_test.mjs @ build/page
     page_mutant "minstret is not compared" 's/if (e.code <= SEAM_WINDOWS \&\& e.minstret !== SEAM_INSTRET\[e.code\])/if (false)/' \
-        seam.html node page_test.mjs @ build/page
-    page_mutant "a stream with a BITS line missing is judged anyway" 's/if (!p || p.some((x) => x === null)) {/if (!p) {/' \
-        seam.html node page_test.mjs @ build/page
+        build/seam.html node page_test.mjs @ build/page
+    page_mutant "a stream with a BITS line missing is judged anyway" 's/return !p || p.some((x) => x === null) ? null :/return !p ? null :/' \
+        build/seam.html node page_test.mjs @ build/page
     if page_playwright; then
-        node page_browser.mjs build/seam.html build/page/good.txt "12 of 12 streams judged right" 6 || FAILED=1
-        node page_browser.mjs build/seam.html build/page/reset.txt "1 wrong" 6 || FAILED=1
+        ID=(vk26-alice-1 "vk26-alice-1 the run across the seam")
+        node ../pages/browser.mjs build/seam.html build/page/good.txt "12 of 12 streams judged right" 6 "${ID[@]}" || FAILED=1
+        node ../pages/browser.mjs build/seam.html build/page/reset.txt "1 wrong" 6 "${ID[@]}" || FAILED=1
     else
         echo "SKIP  the page in a browser: Playwright is not installed"
     fi

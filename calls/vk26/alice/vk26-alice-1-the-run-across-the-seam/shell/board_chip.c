@@ -2,7 +2,7 @@
 //
 // vk26-alice-1 — the Pico 2: the six streams shell.c runs, forever, the TRNG's
 // drawn again each round (tools/hazard3/shell/trng.h), HASH on the chip's
-// SHA-256 block (sha_chip.h), and each stream sent over USB
+// SHA-256 block (alice/shell/lines_chip.h), and each stream sent over USB
 // (tools/hazard3/shell/speak.h) with everything a page needs to judge it
 // again without the kernel: the samples, the code, the digests.
 //
@@ -31,46 +31,14 @@
 #define SPEAK_SERIAL "vk26-alice-1"
 #include "speak.h"
 #include "trng.h"
-#include "sha_chip.h"
-
-static uint32_t sha_up;   // set by the first HASH: speak.h's board_init is the whole of board_init
-
-int board_hash(const uint8_t *src, uint32_t len, uint8_t *dst) {
-    if (!sha_up) {
-        sha_chip_init();
-        sha_up = 1;
-    }
-    return sha_hw(src, len, dst);
-}
-
-// A line, then long enough for the host to take it before the next: the
-// queue is 1024 bytes and a BITS line about 180.
-static void say(void) {
-    send();
-    pwait(unit / 4);
-}
-
-static void put_bytes(const uint8_t *b, uint32_t n) {
-    put(" ");
-    for (uint32_t i = 0; i < n; i++) {
-        line[at++] = "0123456789abcdef"[b[i] >> 4];
-        line[at++] = "0123456789abcdef"[b[i] & 15];
-    }
-}
+#include "lines_chip.h"
 
 void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *bits, uint32_t code,
                   uint32_t want, uint32_t instret, const uint8_t (*digest)[32], uint32_t ndigests) {
     last_instret = instret;
     lives = round;
     REG(SIO_OUT_CLR) = LED;
-    for (uint32_t k = 0; k < 8; k++) {
-        put("BITS");
-        put_hex(round);
-        put_hex(s);
-        put_hex(k);
-        for (uint32_t i = 0; i < 16; i++) put_hex(bits[16 * k + i]);
-        say();
-    }
+    put_bits(round, s, bits, 128);   // four windows of 1024 samples
     for (uint32_t w = 0; w < ndigests; w++) {
         put("DIGEST");
         put_hex(round);

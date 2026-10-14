@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // vk26-alice-1 — seam.html's checking, run under node: the block between
-// `BEGIN seam-check` and `END seam-check`, taken out of the page itself, with
-// ../pages/core.js's cdcLines (the page's own copy, in a built page), fed in 64-byte packets as the USB endpoint
-// delivers them, and node's WebCrypto for SHA-256 as the page has the
-// browser's.
+// `BEGIN seam-check` and `END seam-check` with ../pages/health.js's and
+// core.js's cdcLines (../pages/pagetest.mjs: the page's own copies, in a
+// built page), fed in 64-byte packets as the USB endpoint delivers them, and
+// node's WebCrypto for SHA-256 as the page has the browser's.
 //
 //   node page_test.mjs PAGE FIXTURES [BOARD-LOG...]
 //
@@ -14,35 +14,17 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
+import { pageContext, inPackets, checker } from '../pages/pagetest.mjs';
 
 const [page, dir, ...logs] = process.argv.slice(2);
-const html = fs.readFileSync(page, 'utf8');
-const block = html.slice(html.indexOf('// BEGIN seam-check'), html.indexOf('// END seam-check'));
-// cdcLines from the page when build.py has put core.js in it, else from core.js itself.
-const core = html.includes('function cdcLines(') ? html
-  : fs.readFileSync(new URL('../pages/core.js', import.meta.url), 'utf8');
-const lines = core.slice(core.indexOf('function cdcLines('), core.indexOf('\n}\n', core.indexOf('function cdcLines(')) + 3);
-const ctx = { crypto: globalThis.crypto };
-vm.createContext(ctx);
-vm.runInContext(block + lines + '\nthis.seamJudge = seamJudge; this.seamChecker = seamChecker; this.seamSamples = seamSamples;'
-  + ' this.cdcLines = cdcLines; this.SEAM_INSTRET = SEAM_INSTRET;', ctx);
+const ctx = pageContext(page, 'seam-check', ['seamJudge', 'seamChecker', 'healthSamples', 'cdcLines']);
 const sha256 = async (b) => new Uint8Array(await crypto.subtle.digest('SHA-256', b));
-
-let failed = 0;
-const check = (ok, what, detail = '') => {
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}${ok || !detail ? '' : ` — ${detail}`}`);
-  if (!ok) failed++;
-};
+const { check, failed } = checker();
 
 async function run(text) {
-  const c = ctx.seamChecker(sha256), split = ctx.cdcLines(), wrong = [];
-  for (let i = 0; i < text.length; i += 64)
-    for (const l of split(text.slice(i, i + 64))) {
-      const e = await c.feed(l);
-      if (e.verdict === 'wrong') wrong.push(`${e.round}:${e.s}`);
-    }
-  return { ...c.summary(), wrongAt: wrong.join(' ') };
+  const c = ctx.seamChecker(sha256);
+  const wrongAt = await inPackets(c, ctx.cdcLines, text);
+  return { ...c.summary(), wrongAt };
 }
 const fixture = (name) => run(fs.readFileSync(path.join(dir, name), 'utf8'));
 const brief = (s) => `streams ${s.streams} ok ${s.ok} wrong ${s.wrong} [${s.wrongAt}] incomplete ${s.incomplete} `
@@ -52,7 +34,7 @@ const brief = (s) => `streams ${s.streams} ok ${s.ok} wrong ${s.wrong} [${s.wron
 let n = 0, bad = '', across = [];
 for (const ln of fs.readFileSync(path.join(dir, 'judge.txt'), 'utf8').trim().split('\n')) {
   const [code, name, hex] = ln.split('|');
-  const j = ctx.seamJudge(ctx.seamSamples(hex.split(' ').map((h) => parseInt(h, 16) >>> 0)));
+  const j = ctx.seamJudge(ctx.healthSamples(hex.split(' ').map((h) => parseInt(h, 16) >>> 0)));
   if (j.code !== Number(code)) { bad = `${name}: seam.py says ${code}, the page ${j.code}`; break; }
   if (j.code && j.windows[j.windows.length - 1].across) across.push(name);
   n++;
@@ -89,4 +71,4 @@ for (const log of logs) {
     `${path.basename(log)}: ${s.ok} of ${s.streams} streams from a board judged right, ${s.incomplete} incomplete, `
     + `${s.rounds} rounds, ${s.seamCaught} stopped across an edge`, brief(s));
 }
-process.exit(failed ? 1 : 0);
+process.exit(failed() ? 1 : 0);

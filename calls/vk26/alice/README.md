@@ -22,7 +22,7 @@ S4 的索引表，做完一個填一列。Needs 照 [experiments/README.md](../.
 | 實驗 | Needs | USB 介面 | 傳什麼 | 主機端 | 跑誰的韌體 | 一句話 |
 | --- | --- | --- | --- | --- | --- | --- |
 | [vk26-alice-1](./vk26-alice-1-the-run-across-the-seam/) | 2 | CDC | log | WebUSB（[seam.html](./vk26-alice-1-the-run-across-the-seam/seam.html)） | 自己的 | 四個視窗的 SP 800-90B 健康測試，RCT 跨窗連續計數，第一個失敗的視窗之後一個位元組都不寫；Lean 證明對每個輸入成立（`Seam.from_boot`），指令數由停止窗號決定。Pico 2 上板一次，紀錄 7 條完整樣本流全對（[board/round1.txt](./vk26-alice-1-the-run-across-the-seam/board/round1.txt)） |
-| vk26-alice-2 | | | | | | （未實作） |
+| [vk26-alice-2](./vk26-alice-2-the-hash-tested-first/) | 2 | CDC | log | WebUSB（[trust.html](./vk26-alice-2-the-hash-tested-first/trust.html)） | 自己的 | 讀樣本之前先以已知答案測試（KAT）考 `HASH`（晶片上是 SHA-256 硬體區塊），答錯就在 43 條指令後以 2 停下、一個樣本都不讀；再做 SP 800-90B 的啟動測試並丟棄那 1024 個樣本，下一窗通過才輸出 `HASH`；Lean 證明對任何 `HASH` 成立（`Trust.trusts_after_kat`）。shell 每輪故意弄壞一次答案，kernel 都擋下。Pico 2 上板一次，紀錄 18 條完整樣本流全對，弄壞的答案 4 次都被擋下（[board/round1.txt](./vk26-alice-2-the-hash-tested-first/board/round1.txt)） |
 | vk26-alice-3 | | | | | | （未實作） |
 | vk26-alice-4 | | | | | | （未實作） |
 | vk26-alice-5 | | | | | | （未實作） |
@@ -167,20 +167,20 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。vk26-alice-1 從這裡
 
 ## 五、預期會測到的徵集設定問題
 
-規劃時已經找到、實作時要確認的。「vk26-alice-1 之後」一欄是做完第一個實驗時的狀態：
+規劃時已經找到、實作時要確認的。最後一欄是做完 vk26-alice-1、vk26-alice-2 時的狀態：
 
-| 項目 | 現況 | 可能的影響 | vk26-alice-1 之後 |
+| 項目 | 現況 | 可能的影響 | 做完之後 |
 | --- | --- | --- | --- |
-| `experiments/duplication.sh` | 只掃 `experiments/*` 的 `.rs`、`.py`、`.sh` | `alice/` 內的重複不會被抓到；README 第 4 節「第二份就抽出」沒有機器檢查 | **確認，未修**。alice-1 靠人工避開：`board_sim.c` 改用 `tools/hazard3/shell/fail_sim.h`，網頁共用部分放 `alice/pages/` |
-| J3 的 PRIOR WORK | 只取 `experiments/README.md` exp201 起的索引列 | vk26-alice-2 到 5 的 J3 看不到 alice 自己的 vk26-alice-1 等，可能把延續自 vk26-alice-1 的部分判為「新」 | 未到（alice-2 才會遇到） |
+| `experiments/duplication.sh` | 只掃 `experiments/*` 的 `.rs`、`.py`、`.sh` | `alice/` 內的重複不會被抓到；README 第 4 節「第二份就抽出」沒有機器檢查 | **已修**（獨立 commit）：會讀 `calls/<徵求>/<帳號>/<徵求>-<帳號>-<n>-<slug>/`。它以函式名稱計數，alice-1 有四個函式和主線撞名（不是複製），已改成具體的名稱；徵集 README 提醒提案者 |
+| J3 的 PRIOR WORK | 只取 `experiments/README.md` exp201 起的索引列 | vk26-alice-2 到 5 的 J3 看不到 alice 自己的 vk26-alice-1 等，可能把延續自 vk26-alice-1 的部分判為「新」 | alice-2 確認會發生（它沿用 alice-1 的跨窗計數），**已修**（獨立 commit）：提案自己編號較小的索引列也進 J3 切片，標「(this proposal)」；徵集 README 提醒索引表的一句話是 J3 的材料 |
 | 網頁不在 bundle | `judge-bundle.sh` 不收 `.html`、`.mjs` | 網頁相關的宣稱在 J1 無證據（見第四節第 1 點） | **已修**（獨立 commit）：README 或 WHY.zh-TW.md 連結到的 `.html`、`.mjs`，以及頁面用 `<script src>` 從旁邊載入的腳本，進入 J1 切片；selftest 有對應案例 |
-| 提案者 Lake 套件 | `lean.sh` 已支援 `calls/<徵求>/<帳號>/lean/`，但從未被真正的提案用過 | 第一次實際使用：路徑、`once_key`、mutant 限制（不能改主線函式庫） | 套件可用，`check`、`mutants`、`table` 都正常。**`lean.sh exec` 原本用主線函式庫，找不到 `Alice` 模組，已修**（獨立 commit）。**mutant 確實只能改主線 `lean/`**：「每窗歸零」這個 mutant 本來該改 `Alice/Window.lean`，只能改成宣稱層級的 mutant，未修 |
-| Lean 的戰術 | 沒有 Mathlib；`lean.sh check` 連警告都算失敗 | 提案者習慣的 `split_ifs`、`set` 不能用；未用到的 simp 參數也會讓檢查失敗 | **新發現**。`by_cases`、`generalize`、`bv_omega` 可替代；應寫進徵集 README 給提案者 |
+| 提案者 Lake 套件 | `lean.sh` 已支援 `calls/<徵求>/<帳號>/lean/`，但從未被真正的提案用過 | 第一次實際使用：路徑、`once_key`、mutant 限制（不能改主線函式庫） | 套件可用。`lean.sh exec` 用錯函式庫，**已修**。mutant 改不到套件，**已修**（獨立 commit）：最後一欄可寫 `calls/vk26/<帳號>/lean/<檔案>.lean`；alice-1 加了兩個改 `Alice/Window.lean` 的 mutant（規格每窗歸零、參考值不取 bit 0），都被拒絕 |
+| Lean 的戰術 | 沒有 Mathlib；`lean.sh check` 連警告都算失敗 | 提案者習慣的 `split_ifs`、`set` 不能用；未用到的 simp 參數也會讓檢查失敗 | **已寫進徵集 README** 第 4 節「Lean 的寫法限制」：沒有的戰術、會變成失敗的警告、各自的替代 |
 | 路徑深度 | 實驗在 `calls/vk26/alice/vk26-alice-N-<slug>/`，比 `experiments/expNNN/` 深兩層 | `source ../../../../experiments/lib.sh`、`tools/hazard3/shell/` 的相對路徑、`run.sh` 的開跑前檢查 | 確認可行：`TOOLS=../../../../tools`；`shell.sh`、`pagecheck.sh`、`headless.mjs` 都不假設深度 |
 | `check.sh` | 不能呼叫 `presence_check`、`usb_check`（README 第 3 節） | Needs 與 USB 資訊只在 alice 的索引表，沒有機器檢查 | 確認：資訊寫在上面的索引表，沒有機器檢查 |
 | S2 | PR 只能動 `alice/` | 試跑中對徵集設定的修正要另開 PR，不能混進 alice 的提交，才能如實測到 S2 | 兩個設定修正都是獨立 commit，只動 `tools/lean/lean.sh` 或 `calls/vk26/` 的設定檔 |
 | 裁判用量 | 7 次判定 × 2 個 session | 依第 4 輪，約 $4–5；`audit-proposal.sh` 第一次對真提案執行 | 未到（五個做完才跑） |
-| G7 | 需要人、板子、手機 | 每個實驗需要一次手機上板；五個實驗共 5 次 | alice-1 上板一次（Pico 2 + 手機網頁）。手機的 Copy 貼回時被截斷（網頁看到 11 條，貼回 7 條），長紀錄經由聊天貼回可能需要改成分段或存檔 |
+| G7 | 需要人、板子、手機 | 每個實驗需要一次手機上板；五個實驗共 5 次 | alice-1 上板一次。紀錄經聊天貼回時被截斷（網頁看到 11 條，貼回 7 條）。**已修**：alice 的網頁加了 Save（存檔，狀態列寫出字元數與行數）；徵集 README 與 ACCEPTANCE 改成紀錄一律以檔案傳回 |
 
 ## 六、這份規劃參考過的既有工作
 

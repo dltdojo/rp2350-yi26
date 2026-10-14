@@ -29,7 +29,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "tools", "hazard3", "shell"))
 from expect import c_bytes, kernel_bin, model, rtl  # noqa: E402
-from seam import DIGESTS, N, WINDOWS, image, outcome, streams  # noqa: E402
+from seam import DIGESTS, N, WINDOWS, image, seam_outcome, streams  # noqa: E402
+from health import pack  # noqa: E402  (seam.py has put alice/tools on the path)
 
 # The order the shell runs them in, after the TRNG's own: the seam caught and
 # its control, then each remaining code once.
@@ -43,11 +44,8 @@ def cost(code):
     return 69699 if code == 0 else 17431 + 17421 * (code - 1)
 
 
-def pack(samples):
-    return [sum((samples[32 * k + i] & 1) << i for i in range(32)) for k in range(WORDS)]
 
-
-def header(out, rv32run):
+def write_seam_expect(out, rv32run):
     kernel, sha = kernel_bin(os.path.join(HERE, "kernel"))
     every = streams()
     rows, instret = [], {}
@@ -55,7 +53,7 @@ def header(out, rv32run):
         words = every[name]
         if any(w not in (0, 1) for w in words):
             sys.exit(f"gen.py: {name}: a sample word is not 0 or 1, and the shell writes only 0 or 1")
-        code, digests, _ = outcome(words)
+        code, digests, _ = seam_outcome(words)
         img = image(kernel, words)
         ran, region = model(rv32run, img, 100000)
         if ran != f"halt code={code:08x} count={cost(code)}":
@@ -94,4 +92,4 @@ def header(out, rv32run):
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         sys.exit(__doc__)
-    header(sys.argv[1], sys.argv[2])
+    write_seam_expect(sys.argv[1], sys.argv[2])

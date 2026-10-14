@@ -263,6 +263,19 @@ VK26_AS=calls/vk26/zz/vk26-zz-1-x "$JB" bundle "$E225" > "$WORK/bprop.txt"
 for e in exp203 exp207 exp208 exp213 exp234; do
     has "a proposal's prior work lists $e" "$WORK/bprop.txt" "- $e-"
 done
+# A proposal's own earlier experiments, from its S4 table: what J3 must see
+# to tell what this one adds to them.
+mkdir -p "$WORK/own/vk26-zz-2-y" "$WORK/own/vk26-zz-3-z"
+printf '# zz\n\n| 實驗 | Needs | USB | 一句話 |\n| --- | --- | --- | --- |\n%s\n%s\n%s\n' \
+    '| [vk26-zz-1](./vk26-zz-1-x/) | 2 | CDC | the run carried across the edge |' \
+    '| [vk26-zz-2](./vk26-zz-2-y/) | 2 | CDC | the hash tested first |' \
+    '| vk26-zz-3 | | | （未實作） |' > "$WORK/own/README.md"
+cp "$E225/README.md" "$WORK/own/vk26-zz-2-y/"
+VK26_AS=calls/vk26/zz/vk26-zz-2-y "$JB" bundle "$WORK/own/vk26-zz-2-y" > "$WORK/bown.txt"
+has "a proposal's prior work lists its own earlier experiments" "$WORK/bown.txt" \
+    "- vk26-zz-1 (this proposal) [2]: the run carried across the edge"
+lacks "  … but not itself" "$WORK/bown.txt" "- vk26-zz-2 (this proposal)"
+has "  … beside every experiment from exp201 on" "$WORK/bown.txt" "- exp234-"
 has "exp225's prior work starts at exp201" "$WORK/b225.txt" "- exp201-"
 lacks "  … and stops before exp225 itself" "$WORK/b225.txt" "- exp225-"
 

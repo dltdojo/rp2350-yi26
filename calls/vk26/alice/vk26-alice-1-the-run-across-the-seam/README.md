@@ -113,7 +113,7 @@ Under it, in order:
 Each rests on Lean's own axioms only (`#print axioms`, in
 [capture.txt](./capture.txt)).
 
-[`proof/mutants.txt`](./proof/mutants.txt) holds ten wrong versions. Six
+[`proof/mutants.txt`](./proof/mutants.txt) holds twelve wrong versions. Ten edit the proof file. Six
 are wrong kernels: the branch inverted, the halt code off by one either
 way, the digests 16 bytes apart, `HASH` asked for the next window, and the
 repetition count starting as though a 0 came first. Four are wrong claims:
@@ -121,14 +121,16 @@ each window starting with no run behind it, a digest for the failing window
 too, the halt code as an index, and one instruction fewer. Lean refuses
 every one, each in the theorem its label names.
 
-The mutant the plan asked for first, "the run reset at each window", is the
-claim one: in this kernel the reset would be a change to
-`Alice.Window.head`, and `lean.sh`'s mutants can change only `lean/`, not a
-proposer's package (one of the settings this trial found; see
-[below](#what-the-trial-found-in-the-calls-settings)). What is refused here
-is the statement that the kernel resets; the seam streams in the
-differential and the page's `reset.txt` are where a resetting kernel's
-behaviour is caught.
+Two more edit alice's own package, `../lean/Alice/Window.lean`: the
+block's specification starting the repetition count afresh at each window,
+as `front`'s does (refused in `win_verdict`), and the block taking the whole
+first word as the window's reference instead of its bit 0 (refused in
+`start_run`). The first is the mutant the plan asked for first, "the run
+reset at each window"; until `lean.sh` could edit a proposer's package
+(one of the settings this trial found; see
+[below](#what-the-trial-found-in-the-calls-settings)) it could only be the
+claim mutant above. A kernel that resets is also caught by the seam
+streams in the differential and the page's `reset.txt`.
 
 ## The reference, and the differential
 
@@ -239,7 +241,9 @@ line of it was lost. It also counts the streams stopped by a run begun in
 the window before.
 
 The connecting, Copy and the look are alice's shared
-[`../pages/core.js`](../pages/core.js) and `core.css`.
+[`../pages/core.js`](../pages/core.js) and `core.css`; both tests, and the
+BITS lines they read, are [`../pages/health.js`](../pages/health.js), which
+vk26-alice-2's page judges with too (page build p3: p2's, moved there).
 [`../pages/build.py`](../pages/build.py) puts them into the page, so a phone
 opens one file: `build/seam.html`.
 
@@ -250,8 +254,9 @@ rounds, a digest flipped, a kernel that resets the run at each edge (it
 passes the seam stream with four digests, each SHA-256 of its window — the
 page says its samples stop at window 2), one that writes after the first
 failure, minstret off by one, a line lost, and a page that joins
-mid-stream. [`page_browser.mjs`](./page_browser.mjs) runs the built page in
-headless Chromium against a stand-in board. Six wrong pages are caught.
+mid-stream. [`../pages/browser.mjs`](../pages/browser.mjs) runs the built
+page in headless Chromium against a stand-in board. Six wrong pages are
+caught, each made on the built page, health.js's part of it included.
 
 What the page cannot check: that the kernel that ran is the proved one
 (the shell's check 1 is), and the proof itself.
@@ -265,8 +270,11 @@ Needs a Pico 2 and an Android phone with Chrome; one BOOTSEL press.
 2. Watch the LED: one long light, two flashes, one long light, one flash,
    three, four, then again.
 3. Open `build/seam.html` from the Files app with Chrome, press Connect and
-   choose "vk26-alice-1". Wait for two ROUND lines, then Copy, and paste
-   what it gives into `board/round1.txt`.
+   choose "vk26-alice-1". Wait for two ROUND lines, then press Save, and
+   send the file it puts in Downloads back as an attachment; it goes into
+   `board/` as it is. Copy gives the same text, but a log of a few rounds
+   is longer than a chat message holds: round 1's was cut on the way (see
+   below), which is why page build p2 has Save.
 
 `check.sh` then holds every whole stream in it to seam.py and hashlib, and
 runs it through the page's block.
@@ -332,10 +340,17 @@ Found while making this experiment, and recorded in
 - The judge's bundle held no page, so a README's claims about one could
   only be unsupported (fixed in its own commit: J1 now reads the pages a
   README links, with the scripts they load from beside them).
-- `lean.sh`'s mutants can change only `lean/`, not a proposer's package.
-- `experiments/duplication.sh` does not look in `calls/`.
+- `lean.sh`'s mutants could change only `lean/`, not a proposer's package
+  (fixed in its own commit; two of this experiment's mutants now edit
+  `Alice/Window.lean`).
+- `experiments/duplication.sh` did not look in `calls/` (fixed in its own
+  commit; it counts by name, and four of this experiment's functions,
+  unrelated to their namesakes in experiments/, were renamed).
 - `lean.sh check` fails on any warning, and the library has no Mathlib, so
-  `split_ifs` and `set` are not there; `bv_omega` is.
+  `split_ifs` and `set` are not there; `bv_omega` is (now in the call's
+  README).
+- A log pasted back through chat was cut (now: Save, and the call says to
+  send logs as files).
 
 ## Running it
 
@@ -354,7 +369,7 @@ Pasted from it — the theorems, the mutants, the six streams on the RTL:
 
 ```
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-13T12:25:46Z from commit e744097
+recorded at 2026-10-13T16:11:02Z from commit 92c6418
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -368,17 +383,18 @@ recorded at 2026-10-13T12:25:46Z from commit e744097
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
-window_fail  the branch goes to FAIL when the window passed, and on when it failed     refused in window_fail
-window_fail  the halt code is the number of windows passed, not the failing window's   refused in window_fail
-all_pass     four windows passed and it halts with 1                                   refused in all_pass
-window_pass  each digest 16 bytes after the last, half over it                         refused in window_pass
-window_pass  HASH is asked for the window after the one tested                         refused in window_pass
-init_regs    the repetition count starts as though a 0 came before the stream          refused in init_regs
-window_head  the claim: each window starts with no run behind it                       refused in window_head
-from_boot    the claim: the failing window's digest is written too                     refused in from_boot
-from_boot    the claim: the halt code is the failing window's index, 0 to 3            refused in from_boot
-from_boot    the claim: one instruction fewer to the halt                              refused in from_boot
-
+window_fail  the branch goes to FAIL when the window passed, and on when it failed                   refused in window_fail
+window_fail  the halt code is the number of windows passed, not the failing window's                 refused in window_fail
+all_pass     four windows passed and it halts with 1                                                 refused in all_pass
+window_pass  each digest 16 bytes after the last, half over it                                       refused in window_pass
+window_pass  HASH is asked for the window after the one tested                                       refused in window_pass
+init_regs    the repetition count starts as though a 0 came before the stream                        refused in init_regs
+window_head  the claim: each window starts with no run behind it                                     refused in window_head
+from_boot    the claim: the failing window's digest is written too                                   refused in from_boot
+from_boot    the claim: the halt code is the failing window's index, 0 to 3                          refused in from_boot
+from_boot    the claim: one instruction fewer to the halt                                            refused in from_boot
+win_verdict  the specification: the repetition count starts afresh at each window, as front's does   refused in win_verdict
+start_run    the block takes the whole first word as the window's reference, not its bit 0           refused in start_run
 ...
 >>> on the RTL, every stream: STRM s code want minstret digests, then DONE streams
 5354524d 00000000 00000000 ffffffff 00011057 00000004
@@ -389,7 +405,7 @@ from_boot    the claim: one instruction fewer to the halt                       
 5354524d 00000005 00000004 00000004 0001104d 00000003 444f4e45 00000006 exit=0 
 ```
 
-and the phone's log, among 70 PASS, 0 FAIL and 0 SKIP:
+and the phone's log, among 74 PASS, 0 FAIL and 0 SKIP:
 
 ```
 PASS  round1.txt: 7 of 7 streams from a board judged right, 0 incomplete, 1 rounds, 1 stopped across an edge

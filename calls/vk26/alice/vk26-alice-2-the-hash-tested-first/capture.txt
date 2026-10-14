@@ -1,0 +1,146 @@
+=== vk26-alice-2 — the hash tested first ===
+recorded at 2026-10-13T23:54:32Z from commit 65f5999
+
+>>> the theorems, and what they rest on
+'Trust.compare_iff' depends on axioms: [propext, Quot.sound]
+'Trust.kat_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.halts' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.window_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.output_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Trust.trusts_after_kat' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+from_boot    the KAT's branch is inverted: on to the samples when the hash failed                                           refused in from_boot
+cmp_at       the KAT's answer is compared with the bytes four after the expected digest                                     refused in cmp_at
+cmp_at       the comparison keeps only the bits every word disagrees in (and, not or)                                       refused in cmp_at
+output_run   the output is HASH of the start-up window, the samples it was to discard                                       refused in output_run
+at_bne       a failed start-up window halts with 3, as though the next had failed                                           refused in at_bne
+from_boot    the claim: a failed KAT halts with 0                                                                           refused in from_boot
+from_boot    the claim: the output is written whether or not the hash passed its KAT                                        refused in from_boot
+from_boot    the claim: the output is HASH of the start-up window                                                           refused in from_boot
+compare_iff  the claim: the hash is trusted when its answer equals the scratch it was written to, not the expected digest   refused in compare_iff
+from_boot    the claim: a failed KAT halts one instruction sooner                                                           refused in from_boot
+win_verdict  the specification: the repetition count starts afresh at each window, as front's does                          refused in win_verdict
+
+>>> trust.py's streams and wrong expected digests, and what it gives each
+fair                               halt 0  output written  both windows passed
+stuck at 1 from the start          halt 1  no output       start-up: window 1: 1024 alike in a row
+21 alike in the start-up window    halt 1  no output       start-up: window 1: 21 alike in a row
+20 alike in the start-up window    halt 0  output written  both windows passed
+seam 11+10                         halt 3  no output       window 2: 21 alike in a row
+seam 10+10                         halt 0  output written  both windows passed
+seam 20+1                          halt 3  no output       window 2: 21 alike in a row
+589 of window 1                    halt 1  no output       start-up: window 1: 589 of 1024 equal its first
+589 of window 2                    halt 3  no output       window 2: 589 of 1024 equal its first
+588 of window 2                    halt 0  output written  both windows passed
+nine ones then a zero, window 2    halt 3  no output       window 2: 922 of 1024 equal its first
+random 1                           halt 0  output written  both windows passed
+random 2                           halt 0  output written  both windows passed
+noise above bit 0                  halt 0  output written  both windows passed
+KAT: first bit flipped            halt 2  the KAT's answer is not the expected digest
+KAT: last bit flipped             halt 2  the KAT's answer is not the expected digest
+KAT: all zeros                    halt 2  the KAT's answer is not the expected digest
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: kernel a02eb99737e609aa…, 4 fixed streams, RTL minstret 0:34897 1:17470 2:51 3:34885
+  code 0: the proof's count 34885, the RTL's minstret 34897, 12 more (2 HASH calls)
+  code 1: the proof's count 17462, the RTL's minstret 17470, 8 more (1 HASH call)
+  code 2: the proof's count 43, the RTL's minstret 51, 8 more (1 HASH call)
+  code 3: the proof's count 34878, the RTL's minstret 34885, 7 more (1 HASH call)
+build/vk26-alice-2.bin  15912 bytes, the build allows 32768
+build/vk26-alice-2.uf2  32256 bytes  sha256 67538b87432f590f641cc8369c4fe278469e8e7b120dc4854bfb31a451cc8b5a
+
+>>> on the RTL, every stream: STRM s code want minstret spoil, then DONE streams
+5354524d 00000000 00000000 ffffffff 00008851 00000000
+5354524d 00000001 00000002 00000002 00000033 00000001
+5354524d 00000002 00000003 00000003 00008845 00000000
+5354524d 00000003 00000000 00000000 00008851 00000000
+5354524d 00000004 00000001 00000001 0000443e 00000000 444f4e45 00000005 exit=0 
+
+>>> the checks
+PASS  Trust.lean checks, with no errors and no warnings
+PASS  all 7 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  from_boot: the proof refuses a version where the KAT's branch is inverted: on to the samples when the hash failed
+PASS  cmp_at: the proof refuses a version where the KAT's answer is compared with the bytes four after the expected digest
+PASS  cmp_at: the proof refuses a version where the comparison keeps only the bits every word disagrees in (and, not or)
+PASS  output_run: the proof refuses a version where the output is HASH of the start-up window, the samples it was to discard
+PASS  at_bne: the proof refuses a version where a failed start-up window halts with 3, as though the next had failed
+PASS  from_boot: the proof refuses a version where the claim: a failed KAT halts with 0
+PASS  from_boot: the proof refuses a version where the claim: the output is written whether or not the hash passed its KAT
+PASS  from_boot: the proof refuses a version where the claim: the output is HASH of the start-up window
+PASS  compare_iff: the proof refuses a version where the claim: the hash is trusted when its answer equals the scratch it was written to, not the expected digest
+PASS  from_boot: the proof refuses a version where the claim: a failed KAT halts one instruction sooner
+PASS  win_verdict: the proof refuses a version where the specification: the repetition count starts afresh at each window, as front's does
+PASS  kernel.bin is what proof/Trust.lean writes, 448 bytes, and kernel.sha256 is its hash
+PASS  fair: both windows passed; the model and the RTL halt with 0, the model after 34885; the KAT answer and the output written
+PASS  stuck at 1 from the start: start-up: window 1: 1024 alike in a row; the model and the RTL halt with 1, the model after 17462; the KAT answer only written
+PASS  21 alike in the start-up window: start-up: window 1: 21 alike in a row; the model and the RTL halt with 1, the model after 17462; the KAT answer only written
+PASS  20 alike in the start-up window: both windows passed; the model and the RTL halt with 0, the model after 34885; the KAT answer and the output written
+PASS  seam 11+10: window 2: 21 alike in a row; the model and the RTL halt with 3, the model after 34878; the KAT answer only written
+PASS  seam 10+10: both windows passed; the model and the RTL halt with 0, the model after 34885; the KAT answer and the output written
+PASS  seam 20+1: window 2: 21 alike in a row; the model and the RTL halt with 3, the model after 34878; the KAT answer only written
+PASS  589 of window 1: start-up: window 1: 589 of 1024 equal its first; the model and the RTL halt with 1, the model after 17462; the KAT answer only written
+PASS  589 of window 2: window 2: 589 of 1024 equal its first; the model and the RTL halt with 3, the model after 34878; the KAT answer only written
+PASS  588 of window 2: both windows passed; the model and the RTL halt with 0, the model after 34885; the KAT answer and the output written
+PASS  nine ones then a zero, window 2: window 2: 922 of 1024 equal its first; the model and the RTL halt with 3, the model after 34878; the KAT answer only written
+PASS  random 1: both windows passed; the model and the RTL halt with 0, the model after 34885; the KAT answer and the output written
+PASS  random 2: both windows passed; the model and the RTL halt with 0, the model after 34885; the KAT answer and the output written
+PASS  noise above bit 0: both windows passed; the model and the RTL halt with 0, the model after 34885; the KAT answer and the output written
+PASS  KAT: first bit flipped: the KAT's answer is not the expected digest; the model and the RTL halt with 2, the model after 43; the KAT answer only written
+PASS  KAT: last bit flipped: the KAT's answer is not the expected digest; the model and the RTL halt with 2, the model after 43; the KAT answer only written
+PASS  KAT: all zeros: the KAT's answer is not the expected digest; the model and the RTL halt with 2, the model after 43; the KAT answer only written
+PASS  the shell builds for the chip and for the RTL, the chip's in 15912 of the 32768 bytes it may use
+PASS  all 63 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
+PASS  together they are exactly the 15912-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 67538b87432f590f…
+the TRNG's stand-in: trust.py says 0; the RTL: 0 2 3 0 1
+PASS  on the RTL the shell runs all five streams, SHA-256 answering HASH, each halting with trust.py's code and the RTL's count for it, the spoiled one at the KAT
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's minstret for each code is expect.h's, the RTL's
+PASS  the page's KAT message is expect.h's, the 64 bytes the kernel asks HASH about
+PASS  the page's tests stop where trust.py's do, on all 14 of trust.py's streams
+PASS  two rounds as the board sends them, in 64-byte packets: all 10 streams judged right — the spoiled hash refused, the stuck source stopped at start-up, each output SHA-256 of the second window — both times
+PASS  a kernel that never asks HASH the KAT: the spoiled stream goes on to an output, and the page says code 2 was due
+PASS  HASH answering the KAT wrong with nothing spoiling it: the kernel stopping is right, the board is not, and the page says so
+PASS  a kernel that skips the start-up test: the stuck source gets an output, and the page says code 1 was due
+PASS  a kernel that resets the run at the start-up window's edge: the seam stream gets an output, and the page says code 3 was due
+PASS  a kernel that hashes the start-up window it should have thrown away: caught
+PASS  one byte of an output flipped on the way: caught
+PASS  minstret one more than the RTL's for a stream: caught
+PASS  a BITS line lost: that stream incomplete, nothing called wrong, the other 9 judged
+PASS  the KAT line of the spoiled stream lost: that stream incomplete, not judged as if HASH were right
+PASS  joined mid-stream: the first stream incomplete, every one after it judged
+PASS  round1.txt: 18 of 18 streams from a board judged right, 0 incomplete, 3 rounds, 4 spoiled hashes refused, 7 outputs
+PASS  the tests catch a page where the KAT's answer is never compared: two rounds as the board sends them, in 64-byte packets: all 10 streams judged right — the spoiled hash refus
+PASS  the tests catch a page where a spoiled answer is taken as it comes: HASH answering the KAT wrong with nothing spoiling it: the kernel stopping is right, the board is not, and the
+PASS  the tests catch a page where the start-up window is not tested: the page's tests stop where trust.py's do, on all 1 of trust.py's streams — stuck at 1 from the start: trust
+PASS  the tests catch a page where the run is reset at each window's edge: the page's tests stop where trust.py's do, on all 4 of trust.py's streams — seam 11+10: trust.py says 3, the
+PASS  the tests catch a page where the output is taken to be SHA-256 of the start-up window: two rounds as the board sends them, in 64-byte packets: all 10 streams judged right — the spoiled hash refus
+PASS  the tests catch a page where minstret is not compared: minstret one more than the RTL's for a stream: caught — streams 5 ok 5 wrong 0 [] incomplete 0 rounds 1 refu
+PASS  the tests catch a page where a stream whose KAT line is lost is judged as if HASH were honest: the KAT line of the spoiled stream lost: that stream incomplete, not judged as if HASH were right — streams 
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "10 of 10 streams judged right"
+PASS  good.txt: the table shows the last round's 5 streams, and no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (10217 characters)
+PASS  good.txt: Save downloads the same text as a file, vk26-alice-2-<time>.txt, and says how long it is
+PASS  unchecked.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  unchecked.txt: the verdict line says "1 wrong"
+PASS  unchecked.txt: the table shows the last round's 5 streams, and no script error
+PASS  unchecked.txt: Copy puts the verdict and every line received on the clipboard (5421 characters)
+PASS  unchecked.txt: Save downloads the same text as a file, vk26-alice-2-<time>.txt, and says how long it is
+PASS  round1.txt: 18 whole streams from a board, each KAT answer, code, minstret and output as trust.py and hashlib give them
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
+PASS  the shell catches a version where the shell forgets to spoil HASH's answer for the fair stream — check 2, code 0 where 2 is due
+PASS  the shell catches a version where the spoiled stream is said to pass — check 2
+PASS  the shell catches a version where the chip is asked to count one more for code 2 — check 3
+PASS  the shell catches a version where HASH writes its digest a word late — the KAT refuses it: check 2, code 2 unspoiled
+PASS  the shell catches a version where HASH hashes 64 bytes too few — the KAT refuses it: check 2, code 2 unspoiled
+PASS  the shell catches a version where a byte of the KAT's answer is left in the region — check 4
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check
+PASS  the shell stops at check 10 when the TRNG gives nothing (trng_sim.h's DEVICE 2)
