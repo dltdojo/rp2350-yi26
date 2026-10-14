@@ -316,3 +316,59 @@ Found while making this experiment, and recorded in
 ./build.sh     # build/vk26-alice-3.uf2 and build/sim.bin
 python3 ../pages/build.py count.html build/count.html   # the page, as one file
 ```
+
+## Expected output
+
+[capture.txt](./capture.txt), recorded by `run.sh` from a clean commit.
+
+Pasted from it — the theorems, the mutants, the five streams on the RTL:
+
+```
+=== vk26-alice-3 — the count the estimate rests on ===
+recorded at 2026-10-14T01:26:09Z from commit 8b40ce7
+
+>>> the theorems, and what they rest on
+'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Count.bin_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Count.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Count.most_is_max' depends on axioms: [propext, Quot.sound]
+'Count.hist_sum' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Count.accepted' depends on axioms: [propext, Quot.sound]
+'Count.naive_refused' depends on axioms: [propext, Quot.sound]
+'Count.count_constant_time' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+look_iter     a sample is loaded sign-extended (lb), so the values 128 to 255 are counted as others   refused in look_iter
+tally_regs    a sample one more than the value is counted as the value too (<u 2, not 1)              refused in tally_regs
+tally_regs    the pointer advances by the comparison, an address made from a sample                   refused in tally_regs
+maxLine_regs  the max's mask is 1, not all ones                                                       refused in maxLine_regs
+bin_iter      each count starts at 1                                                                  refused in bin_iter
+bin_iter      the counts are written 8 bytes apart, every other one over the next                     refused in bin_iter
+setup_run     the values stop at 255                                                                  refused in setup_run
+fin_run       the largest count is written a word late                                                refused in fin_run
+from_boot     the claim: one instruction fewer to the halt                                            refused in from_boot
+fin_run       the claim: the most is the largest of the first 255 counts                              refused in fin_run
+cnt_succ      the specification: a value's count includes the samples below it                        refused in cnt_succ
+accepted      the claim: at both heads the value is at most 254                                       refused in accepted
+...
+>>> count.py's streams, their counts and estimates, and §6.3.1's example
+§6.3.1's example: p̂ 0.4000  p_u 0.6895  H 0.5363
+...
+>>> on the RTL, every stream: STRM s most want minstret mcycle, then DONE streams
+5354524d 00000000 0000001a ffffffff 00600b0f 00700e11
+5354524d 00000001 0000001a ffffffff 00600b0f 00700e11
+5354524d 00000002 00000010 00000010 00600b0f 00700e11
+5354524d 00000003 000003f4 000003f4 00600b0f 00700e11
+5354524d 00000004 000001b8 000001b8 00600b0f 00700e11 444f4e45 00000005 exit=0 
+```
+
+and the time, among 74 PASS, 0 FAIL and 1 SKIP (no phone log yet):
+
+```
+PASS  the RTL takes the same time on all 12 streams: cycles=7343633
+PASS  on the RTL the shell runs all five streams, every count the shell's own, minstret the RTL's, and one mcycle for all
+PASS  §6.3.1's own example, p̂ 0.4 of 20: p_u 0.6895, H 0.5363
+PASS  one stream taking 4 cycles more: no count is wrong, and the page says the cycles differ
+PASS  cycles.txt: the verdict line says "the cycles differ"
+```
