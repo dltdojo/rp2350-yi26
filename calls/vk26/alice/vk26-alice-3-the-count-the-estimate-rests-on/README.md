@@ -30,7 +30,9 @@ minstret. The prediction that every stream would take one `mcycle` did not
 hold: three numbers, 64, 164 and 184 cycles over the RTL's, and the same
 fixed samples took different ones in different rounds. The raw TRNG's bits
 were 1 about 48.3% of the time in both draws, about six standard deviations
-from even; with its tests on, about 50%.**
+from even; with its tests on, about 50%. Revision 2 runs every stream's
+kernel twice, back to back, and reports both `mcycle`s, to tell what the
+shell left behind from anything else. It has not run on a board yet.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -195,7 +197,11 @@ The RTL counts 6,294,287 instructions, the proof's count plus 3.
 - three of count.py's streams, compiled in by [`gen.py`](./gen.py): each
   value 16 times, 0xa5 at 1000 places, and bits 1 three times in four.
 
-Sample i is byte i % 4 of word i / 4. For each stream it checks
+Sample i is byte i % 4 of word i / 4. From revision 2 the kernel runs
+twice on each stream: when the first run halts, the shell records it and
+enters the kernel again at once, on the same region. Between the two runs
+there is only the trap's way into `handle()` and back out through
+`enter_payload`. Then, for both runs, it checks
 ([`board.h`](./shell/board.h) numbers them):
 
 1. the kernel's bytes were `kernel.sha256`'s;
@@ -207,7 +213,8 @@ Sample i is byte i % 4 of word i / 4. For each stream it checks
 
 And 10: a TRNG gave nothing.
 
-`mcycle` is sent, not checked. On the RTL it is 7,343,633 for all five.
+`mcycle` is sent for both runs, not checked. On the RTL it is 7,343,633
+for all ten runs.
 [exp212](../../../../experiments/exp212-the-cycles-the-chip-counts/) ran
 proved kernels on a Pico 2 and found two things:
 - "sixteen seeds of the key generator and sixteen of the signer take the
@@ -225,6 +232,7 @@ Wrong shells are caught by the check they name:
 - 4: gen.py's largest off by one;
 - 4: the samples a word late;
 - 4: the most left in the region;
+- 2: no second run, so the first run's halt is never recorded;
 - a fault: the shell trapping itself;
 - 10: the TRNG giving nothing.
 
@@ -233,7 +241,8 @@ Wrong shells are caught by the check they name:
 ```
 BITS round s k w0 … w15          64 a stream: the 1024 words
 HIST round s k c0 … c15          16 a stream: the kernel's counts
-STREAM round s most want minstret mcycle name
+AGAIN round s minstret mcycle    revision 2: the second run
+STREAM round s most want minstret mcycle name    the first run's
 ROUND round streams
 ```
 
@@ -250,7 +259,9 @@ and holds each of the kernel's 256 counts, and the most, to its own.
 - **The two TRNG draws:** it draws them as histograms, and gives §6.3.1's H
   per byte and per bit for every stream.
 - **The cycles:** it compares every stream's mcycle, the first after boot
-  aside, and says whether they are one number.
+  aside, and says whether they are one number. From revision 2 (page build
+  p2) it does the same, separately, for the second runs. A revision 1 log,
+  with no AGAIN lines, still reads as before.
 - **The tests:** [`page_test.mjs`](./page_test.mjs) holds its count and both
   estimates to count.py's on all 12 streams, and to §6.3.1's own example.
   It runs it on [`fixtures.py`](./fixtures.py)'s logs:
@@ -259,9 +270,13 @@ and holds each of the kernel's 256 counts, and the most, to its own.
   - a most that is not the largest;
   - minstret off;
   - one stream 4 cycles slower (no count wrong, the cycles differ);
+  - one second run 20 cycles slower (the first runs one number, the
+    second runs two);
+  - a second run's minstret off;
+  - revision 1's lines, with no second runs;
   - a BITS line and a HIST line lost;
   - a page that joins mid-stream.
-- **Wrong pages:** seven, made from the built page, are caught.
+- **Wrong pages:** nine, made from the built page, are caught.
   - A byte order reversed within each word is *not* one of them. It leaves
     every count the same, so no test can or should catch it.
 - [`../pages/browser.mjs`](../pages/browser.mjs) runs the built page in
@@ -273,7 +288,8 @@ Needs a Pico 2 and an Android phone with Chrome; one BOOTSEL press.
 
 1. Hold BOOTSEL, plug the Pico 2 into the phone, drop
    `build/vk26-alice-3.uf2` on the drive that appears.
-2. Watch the LED: five long lights a round, about half a minute each round.
+2. Watch the LED: five long lights a round, a little over half a minute
+   each round.
 3. Open `build/count.html` from the Files app with Chrome, press Connect and
    choose "vk26-alice-3". Wait for two ROUND lines, then press Save and send
    the file back as an attachment; it goes into `board/` as it is.
@@ -288,8 +304,8 @@ the board*, next):
 
 ## On the board
 
-[`board/round1.txt`](./board/round1.txt): a Pico 2 running
-`vk26-alice-3.uf2` (`ab367127…6442293a6`, as committed), the page on a
+[`board/round1.txt`](./board/round1.txt): a Pico 2 running revision 1's
+`vk26-alice-3.uf2` (`ab367127…6442293a6`, committed in 8b40ce7), the page on a
 phone, the file Save gave back, kept as it came. The LED blinked as
 described ("LED 如預期閃"): a long light per stream.
 
@@ -340,13 +356,25 @@ What it adds to the RTL:
   50.61%. Per byte, all five TRNG draws look alike (6.50 to 6.71): 4096
   bytes cannot see a lean of this size, and a bit can.
 
-## What the next revision would ask
+## Revision 2: every kernel run twice
 
-Not built. To tell the cache from anything else: run each stream's kernel
-twice back to back on the same samples, and report both `mcycle`s. If the
-second run always takes one number while the first moves, the cost is what
-the shell left behind; if the second moves too, it is not. That is exp212's
-warm-up, applied to every stream.
+To tell the cache from anything else, revision 2 runs each stream's kernel
+twice back to back on the same samples and reports both `mcycle`s. That is
+exp212's warm-up, applied to every stream. Nothing else changed: the
+kernel, the checks, the streams and the LED are revision 1's. The first
+run follows the shell's preparation exactly as revision 1's did. The
+second follows only the first run's trap and the way back in.
+
+What revision 2's run will say, stated before it happens:
+- every count right, both runs at the RTL's minstret, as in revision 1;
+- **every second run one `mcycle`**, in every round and on every stream,
+  round 0's first included, and no more than revision 1's smallest,
+  7,343,697;
+- the first runs are not predicted: they repeat revision 1's measurement.
+
+If the second runs move too, then what the shell ran before the timed
+window is not the explanation, and neither is the harness's trap entry in
+the XIP cache.
 
 ## What it does not say
 

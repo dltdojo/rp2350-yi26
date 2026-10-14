@@ -14,9 +14,11 @@ int board_trng_raw(uint32_t *words, uint32_t n);
 int board_hash(const uint8_t *src, uint32_t len, uint8_t *dst);
 // One stream run: its 4096 samples as 1024 words (sample i is byte i % 4 of
 // word i / 4), the 256 counts the kernel wrote and the largest, gen.py's
-// largest for it (0xffffffff for the TRNG's), minstret and mcycle.
+// largest for it (0xffffffff for the TRNG's), minstret and mcycle of the
+// first run, and of the second, straight after it.
 void board_stream(uint32_t round, uint32_t s, const char *name, const uint32_t *words, const uint32_t *counts,
-                  uint32_t most, uint32_t want, uint32_t instret, uint32_t cycles);
+                  uint32_t most, uint32_t want, uint32_t instret, uint32_t cycles, uint32_t again_instret,
+                  uint32_t again_cycles);
 // Every stream run and as it should be. On the RTL, the end; on the chip, a
 // pause, and the streams again with new draws from the TRNG.
 void board_round(uint32_t round, uint32_t streams);

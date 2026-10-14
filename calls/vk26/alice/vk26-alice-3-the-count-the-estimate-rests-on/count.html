@@ -8,7 +8,8 @@
 
   The board sends every stream it counted: its 4096 byte samples, the 256
   counts the proved kernel wrote, the largest of them, and how many cycles
-  the kernel took. This page counts every stream again, written here and
+  the kernel took — and from revision 2 on, how many it took when run again
+  at once. This page counts every stream again, written here and
   sharing nothing with the kernel or the C, and holds the kernel's counts to
   its own; it compares the cycles of every stream, which the proof says no
   sample can move; and from the largest count it computes SP 800-90B
@@ -43,7 +44,7 @@
 <p class="sub">vk26-alice-3 &middot; how often the commonest of 256 values occurs in 4096 samples, counted by a
   kernel whose every step the samples cannot move — counted again here, and turned into SP 800-90B's
   most common value estimate, for the TRNG as it is and with its own tests bypassed.<br>
-  <small>page build <b id="ver">p1</b></small></p>
+  <small>page build <b id="ver">p2</b></small></p>
 
 <p>
   <button id="connect">Connect</button>
@@ -68,7 +69,8 @@
 <p class="key"><b>most</b>: the largest of the kernel's 256 counts. <b>H</b>: §6.3.1, −log2 of the upper end of
   the 99% interval around most/4096, bits a byte; <b>a bit</b> the same with each byte's eight bits as samples
   of their own. Neither is in the proof, and 4096 samples are not the million §3.1.1 asks for: this is a
-  look, not an assessment. <b>mcycle</b>: the kernel's cycles, which no sample can move.</p>
+  look, not an assessment. <b>mcycle</b>: the kernel's cycles, which no sample can move; from revision 2,
+  the first run's and then the second's, run straight after it on the same samples.</p>
 
 <div id="verdict">Nothing checked yet.</div>
 <div id="raw"></div>
@@ -85,6 +87,8 @@
 //   BITS round s k w0 … w15        64 a stream: sample i is byte i % 4 of
 //                                  word i / 4
 //   HIST round s k c0 … c15        16 a stream: the kernel's counts
+//   AGAIN round s minstret mcycle  revision 2: the second run, straight
+//                                  after the first; revision 1 sent none
 //   STREAM round s most want minstret mcycle name
 //   ROUND round streams
 //
@@ -135,6 +139,9 @@ function countParse(text) {
   if ((m = t.match(new RegExp(`^HIST ${h} ${h} ${h}((?: [0-9a-f]{8}){16})$`))))
     return { kind: 'HIST', round: parseInt(m[1], 16), s: parseInt(m[2], 16), k: parseInt(m[3], 16),
              counts: m[4].trim().split(' ').map((x) => parseInt(x, 16)) };
+  if ((m = t.match(new RegExp(`^AGAIN ${h} ${h} ${h} ${h}$`))))
+    return { kind: 'AGAIN', round: parseInt(m[1], 16), s: parseInt(m[2], 16), minstret: parseInt(m[3], 16),
+             cycles: parseInt(m[4], 16) };
   if ((m = t.match(new RegExp(`^STREAM ${h} ${h} ${h} ${h} ${h} ${h} (.+)$`))))
     return { kind: 'STREAM', round: parseInt(m[1], 16), s: parseInt(m[2], 16), most: parseInt(m[3], 16),
              want: parseInt(m[4], 16) >>> 0, minstret: parseInt(m[5], 16), cycles: parseInt(m[6], 16), name: m[7] };
@@ -150,11 +157,15 @@ function countParse(text) {
  *   incomplete  a BITS or HIST line of it is missing: nothing is claimed
  * and `summary()` counts them, with the mcycles: every whole stream's but
  * the first after boot (round 0's first), which exp212 found out of line on
- * silicon, should be one number.
+ * silicon, was predicted to be one number, and revision 1's board gave
+ * three. A stream's AGAIN, when it came, is its second run: its minstret is
+ * held to the RTL's like the first's, and its mcycle kept apart, as
+ * `againValues`.
  */
 function countChecker() {
-  const s = { streams: 0, ok: 0, wrong: 0, incomplete: 0, rounds: 0, fails: 0, cycles: [], firstWrong: null };
-  const samples = healthStreams(64), hists = new Map();
+  const s = { streams: 0, ok: 0, wrong: 0, incomplete: 0, rounds: 0, fails: 0, cycles: [], again: [],
+              firstWrong: null };
+  const samples = healthStreams(64), hists = new Map(), agains = new Map();
   const key = (e) => `${e.round}:${e.s}`;
 
   function feed(text) {
@@ -162,6 +173,7 @@ function countChecker() {
     if (e.kind === 'FAIL') s.fails++;
     if (e.kind === 'ROUND') s.rounds++;
     if (e.kind === 'BITS') samples.add(e);
+    if (e.kind === 'AGAIN') agains.set(key(e), e);
     if (e.kind === 'HIST') {
       if (!hists.has(key(e))) hists.set(key(e), new Array(16).fill(null));
       if (e.k < 16) hists.get(key(e))[e.k] = e.counts;
@@ -169,8 +181,9 @@ function countChecker() {
     if (e.kind !== 'STREAM') return e;
 
     s.streams++;
-    const words = samples.takeWords(e.round, e.s), hp = hists.get(key(e));
+    const words = samples.takeWords(e.round, e.s), hp = hists.get(key(e)), again = agains.get(key(e));
     hists.delete(key(e));
+    agains.delete(key(e));
     if (!words || !hp || hp.some((x) => x === null)) {
       e.verdict = 'incomplete'; e.why = `a ${words ? 'HIST' : 'BITS'} line of it never arrived`; s.incomplete++;
       return e;
@@ -184,6 +197,11 @@ function countChecker() {
     if (e.most !== top) why.push(`the largest is ${top}, not ${e.most}`);
     if (e.want !== 0xffffffff && e.want !== top) why.push(`gen.py's largest for it is ${e.want}`);
     if (e.minstret !== COUNT_INSTRET) why.push(`minstret ${e.minstret}, not the RTL's ${COUNT_INSTRET}`);
+    if (again) {
+      e.again = again.cycles;
+      if (again.minstret !== COUNT_INSTRET) why.push(`the second run's minstret ${again.minstret}, not the RTL's`);
+      s.again.push(again.cycles);
+    }
     e.est = countMcv(top, COUNT_L);
     e.bit = countPerBit(bytes);
     if (!(e.round === 0 && e.s === 0)) s.cycles.push(e.cycles);
@@ -196,8 +214,9 @@ function countChecker() {
     return e;
   }
   function summary() {
-    const c = [...new Set(s.cycles)];
-    return { ...s, cycles: undefined, timed: s.cycles.length, cycleValues: c.sort((a, b) => a - b) };
+    const c = [...new Set(s.cycles)], a = [...new Set(s.again)];
+    return { ...s, cycles: undefined, again: undefined, timed: s.cycles.length, cycleValues: c.sort((x, y) => x - y),
+             againTimed: s.again.length, againValues: a.sort((x, y) => x - y) };
   }
   return { feed: async (t) => feed(t), summary };
 }
@@ -220,7 +239,7 @@ function show(e) {
   const tr = document.createElement('tr'), mark = e.verdict === 'ok' ? 'pass' : 'wrong';
   const est = e.est ? [e.est.h.toFixed(3), e.bit.h.toFixed(3)] : ['—', '—'];
   tr.innerHTML = `<td>${e.s} ${e.name}<br><small>round ${e.round}</small></td>`
-    + `<td class="${mark}">${e.most}</td><td>${est[0]}</td><td>${est[1]}</td><td>${e.cycles}</td>`
+    + `<td class="${mark}">${e.most}</td><td>${est[0]}</td><td>${est[1]}</td><td>${e.cycles}${e.again === undefined ? '' : `<br>${e.again}`}</td>`
     + `<td class="${mark}">${e.verdict === 'ok' ? 'all 256 right' : e.verdict}</td>`;
   if (e.verdict !== 'ok') tr.title = e.why;
   tb.appendChild(tr);
@@ -235,6 +254,11 @@ function verdict() {
   t += s.cycleValues.length === 1
     ? `<b class="ok">every one of ${s.timed} streams took ${s.cycleValues[0]} cycles</b>`
     : s.cycleValues.length ? `<b class="bad">the cycles differ: ${s.cycleValues.join(', ')}</b>` : 'no cycles yet';
+  if (s.againTimed) {
+    t += ' · second runs: ' + (s.againValues.length === 1
+      ? `<b class="ok">every one of ${s.againTimed} took ${s.againValues[0]} cycles</b>`
+      : `<b class="bad">the cycles differ: ${s.againValues.join(', ')}</b>`);
+  }
   if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
   if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, stream ${s.firstWrong.s} `
                        + `(${s.firstWrong.name}) — ${s.firstWrong.why}`;
