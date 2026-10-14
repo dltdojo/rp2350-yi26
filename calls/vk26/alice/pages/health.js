@@ -83,20 +83,26 @@ function healthLine(text, serial) {
 /**
  * Each stream's BITS lines, gathered: add(e) a BITS line; take(round, s) its
  * samples, once, or null if any of its `lines` lines never arrived — the page
- * joined mid-stream, or a line was lost.
+ * joined mid-stream, or a line was lost; takeWords(round, s) the same, as the
+ * words the lines carried (vk26-alice-3's samples are their bytes).
  */
 function healthStreams(lines) {
   const parts = new Map();
+  const takeWords = (round, s) => {
+    const key = `${round}:${s}`, p = parts.get(key);
+    parts.delete(key);
+    return !p || p.some((x) => x === null) ? null : [].concat(...p);
+  };
   return {
     add(e) {
       const key = `${e.round}:${e.s}`;
       if (!parts.has(key)) parts.set(key, new Array(lines).fill(null));
       if (e.k < lines) parts.get(key)[e.k] = e.words;
     },
+    takeWords,
     take(round, s) {
-      const key = `${round}:${s}`, p = parts.get(key);
-      parts.delete(key);
-      return !p || p.some((x) => x === null) ? null : healthSamples([].concat(...p));
+      const w = takeWords(round, s);
+      return w === null ? null : healthSamples(w);
     },
   };
 }

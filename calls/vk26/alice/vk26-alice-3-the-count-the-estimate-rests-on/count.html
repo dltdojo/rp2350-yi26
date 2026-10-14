@@ -1,0 +1,251 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vk26-alice-3 — the count the estimate rests on</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  vk26-alice-3-the-count-the-estimate-rests-on — an appliance, not a tool: it
+  knows vk26-alice-3's lines and nothing else.
+
+  The board sends every stream it counted: its 4096 byte samples, the 256
+  counts the proved kernel wrote, the largest of them, and how many cycles
+  the kernel took. This page counts every stream again, written here and
+  sharing nothing with the kernel or the C, and holds the kernel's counts to
+  its own; it compares the cycles of every stream, which the proof says no
+  sample can move; and from the largest count it computes SP 800-90B
+  §6.3.1's estimate, which needs a square root and a logarithm and is in no
+  proof — for the TRNG with its own tests on, and with them bypassed.
+
+  The shared parts are ../pages/: core.js and core.css (connecting, Copy,
+  Save, the look) and health.js (the BITS lines). To put this on a phone,
+  build one file:
+    python3 ../pages/build.py count.html build/count.html
+  and open build/count.html — Files app -> "Open with Chrome" on Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="../pages/core.css">
+<style>
+  td.pass { color: var(--ok); } td.off { color: var(--dim); }
+  td.wrong { background: color-mix(in srgb, var(--bad) 15%, transparent); }
+  .key { font-size: 12px; color: var(--dim); }
+  .hists { display: flex; flex-wrap: wrap; gap: .8rem; margin: .6rem 0; }
+  .hists figure { margin: 0; flex: 1 1 18rem; }
+  .hists svg { width: 100%; height: 6rem; display: block; border-bottom: 1px solid var(--line); }
+  .hists rect { fill: var(--acc); } .hists rect.top { fill: var(--bad); }
+  .hists figcaption { font-size: 12px; color: var(--dim); }
+</style>
+
+<h1>The count the estimate rests on</h1>
+<p class="sub">vk26-alice-3 &middot; how often the commonest of 256 values occurs in 4096 samples, counted by a
+  kernel whose every step the samples cannot move — counted again here, and turned into SP 800-90B's
+  most common value estimate, for the TRNG as it is and with its own tests bypassed.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+  <button id="save" class="ghost">Save</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<div class="hists">
+  <figure><svg id="h0" viewBox="0 0 256 100" preserveAspectRatio="none"></svg>
+    <figcaption id="c0">the TRNG, its tests on: no draw yet</figcaption></figure>
+  <figure><svg id="h1" viewBox="0 0 256 100" preserveAspectRatio="none"></svg>
+    <figcaption id="c1">the TRNG, raw: no draw yet</figcaption></figure>
+</div>
+
+<table id="streams">
+  <thead><tr><th>stream</th><th>most</th><th>H a byte</th><th>H a bit</th><th>mcycle</th><th>counts</th></tr></thead>
+  <tbody></tbody>
+</table>
+<p class="key"><b>most</b>: the largest of the kernel's 256 counts. <b>H</b>: §6.3.1, −log2 of the upper end of
+  the 99% interval around most/4096, bits a byte; <b>a bit</b> the same with each byte's eight bits as samples
+  of their own. Neither is in the proof, and 4096 samples are not the million §3.1.1 asks for: this is a
+  look, not an assessment. <b>mcycle</b>: the kernel's cycles, which no sample can move.</p>
+
+<div id="verdict">Nothing checked yet.</div>
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script src="../pages/core.js"></script>
+<script src="../pages/health.js"></script>
+<script>
+// BEGIN count-check
+// ---------------------------------------------------------------------------
+// What vk26-alice-3's lines say, and whether each stream is counted right.
+// BITS, ROUND and FAIL are ../pages/health.js's.
+//
+//   BITS round s k w0 … w15        64 a stream: sample i is byte i % 4 of
+//                                  word i / 4
+//   HIST round s k c0 … c15        16 a stream: the kernel's counts
+//   STREAM round s most want minstret mcycle name
+//   ROUND round streams
+//
+// vk26-alice-3's check.sh runs this block under node, against count.py on
+// every one of its streams, and over logs right and wrong.
+// ---------------------------------------------------------------------------
+
+const COUNT_L = 4096;
+// minstret for a run, as the Hazard3 RTL counts it: build/expect.h's
+// INSTRET, which check.sh holds this to.
+const COUNT_INSTRET = 6294287;
+
+/** 1024 words in, 4096 byte samples out. */
+function countBytes(words) {
+  const b = new Array(4 * words.length);
+  for (let i = 0; i < b.length; i++) b[i] = (words[i >>> 2] >>> (8 * (i & 3))) & 255;
+  return b;
+}
+
+/** How many samples are each of the 256 values. */
+function countHistogram(bytes) {
+  const c = new Array(256).fill(0);
+  for (const x of bytes) c[x]++;
+  return c;
+}
+
+/** §6.3.1 from the commonest value's count: p̂, the upper end p_u of its
+ *  99% interval, and H = −log2 p_u bits a sample. */
+function countMcv(most, n) {
+  const p = most / n;
+  const pu = Math.min(1, p + 2.576 * Math.sqrt(p * (1 - p) / (n - 1)));
+  return { p, pu, h: -Math.log2(pu) };
+}
+
+/** The same with each byte's eight bits as samples, k = 2. */
+function countPerBit(bytes) {
+  let ones = 0;
+  for (const x of bytes) for (let k = 0; k < 8; k++) ones += (x >>> k) & 1;
+  const n = 8 * bytes.length;
+  return countMcv(Math.max(ones, n - ones), n);
+}
+
+function countParse(text) {
+  const t = text.trim(), h = '([0-9a-f]{8})';
+  let m;
+  const e = healthLine(t, 'vk26-alice-3');
+  if (e) return e;
+  if ((m = t.match(new RegExp(`^HIST ${h} ${h} ${h}((?: [0-9a-f]{8}){16})$`))))
+    return { kind: 'HIST', round: parseInt(m[1], 16), s: parseInt(m[2], 16), k: parseInt(m[3], 16),
+             counts: m[4].trim().split(' ').map((x) => parseInt(x, 16)) };
+  if ((m = t.match(new RegExp(`^STREAM ${h} ${h} ${h} ${h} ${h} ${h} (.+)$`))))
+    return { kind: 'STREAM', round: parseInt(m[1], 16), s: parseInt(m[2], 16), most: parseInt(m[3], 16),
+             want: parseInt(m[4], 16) >>> 0, minstret: parseInt(m[5], 16), cycles: parseInt(m[6], 16), name: m[7] };
+  return { kind: 'other' };
+}
+
+/**
+ * Feed it lines, in order; a STREAM comes back with a verdict:
+ *   ok          every BITS and HIST line of it arrived, each of the kernel's
+ *               256 counts is this page's own count, the largest is the
+ *               largest of them, and minstret is the RTL's
+ *   wrong       one is not, and `why` says which
+ *   incomplete  a BITS or HIST line of it is missing: nothing is claimed
+ * and `summary()` counts them, with the mcycles: every whole stream's but
+ * the first after boot (round 0's first), which exp212 found out of line on
+ * silicon, should be one number.
+ */
+function countChecker() {
+  const s = { streams: 0, ok: 0, wrong: 0, incomplete: 0, rounds: 0, fails: 0, cycles: [], firstWrong: null };
+  const samples = healthStreams(64), hists = new Map();
+  const key = (e) => `${e.round}:${e.s}`;
+
+  function feed(text) {
+    const e = countParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'ROUND') s.rounds++;
+    if (e.kind === 'BITS') samples.add(e);
+    if (e.kind === 'HIST') {
+      if (!hists.has(key(e))) hists.set(key(e), new Array(16).fill(null));
+      if (e.k < 16) hists.get(key(e))[e.k] = e.counts;
+    }
+    if (e.kind !== 'STREAM') return e;
+
+    s.streams++;
+    const words = samples.takeWords(e.round, e.s), hp = hists.get(key(e));
+    hists.delete(key(e));
+    if (!words || !hp || hp.some((x) => x === null)) {
+      e.verdict = 'incomplete'; e.why = `a ${words ? 'HIST' : 'BITS'} line of it never arrived`; s.incomplete++;
+      return e;
+    }
+    const bytes = countBytes(words), mine = countHistogram(bytes), theirs = [].concat(...hp);
+    e.counts = mine;
+    const top = Math.max(...mine);
+    const why = [];
+    const off = mine.findIndex((c, v) => c !== theirs[v]);
+    if (off >= 0) why.push(`the kernel counted ${theirs[off]} of the value ${off}, this page ${mine[off]}`);
+    if (e.most !== top) why.push(`the largest is ${top}, not ${e.most}`);
+    if (e.want !== 0xffffffff && e.want !== top) why.push(`gen.py's largest for it is ${e.want}`);
+    if (e.minstret !== COUNT_INSTRET) why.push(`minstret ${e.minstret}, not the RTL's ${COUNT_INSTRET}`);
+    e.est = countMcv(top, COUNT_L);
+    e.bit = countPerBit(bytes);
+    if (!(e.round === 0 && e.s === 0)) s.cycles.push(e.cycles);
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s.wrong++;
+      if (!s.firstWrong) s.firstWrong = { round: e.round, s: e.s, name: e.name, why: e.why };
+    } else {
+      e.verdict = 'ok'; s.ok++;
+    }
+    return e;
+  }
+  function summary() {
+    const c = [...new Set(s.cycles)];
+    return { ...s, cycles: undefined, timed: s.cycles.length, cycleValues: c.sort((a, b) => a - b) };
+  }
+  return { feed: async (t) => feed(t), summary };
+}
+// END count-check
+
+const $ = (id) => document.getElementById(id);
+const checker = countChecker();
+
+function draw(i, e) {
+  const max = Math.max(...e.counts), svg = $(`h${i}`);
+  svg.innerHTML = e.counts.map((c, v) =>
+    `<rect x="${v}" y="${100 - 100 * c / max}" width="1" height="${100 * c / max}"${c === max ? ' class="top"' : ''}/>`).join('');
+  $(`c${i}`).textContent = `${i ? 'the TRNG, raw' : 'the TRNG, its tests on'}, round ${e.round}: most ${e.most} `
+    + `(value ${e.counts.indexOf(max)}), H ${e.est.h.toFixed(3)} bits a byte, ${e.bit.h.toFixed(3)} a bit`;
+}
+
+function show(e) {
+  const tb = $('streams').tBodies[0];
+  if (e.s === 0) tb.innerHTML = '';
+  const tr = document.createElement('tr'), mark = e.verdict === 'ok' ? 'pass' : 'wrong';
+  const est = e.est ? [e.est.h.toFixed(3), e.bit.h.toFixed(3)] : ['—', '—'];
+  tr.innerHTML = `<td>${e.s} ${e.name}<br><small>round ${e.round}</small></td>`
+    + `<td class="${mark}">${e.most}</td><td>${est[0]}</td><td>${est[1]}</td><td>${e.cycles}</td>`
+    + `<td class="${mark}">${e.verdict === 'ok' ? 'all 256 right' : e.verdict}</td>`;
+  if (e.verdict !== 'ok') tr.title = e.why;
+  tb.appendChild(tr);
+  if (e.verdict === 'ok' && e.s < 2) draw(e.s, e);
+}
+
+function verdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.streams) { v.textContent = 'No stream yet: the first comes within about half a minute.'; return; }
+  let t = `<b class="${s.wrong ? 'bad' : 'ok'}">${s.ok} of ${s.streams} streams counted right</b>`
+        + `, ${s.wrong} wrong, ${s.incomplete} incomplete · ${s.rounds} rounds · `;
+  t += s.cycleValues.length === 1
+    ? `<b class="ok">every one of ${s.timed} streams took ${s.cycleValues[0]} cycles</b>`
+    : s.cycleValues.length ? `<b class="bad">the cycles differ: ${s.cycleValues.join(', ')}</b>` : 'no cycles yet';
+  if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
+  if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, stream ${s.firstWrong.s} `
+                       + `(${s.firstWrong.name}) — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+}
+
+appliance({
+  serial: 'vk26-alice-3',
+  page: `vk26-alice-3 count.html ${$('ver').textContent}`,
+  listening: 'A stream every few seconds, five a round; each round starts with two fresh draws from the TRNG.',
+  onText: checkedLines(checker.feed, (e) => { if (e.kind === 'STREAM') show(e); verdict(); }),
+  report: () => JSON.stringify(checker.summary()),
+});
+</script>

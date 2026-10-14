@@ -1,0 +1,16 @@
+# vk26-alice-3 — wrong versions of the kernel, and wrong claims about the right one.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean or calls/vk26/alice/lean/<file>.lean]
+look_iter|a sample is loaded sign-extended (lb), so the values 128 to 255 are counted as others|s/def look : List Instr := \.ld \.lbu T1 A0 0 :: tally/def look : List Instr := .ld .lb T1 A0 0 :: tally/
+tally_regs|a sample one more than the value is counted as the value too (<u 2, not 1)|s/\.opi \.sltiu T1 T1 1, \.op \.add S6 S6 T1/.opi .sltiu T1 T1 2, .op .add S6 S6 T1/
+tally_regs|the pointer advances by the comparison, an address made from a sample|s/\.op \.add S6 S6 T1, \.opi \.addi A0 A0 1 \]/.op .add S6 S6 T1, .op .add A0 A0 T1 ]/
+maxLine_regs|the max's mask is 1, not all ones|s/\.op \.sub T1 0 T1, \.op \.xor T2 S6 S5/.op .sub T1 T1 0, .op .xor T2 S6 S5/
+bin_iter|each count starts at 1|s/def binTop : List Instr := \[ \.opi \.addi A0 S1 0, \.opi \.addi S6 0 0 \]/def binTop : List Instr := [ .opi .addi A0 S1 0, .opi .addi S6 0 1 ]/
+bin_iter|the counts are written 8 bytes apart, every other one over the next|s/def onward : List Instr := \[ \.opi \.addi S3 S3 4,/def onward : List Instr := [ .opi .addi S3 S3 8,/
+setup_run|the values stop at 255|s/\.opi \.addi S5 0 0, \.opi \.addi S7 0 256 \]/.opi .addi S5 0 0, .opi .addi S7 0 255 ]/
+fin_run|the largest count is written a word late|s/\+\+ \[\.st \.sw S3 S5 0, \.opi \.addi A0 0 0/++ [.st .sw S3 S5 4, .opi .addi A0 0 0/
+from_boot|the claim: one instruction fewer to the halt|s/^def COST : Nat := 8 + 256 \* (2 + 6 \* L + 9) + 4$/def COST : Nat := 8 + 256 * (2 + 6 * L + 9) + 3/
+fin_run|the claim: the most is the largest of the first 255 counts|s/^def most (m : Word → Byte) (base : Word) : Nat := best m base 256$/def most (m : Word → Byte) (base : Word) : Nat := best m base 255/
+cnt_succ|the specification: a value's count includes the samples below it|s/((List.range n).filter (fun i => smp m base i == b)).length/((List.range n).filter (fun i => smp m base i ≤ b)).length/
+accepted|the claim: at both heads the value is at most 254|s/(20, \.num 0 255)/(20, .num 0 254)/

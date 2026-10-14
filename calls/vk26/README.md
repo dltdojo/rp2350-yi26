@@ -170,6 +170,9 @@ calls/vk26/alice/
 | 位元向量的線性等式 | `omega` 不懂 `BitVec` | `bv_omega`（Lean 內建）；`bv_decide` 與 `native_decide` 不行（`check` 只接受 Lean 自己的公理） |
 | `simp [a, b, c]` 裡用不到的參數 | 「unused simp args」警告 → 失敗 | 刪掉用不到的；或改 `simp only` 並只列需要的 |
 | 已淘汰的引理（如 `if_neg`、`if_false`） | 淘汰警告 → 失敗 | 照警告建議的新名稱 |
+| `lean.sh check` 截短的錯誤訊息 | 只看到第一行，看不到目標 | 在套件目錄下 `lake env lean 檔案.lean` 看完整訊息 |
+| 用 `lean/Rv32/Ct.lean` 證明常數時間時，以 `slli` 做常數（如 4096） | 檢查器只知道位移的結果是 public，不知道數值，之後以它為基底的存取會被拒絕 | 用 `lui`（檢查器知道它的值） |
+| 在 `List.range 256` 這類具體長度上做歸納或 `simp` | Lean 會試著展開整個串列而逾時 | 對一般的長度 `K` 證明，最後再代入 256 |
 
 另外兩個實務上的提醒：
 - 目標裡有大定義（例如 `WinOk`）時，`assumption`、`decide` 可能把它整個展開而跑很久，
