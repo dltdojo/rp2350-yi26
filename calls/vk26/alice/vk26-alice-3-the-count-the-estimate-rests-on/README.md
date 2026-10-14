@@ -35,7 +35,9 @@ kernel twice, back to back. All 14 second runs took 7,343,697 cycles, as
 predicted, while the first runs again took several numbers. The slow first
 runs came only after the shell copied a fixed stream out of flash across
 the XIP cache sets that hold the harness's `mret` and trap entry, in both
-revisions' builds. The raw TRNG leaned to 0 in all four draws.**
+revisions' builds. The raw TRNG leaned to 0 in all four draws. Revision 3
+sets the cache on purpose before each first run, to move the slow first
+run from streams 2 and 4 to stream 3; it has not run on a board yet.**
 
 This is the third experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -442,20 +444,50 @@ remembers one branch, and a miss costs one cycle (Hazard3's
 `instruction_timings.adoc`).
 
 **What it does not settle.** This is a fit across two builds, not an
-intervention. A revision 3 could move `FIXED` by 4 KiB, so that stream 3's
-copy covers the trap's sets and stream 2's and 4's do not. The slow first
-runs would then move to stream 3. It is not built.
+intervention. Revision 3, next, is the intervention.
 
 **The raw TRNG, again.** Its bits were 1 in 48.84% and 48.68% (4.2 and 4.8
 standard deviations below even, if independent), per-bit H 0.947 and
 0.943. With its tests on: 49.76%, 50.16%, 50.49%, per-bit H 0.966 to
 0.975. All four raw draws over both runs leaned to 0.
 
+## Revision 3: the cache set on purpose
+
+Revision 3 changes one thing: what the shell reads from flash last, just
+before each stream's first run ([`shell.c`](./shell/shell.c),
+`next_stream`). Everything else is revision 2's, the second run included.
+
+| Stream | Last read before the first run | Why |
+| --- | --- | --- |
+| 0, 1 (the TRNG's) | nothing, as before | the control |
+| 2, 4 | the two words at `trap` − 4 and `trap`: `mret` and the trap entry, read back into the cache | undo what the copy of `FIXED[0]` or `FIXED[2]` did |
+| 3 | all of `FIXED[0]`'s words, then all of `FIXED[2]`'s | fill both ways of the trap's sets with something else |
+
+Moving `FIXED` in flash, the other way to do it, would take a linker
+script change in `tools/`, which S2 keeps out of a proposal. Reading
+through the uncached window would risk a bus error if the boot ROM has set
+`NO_UNCACHED_SEC` (rp-pac 7.0.0's `XIP_CTRL`). These are plain loads, and
+the XIP cache serves both loads and instruction fetches. `check.sh` holds
+the build to the layout the prediction rests on: `FIXED[0]` and `FIXED[2]`
+over the trap's sets, `FIXED[1]` not.
+
+What revision 3's run will say, stated before it happens:
+- every count right, both runs at the RTL's minstret, and every second run
+  7,343,697, as in revision 2;
+- **streams 0, 1, 2 and 4: every first run 7,343,697**, in every round;
+- **stream 3: every first run more than 7,343,697**, in every round.
+
+Stream 3's "every round" assumes the cache replaces the least recently used
+way, so that two sweeps over different tags push the trap out. If it
+replaces at random, some of stream 3's first runs would stay at 7,343,697;
+that would be a finding about the cache, not a fail of the explanation.
+What would fail it: streams 2 and 4 still slow, or stream 3 never slow.
+
 ## What it does not say
 
 - That the XIP cache is why the first runs moved. Revision 2 shows the
   extra cost is left behind by the shell, and the addresses fit the cache
-  in both builds. Moving the data and watching the cost move would show it.
+  in both builds. Revision 3 moves it on purpose; it has not run.
 - That the raw TRNG is biased in general: four draws of 32,768 bits on one
   board, at the shared driver's settings.
 - The estimate's formula is not proved: count.py and the page agree on it,

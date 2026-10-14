@@ -32,6 +32,21 @@
 // the second run is revision 2's question: does a run straight after another
 // take one number?
 //
+// Revision 3 sets what the XIP cache holds when the first run's window
+// opens. On the chip, two harness instructions inside the window are
+// fetched from flash: `mret` and the trap entry, the word at `trap`. Revision
+// 2's board was slow only after the copy of FIXED[0] or FIXED[2], whose
+// addresses share the cache's sets with them (offsets modulo 8 KiB, the two
+// ways of the 16 KiB cache); FIXED[1]'s do not. So, last before the window:
+//
+//   streams 2, 4   the two words at `trap` - 4 and `trap` read, back into
+//                  the cache
+//   stream 3       FIXED[0] and FIXED[2] read through, over both ways of
+//                  those sets
+//   streams 0, 1   nothing, as before
+//
+// On the RTL there is no cache, and these are reads of RAM.
+//
 // A step counter is written before each step, for a trap in the shell itself
 // to be named.
 
@@ -52,12 +67,20 @@
 #define TRNG_WANT 0xffffffffu
 
 extern void enter_payload(void) __attribute__((noreturn));
+extern const uint32_t trap[];
 
 static volatile uint32_t step;
 static uint32_t round, si, kernel_ok, run;
 static uint32_t first_cause, first_x5, first_a0, first_instret, first_cycles;
 static uint32_t words[WORDS], counts[256], mine[256];
 static uint8_t before[32];
+static volatile uint32_t sink;
+
+static void read_through(const uint32_t *p, uint32_t n) {
+    uint32_t x = 0;
+    for (uint32_t i = 0; i < n; i++) x += ((const volatile uint32_t *)p)[i];
+    sink = x;
+}
 
 static int same(const volatile uint8_t *a, const uint8_t *b, uint32_t n) {
     for (uint32_t i = 0; i < n; i++)
@@ -88,6 +111,12 @@ __attribute__((noreturn)) static void next_stream(void) {
     kernel_ok = same(d, KERNEL_SHA, 32);
     if (!board_hash((const uint8_t *)REGION, REGION_SIZE, before)) board_fail(4, si);
     run = 0;
+    if (si == 3) {
+        read_through(FIXED[0].words, WORDS);
+        read_through(FIXED[2].words, WORDS);
+    } else if (si >= 2) {
+        read_through(trap - 1, 2);
+    }
     enter_payload();
 }
 

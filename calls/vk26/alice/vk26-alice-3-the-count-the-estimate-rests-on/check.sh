@@ -18,7 +18,9 @@
 #      the model after COST, and the RTL takes the same cycles on every one;
 #   3. the shell builds for the chip, into the first 32 KiB of flash, and its
 #      UF2 reads back as built — byte for byte the committed one when the
-#      toolchain is the recorded one;
+#      toolchain is the recorded one; and the layout revision 3's prediction
+#      rests on: FIXED[0] and FIXED[2] share the XIP cache's sets with
+#      `mret` and the trap entry, FIXED[1] does not;
 #   4. on the RTL the shell runs all five streams, each twice back to back,
 #      each count checked against the shell's own, minstret the RTL's, mcycle
 #      one number for all ten runs; wrong shells are caught;
@@ -86,6 +88,29 @@ if [[ "$(clang --version | head -1)" == "$(cat build-toolchain.txt)" ]]; then
     fi
 else
     echo "SKIP  the UF2 against the committed hash: built with $(clang --version | head -1), recorded with $(cat build-toolchain.txt)"
+fi
+
+# Revision 3's prediction rests on where the chip build put things: the
+# words of FIXED[0] and FIXED[2] over the cache sets of `mret` and the trap
+# entry (offsets modulo 8 KiB, the 16 KiB cache's two ways), FIXED[1]'s not.
+if python3 - <(llvm-nm -S build/chip.elf) <<'PY'
+import sys
+syms = {f[3]: (int(f[0], 16), int(f[1], 16)) for f in (l.split() for l in open(sys.argv[1])) if len(f) == 4}
+trap, (fixed, size) = syms["trap"][0], syms["FIXED"]
+one = size // 3
+want = {(trap - 4) % 0x2000, trap % 0x2000}
+over = []
+for k in range(3):
+    lo = fixed + k * one + 8
+    sets = {a % 0x2000 for a in range(lo, lo + 4096, 4)}
+    over.append(want <= sets)
+print(f"trap {trap:#x}, FIXED {fixed:#x}: the copy of FIXED[0], [1], [2] over the trap's sets: {over}")
+sys.exit(0 if over == [True, False, True] else 1)
+PY
+then
+    pass "the chip build's layout is revision 3's: FIXED[0] and FIXED[2] over the cache sets of mret and the trap entry, FIXED[1] not"
+else
+    fail "the chip build's layout is revision 3's"
 fi
 
 # Every stream on the RTL: STRM s most want minstret mcycle, and the second
