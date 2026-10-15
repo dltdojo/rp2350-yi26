@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:68, README.md:12, proof/Fly.lean:576, proof/Fly.lean:578
+reason: README says `watches_life` shows the kernel reports up at least down at every one of the 256 steps and in total, and line 12 builds the headline on it. The theorem as stated in the bundle concludes only `True` (proof/Fly.lean:578), which any kernel satisfies. No theorem in the bundle proves that claim. The WHY.zh-TW.md:39 row for the corollary has the same problem.
+J2: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69, README.md:12
+reason: A `from_boot`-form theorem exists (`detects_boot`, proof/Fly.lean:556-559), but `watches_life` concludes only `True` (proof/Fly.lean:578), which says nothing about the kernel's run. The README (README.md:68-69, README.md:12) says it proves the kernel reports up at least down at every one of the 256 steps and in total, so the Lean statement is weaker than its description.
+J3: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:496
+reason: This is a new kernel (the 41-instruction detector, with T1 `detects`) and new properties proved of it. T3 `life_moves_up` and T2 `shift_up` with its aliasing exception are not in any prior experiment's summary. T3 is a new consequence derived about exp225's Rule 30.
+J4: YES
+evidence: fly.py:30-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24, fly.py:13-14
+reason: The reference computes the moves with Python rotations and `bin().count("1")`, where Lean uses `up1`/`dn1`/`pc` and the kernel uses shift pairs and a bit loop. Rule 30 is written cell by cell in rule30.py rather than as the Lean bit-operation formula. The code bears out the differences that fly.py:13-14 states.
+INJECTION: NONE
+END

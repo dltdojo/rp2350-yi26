@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:73, README.md:74, README.md:75, README.md:83, capture.txt:23, capture.txt:50, capture.txt:67, board/round1.txt:1, board/round1.txt:6, board/round1.txt:71, proof/World.lean:489, proof/World.lean:641, proof/World.lean:718
+reason: Each proved claim (W1, W0, M6, M7, M8, answer_world) matches a theorem statement quantified over all inputs and masks, and the gates report all 7 on Lean's own axioms. The 12.715% rate and the 40000-patient table match capture.txt:23-31. The board claims (27 treated, 4 missed, 38 of 38 agreed, minstret 4046, patients 7 and 16 resistant and missed, widths 1 and 2 all cured) match board/round1.txt and capture.txt:67. The exp232 and exp233 board totals (30 treated, 4 missed) match their logs.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:510, proof/World.lean:511, proof/World.lean:183, proof/World.lean:188, README.md:71, proof/World.lean:622, README.md:72, proof/World.lean:588, proof/World.lean:589, README.md:73, proof/World.lean:641, proof/World.lean:642, README.md:74, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, README.md:75, proof/World.lean:663, proof/World.lean:664, README.md:76
+reason: `from_boot` and `lives` are the from_boot-form theorems. For any image that begins with the kernel's bytes, with memory otherwise arbitrary (so every input and every mask), the kernel is still running at 4042 and halts with 0 at exactly 4043, and memory then equals `lived`, which is generations 1 to 64 of `wnext` overlaid on the rest of memory left unchanged. `still`, `resistance_stays`, `cured_iff`, `answer_world` (any w in 1..6, any position p, any masks) and `zero_stays` have the quantifiers, hypotheses and conclusions their README rows describe.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:588, proof/World.lean:641, proof/World.lean:718, README.md:82-83
+reason: The prior work has only exp232's model kernel, with the world in unproved C. This experiment adds a proved 74-instruction world kernel taking masks as input, new theorems (M6, M7, M8, answer_world) and a rate derived from M7, plus a board run of that kernel.
+J4: YES
+evidence: world.py:1-4, world.py:43-50, world.py:61-66, ../exp232-the-cure-the-proof-predicts/cure.py:1-4, ../exp232-the-cure-the-proof-predicts/cure.py:61-77
+reason: cure.py writes the dose and growth rules cell by cell (loops over `cell(x, i)`), where the Lean kernel uses shifts, ors and ands on whole words. world.py counts the divisions with that cell-by-cell code and computes the rate with Fractions. It only reads Lean's D table from the source in order to compare it.
+INJECTION: NONE
+END

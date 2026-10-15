@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:495, proof/Fly.lean:576, capture.txt:26, capture.txt:27, capture.txt:30, capture.txt:40, proof/mutants.txt:5
+reason: Each proof claim (T1, T2 with its four-ring exclusion, T3, watches_life) matches a theorem statement and the nine-theorem axiom listing. The measured claims match the capture: 2^32 brute force, 255 up and 1 not moving with totals 2053/1030, 70924 on the model, and 70927 instructions and 71697 cycles on the RTL. No board claim is made. Small unevidenced points are the aside that Rule 86 is seen moving down, and the shared-library edits to files not in the bundle. I treated both as explanation and history, not substantive claims.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:487, proof/Fly.lean:489, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:115, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:593, README.md:54, README.md:58, README.md:63, README.md:68, README.md:70
+reason: `detects_boot` is of from_boot form: for any image beginning with the kernel's bytes, the machine is running at 70923 instructions and halted with 0 at 70924. Memory then holds `toUp`/`toDn` of every step over arbitrary frames, plus the totals and the unchanged frames, as README.md:54-57 says. T2, T3, `watches_life` and `watches_shift` carry exactly the hypotheses and conclusions the README states (the period-two exclusion, all `x`, the life/shift frame hypotheses with the per-step and total inequalities); the "exactly four rings" count is presented as a brute-force check, not as the theorem.
+J3: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:495
+reason: No prior experiment has a motion detector kernel. This one adds a new 41-instruction kernel (detects), a new property, the T3 theorem that Rule 30 is never seen moving down, and the T2 aliasing finding that a moved frame is seen moving its way except for four rings.
+J4: YES
+evidence: fly.py:38, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:22, capture.txt:26
+reason: Counting is done with Python's bin().count where the kernel and Lean use a 32-round bit loop and a recursive pc. Rule 30 is computed cell by cell with modular indexing, unlike Lean's whole-word dn1/up1 formula, and the 2^32 brute force uses it as well. fly.py's rotations are the same shift-and-OR formula the kernel uses, which contradicts the README's "neither is the kernel's formula of shifts". The independent counting and rule are enough to make a copied mistake unlikely.
+INJECTION: NONE
+END

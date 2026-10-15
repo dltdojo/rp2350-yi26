@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:12, README.md:311, README.md:327, README.md:336, ../lean/Alice/Trust.lean:538, capture.txt:76, capture.txt:119, capture.txt:137, capture.txt:145, capture.txt:146, board/round1.txt:1, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28
+reason: Each proved claim matches `from_boot` and `trusts_after_kat`, which hold for any `env.hash`, and the mutants match capture.txt. The RTL and board numbers (34897, 17470, 51, 34885; 18/18 streams; 4 spoiled hashes refused; 7 outputs; TRNG runs 11, 12, 11) match capture.txt and board/round1.txt. The LED observation names the UF2 hash and how it was flashed. The alice-5 cause of the extra instruction matches its capture line.
+J2: YES
+evidence: ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:439, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:442, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:86, ../lean/Alice/Trust.lean:94, ../lean/Alice/Trust.lean:98, ../lean/Alice/Trust.lean:99, ../lean/Alice/Trust.lean:103, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:110, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:536, ../lean/Alice/Trust.lean:537, ../lean/Alice/Trust.lean:538, ../lean/Alice/Trust.lean:539, ../lean/Alice/Trust.lean:540, ../lean/Alice/Window.lean:408, ../lean/Alice/Window.lean:409, README.md:11, README.md:12, README.md:13, README.md:14, README.md:15, README.md:16, README.md:17, README.md:18, README.md:19, README.md:20, README.md:106, README.md:129
+reason: `from_boot` is of from_boot form: it takes any `env` (so any `HASH`), any placed `base` and any image whose first 448 bytes are the kernel's. It states that the kernel is still running at `cost - 1` and halted at exactly `cost` with `code` (2/1/3/0 at 43/17462/34878/34885) and memory `after`. `after` is the KAT's answer at its scratch, plus `HASH` of window 1's 4096 bytes at 0x2400 only when all three checks pass, which matches the README's quantifiers and conclusions. `trusts_after_kat` states the KAT-failure halt at 43 with only the scratch written, and that halting with 0 implies `Trusted` and the output equals `HASH` of window 1, as the README says; the README also discloses that `Trusted` is relative to the image's bytes at 0x340.
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:93, ../lean/Alice/Trust.lean:538, capture.txt:145
+reason: Nothing in prior work has a theorem that the output is `HASH` of window 1 only when `HASH` has first answered a known-answer test (`Trusted`, `trusts_after_kat`). The in-kernel KAT, refused on the RTL and on the board, is likewise new.
+J4: YES
+evidence: ../tools/trustref.py:51, ../tools/trustref.py:62, ../tools/health.py:31, ../tools/health.py:46, differential/differential.py:43
+reason: The reference computes the KAT and outputs with hashlib, where Lean leaves `HASH` abstract. It runs the health tests as a plain Python loop over samples, where the kernel uses RV32 registers. The differential compares whole regions against these Python writes.
+INJECTION: NONE
+END

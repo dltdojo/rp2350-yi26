@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:14, README.md:71, README.md:121, README.md:136, board/round1.txt:1, capture.txt:23, capture.txt:67
+reason: The proved claims match the theorems (`lives` with 4043, `still`, `resistance_stays`, `cured_iff`, `answer_world`, `zero_stays`). The 12.715% and the 40000-patient table match the capture. The board claims (27 treated, 4 missed, 38 of 38 agreed, no FAIL, 19 of 19 replayed) match the page summary line and the capture, and the README states how that observation was made (UF2 hash, Pico 2, phone page build). The exp232 and exp233 figures it cites (4 of 30, 142 of 1038) match their logs and captures. The LED flash patterns are inherited from exp232 and are descriptions of design, not claimed observations.
+J2: NO
+evidence: README.md:75, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:697, proof/World.lean:507, proof/World.lean:511
+reason: `from_boot` is a proper from-boot theorem (halts with 0 after exactly 4043 instructions, memory = `lived`). But `answer_world`, described in the README and its docstring as covering "a lump of 1 to 6 cells anywhere on the ring", is stated only for `patient w 0 ANSWER`, a fixed position 0. `divisions_iter` carries the count to other positions, but no theorem in the bundle states the cured-iff and the count together for any position `p`, so the main theorem is weaker than its description.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, README.md:82
+reason: Prior experiments proved only exp232's model kernel. This one adds a proved 74-instruction kernel for the world with the random masks as input (`lives`). It adds the exact characterisation of cure (`cured_iff`) and the per-width divisions (`answer_world`). From those it derives a rate of 12.715% and checks it against a board.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, world.py:43, world.py:56, differential/differential.py:68
+reason: The reference is `cure.py`, which computes each generation cell by cell with `cell()` loops, where the Lean model uses shifts and bit operations. `world.py` recomputes the divisions and the exact rate with `Fraction`, then compares them to the D parsed from the Lean source. The differential check compares the Lean model and the RTL against that world.
+INJECTION: NONE
+END
