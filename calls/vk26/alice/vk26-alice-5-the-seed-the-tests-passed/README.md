@@ -126,7 +126,9 @@ moved there as their second user:
      windows passed their tests (`code_zero_iff`);
   3. with 0, the shell's step (`restart`: the next kernel's bytes at the
      region's start, every other byte as the last kernel left it, the pc at
-     base, any registers) and this kernel halts with 0 after 241;
+     base, the registers as the last kernel left them — `inst_run` and
+     `Drbg.generate_run` ask nothing of the registers) and this kernel halts
+     with 0 after 241;
   4. the shell's step again, and vk26-alice-4's Generate halts with 0
      after `COST m`;
   5. block j at 0x600 is Hash(V + j) for V = Hash_df(digest ‖ nonce)
@@ -246,8 +248,10 @@ RTL (241, plus 3 for the harness, plus 4 for each of four HASHB calls); in
 the chain it counts 261, the same kernel on the same kind of input. Its
 `ecall` is its last instruction both times. What differs is the word after
 it: zeros alone, vk26-alice-2's code in the chain, which the shell leaves
-past the Instantiate kernel's 244 bytes, as `restart` says. Putting each of
-five words at 0xf4, right after the `ecall`, and running the kernel alone:
+past the Instantiate kernel's 244 bytes, as `restart` says. [`gen.py`](./gen.py)
+puts each of five words at 0xf4, right after the `ecall`, runs the kernel
+alone on the RTL, and stops the build unless it counts as below; its line
+in [capture.txt](./capture.txt) (`build/expect.h: …`) prints the five:
 
 | the word at 0xf4 | minstret |
 | --- | --- |
@@ -410,8 +414,9 @@ phone, the file Save gave back, kept as it came.
 The page joined at round 0's case 31 and saved during round 1's case 113.
 It judged 202 NIST cases right, 0 wrong and 0 incomplete, and both of
 round 0's chains right: one gave bits, one was refused at the KAT. It saw
-no FAIL line, and every status line says `dropped=0 errors=0`.
-`fixtures.py --board` agrees:
+no FAIL line. `fixtures.py --board` agrees, and prints what the rest of
+this section quotes ([capture.txt](./capture.txt)); every status line says
+`dropped=0 errors=0`:
 - every case's seed material is NIST's for its name, its V and C
   hashdrbg.py's instantiation, its second Generate's 1024 bits NIST's
   ReturnedBits;
@@ -423,8 +428,8 @@ no FAIL line, and every status line says `dropped=0 errors=0`.
 - every minstret the RTL's.
 
 The predictions:
-- **Every NIST case right: held.** 104 of the cases have a 48-byte seed
-  material and 99 an 80-byte one, so the chip's SHA-256 block answered
+- **Every NIST case right: held.** Of the 202 whole cases, 104 have a
+  48-byte seed material and 98 an 80-byte one, so the chip's SHA-256 block answered
   HASHB on 53 and 85 bytes for V and 61 for C, through vk26-alice-4's
   padding, now `hashb_chip.h`, and got SHA-256 each time.
 - **The TRNG's chain, code 0: held,** once, in round 0. The samples' tests
@@ -433,25 +438,25 @@ The predictions:
   before Save.
 - **minstret: held** in every run: 260, 4318, 4318 for each case; 34,897,
   261 and 4318 in the chain; 51 for the spoiled one. So the chip, too,
-  counts the same Instantiate kernel 260 alone (203 times) and 261 after
+  counts the same Instantiate kernel 260 alone (in all 202 whole cases) and 261 after
   alice-2's code: the one more is on silicon, where the word after the
   `ecall` is an instruction, and not where it is zero.
 - **mcycle, not predicted:**
-  - Every second Generate took 15,088 cycles, all 203; vk26-alice-4's
+  - Every second Generate took 15,088 cycles, all 202; vk26-alice-4's
     took 15,078.
   - Instantiate took 9,212 at the least for a 48-byte seed material (62 of
-    104) and 11,372 for an 80-byte one (78 of 99): 2,160 more for the two
+    104) and 11,372 for an 80-byte one (78 of 98): 2,160 more for the two
     extra SHA-256 blocks of V's two hashes, 1,080 a block.
   - The chain's Instantiate took 9,212, the fastest NIST one's figure,
     though it retired one more instruction.
   - vk26-alice-2's kernel took 58,945 cycles for code 0 and 1,547 for the
     spoiled KAT.
 
-  The slow runs (an Instantiate or a first Generate) fall in 40 cases, and
-  they come in clusters 16 cases apart: 0–4, 16–19, 31–38, 47–50, 63–69,
-  79–82, 95–99, 111–113. A case is 260 bytes of the table in flash, so 16
-  cases is about 4 KiB. Of the 83 cases seen whole in both rounds, 28 were
-  slow in both. That is vk26-alice-4's pattern again, with a period this
+  The cases with a run slower than the least for its kind come in
+  clusters 16 cases apart: 31–36, 47–50, 63–69, 79–82, 95–99 and 111–113 in
+  round 0, and 0–4, 16–19, 32–38, 47–50, 63–69, 79–82, 95–99 and 111–112 in
+  round 1. A case is 260 bytes of the table in flash, so 16 cases is about
+  4 KiB. Of the 82 cases whole in both rounds, 27 were slow in both. That is vk26-alice-4's pattern again, with a period this
   time. It points at where a case's bytes lie in flash and the XIP cache,
   as vk26-alice-3 measured; this run did not probe it.
 

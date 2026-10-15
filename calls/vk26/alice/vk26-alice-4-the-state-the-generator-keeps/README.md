@@ -199,7 +199,8 @@ Twelve wrong versions are each refused (`proof/mutants.txt`):
   proof's 4294, plus the harness's 3, plus 4 for each of the five HASHB
   calls, plus 1: vk26-alice-5 found the RTL counts one more when the word
   after the halting `ecall` is a legal instruction, here the RESEED
-  branch. (This README first counted that 1 as the harness's.)
+  branch ([its capture](../vk26-alice-5-the-seed-the-tests-passed/capture.txt), the
+  `build/expect.h` line). (This README first counted that 1 as the harness's.)
 
 ## The shell
 
@@ -365,28 +366,31 @@ The predictions:
     more.
   - The reseed check took 15 cycles in 162 cases, and 115 to 135 in 3.
 
-  The slow first runs come in runs of neighbouring cases (40–43, 49–51,
-  69–72, 77–80). Of the 54 cases seen whole in both rounds, 41 took the
-  same cycles both times, and the slow ones were mostly slow both times.
-  Case 67's reseed check was slow in both rounds. That points at where
-  each case's data lies in flash, not at its values. Before the first run
-  the shell reads that case's V and C out of flash, so this is
-  vk26-alice-3's XIP cache finding again. Here the code that misses
-  includes HASHB's handler, which runs inside the timed window. The second
-  run comes straight after the first, everything warm, and is one number.
+  The slow first runs come in runs of neighbouring cases, much the same in
+  both rounds: cases 34, 40–43, 49–51, 69, 71–72, 77–79, 97–98, 100 and
+  106–108 in round 0 (of 33–119), and 11–12, 14, 20–22, 39–43, 49–51, 69, 71
+  and 77–80 in round 1 (of 0–90). Of the 54 cases seen whole in both
+  rounds, 41 took the same cycles for the first Generate both times. Case
+  67's reseed check was slow in both rounds. That points at where each
+  case's data lies in flash, not at its values. Before the first run the
+  shell reads that case's V and C out of flash, so this is vk26-alice-3's
+  XIP cache finding again. Here the code that misses includes HASHB's
+  handler, which runs inside the timed window. The second run comes
+  straight after the first, everything warm, and is one number.
 
-**Lines lost on the way to the phone.** Of the three incomplete cases:
-- the first is where the page joined, mid-case;
-- the other two lie in round 1, where the log jumps from case 25's
-  second Generate to case 31's CASE line, and then to the end of case 36.
-  Cases 26–30 and 32–35 never reached the page at all.
+All of these are `fixtures.py --board`'s, in [capture.txt](./capture.txt),
+not a reading of the log by eye.
 
-Every line in the log is whole, so whole lines were lost, not bytes. The
+**Lines lost on the way to the phone.** Of the three incomplete cases, the
+first is where the page joined, round 0's case 33. The other two, 31 and
+36, are in round 1, which has no CASE line at all for cases 25–30 and
+32–35; the first gap comes after the log's line 1804. All 20 status lines
+in the log say `dropped=0`, the last at line 1803, before the gap. The
 board drops a whole line when its 1024-byte queue is full and counts it in
-the status line's `dropped`. The last status line before the gap says
-`dropped=0`, and none came after it. So the log cannot say whether the
-board or the phone lost them. The page and fixtures.py claimed nothing
-about the cases they lost: an incomplete case is not judged.
+`dropped`, but no status line came after the gap to say, so the log cannot
+tell whether the board or the phone lost them. The page and fixtures.py
+claimed nothing about the cases they lost: an incomplete case is not
+judged.
 
 ## What it does not say
 
@@ -423,9 +427,11 @@ Found while making this experiment, and recorded in
   experiment's `board_chip.c`), as `trng_raw.h` was for alice-3, because S2
   keeps `tools/` closed. If a second proposal needs it, it belongs beside
   `sha_hw.h`.
-- **The big-endian lemmas live in this experiment's proof**, not in
-  `alice/lean/` as the plan said. Nothing else uses them yet. The second
-  caller is where they move, and vk26-alice-5's Hash_df will be one.
+- **The big-endian lemmas lived in this experiment's proof**, not in
+  `alice/lean/` as the plan said, until a second caller came: vk26-alice-5's
+  Hash_df. Then the whole proof moved into alice's package,
+  [`../lean/Alice/Drbg.lean`](../lean/Alice/Drbg.lean), and kernel.bin stayed
+  byte for byte the same.
 
 ## Running it
 

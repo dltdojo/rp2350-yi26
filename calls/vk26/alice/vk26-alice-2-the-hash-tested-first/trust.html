@@ -9,7 +9,7 @@
   The board sends every stream it ran: its 2048 samples, HASH's answer to the
   known-answer test as the kernel saw it (and whether the shell spoiled it on
   purpose), the code the proved kernel halted with, and the output when there
-  is one. This page judges every stream again — the KAT's answer against
+  is one. This page checks every stream again — the KAT's answer against
   WebCrypto's SHA-256 of the KAT's message, then SP 800-90B's two tests over
   the start-up window and the next, written here a sample at a time and
   sharing nothing with the kernel or the C — and asks WebCrypto for SHA-256 of

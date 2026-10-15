@@ -306,9 +306,10 @@ What it adds to the RTL:
 - **The chip counts as the RTL does**, at every code, the extra one at
   code 0 included: 69719, not 69718. So the extra instruction is in the
   core or in tools/hazard3/harness, which both run, not in the testbench's
-  simulation. It is still not explained.
+  simulation. It was not explained here (below).
 - **The TRNG's digests are SHA-256's**, by hashlib on this machine, not
-  only the SHA-256 block checked against itself. Its round-4 samples: the
+  only the SHA-256 block checked against itself. Its round-4 samples, as
+  `fixtures.py --board` prints them in [capture.txt](./capture.txt): the
   longest run 11, and 530, 496, 516 and 502 of each window equal to its
   first — far from 21 and 589, and code 0, as seam.py says.
 - **The seam stream stopped at window 2 on silicon**, with one digest,
@@ -328,7 +329,9 @@ What it adds to the RTL:
   measured, not explained.
   vk26-alice-5 later found the cause: the RTL counts one more when the word
   after the halting `ecall` is a legal instruction
-  ([its README](../vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)).
+  (its gen.py puts five words after the Instantiate kernel's `ecall` and
+  runs it on the RTL; the counts are in [its capture](../vk26-alice-5-the-seed-the-tests-passed/capture.txt),
+  the `build/expect.h` line).
 - One window at a time is still how the adaptive proportion test runs, and
   the stream is four windows: what happens after the fourth (a fifth
   window, a reseed) is not here.

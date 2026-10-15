@@ -207,7 +207,9 @@ The RTL counts 6,294,287 instructions, the proof's count plus 3.
 - vk26-alice-5 later found the cause: the RTL counts one more when the word
   after the halting `ecall` is a legal instruction; here it is followed by
   zeros
-  ([its README](../vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)).
+  (its gen.py puts five words after the Instantiate kernel's `ecall` and
+  runs it on the RTL; the counts are in [its capture](../vk26-alice-5-the-seed-the-tests-passed/capture.txt),
+  the `build/expect.h` line).
 
 ## The shell
 
@@ -681,8 +683,9 @@ standard deviations below even, if independent). With its tests on:
 - Constant time is about this core's view: no caches, no data-dependent
   latency. The proof says the samples cannot move the trace; the RTL and
   the board measure the time.
-- The one instruction alice-1 and alice-2 counted more is not explained;
-  here it is predicted absent, and the RTL agrees.
+- The one instruction alice-1 and alice-2 counted more was not explained
+  when this experiment was made; here it was predicted absent, and the RTL
+  agrees. vk26-alice-5 later found why (above).
 
 ## What the trial found in the call's settings
 

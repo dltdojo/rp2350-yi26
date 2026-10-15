@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "tools"))
 from drbg import cavp_cases, drbg_generate, drbg_instantiate  # noqa: E402
-from lines import status_line  # noqa: E402
+from lines import spans, status_line  # noqa: E402
 
 SERIAL = "vk26-alice-4"
 COUNTER0 = 1
@@ -156,6 +156,44 @@ def log_cases(log):
     return out
 
 
+def drbg_board_notes(log):
+    """What the README says of a log beyond each case's verdict, printed so
+    that it is a check's output and not a reading of the log: where the page
+    joined and saved, which cases never came whole, which first Generates
+    and reseed checks were slow, the cases seen whole in both rounds, and
+    the status lines' `dropped`."""
+    runs, cases, ends, status, last = {}, set(), {}, [], None
+    for n, line in enumerate(open(log, encoding="utf-8", errors="replace"), 1):
+        t = line.split()
+        if len(t) >= 3 and t[0] in ("STATE", "BLOCK", "RUN", "CASE") and re.fullmatch(r"[0-9a-f]{8}", t[1]):
+            last = (int(t[1], 16), int(t[2], 16), n)
+            ends[last[:2]] = n
+            if t[0] == "RUN" and len(t) == 8:
+                runs.setdefault(last[:2], {})[int(t[3], 16)] = int(t[7], 16)
+            if t[0] == "CASE":
+                cases.add(last[:2])
+        m = re.search(r" usb=.* dropped=(\d+) ", line)
+        if m:
+            status.append((n, int(m.group(1))))
+    whole = {k for k in cases if sorted(runs.get(k, {})) == [1, 2, 3]}
+    print(f"      the log: from round {min(runs)[0]}'s case {min(runs)[1]} to round {last[0]}'s case {last[1]} (line {last[2]})")
+    for r in sorted({k[0] for k in cases}):
+        seen = [i for rr, i in cases if rr == r]
+        lo, hi = min(seen), max(seen)
+        gone = [i for i in range(lo, hi + 1) if (r, i) not in cases]
+        print(f"      round {r}: CASE lines for {lo}–{hi}; none for {spans(gone)}"
+              f"{f' (the first gap after line {ends[(r, gone[0] - 1)]})' if gone and (r, gone[0] - 1) in ends else ''}; "
+              f"incomplete {spans(i for rr, i in cases if rr == r and (rr, i) not in whole)}")
+    fast = min(runs[k][1] for k in whole)
+    for r in sorted({k[0] for k in whole}):
+        print(f"      round {r}: first Generate slower than {fast} in cases {spans(i for rr, i in whole if rr == r and runs[(rr, i)][1] != fast)}; "
+              f"reseed check slower than its least in {spans(i for rr, i in whole if rr == r and runs[(rr, i)][3] != min(runs[k][3] for k in whole))}")
+    both = [i for i in range(256) if (0, i) in whole and (1, i) in whole]
+    print(f"      cases seen whole in rounds 0 and 1: {len(both)}; the first Generate's mcycle the same in both: "
+          f"{sum(runs[(0, i)][1] == runs[(1, i)][1] for i in both)}")
+    print(f"      status lines: {len(status)}, dropped {sorted({d for _, d in status})}, the last at line {status[-1][0] if status else '-'}")
+
+
 def drbg_board(expect_h, logs):
     """Each CASE of each log against NIST and drbg.py; then the mcycles, as read."""
     e = expect(expect_h)
@@ -201,6 +239,8 @@ def drbg_board(expect_h, logs):
         for k, name in enumerate(("Generate 1", "Generate 2", "the reseed check")):
             if cycles[k]:
                 print(f"      mcycle of {name}: " + "; ".join(f"{c} in {len(w)}" for c, w in sorted(cycles[k].items())))
+        if n:
+            drbg_board_notes(log)
     return failed
 
 
