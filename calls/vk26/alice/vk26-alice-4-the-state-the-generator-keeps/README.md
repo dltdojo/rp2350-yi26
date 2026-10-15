@@ -162,13 +162,16 @@ Twelve wrong versions are each refused (`proof/mutants.txt`):
 ## The reference, and the differential
 
 - [`drbg.py`](./drbg.py) is Hash_DRBG written from SP 800-90A Rev. 1's
-  text, nothing like the kernel's registers. Its parts:
+  text, nothing like the kernel's registers. Since vk26-alice-5 became its
+  second user, the code is alice's, in
+  [`../tools/hashdrbg.py`](../tools/hashdrbg.py), and drbg.py imports it.
+  Its parts:
   - `hash_df` and `drbg_instantiate` (§10.3.1, §10.1.1.2);
   - `drbg_generate` (§10.1.1.4);
   - `drbg_image` and `drbg_outcome`: what the kernel's region must hold
     before and after;
   - `drbg_region`: the whole region afterwards.
-- [`cavp/Hash_DRBG_SHA256.txt`](./cavp/Hash_DRBG_SHA256.txt) is every
+- [`../tools/cavp/Hash_DRBG_SHA256.txt`](../tools/cavp/Hash_DRBG_SHA256.txt) is every
   SHA-256 group without additional input and without prediction
   resistance, from NIST's CAVP DRBG vectors (drbgvectors_no_reseed.zip):
   120 cases, copied unchanged but for the header, which says where from and
