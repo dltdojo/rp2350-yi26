@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:453, README.md:454, README.md:617, README.md:618, capture.txt:230
+reason: The table of revision 1 and revision 2 `FIXED` cache-set offsets (and "revision 1 rebuilt byte for byte") has no support in the bundle. The capture holds only the current build's layout (`FIXED 0x10003854`). The claim that all 408 probe runs halted with minstret 6 and 132 XIP accesses is also unsupported: the capture reports accesses only for the "nothing first" baseline, and round4.txt's PROBE lines are not in the bundle. The raw-TRNG ones-fractions and their direction (48.23% and the rest) rest on BITS lines that the bundle trims out of the board logs.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:95, proof/Count.lean:108, proof/Count.lean:110, proof/Count.lean:113, proof/Count.lean:114, proof/Count.lean:585, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, README.md:8, README.md:9, README.md:10, README.md:12, README.md:13, README.md:19
+reason: `from_boot` is in from_boot form and covers any `Placed` base and any image whose first 116 bytes are the kernel's, so it holds whatever the samples are. It states that the kernel is still running at COST−1 and halts with 0 at COST (= 8 + 256·(2+6·4096+9) + 4 = 6,294,284), with memory exactly `after`: the 256 `hist` words from 0x1400 and `most` at 0x1800, nothing else. That matches README.md:8-11, and `most_is_max`, `hist_sum` and `count_constant_time` state what the README says they state; `count_constant_time` is in fact stronger, since the two images may differ anywhere outside the kernel.
+J3: YES
+evidence: proof/Count.lean:544, proof/Count.lean:585, proof/Count.lean:627, proof/Count.lean:673, README.md:5
+reason: No prior experiment has a kernel that counts 4096 samples into 256 bins and finds the largest count. It adds a proof that the count is the commonest value's, a proof that the counts sum to 4096, a constant-time proof, and a refusal of the plain histogram. It also adds board measurements of the raw TRNG and of the XIP-cache cost.
+J4: YES
+evidence: count.py:39-48, count.py:59-64, proof/Count.lean:95-99, proof/Count.lean:105
+reason: count.py counts with a plain `counts[s] += 1` loop and computes the estimate with `math`. Lean uses a filtered list over `List.range`, and the kernel scans all samples per value with xor and `sltiu`. count.py is written from the §6.3.1 text and checked against its worked example, not transcribed from the Lean definitions.
+INJECTION: NONE
+END

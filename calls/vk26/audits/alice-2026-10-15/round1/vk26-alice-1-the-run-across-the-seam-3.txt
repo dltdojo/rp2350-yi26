@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: board/round1.txt:1-6, README.md:22-26, README.md:295-301
+reason: The README gives per-stream board codes, minstrets and digest counts for seven whole streams, and says all seven halted with seam.py's code at the RTL's minstret. The board log in the bundle holds only a `#page` line, four `BITS` lines and one status line, with no `STREAM` or `DIGEST` lines. The table's numbers therefore can't be matched to a board log here, and capture.txt's PASS lines are a summary, not the log.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:81, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, README.md:77, README.md:87, README.md:96, proof/Seam.lean:297, proof/Seam.lean:323, proof/Seam.lean:402, proof/Seam.lean:418
+reason: `from_boot` is in from_boot form: any placement, any image whose first 552 bytes are the kernel's. It runs from `boot` and is still running at `cost (stop …) - 1`. It halts at exactly `cost (stop …)` with `code`, and memory equals `wrote env.hash` over the windows before the stop, for an arbitrary `hash`. That matches README.md:77-96, including `WinOk`'s stream-wide `rct` and per-window `agree`, the codes 0 and 1–4, and the counts 17431 + 17421·k and 69699. The sub-theorems (`window_fail`, `window_pass`, `all_pass`, `runs_to`) state the counts and effects their table rows describe.
+J3: YES
+evidence: proof/Seam.lean:434-439, ../lean/Alice/Window.lean:43-46, README.md:38-44
+reason: Prior work (exp222 and exp223) judges a single window and restarts the repetition count each time. This experiment adds a kernel that carries the run across window edges, with `Seam.from_boot` proving its stop point, halt code and written digests.
+J4: YES
+evidence: ../tools/health.py:31-46, seam.py:50-54, differential/differential.py:52-59
+reason: The reference is Python that walks one sample at a time with a plain `last`/`run` pair and takes digests from hashlib. The Lean side is a register-level kernel with `rct`/`agree` and an abstract `env.hash`. The README says the reference shares nothing with the kernel's registers, and the code bears that out.
+INJECTION: NONE
+END

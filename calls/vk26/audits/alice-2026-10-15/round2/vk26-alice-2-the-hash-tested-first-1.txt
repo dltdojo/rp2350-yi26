@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:12, README.md:307, board/round1.txt:1, capture.txt:119, capture.txt:138, ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:533
+reason: Each proved claim matches a theorem quantified over every image and any HASH (`from_boot`, `trusts_after_kat`), and Lean checks them with standard axioms only (capture.txt:5-11). The board numbers match the board log header and its stream lines (18 streams, 4 spoiled, 3 start-up stops, 7 outputs, minstret 34897/17470/51/34885). The person's LED observation is stated with the UF2 hash and how it was run. I found no claim that goes beyond its evidence.
+J2: YES
+evidence: README.md:11, README.md:13, README.md:16, README.md:18, README.md:107, README.md:126, ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:93, ../lean/Alice/Trust.lean:97, ../lean/Alice/Trust.lean:107, ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:533, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:538, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:408
+reason: `from_boot` is in from_boot form for any `env.hash` and any image whose first 448 bytes are the kernel's: it is still running at `cost - 1`, halts at `cost` with `code`, and memory equals `after`. Its definitions give 2/1/3/0 at 43/17462/34878/34885, with the output H(window 1) written only when all three checks pass and the KAT scratch always written. `trusts_after_kat` states the README's two readings (a KAT failure halts with 2 at 43 with memory `katted`; halting with 0 implies `Trusted` and output = H(window 1)), so the quantifiers, hypotheses and conclusions match the English.
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:533, README.md:12, README.md:327
+reason: The known-answer test inside the kernel, with a `Trusted` condition built into the halt code, cost and memory theorem, is not in any prior experiment, including vk26-alice-1's carried run. Also new are the 43-instruction refusal with exact memory, and the board observation that the spoiled KAT is refused 4 of 4 times.
+J4: YES
+evidence: ../tools/trustref.py:51, ../tools/trustref.py:44, ../tools/health.py:31, trust.py:3, README.md:167
+reason: The reference is Python written from the plan. It uses hashlib's SHA-256 and imperative per-sample loops, with no registers or bit-operation blocks, where the Lean side uses its own `rct`/`agree` specification and the abstract `env.hash`. A third judge, the page's JavaScript with WebCrypto, is also checked against it.
+INJECTION: NONE
+END

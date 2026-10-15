@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:12, README.md:307, board/round1.txt:1, ../lean/Alice/Trust.lean:432, ../lean/Alice/Trust.lean:533, capture.txt:119, capture.txt:137
+reason: The proof claims match from_boot and trusts_after_kat. The cost and code values in the README are the ones the Lean definitions give. The 18/18, 4 refused, 3 start-up, 7 outputs and minstret figures match the board log and capture, and the LED observation is a person's recorded one with the UF2 hash. The remaining unverified statements are about other experiments' numbers (exp223's 334284, vk26-alice-1's halt pattern). I judged them background rather than claims of this experiment.
+J2: YES
+evidence: ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:439, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:93, ../lean/Alice/Trust.lean:97, ../lean/Alice/Trust.lean:107, ../lean/Alice/Trust.lean:533, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:536, ../lean/Alice/Trust.lean:538, ../lean/Alice/Trust.lean:540, README.md:104, README.md:108, README.md:126
+reason: `from_boot` has the required form for any image whose first 448 bytes are the kernel's, at any placed base and for any `env.hash`: still running at `cost - 1`, halted at exactly `cost` with `code`, and memory equal to `after`, whose `code`, `cost` and `after` give 2/1/3/0, 43/17462/34878/34885, the KAT scratch always and the output only when all three checks pass. `trusts_after_kat` states the KAT-failure halt at 43 with only the scratch written, and that halting with 0 implies `Trusted` and the output is `HASH` of window 1, both as the README writes them.
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:93, ../lean/Alice/Trust.lean:533, board/round1.txt:8
+reason: No prior experiment makes the known-answer test a precondition of the kernel. Here the kernel proves `Trusted`, halts with 2 after exactly 43 instructions for any HASH, and writes the output only when `Trusted` holds. The spoiled-KAT refusal is checked on a board for the first time.
+J4: YES
+evidence: ../tools/health.py:31, ../tools/trustref.py:51, ../tools/trustref.py:44, README.md:167
+reason: The reference is Python. It walks the samples one at a time with ordinary variables and takes the KAT digest from hashlib. The kernel is RV32IM registers and Lean's abstract `env.hash`. The README says the reference shares nothing with the kernel's registers, and the code bears that out.
+INJECTION: NONE
+END

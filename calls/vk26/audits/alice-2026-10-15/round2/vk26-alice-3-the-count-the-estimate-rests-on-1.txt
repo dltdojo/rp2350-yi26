@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:448, README.md:451, README.md:454
+reason: The README says revision 1 was "rebuilt from its own sources to its committed UF2, byte for byte" and tabulates `FIXED` cache-set offsets for the revision 1 and 2 builds (via `llvm-nm`). The bundle holds no capture or other output for either. The capture checks only the current build's layout (capture.txt:230-231). The claim at README.md:37-38, that the slow first runs came only after the copy across those sets "in both revisions' builds", rests on that table, so it also goes beyond the evidence. The other substantive claims I checked match the theorems, the capture, or the board logs.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:99, proof/Count.lean:105, proof/Count.lean:110, proof/Count.lean:113, proof/Count.lean:114, proof/Count.lean:585, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, README.md:8, README.md:9, README.md:10, README.md:12, README.md:13, README.md:18, README.md:19
+reason: `from_boot` is in from_boot form. It covers any image whose first 116 bytes are the kernel's, so the samples are arbitrary, and it states the run is still going at COST−1 and halts with 0 at COST. COST is 8 + 256·(2 + 6·4096 + 9) + 4 = 6,294,284, and at the halt memory is exactly `after`: the 256 `hist` words from 0x1400 and `most` at 0x1800, matching README lines 8–11. `most_is_max`, `hist_sum` and `count_constant_time` state what the README says; the last covers any two kernel-headed images, which is at least as strong as "differ only in their samples".
+J3: YES
+evidence: proof/Count.lean:547, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:677, README.md:376, README.md:645
+reason: This is a new kernel that counts 4096 samples into 256 bins and takes the maximum. It is proved to halt at `COST` with the counts in memory and to be constant time, and the checker refuses the plain histogram. `most_is_max` and `hist_sum` are new consequences, and the board findings (the raw TRNG's bias and the two harness cache lines costing about 110 cycles) are new checked predictions. None of the prior experiments cover these.
+J4: YES
+evidence: count.py:39-43, count.py:46-48, count.py:59-64, proof/Count.lean:95-96, proof/Count.lean:99
+reason: `count.py` is a single-pass histogram with `max`, written from §6.3.1's text. The Lean spec instead counts per value with `List.range`/`filter`, and the kernel scans all samples once per value, so the methods differ. The estimate formula is checked against §6.3.1's own worked example, not against the Lean definitions.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:89-90, ../lean/Alice/Drbg.lean:1066
+reason: README.md:89-90 says ADD is "called five times a Generate (once per block for data + 1, three times for V)". That is m + 3 calls, which is 7 for the 4-block runs, so "five" contradicts the bundle's own cost formula (COST m = 2030 + 566m) and the three-ADD, per-block accounting in differential.py. Everything else I checked is supported: the theorems, the 12 mutants, the 120 NIST cases, the RTL's 4318/11, and the board counts (165 of 168, the 15,078 cycles, the slow-case lists).
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1407, ../lean/Alice/Drbg.lean:1409, ../lean/Alice/Drbg.lean:1410, ../lean/Alice/Drbg.lean:1411, ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1413, ../lean/Alice/Drbg.lean:1414, ../lean/Alice/Drbg.lean:1415, ../lean/Alice/Drbg.lean:1416, ../lean/Alice/Drbg.lean:1061, ../lean/Alice/Drbg.lean:1062, ../lean/Alice/Drbg.lean:1063, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1369, ../lean/Alice/Drbg.lean:1370, ../lean/Alice/Drbg.lean:1426, ../lean/Alice/Drbg.lean:1427, ../lean/Alice/Drbg.lean:1445, ../lean/Alice/Drbg.lean:1446, ../lean/Alice/Drbg.lean:1448, README.md:94, README.md:104, README.md:105, README.md:106, README.md:107, README.md:117, README.md:119, README.md:122, README.md:124, README.md:125, README.md:126, README.md:127
+reason: `from_boot` is in from_boot form. It covers any env (so any hash) and any image whose first 280 bytes are the kernel, and states that the kernel halts with 0 after exactly `COST m = 2030 + 566m` instructions with the region equal to `after`; its hypotheses (1 ≤ m, the blocks fit, interval < 2^32−1, counter ≤ interval, the 0x03, the zeros and the number 1) are all the ones README.md:94-107 states. `after_out`, `reseed_boot` (halt 1 after 7, memory = image) and `generate_twice` (any registers, cnt+1 ≤ interval, result `after` of `after` from `vnext`) match their English descriptions in quantifiers, hypotheses and conclusion.
+J3: YES
+evidence: ../lean/Alice/Drbg.lean:1068, ../lean/Alice/Drbg.lean:1407, ../lean/Alice/Drbg.lean:1438
+reason: No prior experiment covers SP 800-90A Hash_DRBG. This one adds a new 70-instruction Generate kernel and proves `from_boot`, `reseed_boot`, `after_out` and `generate_twice` about it, with a board run on NIST's vectors.
+J4: YES
+evidence: ../pages/drbg.js:32-45, capture.txt:26, capture.txt:171
+reason: The reference computes the same thing differently from the Lean model. drbg.js uses BigInt on whole 440-bit numbers and WebCrypto's SHA-256, where the Lean model and kernel work byte by byte with carries. NIST's CAVP vectors are an external check that no copied mistake could survive. drbg.py itself only re-exports `../tools/hashdrbg.py`, which is not in the bundle, so I rely on the page and NIST here.
+INJECTION: NONE
+END

@@ -1,0 +1,228 @@
+=== vk26 Proposal Spot-Check Audit: alice ===
+Model: tiered
+Sampled audit experiment (3 runs): vk26-alice-3-the-count-the-estimate-rests-on
+Single confirmation experiments (1 run):
+  - vk26-alice-1-the-run-across-the-seam
+  - vk26-alice-2-the-hash-tested-first
+  - vk26-alice-4-the-state-the-generator-keeps
+  - vk26-alice-5-the-seed-the-tests-passed
+
+--- Step 1: Machine Gates (gates.sh) ---
+PASS  S1 five experiments vk26-alice-1-<slug> to vk26-alice-5-<slug>, the id at most 34 characters
+SKIP  S2 every path the PR changes is under the proposer's directory — no BASE given
+PASS  S3 five kernel.bin, five different hashes (J3 still judges each one new)
+PASS  S4 the index table: a row per experiment, its link, Needs 0–3, one sentence
+PASS  G6 no file of the proposal is a copy of one in lean/ or tools/
+PASS  G6 experiments/duplication.sh --check: nothing gained a copy
+vk26-alice-1-the-run-across-the-seam:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Seam.lean writes, 552 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit bd6ab5d
+  PASS  G6 commit bd6ab5d is in this history
+  PASS  G6 nothing capture.txt rests on changed since bd6ab5d
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (36 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 7 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-2-the-hash-tested-first:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Trust.lean writes, 448 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit bd6ab5d
+  PASS  G6 commit bd6ab5d is in this history
+  PASS  G6 nothing capture.txt rests on changed since bd6ab5d
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (33 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 11 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-3-the-count-the-estimate-rests-on:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Count.lean writes, 116 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 1951306
+  PASS  G6 commit 1951306 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 1951306
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (44 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-4-the-state-the-generator-keeps:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Drbg.lean writes, 280 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 89c2248
+  PASS  G6 commit 89c2248 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 89c2248
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (39 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-5-the-seed-the-tests-passed:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Seed.lean writes, 244 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 2c55f31
+  PASS  G6 commit 2c55f31 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 2c55f31
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (40 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 11 wrong versions refused by Lean (4 at least)
+  PASS  G5 7 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+Every machine gate passed.
+
+--- Step 2: Generating Slice Bundles ---
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-1-the-run-across-the-seam.txt (173359 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-2-the-hash-tested-first.txt (193731 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-3-the-count-the-estimate-rests-on.txt (235425 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-4-the-state-the-generator-keeps.txt (195682 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-5-the-seed-the-tests-passed.txt (278585 bytes)
+
+--- Step 3: Running Judge Sessions ---
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 1, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 2, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 3, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 1, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 1, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 1, model tiered)...
+not a verdict: vk26-alice-1-the-run-across-the-seam run 1 (see /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/vk26-alice-1-the-run-across-the-seam-1.txt.failed)
+not a verdict: vk26-alice-2-the-hash-tested-first run 1 (see /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/vk26-alice-2-the-hash-tested-first-1.txt.failed)
+not a verdict: vk26-alice-4-the-state-the-generator-keeps run 1 (see /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/vk26-alice-4-the-state-the-generator-keeps-1.txt.failed)
+no verdict written: vk26-alice-5-the-seed-the-tests-passed run 1
+STOPPED: 4 run(s) gave no verdict; start the audit again to retry them.
+--- Usage recorded in /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3 so far (failed sessions included) ---
+TOTAL sonnet: 6 session(s), 1 failed, prompt 521654 tokens (input + cache), output 35194 tokens, $2.4193 as reported
+TOTAL opus: 5 session(s), 2 failed, prompt 139920 tokens (input + cache), output 2915 tokens, $0.4450 as reported
+TOTAL: 11 session(s), prompt 661574 tokens, output 38109 tokens
+audit exit 2
+=== vk26 Proposal Spot-Check Audit: alice ===
+Model: tiered
+Sampled audit experiment (3 runs): vk26-alice-3-the-count-the-estimate-rests-on
+Single confirmation experiments (1 run):
+  - vk26-alice-1-the-run-across-the-seam
+  - vk26-alice-2-the-hash-tested-first
+  - vk26-alice-4-the-state-the-generator-keeps
+  - vk26-alice-5-the-seed-the-tests-passed
+
+--- Step 1: Machine Gates (gates.sh) ---
+PASS  S1 five experiments vk26-alice-1-<slug> to vk26-alice-5-<slug>, the id at most 34 characters
+SKIP  S2 every path the PR changes is under the proposer's directory — no BASE given
+PASS  S3 five kernel.bin, five different hashes (J3 still judges each one new)
+PASS  S4 the index table: a row per experiment, its link, Needs 0–3, one sentence
+PASS  G6 no file of the proposal is a copy of one in lean/ or tools/
+PASS  G6 experiments/duplication.sh --check: nothing gained a copy
+vk26-alice-1-the-run-across-the-seam: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/gates/vk26-alice-1-the-run-across-the-seam.txt)
+vk26-alice-2-the-hash-tested-first: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/gates/vk26-alice-2-the-hash-tested-first.txt)
+vk26-alice-3-the-count-the-estimate-rests-on: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/gates/vk26-alice-3-the-count-the-estimate-rests-on.txt)
+vk26-alice-4-the-state-the-generator-keeps: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/gates/vk26-alice-4-the-state-the-generator-keeps.txt)
+vk26-alice-5-the-seed-the-tests-passed: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/gates/vk26-alice-5-the-seed-the-tests-passed.txt)
+Every machine gate passed.
+
+--- Step 2: Generating Slice Bundles ---
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-1-the-run-across-the-seam.txt (173359 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-2-the-hash-tested-first.txt (193731 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-3-the-count-the-estimate-rests-on.txt (235425 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-4-the-state-the-generator-keeps.txt (195682 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/bundles/vk26-alice-5-the-seed-the-tests-passed.txt (278585 bytes)
+
+--- Step 3: Running Judge Sessions ---
+Skipping existing verdict: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/vk26-alice-3-the-count-the-estimate-rests-on-2.txt
+Skipping existing verdict: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/vk26-alice-3-the-count-the-estimate-rests-on-1.txt
+Judging vk26-alice-1-the-run-across-the-seam (run 1, model tiered)...
+Skipping existing verdict: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3/vk26-alice-3-the-count-the-estimate-rests-on-3.txt
+Judging vk26-alice-2-the-hash-tested-first (run 1, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 1, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 1, model tiered)...
+Judge runs complete.
+
+--- Step 4: Tallying Results ---
+==================================================
+Experiment: vk26-alice-3-the-count-the-estimate-rests-on
+Mode: 3-run Consensus Audit
+J1: NO NO NO -> NO
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-3-the-count-the-estimate-rests-on-1.txt: J1 NO [README.md:448, README.md:451, README.md:454] The README says revision 1 was "rebuilt from its own sources to its committed UF2, byte for byte" and tabulates `FIXED` cache-set offsets for the revision 1 and 2 builds (via `llvm-nm`). The bundle holds no capture or other output for either. The capture checks only the current build's layout (capture.txt:230-231). The claim at README.md:37-38, that the slow first runs came only after the copy across those sets "in both revisions' builds", rests on that table, so it also goes beyond the evidence. The other substantive claims I checked match the theorems, the capture, or the board logs.
+  vk26-alice-3-the-count-the-estimate-rests-on-2.txt: J1 NO [README.md:453, README.md:454, README.md:617, README.md:618, capture.txt:230] The table of revision 1 and revision 2 `FIXED` cache-set offsets (and "revision 1 rebuilt byte for byte") has no support in the bundle. The capture holds only the current build's layout (`FIXED 0x10003854`). The claim that all 408 probe runs halted with minstret 6 and 132 XIP accesses is also unsupported: the capture reports accesses only for the "nothing first" baseline, and round4.txt's PROBE lines are not in the bundle. The raw-TRNG ones-fractions and their direction (48.23% and the rest) rest on BITS lines that the bundle trims out of the board logs.
+  vk26-alice-3-the-count-the-estimate-rests-on-3.txt: J1 NO [README.md:451, README.md:453, README.md:454, capture.txt:230] The table of `FIXED[0..2]` cache-set offsets for the revision 1 and revision 2 builds, and the claim that revision 1 was rebuilt byte for byte (README.md:448-449), come from `llvm-nm` runs that are not in the bundle. `capture.txt:230` checks only the current build's layout, at a different address (FIXED 0x10003854). The cache-set explanation for streams 2 and 4 rests on that table, so it goes beyond its evidence. The proof claims, RTL numbers, board cycle tables, slow-run counts and probe table that I checked do match `capture.txt` and the board logs.
+OVERALL: FAIL (a question was answered NO by every run)
+==================================================
+ESCALATED: the sampled experiment vk26-alice-3-the-count-the-estimate-rests-on did not PASS, so single
+confirmation is withdrawn; the other four get runs 2 and 3.
+Judging vk26-alice-1-the-run-across-the-seam (run 2, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 3, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 2, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 3, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 2, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 3, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 2, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 3, model tiered)...
+==================================================
+Experiment: vk26-alice-1-the-run-across-the-seam
+Mode: 3-run Consensus Audit
+J1: YES YES YES -> YES
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+injection reported: vk26-alice-1-the-run-across-the-seam-3.txt: seam.html:24-26
+OVERALL: HUMAN (text addressed to the judge)
+==================================================
+Experiment: vk26-alice-2-the-hash-tested-first
+Mode: 3-run Consensus Audit
+J1: YES YES NO -> SPLIT
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-2-the-hash-tested-first-3.txt: J1 NO [README.md:42] README.md:42 (repeated in WHY.zh-TW.md:20) says exp223's proved SHA-256 kernel costs "334284 instructions for one window". That figure is not in the bundle, whose prior-work entry for exp223 does not give it. README.md:222-223 also states that in vk26-alice-1 "HALT 0 is the only halt followed by more code", and nothing in the bundle shows this. The other claims I checked match their evidence: the theorems, the 43/17462/34878/34885 costs, the 11 mutants, the RTL table and the 18-stream board log.
+OVERALL: HUMAN (the runs disagree or an answer was invalid)
+==================================================
+Experiment: vk26-alice-4-the-state-the-generator-keeps
+Mode: 3-run Consensus Audit
+J1: INVALID NO NO -> SPLIT
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-4-the-state-the-generator-keeps-1.txt: J1 NO cites differential.py:38, not in the bundle
+  vk26-alice-4-the-state-the-generator-keeps-2.txt: J1 NO [README.md:89, README.md:154] README.md:89-90 says ADD is called "five times a Generate (once per block for data + 1, three times for V)". The code and cost say m + 3 calls (7 for the 4-block runs): differential.py:38 counts 3 ADDs plus 555 per block, and the Lean file has four call sites. README.md:154-155 states what lean/Rv32/Ct.lean's checker does and does not accept, but Ct.lean is not in the bundle. The remaining proved, run and board claims match the Lean theorems, capture.txt and the saved board log.
+  vk26-alice-4-the-state-the-generator-keeps-3.txt: J1 NO [README.md:89, ../lean/Alice/Drbg.lean:1066] README.md:89-90 says ADD is "called five times a Generate (once per block for data + 1, three times for V)". That is m + 3 calls, which is 7 for the 4-block runs, so "five" contradicts the bundle's own cost formula (COST m = 2030 + 566m) and the three-ADD, per-block accounting in differential.py. Everything else I checked is supported: the theorems, the 12 mutants, the 120 NIST cases, the RTL's 4318/11, and the board counts (165 of 168, the 15,078 cycles, the slow-case lists).
+OVERALL: HUMAN (the runs disagree or an answer was invalid)
+==================================================
+Experiment: vk26-alice-5-the-seed-the-tests-passed
+Mode: 3-run Consensus Audit
+J1: NO YES NO -> SPLIT
+J2: YES NO YES -> SPLIT
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-5-the-seed-the-tests-passed-1.txt: J1 NO [README.md:267, README.md:268, README.md:272, README.md:274, README.md:445, README.md:446] The README explains "every count across the five experiments" with figures from vk26-alice-1 through -4 (their halt counts, 4318 and 11, their README's wording). It also says vk26-alice-4's Generate took 15,078 cycles. Neither is in this bundle, so these claims are unsupported here. The rest of the claims I checked match the proofs, the capture and the board log, including `inst_run` and `chain`, the 120 NIST cases, the RTL counts of 260 and 261, 202 board cases and the cycle clusters.
+  vk26-alice-5-the-seed-the-tests-passed-3.txt: J1 NO [README.md:267, README.md:275, README.md:276] The README says the instruction-count rule "accounts for every count across the five experiments" and that the chip counting the same is in "vk26-alice-1's and vk26-alice-2's logs, where it did". Counts for alice-1, alice-3 and alice-4's earlier logs are not in the bundle, so those claims are unsupported. Everything else I checked matched the bundle: the theorems, the capture, board/round1.txt, and the counts for alice-2's kernel and this one.
+  vk26-alice-5-the-seed-the-tests-passed-2.txt: J2 NO [README.md:8, README.md:9, README.md:111, README.md:131, proof/Seed.lean:358, proof/Seed.lean:771, proof/Seed.lean:844, proof/Seed.lean:845, ../lean/Alice/Trust.lean:437, ../lean/Alice/Trust.lean:440] `inst_boot` is a from_boot-form theorem, and its hypotheses and conclusion (S ≤ 0x80, any `env.hash`, `Laid`) match the README. But the README says the kernel halts "after exactly 241 instructions", while `inst_run`, `inst_boot` and `chain`'s second and third stages state only `run env 241 … = .halted 0 …`. That establishes a halt by step 241, not exactly at it. The framework's own exact form adds that the run is still `.running` one instruction earlier (Trust.lean:437, 440), and neither this kernel's theorems nor the chain's Instantiate and Generate stages carry that conjunct, so "exactly 241" is not stated in Lean.
+injection reported: vk26-alice-5-the-seed-the-tests-passed-2.txt: seed.html:26-28
+OVERALL: HUMAN (text addressed to the judge)
+==================================================
+--- Usage recorded in /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit3 so far (failed sessions included) ---
+TOTAL sonnet: 18 session(s), 1 failed, prompt 1781924 tokens (input + cache), output 104655 tokens, $4.8615 as reported
+TOTAL opus: 17 session(s), 2 failed, prompt 693297 tokens (input + cache), output 25231 tokens, $2.4008 as reported
+TOTAL: 35 session(s), prompt 2475221 tokens, output 129886 tokens
+PROPOSAL AUDIT RESULT: FAIL or HUMAN INTERVENTION NEEDED
+audit exit 1

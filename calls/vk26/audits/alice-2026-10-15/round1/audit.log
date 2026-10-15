@@ -1,0 +1,113 @@
+=== vk26 Proposal Spot-Check Audit: alice ===
+Model: tiered
+Sampled audit experiment (3 runs): vk26-alice-1-the-run-across-the-seam
+Single confirmation experiments (1 run):
+  - vk26-alice-2-the-hash-tested-first
+  - vk26-alice-3-the-count-the-estimate-rests-on
+  - vk26-alice-4-the-state-the-generator-keeps
+  - vk26-alice-5-the-seed-the-tests-passed
+
+--- Step 1: Machine Gates (gates.sh) ---
+PASS  S1 five experiments vk26-alice-1-<slug> to vk26-alice-5-<slug>, the id at most 34 characters
+SKIP  S2 every path the PR changes is under the proposer's directory — no BASE given
+PASS  S3 five kernel.bin, five different hashes (J3 still judges each one new)
+PASS  S4 the index table: a row per experiment, its link, Needs 0–3, one sentence
+PASS  G6 no file of the proposal is a copy of one in lean/ or tools/
+PASS  G6 experiments/duplication.sh --check: nothing gained a copy
+vk26-alice-1-the-run-across-the-seam: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/gates/vk26-alice-1-the-run-across-the-seam.txt)
+vk26-alice-2-the-hash-tested-first: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/gates/vk26-alice-2-the-hash-tested-first.txt)
+vk26-alice-3-the-count-the-estimate-rests-on: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/gates/vk26-alice-3-the-count-the-estimate-rests-on.txt)
+vk26-alice-4-the-state-the-generator-keeps: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/gates/vk26-alice-4-the-state-the-generator-keeps.txt)
+vk26-alice-5-the-seed-the-tests-passed: passed already on these inputs (/tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/gates/vk26-alice-5-the-seed-the-tests-passed.txt)
+Every machine gate passed.
+
+--- Step 2: Generating Slice Bundles ---
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/bundles/vk26-alice-1-the-run-across-the-seam.txt (152616 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/bundles/vk26-alice-2-the-hash-tested-first.txt (171185 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/bundles/vk26-alice-3-the-count-the-estimate-rests-on.txt (210873 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/bundles/vk26-alice-4-the-state-the-generator-keeps.txt (173785 bytes)
+Bundle generated: /tmp/claude-0/-home-user-rp2350-yi26/9fb0d394-b7ea-586d-86cc-c9a380121715/scratchpad/audit/bundles/vk26-alice-5-the-seed-the-tests-passed.txt (270390 bytes)
+
+--- Step 3: Running Judge Sessions ---
+Judging vk26-alice-1-the-run-across-the-seam (run 2, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 3, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 1, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 1, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 1, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 1, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 1, model tiered)...
+Judge runs complete.
+
+--- Step 4: Tallying Results ---
+==================================================
+Experiment: vk26-alice-1-the-run-across-the-seam
+Mode: 3-run Consensus Audit
+J1: NO NO NO -> NO
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-1-the-run-across-the-seam-1.txt: J1 NO [README.md:310, README.md:295, board/round1.txt:1] The README quotes board figures that no board log in the bundle contains. These are the TRNG's longest run of 11 and its 530/496/516/502 window matches, plus the per-stream code, minstret and digest rows. board/round1.txt holds only the #page line, one status line and BITS lines for round 3 stream 5, with no STREAM or DIGEST lines and no round-4 samples. The capture's generic PASS (capture.txt:131) does not supply these numbers.
+  vk26-alice-1-the-run-across-the-seam-2.txt: J1 NO [README.md:295, board/round1.txt:1, README.md:310] The README's per-stream table (codes, minstret, digest counts), "all seven whole streams" and the TRNG round-4 figures (longest run 11; 530, 496, 516 and 502) are not in the bundled board log. `board/round1.txt` holds one page-summary line, one status line and four BITS lines, with no STREAM or DIGEST lines, so those numbers have no board log behind them. `capture.txt:131` only says "7 whole streams" passed, and the claim that the seam stream stopped at window 2 on silicon is not shown either. The README also does not name the UF2 or its SHA-256 for the LED observation.
+  vk26-alice-1-the-run-across-the-seam-3.txt: J1 NO [board/round1.txt:1, README.md:22, README.md:295] The README gives per-stream board codes, minstrets and digest counts for seven whole streams, and says all seven halted with seam.py's code at the RTL's minstret. The board log in the bundle holds only a `#page` line, four `BITS` lines and one status line, with no `STREAM` or `DIGEST` lines. The table's numbers therefore can't be matched to a board log here, and capture.txt's PASS lines are a summary, not the log.
+OVERALL: FAIL (a question was answered NO by every run)
+==================================================
+ESCALATED: the sampled experiment vk26-alice-1-the-run-across-the-seam did not PASS, so single
+confirmation is withdrawn; the other four get runs 2 and 3.
+Judging vk26-alice-2-the-hash-tested-first (run 2, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 3, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 2, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 3, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 2, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 3, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 2, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 3, model tiered)...
+==================================================
+Experiment: vk26-alice-2-the-hash-tested-first
+Mode: 3-run Consensus Audit
+J1: NO NO NO -> NO
+J2: YES NO YES -> SPLIT
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-2-the-hash-tested-first-1.txt: J1 NO [README.md:328, README.md:329, README.md:330, board/round1.txt:1, README.md:301] The board log in the bundle holds only the page summary line and a few BITS lines. The claimed TRNG figures (longest runs 11, 12 and 11; 516/508, 501/522, 518/527 equal to the window's first) and the per-round, per-code table (README.md:312-316) cannot be checked against it. The LED observation (README.md:301) names no UF2 name or SHA-256, so it cannot stand as a recorded observation.
+  vk26-alice-2-the-hash-tested-first-2.txt: J1 NO [README.md:328, README.md:329, README.md:330, board/round1.txt:1] README.md:328-330 gives the TRNG draws' statistics (longest runs 11, 12 and 11; 516 and 508, 501 and 522, 518 and 527 of each window equal to its first). Nothing in the bundle supports these numbers, and the log in the bundle has no BITS lines for rounds 7–9, where the TRNG draws are. The other board claims match board/round1.txt:1 (18 streams, 4 refused, 3 start-up, 7 outputs) and the passing round1.txt checks in capture.txt, and the proof and mutant claims match the theorems and capture.
+  vk26-alice-2-the-hash-tested-first-3.txt: J1 NO [README.md:328, README.md:329, README.md:330, README.md:300, README.md:301] The TRNG draw figures ("longest runs 11, 12 and 11; 516 and 508, 501 and 522, 518 and 527") come from the board log. The log in the bundle holds only a few lines (BITS lines of the spoiled stream, round 6 stream 1, plus one status line), none of them the TRNG draws in rounds 7–9, and no gate output reproduces these numbers. The LED observation (README.md:301, also README.md:24–25) does not say which UF2 was flashed, so it is not a recorded observation of the required kind. The remaining claims (theorems, 112 instructions, counts, the 11 mutants, the 18-of-18 summary) match the Lean files and capture.txt.
+  vk26-alice-2-the-hash-tested-first-2.txt: J2 NO [README.md:18, README.md:19, ../lean/Alice/Trust.lean:102, ../lean/Alice/Trust.lean:103, ../lean/Alice/Trust.lean:107, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:443] `from_boot` (../lean/Alice/Trust.lean:438-443) is of `from_boot` form, and its codes, counts and KAT-failure case match the text. But the README's headline says that with code 0 the output at 0x2400 is written "and no other byte changed" (README.md:19). The proved memory, `after` → `writeBytes (katted …) OUT …` (../lean/Alice/Trust.lean:109), also has `HASH`'s KAT answer written at 0x360 (../lean/Alice/Trust.lean:103), so the theorem contradicts that claim rather than supporting it.
+injection scan: 2 hit(s) in the bundle
+OVERALL: HUMAN (text addressed to the judge)
+==================================================
+Experiment: vk26-alice-3-the-count-the-estimate-rests-on
+Mode: 3-run Consensus Audit
+J1: NO NO NO -> NO
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-3-the-count-the-estimate-rests-on-1.txt: J1 NO [README.md:207, README.md:208, README.md:209, README.md:210] The README says vk26-alice-5 found that "the RTL counts one more when the word after the halting `ecall` is a legal instruction". That is an RTL behaviour claim the bundle does not support: it has no alice-5 material, no theorem or capture about the word after the `ecall`, and the README only links out. The README at 460-461 and 443-446 also cites the XIP cache's size and ways, the branch predictor's cost and the cache-set offsets from outside sources. Capture line 230 gives only the three-boolean layout result for those offsets. Most other numeric board claims do match the captures, including the slow-run counts per stream and the probe results.
+  vk26-alice-3-the-count-the-estimate-rests-on-2.txt: J1 NO [README.md:207, README.md:684] README.md:207 says vk26-alice-5 "later found the cause" of the extra RTL instruction, but nothing in the bundle holds that finding. README.md:684-685 says the same extra instruction "is not explained", so the two statements contradict each other. The rest of the checked claims match the proof files, capture.txt and the round logs; I could not confirm every figure from the truncated board-log slices.
+  vk26-alice-3-the-count-the-estimate-rests-on-3.txt: J1 NO [README.md:207, README.md:208, README.md:209, README.md:210] README.md:207-210 says vk26-alice-5 "found the cause" of the extra instruction: the RTL counts one more when the word after the halting `ecall` is a legal instruction. The bundle holds no evidence for this finding, since alice-5 is not in it. Every other substantive claim I checked matches the proofs, `capture.txt`, or the recorded board logs. That covers the slow-run tallies (5 of 5, 4 of 6, 16 of 16, 2 of 3), the probe results, and the +3 minstret.
+OVERALL: FAIL (a question was answered NO by every run)
+==================================================
+Experiment: vk26-alice-4-the-state-the-generator-keeps
+Mode: 3-run Consensus Audit
+J1: NO NO NO -> NO
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-4-the-state-the-generator-keeps-1.txt: J1 NO [README.md:368, README.md:369, README.md:370, README.md:378, README.md:379, README.md:380, README.md:381, board/round1.txt:1] Several board claims need log lines the bundle lacks. These are "Of the 54 cases seen whole in both rounds, 41 took the same cycles", the slow-case ranges (40–43, 49–51, 69–72, 77–80), and "case 67's reseed check was slow in both rounds". Also unsupported are the lost cases 26–30 and 32–35 and the last status line saying `dropped=0`. board/round1.txt holds only a header and five lines, and capture.txt prints no per-case or per-round breakdown.
+  vk26-alice-4-the-state-the-generator-keeps-2.txt: J1 NO [README.md:368, README.md:348] The mcycle pattern claims need the board log: "Of the 54 cases seen whole in both rounds, 41 took the same cycles both times", the neighbouring-case runs (40–43, 49–51, …) and "Case 67's reseed check was slow in both rounds". The page also "joined in round 0's case 33 and saved during round 1's case 91", and the log is said to jump from case 25 to case 31. The bundle's board log holds only 6 lines, and capture.txt:232-234 gives per-value cycle counts only, not cross-round or per-case comparisons. The rest of the board claims are covered by capture.txt:231-234 and board/round1.txt:1. The Ct.lean claim at README.md:154-157 rests on a file that is not in the bundle, but it is stated as a finding, so it is not the deciding point.
+  vk26-alice-4-the-state-the-generator-keeps-3.txt: J1 NO [README.md:368, README.md:369, README.md:370, README.md:379] The board claims about the mcycle pattern are not backed by anything in the bundle. These are "41 of the 54 cases seen whole in both rounds took the same cycles", the slow-case runs 40–43, 49–51, 69–72 and 77–80, and "case 67's reseed check was slow in both rounds". The same goes for the account of where lines were lost (case 25 to case 31, then case 36). The bundle's board/round1.txt holds only six lines, and capture.txt gives only per-run totals, not per-case or per-round data. Most other claims do match the capture (165/3, 15078 in 165, 125 plus 40 slow runs, 495 minstrets, eight wrong pages, eight wrong shells).
+OVERALL: FAIL (a question was answered NO by every run)
+==================================================
+Experiment: vk26-alice-5-the-seed-the-tests-passed
+Mode: 3-run Consensus Audit
+J1: NO NO NO -> NO
+J2: NO YES NO -> SPLIT
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-5-the-seed-the-tests-passed-1.txt: J1 NO [README.md:426, README.md:427, README.md:436, README.md:440, README.md:411, capture.txt:247] The board counts do not add up. README.md:411 says 202 cases were judged right. README.md:426-427 split them into 104 with a 48-byte seed material and 99 with an 80-byte one, which sums to 203. capture.txt:247 lists 80-byte Instantiate timings (11372 in 78, plus the other values) that total 98. README.md:436 ("203 times") and README.md:440 ("all 203") also count 203 against the 202 whole cases reported in the log header and capture.
+  vk26-alice-5-the-seed-the-tests-passed-2.txt: J1 NO [README.md:427, capture.txt:247] README.md:426-427 says 104 cases had a 48-byte seed material and 99 an 80-byte one (and "78 of 99", "203 times", "all 203" elsewhere). The board mcycle counts in capture.txt:247 sum to 104 and 98, which is 202 whole cases, and the 404 Generates on line 248 are also 2×202. The board-count claims therefore go beyond the evidence.
+  vk26-alice-5-the-seed-the-tests-passed-3.txt: J1 NO [README.md:426, README.md:436, README.md:440, capture.txt:247, capture.txt:248] The README says 104 cases had a 48-byte seed material and 99 an 80-byte one (203 in all), 260 was seen "203 times", and "all 203" second Generates took 15,088 cycles. The board's page summary and the capture both say 202 cases. The capture's Instantiate counts are 62 of 104 and 78 of 98, not "78 of 99", and its Generate counts sum to 404 (2 × 202), not 406. The 15,088 count of 377 mixes first and second Generates, so the claim about every second Generate is not shown either. The bundle's board log is a slice, so the "28 of 83 slow in both rounds" and "clusters 16 cases apart" claims cannot be checked against it.
+  vk26-alice-5-the-seed-the-tests-passed-1.txt: J2 NO [README.md:127, README.md:128, proof/Seed.lean:787, proof/Seed.lean:788, proof/Seed.lean:844, proof/Seed.lean:845, proof/Seed.lean:355, proof/Seed.lean:358] `inst_run`/`inst_boot` are of `from_boot` form and match the text (any seed material with S ≤ 0x80, any `env.hash`, halts with 0 after 241, `Laid`). `chain` is weaker than its description, though. The README and docstring describe the shell's step as "the pc at base, any registers", but `restart` is defined as `{ s with pc := base, mem := … }`, so it keeps the previous kernel's registers. `chain` therefore only states the Instantiate and Generate runs for that one register file, not for any registers the shell leaves.
+  vk26-alice-5-the-seed-the-tests-passed-3.txt: J2 NO [README.md:127, README.md:128, README.md:129, proof/Seed.lean:787, proof/Seed.lean:788, proof/Seed.lean:844, proof/Seed.lean:845, proof/Seed.lean:355, proof/Seed.lean:358, proof/Seed.lean:767, proof/Seed.lean:771] `inst_run`/`inst_boot` are of `from_boot` form and match the README: any hash, any seed material length S ≤ 0x80, HALT 0 after exactly 241 instructions, the region `Laid`. But the README says the chain's shell step starts the next kernel with "any registers", while `restart` (`{ s with pc := base, mem := … }`) keeps exactly the registers the previous kernel left, so `chain` covers only that one register state for both the Instantiate and the Generate runs, a fixed input where the text says "any".
+OVERALL: FAIL (a question was answered NO by every run)
+calls/vk26/audit-proposal.sh: line 257: o: command not found
+audit exit 127

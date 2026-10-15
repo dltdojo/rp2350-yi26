@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:295-302, board/round1.txt:1-6, README.md:310-313
+reason: The README's per-stream table (codes, minstret, digest counts), "all seven whole streams" and the TRNG round-4 figures (longest run 11; 530, 496, 516 and 502) are not in the bundled board log. `board/round1.txt` holds one page-summary line, one status line and four BITS lines, with no STREAM or DIGEST lines, so those numbers have no board log behind them. `capture.txt:131` only says "7 whole streams" passed, and the claim that the seam stream stopped at window 2 on silicon is not shown either. The README also does not name the UF2 or its SHA-256 for the LED observation.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:81, proof/Seam.lean:86, proof/Seam.lean:90, proof/Seam.lean:76, proof/Seam.lean:78, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, proof/Seam.lean:297, proof/Seam.lean:323, proof/Seam.lean:402, proof/Seam.lean:418, README.md:77, README.md:81, README.md:87, README.md:96
+reason: `from_boot` is of from_boot form and quantifies over any placed `base`, any image whose first 552 bytes are the kernel's, and any `env.hash`. It concludes the kernel is still running at `cost (stop …) - 1` and halts at exactly `cost (stop …)` with `code`, leaving memory `wrote` with one digest per window before the stop. The definitions of `stop`, `WinOk` (rct over the stream from its start, agree per window), `code`, `cost` and `wrote`, and the sub-theorems `window_fail`, `window_pass`, `all_pass` and `runs_to`, state what README.md:87-111 says, and their counts are consistent (12+17421k+17419 and 12+4·17421+3).
+J3: YES
+evidence: README.md:5-16, proof/Seam.lean:434-439, ../lean/Alice/Window.lean:43-46
+reason: Prior experiments (exp222 and exp223) judge a single window, with the repetition count reset at the window start. This experiment proves a multi-window kernel (`Seam.from_boot`) that carries the run across window edges and writes digests only for windows before the first failure. The `WinOk` property is new, defined over the stream's `rct` rather than the window's.
+J4: YES
+evidence: seam.py:3-25, ../tools/health.py:31-46, differential/differential.py:29-38, README.md:137-139
+reason: `health.py:judge` is a plain Python loop, one sample at a time, with `run`, `last` and `top` variables. The kernel uses registers and the Lean spec uses `rct` and `agree`, and the README says as much. Digests come from hashlib, and the expected instruction counts in `differential.py` are computed independently of the Lean definitions.
+INJECTION: NONE
+END

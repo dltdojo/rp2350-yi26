@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:833, capture.txt:5-8, capture.txt:27, capture.txt:198, capture.txt:246, capture.txt:253-261, board/round1.txt:986, board/round1.txt:994, board/round1.txt:1007
+reason: The proof, mutant, NIST, RTL and board claims each match a theorem statement, a capture line or the board log. Examples are 241 instructions for S ≤ 0x80, the 202 whole cases, the 260 and 261 minstrets, and 58,945 and 1,547 cycles for alice-2's kernel. The comparison figure of 15,078 cycles for vk26-alice-4 and the claim that its UF2 is unchanged are about another experiment's data; I treated them as side remarks, not substantive claims.
+J2: NO
+evidence: README.md:8, README.md:9, README.md:111, README.md:131, proof/Seed.lean:358, proof/Seed.lean:771, proof/Seed.lean:844, proof/Seed.lean:845, ../lean/Alice/Trust.lean:437, ../lean/Alice/Trust.lean:440
+reason: `inst_boot` is a from_boot-form theorem, and its hypotheses and conclusion (S ≤ 0x80, any `env.hash`, `Laid`) match the README. But the README says the kernel halts "after exactly 241 instructions", while `inst_run`, `inst_boot` and `chain`'s second and third stages state only `run env 241 … = .halted 0 …`. That establishes a halt by step 241, not exactly at it. The framework's own exact form adds that the run is still `.running` one instruction earlier (Trust.lean:437, 440), and neither this kernel's theorems nor the chain's Instantiate and Generate stages carry that conjunct, so "exactly 241" is not stated in Lean.
+J3: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:833, README.md:264, gen.py:100-108
+reason: The Instantiate kernel and its `inst_run` theorem are new. So is the `chain` theorem, which links alice-2's, Instantiate's and alice-4's kernels via `restart`. So is the RTL-checked rule that minstret counts one more when the word after the halting `ecall` is a legal instruction.
+J4: YES
+evidence: ../tools/hashdrbg.py:42-54, seed.py:68-88, capture.txt:24
+reason: The reference uses hashlib in a generic counter loop, with no fixed offsets and no kernel structure. It is also checked against NIST's CAVP vectors. The Lean side instead states two fixed hashes at kernel offsets.
+INJECTION: seed.html:26-28
+END
