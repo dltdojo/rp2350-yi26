@@ -533,6 +533,17 @@ fresh_sent
 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a3.txt" 2>&1; rc=$?
 [[ $rc == 0 && $(sent) == 0 ]] && pass "a third start finds every verdict and calls no model" || fail "third start" "exit $rc, $(sent) sessions"
 
+# A verdict answers the bundle it was given: a README changed after it sets it
+# aside, and that run is judged again; a bundle unchanged but for its commit
+# line keeps its verdicts (the third start above called no model).
+echo "a sentence added after the verdicts" >> "$WORK/prop/zz/vk26-zz-4-life/README.md"
+fresh_sent
+"$AUD" "$WORK/prop/zz" "$O" > "$WORK/a5.txt" 2>&1; rc=$?
+[[ $rc == 0 && $(sent) == 2 ]] && ls "$O"/vk26-zz-4-life-1.txt.stale-* > /dev/null 2>&1 \
+    && pass "a bundle that changed since its verdict: the verdict is set aside and that one run judged again (2 sessions)" \
+    || fail "stale verdicts: exit $rc, $(sent) sessions" "$(grep -m2 'bundle changed\|OVERALL' "$WORK/a5.txt")"
+
+
 echo "STUB-SAYS-NO" >> "$WORK/prop/zz/vk26-zz-3-life/README.md"
 fresh_sent
 "$AUD" "$WORK/prop/zz" "$WORK/aud2" vk26-zz-3-life > "$WORK/a4.txt" 2>&1; rc=$?

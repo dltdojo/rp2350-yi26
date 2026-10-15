@@ -41,6 +41,9 @@
 #   BASE:    the PR's base for S2, e.g. origin/main
 
 set -eu
+# All of it is read before any of it runs: bash reads a script as it goes, and
+# vk26-alice's audit died (exit 127) when this file was edited mid-run.
+{
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 BUNDLE="$HERE/judge-bundle.sh"
@@ -149,14 +152,28 @@ echo ""
 
 # Step 2: Generate Slice Bundles
 echo "--- Step 2: Generating Slice Bundles ---"
+# A verdict answers the bundle it was given. A bundle that changed since (a
+# README fixed, judge-bundle.sh changed) sets its experiment's verdicts aside
+# as .stale-<time>, and those runs are judged again; the commit line alone is
+# not a change. calibration/run.sh refuses in the same case; an audit started
+# again after a fix is the ordinary case here, so it goes on.
+same_bundle() { cmp -s <(grep -v '^commit: ' "$1") <(grep -v '^commit: ' "$2"); }
 for e in "${EXPS[@]}"; do
     ename="$(basename "$e")"
     fresh="$OUT/gates/$ename.check.txt"
+    b="$OUT/bundles/$ename.txt"
     if [[ -f "$fresh" ]]; then
-        "$BUNDLE" bundle "$e" "$fresh" > "$OUT/bundles/$ename.txt"
+        "$BUNDLE" bundle "$e" "$fresh" > "$b.new"
     else
-        "$BUNDLE" bundle "$e" > "$OUT/bundles/$ename.txt"
+        "$BUNDLE" bundle "$e" > "$b.new"
     fi
+    if [[ -f "$b" ]] && ! same_bundle "$b" "$b.new"; then
+        stamp="$(date +%s)"
+        for v in "$OUT/$ename"-[0-9].txt; do
+            [[ -f "$v" ]] && mv -f "$v" "$v.stale-$stamp" && echo "bundle changed: $(basename "$v") set aside as .stale-$stamp"
+        done
+    fi
+    mv -f "$b.new" "$b"
     echo "Bundle generated: $OUT/bundles/$ename.txt ($(wc -c < "$OUT/bundles/$ename.txt") bytes)"
 done
 echo ""
@@ -264,3 +281,5 @@ else
     echo "PROPOSAL AUDIT RESULT: ALL 5 EXPERIMENTS PASSED"
     exit 0
 fi
+exit
+}

@@ -60,8 +60,9 @@
 # - Empirical Evidence (for J1): capture.txt (600 lines; runs of lines alike cut to their
 #   first and last three when it is over 600 lines), shell/shell.c (what a board
 #   claim argues from), differential/*.py (what a measured claim's inputs are:
-#   exp225's twenty seeds), board log results (PATIENT/TRIAL lines kept,
-#   polling deduplicated), and every page README.md or WHY.zh-TW.md links
+#   exp225's twenty seeds), board log results (PATIENT/TRIAL lines and any
+#   UPPERCASE kind under 20 lines kept, the rest deduplicated), and every page
+#   README.md or WHY.zh-TW.md links
 #   (.html, .mjs) with the scripts the page loads from beside it.
 # Never kernel.bin, check.sh, build/ or anything generated.
 #
@@ -76,13 +77,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    usage) [[ -f "${2-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -564,13 +565,27 @@ def bundle(exp, gates=None, question=None):
                            f"{item[0]}| … ({item[2]} lines like the ones around them, {item[0]}-{item[0] + item[2] - 1}, left out)")
                 kept += 1
         elif f.startswith("board/") or "/board/" in f:
+            # A log's result lines are kept: exp232's kinds by name, and any
+            # UPPERCASE kind the log holds fewer than 20 of — vk26-alice-1's 7
+            # STREAM and 17 DIGEST lines, which J1 three times found missing
+            # while only exp232's kinds were kept. A kind of 20 or more is the
+            # raw data (BITS, a case's SEED or STATE), and the page's #page
+            # summary and the reference's --board check in capture.txt speak
+            # for it; of those, and of status lines, the first 5 unique.
+            kinds = {}
+            for line in raw:
+                k = re.match(r"([A-Z][A-Z0-9_]*)\b", line)
+                if k:
+                    kinds[k.group(1)] = kinds.get(k.group(1), 0) + 1
+            rare = {k for k, c in kinds.items() if c < 20}
             seen = set()
             count = 0
             for n, line in enumerate(raw, 1):
                 if count >= cap:
                     out.append(f"{n}| … (cut at {cap} lines)")
                     break
-                if re.match(r"^(PATIENT|TRIAL|SEARCH|PLAN|#page)\b", line):
+                k = re.match(r"([A-Z][A-Z0-9_]*)\b", line)
+                if re.match(r"^(PATIENT|TRIAL|SEARCH|PLAN|#page)\b", line) or (k and k.group(1) in rare):
                     out.append(f"{n}| {line.rstrip()}")
                     count += 1
                 elif line not in seen and len(seen) < 5:
@@ -653,7 +668,9 @@ def tally(bundle_path, verdicts):
             if a != "YES":
                 print(f"  {line}")
     if scan_hits:
-        print(f"injection scan: {scan_hits} hit(s) in the bundle")
+        print(f"injection scan: {scan_hits} hit(s) in the bundle, for a person to read:")
+        for h in re.findall(r"^injection-scan: \d+ hit\(s\)\n((?:  .*\n)*)", text, re.M)[0].splitlines():
+            print(f"  {h.strip()}")
     for i in injected:
         print(f"injection reported: {i}")
     if scan_hits or injected:
