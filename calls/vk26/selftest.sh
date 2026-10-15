@@ -369,7 +369,8 @@ for q in J1 J2 J3 J4; do has "the full prompt asks $q" "$WORK/pall.txt" "$q: YES
 # bundle carries STUB-SAYS-NO. Like `claude -p --output-format json` it prints
 # one result object, and reports as input_tokens the bytes it was sent, so the
 # usage record can be checked against what actually went out. STUB_FAIL=model
-# fails like a 429 (exit 1), STUB_ERROR_RC0=model reports is_error with exit 0,
+# fails like a 429 (exit 1) — and so does any bundle carrying STUB-FAILS; one
+# carrying STUB-SLOW takes 3 s —, STUB_ERROR_RC0=model reports is_error with exit 0,
 # STUB_PLAIN=1 prints the bare text, as a claude without JSON output would.
 mkdir -p "$WORK/bin" "$WORK/sent"
 cat > "$WORK/bin/claude" <<'SH'
@@ -385,6 +386,8 @@ emit() { # is_error text
         printf '%s\n' "$2"
     fi
 }
+grep -q STUB-SLOW "$f" && sleep 3
+grep -q STUB-FAILS "$f" && { emit 1 "API Error: 429 You've hit your session limit"; echo "429" >&2; exit 1; }
 [[ "$model" == "${STUB_FAIL:-}" ]] && { emit 1 "API Error: 429 You've hit your session limit"; echo "429" >&2; exit 1; }
 [[ "$model" == "${STUB_ERROR_RC0:-}" ]] && { emit 1 "API Error: Overloaded"; exit 0; }
 j2=YES; grep -q STUB-SAYS-NO "$f" && j2=NO
@@ -538,6 +541,24 @@ fresh_sent
 ok3=1; for e in vk26-zz-1 vk26-zz-2 vk26-zz-4 vk26-zz-5; do [[ -f "$WORK/aud2/$e-life-2.txt" && -f "$WORK/aud2/$e-life-3.txt" ]] || ok3=0; done
 (( ok3 )) && [[ $(sent) == 30 ]] && pass "  … each of them gets runs 2 and 3: 15 runs, 30 sessions" || fail "  … escalation runs" "$(sent) sessions"
 [[ $(grep -c "^Mode: 3-run Consensus Audit" "$WORK/a4.txt") == 5 ]] && pass "  … and all five are tallied on three runs" || fail "  … not all tallied on three"
+
+# A run already started when another fails is waited for, and counted. The
+# audit once stopped xargs with 255, on which GNU xargs exits at once: in
+# vk26-alice's audit (a session limit on its first sessions) a run still going
+# was named "no verdict written" and wrote its file afterwards. This stub does
+# not always reproduce that timing; the case says what must hold.
+R="$WORK/race/zz"; rm -rf -- "$WORK/race" && mkdir -p "$WORK/race" && cp -a "$WORK/prop/zz" "$R"
+sed -i '/STUB-SAYS-NO/d' "$R/vk26-zz-3-life/README.md"
+echo "STUB-SLOW" >> "$R/vk26-zz-2-life/README.md"
+echo "STUB-FAILS" >> "$R/vk26-zz-1-life/README.md"
+fresh_sent
+JOBS=4 "$AUD" "$R" "$WORK/aud-race" vk26-zz-2-life > "$WORK/arace.txt" 2>&1; rc=$?
+n_ok=0; for r in 1 2 3; do grep -q '^VERDICT vk26' "$WORK/aud-race/vk26-zz-2-life-$r.txt" 2>/dev/null && n_ok=$((n_ok + 1)); done
+[[ $rc == 2 && $n_ok == 3 ]] && ! grep -q "no verdict written: vk26-zz-2" "$WORK/arace.txt" \
+    && pass "a run already started when another fails is waited for: its 3 verdicts counted, not named missing" \
+    || fail "the race: exit $rc, $n_ok of 3 verdicts" "$(grep -E 'verdict|STOPPED' "$WORK/arace.txt" | head -3)"
+ls "$WORK/aud-race"/vk26-*.txt 2>/dev/null | while read -r f; do grep -q '^VERDICT vk26' "$f" || echo "$f"; done > "$WORK/stray.txt"
+[[ ! -s "$WORK/stray.txt" ]] && pass "  … and no failed run is left as a .txt that is not a verdict" || fail "  … stray" "$(cat "$WORK/stray.txt")"
 
 draws=""
 for i in $(seq 12); do
