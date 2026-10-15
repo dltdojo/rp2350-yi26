@@ -1,5 +1,5 @@
 === vk26-alice-4 — the state the generator keeps ===
-recorded at 2026-10-14T07:44:45Z from commit 05083dd
+recorded at 2026-10-15T02:46:29Z from commit e0dd6e6
 
 >>> the theorems, and what they rest on
 'Drbg.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -204,6 +204,7 @@ PASS  the second Generate's minstret one more than the RTL's: caught
 PASS  a BLOCK line lost: that case incomplete, nothing called wrong, the other 11 generated
 PASS  joined mid-case: the first case incomplete, every one after it generated
 PASS  one Generate taking 30 cycles more: nothing wrong, and the page says the cycles differ
+PASS  round1.txt: 165 of 168 cases from a board generated right, 3 incomplete, 1 rounds; mcycle as read: 15078/15188/15198/15238/15298/15308/15358/15368/15408/15428/15468/15498/15578/15648/15698/15728/15742/15783/15807/15818/15848/15858/15886/16068/16073/16088/16175/16214/16311/16313/16332/16337/16341/16472/16603/16674, 15078, 15/115/125/135
 PASS  the tests catch a page where H is Hash(0x02 ‖ V): V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits a
 PASS  the tests catch a page where V's next value leaves the counter out: V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits a
 PASS  the tests catch a page where Hashgen hashes V every time, never V + 1: V and C all ones, two blocks: the second block is the hash of 55 zeros, and the sum wraps — drbg.py's bits a
@@ -227,7 +228,10 @@ PASS  block.txt: the verdict line says "first wrong: round 0, case 5"
 PASS  block.txt: the table shows the last round's 12 streams, and no script error
 PASS  block.txt: Copy puts the verdict and every line received on the clipboard (20927 characters)
 PASS  block.txt: Save downloads the same text as a file, vk26-alice-4-<time>.txt, and says how long it is
-SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  round1.txt: 165 whole cases from a board, 3 incomplete; V and C NIST's inputs instantiated, the second Generate's 1024 bits NIST's, the first's drbg.py's, every halt, counter and minstret the RTL's
+      mcycle of Generate 1: 15078 in 125; 15188 in 3; 15198 in 1; 15238 in 2; 15298 in 1; 15308 in 1; 15358 in 1; 15368 in 2; 15408 in 1; 15428 in 1; 15468 in 1; 15498 in 1; 15578 in 1; 15648 in 2; 15698 in 1; 15728 in 1; 15742 in 1; 15783 in 1; 15807 in 1; 15818 in 1; 15848 in 1; 15858 in 1; 15886 in 1; 16068 in 1; 16073 in 1; 16088 in 1; 16175 in 1; 16214 in 1; 16311 in 1; 16313 in 1; 16332 in 1; 16337 in 1; 16341 in 1; 16472 in 1; 16603 in 1; 16674 in 1
+      mcycle of Generate 2: 15078 in 165
+      mcycle of the reseed check: 15 in 162; 115 in 1; 125 in 1; 135 in 1
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where HASHB is answered one byte short — check 4, NIST's bits
 PASS  the shell catches a version where the counter starts at 2: the second Generate is refused — check 2
