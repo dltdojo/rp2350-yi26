@@ -23,11 +23,20 @@
 #      UF2 reads back as built — byte for byte the committed one when the
 #      toolchain is the recorded one;
 #   4. on the RTL the shell runs every NIST case and both chains, minstret the
-#      RTL's for each of the eight kinds of run; wrong shells are caught.
+#      RTL's for each of the eight kinds of run; wrong shells are caught;
+#   5. seed.html, the page a phone shows the board on, built into one file:
+#      it does every step again — the tests, the KAT, the digest, Hash_df,
+#      Generate — and tells right cases and chains from wrong ones, each in
+#      the way it is wrong, from logs fixtures.py writes from seed.py; its
+#      constants are expect.h's; wrong pages are caught; in headless Chromium;
+#   6. every log a phone gave back (board/*.txt): each NIST case against
+#      NIST's vectors by name and each chain done again by seed.py, by
+#      fixtures.py, and by the page; the mcycles printed as read, not judged.
 #
 # Needs Lean (tools/lean/setup.sh), the Hazard3 testbench
 # (tools/hazard3/setup.sh), clang, lld, llvm-objcopy, cargo, python3 and node.
-# Without Lean or the testbench it says SKIP. About eight minutes.
+# Without Lean or the testbench it says SKIP. About eight minutes, most of it
+# the RTL.
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 
@@ -114,6 +123,79 @@ then
     pass "on the RTL the shell runs all 120 NIST cases, each its state seed.py's and its bits NIST's, then the chain from the stand-in TRNG through all three kernels, then the chain with the KAT spoiled, stopped at the first with 2"
 else
     fail "on the RTL the shell runs every case and both chains" "$got"
+fi
+
+# The page: one file, as a phone gets it; its verdicts on logs right and
+# wrong; in a browser.
+if ! command -v node > /dev/null; then
+    echo "SKIP  the page: node is not installed"
+else
+    python3 ../pages/build.py seed.html build/seed.html
+    python3 fixtures.py build/page build/expect.h
+    page_parses build/seed.html build
+    page_findcdc build/seed.html
+    same=1
+    for pair in SEED_INSTRET_INST:INSTRET_INST SEED_INSTRET_INST_CHAIN:INSTRET_INST_CHAIN SEED_INSTRET_GEN:INSTRET_GEN SEED_M:M; do
+        mine="$(grep -oE "${pair%%:*} = [0-9]+" seed.html | grep -oE '[0-9]+$')"
+        theirs="$(sed -n "s/^#define ${pair##*:} \([0-9]*\)u\{0,1\}$/\1/p" build/expect.h)"
+        [[ -n "$mine" && "$mine" == "$theirs" ]] || same=0
+    done
+    python3 - <<'PY' || same=0
+import re, sys
+page, h = open("seed.html").read(), open("build/expect.h").read()
+trust = re.search(r"SEED_INSTRET_TRUST = \[([^\]]*)\]", page).group(1).replace(" ", "")
+kat = re.search(r"const SEED_KAT = '([^']*)';", page).group(1).encode()
+want = bytes(int(x, 16) for x in re.search(r"KAT_MSG\[64\] = \{([^}]*)\}", h).group(1).split(","))
+sys.exit(trust != re.search(r"INSTRET_TRUST\[4\] = \{([^}]*)\}", h).group(1).replace("u", "").replace(" ", "") or kat != want)
+PY
+    if (( same )); then
+        pass "the page's minstrets, block count and KAT message are expect.h's"
+    else
+        fail "the page's minstrets, block count and KAT message are expect.h's"
+    fi
+    shopt -s nullglob
+    node page_test.mjs build/seed.html build/page board/*.txt || FAILED=1
+    # On the built page, as a phone runs it.
+    page_mutant "Hash_df asks for 432 bits, not 440" 's/x.set(\[k, 0, 0, 1, 0xb8\]);/x.set([k, 0, 0, 1, 0xb0]);/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "C is Hash_df of V, the 0x00 before it left out" 's/return { v, c: await seedDf(z) };/return { v, c: await seedDf(v) };/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "the second Generate starts from Instantiate's V again" \
+        's/g2 = await drbgGenerate(g1.v, c, g1.counter, SEED_M)/g2 = await drbgGenerate(v, c, g1.counter, SEED_M)/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "a NIST case's blocks are not compared" \
+        's/if (!seedSame(p.block\[j\], g2.bits.subarray(32 \* j, 32 \* j + 32)))/if (false)/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "the nonce is the next round's" 's/seed.set(seedNonce(e.round), 32);/seed.set(seedNonce(e.round + 1), 32);/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "the digest is of the start-up window" 's/await drbgHash(healthWindowBytes(bits, 1));/await drbgHash(healthWindowBytes(bits, 0));/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "the shell's spoiling is not allowed for" 's/p.kat.k ? spoiled : right)/right)/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "a failed second window lets the chain go on" 's/\[1, 3, 0\]\[tests.passed\]/[1, 0, 0][tests.passed]/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "the chain's Instantiate is held to its minstret alone" \
+        's/if (p.crun\[0\].minstret !== SEED_INSTRET_INST_CHAIN)/if (p.crun[0].minstret !== SEED_INSTRET_INST)/' \
+        build/seed.html node page_test.mjs @ build/page
+    page_mutant "an output from a stopped chain is not refused" 's/if (sent !== (code === 0)) {/if (false) {/' \
+        build/seed.html node page_test.mjs @ build/page
+    if page_playwright; then
+        ID=(vk26-alice-5 "vk26-alice-5 the seed the tests passed")
+        node ../pages/browser.mjs build/seed.html build/page/good.txt "240 of 240 NIST cases right" 2 "${ID[@]}" || FAILED=1
+        node ../pages/browser.mjs build/seed.html build/page/stopped.txt "4 of 4 chains right" 2 "${ID[@]}" || FAILED=1
+        node ../pages/browser.mjs build/seed.html build/page/cblock.txt "first wrong: round 0, chain 0" 2 "${ID[@]}" || FAILED=1
+    else
+        echo "SKIP  the page in a browser: Playwright is not installed"
+    fi
+fi
+
+# Every log a phone gave back, against NIST's vectors and seed.py.
+shopt -s nullglob
+logs=(board/*.txt)
+if (( ${#logs[@]} )); then
+    python3 fixtures.py --board build/expect.h "${logs[@]}" || FAILED=1
+else
+    echo "SKIP  checking a phone's log: none recorded yet (board/*.txt)"
 fi
 
 # Wrong shells and wrong expectations: each is caught by the check it names.

@@ -1,0 +1,332 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>vk26-alice-5 — the seed the tests passed</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  vk26-alice-5-the-seed-the-tests-passed — an appliance, not a tool: it knows
+  vk26-alice-5's lines and nothing else.
+
+  The board chains three proved kernels: vk26-alice-2's tests its hash, then
+  2048 samples from the TRNG, and digests the second window; with every test
+  passed, an Instantiate kernel turns that digest and a nonce into V and C;
+  vk26-alice-4's Generate turns those into 1024 random bits. Every round it
+  also runs NIST's 120 cases through the last two. This page does every step
+  again from what the board sends, sharing nothing with the kernels or the
+  shell: SP 800-90B's tests over the samples (health.js), the KAT and the
+  digest with the browser's own SHA-256, SP 800-90A's Hash_df here, and
+  Generate (drbg.js) — and holds each of the board's answers to its own.
+
+  The shared parts are ../pages/: core.js and core.css (connecting, Copy,
+  Save, the look), health.js (the samples and their tests) and drbg.js (the
+  Generate). To put this on a phone, build one file:
+    python3 ../pages/build.py seed.html build/seed.html
+  and open build/seed.html — Files app -> "Open with Chrome" on Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<link rel="stylesheet" href="../pages/core.css">
+<style>
+  td.pass { color: var(--ok); }
+  td.wrong { background: color-mix(in srgb, var(--bad) 15%, transparent); }
+  .key { font-size: 12px; color: var(--dim); }
+  #bits { font-family: ui-monospace, monospace; font-size: 11.5px; word-break: break-all; }
+</style>
+
+<h1>The seed the tests passed</h1>
+<p class="sub">vk26-alice-5 &middot; samples from the TRNG, tested; their digest, from a hash that answered its
+  known-answer test; SP 800-90A's Instantiate of it; and Generate — three kernels, each proved, done again here
+  step by step.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+  <button id="save" class="ghost">Save</button>
+</p>
+
+<div id="status">Not connected.</div>
+<div id="verdict">Nothing checked yet.</div>
+<p><b>The latest bits from the TRNG's chain</b>, as this page generated them too:</p>
+<p id="bits">none yet</p>
+
+<table id="streams">
+  <thead><tr><th>chain</th><th>tests</th><th>KAT</th><th>digest</th><th>V, C</th><th>bits</th></tr></thead>
+  <tbody></tbody>
+</table>
+<p class="key">Each round: NIST's 120 cases, Instantiate and two Generates each (counted above); then the chain twice
+  on a fresh draw from the TRNG, the nonce the round. <b>tests</b>: SP 800-90B's two over the start-up window and the
+  next, the run carried across. <b>KAT</b>: the hash's answer for 64 known bytes; the second chain's is spoiled on
+  purpose, and the chain must stop there. <b>digest</b>: SHA-256 of the second window. <b>V, C</b>: Hash_df of the
+  digest and the nonce. <b>bits</b>: four blocks of Generate.</p>
+
+<div id="raw"></div>
+<div class="meta" id="meta"></div>
+
+<script src="../pages/core.js"></script>
+<script src="../pages/health.js"></script>
+<script src="../pages/drbg.js"></script>
+<script>
+// BEGIN seed-check
+// ---------------------------------------------------------------------------
+// What vk26-alice-5's lines say, and whether each NIST case and each chain is
+// right. BITS, ROUND and FAIL are ../pages/health.js's; the Generate is
+// ../pages/drbg.js's. Bytes are hex in the order they lie in the region.
+//
+//   SEED round i s bytes           a NIST case's seed material
+//   STATE round i k bytes          V (0) and C (1) after Instantiate
+//   BLOCK round i j bytes          the second Generate's block j
+//   RUN round i n minstret mcycle  0 Instantiate, 1 and 2 the Generates
+//   CASE round i name
+//   BITS round s k w0 … w15        chain s's samples
+//   KAT round s spoil bytes        HASH's answer to the KAT
+//   TRUST round s code minstret mcycle
+//   DIGEST round s bytes, CSTATE round s k bytes, CBLOCK round s j bytes,
+//   CRUN round s n minstret mcycle (0 Instantiate, 1 Generate): code 0 only
+//   CHAIN round s code
+//   REVISION r, ROUND round cases
+//
+// vk26-alice-5's check.sh runs this block under node, against seed.py, over
+// logs right and wrong.
+// ---------------------------------------------------------------------------
+
+const SEED_M = 4;
+// minstret as the Hazard3 RTL counts it (build/expect.h, which check.sh holds
+// these to): the Instantiate kernel alone and in the chain (one more there:
+// the word after its halting ecall is alice-2's code), a Generate, and
+// alice-2's kernel by its halt code.
+const SEED_INSTRET_INST = 260, SEED_INSTRET_INST_CHAIN = 261, SEED_INSTRET_GEN = 4318;
+const SEED_INSTRET_TRUST = [34897, 17470, 51, 34885];
+// vk26-alice-2's KAT message (expect.h's KAT_MSG).
+const SEED_KAT = 'vk26-alice-2: the hash is asked this before it is trusted, 64 B.';
+
+/** Hash_df (SP 800-90A §10.3.1) for 440 bits: two hashes of counter ‖ 0x000001b8 ‖ input, cut to 55 bytes. */
+async function seedDf(input) {
+  const out = new Uint8Array(64);
+  for (const k of [1, 2]) {
+    const x = new Uint8Array(5 + input.length);
+    x.set([k, 0, 0, 1, 0xb8]);
+    x.set(input, 5);
+    out.set(await drbgHash(x), 32 * (k - 1));
+  }
+  return out.slice(0, DRBG_SEEDLEN);
+}
+
+/** Instantiate (§10.1.1.2): V = Hash_df(seed material), C = Hash_df(0x00 ‖ V). */
+async function seedInstantiate(seed) {
+  const v = await seedDf(seed);
+  const z = new Uint8Array(1 + v.length);
+  z.set(v, 1);
+  return { v, c: await seedDf(z) };
+}
+
+/** The shell's nonce: the round, as 16 bytes, little-endian. */
+function seedNonce(round) {
+  const b = new Uint8Array(16);
+  for (let k = 0; k < 4; k++) b[k] = (round >>> (8 * k)) & 255;
+  return b;
+}
+
+function seedParse(text) {
+  const t = text.trim(), h = '([0-9a-f]{8})', x = '([0-9a-f]+)';
+  let m;
+  const e = healthLine(t, 'vk26-alice-5');
+  if (e) return e;
+  const num = (s) => parseInt(s, 16);
+  if ((m = t.match(new RegExp(`^SEED ${h} ${h} ${h} ${x}$`))))
+    return { kind: 'SEED', round: num(m[1]), i: num(m[2]), s: num(m[3]), bytes: drbgHex(m[4]) };
+  if ((m = t.match(new RegExp(`^(STATE|BLOCK|CSTATE|CBLOCK|KAT) ${h} ${h} ${h} ${x}$`))))
+    return { kind: m[1], round: num(m[2]), i: num(m[3]), k: num(m[4]), bytes: drbgHex(m[5]) };
+  if ((m = t.match(new RegExp(`^(RUN|CRUN) ${h} ${h} ${h} ${h} ${h}$`))))
+    return { kind: m[1], round: num(m[2]), i: num(m[3]), n: num(m[4]), minstret: num(m[5]), cycles: num(m[6]) };
+  if ((m = t.match(new RegExp(`^TRUST ${h} ${h} ${h} ${h} ${h}$`))))
+    return { kind: 'TRUST', round: num(m[1]), i: num(m[2]), code: num(m[3]), minstret: num(m[4]), cycles: num(m[5]) };
+  if ((m = t.match(new RegExp(`^DIGEST ${h} ${h} ([0-9a-f]{64})$`))))
+    return { kind: 'DIGEST', round: num(m[1]), i: num(m[2]), bytes: drbgHex(m[3]) };
+  if ((m = t.match(new RegExp(`^CASE ${h} ${h} (.+)$`)))) return { kind: 'CASE', round: num(m[1]), i: num(m[2]), name: m[3] };
+  if ((m = t.match(new RegExp(`^CHAIN ${h} ${h} ${h}$`)))) return { kind: 'CHAIN', round: num(m[1]), i: num(m[2]), code: num(m[3]) };
+  if ((m = t.match(new RegExp(`^REVISION ${h}$`)))) return { kind: 'REVISION', revision: num(m[1]) };
+  return { kind: 'other' };
+}
+
+const seedSame = (a, b) => !!a && !!b && a.length === b.length && a.every((x, k) => x === b[k]);
+
+/**
+ * Feed it lines, in order, awaiting each. A CASE and a CHAIN come back with a
+ * verdict — ok, wrong (with `why`), or incomplete when a line of it never
+ * arrived, which claims nothing:
+ *   a CASE is ok when this page's Instantiate of its seed material is the V
+ *   and C the board sent, its two Generates end in the board's four blocks,
+ *   and each run's minstret is the RTL's;
+ *   a CHAIN is ok when HASH's answer to the KAT is SHA-256's (with the one bit
+ *   flipped, when the shell says it spoiled it), the code is what that answer
+ *   and the samples' tests give, and with 0 the digest is SHA-256 of window 1,
+ *   V and C this page's Instantiate of digest ‖ nonce, the blocks its
+ *   Generate, every minstret the RTL's; and with any other code, no output.
+ */
+function seedChecker() {
+  const s = { cases: 0, ok: 0, wrong: 0, incomplete: 0, chains: 0, chainsOk: 0, chainsWrong: 0, chainsIncomplete: 0,
+              outputs: 0, refused: 0, stopped: 0, rounds: 0, fails: 0, revision: null, firstWrong: null, last: null };
+  const cycles = { inst: [], gen: [], trust: [], chainInst: [], chainGen: [] };
+  const samples = healthStreams(4), open = new Map();
+  const key = (e) => `${e.round}:${e.i}`;
+  const part = (e) => {
+    if (!open.has(key(e))) open.set(key(e), { state: [], block: [], run: [], cstate: [], cblock: [], crun: [] });
+    return open.get(key(e));
+  };
+  let right = null;
+
+  async function judgeCase(e, p) {
+    const why = [];
+    const { v, c } = await seedInstantiate(p.seed.bytes);
+    if (!seedSame(p.state[0], v)) why.push('V after Instantiate is not this page\'s Hash_df of the seed material');
+    if (!seedSame(p.state[1], c)) why.push('C after Instantiate is not this page\'s');
+    const g1 = await drbgGenerate(v, c, 1, SEED_M), g2 = await drbgGenerate(g1.v, c, g1.counter, SEED_M);
+    for (let j = 0; j < SEED_M; j++)
+      if (!seedSame(p.block[j], g2.bits.subarray(32 * j, 32 * j + 32))) { why.push(`the second Generate's block ${j} is not this page's`); break; }
+    [SEED_INSTRET_INST, SEED_INSTRET_GEN, SEED_INSTRET_GEN].forEach((n, k) => {
+      if (p.run[k].minstret !== n) why.push(`run ${k}'s minstret ${p.run[k].minstret}, not the RTL's ${n}`);
+    });
+    cycles.inst.push(p.run[0].cycles); cycles.gen.push(p.run[1].cycles, p.run[2].cycles);
+    return why;
+  }
+
+  async function judgeChain(e, p, bits) {
+    const why = [];
+    if (right === null) right = await drbgHash(new TextEncoder().encode(SEED_KAT));
+    const spoiled = right.slice(); spoiled[0] ^= 1;
+    const katRight = seedSame(p.kat.bytes, right);
+    if (!seedSame(p.kat.bytes, p.kat.k ? spoiled : right))
+      why.push(p.kat.k ? 'the KAT\'s answer is not SHA-256\'s with the one bit the shell flips'
+                       : 'the KAT\'s answer is not SHA-256 of its message, and nothing spoiled it');
+    const tests = healthJudge(bits, 2);
+    const code = katRight ? [1, 3, 0][tests.passed] : 2;
+    e.tests = tests; e.kat = p.kat.k ? 'spoiled' : katRight ? 'right' : 'wrong';
+    if (p.trust.code !== code || e.code !== code) why.push(`code ${code} is due, not ${p.trust.code}`);
+    if (p.trust.minstret !== SEED_INSTRET_TRUST[p.trust.code])
+      why.push(`alice-2's kernel's minstret ${p.trust.minstret}, not the RTL's ${SEED_INSTRET_TRUST[p.trust.code]}`);
+    if (code === 0) cycles.trust.push(p.trust.cycles);
+    const sent = !!p.digest;
+    if (sent !== (code === 0)) {
+      why.push(code === 0 ? 'no output sent for a chain whose tests all passed' : 'an output sent for a chain that should have stopped');
+      return why;
+    }
+    if (code !== 0) return why;
+    if (p.cstate.length < 2 || p.cblock.filter(Boolean).length < SEED_M || p.crun.length < 2) return null;
+    const digest = await drbgHash(healthWindowBytes(bits, 1));
+    if (!seedSame(p.digest.bytes, digest)) why.push('the digest is not SHA-256 of the second window');
+    const seed = new Uint8Array(48);
+    seed.set(digest); seed.set(seedNonce(e.round), 32);
+    const { v, c } = await seedInstantiate(seed);
+    if (!seedSame(p.cstate[0], v) || !seedSame(p.cstate[1], c)) why.push('V or C is not this page\'s Instantiate of the digest and the nonce');
+    const g = await drbgGenerate(v, c, 1, SEED_M);
+    for (let j = 0; j < SEED_M; j++)
+      if (!seedSame(p.cblock[j], g.bits.subarray(32 * j, 32 * j + 32))) { why.push(`block ${j} is not this page's Generate`); break; }
+    if (p.crun[0].minstret !== SEED_INSTRET_INST_CHAIN) why.push(`Instantiate's minstret ${p.crun[0].minstret}, not the RTL's ${SEED_INSTRET_INST_CHAIN}`);
+    if (p.crun[1].minstret !== SEED_INSTRET_GEN) why.push(`Generate's minstret ${p.crun[1].minstret}, not the RTL's ${SEED_INSTRET_GEN}`);
+    cycles.chainInst.push(p.crun[0].cycles); cycles.chainGen.push(p.crun[1].cycles);
+    e.bits = g.bits;
+    return why;
+  }
+
+  function verdict(e, why, chain) {
+    const k = chain ? ['chainsOk', 'chainsWrong'] : ['ok', 'wrong'];
+    if (why.length) {
+      e.verdict = 'wrong'; e.why = why.join('; '); s[k[1]]++;
+      if (!s.firstWrong) s.firstWrong = { round: e.round, i: e.i, what: chain ? `chain ${e.i}` : e.name, why: e.why };
+    } else {
+      e.verdict = 'ok'; s[k[0]]++;
+    }
+  }
+
+  async function feed(text) {
+    const e = seedParse(text);
+    if (e.kind === 'FAIL') s.fails++;
+    if (e.kind === 'ROUND') s.rounds++;
+    if (e.kind === 'REVISION') s.revision = e.revision;
+    if (e.kind === 'BITS') samples.add(e);
+    if (e.kind === 'SEED') part(e).seed = e;
+    if (e.kind === 'STATE') part(e).state[e.k] = e.bytes;
+    if (e.kind === 'BLOCK') part(e).block[e.k] = e.bytes;
+    if (e.kind === 'RUN') part(e).run[e.n] = e;
+    if (e.kind === 'KAT') part(e).kat = e;
+    if (e.kind === 'TRUST') part(e).trust = e;
+    if (e.kind === 'DIGEST') part(e).digest = e;
+    if (e.kind === 'CSTATE') part(e).cstate[e.k] = e.bytes;
+    if (e.kind === 'CBLOCK') part(e).cblock[e.k] = e.bytes;
+    if (e.kind === 'CRUN') part(e).crun[e.n] = e;
+    if (e.kind === 'CASE') {
+      s.cases++;
+      const p = open.get(key(e)); open.delete(key(e));
+      const whole = p && p.seed && p.state[0] && p.state[1] && [0, 1, 2, 3].every((j) => p.block[j]) && [0, 1, 2].every((n) => p.run[n]);
+      if (!whole) { e.verdict = 'incomplete'; e.why = 'a line of it never arrived'; s.incomplete++; return e; }
+      verdict(e, await judgeCase(e, p), false);
+    }
+    if (e.kind === 'CHAIN') {
+      s.chains++;
+      const p = open.get(key(e)); open.delete(key(e));
+      const bits = samples.take(e.round, e.i);
+      const why = p && bits && p.kat && p.trust ? await judgeChain(e, p, bits) : null;
+      if (why === null) { e.verdict = 'incomplete'; e.why = 'a line of it never arrived'; s.chainsIncomplete++; return e; }
+      verdict(e, why, true);
+      if (e.verdict === 'ok') {
+        if (e.code === 0) { s.outputs++; s.last = healthHex(e.bits); }
+        else if (e.code === 2) s.refused++;
+        else s.stopped++;
+      }
+    }
+    return e;
+  }
+  function summary() {
+    const sets = {};
+    for (const [k, v] of Object.entries(cycles)) sets[k] = [...new Set(v)].sort((a, b) => a - b);
+    return { ...s, cycleValues: sets };
+  }
+  return { feed, summary };
+}
+// END seed-check
+
+const $ = (id) => document.getElementById(id);
+const checker = seedChecker();
+
+function show(e) {
+  const tb = $('streams').tBodies[0];
+  if (e.i === 0) tb.innerHTML = '';
+  const tr = document.createElement('tr'), mark = e.verdict === 'ok' ? 'pass' : 'wrong';
+  const t = e.tests ? (e.tests.passed === 2 ? 'both pass' : `window ${e.tests.passed + 1} fails`) : '—';
+  const done = e.verdict === 'ok' && e.code === 0;
+  tr.innerHTML = `<td>${e.i}<br><small>round ${e.round}</small></td><td class="${mark}">${e.code === 2 ? '—' : t}</td>`
+    + `<td class="${mark}">${e.kat || '—'}</td><td class="${mark}">${done ? 'right' : '—'}</td>`
+    + `<td class="${mark}">${done ? 'right' : '—'}</td><td class="${mark}">${done ? 'right' : e.verdict === 'ok' ? `stopped, ${e.code}` : e.verdict}</td>`;
+  if (e.verdict !== 'ok') tr.title = e.why;
+  tb.appendChild(tr);
+}
+
+function verdict() {
+  const s = checker.summary(), v = $('verdict');
+  if (!s.cases && !s.chains) { v.textContent = 'Nothing yet: NIST\'s cases come first, a few a second.'; return; }
+  let t = `<b class="${s.wrong ? 'bad' : 'ok'}">${s.ok} of ${s.cases} NIST cases right</b>, ${s.wrong} wrong, ${s.incomplete} incomplete`
+        + ` · <b class="${s.chainsWrong ? 'bad' : 'ok'}">${s.chainsOk} of ${s.chains} chains right</b>`
+        + ` (${s.outputs} gave bits, ${s.refused} refused at the KAT, ${s.stopped} stopped by the tests), ${s.chainsWrong} wrong,`
+        + ` ${s.chainsIncomplete} incomplete · ${s.rounds} rounds` + (s.revision === null ? '' : ` · revision ${s.revision}`);
+  const c = s.cycleValues, show1 = (a) => (a.length === 1 ? `${a[0]}` : a.length ? `${a.length} values` : '—');
+  t += `<br>mcycle, as read: Instantiate ${show1(c.inst)}, Generate ${show1(c.gen)}; in the chain alice-2's ${show1(c.trust)},`
+     + ` Instantiate ${show1(c.chainInst)}, Generate ${show1(c.chainGen)}`;
+  if (s.fails) t += ` · <b class="bad">${s.fails} FAIL lines from the board</b>`;
+  if (s.firstWrong) t += `<br>first wrong: round ${s.firstWrong.round}, ${s.firstWrong.what} — ${s.firstWrong.why}`;
+  v.innerHTML = t;
+  if (s.last) $('bits').textContent = s.last;
+}
+
+appliance({
+  serial: 'vk26-alice-5',
+  page: `vk26-alice-5 seed.html ${$('ver').textContent}`,
+  listening: 'NIST\'s 120 cases first, then two chains from the TRNG; a round takes about two minutes.',
+  onText: checkedLines(checker.feed, (e) => { if (e.kind === 'CHAIN') show(e); verdict(); }),
+  report: () => JSON.stringify(checker.summary()),
+});
+</script>

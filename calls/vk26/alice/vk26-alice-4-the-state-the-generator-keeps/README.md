@@ -196,8 +196,10 @@ Twelve wrong versions are each refused (`proof/mutants.txt`):
   - one block, seven and forty.
 
   All pass. The RTL's minstret for a Generate of 4 blocks is 4318: the
-  proof's 4294, plus the harness's 3 and 1 around every run, plus 4 for
-  each of the five HASHB calls.
+  proof's 4294, plus the harness's 3, plus 4 for each of the five HASHB
+  calls, plus 1: vk26-alice-5 found the RTL counts one more when the word
+  after the halting `ecall` is a legal instruction, here the RESEED
+  branch. (This README first counted that 1 as the harness's.)
 
 ## The shell
 
