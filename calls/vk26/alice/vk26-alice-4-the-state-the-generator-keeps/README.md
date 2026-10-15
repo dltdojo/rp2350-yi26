@@ -59,7 +59,7 @@ time would notice. So this one is proved.
 
 ## The kernel
 
-proof/Drbg.lean's `kernel`, 70 instructions, 280 bytes, written to
+`Drbg.kernel`, 70 instructions, 280 bytes, written to
 `kernel.bin` by the proof (`sha256 de651726…`). Everything is an offset from
 `base`, the region's start (`auipc`):
 
@@ -97,7 +97,8 @@ so, byte for byte.
 
 ## What is proved
 
-[proof/Drbg.lean](./proof/Drbg.lean), on Lean's own axioms only (no
+[`../lean/Alice/Drbg.lean`](../lean/Alice/Drbg.lean), in alice's package since vk26-alice-5
+became its second user, checked from [proof/Drbg.lean](./proof/Drbg.lean), on Lean's own axioms only (no
 `sorry`, no `native_decide`):
 
 - **`generate_run` / `from_boot`**: the image holds the kernel and a state.

@@ -2,14 +2,14 @@
 # Each must be refused by Lean.
 #
 # <label>|<what is wrong>|<sed>[|lean/<file>.lean or calls/vk26/alice/lean/<file>.lean]
-from_boot|the KAT's branch is inverted: on to the samples when the hash failed|s/\[\.br \.bne S6 0 (BitVec\.ofNat 12 (2 \* (106 - 39)))\]/[.br .beq S6 0 (BitVec.ofNat 12 (2 * (106 - 39)))]/
-cmp_at|the KAT's answer is compared with the bytes four after the expected digest|s/\.ld \.lw T2 S0 (BitVec\.ofNat 12 (0x340 + 4 \* j))/.ld .lw T2 S0 (BitVec.ofNat 12 (0x344 + 4 * j))/
-cmp_at|the comparison keeps only the bits every word disagrees in (and, not or)|s/\.op \.xor T1 T1 T2, \.op \.or S6 S6 T1\]/.op .xor T1 T1 T2, .op .and S6 S6 T1]/
-output_run|the output is HASH of the start-up window, the samples it was to discard|s/^def outA : List Instr := \[ \.opi \.addi A0 S1 0x800, \.opi \.addi A0 A0 0x800 \]/def outA : List Instr := [ .opi .addi A0 S0 0x400, .opi .addi A0 A0 0 ]/
-at_bne|a failed start-up window halts with 3, as though the next had failed|s/\[\.br \.bne S6 0 (BitVec\.ofNat 12 (2 \* (103 - 67)))\]/[.br .bne S6 0 (BitVec.ofNat 12 (2 * (109 - 67)))]/
-from_boot|the claim: a failed KAT halts with 0|s/  if ¬ Trusted H m base then 2 else/  if ¬ Trusted H m base then 0 else/
-from_boot|the claim: the output is written whether or not the hash passed its KAT|s/  if Trusted H m base ∧ WinOk m base SMP 0 ∧ WinOk m base SMP 1 then$/  if WinOk m base SMP 0 ∧ WinOk m base SMP 1 then/
-from_boot|the claim: the output is HASH of the start-up window|s/    writeBytes (katted H m base) (base + BitVec.ofNat 32 OUT) (H (windowBytes m base SMP 1))/    writeBytes (katted H m base) (base + BitVec.ofNat 32 OUT) (H (windowBytes m base SMP 0))/
-compare_iff|the claim: the hash is trusted when its answer equals the scratch it was written to, not the expected digest|s/  ∀ i : Fin 32, H (katMsg m base) i = m (base + BitVec.ofNat 32 (KWANT + i))/  ∀ i : Fin 32, H (katMsg m base) i = m (base + BitVec.ofNat 32 (KGOT + i))/
-from_boot|the claim: a failed KAT halts one instruction sooner|s/  if ¬ Trusted H m base then 43 else/  if ¬ Trusted H m base then 42 else/
+from_boot|the KAT's branch is inverted: on to the samples when the hash failed|s/\[\.br \.bne S6 0 (BitVec\.ofNat 12 (2 \* (106 - 39)))\]/[.br .beq S6 0 (BitVec.ofNat 12 (2 * (106 - 39)))]/|calls/vk26/alice/lean/Alice/Trust.lean
+cmp_at|the KAT's answer is compared with the bytes four after the expected digest|s/\.ld \.lw T2 S0 (BitVec\.ofNat 12 (0x340 + 4 \* j))/.ld .lw T2 S0 (BitVec.ofNat 12 (0x344 + 4 * j))/|calls/vk26/alice/lean/Alice/Trust.lean
+cmp_at|the comparison keeps only the bits every word disagrees in (and, not or)|s/\.op \.xor T1 T1 T2, \.op \.or S6 S6 T1\]/.op .xor T1 T1 T2, .op .and S6 S6 T1]/|calls/vk26/alice/lean/Alice/Trust.lean
+output_run|the output is HASH of the start-up window, the samples it was to discard|s/^def outA : List Instr := \[ \.opi \.addi A0 S1 0x800, \.opi \.addi A0 A0 0x800 \]/def outA : List Instr := [ .opi .addi A0 S0 0x400, .opi .addi A0 A0 0 ]/|calls/vk26/alice/lean/Alice/Trust.lean
+at_bne|a failed start-up window halts with 3, as though the next had failed|s/\[\.br \.bne S6 0 (BitVec\.ofNat 12 (2 \* (103 - 67)))\]/[.br .bne S6 0 (BitVec.ofNat 12 (2 * (109 - 67)))]/|calls/vk26/alice/lean/Alice/Trust.lean
+from_boot|the claim: a failed KAT halts with 0|s/  if ¬ Trusted H m base then 2 else/  if ¬ Trusted H m base then 0 else/|calls/vk26/alice/lean/Alice/Trust.lean
+from_boot|the claim: the output is written whether or not the hash passed its KAT|s/  if Trusted H m base ∧ WinOk m base SMP 0 ∧ WinOk m base SMP 1 then$/  if WinOk m base SMP 0 ∧ WinOk m base SMP 1 then/|calls/vk26/alice/lean/Alice/Trust.lean
+from_boot|the claim: the output is HASH of the start-up window|s/    writeBytes (katted H m base) (base + BitVec.ofNat 32 OUT) (H (windowBytes m base SMP 1))/    writeBytes (katted H m base) (base + BitVec.ofNat 32 OUT) (H (windowBytes m base SMP 0))/|calls/vk26/alice/lean/Alice/Trust.lean
+compare_iff|the claim: the hash is trusted when its answer equals the scratch it was written to, not the expected digest|s/  ∀ i : Fin 32, H (katMsg m base) i = m (base + BitVec.ofNat 32 (KWANT + i))/  ∀ i : Fin 32, H (katMsg m base) i = m (base + BitVec.ofNat 32 (KGOT + i))/|calls/vk26/alice/lean/Alice/Trust.lean
+from_boot|the claim: a failed KAT halts one instruction sooner|s/  if ¬ Trusted H m base then 43 else/  if ¬ Trusted H m base then 42 else/|calls/vk26/alice/lean/Alice/Trust.lean
 win_verdict|the specification: the repetition count starts afresh at each window, as front's does|s/(rct m base src (N \* (w + 1))).bad = false ∧/(rct m base (src + 4 * (N * w)) N).bad = false ∧/|calls/vk26/alice/lean/Alice/Window.lean

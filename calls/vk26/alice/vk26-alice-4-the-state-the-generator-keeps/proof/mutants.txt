@@ -2,15 +2,15 @@
 # Each must be refused by Lean.
 #
 # <label>|<what is wrong>|<sed>[|lean/<file>.lean or calls/vk26/alice/lean/<file>.lean]
-reseed_run|reseed when the counter equals the interval, not only past it (§10.1.1.4 step 1)|s/br \.bltu T1 S3 3 52/br .bgeu S3 T1 3 52/
-generate_run|V is copied to data one byte short|s/\.opi \.addi A1 S0 0x4c0, \.opi \.addi T2 0 55/.opi .addi A1 S0 0x4c0, .opi .addi T2 0 54/
-gen_iter|Hashgen hashes 54 bytes of data, not seedlen's 55|s/\.opi \.addi A1 0 55, \.opi \.addi A2 S2 0/.opi .addi A1 0 54, .opi .addi A2 S2 0/
-generate_run|H is Hash(V), the 0x03 left off|s/\.opi \.addi A0 S0 0x43f, \.opi \.addi A1 0 56/.opi .addi A0 S0 0x440, .opi .addi A1 0 55/
-generate_run|V += H twice, C never added|s/\.opi \.addi A1 S0 0x480, call 36 55/.opi .addi A1 S0 0x500, call 36 55/
-generate_run|the counter's third byte is written over its second|s/\.sh \.srli T1 S3 8, \.st \.sb S0 T1 0x575/.sh .srli T1 S3 8, .st .sb S0 T1 0x574/
-generate_run|the counter is stored back as it was|s/\.opi \.addi S3 S3 1, \.st \.sw S0 S3 0x408/.opi .addi S3 S3 0, .st .sw S0 S3 0x408/
-add_iter|ADD's carry is the sum shifted by 9, not 8|s/\.sh \.srli A3 T1 8,/.sh .srli A3 T1 9,/
-generate_run|the claim: one instruction fewer to the halt|s/^def COST (m : Nat) : Nat := 2030 + 566 \* m$/def COST (m : Nat) : Nat := 2029 + 566 * m/
-generate_run|the specification: V's next value leaves the counter out|s/^def vnext (env : Env) (v c cnt : Nat) : Nat := v + hnum (hpre env v) + c + cnt$/def vnext (env : Env) (v c cnt : Nat) : Nat := v + hnum (hpre env v) + c/
-generate_run|the specification: H is Hash(0x02 ‖ V)|s/^def hpre (env : Env) (v : Nat) : Fin 32 → Byte := env.hash (BitVec.ofNat 8 3 :: digs v)$/def hpre (env : Env) (v : Nat) : Fin 32 → Byte := env.hash (BitVec.ofNat 8 2 :: digs v)/
-blocks_out|the claim: block j is the hash of V + j + 1|s/= env.hash (digs (v + j)) ⟨d, hd⟩ := by$/= env.hash (digs (v + j + 1)) ⟨d, hd⟩ := by/
+reseed_run|reseed when the counter equals the interval, not only past it (§10.1.1.4 step 1)|s/br \.bltu T1 S3 3 52/br .bgeu S3 T1 3 52/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|V is copied to data one byte short|s/\.opi \.addi A1 S0 0x4c0, \.opi \.addi T2 0 55/.opi .addi A1 S0 0x4c0, .opi .addi T2 0 54/|calls/vk26/alice/lean/Alice/Drbg.lean
+gen_iter|Hashgen hashes 54 bytes of data, not seedlen's 55|s/\.opi \.addi A1 0 55, \.opi \.addi A2 S2 0/.opi .addi A1 0 54, .opi .addi A2 S2 0/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|H is Hash(V), the 0x03 left off|s/\.opi \.addi A0 S0 0x43f, \.opi \.addi A1 0 56/.opi .addi A0 S0 0x440, .opi .addi A1 0 55/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|V += H twice, C never added|s/\.opi \.addi A1 S0 0x480, call 36 55/.opi .addi A1 S0 0x500, call 36 55/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|the counter's third byte is written over its second|s/\.sh \.srli T1 S3 8, \.st \.sb S0 T1 0x575/.sh .srli T1 S3 8, .st .sb S0 T1 0x574/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|the counter is stored back as it was|s/\.opi \.addi S3 S3 1, \.st \.sw S0 S3 0x408/.opi .addi S3 S3 0, .st .sw S0 S3 0x408/|calls/vk26/alice/lean/Alice/Drbg.lean
+add_iter|ADD's carry is the sum shifted by 9, not 8|s/\.sh \.srli A3 T1 8,/.sh .srli A3 T1 9,/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|the claim: one instruction fewer to the halt|s/^def COST (m : Nat) : Nat := 2030 + 566 \* m$/def COST (m : Nat) : Nat := 2029 + 566 * m/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|the specification: V's next value leaves the counter out|s/^def vnext (env : Env) (v c cnt : Nat) : Nat := v + hnum (hpre env v) + c + cnt$/def vnext (env : Env) (v c cnt : Nat) : Nat := v + hnum (hpre env v) + c/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|the specification: H is Hash(0x02 ‖ V)|s/^def hpre (env : Env) (v : Nat) : Fin 32 → Byte := env.hash (BitVec.ofNat 8 3 :: digs v)$/def hpre (env : Env) (v : Nat) : Fin 32 → Byte := env.hash (BitVec.ofNat 8 2 :: digs v)/|calls/vk26/alice/lean/Alice/Drbg.lean
+blocks_out|the claim: block j is the hash of V + j + 1|s/= env.hash (digs (v + j)) ⟨d, hd⟩ := by$/= env.hash (digs (v + j + 1)) ⟨d, hd⟩ := by/|calls/vk26/alice/lean/Alice/Drbg.lean

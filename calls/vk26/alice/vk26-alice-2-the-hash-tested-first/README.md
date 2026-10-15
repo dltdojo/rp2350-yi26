@@ -74,7 +74,7 @@ been observed to fire is indistinguishable from a check that cannot fire."
 
 ## The kernel
 
-`proof/Trust.lean` writes it; `kernel.bin` is its 448 bytes.
+`proof/Trust.lean` writes it (the kernel and its proof are in alice's package, [`../lean/Alice/Trust.lean`](../lean/Alice/Trust.lean), since vk26-alice-5 became their second user); `kernel.bin` is its 448 bytes.
 
 | Instructions | What |
 | --- | --- |
