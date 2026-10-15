@@ -7,7 +7,7 @@
 - 從硬體錢包韌體的角度看，exp228 這種「RV32IM 機器碼加上 Lean 證明」的做法，優點和缺點各是什麼？
 - 如果要往硬體錢包走，哪些功能應該繼續做實驗、納入形式化驗證的範圍？
 
-**結論：只把錢包裡小而關鍵、規則穩定、輸入來自攻擊者的那幾個函式做成證明過的位元組，其餘的部分用測試。** 最值得投入的是「看到的就是簽的」：交易解析、BIP341 簽章雜湊、地址顯示，三者之間的一致性。順序上，先接著 [mathlib-for-checksig](./2026-10-10-1236-mathlib-for-checksig-zh-tw.md) 建議的 secp256k1 模 p 運算。
+**結論：只把錢包裡小而關鍵、規則穩定、輸入來自攻擊者的那幾個函式做成證明過的位元組，其餘的部分用測試。** 最值得投入的是「看到的就是簽的」：交易解析、BIP341 簽章雜湊、地址顯示，三者之間的一致性。順序上，先接著 [mathlib-for-checksig](./2026-10-10-1236-mathlib-for-checksig-zh-tw.md) 建議的 secp256k1 模 p 運算（已於 exp229 完成）。
 
 exp228 的解譯器本身在錢包裡用處不大：執行 Script、判斷交易合不合法是節點的工作，不是錢包的。能帶到錢包的是它的方法：證明解析不會讀過頭、密碼學交給 `ecall`、規格與 Python 參考實作互相對照，以及 ENCODE 那個錯的教訓。
 
@@ -57,9 +57,9 @@ exp228 的解譯器本身在錢包裡用處不大：執行 Script、判斷交易
 安全設計的準則，本應是「特權區域（TCB）越小越好，且特權區域盡可能使用經過形式化驗證的機器碼」。但在 RISC-V（Hazard3）硬體架構下，C 殼層目前無法直接挪至 User 模式執行：
 
 1. **開機預設為 Machine 模式**：晶片重置（從 Bootrom 或 Flash）啟動時，處理器硬體直接處於 Machine 模式。
-2. **PMP 配置為特權指令**：User 模式要受到記憶體邊界限制，必須由 Machine 模式寫入 CSR（`pmpcfg*`、`pmpaddr*`）。User 模式存取這些 CSR 會直接觸發 Illegal Instruction 例外。
+2. **PMP 配置專屬 Machine 特權級**：User 模式要受到記憶體邊界限制，必須由 Machine 模式寫入特權 CSR（`pmpcfg*`、`pmpaddr*`）。User 模式存取這些 CSR 會直接觸發 Illegal Instruction 例外（`mcause = 2`）。
 3. **Trap / ecall 攔截與降權切換**：核心以 `ecall` 發出服務請求或停機時，硬體跳轉至 `mtvec`（Machine Trap Vector）。只有 Machine 模式能讀取 `mcause`、`mepc`，並透過特權指令 `mret` 降權切換回 User 模式。
-4. **周邊硬體暫存器存取**：時脈、中斷屏蔽（`mie`）、計數器控制（`mcountinhibit`）皆須由 Machine 模式控制。
+4. **特權 CSR 與受保護周邊存取**：特權控制暫存器（如中斷致能 `mie`、計數器凍結 `mcountinhibit`）以及未對 User 模式開放 PMP 授權的系統 MMIO（如時脈與硬體周邊）皆須由 Machine 模式管控。
 
 因此，系統中**必然需要有程式碼留在 Machine 模式**。目前的 C 殼層把硬體初始化、USB 通訊、PMP 設定、Trap 處置全打包在一起，才使整個殼層都留在 Machine 模式。
 
@@ -76,24 +76,23 @@ exp228 的解譯器本身在錢包裡用處不大：執行 Script、判斷交易
 #### 目前尚未實作「證明過的 M-mode 監控程式」的五大困境
 
 1. **形式化模型的特權級狀態空間爆炸**：
-   目前 `lean/Rv32` 僅對 User 模式的 RV32IM（通用暫存器 + 扁平記憶體陣列）建立語意。要驗證 Machine 模式程式，必須將整套特權架構建模進 Lean：特權 CSR（`mstatus`, `mtvec`, `mepc`, `mcause`, `mscratch`, `pmp*`）、硬體 Trap 自動保存與跳轉機制、`mret` 狀態還原，以及 PMP（NAPOT / TOR）在硬體匯流排上的過濾語意。如 [exp224 的 WHY.zh-TW.md](../experiments/exp224-the-checks-the-kernel-makes/WHY.zh-TW.md) 所指出，光是建模 200 行 harness，其複雜度就遠高於純演算法。
+   目前 `lean/Rv32` 僅對 User 模式的 RV32IM（通用暫存器 + 扁平記憶體陣列）建立語意。要驗證 Machine 模式程式，必須將整套特權架構建模進 Lean：特權 CSR（`mstatus`, `mtvec`, `mepc`, `mcause`, `mscratch`, `pmp*`）、硬體 Trap 自動保存與跳轉機制、`mret` 狀態還原，以及 PMP（RP2350 硬體支援 32-byte 粒度之 `NAPOT` 模式）在硬體匯流排上的過濾語意。如 [exp224 的 WHY.zh-TW.md](../experiments/exp224-the-checks-the-kernel-makes/WHY.zh-TW.md) 所指出，光是建模 200 行 harness，其複雜度就遠高於純演算法。
 2. **晶片硬體實體與規格書的落差（Silicon Quirks）**：
-   形式化證明的先決條件是「硬體真實行為完全吻合數學模型」。但實測顯示 Hazard3 在特權級與 CSR 存在未文件化或與標準出入的硬體行為：
-   - **PMP 讀寫異常（exp209）**：Pico 2 晶片實測中，`pmpaddr0` 寫入後讀回值與寫入值不同（RTL 模擬則正常）。
+   形式化證明的先決條件是「硬體真實行為完全吻合數學模型」。但實測顯示 Hazard3 在特權級與 CSR 存在未文件化或與預設模型出入的硬體行為：
+   - **PMP 讀寫差異（exp209）**：Pico 2 晶片實測中，`pmpaddr0` 寫入後讀回值與寫入值不同（源於 RP2350 硬體固定 `PMP_GRAIN = 3`，使低位元依 `OFF` / `NAPOT` 模式強制讀回 `0` 或 `1`，而預設 RTL 模擬未開啟此粒度遮罩）。
    - **計數器特異行為（exp203、exp209）**：Hazard3 將規格明訂不計數的 `ecall` 計入 `minstret`，把 `mret` 算兩次，且計數還會受 `mret` 後方記憶體殘留指令影響。
-   - **重置死鎖（exp214）**：Hazard3 在 reset 時凍結 `mcycle` 計數器，導致殼層中的逾時邏輯死鎖。
+   - **重置死鎖（exp214）**：Hazard3 在 reset 時凍結 `mcycle` 計數器（`mcountinhibit.cy` 重置預設為 `1`），導致殼層中的逾時邏輯死鎖。
    硬體在特權指令與 CSR 上的微架構特異性，隨時可能直接打破形式化證明的假設。
-3. **RP2350 缺乏 S-mode，且 PMP 資源極其拮据**：
-   Hazard3 僅支援 Machine 與 User 兩層特權級，缺乏作業系統常見的 Supervisor 模式（S-mode）。若要將「不可信的 USB 堆疊」與「可信的簽章核心」同時降到 User 模式運行，Machine 模式監控程式必須承擔完整的多任務上下文切換（Context Switching）與動態 PMP 重置。而 RP2350 預設僅有 **4 個 PMP 區域**，要在 4 個條目內同時切分 Flash 程式碼、專屬 SRAM、MMIO 與共享緩衝區，硬體資源極其狹窄。
+3. **RP2350 缺乏 S-mode，且 PMP 資源與對齊受限**：
+   Hazard3 僅支援 Machine 與 User 兩層特權級，缺乏作業系統常見的 Supervisor 模式（S-mode）。若要將「不可信的 USB 堆疊」與「可信的簽章核心」同時降到 User 模式運行，Machine 模式監控程式必須承擔完整的多任務上下文切換（Context Switching）與動態 PMP 重置。而 RP2350 硬體僅配備 **8 個 PMP 區域**（單一 `pmpcfg0` 僅控管前 4 個條目，且不支援任意邊界的 `TOR` 模式、僅支援 2 的冪次對齊之 `NAPOT` 模式），要在有限條目與對齊限制內同時切分 Flash 程式碼、專屬 SRAM、MMIO 與共享緩衝區，硬體配置空間相當緊迫。
 4. **週邊驅動程式龐大且難以數學形式化**：
    C 殼層除了排程，還涵蓋 USB 堆疊、Flash Bootrom 擦寫、TRNG 採樣、SHA 加速器控制。這些程式碼規模龐大且高度非同步（主機封包插拔、時脈雜訊、中斷觸發），極難用純函數式狀態轉移 $f(\text{state}) = \text{state}'$ 進行封閉系統定理證明，往往只能仰賴 TLA+ 模型檢查或模糊測試（Fuzzing）。
 5. **投資報酬率（ROI）與工程路徑先後抉擇**：
    硬體錢包歷史上最常造成資產損失的，多半不是特權級提權，而是演算法與資料解析的致命邏輯錯誤：
    - 大數模運算溢位或邊界錯誤（如 exp228 抓出的 $-128$ 編碼正負顛倒、exp229 乘法第三次折疊進位處理）；
    - 常數時間被編譯器最佳化打破，形成時序旁通道洩漏金鑰；
-   - 交易腳本解析「看到的不等於簽的」（BIP143 / BIP341 手續費漏洞）。
+   - 交易腳本與金額解析「看到的不等於簽的」（如 BIP143 未承諾全部輸入金額，或 BIP341 簽章雜湊與顯示金額不一致導致的手續費漏洞）。
    因此本專案採取實用主義路線：**優先將輸入面對攻擊者、出錯即致命的底層有限體演算法（exp229）與腳本解析（exp228）做成證明過的機器碼**；待核心演算法完備後，再來動 M-mode 的特權架構手術。
-
 
 ### 2. 這顆晶片守不住使用中的大型秘密
 
@@ -141,7 +140,7 @@ Lean 模型對照的是 Hazard3 v1.1 的 RTL，晶片上是 v1.0-rc1。exp212 �
 
 | 功能 | 要證明的性質 | 已有的基礎 |
 | --- | --- | --- |
-| **secp256k1 的模 p 運算** | 機器碼的 limb 運算等於 `Nat` 上的模運算 | [mathlib-for-checksig](./2026-10-10-1236-mathlib-for-checksig-zh-tw.md) 第五節建議的第一個實驗；不需要 Mathlib |
+| **secp256k1 的模 p 運算** | 機器碼的 limb 運算等於 `Nat` 上的模運算 | [mathlib-for-checksig](./2026-10-10-1236-mathlib-for-checksig-zh-tw.md) 第五節建議的第一個實驗；不需要 Mathlib（已於 exp229 落地） |
 | **BIP340 驗章核心** | 驗章結果等於規格；取代 exp228 殼層裡只經過測試的 `bip340.c` | exp228 的 `ecall` 介面不用改，換掉的只是回答 CHECKSIG 的那一方 |
 | **BIP340 簽章與 nonce** | 簽章等於規格；nonce 是 (金鑰, 訊息, aux) 的規格函式，不會重用；常數時間 | exp207 的 `Ct.lean`；exp213 已經把 keygen、sign、verify 串成一條定理。nonce 重用等於金鑰外洩，是最致命的錯 |
 | **交易解析與 BIP341 簽章雜湊** | **「看到的就是簽的」**：顯示緩衝區裡的輸出、金額、手續費，和送進簽章雜湊的位元組一一對應 | exp208 的 SHA-256 核心（BIP341 的 tagged hash 用得到），加上 exp228「解析不會讀過頭」的證明手法。**對錢包價值最高的一項** |
@@ -172,13 +171,13 @@ Lean 模型對照的是 Hazard3 v1.1 的 RTL，晶片上是 v1.0-rc1。exp212 �
 1. **不要把整個錢包韌體當成驗證目標。** 用 exp224 的模式：證明過的核心做決定、C 殼層只負責搬資料。殼層越薄，沒有證明的部分就越少。
 2. **每一份規格都要有獨立的對照。** BIP 的測試向量、Bitcoin Core、libsecp256k1。證明處理的是「照規格做」，差分測試處理的是「規格本身對不對」。
 3. **先做驗證，再做簽章。** 驗章只用公開資料，不需要常數時間，也不受第三節第 2 點的晶片限制，可以先完整走一遍。簽章要等常數時間和秘密隔離都有答案再進行。
-4. **殼層的特權要另外處理。** 在 RISC-V 這一側，要先有一個實驗回答「Machine 模式能不能縮到只剩一個證明過的監控程式」，簽章核心持有秘密才有意義。具體評估與「路徑 B 微模型」架構見 [Micro-Monitor 設計規劃文件](./2026-10-14-0925-micro-monitor-in-lean4-design-zh-tw.md)。
+4. **殼層的特權要另外處理。** 在 RISC-V 這一側，要先有一個實驗回答「Machine 模式能不能縮到只剩一個證明過的監控程式」，簽章核心持有秘密才有意義。具體評估與「路徑 B 微模型」架構見 [Micro-Monitor 設計規劃文件](./micro-monitor/2026-10-14-0925-micro-monitor-in-lean4-design-zh-tw.md)。
 
 ### 建議的實驗順序
 
 | 順序 | 內容 | Needs | 重用 |
 | --- | --- | --- | --- |
-| 1 | secp256k1 模 p 加法與乘法 | 0 | `lean/Rv32` |
+| 1 | secp256k1 模 p 加法與乘法（exp229 已完成） | 0 | `lean/Rv32` |
 | 2 | 純量乘法與 BIP340 驗章核心，取代 exp228 殼層裡的 `bip340.c` | 0（上板確認時 2） | exp228 的殼層與 `ecall` 介面 |
 | 3 | 韌體更新驗證：exp206 的 MSS 驗證器接上 exp211 的計數器做防回滾 | 2 到 3 | exp206、exp211 |
 | 4 | 交易解析、BIP341 簽章雜湊與「看到的就是簽的」定理 | 0 | exp208、exp228 |
