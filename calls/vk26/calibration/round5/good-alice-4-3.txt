@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:27-28, README.md:355-361, README.md:369-373, capture.txt:237-247, board/round1.txt:1, capture.txt:198
+reason: The board numbers match the capture and the saved-log check. These include 165 whole cases, 0 wrong, 3 incomplete, mcycle 15,078 in 125 first runs (up to +1,596), and the reseed check at 15 in 162 cases. The RTL numbers also match (minstret 4318/4318/11, mcycle 42,739 and 15). The theorem claims match `from_boot`, `reseed_boot`, `generate_twice` and `after_out`, and the 13 mutants and 8 wrong shells match the capture. Two small unsupported details do not change the verdict. The "178 cases" figure is the span of the log, partly inferred. The 1024-byte queue behaviour describes shell code that is not in the bundle.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1414, ../lean/Alice/Drbg.lean:1417, ../lean/Alice/Drbg.lean:1418, ../lean/Alice/Drbg.lean:1419, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1421, ../lean/Alice/Drbg.lean:1422, ../lean/Alice/Drbg.lean:1061, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1373, ../lean/Alice/Drbg.lean:1374, ../lean/Alice/Drbg.lean:1432, ../lean/Alice/Drbg.lean:1433, ../lean/Alice/Drbg.lean:1451, ../lean/Alice/Drbg.lean:1452, ../lean/Alice/Drbg.lean:1454, README.md:105, README.md:106, README.md:107, README.md:95, README.md:124, README.md:126
+reason: `from_boot` is in from_boot form: it is about the kernel's own bytes, run from `boot`, and it is quantified over every v, c and cnt and any `env.hash`. It concludes running at `COST m − 1` and halted 0 at `COST m = 2030 + 566m`, with the region equal to `after`. Its extra hypotheses (1 ≤ m, the blocks fit, the interval below 2^32−1, the image's 0x03, zero padding and the number 1) are all stated in the README. `after_out`, `reseed_boot` (halt 1 after 7, memory the image) and `generate_twice` (pc at base, memory the first run's, cnt+1 ≤ interval, result `after` of `after`) state what the README says they state.
+J3: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1444
+reason: No prior experiment has a Hash_DRBG Generate kernel. `from_boot` gives its exact cost `COST m = 2030 + 566m`, and `generate_twice` chains two Generates. Both are new, as is the 120-case NIST CAVP check on the board.
+J4: YES
+evidence: ../tools/hashdrbg.py:57-60, ../tools/hashdrbg.py:63-69, ../tools/hashdrbg.py:42-48, README.md:170-173
+reason: The reference is written from the SP 800-90A text and does the 440-bit sums as whole Python integers mod 2^440 with `hashlib`. The kernel does them byte by byte with carries. NIST's ReturnedBits give a further check that is independent of both. The JS page (`../pages/drbg.js`) uses BigInt and WebCrypto.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:144, README.md:148, shell/shell.c:75
+reason: The board claim that the beat is reached "in only one way: all four checks held" and that later lives play "only if" `minstret` is 3082 relies on `board_fail` not returning. `board_fail` and `board_play` are defined in `board.h`, which is not in the bundle, and `shell.c:75` calls `board_fail` with nothing after it to stop a return. Everything else I checked is supported: the theorems, the eleven refusals, the 20 seeds, the 3082 count and the UF2 hash.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:84, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` covers any image whose first 76 bytes are the kernel's. From `boot`, it is still running after 3078 instructions and halts with 0 at exactly 3079, with memory equal to `lived m0 base N`. That is the initial memory overlaid only on the 1024 bytes from 0x200 with generations 1 to 256 of `life` from the word at 0x100, little-endian, matching the README. `lives` and `not_before` quantify over every machine state, so every seed, with only the placement and code hypotheses the README states, and `rule30` states the cell-by-cell rule with the same indices and modulus as README.md:53.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288, README.md:139
+reason: No prior experiment covers a cellular automaton. This one adds a new kernel (Rule 30) with `rule30` (the formula proved cell by cell) and `lives` (exactly 3079 instructions, 256 generations). It also adds a board observation of the resulting beat.
+J4: YES
+evidence: rule30.py:19-24, proof/Life.lean:76, differential/differential.py:49-52
+reason: `rule30.py` computes each cell individually from its left, centre and right bits with modular indexing, whereas the Lean `life` uses whole-word shifts and ORs. The differential compares both the model and the RTL against that Python output.
+INJECTION: NONE
+END

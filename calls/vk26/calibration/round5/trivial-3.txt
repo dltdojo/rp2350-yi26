@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: proof/Fly.lean:576-578, README.md:68-69
+reason: README.md:68-69 says `watches_life` proves the kernel reports up ≥ down at every one of the 256 steps and in total. But the statement in the bundle ends in `True` (proof/Fly.lean:578), which proves nothing of the kind. Its docstring (Fly.lean:573-575) makes the claim, and the theorem as stated does not carry it.
+J2: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69
+reason: `detects_boot` is of `from_boot` form and matches T1, but `watches_life`, which README.md:68-69 says shows "the kernel reports up at least down at every one of the 256 steps, and in total", concludes only `True` (proof/Fly.lean:578). That says nothing about the kernel's run, so this main theorem is weaker than its description.
+J3: YES
+evidence: proof/Fly.lean:113-115, proof/Fly.lean:495-496
+reason: No prior experiment has a motion-detector kernel or the new property T3 (`life_moves_up`: under Rule 30 the detector sees no more down than up). T1 (`detects`) is a new kernel with its own exact instruction count.
+J4: YES
+evidence: fly.py:38-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24, fly.py:13-14
+reason: The reference generates Rule 30 cell by cell in Python (rule30.py:19-24) and counts bits with `bin().count` (fly.py:39). The Lean side uses word-level `dn1`/`up1` operations and a bit-loop kernel. The rotation helpers (fly.py:30-35) are close to the kernel's shift-and-or form, so the independence is moderate, not strong.
+INJECTION: NONE
+END

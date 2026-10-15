@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Fly.lean:495, proof/Fly.lean:130, proof/Fly.lean:113, proof/Fly.lean:576, proof/Fly.lean:589, capture.txt:26, capture.txt:27, capture.txt:30, capture.txt:40
+reason: The proved claims (T1, T2, T3, `watches_life`, `watches_shift`) match theorem statements quantified over all inputs. The measured claims match the capture: 70927 instructions and 71697 cycles on the RTL, the 2^32 brute-force counts, and the 2053/1030 totals. No board claim is made. Not checkable from the bundle, but not substantive: the C-program detail in the WHY file, the shared-library moves, and the "Rule 86 seen moving down" aside, which follows from mirror symmetry.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:115, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:589, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:593, README.md:54, README.md:58, README.md:59, README.md:60, README.md:63, README.md:68, README.md:69, README.md:70, README.md:71
+reason: `detects_boot` is of `from_boot` form. It starts from `boot env.region img` for any image that begins with the kernel's bytes, is `.running` after 70923 instructions and `.halted 0` at 70924, and leaves `Sees`: every step's `toUp`/`toDn`, both totals, and the frames unchanged, for arbitrary frames, as README T1 says. T2's `up1 (up1 x) ≠ x` / `dn1 (dn1 x) ≠ x`, T3's universal ≤, and the per-step and total conclusions of `watches_life`/`watches_shift` (with their life, shift and period-two hypotheses) match the README's quantifiers, hypotheses and conclusions.
+J3: YES
+evidence: proof/Fly.lean:113, proof/Fly.lean:130, proof/Fly.lean:495
+reason: It adds a new 41-instruction detector kernel with `detects`, and a new consequence about exp225's Rule 30 in T3. It also finds that the four period-two rings are exceptions to T2. None of the listed prior experiments proves any of these.
+J4: YES
+evidence: fly.py:13, fly.py:30, fly.py:38, ../exp225-the-life-every-beat-proved/rule30.py:19
+reason: fly.py counts bits with Python's `bin().count`, not Lean's `pc`. Rule 30 is taken from exp225's `rule30.py`, which is written cell by cell, where Lean uses `dn1 x ^^^ (up1 x ||| x)`. The README says how they differ and the code bears it out. The weak point is that `rot_up` uses the same shift-and-OR as the kernel, despite the docstring's claim that it does not.
+INJECTION: NONE
+END

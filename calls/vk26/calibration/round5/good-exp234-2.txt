@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:75, board/round1.txt:1, board/round1.txt:6, board/round1.txt:71, capture.txt:23, capture.txt:41, capture.txt:67, ../exp232-the-cure-the-proof-predicts/board/round1.txt:11, ../exp232-the-cure-the-proof-predicts/board/round2.txt:13
+reason: Each proved claim (W1, W0, M6, M7, M8, and D = 0, 0, 1, 2, 3, 8) matches a theorem statement in proof/World.lean. The axiom check, the six refused mutants and the 12.715% / 40000-patient table match capture.txt. The board claims (27 treated, 4 missed, 17 controls missed, 38 patients agreed, minstret 4046, 19 of 19 replayed, patients 7 and 16 missed, widths 1 and 2 all cured) match board/round1.txt, capture.txt and the UF2 hash, and the README says plainly which are a person's observation. The 4 of 30 and 142 of 1038 figures match exp232's logs and capture. The LED pattern is described as exp232's design, not as something observed.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:510, proof/World.lean:511, proof/World.lean:489, proof/World.lean:490, proof/World.lean:188, proof/World.lean:622, proof/World.lean:588, proof/World.lean:589, proof/World.lean:641, proof/World.lean:642, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:663, proof/World.lean:664, README.md:71, README.md:72, README.md:73, README.md:74, README.md:75, README.md:76
+reason: `from_boot` is about any image starting with the kernel's own `bytes`, run from `boot`. It is still running at 4042 and halted with 0 at 4043, with memory equal to `lived`, which overlays only the 768 history bytes, for every initial memory and so every input and mask. `still`, `resistance_stays`, `cured_iff`, `answer_world` (∀ p, 1 ≤ w ≤ 6) and `zero_stays` match the README's quantifiers and conclusions; `zero_stays`' `inside` hypothesis only says resistant cells are tumour cells, which the README's wording already implies.
+J3: YES
+evidence: proof/World.lean:79, proof/World.lean:641, proof/World.lean:588, proof/World.lean:718, README.md:83, board/round1.txt:1
+reason: New is a proved world kernel with the random draw as an input (W1), plus M6, M7 and M8 about resistance, and the exact predicted failure rate from `answer_world`. The rate is checked against 40000 simulated patients and a board run. The prior exp232 proved only the resistance-free model.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:3, ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:66, world.py:43, world.py:56, gen.py:38, differential/differential.py:66
+reason: cure.py writes the dose and growth rule cell by cell in a Python loop over indices, while the Lean kernel uses shifts, rotations and masks. world.py computes the divisions by running that cell-by-cell code and the rate with exact `Fraction` arithmetic. The differential test compares the Lean model and the RTL against this reference.
+INJECTION: NONE
+END
