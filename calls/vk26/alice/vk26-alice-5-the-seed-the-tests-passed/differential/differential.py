@@ -33,7 +33,7 @@ from expect import model  # noqa: E402
 from region import rtl_region  # noqa: E402
 from hashdrbg import OUT, cavp_cases  # noqa: E402
 from trustref import OUTPUT, bad_wants, image as trust_image, trust_outcome, trust_streams  # noqa: E402
-from seed import INTERVAL, NONCE, PI, chain, inst_image, inst_region, load_code, nonce_of  # noqa: E402
+from seed import INTERVAL, NONCE, PI, seed_chain, inst_image, inst_region, load_code, nonce_of  # noqa: E402
 
 # proof/Seed.lean's count, to the halt.
 INST_COST = 241
@@ -118,7 +118,7 @@ def differential():
     runs += [(f"fair, a KAT the hash fails ({what})", streams[0][1], nonce_of(99), want)
              for what, want in bad_wants().items()]
     for name, words, nonce, want in runs:
-        code, bits, why = chain(words, nonce, M, want)
+        code, bits, why = seed_chain(words, nonce, M, want)
         problems = []
         for w in ("model", "rtl"):
             got_code, got_bits, p = through(rv32run, kernels, words, nonce, want, w)

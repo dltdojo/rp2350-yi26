@@ -22,7 +22,7 @@ and nothing else: each kernel reads what the last one left.
                      0x2480 (the kernel's own bytes go in with load_code)
   inst_region(region)
                      the whole 64 KiB region after the Instantiate kernel
-  chain(words, nonce, m, want)
+  seed_chain(words, nonce, m, want)
                      (code, bits, why): the chain on 2048 samples; bits only
                      when every step passed
 """
@@ -93,7 +93,7 @@ def nonce_of(n):
     return n.to_bytes(NONCE_LEN, "little")
 
 
-def chain(words, nonce, m=4, want=None):
+def seed_chain(words, nonce, m=4, want=None):
     """The chain as the plan states it: (alice-2's halt code, the returned
     bits or None, why)."""
     code, writes, why = trust_outcome(words, want)
