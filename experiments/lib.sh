@@ -305,9 +305,11 @@ usb_check() {
 # convenience. This runs *inside* the pipeline that is writing `capture.txt`, so
 # without the exclusion every recording reports a dirty tree — including one
 # made from a clean checkout, which would make the warning mean nothing within a
-# day of existing.
+# day of existing. Every capture.txt in the repository, from its top: the
+# pathspec is relative to where git runs, and `*capture.txt` alone exempted only
+# experiments/, so calls/vk26/alice's five re-recordings refused after the first.
 capture_dirty() { # what makes the tree dirty, capture.txt aside; empty if clean
-    git -C "$(dirname "${BASH_SOURCE[0]}")" status --porcelain -- ':(exclude)*capture.txt' 2>/dev/null
+    git -C "$(dirname "${BASH_SOURCE[0]}")" status --porcelain -- ':(top,exclude)*capture.txt' 2>/dev/null
 }
 
 capture_header() { # title
