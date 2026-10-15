@@ -523,7 +523,7 @@ first and last NIST cases and both chains on the RTL:
 
 ```
 === vk26-alice-5 — the seed the tests passed ===
-recorded at 2026-10-15T02:53:03Z from commit 659f254
+recorded at 2026-10-15T06:21:36Z from commit 2c55f31
 
 >>> the theorems, and what they rest on
 'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -548,7 +548,7 @@ code_zero_iff  the claim: the chain goes on when the start-up window failed     
 120 of 120 NIST cases: the Instantiate kernel's region holds hashdrbg's V and C, and two Generates from it give NIST's ReturnedBits
 
 >>> the shell, for the chip and for the RTL
-build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3
+build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3; the Instantiate kernel alone with the word after its halting ecall 0x00000000 260, nop 261, addi x10, x0, 1 261, 0xffffffff 260, ecall 261
 build/vk26-alice-5.bin  49076 bytes, the build allows 65536
 build/vk26-alice-5.uf2  98304 bytes  sha256 a411ebbef2fd8a92e484e72eada821dc916b5d049cb469a9df1dd3e6e58c72bd
 
