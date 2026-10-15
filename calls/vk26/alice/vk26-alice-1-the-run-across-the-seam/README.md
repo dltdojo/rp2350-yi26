@@ -379,9 +379,10 @@ Pasted from it — the theorems, the mutants, the six streams on the RTL:
 
 ```
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-15T11:23:55Z from commit 06e4001
+recorded at 2026-10-15T23:52:37Z from commit 1dea371
 
 >>> the theorems, and what they rest on
+'Alice.Window.win_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.window_head' depends on axioms: [propext, Classical.choice, Quot.sound]
