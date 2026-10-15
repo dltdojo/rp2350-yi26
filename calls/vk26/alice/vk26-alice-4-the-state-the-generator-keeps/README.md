@@ -24,7 +24,15 @@ vectors were reachable from the cloud, so the hash is held to SHA-256 three
 ways: drbg.py gives all 120 SHA-256 cases' ReturnedBits; the Lean model and
 the Hazard3 RTL generate them all, twice each, through the kernel's own
 region; and the shell runs all 120 on the RTL, three runs a case, the third
-refused for reseed. The UF2 has not run on a board yet.**
+refused for reseed. On a Pico 2, read on a phone through the page, the
+board ran 178 cases over two rounds without a FAIL. The saved log holds 165
+of them whole, and all 165 are right. Their second Generate's bits are
+NIST's ReturnedBits, so the chip's SHA-256 block, with this experiment's
+own padding, is SHA-256 on HASHB's 55- and 56-byte inputs. Every
+Generate's minstret is the RTL's 4318. Every second Generate took 15,078
+cycles, whatever the state. The first Generate took 15,078 in 125 of the
+165 cases and up to 1,596 more in the rest, mostly the same cases in both
+rounds.**
 
 This is the fourth experiment of [alice's trial proposal](../README.md) for
 the vk26 call.
@@ -323,6 +331,55 @@ What the run will say, stated before it happens:
   window, and vk26-alice-3 found that what the shell reads from flash
   before a run moves the harness's two lines in and out of the XIP cache.
 
+## On the board
+
+[`board/round1.txt`](./board/round1.txt): a Pico 2 running
+`vk26-alice-4.uf2` (`4843dec1…`, committed in 05083dd), the page on a
+phone, the file Save gave back, kept as it came.
+
+The page joined in round 0's case 33 and saved during round 1's case 91.
+It saw 168 CASE lines, judged 165 right, 0 wrong and 3 incomplete, with no
+FAIL line. `fixtures.py --board` agrees, against NIST:
+- every whole case's V and C are drbg.py's instantiation of NIST's inputs;
+- the first Generate's blocks are drbg.py's;
+- the second Generate's 1024 bits are NIST's ReturnedBits;
+- every halt code, counter and minstret is the RTL's: 4318, 4318 and 11.
+
+The predictions:
+- **Every case right: held.** The one untested piece, `board_chip.c`'s
+  padding on the SHA-256 block for 55 and 56 bytes, is right. Had it been
+  wrong, the first case would have failed check 4.
+- **minstret: held,** in every one of the 495 runs.
+- **mcycle, not predicted:**
+  - Every second Generate took 15,078 cycles, all 165, whatever V and C
+    were.
+  - The first took 15,078 in 125 cases. The other 40 took 110 to 1,596
+    more.
+  - The reseed check took 15 cycles in 162 cases, and 115 to 135 in 3.
+
+  The slow first runs come in runs of neighbouring cases (40–43, 49–51,
+  69–72, 77–80). Of the 54 cases seen whole in both rounds, 41 took the
+  same cycles both times, and the slow ones were mostly slow both times.
+  Case 67's reseed check was slow in both rounds. That points at where
+  each case's data lies in flash, not at its values. Before the first run
+  the shell reads that case's V and C out of flash, so this is
+  vk26-alice-3's XIP cache finding again. Here the code that misses
+  includes HASHB's handler, which runs inside the timed window. The second
+  run comes straight after the first, everything warm, and is one number.
+
+**Lines lost on the way to the phone.** Of the three incomplete cases:
+- the first is where the page joined, mid-case;
+- the other two lie in round 1, where the log jumps from case 25's
+  second Generate to case 31's CASE line, and then to the end of case 36.
+  Cases 26–30 and 32–35 never reached the page at all.
+
+Every line in the log is whole, so whole lines were lost, not bytes. The
+board drops a whole line when its 1024-byte queue is full and counts it in
+the status line's `dropped`. The last status line before the gap says
+`dropped=0`, and none came after it. So the log cannot say whether the
+board or the phone lost them. The page and fixtures.py claimed nothing
+about the cases they lost: an incomplete case is not judged.
+
 ## What it does not say
 
 - That Instantiate is right: drbg.py's Hash_df is checked only through
@@ -331,8 +388,10 @@ What the run will say, stated before it happens:
   below), and HASHB's time on the chip is the shell's.
 - Anything about reseeding, prediction resistance, or additional input:
   this Generate has none of them.
-- That the chip's SHA-256 block is SHA-256 on these lengths. Check 4
-  against NIST's bits will say it, on a board.
+- That the chip's SHA-256 block is SHA-256 on other lengths: the board
+  checked 55 and 56 bytes, every HASHB this kernel makes.
+- Why the first Generate is slow for some cases: the cache explanation
+  fits the pattern, and alice-3 measured it, but this run did not probe it.
 
 ## What the trial found in the call's settings
 
