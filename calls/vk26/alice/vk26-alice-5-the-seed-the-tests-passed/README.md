@@ -20,7 +20,12 @@ time with the hash's answer to the KAT spoiled. On the Lean model and the
 Hazard3 RTL every case and every chain is seed.py's. Along the way, the RTL
 explained the one instruction vk26-alice-1 and vk26-alice-2 counted and
 could not account for: minstret counts one more when the word after the
-halting `ecall` is a legal instruction. Nothing here has run on a board.**
+halting `ecall` is a legal instruction. On a Pico 2, read on a phone, the
+saved log holds 202 whole NIST cases and both chains of one round, all
+right and no FAIL. Hash_df's 53-, 61- and 85-byte inputs to the chip's
+SHA-256 block come out SHA-256's. The TRNG's chain made bits the page made
+again, and the spoiled one stopped with 2. The chip counts as the RTL does,
+the Instantiate kernel 260 alone and 261 in the chain.**
 
 This is the fifth experiment of [alice's trial proposal](../README.md) for
 the vk26 call, and the one the first four were for.
@@ -396,6 +401,60 @@ What the run will say, stated before it happens:
 - **mcycle: not predicted.** vk26-alice-4's board found the first Generate
   slower for some cases, by where they lie in flash.
 
+## On the board
+
+[`board/round1.txt`](./board/round1.txt): a Pico 2 running
+`vk26-alice-5.uf2` (`a411ebbe…`, committed in 8a4ffa0), the page on a
+phone, the file Save gave back, kept as it came.
+
+The page joined at round 0's case 31 and saved during round 1's case 113.
+It judged 202 NIST cases right, 0 wrong and 0 incomplete, and both of
+round 0's chains right: one gave bits, one was refused at the KAT. It saw
+no FAIL line, and every status line says `dropped=0 errors=0`.
+`fixtures.py --board` agrees:
+- every case's seed material is NIST's for its name, its V and C
+  hashdrbg.py's instantiation, its second Generate's 1024 bits NIST's
+  ReturnedBits;
+- round 0's chain from the TRNG, done again by seed.py from its BITS
+  lines: alice-2's code 0, the digest SHA-256 of window 1, V and C the
+  Instantiate of digest ‖ nonce 0, the four blocks seed.py's;
+- the spoiled chain: the answer to the KAT hashlib's with its first bit
+  flipped, code 2, nothing after it;
+- every minstret the RTL's.
+
+The predictions:
+- **Every NIST case right: held.** 104 of the cases have a 48-byte seed
+  material and 99 an 80-byte one, so the chip's SHA-256 block answered
+  HASHB on 53 and 85 bytes for V and 61 for C, through vk26-alice-4's
+  padding, now `hashb_chip.h`, and got SHA-256 each time.
+- **The TRNG's chain, code 0: held,** once, in round 0. The samples' tests
+  passed and the page made the same 1024 bits from them. The spoiled chain
+  stopped with 2 at 51 instructions. Round 1's chains were not reached
+  before Save.
+- **minstret: held** in every run: 260, 4318, 4318 for each case; 34,897,
+  261 and 4318 in the chain; 51 for the spoiled one. So the chip, too,
+  counts the same Instantiate kernel 260 alone (203 times) and 261 after
+  alice-2's code: the one more is on silicon, where the word after the
+  `ecall` is an instruction, and not where it is zero.
+- **mcycle, not predicted:**
+  - Every second Generate took 15,088 cycles, all 203; vk26-alice-4's
+    took 15,078.
+  - Instantiate took 9,212 at the least for a 48-byte seed material (62 of
+    104) and 11,372 for an 80-byte one (78 of 99): 2,160 more for the two
+    extra SHA-256 blocks of V's two hashes, 1,080 a block.
+  - The chain's Instantiate took 9,212, the fastest NIST one's figure,
+    though it retired one more instruction.
+  - vk26-alice-2's kernel took 58,945 cycles for code 0 and 1,547 for the
+    spoiled KAT.
+
+  The slow runs (an Instantiate or a first Generate) fall in 40 cases, and
+  they come in clusters 16 cases apart: 0–4, 16–19, 31–38, 47–50, 63–69,
+  79–82, 95–99, 111–113. A case is 260 bytes of the table in flash, so 16
+  cases is about 4 KiB. Of the 83 cases seen whole in both rounds, 28 were
+  slow in both. That is vk26-alice-4's pattern again, with a period this
+  time. It points at where a case's bytes lie in flash and the XIP cache,
+  as vk26-alice-3 measured; this run did not probe it.
+
 ## What it does not say
 
 - That the TRNG's samples carry the entropy SP 800-90B asks for: the
@@ -405,9 +464,12 @@ What the run will say, stated before it happens:
 - That a nonce never repeats: it is the round, and a board restarted starts
   again at 0.
 - Anything about reseeding, prediction resistance or additional input.
-- That the RTL's one more is a property of Hazard3 beyond these runs: five
-  words after one `ecall`, on the RTL, and two experiments' logs on the
-  chip.
+- That the one more is a property of Hazard3 beyond these runs: five
+  words after one `ecall` on the RTL, and on the chip this kernel's 260
+  and 261 and two earlier experiments' logs.
+- That the chain works every round: the log holds one round's chains.
+- Why some first runs are slow: the clusters fit the cache explanation,
+  and this run did not probe it.
 
 ## What the trial found in the call's settings
 
@@ -444,6 +506,7 @@ Found while making this experiment, and recorded in
 | [seed.html](./seed.html) | the page |
 | [fixtures.py](./fixtures.py), [page_test.mjs](./page_test.mjs) | the page's tests; `fixtures.py --board` for a saved log |
 | [check.sh](./check.sh), [run.sh](./run.sh), [capture.txt](./capture.txt) | the checks, and their run recorded |
+| [board/round1.txt](./board/round1.txt) | the log a phone saved from a Pico 2 |
 | [WHY.zh-TW.md](./WHY.zh-TW.md) | for students, in Traditional Chinese |
 
 ## Expected output
