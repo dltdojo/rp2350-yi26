@@ -151,6 +151,7 @@ has_line "the shell is in the bundle: exp225's board claim argues from it" "$WOR
 has "  … and in the J1 slice" "$WORK/s225-j1.txt" "=== BEGIN shell/shell.c"
 "$JB" slice "$E225" J2 > "$WORK/s225-j2.txt"
 lacks "  … but not in the J2 slice" "$WORK/s225-j2.txt" "=== BEGIN shell/shell.c"
+has "  … with the shell's own header beside it, which says board_fail does not return" "$WORK/s225-j1.txt" "=== BEGIN shell/board.h"
 # The differential is what a measured claim rests on: exp225's README.md:86-87
 # names the twenty seeds, and differential.py's seeds() is where they are. v2
 # left it out and round 2's re-probe found that claim unsupported.
@@ -183,8 +184,10 @@ cite_234() { # name J1-evidence
 }
 cite_234 extra "../../exp232-the-cure-the-proof-predicts/capture.txt:1"
 cite_234 stranger "../../exp999-nothing/capture.txt:1"
+cite_case short "shell.c:77"
 "$JB" tally "$WORK/b234.txt" "$WORK/cite-extra.txt" > "$WORK/t6.txt" && pass "  … accepts a linked capture cited with one \`../\` too many" || fail "  … accepts a linked capture cited with one \`../\` too many" "$(grep -m1 cites "$WORK/t6.txt")"
 "$JB" tally "$WORK/b234.txt" "$WORK/cite-stranger.txt" > "$WORK/t7.txt"; has "  … but not a path that fits no file" "$WORK/t7.txt" "not in the bundle"
+"$JB" tally "$WORK/b225.txt" "$WORK/cite-short.txt" > "$WORK/t8.txt" && pass "  … and shell.c:77 for shell/shell.c:77, the one file it fits" || fail "  … shell.c:77 for shell/shell.c:77" "$(grep -m1 cites "$WORK/t8.txt")"
 
 # Everything the judge reads is scanned for text addressed to it, the
 # differential included now that J1 reads it.

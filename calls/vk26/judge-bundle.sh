@@ -369,6 +369,11 @@ def files_of(exp, question=None):
     # the J4 slice reads the reference, not the harness around it.
     if question in (None, "J1"):
         add("shell/shell.c", 1000)
+        # The shell's own headers: what it calls and whether that returns.
+        # Calibration round 5: exp225's README rests on board_fail never
+        # returning, which only shell/board.h says (noreturn); two of three
+        # runs noticed it missing, one answered NO for it.
+        add("shell/*.h", 200)
         add("differential/*.py", 1000)
         add("capture.txt", 600)
         add("board/*.txt", 100)
@@ -662,17 +667,21 @@ def bare(path):
 
 
 def resolve_cite(ref, cites):
-    """A citation as the bundle has it. One whose path differs from a bundle
-    file's only in its leading `../` steps is that file, when exactly one
-    file is: in calibration round 5 a judge wrote
-    `../../vk26-alice-5-…/capture.txt:28` for the bundle's
-    `../vk26-alice-5-…/capture.txt`, the right file and line, and the answer
-    was thrown out. A path that matches no file, or more than one, stays as
+    """A citation as the bundle has it. A path that names a bundle file
+    with its leading `../` steps wrong, or by its last components only, is
+    that file, when exactly one file fits: in calibration round 5 a judge
+    wrote `../../vk26-alice-5-…/capture.txt:28` for the bundle's
+    `../vk26-alice-5-…/capture.txt`, and another `shell.c:75` and
+    `Life.lean:288` for `shell/shell.c` and `proof/Life.lean` — the right
+    files and lines, and the answers were thrown out. The line must still be
+    one the file has. A path that fits no file, or more than one, stays as
     written and is refused."""
     if ref in cites:
         return ref
     path, line = ref.rsplit(":", 1)
-    hits = {c.rsplit(":", 1)[0] for c in cites if bare(c.rsplit(":", 1)[0]) == bare(path)}
+    want = bare(path)
+    hits = {f for f in (c.rsplit(":", 1)[0] for c in cites)
+            if bare(f) == want or bare(f).endswith("/" + want)}
     return f"{hits.pop()}:{line}" if len(hits) == 1 else ref
 
 
