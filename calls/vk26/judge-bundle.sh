@@ -266,13 +266,32 @@ def boot_counts(st):
     return out
 
 
+def proof_files(exp):
+    """The experiment's proof/*.lean, and every module of its proposer's own
+    package (calls/<call>/<proposer>/lean/) they import, and those import:
+    a proof may live in the package and be checked from a thin proof file
+    (vk26-alice-5 moved alice-2's and alice-4's there, their second user)."""
+    files = sorted(glob.glob(os.path.join(exp, "proof", "*.lean")))
+    rel = os.path.relpath(os.path.abspath(exp), REPO).split(os.sep)
+    pkg = os.path.join(REPO, *rel[:3], "lean") if len(rel) >= 4 and rel[0] == "calls" else None
+    seen, todo = set(files), list(files)
+    while pkg and todo:
+        for mod in re.findall(r"^import (\S+)$", open(todo.pop(), encoding="utf-8").read(), re.M):
+            p = os.path.join(pkg, *mod.split(".")) + ".lean"
+            if os.path.isfile(p) and p not in seen:
+                seen.add(p)
+                files.append(p)
+                todo.append(p)
+    return files
+
+
 def gate15(exp):
     """G1.5: what a machine can settle before the judge is asked. A from_boot
     theorem — `run env N (boot …)` with N an exact count — and no theorem whose
     conclusion is literally True. A conclusion like `1 = 1` passes: J2 compares
     the main theorems with the README, and that is where it fails."""
     probs, found, loose = [], False, []
-    for p in sorted(glob.glob(os.path.join(exp, "proof", "*.lean"))):
+    for p in proof_files(exp):
         name = os.path.relpath(p, exp)
         for n, st in lean_statements(p):
             for count, exact in boot_counts(st):
