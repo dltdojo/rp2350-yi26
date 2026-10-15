@@ -72,19 +72,25 @@
 #                                  prior work, and the name the judge sees.
 #                                  calibration/cases.sh uses it for its altered
 #                                  copies; nothing else should
+#   VK26_SRC=DIR                   read the experiments, the prior-work index
+#                                  and the git state from DIR, a checkout of
+#                                  another commit; JUDGE.md and models.env stay
+#                                  this one's. calibration/cases.sh uses it to
+#                                  build its cases at the commit they were
+#                                  calibrated on
 
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,80p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,80p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,80p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,80p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    usage) [[ -f "${2-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,80p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,80p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -97,6 +103,8 @@ import subprocess
 import sys
 
 REPO, MODE, *ARGS = sys.argv[1:]
+# Where what is judged is read from; REPO is where the judge's own settings are.
+SRC = os.path.abspath(os.environ.get("VK26_SRC") or REPO)
 
 # Text addressed to whoever judges the experiment. Words that only an
 # experiment about judging would use on their own are not enough: a hit needs
@@ -276,8 +284,8 @@ def proof_files(exp):
     a proof may live in the package and be checked from a thin proof file
     (vk26-alice-5 moved alice-2's and alice-4's there, their second user)."""
     files = sorted(glob.glob(os.path.join(exp, "proof", "*.lean")))
-    rel = os.path.relpath(os.path.abspath(exp), REPO).split(os.sep)
-    pkg = os.path.join(REPO, *rel[:3], "lean") if len(rel) >= 4 and rel[0] == "calls" else None
+    rel = os.path.relpath(os.path.abspath(exp), SRC).split(os.sep)
+    pkg = os.path.join(SRC, *rel[:3], "lean") if len(rel) >= 4 and rel[0] == "calls" else None
     seen, todo = set(files), list(files)
     while pkg and todo:
         for mod in re.findall(r"^import (\S+)$", open(todo.pop(), encoding="utf-8").read(), re.M):
@@ -449,7 +457,7 @@ def scan(exp):
 
 def where(exp):
     """The experiment's path in the repository, or VK26_AS's."""
-    return os.environ.get("VK26_AS") or os.path.relpath(os.path.abspath(exp), REPO)
+    return os.environ.get("VK26_AS") or os.path.relpath(os.path.abspath(exp), SRC)
 
 
 def prior_rows(exp):
@@ -468,7 +476,7 @@ def prior_rows(exp):
         m = re.match(r"exp(\d+)", rel[1])
         mine = int(m.group(1)) if m else None
     rows = []
-    for line in open(os.path.join(REPO, "experiments", "README.md"), encoding="utf-8"):
+    for line in open(os.path.join(SRC, "experiments", "README.md"), encoding="utf-8"):
         m = re.match(r"\| \[(exp(\d+)-[^\]]+)\]\([^)]*\) \| ([^|]*) \| (.*) \|\s*$", line)
         if not m or int(m.group(2)) < 201:
             continue
@@ -535,8 +543,8 @@ def bundle(exp, gates=None, question=None):
     exp = exp.rstrip("/")
     rel = where(exp)
     try:
-        commit = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-        dirty = subprocess.run(["git", "-C", REPO, "status", "--porcelain", "--", rel], capture_output=True, text=True).stdout.strip()
+        commit = subprocess.run(["git", "-C", SRC, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        dirty = subprocess.run(["git", "-C", SRC, "status", "--porcelain", "--", rel], capture_output=True, text=True).stdout.strip()
     except OSError:
         commit, dirty = "unknown", ""
     hits = scan(exp)

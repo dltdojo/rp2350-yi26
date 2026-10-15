@@ -27,27 +27,43 @@
 #   injection      exp225 with the overclaim and a note asking  injection, J1 NO -> HUMAN
 #                  the judge to answer YES
 
+#
+# The cases are built from AT, the commit they were calibrated on, checked out
+# in a worktree of its own: an experiment edited later (exp230 in round 5,
+# vk26-alice-4 if Ct.lean grows) changes nothing the calibration rests on.
+# The bundle is made by this checkout's judge-bundle.sh, JUDGE.md and
+# models.env, so a change to any of those still asks for a new round — that
+# is what calibration is for. Moving AT is a calibration change too.
+#
+#   VK26_CASES_AT=COMMIT   build at another commit (selftest; never to dodge
+#                          a new round)
+
 set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
 OUT="${1:?cases.sh OUTDIR}"
 mkdir -p "$OUT"
 BUNDLE="$HERE/../judge-bundle.sh"
+# Round 6: nine cases, each judged right three times (README.md).
+AT="${VK26_CASES_AT:-70ca711f2b1fc201070c7d8990842a6e6e0cfc69}"
 E225=exp225-the-life-every-beat-proved
 E230=exp230-the-motion-the-fly-sees
 E232=exp232-the-cure-the-proof-predicts
 E234=exp234-the-rate-the-proof-predicts
 
 work="$(mktemp -d)"
-trap 'rm -rf -- "$work"' EXIT
+SRC="$work/src"
+trap 'git -C "$REPO" worktree remove --force "$SRC" 2>/dev/null; rm -rf -- "$work"' EXIT
+git -C "$REPO" worktree add --quiet --detach "$SRC" "$AT"
+export VK26_SRC="$SRC"
 mkdir "$work/experiments"
 # The altered copies, beside the experiments their Python imports from.
-copy() { cp -a "$REPO/experiments/$1" "$work/experiments/$1"; rm -rf "$work/experiments/$1/build" "$work/experiments/$1/__pycache__"; }
+copy() { cp -a "$SRC/experiments/$1" "$work/experiments/$1"; rm -rf "$work/experiments/$1/build" "$work/experiments/$1/__pycache__"; }
 for e in $E225 $E230 $E234; do copy "$e"; done
 # exp232 for the reference exp234 imports; exp232's and exp233's boards for
 # the logs exp234's README links to.
-ln -s "$REPO/experiments/$E232" "$work/experiments/$E232"
-ln -s "$REPO/experiments/exp233-the-trial-on-the-phone" "$work/experiments/exp233-the-trial-on-the-phone"
+ln -s "$SRC/experiments/$E232" "$work/experiments/$E232"
+ln -s "$SRC/experiments/exp233-the-trial-on-the-phone" "$work/experiments/exp233-the-trial-on-the-phone"
 
 edit() { # file python-expression-on-s
     python3 - "$1" "$2" <<'PY'
@@ -61,10 +77,10 @@ PY
 }
 
 for e in $E225 $E230 $E234; do
-    "$BUNDLE" bundle "$REPO/experiments/$e" > "$OUT/good-${e%%-*}.txt"
+    "$BUNDLE" bundle "$SRC/experiments/$e" > "$OUT/good-${e%%-*}.txt"
 done
 for e in vk26-alice-2-the-hash-tested-first vk26-alice-4-the-state-the-generator-keeps; do
-    n="${e#vk26-}"; "$BUNDLE" bundle "$REPO/calls/vk26/alice/$e" > "$OUT/good-${n%%-the-*}.txt"
+    n="${e#vk26-}"; "$BUNDLE" bundle "$SRC/calls/vk26/alice/$e" > "$OUT/good-${n%%-the-*}.txt"
 done
 
 OVERCLAIM='It also proves that the LED shows each generation within one microsecond of its beat, on every RP2350 ever made, and the shell was run on forty boards without a single wrong beat.'
