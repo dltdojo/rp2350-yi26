@@ -1,5 +1,5 @@
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-15T02:19:29Z from commit 4c212f0
+recorded at 2026-10-15T05:45:40Z from commit bd6ab5d
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -129,6 +129,7 @@ PASS  reset.txt: the table shows the last round's 6 streams, and no script error
 PASS  reset.txt: Copy puts the verdict and every line received on the clipboard (11366 characters)
 PASS  reset.txt: Save downloads the same text as a file, vk26-alice-1-<time>.txt, and says how long it is
 PASS  round1.txt: 7 whole streams from a board, each code, minstret and digest as seam.py and hashlib give them
+      the TRNG's stream, round 4: code 0, the longest run 11, 530, 496, 516, 502 of each window equal to its first
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where the seam stream is said to pass — check 2
 PASS  the shell catches a version where the chip is asked to count one more for code 2 — check 3
