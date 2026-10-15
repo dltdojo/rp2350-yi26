@@ -1,0 +1,15 @@
+# vk26-alice-5 — wrong versions of the Instantiate kernel, and wrong claims about the chain.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean or calls/vk26/alice/lean/<file>.lean]
+inst_run|Hash_df is told 432 bits, not 440 (00 00 01 b0)|s/^    \.lui T1 0xb8010, /    .lui T1 0xb0010, /
+inst_run|V's second hash is written over C, not after V's first|s/^  ++ dfHash 1 S1 0x3fb S2 0 0x440 ++ dfHash 2 S1 0x3fb S2 0 0x460$/  ++ dfHash 1 S1 0x3fb S2 0 0x440 ++ dfHash 2 S1 0x3fb S2 0 0x480/
+inst_run|C is Hash_df of 60 bytes, V's last left off|s/^  ++ dfHash 1 S0 0x43a 0 61 0x480 ++ dfHash 2 S0 0x43a 0 61 0x4a0$/  ++ dfHash 1 S0 0x43a 0 60 0x480 ++ dfHash 2 S0 0x43a 0 60 0x4a0/
+inst_run|C's second hash has the counter 1 again|s/^  ++ dfHash 1 S0 0x43a 0 61 0x480 ++ dfHash 2 S0 0x43a 0 61 0x4a0$/  ++ dfHash 1 S0 0x43a 0 61 0x480 ++ dfHash 1 S0 0x43a 0 61 0x4a0/
+inst_run|one word fewer of zeros: the number 1's field is not cleared|s/^       \.opi \.addi A0 S0 0x500, \.opi \.addi T2 0 46,$/       .opi .addi A0 S0 0x500, .opi .addi T2 0 45,/
+inst_run|the counter starts at 2|s/^       \.opi \.addi T1 0 1, \.st \.sw S0 T1 0x408,$/       .opi .addi T1 0 2, .st .sw S0 T1 0x408,/
+inst_run|the byte before V, which Generate's H needs, is 0x02|s/^  ++ \[ \.opi \.addi T1 0 3, \.st \.sb S0 T1 0x43f,$/  ++ [ .opi .addi T1 0 2, .st .sb S0 T1 0x43f,/
+inst_run|the claim: one instruction fewer to the halt|s/^    ∃ s' G, run env 241 s = \.halted 0 s'/    ∃ s' G, run env 240 s = .halted 0 s'/
+inst_run|the specification: C is Hash_df of V, the 0x00 before it left off|s/two (H (pre 1 ++ 0 :: digs v)) (H (pre 2 ++ 0 :: digs v))$/two (H (pre 1 ++ digs v)) (H (pre 2 ++ digs v))/
+chain|the specification: the seed material is the digest and 15 bytes of the nonce|s/^  ++ (List\.range 16)\.map (fun d => m0/  ++ (List.range 15).map (fun d => m0/
+code_zero_iff|the claim: the chain goes on when the start-up window failed|s/^    Trust\.code H m0 base = 0 ↔ Trust\.Trusted H m0 base ∧ Alice\.Window\.WinOk m0 base Trust\.SMP 0$/    Trust.code H m0 base = 0 ↔ Trust.Trusted H m0 base/
