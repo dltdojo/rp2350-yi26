@@ -17,7 +17,8 @@
   block, each V, each counter and each halt code to its own.
 
   The shared parts are ../pages/: core.js and core.css (connecting, Copy,
-  Save, the look). To put this on a phone, build one file:
+  Save, the look), and drbg.js (the Generate this page holds the board to,
+  shared with vk26-alice-5's page). To put this on a phone, build one file:
     python3 ../pages/build.py drbg.html build/drbg.html
   and open build/drbg.html — Files app -> "Open with Chrome" on Android.
 
@@ -66,6 +67,7 @@
 <div class="meta" id="meta"></div>
 
 <script src="../pages/core.js"></script>
+<script src="../pages/drbg.js"></script>
 <script>
 // BEGIN drbg-check
 // ---------------------------------------------------------------------------
@@ -84,44 +86,13 @@
 // logs right and wrong.
 // ---------------------------------------------------------------------------
 
-const DRBG_SEEDLEN = 55, DRBG_M = 4;
+const DRBG_M = 4;
 // What the shell puts in the region (shell.c, build/expect.h): the counter
 // it starts at and the interval. check.sh holds these to expect.h.
 const DRBG_COUNTER0 = 1, DRBG_INTERVAL = 2;
 // minstret for a Generate of DRBG_M blocks and for the reseed check, as the
 // Hazard3 RTL counts them: build/expect.h's INSTRET_GEN and INSTRET_RESEED.
 const DRBG_INSTRET_GEN = 4318, DRBG_INSTRET_RESEED = 11;
-const DRBG_MOD = 1n << BigInt(8 * DRBG_SEEDLEN);
-
-function drbgHex(s) {
-  const b = new Uint8Array(s.length / 2);
-  for (let i = 0; i < b.length; i++) b[i] = parseInt(s.slice(2 * i, 2 * i + 2), 16);
-  return b;
-}
-function drbgBig(bytes) { let n = 0n; for (const x of bytes) n = (n << 8n) | BigInt(x); return n; }
-function drbgBytes(n, len) {
-  const b = new Uint8Array(len);
-  for (let i = len - 1; i >= 0; i--) { b[i] = Number(n & 255n); n >>= 8n; }
-  return b;
-}
-async function drbgHash(bytes) { return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }
-
-/** SP 800-90A Rev. 1 §10.1.1.4 with no additional input, the reseed check aside:
- *  m blocks of Hashgen(V), and V and the counter afterwards. */
-async function drbgGenerate(v, c, counter, m) {
-  const bits = new Uint8Array(32 * m);
-  let data = drbgBig(v);
-  for (let i = 0; i < m; i++) {
-    bits.set(await drbgHash(drbgBytes(data, DRBG_SEEDLEN)), 32 * i);
-    data = (data + 1n) % DRBG_MOD;
-  }
-  const pre = new Uint8Array(1 + DRBG_SEEDLEN);
-  pre[0] = 3;
-  pre.set(v, 1);
-  const h = drbgBig(await drbgHash(pre));
-  const next = (drbgBig(v) + h + drbgBig(c) + BigInt(counter)) % DRBG_MOD;
-  return { bits, v: drbgBytes(next, DRBG_SEEDLEN), counter: counter + 1 };
-}
 
 function drbgParse(text) {
   const t = text.trim(), h = '([0-9a-f]{8})';
