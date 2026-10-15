@@ -29,6 +29,14 @@
 #          the fast model, as models.env names them; or fast, or deep)
 #   JOBS: max parallel judge runs (default: 3)
 #   DRY_RUN: if set to 1, generates bundles and checks gates without calling LLM.
+#   MACHINE: 1 (default) runs the machine layer first, gates.sh: S1–S4 for the
+#            proposal (S2 against BASE, when set), then G1.5, G2, G6 and each
+#            check.sh (G1, G3, G4, G5) for every experiment, about five minutes
+#            each. Anything that fails stops the audit before a judge is asked:
+#            the judge cannot overrule a gate, so it is not paid to try. Its
+#            output is OUT/gates/, and a fresh check.sh run is the bundle's
+#            GATES. A start on the same commit reuses what passed. 0: G1.5 only.
+#   BASE:    the PR's base for S2, e.g. origin/main
 
 set -eu
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -90,30 +98,51 @@ for e in "${EXPS[@]}"; do
 done
 echo ""
 
-# Step 1: Check G1.5 gates on all 5 experiments
-echo "--- Step 1: Machine Gates G1.5 ---"
+# Step 1: the machine layer. With MACHINE=0, G1.5 alone.
 gates_failed=0
-for e in "${EXPS[@]}"; do
-    ename="$(basename "$e")"
-    echo -n "G1.5 $ename: "
-    if "$BUNDLE" gates "$e"; then
-        true
-    else
-        gates_failed=1
-    fi
-done
+if [[ "${MACHINE:-1}" == 0 ]]; then
+    echo "--- Step 1: Machine Gates G1.5 (MACHINE=0: the rest of the machine layer not run) ---"
+    for e in "${EXPS[@]}"; do
+        ename="$(basename "$e")"
+        echo -n "G1.5 $ename: "
+        "$BUNDLE" gates "$e" || gates_failed=1
+    done
+else
+    echo "--- Step 1: Machine Gates (gates.sh) ---"
+    mkdir -p "$OUT/gates"
+    head="$(git -C "$PROPOSER_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+    "$HERE/gates.sh" proposal "$PROPOSER_DIR" "${BASE-}" | tee "$OUT/gates/proposal.txt"
+    (( PIPESTATUS[0] )) && gates_failed=1
+    for e in "${EXPS[@]}"; do
+        ename="$(basename "$e")"
+        g="$OUT/gates/$ename.txt"
+        if [[ -f "$g" ]] && grep -qxF "head $head" "$g" && grep -qx "gates exit 0" "$g"; then
+            echo "$ename: passed on $head already ($g)"
+            continue
+        fi
+        echo "$ename:"
+        { echo "head $head"; "$HERE/gates.sh" experiment "$e" "$OUT/gates/$ename.check.txt"; echo "gates exit $?"; } > "$g" 2>&1
+        grep -E '^(PASS|FAIL|SKIP) ' "$g" | sed 's/^/  /'
+        grep -qx "gates exit 0" "$g" || gates_failed=1
+    done
+fi
 if (( gates_failed )); then
-    echo "FAIL: Machine gate G1.5 failed on at least one experiment." >&2
+    echo "FAIL: a machine gate failed; no judge is asked (ACCEPTANCE.md: a layer that fails ends the audit)." >&2
     exit 1
 fi
-echo "All 5 experiments passed G1.5."
+echo "Every machine gate passed."
 echo ""
 
 # Step 2: Generate Slice Bundles
 echo "--- Step 2: Generating Slice Bundles ---"
 for e in "${EXPS[@]}"; do
     ename="$(basename "$e")"
-    "$BUNDLE" bundle "$e" > "$OUT/bundles/$ename.txt"
+    fresh="$OUT/gates/$ename.check.txt"
+    if [[ -f "$fresh" ]]; then
+        "$BUNDLE" bundle "$e" "$fresh" > "$OUT/bundles/$ename.txt"
+    else
+        "$BUNDLE" bundle "$e" > "$OUT/bundles/$ename.txt"
+    fi
     echo "Bundle generated: $OUT/bundles/$ename.txt ($(wc -c < "$OUT/bundles/$ename.txt") bytes)"
 done
 echo ""
