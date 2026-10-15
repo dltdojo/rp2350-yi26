@@ -731,7 +731,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-15T02:31:32Z from commit e0dd6e6
+recorded at 2026-10-15T05:58:08Z from commit 1951306
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]

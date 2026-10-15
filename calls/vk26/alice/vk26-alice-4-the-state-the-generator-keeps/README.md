@@ -451,7 +451,7 @@ first and last cases on the RTL:
 
 ```
 === vk26-alice-4 — the state the generator keeps ===
-recorded at 2026-10-15T02:46:29Z from commit e0dd6e6
+recorded at 2026-10-15T06:14:24Z from commit 89c2248
 
 >>> the theorems, and what they rest on
 'Drbg.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]

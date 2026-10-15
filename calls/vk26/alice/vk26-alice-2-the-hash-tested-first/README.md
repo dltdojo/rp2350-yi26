@@ -389,7 +389,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-2 — the hash tested first ===
-recorded at 2026-10-15T02:26:34Z from commit fa2dce9
+recorded at 2026-10-15T05:52:42Z from commit bd6ab5d
 
 >>> the theorems, and what they rest on
 'Trust.compare_iff' depends on axioms: [propext, Quot.sound]
