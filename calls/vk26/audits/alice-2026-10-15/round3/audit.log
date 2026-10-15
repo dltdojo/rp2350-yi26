@@ -1,0 +1,173 @@
+=== vk26 Proposal Spot-Check Audit: alice ===
+Model: tiered
+Sampled audit experiment (3 runs): vk26-alice-5-the-seed-the-tests-passed
+Single confirmation experiments (1 run):
+  - vk26-alice-1-the-run-across-the-seam
+  - vk26-alice-2-the-hash-tested-first
+  - vk26-alice-3-the-count-the-estimate-rests-on
+  - vk26-alice-4-the-state-the-generator-keeps
+
+--- Step 1: Machine Gates (gates.sh) ---
+PASS  S1 five experiments vk26-alice-1-<slug> to vk26-alice-5-<slug>, the id at most 34 characters
+SKIP  S2 every path the PR changes is under the proposer's directory — no BASE given
+PASS  S3 five kernel.bin, five different hashes (J3 still judges each one new)
+PASS  S4 the index table: a row per experiment, its link, Needs 0–3, one sentence
+PASS  G6 no file of the proposal is a copy of one in lean/ or tools/
+PASS  G6 experiments/duplication.sh --check: nothing gained a copy
+vk26-alice-1-the-run-across-the-seam:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Seam.lean writes, 552 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 06e4001
+  PASS  G6 commit 06e4001 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 06e4001
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (36 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 7 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-2-the-hash-tested-first:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Trust.lean writes, 448 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 06e4001
+  PASS  G6 commit 06e4001 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 06e4001
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (33 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 11 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-3-the-count-the-estimate-rests-on:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Count.lean writes, 116 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit cb703d8
+  PASS  G6 commit cb703d8 is in this history
+  PASS  G6 nothing capture.txt rests on changed since cb703d8
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (44 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-4-the-state-the-generator-keeps:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Drbg.lean writes, 280 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 93d45d1
+  PASS  G6 commit 93d45d1 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 93d45d1
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (44 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 13 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-5-the-seed-the-tests-passed:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Seed.lean writes, 244 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit a22a413
+  PASS  G6 commit a22a413 is in this history
+  PASS  G6 nothing capture.txt rests on changed since a22a413
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (41 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 7 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+Every machine gate passed.
+
+--- Step 2: Generating Slice Bundles ---
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round3/bundles/vk26-alice-1-the-run-across-the-seam.txt (173499 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round3/bundles/vk26-alice-2-the-hash-tested-first.txt (205802 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round3/bundles/vk26-alice-3-the-count-the-estimate-rests-on.txt (237842 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round3/bundles/vk26-alice-4-the-state-the-generator-keeps.txt (200114 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round3/bundles/vk26-alice-5-the-seed-the-tests-passed.txt (346218 bytes)
+
+--- Step 3: Running Judge Sessions ---
+Judging vk26-alice-5-the-seed-the-tests-passed (run 1, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 2, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 3, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 1, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 1, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 1, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 1, model tiered)...
+Judge runs complete.
+
+--- Step 4: Tallying Results ---
+==================================================
+Experiment: vk26-alice-5-the-seed-the-tests-passed
+Mode: 3-run Consensus Audit
+J1: YES NO YES -> SPLIT
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-5-the-seed-the-tests-passed-2.txt: J1 NO [README.md:221, README.md:519, WHY.zh-TW.md:102] README.md:222-223 says "vk26-alice-4's UF2 is byte for byte the same", and README.md:519-520 and WHY.zh-TW.md:102 repeat it. The bundle has no check or capture showing this after the refactor: capture.txt:175 covers only the kernel.bin files, and alice-4's capture predates the move. Everything else I checked is supported by the proofs, the capture or board/round1.txt.
+OVERALL: HUMAN (the runs disagree or an answer was invalid)
+==================================================
+ESCALATED: the sampled experiment vk26-alice-5-the-seed-the-tests-passed did not PASS, so single
+confirmation is withdrawn; the other four get runs 2 and 3.
+Judging vk26-alice-1-the-run-across-the-seam (run 2, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 3, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 2, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 3, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 2, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 3, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 2, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 3, model tiered)...
+==================================================
+Experiment: vk26-alice-1-the-run-across-the-seam
+Mode: 3-run Consensus Audit
+J1: NO YES NO -> SPLIT
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-1-the-run-across-the-seam-1.txt: J1 NO [README.md:18, README.md:22, README.md:284] The claim that `front`, applied window by window, passes the 11+10 stream is never run, and no theorem about it is in the bundle. `Health.lean` is not in the bundle either. Only a synthetic fixture models a resetting kernel (fixtures.py:89-92). The LED observation at README.md:22-23 and README.md:284-286 does not name the UF2 or its SHA-256, which a person's recorded observation needs to count as board evidence. The same README does name `build/vk26-alice-1.uf2` at README.md:268-269.
+  vk26-alice-1-the-run-across-the-seam-3.txt: J1 NO [README.md:113, capture.txt:4, capture.txt:12, README.md:284] README.md:113 says each theorem in the table rests on Lean's own axioms only, but the table includes `Alice.Window.win_run`. The capture prints axioms only for the eight `Seam.*` theorems (capture.txt:4-12), none for `win_run`. The LED observation at README.md:284-287 names no UF2 (name or SHA-256) for the build the person ran, which the board-observation rule requires.
+OVERALL: HUMAN (the runs disagree or an answer was invalid)
+==================================================
+Experiment: vk26-alice-2-the-hash-tested-first
+Mode: 3-run Consensus Audit
+J1: YES YES YES -> YES
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+OVERALL: PASS (every question YES in every run)
+==================================================
+Experiment: vk26-alice-3-the-count-the-estimate-rests-on
+Mode: 3-run Consensus Audit
+J1: YES NO NO -> SPLIT
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+  vk26-alice-3-the-count-the-estimate-rests-on-2.txt: J1 NO [README.md:201, README.md:202, README.md:205] README.md:202 says alice-1 and alice-2 "counted plus 3 plus 4 for each HASH call", and README.md:205 says "That is ten counts across three experiments". Those counts come from other experiments' runs and are not in this bundle. The one thing the bundle does show is that alice-5's capture reports the word after the halting ecall changing the count (../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28), and that does not cover the ten-count tally. Everything else I checked matches the proofs, the capture and the four board logs.
+  vk26-alice-3-the-count-the-estimate-rests-on-3.txt: J1 NO [WHY.zh-TW.md:112, README.md:454] WHY.zh-TW.md:112 states as fact that the copy-over-sets pattern holds in both the revision 1 and revision 2 builds. README.md:454 says only revision 4's build is checked and that for revisions 1 and 2 this is "a note, not evidence", with no committed check and no kept UF2s.
+OVERALL: HUMAN (the runs disagree or an answer was invalid)
+==================================================
+Experiment: vk26-alice-4-the-state-the-generator-keeps
+Mode: 3-run Consensus Audit
+J1: YES YES YES -> YES
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+OVERALL: PASS (every question YES in every run)
+==================================================
+--- Usage recorded in calls/vk26/audits/alice-2026-10-15/round3 so far (failed sessions included) ---
+TOTAL sonnet: 15 session(s), 0 failed, prompt 1710282 tokens (input + cache), output 79111 tokens, $4.4760 as reported
+TOTAL opus: 15 session(s), 0 failed, prompt 703845 tokens (input + cache), output 26332 tokens, $2.4457 as reported
+TOTAL: 30 session(s), prompt 2414127 tokens, output 105443 tokens
+PROPOSAL AUDIT RESULT: FAIL or HUMAN INTERVENTION NEEDED

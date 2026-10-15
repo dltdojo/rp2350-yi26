@@ -1,0 +1,16 @@
+head c1791d1a89c4395f
+PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+PASS  G2 kernel.bin is what proof/Count.lean writes, 116 bytes, and kernel.sha256 is its hash
+PASS  G6 README.md is there
+PASS  G6 WHY.zh-TW.md is there
+PASS  G6 capture.txt was recorded from a clean tree, commit 1951306
+PASS  G6 commit 1951306 is in this history
+PASS  G6 nothing capture.txt rests on changed since 1951306
+PASS  G6 the experiment has no uncommitted changes
+PASS  G6 README's Expected output is capture.txt's own lines (44 pasted)
+PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+PASS  G3 12 wrong versions refused by Lean (4 at least)
+PASS  G5 8 wrong shells caught (3 at least)
+PASS  G5 the UF2 is byte for byte the committed one
+gates exit 0

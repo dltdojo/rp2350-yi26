@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:5-19, ../lean/Alice/Drbg.lean:1412-1422, ../lean/Alice/Drbg.lean:1444-1454, proof/Drbg.lean:35-41, capture.txt:177-179, capture.txt:198-199, capture.txt:237-247, README.md:351-361
+reason: The proved claims match `from_boot`, `reseed_boot`, `generate_twice`, `after_out` and `kernel_calls`, and the axiom check passes at capture.txt:4-12. The RTL numbers (4318, 42,739) and the 120-case and edge-state runs are in the capture. The board counts match capture.txt:237-247: 165 whole cases of 168 CASE lines, mcycle 15,078 in 125 plus the 110–1,596 spread, 495 runs, and the 41-of-54 overlap. The "178 cases" figure is derived from the stop points (87 + 91), and no FAIL can sit in the lost lines because a FAIL halts the board.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1414, ../lean/Alice/Drbg.lean:1417, ../lean/Alice/Drbg.lean:1418, ../lean/Alice/Drbg.lean:1419, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1421, ../lean/Alice/Drbg.lean:1422, ../lean/Alice/Drbg.lean:1062, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1374, ../lean/Alice/Drbg.lean:1432, ../lean/Alice/Drbg.lean:1433, ../lean/Alice/Drbg.lean:1451, ../lean/Alice/Drbg.lean:1452, ../lean/Alice/Drbg.lean:1454, README.md:105, README.md:107, README.md:124, README.md:126
+reason: `from_boot` is quantified over any env (so any hash) and any v, c, cnt. Its hypotheses are the ones the README lists: the kernel's bytes, the 0x03, the zeros and the 1, 1 ≤ m, the blocks fitting, interval < 2^32−1, and cnt ≤ interval. It proves the run is still going at COST m − 1, halts with 0 at COST m, and leaves the region equal to `after`. `after_out`, `reseed_boot` (halt 1 after 7, memory the image) and `generate_twice` (any registers, pc at base, memory from the first run, cnt+1 ≤ interval, result `after` of `after` at `vnext`) match their English descriptions.
+J3: YES
+evidence: README.md:5-19, ../lean/Alice/Drbg.lean:58-79, ../lean/Alice/Drbg.lean:1412-1422, ../lean/Alice/Drbg.lean:1444-1454
+reason: A new 70-instruction kernel for SP 800-90A Hash_DRBG Generate, with a proved exact instruction count, the V/H/C/counter update, the reseed refusal and a two-Generate chaining theorem. None of the prior experiments or alice-1 to alice-3 cover it. The board check of padding the chip's SHA-256 block for 55- and 56-byte inputs against NIST vectors is also new.
+J4: YES
+evidence: ../tools/hashdrbg.py:42-79, ../tools/hashdrbg.py:116-148, drbg.py:29-34, README.md:170-173, drbg.html:97-115, ../pages/drbg.js:32-45
+reason: The reference is Python written from SP 800-90A's text, using hashlib and `int.from_bytes` with mod 2^440. It is not the byte-by-byte carry loop or the `Nat` digit lemmas of the Lean proof. It is also checked against NIST's CAVP vectors and against a separate JavaScript BigInt/WebCrypto implementation.
+INJECTION: NONE
+END

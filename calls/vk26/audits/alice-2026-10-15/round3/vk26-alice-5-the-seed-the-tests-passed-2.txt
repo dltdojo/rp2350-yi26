@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:221-223, README.md:519-520, WHY.zh-TW.md:102
+reason: README.md:222-223 says "vk26-alice-4's UF2 is byte for byte the same", and README.md:519-520 and WHY.zh-TW.md:102 repeat it. The bundle has no check or capture showing this after the refactor: capture.txt:175 covers only the kernel.bin files, and alice-4's capture predates the move. Everything else I checked is supported by the proofs, the capture or board/round1.txt.
+J2: YES
+evidence: proof/Seed.lean:772, proof/Seed.lean:776, proof/Seed.lean:778, proof/Seed.lean:355, proof/Seed.lean:357, proof/Seed.lean:358, proof/Seed.lean:342, proof/Seed.lean:352, proof/Seed.lean:193, proof/Seed.lean:196, proof/Seed.lean:839, proof/Seed.lean:846, proof/Seed.lean:850, proof/Seed.lean:851, proof/Seed.lean:853, proof/Seed.lean:854, proof/Seed.lean:818, README.md:8, README.md:111, README.md:123, README.md:138
+reason: `inst_boot` is a from-boot theorem about the kernel's own bytes. For any seed material whose length S ≤ 0x80 and for any `env.hash`, it states running after 240 instructions, halting with 0 after 241, and the region `Laid`: V = Hash_df(seed), C = Hash_df(0x00 ‖ V), Generate's fields set, and everything else unchanged. That is what the README says; `chain` likewise states the iff on alice-2's code, the 241 and `COST m` exact halts after `restart`, and blocks = Hash(dfV(seedMat) + j) over the window-1 digest and the 16 nonce bytes, and its extra bounds on m and the interval are the preconditions of the `Drbg.generate_run` that the README names.
+J3: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:839, README.md:268, capture.txt:28
+reason: The Instantiate kernel with its `inst_run` theorem and the `chain` theorem, which runs alice-2, Instantiate and alice-4 in sequence, are new, and none of the prior work covers Hash_DRBG Instantiate. So are the RTL-checked explanation of the extra minstret (five words after the halting ecall) and the chip's 260/261 counts in board/round1.txt.
+J4: YES
+evidence: ../tools/hashdrbg.py:42-48, ../tools/hashdrbg.py:51-54, seed.py:68-88, ../tools/hashdrbg.py:138-148
+reason: The reference uses hashlib with a generic counter-loop `hash_df` and byte strings, while Lean fixes two hashes and uses `beN`/`View`. It is also held to NIST's 120 CAVP vectors, which are independent of both.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:75, README.md:129, README.md:212, board/round1.txt:1, capture.txt:23, capture.txt:67, proof/World.lean:489, proof/World.lean:641, proof/World.lean:718
+reason: The proved claims (W1, W0, M6, M7, M8, the 0/0/1/2/3/8 divisions) match theorem statements, all rest on Lean's own axioms, and the six mutants are refused in the capture. The 12.715% figure and the 40000-patient table match the capture, and the board numbers (27 treated, 4 missed, 17 controls, 38 patients agreed, 19 replayed, minstret 4046) match board/round1.txt and the capture. The exp232 and exp233 board counts (7, 7 and 16 treated, 4 missed) match their logs. One minor point: the WHY.zh-TW.md line 46 explanation that width-1 and width-2 lumps are cleared by the first dose is explanatory, not a proved statement. Its checkable consequence (D = 0, cured at 64) is proved by answer_zero.
+J2: NO
+evidence: README.md:75, proof/World.lean:711, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:697
+reason: `from_boot` (proof/World.lean:507-511) is of the right form, and W1, W0, M6, M7 and M8 match their descriptions. But `answer_world` is described in README.md:75 and its own docstring (proof/World.lean:711-712) as covering a lump "anywhere on the ring", while its statement fixes the position at 0 (`patient w 0 ANSWER`, proof/World.lean:719-720). `divisions_iter` (proof/World.lean:697) moves only the division count to other positions, not the cured-iff conclusion, so the main theorem as written is weaker than the text claims.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:622, proof/World.lean:641, proof/World.lean:718, board/round1.txt:1
+reason: Prior work holds exp232's model and its unproved C world. This adds a proved 74-instruction world kernel with the masks as inputs (W1), the cured-iff-no-mask-hits-a-division theorem (M7), per-width division counts, the exact 3276629119/25769803776 rate, and a board run of that rate against the trial.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:57, ../exp232-the-cure-the-proof-predicts/cure.py:61, world.py:43, world.py:61, differential/differential.py:68
+reason: cure.py's rule is written cell by cell with loops over the ring, where the Lean kernel uses shifts and bitwise operations. world.py recomputes the divisions as `pc(t2 & ~t1)` and compares them against D read from the Lean source. The differential test compares both the Lean model and the RTL against cure.py's generations.
+INJECTION: NONE
+END

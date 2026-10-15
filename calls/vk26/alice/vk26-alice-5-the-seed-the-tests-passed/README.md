@@ -6,7 +6,8 @@
 Generate keeps: V = Hash_df(seed material), C = Hash_df(0x00 ‖ V), the
 counter 1. A 61-instruction RV32IM kernel does it with SHA-256's seedlen of
 55 bytes. Lean proves, for every seed material of up to 128 bytes and every
-hash function, that it halts with 0 after exactly 241 instructions. The
+hash function, that it halts with 0 after exactly 241 instructions: still
+running after 240, halted after 241. The
 region is then laid out exactly as vk26-alice-4's Generate asks for it
 (`Seed.inst_run`). Then the chain (`Seed.chain`): vk26-alice-2's kernel, this
 one and vk26-alice-4's, run one after another on one region, the shell's
@@ -109,8 +110,9 @@ moved there as their second user:
 
 - **`inst_run` / `inst_boot`**: the region holds the kernel at its start,
   the seed material's length S ≤ 0x80, m and the interval at 0x2480. Then
-  the kernel halts with 0 after exactly 241 instructions, the region then
-  `Laid`:
+  the kernel halts with 0 after exactly 241 instructions — the theorem
+  states both halves, still running after 240 and halted after 241 — the
+  region then `Laid`:
   - V at 0x440 is `dfV`, Hash_df of the seed material;
   - C at 0x480 is `dfC`, Hash_df of 0x00 ‖ V;
   - 0x03 at 0x43f, 23 and 51 zeros, the number 1, m, the interval and the
@@ -126,9 +128,13 @@ moved there as their second user:
      windows passed their tests (`code_zero_iff`);
   3. with 0, the shell's step (`restart`: the next kernel's bytes at the
      region's start, every other byte as the last kernel left it, the pc at
-     base, any registers) and this kernel halts with 0 after 241;
+     base, the registers as the last kernel left them — `inst_run` and
+     `Drbg.generate_run` ask nothing of the registers) and this kernel halts
+     with 0 after exactly 241, running after 240;
   4. the shell's step again, and vk26-alice-4's Generate halts with 0
-     after `COST m`;
+     after exactly `COST m`, running after `COST m − 1` (this experiment
+     added that half to `Drbg.generate_run`, so vk26-alice-4's theorems
+     state it too);
   5. block j at 0x600 is Hash(V + j) for V = Hash_df(digest ‖ nonce)
      (`seedMat`): the digest of the second window as vk26-alice-2's kernel
      wrote it, the 16 bytes of the nonce as the shell wrote them.
@@ -141,7 +147,7 @@ The steps underneath:
 - `code_loaded`, `loaded_past`: the shell's step leaves a kernel's code
   where `CodeAt` wants it, and the rest of the region alone.
 
-Eleven wrong versions are each refused (`proof/mutants.txt`):
+Twelve wrong versions are each refused (`proof/mutants.txt`):
 - Hash_df told 432 bits;
 - V's second hash written over C;
 - C hashed over 60 bytes;
@@ -149,7 +155,7 @@ Eleven wrong versions are each refused (`proof/mutants.txt`):
 - one word fewer of zeros;
 - the counter starting at 2;
 - the byte before V 0x02, not 0x03;
-- and four wrong claims: one instruction fewer, C without its 0x00, a seed
+- and five wrong claims: one instruction fewer, one more, C without its 0x00, a seed
   material with 15 bytes of the nonce, a chain that goes on when the
   start-up window failed.
 
@@ -246,8 +252,10 @@ RTL (241, plus 3 for the harness, plus 4 for each of four HASHB calls); in
 the chain it counts 261, the same kernel on the same kind of input. Its
 `ecall` is its last instruction both times. What differs is the word after
 it: zeros alone, vk26-alice-2's code in the chain, which the shell leaves
-past the Instantiate kernel's 244 bytes, as `restart` says. Putting each of
-five words at 0xf4, right after the `ecall`, and running the kernel alone:
+past the Instantiate kernel's 244 bytes, as `restart` says. [`gen.py`](./gen.py)
+puts each of five words at 0xf4, right after the `ecall`, runs the kernel
+alone on the RTL, and stops the build unless it counts as below; its line
+in [capture.txt](./capture.txt) (`build/expect.h: …`) prints the five:
 
 | the word at 0xf4 | minstret |
 | --- | --- |
@@ -259,17 +267,38 @@ five words at 0xf4, right after the `ecall`, and running the kernel alone:
 
 So Hazard3 counts one more when the word after the halting `ecall` is a
 legal instruction, and not when it is an illegal one (all zeros and all
-ones are both illegal in RV32I). That accounts for every count across the
-five experiments:
-- vk26-alice-1's HALT 0 and vk26-alice-2's HALT 0, 1 and 2 are followed by
-  more of their own code: one more;
-- vk26-alice-2's HALT 3 and vk26-alice-3's halt are their kernels' last
-  instructions, followed by the zeros before the samples: none;
+ones are both illegal in RV32I). The other experiments' counts fit it, each
+from that experiment's own capture, the proof's count against the RTL's
+minstret, 3 for the harness and 4 for each HASH call:
+- vk26-alice-1's HALT 0 is followed by more of its code
+  ([its capture](../vk26-alice-1-the-run-across-the-seam/capture.txt):
+  `code 0: the proof's count 69699, the RTL's minstret 69719, 20 more
+  (4 HASH calls)`, 3 + 16 + 1); its FAIL halt, the kernel's last
+  instruction, is not (`code 2: … 34852 … 34859, 7 more (1 HASH calls)`);
+- vk26-alice-2's HALT 0, 1 and 2 are followed by more of their own code,
+  and HALT 3 is the last instruction: this capture's `build/expect.h` line
+  runs vk26-alice-2's kernel on the RTL, 34897, 17470, 51 and 34885 for
+  codes 0 to 3, one more than 3 + 4 per HASH call for 0 to 2 and none for 3
+  ([vk26-alice-2's capture](../vk26-alice-2-the-hash-tested-first/capture.txt):
+  `code 3: the proof's count 34878, the RTL's minstret 34885, 7 more`);
+- vk26-alice-3's halt is its kernel's last instruction, followed by the
+  zeros before the samples: none
+  ([its capture](../vk26-alice-3-the-count-the-estimate-rests-on/capture.txt):
+  `RTL minstret 6294287: the proof's 6294284, 3 more`);
 - vk26-alice-4's HALT 0 is followed by its RESEED branch and HALT 1 by its
-  ADD subroutine: one more each, 4318 and 11. Its README counted that one
-  as the harness's, "3 and 1 around every run"; the Instantiate kernel
-  alone, 241 + 3 + 4 × 4 = 260, shows the harness's share is 3. It is measured on the RTL; that the chip
-counts the same is vk26-alice-1's and vk26-alice-2's logs, where it did.
+  ADD subroutine: one more each
+  ([its capture](../vk26-alice-4-the-state-the-generator-keeps/capture.txt):
+  `RTL minstret a Generate 4318, the reseed check 11: the proof's 4294 and
+  7`, 4294 + 3 + 4 × 5 + 1 and 7 + 3 + 1). Its README counted that one
+  as the harness's; the Instantiate kernel alone, 241 + 3 + 4 × 4 = 260,
+  shows the harness's share is 3.
+
+It is measured on the RTL. That the chip counts the same, the board logs
+say: each experiment's checks hold the chip to the RTL's minstret, and
+vk26-alice-1's and vk26-alice-2's captures report their logs' streams
+passing (`round1.txt: 7 whole streams from a board, each code, minstret
+and digest as seam.py and hashlib give them`; `round1.txt: 18 whole
+streams …`).
 The shell holds the chip to each figure: 260 for a NIST case's
 Instantiate, 261 in the chain (check 3).
 
@@ -410,8 +439,9 @@ phone, the file Save gave back, kept as it came.
 The page joined at round 0's case 31 and saved during round 1's case 113.
 It judged 202 NIST cases right, 0 wrong and 0 incomplete, and both of
 round 0's chains right: one gave bits, one was refused at the KAT. It saw
-no FAIL line, and every status line says `dropped=0 errors=0`.
-`fixtures.py --board` agrees:
+no FAIL line. `fixtures.py --board` agrees, and prints what the rest of
+this section quotes ([capture.txt](./capture.txt)); every status line says
+`dropped=0 errors=0`:
 - every case's seed material is NIST's for its name, its V and C
   hashdrbg.py's instantiation, its second Generate's 1024 bits NIST's
   ReturnedBits;
@@ -423,8 +453,8 @@ no FAIL line, and every status line says `dropped=0 errors=0`.
 - every minstret the RTL's.
 
 The predictions:
-- **Every NIST case right: held.** 104 of the cases have a 48-byte seed
-  material and 99 an 80-byte one, so the chip's SHA-256 block answered
+- **Every NIST case right: held.** Of the 202 whole cases, 104 have a
+  48-byte seed material and 98 an 80-byte one, so the chip's SHA-256 block answered
   HASHB on 53 and 85 bytes for V and 61 for C, through vk26-alice-4's
   padding, now `hashb_chip.h`, and got SHA-256 each time.
 - **The TRNG's chain, code 0: held,** once, in round 0. The samples' tests
@@ -433,25 +463,27 @@ The predictions:
   before Save.
 - **minstret: held** in every run: 260, 4318, 4318 for each case; 34,897,
   261 and 4318 in the chain; 51 for the spoiled one. So the chip, too,
-  counts the same Instantiate kernel 260 alone (203 times) and 261 after
+  counts the same Instantiate kernel 260 alone (in all 202 whole cases) and 261 after
   alice-2's code: the one more is on silicon, where the word after the
   `ecall` is an instruction, and not where it is zero.
 - **mcycle, not predicted:**
-  - Every second Generate took 15,088 cycles, all 203; vk26-alice-4's
-    took 15,078.
+  - Every second Generate took 15,088 cycles, all 202; vk26-alice-4's
+    took 15,078
+    ([its capture](../vk26-alice-4-the-state-the-generator-keeps/capture.txt):
+    `mcycle of Generate 2: 15078 in 165`).
   - Instantiate took 9,212 at the least for a 48-byte seed material (62 of
-    104) and 11,372 for an 80-byte one (78 of 99): 2,160 more for the two
+    104) and 11,372 for an 80-byte one (78 of 98): 2,160 more for the two
     extra SHA-256 blocks of V's two hashes, 1,080 a block.
   - The chain's Instantiate took 9,212, the fastest NIST one's figure,
     though it retired one more instruction.
   - vk26-alice-2's kernel took 58,945 cycles for code 0 and 1,547 for the
     spoiled KAT.
 
-  The slow runs (an Instantiate or a first Generate) fall in 40 cases, and
-  they come in clusters 16 cases apart: 0–4, 16–19, 31–38, 47–50, 63–69,
-  79–82, 95–99, 111–113. A case is 260 bytes of the table in flash, so 16
-  cases is about 4 KiB. Of the 83 cases seen whole in both rounds, 28 were
-  slow in both. That is vk26-alice-4's pattern again, with a period this
+  The cases with a run slower than the least for its kind come in
+  clusters 16 cases apart: 31–36, 47–50, 63–69, 79–82, 95–99 and 111–113 in
+  round 0, and 0–4, 16–19, 32–38, 47–50, 63–69, 79–82, 95–99 and 111–112 in
+  round 1. A case is 260 bytes of the table in flash, so 16 cases is about
+  4 KiB. Of the 82 cases whole in both rounds, 27 were slow in both. That is vk26-alice-4's pattern again, with a period this
   time. It points at where a case's bytes lie in flash and the XIP cache,
   as vk26-alice-3 measured; this run did not probe it.
 
@@ -496,7 +528,7 @@ Found while making this experiment, and recorded in
 | File | What |
 | --- | --- |
 | [proof/Seed.lean](./proof/Seed.lean) | the kernel, `inst_run`, `inst_boot`, `chain`; writes kernel.bin |
-| [proof/mutants.txt](./proof/mutants.txt) | eleven wrong kernels and claims |
+| [proof/mutants.txt](./proof/mutants.txt) | twelve wrong kernels and claims |
 | kernel.bin, kernel.sha256 | the Instantiate kernel, as the proof writes it |
 | [seed.py](./seed.py) | the chain from the standard's text |
 | [differential/differential.py](./differential/differential.py) | model and RTL against seed.py |
@@ -518,7 +550,7 @@ first and last NIST cases and both chains on the RTL:
 
 ```
 === vk26-alice-5 — the seed the tests passed ===
-recorded at 2026-10-15T02:53:03Z from commit 659f254
+recorded at 2026-10-15T12:02:24Z from commit a22a413
 
 >>> the theorems, and what they rest on
 'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -535,6 +567,7 @@ inst_run       one word fewer of zeros: the number 1's field is not cleared     
 inst_run       the counter starts at 2                                                        refused in inst_run
 inst_run       the byte before V, which Generate's H needs, is 0x02                           refused in inst_run
 inst_run       the claim: one instruction fewer to the halt                                   refused in inst_run
+inst_run       the claim: one instruction more to the halt                                    refused in inst_run
 inst_run       the specification: C is Hash_df of V, the 0x00 before it left off              refused in inst_run
 chain          the specification: the seed material is the digest and 15 bytes of the nonce   refused in chain
 code_zero_iff  the claim: the chain goes on when the start-up window failed                   refused in code_zero_iff
@@ -543,7 +576,7 @@ code_zero_iff  the claim: the chain goes on when the start-up window failed     
 120 of 120 NIST cases: the Instantiate kernel's region holds hashdrbg's V and C, and two Generates from it give NIST's ReturnedBits
 
 >>> the shell, for the chip and for the RTL
-build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3
+build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3; the Instantiate kernel alone with the word after its halting ecall 0x00000000 260, nop 261, addi x10, x0, 1 261, 0xffffffff 260, ecall 261
 build/vk26-alice-5.bin  49076 bytes, the build allows 65536
 build/vk26-alice-5.uf2  98304 bytes  sha256 a411ebbef2fd8a92e484e72eada821dc916b5d049cb469a9df1dd3e6e58c72bd
 

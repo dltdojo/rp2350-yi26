@@ -35,10 +35,15 @@
 #            each. Anything that fails stops the audit before a judge is asked:
 #            the judge cannot overrule a gate, so it is not paid to try. Its
 #            output is OUT/gates/, and a fresh check.sh run is the bundle's
-#            GATES. A start on the same commit reuses what passed. 0: G1.5 only.
+#            GATES. A start with the same inputs (the trees of the proposal,
+#            lean/, tools/, experiments/ and the call's two scripts) reuses what
+#            passed. 0: G1.5 only.
 #   BASE:    the PR's base for S2, e.g. origin/main
 
 set -eu
+# All of it is read before any of it runs: bash reads a script as it goes, and
+# vk26-alice's audit died (exit 127) when this file was edited mid-run.
+{
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 BUNDLE="$HERE/judge-bundle.sh"
@@ -110,14 +115,26 @@ if [[ "${MACHINE:-1}" == 0 ]]; then
 else
     echo "--- Step 1: Machine Gates (gates.sh) ---"
     mkdir -p "$OUT/gates"
-    head="$(git -C "$PROPOSER_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+    # What the gates read, as git's tree hashes: the proposal, lean/, tools/,
+    # experiments/ (lib.sh, duplication.sh), and the call's own two scripts.
+    # A commit elsewhere — a fix to this script — leaves them, and the five
+    # check.sh runs, as they were; a change to any of them, or an uncommitted
+    # one, does not.
+    head="never-$(date +%s)"   # outside a repository, nothing is reused
+    if top="$(git -C "$PROPOSER_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+        rel="$(realpath --relative-to="$top" "$PROPOSER_DIR")"
+        trees="$(git -C "$top" rev-parse "HEAD:$rel" HEAD:lean HEAD:tools HEAD:experiments \
+            HEAD:calls/vk26/gates.sh HEAD:calls/vk26/judge-bundle.sh 2>/dev/null)" \
+            && [[ -z "$(git -C "$top" status --porcelain -- "$rel" lean tools experiments calls/vk26/gates.sh calls/vk26/judge-bundle.sh)" ]] \
+            && head="$(sha256sum <<< "$trees" | cut -c1-16)"
+    fi
     "$HERE/gates.sh" proposal "$PROPOSER_DIR" "${BASE-}" | tee "$OUT/gates/proposal.txt"
     (( PIPESTATUS[0] )) && gates_failed=1
     for e in "${EXPS[@]}"; do
         ename="$(basename "$e")"
         g="$OUT/gates/$ename.txt"
         if [[ -f "$g" ]] && grep -qxF "head $head" "$g" && grep -qx "gates exit 0" "$g"; then
-            echo "$ename: passed on $head already ($g)"
+            echo "$ename: passed already on these inputs ($g)"
             continue
         fi
         echo "$ename:"
@@ -135,14 +152,28 @@ echo ""
 
 # Step 2: Generate Slice Bundles
 echo "--- Step 2: Generating Slice Bundles ---"
+# A verdict answers the bundle it was given. A bundle that changed since (a
+# README fixed, judge-bundle.sh changed) sets its experiment's verdicts aside
+# as .stale-<time>, and those runs are judged again; the commit line alone is
+# not a change. calibration/run.sh refuses in the same case; an audit started
+# again after a fix is the ordinary case here, so it goes on.
+same_bundle() { cmp -s <(grep -v '^commit: ' "$1") <(grep -v '^commit: ' "$2"); }
 for e in "${EXPS[@]}"; do
     ename="$(basename "$e")"
     fresh="$OUT/gates/$ename.check.txt"
+    b="$OUT/bundles/$ename.txt"
     if [[ -f "$fresh" ]]; then
-        "$BUNDLE" bundle "$e" "$fresh" > "$OUT/bundles/$ename.txt"
+        "$BUNDLE" bundle "$e" "$fresh" > "$b.new"
     else
-        "$BUNDLE" bundle "$e" > "$OUT/bundles/$ename.txt"
+        "$BUNDLE" bundle "$e" > "$b.new"
     fi
+    if [[ -f "$b" ]] && ! same_bundle "$b" "$b.new"; then
+        stamp="$(date +%s)"
+        for v in "$OUT/$ename"-[0-9].txt; do
+            [[ -f "$v" ]] && mv -f "$v" "$v.stale-$stamp" && echo "bundle changed: $(basename "$v") set aside as .stale-$stamp"
+        done
+    fi
+    mv -f "$b.new" "$b"
     echo "Bundle generated: $OUT/bundles/$ename.txt ($(wc -c < "$OUT/bundles/$ename.txt") bytes)"
 done
 echo ""
@@ -162,10 +193,14 @@ run_judge() {
         echo "Skipping existing verdict: $vpath"
         return 0
     fi
+    # After a failure no run starts, so a 429 costs one run, not every run
+    # still queued behind it. A flag, not xargs's 255: on 255 xargs exits at
+    # once, and a run already started went on, wrote its file after the check
+    # below and was named "no verdict written" (vk26-alice's audit, a session
+    # limit on its first sessions).
+    [[ -e "$OUT/.stop" ]] && return 0
     echo "Judging $exp (run $run_num, model $MODEL)..."
-    # 255 on failure: xargs then starts no further run, so a 429 costs one run,
-    # not every run still queued behind it.
-    "$BUNDLE" judge "$OUT/bundles/$exp.txt" "$vpath" "$MODEL" || return 255
+    "$BUNDLE" judge "$OUT/bundles/$exp.txt" "$vpath" "$MODEL" || { touch "$OUT/.stop"; return 1; }
 }
 report_usage() {
     local usage=("$OUT"/*.usage)
@@ -181,7 +216,9 @@ export BUNDLE OUT MODEL
 # stops: tallying a missing run would count it as an invalid answer.
 run_all() {
     (( $# )) || return 0
+    rm -f -- "$OUT/.stop"
     printf '%s\n' "$@" | xargs -P "$JOBS" -L1 bash -c 'run_judge "$@"' _ 2>&1 || true
+    rm -f -- "$OUT/.stop"
     local item exp n f missing=0
     for item in "$@"; do
         read -r exp n <<< "$item"
@@ -244,3 +281,5 @@ else
     echo "PROPOSAL AUDIT RESULT: ALL 5 EXPERIMENTS PASSED"
     exit 0
 fi
+exit
+}

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:207, README.md:208, README.md:209, README.md:210
+reason: README.md:207-210 says vk26-alice-5 "found the cause" of the extra instruction: the RTL counts one more when the word after the halting `ecall` is a legal instruction. The bundle holds no evidence for this finding, since alice-5 is not in it. Every other substantive claim I checked matches the proofs, `capture.txt`, or the recorded board logs. That covers the slow-run tallies (5 of 5, 4 of 6, 16 of 16, 2 of 3), the probe results, and the +3 minstret.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:113, proof/Count.lean:114, proof/Count.lean:110, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, proof/Count.lean:677, proof/Count.lean:666, README.md:8, README.md:9, README.md:10, README.md:11, README.md:12, README.md:13, README.md:19
+reason: `from_boot` is from_boot form: for any image whose first 116 bytes are the kernel's, with the samples unconstrained, the kernel is still running at COST−1. At COST = 8 + 256·(2+6·4096+9) + 4 = 6,294,284 it halts with 0, and memory equals `after`: the image with the 256 `hist` words from 0x1400 and `most` at 0x1800, nothing else. `most_is_max`, `hist_sum` and `count_constant_time` state what the README says (the last is stronger: any two kernel-headed images run in lock step), and `naive_refused` is the stated refusal at the given loop head.
+J3: YES
+evidence: proof/Count.lean:544, proof/Count.lean:585, proof/Count.lean:627, proof/Count.lean:665, proof/Count.lean:673
+reason: No prior experiment proves a 256-bin histogram count, `most_is_max`, `hist_sum`, or a constant-time trace for a counting kernel. The checker refusing the plain histogram (`naive_refused`) is also new. Prior experiments cover health tests, SHA-256, signatures and PIO, not an entropy-estimator count.
+J4: YES
+evidence: count.py:39, count.py:40, count.py:41, count.py:42, count.py:46, count.py:48, proof/Count.lean:95, proof/Count.lean:96
+reason: `count.py` builds the histogram in one pass with `counts[s] += 1` and takes `max(counts)`. The kernel instead scans all 4096 samples once per value with a branchless xor-compare, and Lean specifies `cnt` as a filtered list length. The method differs from both, so a shared mistake is unlikely. `fixtures.py` and the page's JavaScript recount separately from `count.py`.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:328, README.md:329, README.md:330, README.md:300, README.md:301
+reason: The TRNG draw figures ("longest runs 11, 12 and 11; 516 and 508, 501 and 522, 518 and 527") come from the board log. The log in the bundle holds only a few lines (BITS lines of the spoiled stream, round 6 stream 1, plus one status line), none of them the TRNG draws in rounds 7–9, and no gate output reproduces these numbers. The LED observation (README.md:301, also README.md:24–25) does not say which UF2 was flashed, so it is not a recorded observation of the required kind. The remaining claims (theorems, 112 instructions, counts, the 11 mutants, the 18-of-18 summary) match the Lean files and capture.txt.
+J2: YES
+evidence: ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:442, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:94, ../lean/Alice/Trust.lean:98, ../lean/Alice/Trust.lean:99, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:110, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:536, ../lean/Alice/Trust.lean:537, ../lean/Alice/Trust.lean:538, ../lean/Alice/Trust.lean:539, ../lean/Alice/Trust.lean:540, ../lean/Alice/Trust.lean:86, README.md:11, README.md:14, README.md:17, README.md:18, README.md:339
+reason: `from_boot` is in from_boot form: any placed base, any image whose first 448 bytes are the kernel's, and any `env.hash`. It states running at cost−1 and halted with `code` at exactly `cost`, which is 43/17462/34878/34885 for codes 2/1/3/0. Memory is `after`: the KAT answer at the scratch, plus HASH of window 1 at 0x2400 only when everything passes. `trusts_after_kat` gives the two README bullets as stated, and the README itself says that "wrong" means differing from the image's bytes at 0x340, not from SHA-256.
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:533, ../lean/Alice/Trust.lean:432
+reason: A known-answer test of `HASH` inside the kernel is new. It is stated as the `Trusted` condition and proved in `from_boot` and `trusts_after_kat`: a failed test stops the kernel with 2 after 43 instructions, and halting with 0 implies the test passed. None of the prior experiments listed has it. vk26-alice-1 supplies only the carried window block.
+J4: YES
+evidence: ../tools/trustref.py:51, ../tools/trustref.py:62, ../tools/health.py:31, README.md:166
+reason: The reference judges one sample at a time in Python (`judge`) and uses hashlib for every digest, whereas the kernel uses RV32 registers and a `HASH` that the proof leaves abstract. The page adds a second implementation in JavaScript with WebCrypto, so a mistake copied into both the Lean specification and the reference is unlikely.
+INJECTION: NONE
+END

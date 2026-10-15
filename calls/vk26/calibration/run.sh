@@ -5,10 +5,10 @@
 # never more than three sessions at a time (twenty at once is what hit the
 # session limit in round 2; see README.md).
 #
-#   run.sh A OUTDIR     stage A: one run per case, 7 runs (tiered: the deep
+#   run.sh A OUTDIR     stage A: one run per case, 9 runs (tiered: the deep
 #                       model for J2 on the J2 slice, the fast model for
 #                       J1/J3/J4; two sessions a run; ../models.env names them)
-#   run.sh B OUTDIR     stage B: two more runs per case, 14 runs; start it only
+#   run.sh B OUTDIR     stage B: two more runs per case, 18 runs; start it only
 #                       once stage A was all correct. Then tallies each case.
 #   run.sh fast OUTDIR    one run per case, every question to the fast model
 #                         (a cheap self-check)
@@ -29,7 +29,7 @@
 #
 #   VK26_JOBS=N              concurrent runs (default 3, at most 3); with 1, a
 #                            failure wastes nothing beyond the run that failed
-#   VK26_CASES="a b ..."     only these cases, in this order (default all seven):
+#   VK26_CASES="a b ..."     only these cases, in this order (default all nine):
 #                            VK26_CASES=good-exp225 run.sh A OUTDIR measures one
 #                            run before the stage spends the rest
 
@@ -39,7 +39,7 @@ BUNDLE="$HERE/../judge-bundle.sh"
 STAGE="${1:-}"; OUT="${2:-}"
 [[ "$STAGE" =~ ^(A|B|fast|deep)$ && -n "$OUT" ]] || { sed -n '3,34p' "${BASH_SOURCE[0]}"; exit 2; }
 JOBS="${VK26_JOBS:-3}"; (( JOBS > 3 )) && JOBS=3
-ALL=(good-exp225 good-exp230 good-exp234 overclaim trivial narrowed injection)
+ALL=(good-exp225 good-exp230 good-exp234 good-alice-2 good-alice-4 overclaim trivial narrowed injection)
 read -r -a CASES <<< "${VK26_CASES:-${ALL[*]}}"
 for c in "${CASES[@]}"; do
     [[ " ${ALL[*]} " == *" $c "* ]] || { echo "unknown case: $c (cases: ${ALL[*]})" >&2; exit 2; }

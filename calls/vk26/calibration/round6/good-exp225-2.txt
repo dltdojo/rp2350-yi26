@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:51, README.md:58-65, README.md:84-89, README.md:139-149, proof/Life.lean:67, proof/Life.lean:288, proof/mutants.txt:5-15, capture.txt:77-78, capture.txt:86-92, shell/shell.c:75-90
+reason: The proved claims match `lives`, `not_before`, `rule30` and `from_boot`. The count of eleven refused mutants matches `mutants.txt` and the capture. The 20-seed differential, the RTL's 3082 and the two RTL lives are all in the capture. The board claim is a recorded observation with the UF2 SHA, the board and the method, and the conclusion drawn from it rests on `shell.c`, which is in the bundle. The README says plainly that no later-life hash, LED timing or run length was recorded.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:84, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:99, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` starts from `boot env.region img`, for any image whose first 76 bytes are the kernel's `bytes`. It proves the machine is still running after 3078 instructions and halts with 0 after 3079, with memory equal to `lived m0 base N`, which is the original memory overlaid at 0x200 with 1024 little-endian bytes of `gen (seedOf m0 base)` generations 1 to 256. `lives`, `not_before` and `rule30` (cell i becomes cell (i+1)%32 XOR (cell i OR cell (i+31)%32), for the same `life` used in `lived`) hold for any memory, so any seed, and their quantifiers and conclusions match the README's table.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288, README.md:5-13
+reason: It adds a new kernel, a 19-instruction Rule 30 cellular automaton, with new theorems. `lives` gives 3079 instructions and 256 generations for every seed, and `rule30` proves the update rule cell by cell. It also adds a shell that plays each life on the LED and seeds the next from the last generation. None of the prior experiments covers a cellular automaton.
+J4: YES
+evidence: rule30.py:19-24, rule30.py:3-5, proof/Life.lean:76, differential/differential.py:49-52
+reason: `rule30.py` computes each cell separately with a 32-iteration loop and modular indexing. The Lean `life` is a whole-word formula of shifts and ORs, and the README says the two share nothing. The differential compares both the Lean model and the RTL against the Python output over 20 seeds.
+INJECTION: NONE
+END

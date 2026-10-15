@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:427, capture.txt:247
+reason: README.md:426-427 says 104 cases had a 48-byte seed material and 99 an 80-byte one (and "78 of 99", "203 times", "all 203" elsewhere). The board mcycle counts in capture.txt:247 sum to 104 and 98, which is 202 whole cases, and the 404 Generates on line 248 are also 2×202. The board-count claims therefore go beyond the evidence.
+J2: YES
+evidence: proof/Seed.lean:767, proof/Seed.lean:771, proof/Seed.lean:772, proof/Seed.lean:355, proof/Seed.lean:357, proof/Seed.lean:358, proof/Seed.lean:342, proof/Seed.lean:343, proof/Seed.lean:344, proof/Seed.lean:352, proof/Seed.lean:193, proof/Seed.lean:196, proof/Seed.lean:833, proof/Seed.lean:838, proof/Seed.lean:840, proof/Seed.lean:844, proof/Seed.lean:845, proof/Seed.lean:847, proof/Seed.lean:812, README.md:8, README.md:110, README.md:121
+reason: `inst_boot` is of from_boot form. It starts from `boot env.region img` and halts with 0 after exactly 241 instructions, for any `env.hash` and any S ≤ 0x80, with `Laid` giving V = dfV, C = dfC(V), the Generate layout and the untouched rest, as README.md:110-120 says. `chain` states the alice-2 halt, the code-0 iff, Instantiate halting at 241, Generate halting at `COST m`, and block j = Hash(dfV(digest ‖ nonce) + j), as README.md:121-134 says. Its extra bounds on m and the interval are the natural preconditions of Generate. README.md:128 says "any registers", while `restart` keeps the previous kernel's registers. I read that as "whatever registers it has", not as a weaker claim.
+J3: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:833, README.md:260
+reason: It adds a new proved Instantiate kernel (inst_run, 241 instructions), a chain theorem tying alice-2's code 0 to Instantiate and Generate (`chain`), and an RTL-checked explanation of the extra minstret (the table at README.md:252-258), none of which is in the prior work.
+J4: YES
+evidence: ../tools/hashdrbg.py:42, ../tools/hashdrbg.py:51, seed.py:76
+reason: The reference uses hashlib and a generic Hash_df loop over any output length. The Lean spec is a fixed two-hash `two`/`dfV` over bit-vector bytes. It is also checked against NIST's CAVP vectors, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END

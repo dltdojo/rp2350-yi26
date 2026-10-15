@@ -12,7 +12,7 @@ RV32 核心（Hazard3）上執行「被 Lean 證明的程式」：證明說的�
 | 徵求期間 | 即日起，不設截止，持續受理 |
 | 交付 | 一位提案者、一個目錄、**五個**驗證過的實驗、一個 PR |
 | 驗收 | [ACCEPTANCE.md](./ACCEPTANCE.md)：機器關卡 G1–G7，加上 LLM 裁判的四個是非題 |
-| LLM 裁判 | [JUDGE.md](./JUDGE.md) 與 [judge-bundle.sh](./judge-bundle.sh)；**校準完成**：第 4 輪七個案例、每個三次，全部判對，見 [calibration/README.md](./calibration/README.md) |
+| LLM 裁判 | [JUDGE.md](./JUDGE.md) 與 [judge-bundle.sh](./judge-bundle.sh)；**校準完成**：第 6 輪九個案例（含 vk26-alice 的兩個）、每個三次，全部判對，見 [calibration/README.md](./calibration/README.md) |
 | 概念導讀 | [CONCEPTS.zh-TW.md](./CONCEPTS.zh-TW.md)：機器碼與組合語言、ISA、Lean 的指令與機器模型，以及證明保證了什麼、沒保證什麼 |
 | 現場測試地點與頻率 | 依後續公告指定的大學 |
 | 獎勵與其他條款 | 依後續公告 |
@@ -198,6 +198,10 @@ calls/vk26/alice/
      - 所以你的網頁除了 Copy，還要有 **Save**：把同一份文字存成檔案（手機的「下載」資料夾），狀態列寫出字元數與行數，收到的人才能核對是否完整。寫法可參考 [alice/pages/core.js](./alice/pages/core.js) 的 `save()`。
      - 參考實作的 `--board` 檢查只核對**完整**的樣本流或案例；被截掉的部分不會被當成錯，但也不算數。
      - **讓紀錄說出是哪一版韌體**：每一輪送一行版本（例如 `REVISION n`），網頁的 Save 在檔頭寫出自己的版本。vk26-alice-3 改了三次韌體，紀錄格式相同，紀錄本身說不出板子跑的是哪一版。
+     - **README 引用的每一個板子數字，都要由 commit 進來的程式印出來**：參考實作的 `--board` 檢查印出來、進到 `capture.txt`。看著紀錄手算或臨時寫個指令算出的數字（兩輪比較、哪幾組比較慢、遺失了哪幾組），裁判找不到證據，J1 會判 NO。vk26-alice 的驗收試跑，五個實驗的 J1 都因此不過。
+     - **提到別的實驗的發現，要連結那個實驗的 `capture.txt` 或 `board/*.txt`**（不是它的 README），而且那個發現要在連結的檔案裡。bundle 只會帶進連結到的紀錄。
+     - **人的觀察要寫出用哪個 UF2**（檔名或 SHA-256）、哪塊板子、怎麼跑（JUDGE.md 的 J1）。
+     - **不要在 README、WHY.zh-TW.md、網頁或程式裡用 judge、grader、reviewer 這類字當動詞或名詞**，例如「這頁 judges 每一條樣本流」：bundle 的注入掃描看到這些字和 answer、output、pass 等字在同一行，就把整個實驗交給人判斷（HUMAN）。vk26-alice-2 的網頁就這樣被攔下。
      - **加入 `board/*.txt` 之後重跑 `run.sh`**：`check.sh` 會以 `--board` 檢查紀錄，這段輸出要進到 `capture.txt`，README 引用的板子數字（幾組、幾次、週期數）才有證據；J1 讀到的紀錄本身只有開頭幾行和網頁的摘要行。G6 會拒絕比它所依賴的檔案還舊的 capture。
    - **機器關卡自檢**：`calls/vk26/gates.sh proposal calls/vk26/<帳號> origin/main` 與每個實驗的 `calls/vk26/gates.sh experiment <實驗目錄>`，就是任務方跑的機器關卡（第 7 節）。
    - **裁判自檢**：可使用 `judge-bundle.sh` 對自己的實驗先跑一次 LLM 裁判自檢（第 7 節）。

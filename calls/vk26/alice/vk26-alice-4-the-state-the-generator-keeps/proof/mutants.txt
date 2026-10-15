@@ -11,6 +11,7 @@ generate_run|the counter's third byte is written over its second|s/\.sh \.srli T
 generate_run|the counter is stored back as it was|s/\.opi \.addi S3 S3 1, \.st \.sw S0 S3 0x408/.opi .addi S3 S3 0, .st .sw S0 S3 0x408/|calls/vk26/alice/lean/Alice/Drbg.lean
 add_iter|ADD's carry is the sum shifted by 9, not 8|s/\.sh \.srli A3 T1 8,/.sh .srli A3 T1 9,/|calls/vk26/alice/lean/Alice/Drbg.lean
 generate_run|the claim: one instruction fewer to the halt|s/^def COST (m : Nat) : Nat := 2030 + 566 \* m$/def COST (m : Nat) : Nat := 2029 + 566 * m/|calls/vk26/alice/lean/Alice/Drbg.lean
+generate_run|the claim: one instruction more to the halt|s/^def COST (m : Nat) : Nat := 2030 + 566 \* m$/def COST (m : Nat) : Nat := 2031 + 566 * m/|calls/vk26/alice/lean/Alice/Drbg.lean
 generate_run|the specification: V's next value leaves the counter out|s/^def vnext (env : Env) (v c cnt : Nat) : Nat := v + hnum (hpre env v) + c + cnt$/def vnext (env : Env) (v c cnt : Nat) : Nat := v + hnum (hpre env v) + c/|calls/vk26/alice/lean/Alice/Drbg.lean
 generate_run|the specification: H is Hash(0x02 ‖ V)|s/^def hpre (env : Env) (v : Nat) : Fin 32 → Byte := env.hash (BitVec.ofNat 8 3 :: digs v)$/def hpre (env : Env) (v : Nat) : Fin 32 → Byte := env.hash (BitVec.ofNat 8 2 :: digs v)/|calls/vk26/alice/lean/Alice/Drbg.lean
 blocks_out|the claim: block j is the hash of V + j + 1|s/= env.hash (digs (v + j)) ⟨d, hd⟩ := by$/= env.hash (digs (v + j + 1)) ⟨d, hd⟩ := by/|calls/vk26/alice/lean/Alice/Drbg.lean

@@ -53,6 +53,13 @@ def fair(rng, n):
     return out[:n]
 
 
+def window_stats(bits, windows):
+    """What a log's TRNG stream measured, for a README to quote from a check's
+    output: the longest run over all the windows, and for each window how many
+    samples equal its first."""
+    return longest(bits[:windows * N]), [sum(b == bits[w * N] for b in bits[w * N:(w + 1) * N]) for w in range(windows)]
+
+
 def longest(bits):
     best = run = 0
     last = None

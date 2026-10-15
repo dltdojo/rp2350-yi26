@@ -25,7 +25,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from seam import WINDOWS, seam_outcome, streams  # noqa: E402
-from health import pack, unpack, window_bytes  # noqa: E402  (seam.py has put alice/tools on the path)
+from health import pack, unpack, window_bytes, window_stats  # noqa: E402  (seam.py has put alice/tools on the path)
 from lines import bits_lines, expect_instret, expect_names, logged_streams, status_line  # noqa: E402
 
 TRNG = 0xffffffff
@@ -108,12 +108,16 @@ def board(expect_h, logs):
     instret = expect_instret(expect_h)
     failed = 0
     for log in logs:
-        n, bad = 0, []
+        n, bad, trng = 0, [], []
         for t, words, other in logged_streams(log, 8):
             if words is None:
                 continue
             n += 1
             code, want, minstret, nd = (int(x, 16) for x in t[3:7])
+            if want == TRNG:
+                top, eq = window_stats(unpack(words), WINDOWS)
+                trng.append(f"round {int(t[1], 16)}: code {code}, the longest run {top}, "
+                            f"{', '.join(map(str, eq))} of each window equal to its first")
             sent = {int(d[3], 16): d[4] for d in other.get("DIGEST", []) if len(d) == 5}
             c, ds, _ = seam_outcome(unpack(words))
             ok = (code == c and want in (TRNG, c) and minstret == instret[c] and nd == len(ds)
@@ -124,6 +128,8 @@ def board(expect_h, logs):
         ok = n > 0 and not bad
         print(f"{'PASS' if ok else 'FAIL'}  {os.path.basename(log)}: {n} whole streams from a board, each code, "
               f"minstret and digest as seam.py and hashlib give them{'' if ok else ' — ' + (bad[0] if bad else 'none')}")
+        for line in trng:
+            print(f"      the TRNG's stream, {line}")
         failed |= not ok
     return failed
 

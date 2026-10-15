@@ -16,7 +16,8 @@ both pass is `HASH` of the second window written as the output. A
 - otherwise it halts with 1 if the start-up window fails, 3 if the next does,
   and 0 if both pass, after exactly 17462, 34878 or 34885 instructions; with
   0, and only with 0, the 32 bytes at 0x2400 are `HASH` of the second
-  window's 4096 bytes, and no other byte changed.
+  window's 4096 bytes, and no other byte changed but the KAT's answer at its
+  scratch.
 
 On the RTL the shell runs five streams, one of them with `HASH`'s answer to
 the KAT spoiled on purpose: the kernel stops there, every time. Two wrong
@@ -38,7 +39,9 @@ and carried repetition count this one uses.
 [exp223](../../../../experiments/exp223-the-digest-the-kernel-withholds/)
 conditions with a SHA-256 written in RV32IM and proved
 ([exp208](../../../../experiments/exp208-the-hash-the-kernel-computes/)):
-334284 instructions for one window. vk26-alice-1 and this experiment call
+334284 instructions for one window ([exp223's
+capture](../../../../experiments/exp223-the-digest-the-kernel-withholds/capture.txt):
+`the model after 334284`). vk26-alice-1 and this experiment call
 `HASH` instead, an `ecall` the shell answers with the RP2350's SHA-256 block
 ([exp210](../../../../experiments/exp210-the-hash-the-chip-computes/)), and
 the whole kernel, two windows and two `HASH` calls, is 34885 instructions.
@@ -219,7 +222,9 @@ digest, on the Lean model and the RTL before it writes anything:
 3 + 4 per `HASH` call, as in vk26-alice-1, and one more for codes 0, 1
 and 2 but not 3. Across both experiments the one more appears exactly when
 the halting `ecall` is not the kernel's last instruction: here HALT 3 is the
-last, and in vk26-alice-1 HALT 0 is the only halt followed by more code.
+last, and in vk26-alice-1 HALT 0 is the only halt followed by more code
+([its listing](../vk26-alice-1-the-run-across-the-seam/README.md#the-kernel):
+HALT 0 at instruction 132, the FAIL halt after it at 135).
 That is a pattern seen in nine counts, not an explanation; the shell holds
 the chip to the RTL's figure either way.
 
@@ -261,7 +266,7 @@ alone: the KAT's answer against WebCrypto's SHA-256 of the message (or of
 it with the one bit flipped, when the line says the shell spoiled it); then
 SP 800-90B's two tests over both windows, from alice's shared
 [`../pages/health.js`](../pages/health.js), the same code vk26-alice-1's
-page judges with; then the output against WebCrypto's SHA-256 of the second
+page checks them with; then the output against WebCrypto's SHA-256 of the second
 window. A stream is wrong if its code, minstret, or output is not what its
 KAT answer and samples give, or if the KAT answer is not what the shell
 says it was; incomplete if a BITS or KAT line of it was lost.
@@ -298,8 +303,10 @@ runs it through the page's block.
 ## On the board
 
 [`board/round1.txt`](./board/round1.txt): a Pico 2, the page on a phone,
-the file Save gave back, kept as it came. The LED blinked as described:
-long, two, three, long, one, round after round.
+the file Save gave back, kept as it came. The board ran `vk26-alice-2.uf2`
+as committed (`67538b87…`, vk26-alice-2.uf2.sha256), flashed by a person
+from a phone, who saw the LED blink as described: long, two, three, long,
+one, round after round.
 
 The page, as it saved: 18 streams, 18 judged right, 0 wrong, 0 incomplete,
 3 rounds, 4 spoiled hashes refused, 3 stopped by the start-up test, 7
@@ -320,13 +327,13 @@ What it adds to the RTL:
 - **The chip counts as the RTL does**, at all four codes, the one more at
   codes 0, 1 and 2 included: 34897, 17470, 51 — and 34885 at code 3, with
   none. So the pattern seen across both experiments is the core's or
-  tools/hazard3/harness's, not the testbench's. It is still not explained.
+  tools/hazard3/harness's, not the testbench's. It was not explained here (below).
 - **The SHA-256 block answered the KAT right every time it was asked
   honestly** (14 times here), and the kernel went on; every time the shell
   spoiled the answer (4), the kernel stopped at instruction 43 and wrote no
   output.
-- **The TRNG's three draws**, judged here afterwards: longest runs 11, 12
-  and 11; 516 and 508, 501 and 522, 518 and 527 of each window equal to its
+- **The TRNG's three draws**, as `fixtures.py --board` prints them in
+  [capture.txt](./capture.txt): longest runs 11, 12 and 11; 516 and 508, 501 and 522, 518 and 527 of each window equal to its
   first — far from 21 and 589, and code 0, as trust.py says.
 
 ## What it does not say
@@ -346,7 +353,9 @@ What it adds to the RTL:
   explained.
   vk26-alice-5 later found the cause: the RTL counts one more when the word
   after the halting `ecall` is a legal instruction
-  ([its README](../vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)).
+  (its gen.py puts five words after the Instantiate kernel's `ecall` and
+  runs it on the RTL; the counts are in [its capture](../vk26-alice-5-the-seed-the-tests-passed/capture.txt),
+  the `build/expect.h` line).
 
 ## What the trial found in the call's settings
 
@@ -384,7 +393,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-2 — the hash tested first ===
-recorded at 2026-10-15T02:26:34Z from commit fa2dce9
+recorded at 2026-10-15T11:31:25Z from commit 06e4001
 
 >>> the theorems, and what they rest on
 'Trust.compare_iff' depends on axioms: [propext, Quot.sound]

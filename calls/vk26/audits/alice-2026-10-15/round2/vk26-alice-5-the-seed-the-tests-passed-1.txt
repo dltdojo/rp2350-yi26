@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:267, README.md:268, README.md:272, README.md:274, README.md:445, README.md:446
+reason: The README explains "every count across the five experiments" with figures from vk26-alice-1 through -4 (their halt counts, 4318 and 11, their README's wording). It also says vk26-alice-4's Generate took 15,078 cycles. Neither is in this bundle, so these claims are unsupported here. The rest of the claims I checked match the proofs, the capture and the board log, including `inst_run` and `chain`, the 120 NIST cases, the RTL counts of 260 and 261, 202 board cases and the cycle clusters.
+J2: YES
+evidence: proof/Seed.lean:767, proof/Seed.lean:768, proof/Seed.lean:769, proof/Seed.lean:771, proof/Seed.lean:772, proof/Seed.lean:342, proof/Seed.lean:343, proof/Seed.lean:344, proof/Seed.lean:352, proof/Seed.lean:833, proof/Seed.lean:838, proof/Seed.lean:840, proof/Seed.lean:844, proof/Seed.lean:845, proof/Seed.lean:847, proof/Seed.lean:812, README.md:8, README.md:110, README.md:121, README.md:134
+reason: `inst_boot` is a from_boot-form theorem about the kernel's actual `bytes`: it halts with 0 after exactly 241 instructions, for any `env.hash` and any S ≤ 0x80, with `Laid` giving V = dfV, C = dfC of 0x00‖V, Generate's fields, and every other byte unchanged, which matches README.md:8 and README.md:110–120. `chain` states the README's five steps: alice-2's halt with its code, code 0 iff Trusted plus both WinOk, then Instantiate halting with 0 at 241 and Generate with 0 at COST m after `restart`, and block j = Hash(dfV(digest ‖ 16 nonce bytes) + j). Its added bounds on m and the interval (proof/Seed.lean:836–837) are only the range conditions Generate needs and do not change the claim.
+J3: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:833, proof/Seed.lean:844, proof/Seed.lean:845
+reason: It adds a new 61-instruction Hash_DRBG Instantiate kernel with `inst_run` (exactly 241 instructions, any hash). It also adds the `chain` theorem, which runs alice-2's kernel, Instantiate and Generate in order and gives V = Hash_df(digest ‖ nonce). The prior-work list has neither.
+J4: YES
+evidence: ../tools/hashdrbg.py:42, ../tools/hashdrbg.py:46, seed.py:76, seed.py:78, seed.html:108
+reason: The reference computes Hash_df with hashlib and a generic counter loop written from SP 800-90A's text. Lean instead defines `dfV`/`dfC` over its own `two`/`beN` and `digs` functions. The page's JavaScript is a third independent implementation. All three are checked against NIST's vectors.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Life.lean:288, proof/Life.lean:294, proof/Life.lean:98, proof/Life.lean:309, proof/mutants.txt:5, capture.txt:26, capture.txt:77, capture.txt:78, capture.txt:86, capture.txt:56, shell/shell.c:75, shell/shell.c:82, shell/shell.c:87, README.md:139, README.md:142
+reason: Each proved claim has a matching theorem: `lives` for 3079 and the written history, `not_before`, `rule30`, and `from_boot`. The eleven refusals match the eleven lines in mutants.txt and the PASS lines in capture.txt. The differential and RTL figures (20 seeds, instret 3082, two lives) match the capture. The board claim is a recorded observation that names the UF2 SHA-256, the board and how it was run. It is backed by the capture's hash, and the inference that all four checks held rests on shell.c, where `board_play` is reached only after the checks pass. The README says plainly what was not recorded. I could not check WHY.zh-TW.md, which is not in this bundle.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:84, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` covers any image whose first 76 bytes are the kernel's, and says the run is still going at 3078 and halts with 0 at exactly 3079, with memory equal to `lived`. `lived` is the original memory overlaid with 1024 bytes from base+0x200, which are generations 1–256 of `life` from the little-endian word at base+0x100, as README.md:51 and :54 say. `lives` and `not_before` quantify over an arbitrary machine state, so the seed is arbitrary ("whatever the seed"). `rule30` states cell i ← cell (i+1)%32 XOR (cell i OR cell (i+31)%32), which matches README.md:53. The only extra hypothesis, `Placed env base`, is the region-fits condition the docstring at proof/Life.lean:286 mentions, and it does not weaken the claims.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288, README.md:139
+reason: Nothing in the prior work list covers a cellular-automaton kernel. This one has a new proved kernel for Rule 30 with an exact count of 3079 and a cell-by-cell theorem, and it was observed on a Pico 2 as an LED beat.
+J4: YES
+evidence: rule30.py:19, rule30.py:22, rule30.py:23, proof/Life.lean:76, differential/differential.py:50
+reason: `rule30.py` computes each cell separately from its left, centre and right bits with modular indices. The Lean `life` and the kernel use whole-word shifts and ORs, and the README says they differ in this way. The differential compares the Lean model and the RTL against the Python history.
+INJECTION: NONE
+END

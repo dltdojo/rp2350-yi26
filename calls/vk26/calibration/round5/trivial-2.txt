@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:68-69, proof/Fly.lean:576-578
+reason: The README says `watches_life` proves the kernel reports up at least down at every one of the 256 steps and in total. As shown in the bundle, its conclusion is `True` (proof/Fly.lean:578), which says nothing about the counts, so that claim has no theorem behind it. By contrast, `watches_shift` (proof/Fly.lean:585-586) has a real conclusion. The lead sentence (README.md:11-12) leans on `watches_life` too.
+J2: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69, README.md:11, README.md:12
+reason: `detects_boot` (proof/Fly.lean:556-559) is a valid `from_boot`-form theorem, but `watches_life` concludes only `True` (proof/Fly.lean:578), while README.md:68-69 and the headline at README.md:11-12 say it proves the kernel reports up at least down at every one of the 256 steps and in total. As written in Lean, this main theorem says nothing about the kernel's run, so it states far less than its description.
+J3: YES
+evidence: README.md:5-12, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:496
+reason: No prior experiment lists a motion-detector kernel or T1 (`detects`, kernel equals the detector). T2 (`shift_up` and `shift_dn`, with the four period-two exceptions) and T3 (`life_moves_up`, Rule 30 never seen moving down) are also new properties. T3 is also counted over all 2^32 rings (capture.txt:26).
+J4: YES
+evidence: fly.py:13-15, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19-24, capture.txt:26
+reason: `fly.py` counts bits with `bin().count("1")`, where the kernel uses a 32-round bit loop and the Lean specification uses its own `pc`. Rule 30 is written cell by cell in Python, where the Lean `life` uses whole-word bit operations. The README and the `fly.py` docstring both say this. The rotations are still shift-and-OR, as in the kernel, but the counting and the rule differ, so a copied mistake is unlikely.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:328, README.md:329, README.md:330, board/round1.txt:1
+reason: README.md:328-330 gives the TRNG draws' statistics (longest runs 11, 12 and 11; 516 and 508, 501 and 522, 518 and 527 of each window equal to its first). Nothing in the bundle supports these numbers, and the log in the bundle has no BITS lines for rounds 7–9, where the TRNG draws are. The other board claims match board/round1.txt:1 (18 streams, 4 refused, 3 start-up, 7 outputs) and the passing round1.txt checks in capture.txt, and the proof and mutant claims match the theorems and capture.
+J2: NO
+evidence: README.md:18, README.md:19, ../lean/Alice/Trust.lean:102, ../lean/Alice/Trust.lean:103, ../lean/Alice/Trust.lean:107, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:443
+reason: `from_boot` (../lean/Alice/Trust.lean:438-443) is of `from_boot` form, and its codes, counts and KAT-failure case match the text. But the README's headline says that with code 0 the output at 0x2400 is written "and no other byte changed" (README.md:19). The proved memory, `after` → `writeBytes (katted …) OUT …` (../lean/Alice/Trust.lean:109), also has `HASH`'s KAT answer written at 0x360 (../lean/Alice/Trust.lean:103), so the theorem contradicts that claim rather than supporting it.
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:533, README.md:11, README.md:21
+reason: It adds a kernel that runs a known-answer test on HASH before reading any samples, and it proves the new `trusts_after_kat` property of it, namely that halting with 0 implies HASH passed the test and the output is HASH of window 1 alone. It also checks on a board that a spoiled answer is refused at instruction 43. No prior experiment has a KAT, and vk26-alice-1 only has the carried windows.
+J4: YES
+evidence: ../tools/trustref.py:43, ../tools/trustref.py:51, ../tools/health.py:31, README.md:166
+reason: The reference uses hashlib for SHA-256 and a plain Python sample-by-sample loop for the health tests, while Lean uses RV32 registers and its own `rct` and `agree` definitions. The README states how the reference is built, and the code bears it out.
+INJECTION: NONE
+END

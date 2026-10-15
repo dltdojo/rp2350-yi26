@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:451, README.md:453, README.md:454, capture.txt:230
+reason: The table of `FIXED[0..2]` cache-set offsets for the revision 1 and revision 2 builds, and the claim that revision 1 was rebuilt byte for byte (README.md:448-449), come from `llvm-nm` runs that are not in the bundle. `capture.txt:230` checks only the current build's layout, at a different address (FIXED 0x10003854). The cache-set explanation for streams 2 and 4 rests on that table, so it goes beyond its evidence. The proof claims, RTL numbers, board cycle tables, slow-run counts and probe table that I checked do match `capture.txt` and the board logs.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:92, proof/Count.lean:99, proof/Count.lean:105, proof/Count.lean:110, proof/Count.lean:114, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, proof/Count.lean:677, proof/Count.lean:666, README.md:8, README.md:9, README.md:10, README.md:11, README.md:12, README.md:13, README.md:19, README.md:132
+reason: `from_boot` is in from_boot form. For any image whose first 116 bytes are the kernel's, at any `Placed` base, the kernel is still running at COST−1 and halts with 0 at COST. COST = 8 + 256·(2 + 6·4096 + 9) + 4 = 6,294,284, as README.md:9 states. Memory at the halt is exactly `after`: `hist b` as a word at 0x1400 + 4b for every b, and `most` at 0x1800. `most_is_max`, `hist_sum`, `count_constant_time` (any two kernel-prefixed images, which is stronger than "differ only in their samples") and `naive_refused` each state what the README says they state.
+J3: YES
+evidence: proof/Count.lean:539-547, proof/Count.lean:585-586, proof/Count.lean:627, proof/Count.lean:665-666, proof/Count.lean:673-677
+reason: It adds a new kernel, a constant-time exact count of the commonest value over 4096 samples. Its theorems cover the whole-memory result (`from_boot`), `most_is_max`, `hist_sum`, `count_constant_time` and the refusal of the naive histogram. No prior experiment listed has an entropy-estimate count, and the revision 4 board probe of the XIP cache is new as well.
+J4: YES
+evidence: count.py:39-48, count.py:59-64, proof/Count.lean:95-105, README.md:182
+reason: count.py makes one pass with `counts[s] += 1` and takes `max`. Lean defines `cnt` as a filter-and-length per value, and the kernel counts value by value, so it is not a transcription of either. The §6.3.1 estimate is written from the standard's text and the page recomputes it in JavaScript, with the Lean side proving only the count.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:139, README.md:144, shell.c:75, shell.c:77, shell.c:82, shell.c:87, Life.lean:288, mutants.txt:15, capture.txt:86
+reason: The proof claims match `lives`, `not_before`, `rule30` and `from_boot`. The 11 refused versions and the 6 caught shells match `mutants.txt` and the capture. The board claim is a recorded observation with the UF2 SHA-256, the board and the method stated. The step from that observation to "all four checks held" rests on the shell's check calls before `board_play`. `board_fail` is defined outside the bundle, so I assumed it does not return.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` covers any image whose first 76 bytes are the kernel's bytes, run from `boot`. It states that the kernel is still running at 3078, halts with 0 at exactly 3079, and leaves memory equal to `lived`, which is the original memory overlaid at 0x200 with 4·256 bytes. Those bytes are generations 1..256 of the seed word at 0x100, little-endian, matching the README. `lives`, `not_before` and `rule30` (all x, i<32, neighbours (i+1)%32 and (i+31)%32) likewise match their table rows, quantifiers and conclusions alike.
+J3: YES
+evidence: Life.lean:76, Life.lean:98, Life.lean:288, README.md:139
+reason: No prior experiment covers a cellular automaton. This one adds a new 19-instruction Rule 30 kernel with its exact-count theorem, and a new board run.
+J4: YES
+evidence: rule30.py:19, rule30.py:24, Life.lean:76, differential/differential.py:49
+reason: `rule30.py` computes the rule cell by cell with a per-bit loop and modular indexing. The Lean `life` and the kernel use whole-word shifts and ORs. The differential compares both the model and the RTL against `rule30.py`'s history.
+INJECTION: NONE
+END

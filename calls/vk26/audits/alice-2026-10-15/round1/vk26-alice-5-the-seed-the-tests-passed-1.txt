@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:426, README.md:427, README.md:436, README.md:440, README.md:411, capture.txt:247
+reason: The board counts do not add up. README.md:411 says 202 cases were judged right. README.md:426-427 split them into 104 with a 48-byte seed material and 99 with an 80-byte one, which sums to 203. capture.txt:247 lists 80-byte Instantiate timings (11372 in 78, plus the other values) that total 98. README.md:436 ("203 times") and README.md:440 ("all 203") also count 203 against the 202 whole cases reported in the log header and capture.
+J2: NO
+evidence: README.md:127, README.md:128, proof/Seed.lean:787, proof/Seed.lean:788, proof/Seed.lean:844, proof/Seed.lean:845, proof/Seed.lean:355, proof/Seed.lean:358
+reason: `inst_run`/`inst_boot` are of `from_boot` form and match the text (any seed material with S ≤ 0x80, any `env.hash`, halts with 0 after 241, `Laid`). `chain` is weaker than its description, though. The README and docstring describe the shell's step as "the pc at base, any registers", but `restart` is defined as `{ s with pc := base, mem := … }`, so it keeps the previous kernel's registers. `chain` therefore only states the Instantiate and Generate runs for that one register file, not for any registers the shell leaves.
+J3: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:833, README.md:260
+reason: It adds a new Instantiate kernel with proved `inst_run`/`inst_boot`, and a `chain` theorem joining the alice-2, Instantiate and Generate kernels. It also adds a measured explanation of the extra minstret: the RTL counts one more when the word after the halting ecall decodes as an instruction. None of the prior-work entries has these.
+J4: YES
+evidence: seed.py:76, seed.py:77, seed.py:78, ../tools/hashdrbg.py:42, ../tools/hashdrbg.py:48, seed.py:119
+reason: The reference computes Hash_df with hashlib SHA-256 and Python byte strings, via a generic counter loop in hashdrbg.py and an explicit h1/h2 computation in `inst_region`. Lean uses its own `dfV`/`dfC` over the kernel's layout. It is also checked against NIST's CAVP vectors, so a mistake copied into both is unlikely.
+INJECTION: NONE
+END

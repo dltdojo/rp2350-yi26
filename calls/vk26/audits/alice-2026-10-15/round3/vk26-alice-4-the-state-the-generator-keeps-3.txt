@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:28, capture.txt:237, capture.txt:239, capture.txt:243, ../lean/Alice/Drbg.lean:1422
+reason: Each proved claim matches a theorem: from_boot gives exact COST, reseed_boot halts with 1 after 7, generate_twice and after_out are as stated. The 13 mutants match mutants.txt and the capture. The board numbers (165 right, 15,078 in 125, up to 1,596 more, 495 runs, and 178 = 168 CASE lines + 10 lost) match the --board output and the log. The README says plainly that the cache explanation was not probed.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1414, ../lean/Alice/Drbg.lean:1417, ../lean/Alice/Drbg.lean:1418, ../lean/Alice/Drbg.lean:1419, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1421, ../lean/Alice/Drbg.lean:1422, ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1062, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1373, ../lean/Alice/Drbg.lean:1374, ../lean/Alice/Drbg.lean:1432, ../lean/Alice/Drbg.lean:1433, ../lean/Alice/Drbg.lean:1451, ../lean/Alice/Drbg.lean:1452, ../lean/Alice/Drbg.lean:1454, README.md:11, README.md:13, README.md:95, README.md:105, README.md:124, README.md:126
+reason: `from_boot` is a from-boot theorem about the kernel's own bytes. It holds for any `env`, V, C and counter, and its hypotheses (1 ≤ m, the blocks fit, interval < 2^32−1, counter ≤ interval, the image bytes) are all stated in the README. It concludes the kernel is still running at COST m − 1 and halted with 0 at COST m, with the region equal to `after` (blocks, data, H, counter bytes, `vnext`, counter + 1, all else unchanged), as README.md:105-117 describes. `after_out`, `reseed_boot` (halts with 1 after 7, memory the image) and `generate_twice` (any registers, pc = base, memory of the first run, cnt + 1 ≤ interval, result `after` of `after`) also match their descriptions.
+J3: YES
+evidence: README.md:5-19, ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1444
+reason: Prior work has no Hash_DRBG kernel. This one is new: a 70-instruction Generate with a carry-chained 55-byte state update, proved exact in instruction count, plus a second Generate from the left-over region, run against NIST's CAVP vectors and on a board.
+J4: YES
+evidence: ../pages/drbg.js:32-45, README.md:288-292, capture.txt:31, capture.txt:237
+reason: The bundle holds an independent JavaScript Generate using BigInt mod 2^440 and WebCrypto SHA-256, where Lean uses a byte-wise spec over an abstract hash. NIST's CAVP ReturnedBits are an external check, and the board output is held to them. The Python drbg.py only re-exports ../tools/hashdrbg.py, which is not in the bundle, so its independence cannot be judged here.
+INJECTION: NONE
+END

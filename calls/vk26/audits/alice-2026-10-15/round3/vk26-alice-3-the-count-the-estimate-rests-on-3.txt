@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: WHY.zh-TW.md:112, README.md:454
+reason: WHY.zh-TW.md:112 states as fact that the copy-over-sets pattern holds in both the revision 1 and revision 2 builds. README.md:454 says only revision 4's build is checked and that for revisions 1 and 2 this is "a note, not evidence", with no committed check and no kept UF2s.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:110, proof/Count.lean:114, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, proof/Count.lean:677, README.md:8, README.md:9, README.md:10, README.md:133, README.md:134
+reason: `from_boot` is a from-boot theorem for any `base` allowed by `Placed` and any image whose first 116 bytes are the kernel's: it is still running at COST−1 and halts with 0 at COST (8 + 256·(2+6·4096+9) + 4 = 6,294,284), with memory exactly `after`, which writes the 256 `hist` words from 0x1400 and `most` at 0x1800, as README.md:8-11 and 133-145 state. `most_is_max`, `hist_sum` and `count_constant_time` (any two images that agree on the kernel's bytes have equal traces and the same end at every n) match their descriptions, and the last is at least as strong as the README's wording.
+J3: YES
+evidence: proof/Count.lean:547, proof/Count.lean:586, README.md:628, README.md:629
+reason: The experiment adds a new kernel, a branch-free 4096-sample histogram with a proved constant-time trace (`from_boot`, `most_is_max`). It also adds a new board measurement, the probe that finds two harness cache lines costing about 110 cycles each. The prior-work entries cover health tests, hashing, signatures and PIO, none of them a commonest-value count.
+J4: YES
+evidence: count.py:41-43, count.py:48, differential/differential.py:37-39, proof/Count.lean:95-96
+reason: count.py computes the counts with a plain per-sample `counts[s] += 1` loop and packs them with `struct`. Lean specifies them as a per-value filter over `List.range` and the kernel scans all samples once per value. The two share no definitions, and the differential compares the model's and the RTL's whole regions against count.py's bytes.
+INJECTION: NONE
+END

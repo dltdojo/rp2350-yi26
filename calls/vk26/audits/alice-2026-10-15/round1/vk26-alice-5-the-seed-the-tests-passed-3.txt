@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:426-427, README.md:436-437, README.md:440-441, capture.txt:247, capture.txt:248
+reason: The README says 104 cases had a 48-byte seed material and 99 an 80-byte one (203 in all), 260 was seen "203 times", and "all 203" second Generates took 15,088 cycles. The board's page summary and the capture both say 202 cases. The capture's Instantiate counts are 62 of 104 and 78 of 98, not "78 of 99", and its Generate counts sum to 404 (2 × 202), not 406. The 15,088 count of 377 mixes first and second Generates, so the claim about every second Generate is not shown either. The bundle's board log is a slice, so the "28 of 83 slow in both rounds" and "clusters 16 cases apart" claims cannot be checked against it.
+J2: NO
+evidence: README.md:127, README.md:128, README.md:129, proof/Seed.lean:787, proof/Seed.lean:788, proof/Seed.lean:844, proof/Seed.lean:845, proof/Seed.lean:355, proof/Seed.lean:358, proof/Seed.lean:767, proof/Seed.lean:771
+reason: `inst_run`/`inst_boot` are of `from_boot` form and match the README: any hash, any seed material length S ≤ 0x80, HALT 0 after exactly 241 instructions, the region `Laid`. But the README says the chain's shell step starts the next kernel with "any registers", while `restart` (`{ s with pc := base, mem := … }`) keeps exactly the registers the previous kernel left, so `chain` covers only that one register state for both the Instantiate and the Generate runs, a fixed input where the text says "any".
+J3: YES
+evidence: proof/Seed.lean:355-358, proof/Seed.lean:833-847, README.md:236-274
+reason: It adds a new proved Hash_DRBG Instantiate kernel (`inst_run`, 241 instructions, any hash), and a chain theorem tying alice-2's code-0 result to alice-4's output bits. It also adds a new RTL finding, the extra minstret when the word after `ecall` is a legal instruction, with a table of five words.
+J4: YES
+evidence: ../tools/hashdrbg.py:42-48, seed.py:76-80, ../tools/hashdrbg.py:116-135
+reason: The reference uses hashlib and a general counter-loop Hash_df written from the standard's text, plus byte-slice region layout and checks against NIST CAVP vectors. The Lean side is a fixed two-hash `dfV`/`dfC` over an abstract `env.hash` with a proved register-level kernel, so it is not a transcription of the Lean definitions.
+INJECTION: NONE
+END

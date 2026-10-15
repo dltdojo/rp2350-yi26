@@ -29,7 +29,7 @@ sys.path.insert(0, HERE)
 from seed import INTERVAL, nonce_of, seed_chain  # noqa: E402  (seed.py has put alice/tools on the path)
 from hashdrbg import cavp_cases, drbg_generate, drbg_instantiate  # noqa: E402
 from health import pack, unpack, window_bytes  # noqa: E402
-from lines import bits_lines, status_line  # noqa: E402
+from lines import bits_lines, spans, status_line  # noqa: E402
 from trustref import OUTPUT, kat_want, sha256, trust_outcome, trust_streams  # noqa: E402
 
 SERIAL = "vk26-alice-5"
@@ -278,6 +278,47 @@ def seed_again(e, rnd, code, p):
     return why
 
 
+def seed_board_notes(log):
+    """What the README says of a log beyond each verdict, as a check's output:
+    where the page joined and saved; for the whole NIST cases only, each
+    run's mcycle by the seed material's length, which cases had a run slower
+    than the least for its kind, and those seen whole in both rounds."""
+    seed, runs, cases, last, status = {}, {}, set(), None, []
+    for line in open(log, encoding="utf-8", errors="replace"):
+        m = re.search(r" usb=.* dropped=(\d+) errors=(\d+) ", line)
+        if m:
+            status.append((int(m.group(1)), int(m.group(2))))
+        t = line.split()
+        if len(t) < 3 or not re.fullmatch(r"[0-9a-f]{8}", t[1]) or not re.fullmatch(r"[0-9a-f]{8}", t[2]):
+            continue
+        k = (int(t[1], 16), int(t[2], 16))
+        if t[0] in ("SEED", "STATE", "BLOCK", "RUN", "CASE"):
+            last = k
+        if t[0] == "SEED" and len(t) == 5:
+            seed[k] = int(t[3], 16)
+        elif t[0] == "RUN" and len(t) == 6:
+            runs.setdefault(k, {})[int(t[3], 16)] = int(t[5], 16)
+        elif t[0] == "CASE":
+            cases.add(k)
+    whole = sorted(k for k in cases if k in seed and sorted(runs.get(k, {})) == [0, 1, 2])
+    print(f"      the log: from round {min(runs)[0]}'s case {min(runs)[1]} to round {last[0]}'s case {last[1]}; "
+          f"whole NIST cases {len(whole)}")
+    least = {}
+    for s in sorted({seed[k] for k in whole}):
+        mine = [k for k in whole if seed[k] == s]
+        for n, name in enumerate(("Instantiate", "Generate 1", "Generate 2")):
+            got = sorted(runs[k][n] for k in mine)
+            least[(s, n)] = got[0]
+            print(f"      seed material {s} bytes, {len(mine)} cases: {name} {got[0]} in {got.count(got[0])}, "
+                  f"up to {got[-1]}")
+    slow = {k for k in whole if any(runs[k][n] != least[(seed[k], n)] for n in range(3))}
+    for r in sorted({k[0] for k in whole}):
+        print(f"      round {r}: a run slower than its least in cases {spans(i for rr, i in slow if rr == r)}")
+    both = [i for i in range(256) if (0, i) in whole and (1, i) in whole]
+    print(f"      cases whole in rounds 0 and 1: {len(both)}; slow in both: {sum((0, i) in slow and (1, i) in slow for i in both)}")
+    print(f"      status lines: {len(status)}, dropped {sorted({d for d, _ in status})}, errors {sorted({e for _, e in status})}")
+
+
 def seed_board(expect_h, logs):
     """Each CASE and CHAIN of each log against NIST and seed.py; then the mcycles, as read."""
     e = seed_numbers(expect_h)
@@ -323,6 +364,8 @@ def seed_board(expect_h, logs):
         for kind, seen in cycles.items():
             if seen:
                 print(f"      mcycle of {kind}: " + "; ".join(f"{c} in {k}" for c, k in sorted(seen.items())))
+        if n:
+            seed_board_notes(log)
     return failed
 
 

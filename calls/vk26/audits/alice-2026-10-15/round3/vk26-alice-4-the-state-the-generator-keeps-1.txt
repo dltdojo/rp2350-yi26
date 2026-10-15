@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:10, README.md:24, README.md:140, ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1430, ../lean/Alice/Drbg.lean:1444, capture.txt:213, capture.txt:237, capture.txt:238, capture.txt:240, capture.txt:244, capture.txt:246, capture.txt:247, capture.txt:198
+reason: Each proved claim (exact `COST m`, any `env.hash`, reseed halt, `generate_twice`) matches a theorem statement, and the 13 refused mutants match capture.txt:16-28. Every number said to come from the board (165 whole cases, 15,078 cycles, 40 slow first runs, 15/115/125/135 for the reseed check, 41 of 54, `dropped=0` at line 1803) matches the `fixtures.py --board` output in capture.txt. The README says plainly what the board run does not show.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1417, ../lean/Alice/Drbg.lean:1418, ../lean/Alice/Drbg.lean:1419, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1421, ../lean/Alice/Drbg.lean:1422, ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1061, ../lean/Alice/Drbg.lean:1062, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1373, ../lean/Alice/Drbg.lean:1374, ../lean/Alice/Drbg.lean:1432, ../lean/Alice/Drbg.lean:1433, ../lean/Alice/Drbg.lean:1451, ../lean/Alice/Drbg.lean:1452, ../lean/Alice/Drbg.lean:1454, README.md:11, README.md:105, README.md:106, README.md:107, README.md:117, README.md:124, README.md:126, README.md:127, README.md:128
+reason: `from_boot` is of from_boot form: it runs the kernel's bytes from `boot` and quantifies over any `env` (so any hash), any V, C, m and counter. Under exactly the README's stated hypotheses (1 ≤ m, the blocks fit, the interval below 2^32−1, the counter at most the interval, plus the image bytes the README says it holds), the kernel is still running at COST m − 1 and halted with 0 at COST m, with the region equal to `after`. `after_out`, `reseed_boot` (memory = image after 7) and `generate_twice` (any registers, pc = base, memory from the first run, counter + 1 ≤ interval, result `after` of `after` with `vnext`) likewise state what the README says they state.
+J3: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1444, ../lean/Alice/Drbg.lean:1373
+reason: No prior experiment lists a Hash_DRBG Generate kernel. This one is new, with its exact-count theorem (`from_boot`), `after_out`, `reseed_boot` and `generate_twice`, and it is checked on a board against NIST CAVP vectors.
+J4: YES
+evidence: ../pages/drbg.js:32-45, capture.txt:177, capture.txt:179, README.md:288-292
+reason: `drbg.js` computes the Generate with BigInt mod 2^440 and WebCrypto SHA-256. The kernel adds byte by byte with carries and the Lean spec uses its own hash and byte definitions, so the two share no code. NIST's external ReturnedBits (120 of 120) also anchor the spec itself. `drbg.py` is only an import shim here, and `tools/hashdrbg.py` is not in the bundle, so I rest this on the JS reference and the NIST vectors.
+INJECTION: NONE
+END

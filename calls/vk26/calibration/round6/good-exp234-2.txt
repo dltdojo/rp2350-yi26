@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:73, README.md:74, README.md:75, README.md:83, README.md:123, README.md:125, README.md:129, README.md:218, README.md:222, board/round1.txt:1, capture.txt:67, proof/World.lean:489, proof/World.lean:588, proof/World.lean:641, proof/World.lean:663, proof/World.lean:718
+reason: Every proved claim (W1, W0, M6, M7, M8, answer_world) matches a theorem in proof/World.lean, and the capture shows each depends only on Lean's own axioms. The 12.715% figure, the 40000-patient table and the 19-of-19 replay match the capture. The board numbers (38 agreed, 27 treated, 4 missed, 17 controls missed) match the page summary line in board/round1.txt. The exp232 and exp233 numbers (7, 7 and 16 treated; 142 of 1038) match their own logs and capture. The README states plainly which parts were not run on a board or rest on an assumption.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:510, proof/World.lean:511, proof/World.lean:489, proof/World.lean:490, proof/World.lean:622, proof/World.lean:588, proof/World.lean:589, proof/World.lean:641, proof/World.lean:642, proof/World.lean:663, proof/World.lean:664, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, README.md:71, README.md:72, README.md:73, README.md:74, README.md:75, README.md:76
+reason: `from_boot` is a from-boot theorem about any image that starts with the kernel's 296 bytes. It says the kernel is still running after 4042 instructions and halts with 0 at 4043, with memory equal to `lived`; every input and mask is left free, as W1 says. Each of `still`, `resistance_stays`, `cured_iff`, `zero_stays` and `answer_world` (any mask sequence, any position `p`, width 1–6, divisions = D w) has the quantifiers, hypotheses and conclusion its README row describes.
+J3: YES
+evidence: proof/World.lean:79, proof/World.lean:489, proof/World.lean:588, proof/World.lean:641, proof/World.lean:718, README.md:78, README.md:212
+reason: It adds a new kernel (the 74-instruction world, with the masks as input) with the W1 theorem. It adds new properties (M6, M7, M8 and answer_world) that give an exact failure rate. It also adds a new board observation, round 1, of that rate against the proof's prediction. None of this is in exp232, which proved only the model.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:61, ../exp232-the-cure-the-proof-predicts/cure.py:77, world.py:43, world.py:61, proof/World.lean:79, differential/differential.py:1
+reason: The reference is exp232's cure.py, which loops over cells one at a time with `cell()`. The Lean side uses whole-word bit operations (`wnext`, `edge`, `up1`). world.py computes D with cure.py's `dose_and_grow` and compares it with the D parsed from the Lean source. The differential test compares both the Lean model and the RTL against cure.py's generations.
+INJECTION: NONE
+END

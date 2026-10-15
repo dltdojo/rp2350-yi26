@@ -1,0 +1,6 @@
+PASS  S1 five experiments vk26-alice-1-<slug> to vk26-alice-5-<slug>, the id at most 34 characters
+SKIP  S2 every path the PR changes is under the proposer's directory — no BASE given
+PASS  S3 five kernel.bin, five different hashes (J3 still judges each one new)
+PASS  S4 the index table: a row per experiment, its link, Needs 0–3, one sentence
+PASS  G6 no file of the proposal is a copy of one in lean/ or tools/
+PASS  G6 experiments/duplication.sh --check: nothing gained a copy

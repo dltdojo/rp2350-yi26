@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:7-8, README.md:47-48, README.md:63, README.md:78-79, proof/Fly.lean:495-496, proof/Fly.lean:113-115, capture.txt:10, capture.txt:26-27, capture.txt:30, capture.txt:40
+reason: The proved claims match theorems that are quantified over all inputs and rest on Lean's axioms only (T1 `detects`, T3 `life_moves_up`, T2 `shift_up` and `shift_dn`). The 70924 count is 7 + 277·256 + 5, and the capture shows 70927 retired on the RTL. The brute-force counts, the 2053/1030 totals, the four period-two rings and the seven refused mutants all appear in the capture. README.md:98-101 and WHY.zh-TW.md:56 say things the bundle cannot check (shared-library moves, that the brute-force counter is in C), but neither is a substantive claim, and the README says plainly that no board was used.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:486, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:115, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:589, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:592, proof/Fly.lean:593, README.md:54, README.md:58, README.md:59, README.md:60, README.md:63, README.md:68, README.md:69, README.md:70, README.md:71
+reason: `detects_boot` is a from_boot theorem: from `boot env.region img`, for any image beginning with the kernel's bytes, the kernel is running after 70923 instructions and halted with 0 at 70924, with `Sees` giving every step's `toUp`/`toDn`, both totals and the unchanged frames for arbitrary memory, which is what T1 says. T2 (`shift_up`/`shift_dn` with the moved-two-cells hypothesis), T3 (`life_moves_up` for all `x`), `watches_life` and `watches_shift` (per-step and total bounds, with the period-two exclusion at every step) match their README descriptions in quantifiers, hypotheses and conclusions.
+J3: YES
+evidence: README.md:5-12, proof/Fly.lean:113-115, proof/Fly.lean:495-496, proof/Fly.lean:576-580
+reason: It adds a new kernel, the 41-instruction Hassenstein–Reichardt motion detector. It also adds a new theorem tying that detector to exp225's Rule 30: `life_moves_up` turns exp225's conjecture into a proved property, and `watches_life` carries it to the kernel's output. T2 also yields the four period-two exceptions, which no prior experiment has.
+J4: YES
+evidence: fly.py:13-15, fly.py:30-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24, proof/Fly.lean:24-31
+reason: The Rule 30 reference is written cell by cell with `% 32` indexing, while Lean's `life` uses whole-word `up1`/`dn1`/XOR/OR. The popcount is Python's `bin().count`, not Lean's recursive `pc`. The reference's `rot_up` and `rot_down` are shift-and-OR, which is close to the kernel's own formula, so the README's "rotations" wording overstates the difference. The two independent parts are enough, though, and the detector's definition is the specification itself.
+INJECTION: NONE
+END

@@ -19,6 +19,7 @@ the page must tell apart.
 EXPECT_H is build/expect.h: the RTL's minstret, and the streams the shell
 runs after the TRNG's two.
 """
+import math
 import os
 import re
 import struct
@@ -118,7 +119,11 @@ def probe_report(runs):
     mcycle or misses were not the baseline's."""
     base = runs.get(0, [])
     cyc0, miss0 = {r[2] for r in base}, {r[4] for r in base}
-    out = [f"probe, {sum(len(v) for v in runs.values())} runs: nothing first, mcycle "
+    every = [r for v in runs.values() for r in v]
+    out = [f"probe, {len(every)} runs, each a HALT 0 (shell.c sends no PROBE line otherwise): minstret "
+           f"{'/'.join(map(str, sorted({r[1] for r in every})))}, XIP accesses "
+           f"{'/'.join(map(str, sorted({r[3] for r in every})))} in every condition",
+           f"nothing first, in {len(base)} runs: mcycle "
            f"{'/'.join(map(str, sorted(cyc0)))}, accesses {'/'.join(map(str, sorted({r[3] for r in base})))}, "
            f"misses {'/'.join(map(str, sorted(miss0)))}"]
     for i in sorted(runs):
@@ -196,7 +201,9 @@ def count_board(expect_h, logs):
                     if int(a[3], 16) != instret:
                         bad.append(f"round {rnd} stream {s}: the second run's minstret {int(a[3], 16)}")
             if s < 2:
-                est.setdefault(s, []).append((mcv(max(counts), L)[2], per_bit(smp)[2]))
+                ones = sum(bin(x).count("1") for x in smp) / (8 * len(smp))
+                est.setdefault(s, []).append((mcv(max(counts), L)[2], per_bit(smp)[2], ones,
+                                              (ones - 0.5) / math.sqrt(0.25 / (8 * len(smp)))))
         ok = n > 0 and not bad
         print(f"{'PASS' if ok else 'FAIL'}  {os.path.basename(log)}: {n} whole streams from a board, each of the 256 "
               f"counts and the largest as count.py gives them, minstret the RTL's"
@@ -216,7 +223,8 @@ def count_board(expect_h, logs):
             print(f"      mcycle of the second run, straight after the first: {at(again, None)}")
         for s, name in ((0, "the TRNG, its tests on"), (1, "the TRNG, raw")):
             if s in est:
-                hs = ", ".join(f"{h:.3f} ({hb:.3f} a bit)" for h, hb in est[s])
+                hs = ", ".join(f"{h:.3f} ({hb:.3f} a bit; ones {100 * o:.2f}%, {z:+.1f} sd from half)".replace("-0.0 ", "+0.0 ")
+                               for h, hb, o, z in est[s])
                 print(f"      {name}: H per byte {hs}")
         runs = logged_probes(log)
         if runs:

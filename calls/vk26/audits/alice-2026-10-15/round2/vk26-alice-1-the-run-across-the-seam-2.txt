@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:90, README.md:288, board/round1.txt:1, board/round1.txt:50, capture.txt:131, capture.txt:47
+reason: The proof claims match `from_boot` and `cost`. The board numbers match the page's own summary line and the STREAM lines in the log: codes, minstret, digest counts, and window 2 for the seam stream. Both are held by capture.txt's board checks. The LED claim is the author's own observation. It does not name the UF2 beside it, but the minstret and digest checks rest on the log, so I did not count it as going beyond the evidence.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:78, proof/Seam.lean:82, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:46, ../lean/Alice/Window.lean:409, README.md:9, README.md:11, README.md:14, README.md:77, README.md:87, README.md:96
+reason: `from_boot` is a from_boot-form theorem over any image whose first 552 bytes are the kernel's, at any placed base and for any `env.hash`, and these are exactly the hypotheses the README states. Its conclusion matches the README: still running at `cost (stop …) - 1`; halted at `cost (stop …)` with `code` (0, or the failing window's number); memory equal to `wrote`, i.e. `HASH` of each earlier window's 4096 bytes at 0x4400 + 32j and nothing else. `WinOk` takes `rct` from the stream's start, so the run crosses window edges, and `agree` per window, as the text says; the cost arithmetic (12 + 17421k + 17419, and 12 + 4·17421 + 3) gives the stated 17431 + 17421·k and 69699.
+J3: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:90, ../lean/Alice/Window.lean:45
+reason: This is a new 138-instruction multi-window kernel, and no earlier experiment has one. Its theorem carries the repetition count across window edges and writes a digest only for each window before the first failure. The 11+10 stream stopping at window 2 on the RTL and on a board is a new checked prediction.
+J4: YES
+evidence: ../tools/health.py:31, seam.py:50, differential/differential.py:52, seam.py:53
+reason: The reference is a plain Python loop over samples, one at a time, written after exp114's crate and sharing nothing with the kernel's registers. It uses hashlib where the Lean model has an abstract `HASH`, and a third check in the page does the same job in JavaScript. The differential compares the kernel's regions and counts on the Lean model and the RTL against this reference.
+INJECTION: NONE
+END

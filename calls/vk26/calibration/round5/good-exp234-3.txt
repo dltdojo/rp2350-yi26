@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:75, README.md:129-136, README.md:218-236, proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, board/round1.txt:1, capture.txt:23, capture.txt:41, ../exp232-the-cure-the-proof-predicts/capture.txt:33-34
+reason: Each proved claim (W1, W0, M6, M7, M8, the divisions 0, 0, 1, 2, 3, 8) matches a theorem, and the axiom check passes. Each measured claim (12.715%, 12.43% of 40000, 142 of 1038) matches the capture. The board numbers (27 treated, 4 missed, 38 of 38 agreed, minstret 4046, the patients named) match board/round1.txt and the exp232/exp233 logs. The 4 of 27 and 8 of 57 Wilson intervals work out when recomputed from those counts. The board observation names the UF2 hash and the phone page.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:509, proof/World.lean:510, proof/World.lean:511, proof/World.lean:489, proof/World.lean:490, proof/World.lean:188, proof/World.lean:622, proof/World.lean:588, proof/World.lean:589, proof/World.lean:641, proof/World.lean:642, proof/World.lean:663, proof/World.lean:664, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, README.md:71, README.md:72, README.md:73, README.md:74, README.md:75, README.md:76
+reason: `from_boot` is in from_boot form: it is about the kernel's own 296 bytes, starts from `boot`, is still running at 4042 instructions and halts with 0 at 4043, and leaves memory equal to `lived`, an overlay of the 64 `wnext` generations on the rest of memory, for any image and so any input and masks. The other main theorems match their README rows: `still` holds for every n with every mask zero; `resistance_stays` needs only `inside` and a nonzero r; `cured_iff` and `answer_world` quantify over all masks, any position p and widths 1 to 6, and the rate is openly said to be arithmetic done outside Lean.
+J3: YES
+evidence: proof/World.lean:79, proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, README.md:78-83
+reason: It adds a new proved kernel, the world's kernel with the random masks as input (W1). It also adds new theorems: M7 `cured_iff`, M8, and `answer_world` with the exact divisions per lump width. From these it derives an exact predicted failure rate, which it checks on a board. exp232 only had the model kernel, with the world in unproved C.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:57-77, world.py:43-50, world.py:61-78, README.md:110
+reason: The reference `cure.py` computes the dose and growth cell by cell with loops over `cell(x, i)`, while Lean uses word-level bit operations. `world.py` recomputes the divisions from that code and compares them with the D parsed from the Lean source. The rate comes from exact `Fraction` arithmetic.
+INJECTION: NONE
+END

@@ -5,7 +5,7 @@
 rounds31|the bit loop runs 31 rounds: the top cell is never counted|s/^  .opi .addi 5 0 0x20,$/  .opi .addi 5 0 0x1f,/
 not_round|the move up loses the top cell instead of bringing it round to the bottom: a shift, not a rotation|0,/^  .sh .srli 30 7 31,$/s//  .sh .srli 30 7 30,/
 total_crossed|the down total adds the up count|s/^  .op .add 19 19 14,$/  .op .add 19 19 13,/
-mirror_life|the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, which the fly sees moving down|s/^def life (x : Word) : Word := dn1 x ^^^ (up1 x /def life (x : Word) : Word := up1 x ^^^ (dn1 x /
+mirror_life|the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, Rule 30's mirror image|s/^def life (x : Word) : Word := dn1 x ^^^ (up1 x /def life (x : Word) : Word := up1 x ^^^ (dn1 x /
 always_up|the claim that the fly sees Rule 30 move up strictly, every step: 4,870,848 rings it sees not move|s/^theorem life_moves_up (x : Word) : toDn x (life x) ≤ toUp x (life x) := by$/theorem life_moves_up (x : Word) : toDn x (life x) < toUp x (life x) := by/
 no_alias|the claim that any frame moved up is seen moving up, the stripes of period two included|s/^theorem shift_up (x : Word) (h : up1 (up1 x) ≠ x) : toDn x (up1 x) < toUp x (up1 x) := by$/theorem shift_up (x : Word) (h : True) : toDn x (up1 x) < toUp x (up1 x) := by/
 count_short|the kernel is claimed to halt one instruction sooner than it does|s/^    ∃ s', run env 70923 s = .running s' ∧ run env 70924 s = .halted 0 s' ∧ Sees s.mem s'.mem base := by$/    ∃ s', run env 70922 s = .running s' ∧ run env 70923 s = .halted 0 s' ∧ Sees s.mem s'.mem base := by/

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:9, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1412, capture.txt:179, capture.txt:198, capture.txt:237, capture.txt:238, capture.txt:243, board/round1.txt:1
+reason: The claims I checked match the bundle.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1417, ../lean/Alice/Drbg.lean:1418, ../lean/Alice/Drbg.lean:1419, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1421, ../lean/Alice/Drbg.lean:1422, ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1061, ../lean/Alice/Drbg.lean:1062, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1373, ../lean/Alice/Drbg.lean:1374, ../lean/Alice/Drbg.lean:1432, ../lean/Alice/Drbg.lean:1433, ../lean/Alice/Drbg.lean:1451, ../lean/Alice/Drbg.lean:1452, ../lean/Alice/Drbg.lean:1454, README.md:105, README.md:106, README.md:107, README.md:108, README.md:124, README.md:126, README.md:128
+reason: `from_boot` runs the kernel's actual bytes from `boot` for any `env.hash` and any state. It assumes 1 ≤ m, that the blocks fit, an interval below 2^32−1 and a counter at most the interval, as README.md:105-107 says. It concludes still running at `COST m − 1`, halted with 0 at `COST m = 2030 + 566m`, and the region equal to `after` (blocks, data, H, counter bytes, `vnext`, counter+1, everything else from the image). `after_out`, `reseed_boot` (halt 1 after 7, memory the image) and `generate_twice` (any registers, pc = base, memory from the first run, cnt+1 ≤ interval, result `after` of `after`) state exactly what README.md:121-130 describes, and the image-content hypotheses are disclosed at README.md:95-97.
+J3: YES
+evidence: README.md:5, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1444, capture.txt:237
+reason: No earlier experiment has a Hash_DRBG Generate kernel. This one is proved exact in instruction count, has its state arithmetic proved byte by byte, and is checked on a board against NIST's vectors. Exp222/223 stop at the conditioned seed, and alice-1 to alice-3 cover other pieces.
+J4: YES
+evidence: ../tools/hashdrbg.py:57, ../tools/hashdrbg.py:63, ../tools/hashdrbg.py:72, drbg.py:32, ../pages/drbg.js:32
+reason: The reference does the 440-bit arithmetic with Python bignums and `hashlib` from the standard's text. The Lean side uses byte-wise big-endian digit and carry lemmas, so a copied mistake is unlikely. The browser's BigInt/WebCrypto page is a second independent implementation, and NIST's vectors are a third check.
+INJECTION: NONE
+END

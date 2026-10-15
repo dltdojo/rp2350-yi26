@@ -80,7 +80,7 @@ written cell by cell: none is seen moving down, 4,870,848 are seen not moving.
 
 `proof/mutants.txt` holds seven wrong versions, each refused: a bit loop of 31
 rounds, a shift where the rotation should be, the down total adding the up
-count, the rule mirrored (Rule 86, which the fly sees moving down), T3 claimed
+count, the rule mirrored (Rule 86, Rule 30's mirror image), T3 claimed
 strictly, T2 claimed for the period-two stripes, and a count one short.
 
 ## What the experiment found
@@ -113,7 +113,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp230 — the motion the fly sees ===
-recorded at 2026-10-13T06:42:12Z from commit 0b63fba
+recorded at 2026-10-15T22:57:42Z from commit c168973
 
 >>> the theorems, and what they rest on
 'Exp230.life_moves_up' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -128,13 +128,13 @@ recorded at 2026-10-13T06:42:12Z from commit 0b63fba
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
-rounds31       the bit loop runs 31 rounds: the top cell is never counted                                                               refused in step_run
-not_round      the move up loses the top cell instead of bringing it round to the bottom: a shift, not a rotation                       refused in step_run
-total_crossed  the down total adds the up count                                                                                         refused in step_run
-mirror_life    the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, which the fly sees moving down   refused in up_life
-always_up      the claim that the fly sees Rule 30 move up strictly, every step: 4,870,848 rings it sees not move                       refused in life_moves_up
-no_alias       the claim that any frame moved up is seen moving up, the stripes of period two included                                  refused in shift_up
-count_short    the kernel is claimed to halt one instruction sooner than it does                                                        refused in setup_run
+rounds31       the bit loop runs 31 rounds: the top cell is never counted                                                       refused in step_run
+not_round      the move up loses the top cell instead of bringing it round to the bottom: a shift, not a rotation               refused in step_run
+total_crossed  the down total adds the up count                                                                                 refused in step_run
+mirror_life    the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, Rule 30's mirror image   refused in up_life
+always_up      the claim that the fly sees Rule 30 move up strictly, every step: 4,870,848 rings it sees not move               refused in life_moves_up
+no_alias       the claim that any frame moved up is seen moving up, the stripes of period two included                          refused in shift_up
+count_short    the kernel is claimed to halt one instruction sooner than it does                                                refused in setup_run
 
 >>> T3 by brute force, apart from the proof: every one of the 2^32 rings, one generation of Rule 30
 PASS  all 4294967296 rings: 0 seen moving down, 4870848 not moving, 4290096448 moving up
@@ -160,7 +160,7 @@ PASS  all 9 theorems it prints rest on Lean's own axioms only — no sorryAx, no
 PASS  rounds31: the proof refuses a version where the bit loop runs 31 rounds: the top cell is never counted
 PASS  not_round: the proof refuses a version where the move up loses the top cell instead of bringing it round to the bottom: a shift, not a rotation
 PASS  total_crossed: the proof refuses a version where the down total adds the up count
-PASS  mirror_life: the proof refuses a version where the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, which the fly sees moving down
+PASS  mirror_life: the proof refuses a version where the rule is mirrored, cell i taking cell i - 1 where Rule 30 takes cell i + 1: Rule 86, Rule 30's mirror image
 PASS  always_up: the proof refuses a version where the claim that the fly sees Rule 30 move up strictly, every step: 4,870,848 rings it sees not move
 PASS  no_alias: the proof refuses a version where the claim that any frame moved up is seen moving up, the stripes of period two included
 PASS  count_short: the proof refuses a version where the kernel is claimed to halt one instruction sooner than it does

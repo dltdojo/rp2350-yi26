@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seed.lean:355-359, proof/Seed.lean:822-824, proof/Seed.lean:839-854, capture.txt:5-7, capture.txt:11-22, capture.txt:28, capture.txt:222, capture.txt:254-264, board/round1.txt:1, board/round1.txt:994-996, board/round1.txt:1007-1008
+reason: I found no claim that goes beyond its evidence. Each proved claim matches a theorem statement: 241 instructions for S ≤ 0x80 and any hash, `code_zero_iff`, and the chain's Hash(V + j) over `seedMat`. The wrong-version counts (twelve, seven shells, ten pages) match the capture. The board figures match the saved log and the capture: 202 whole cases and 2 chains, 104 cases with a 48-byte seed material and 98 with an 80-byte one, 15,088 cycles for every second Generate, 261 for the chain's Instantiate, and 1,547 cycles for the spoiled KAT. The minstret arithmetic for the earlier experiments also checks against their captures.
+J2: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:357, proof/Seed.lean:358, proof/Seed.lean:342, proof/Seed.lean:352, proof/Seed.lean:772, proof/Seed.lean:776, proof/Seed.lean:193, proof/Seed.lean:196, proof/Seed.lean:839, proof/Seed.lean:844, proof/Seed.lean:846, proof/Seed.lean:850, proof/Seed.lean:851, proof/Seed.lean:853, proof/Seed.lean:818, README.md:8, README.md:111, README.md:123, README.md:138
+reason: `inst_boot` is in from_boot form: it runs the kernel's own bytes from `boot` and says the kernel is still running after 240 instructions and halts with 0 after exactly 241, with `Laid`. Like `inst_run`, it holds for any `env.hash` and any seed material of length S ≤ 0x80, as the README says. `Laid`'s V and C are Hash_df with the 440-bit prefix and the 0x00 before V, and its `rest` field covers "every byte outside what it wrote". `chain` states each of the README's five items: alice-2's halt and cost, the code-0 iff (KAT ∧ both windows), Instantiate's 240/241 after `restart`, Generate's `COST m − 1`/`COST m`, and block j = Hash(dfV(seedMat) + j) with seedMat = H(window 1) ‖ the 16 nonce bytes at 0x2420. Its extra bounds, 1 ≤ m and 1 ≤ iv < 2^32−1, are Generate's own domain conditions and do not change the meaning.
+J3: YES
+evidence: proof/Seed.lean:355-359, proof/Seed.lean:839-854, README.md:250-269, capture.txt:28
+reason: No prior experiment proves SP 800-90A Instantiate (Hash_df, V and C). Prior work covers the health tests, the KAT-first digest, the count, and Generate. This one adds that kernel, a chain theorem tying it between alice-2's and alice-4's kernels, and an RTL-measured account of the extra minstret that earlier experiments left unexplained, plus a board run of it.
+J4: YES
+evidence: ../tools/hashdrbg.py:42-48, ../tools/hashdrbg.py:51-54, seed.py:107-121, capture.txt:25
+reason: The reference is hashlib's SHA-256 inside a generic Hash_df loop that emits as many counter-prefixed hashes as the length needs. The Lean spec and kernel instead hard-code two hashes with a fixed prefix. It is also checked against NIST's 120 CAVP vectors, which are external ground truth.
+INJECTION: NONE
+END

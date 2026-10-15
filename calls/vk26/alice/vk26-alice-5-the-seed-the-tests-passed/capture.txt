@@ -1,5 +1,5 @@
 === vk26-alice-5 — the seed the tests passed ===
-recorded at 2026-10-15T02:53:03Z from commit 659f254
+recorded at 2026-10-15T12:02:24Z from commit a22a413
 
 >>> the theorems, and what they rest on
 'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -16,6 +16,7 @@ inst_run       one word fewer of zeros: the number 1's field is not cleared     
 inst_run       the counter starts at 2                                                        refused in inst_run
 inst_run       the byte before V, which Generate's H needs, is 0x02                           refused in inst_run
 inst_run       the claim: one instruction fewer to the halt                                   refused in inst_run
+inst_run       the claim: one instruction more to the halt                                    refused in inst_run
 inst_run       the specification: C is Hash_df of V, the 0x00 before it left off              refused in inst_run
 chain          the specification: the seed material is the digest and 15 bytes of the nonce   refused in chain
 code_zero_iff  the claim: the chain goes on when the start-up window failed                   refused in code_zero_iff
@@ -24,7 +25,7 @@ code_zero_iff  the claim: the chain goes on when the start-up window failed     
 120 of 120 NIST cases: the Instantiate kernel's region holds hashdrbg's V and C, and two Generates from it give NIST's ReturnedBits
 
 >>> the shell, for the chip and for the RTL
-build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3
+build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3; the Instantiate kernel alone with the word after its halting ecall 0x00000000 260, nop 261, addi x10, x0, 1 261, 0xffffffff 260, ecall 261
 build/vk26-alice-5.bin  49076 bytes, the build allows 65536
 build/vk26-alice-5.uf2  98304 bytes  sha256 a411ebbef2fd8a92e484e72eada821dc916b5d049cb469a9df1dd3e6e58c72bd
 
@@ -165,6 +166,7 @@ PASS  inst_run: the proof refuses a version where one word fewer of zeros: the n
 PASS  inst_run: the proof refuses a version where the counter starts at 2
 PASS  inst_run: the proof refuses a version where the byte before V, which Generate's H needs, is 0x02
 PASS  inst_run: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  inst_run: the proof refuses a version where the claim: one instruction more to the halt
 PASS  inst_run: the proof refuses a version where the specification: C is Hash_df of V, the 0x00 before it left off
 PASS  chain: the proof refuses a version where the specification: the seed material is the digest and 15 bytes of the nonce
 PASS  code_zero_iff: the proof refuses a version where the claim: the chain goes on when the start-up window failed
@@ -249,6 +251,17 @@ PASS  round1.txt: 202 whole NIST cases and 2 whole chains from a board (codes 0�
       mcycle of alice-2's kernel: 58945 in 1
       mcycle of Instantiate in the chain: 9212 in 1
       mcycle of Generate in the chain: 15088 in 1
+      the log: from round 0's case 31 to round 1's case 113; whole NIST cases 202
+      seed material 48 bytes, 104 cases: Instantiate 9212 in 62, up to 10142
+      seed material 48 bytes, 104 cases: Generate 1 15088 in 92, up to 15418
+      seed material 48 bytes, 104 cases: Generate 2 15088 in 104, up to 15088
+      seed material 80 bytes, 98 cases: Instantiate 11372 in 78, up to 12974
+      seed material 80 bytes, 98 cases: Generate 1 15088 in 83, up to 15475
+      seed material 80 bytes, 98 cases: Generate 2 15088 in 98, up to 15088
+      round 0: a run slower than its least in cases 31–36, 47–50, 63–69, 79–82, 95–99, 111–113
+      round 1: a run slower than its least in cases 0–4, 16–19, 32–38, 47–50, 63–69, 79–82, 95–99, 111–112
+      cases whole in rounds 0 and 1: 82; slow in both: 27
+      status lines: 44, dropped [0], errors [0]
 PASS  the shell catches a version where kernel.sha256 is not the Instantiate kernel's hash — check 1
 PASS  the shell catches a version where HASHB is answered one byte short — check 4, the state after Instantiate
 PASS  the shell catches a version where the seed material's length is given one long — check 4

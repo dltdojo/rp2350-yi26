@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:28, capture.txt:237, capture.txt:239, capture.txt:243, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1433
+reason: The proof claims match `from_boot`, `reseed_boot` and `generate_twice`. The 13 mutants, the 120 NIST cases on the model and the RTL, and the board numbers (165 whole cases, 15,078 cycles for every second Generate, 495 runs) match capture.txt. The README says the saved log lost lines and that the cache explanation was not probed.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1414, ../lean/Alice/Drbg.lean:1417, ../lean/Alice/Drbg.lean:1418, ../lean/Alice/Drbg.lean:1419, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1421, ../lean/Alice/Drbg.lean:1422, ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1062, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1374, ../lean/Alice/Drbg.lean:1432, ../lean/Alice/Drbg.lean:1433, ../lean/Alice/Drbg.lean:1451, ../lean/Alice/Drbg.lean:1452, ../lean/Alice/Drbg.lean:1454, README.md:105, README.md:108, README.md:119, README.md:124, README.md:126
+reason: `from_boot` is a from_boot-form theorem over the kernel's bytes (`himg`) for arbitrary V, C, m ≥ 1, counter ≤ interval < 2^32−1 and any `env.hash`, still running at `COST m − 1` and halted with 0 at `COST m = 2030 + 566m` with the region equal to `after`, whose layers (blocks, data at v+m, H, counter bytes, `vnext` = V+H+C+counter mod 2^440 via `setF`, counter+1) match the README list. `reseed_boot` (halt 1 after 7, memory the image), `generate_twice` (restart on the region left, any registers, cnt+1 ≤ interval, `after` of `after`) and `after_out` (block j byte d = Hash(V+j) byte d) state what README.md:121-130 says.
+J3: YES
+evidence: README.md:5, ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1454, capture.txt:179
+reason: No prior experiment has a Hash_DRBG Generate kernel. This one adds a proved 55-byte big-endian carry-add subroutine, exact instruction counts, the reseed refusal and the two-Generate chain. It also checks NIST CAVP vectors on the RTL and on a board.
+J4: YES
+evidence: ../pages/drbg.js:28, ../pages/drbg.js:32, drbg.html:15, capture.txt:31, capture.txt:237
+reason: The bundle's own reference is `drbg.js`. It uses BigInt arithmetic mod 2^440 and the browser's WebCrypto SHA-256, where the kernel adds byte by byte and the Lean model takes the hash as an abstract function. The final check is NIST's ReturnedBits. I did not verify `drbg.py` itself, because the bundle holds only its import wrapper.
+INJECTION: NONE
+END

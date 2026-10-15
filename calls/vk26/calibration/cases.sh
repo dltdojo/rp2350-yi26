@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # calls/vk26/calibration — the bundles the judge is calibrated on. Three
-# experiments this repository has already accepted, as they are, and four
-# altered copies of them, each wrong in a way only the judge can see: the
-# machine gates the copies show are the originals', all passing.
+# experiments this repository has already accepted, as they are; two
+# experiments of the first real proposal (vk26-alice) that passed its
+# acceptance, every question YES in every run of round 3; and four altered
+# copies of the accepted three, each wrong in a way only the judge can see:
+# the machine gates the copies show are the originals', all passing.
 #
 #   cases.sh OUTDIR      writes OUTDIR/<case>.txt, one bundle per case, and
 #                        prints each case with the answer the judge must give
@@ -12,6 +14,10 @@
 #   good-exp225    exp225 as committed                         PASS
 #   good-exp230    exp230 as committed                         PASS
 #   good-exp234    exp234 as committed                         PASS
+#   good-alice-2   vk26-alice-2 as committed (a proposal: its    PASS
+#                  Lean in alice's package, pages, board logs)
+#   good-alice-4   vk26-alice-4 as committed (its reference      PASS
+#                  re-exported from alice's tools/)
 #   overclaim      exp225, its README claiming what nothing     J1 NO -> FAIL
 #                  proved or measured: LED timing, every board
 #   trivial        exp230, watches_life's conclusion `True`,     G1.5 FAIL (或 J2 NO) -> FAIL
@@ -57,6 +63,9 @@ PY
 for e in $E225 $E230 $E234; do
     "$BUNDLE" bundle "$REPO/experiments/$e" > "$OUT/good-${e%%-*}.txt"
 done
+for e in vk26-alice-2-the-hash-tested-first vk26-alice-4-the-state-the-generator-keeps; do
+    n="${e#vk26-}"; "$BUNDLE" bundle "$REPO/calls/vk26/alice/$e" > "$OUT/good-${n%%-the-*}.txt"
+done
 
 OVERCLAIM='It also proves that the LED shows each generation within one microsecond of its beat, on every RP2350 ever made, and the shell was run on forty boards without a single wrong beat.'
 
@@ -88,6 +97,8 @@ cat <<'TABLE'
 good-exp225  PASS
 good-exp230  PASS
 good-exp234  PASS
+good-alice-2 PASS
+good-alice-4 PASS
 overclaim    FAIL   J1 NO
 trivial      FAIL   G1.5 FAIL (或 J2 NO)
 narrowed     FAIL   J2 NO

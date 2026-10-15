@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:12, README.md:311, README.md:331, ../lean/Alice/Trust.lean:66, ../lean/Alice/Trust.lean:432, ../lean/Alice/Trust.lean:533, capture.txt:15, capture.txt:137, board/round1.txt:1
+reason: The proved claims (112 instructions, costs 43/17462/34878/34885, KAT-before-samples, output only with 0) match `from_boot` and `trusts_after_kat`, and the axioms and eleven mutants are in capture.txt. The board counts (18 streams, 4 spoiled hashes refused, 7 outputs, minstret per code, TRNG figures) match round1.txt and capture.txt:138-140, and the LED sighting is a recorded person's observation naming the UF2 hash. The SP 800-90B quotes cannot be checked from the bundle, but they are background, not claims about this experiment.
+J2: YES
+evidence: ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:439, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:94, ../lean/Alice/Trust.lean:98, ../lean/Alice/Trust.lean:99, ../lean/Alice/Trust.lean:107, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:110, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:536, ../lean/Alice/Trust.lean:537, ../lean/Alice/Trust.lean:538, ../lean/Alice/Trust.lean:539, ../lean/Alice/Trust.lean:540, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, ../lean/Alice/Window.lean:409, README.md:11, README.md:13, README.md:16, README.md:18
+reason: `from_boot` is in from_boot form: any `env` (so any `HASH`), any image whose first 448 bytes are the kernel, any placed `base`. It states that the kernel is still running at `cost - 1` and halted with `code` at `cost`, with memory equal to `after`. `code`, `cost`, `after`, `WinOk` and `windowBytes` (window 1 at 0x1400, 4096 bytes, output at 0x2400) give exactly the README's 2/1/3/0, 43/17462/34878/34885, the output only on 0 and the KAT scratch as the only other change, and `trusts_after_kat` states its two directions as described. "Before it reads a sample" is not a separate Lean statement, but it follows from the proved halt at instruction 43, before the sample-reading block that the listing places at 43–66.
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:93, ../lean/Alice/Trust.lean:533, README.md:12, board/round1.txt:7
+reason: This is a new kernel with a new property: a known-answer test on `HASH` that is part of the theorem (`Trusted`, `trusts_after_kat`). Neither exp223 (SHA-256 inside the kernel) nor vk26-alice-1 (carried run, `HASH` checked afterwards from outside) has it. The KAT also has a new board prediction: spoiled answers refused at minstret 51.
+J4: YES
+evidence: ../tools/health.py:31, ../tools/trustref.py:51, ../tools/trustref.py:43, trust.py:3, differential/differential.py:41
+reason: The reference judges one sample at a time in Python loops, uses hashlib for SHA-256, and compares the KAT as plain bytes. The Lean side uses 32-bit register arithmetic and a word-wise xor/or compare. The differential also builds its expected region independently from the image plus trust.py's writes.
+INJECTION: NONE
+END

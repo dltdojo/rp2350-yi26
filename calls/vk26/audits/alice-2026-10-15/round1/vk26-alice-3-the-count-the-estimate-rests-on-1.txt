@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:207, README.md:208, README.md:209, README.md:210
+reason: The README says vk26-alice-5 found that "the RTL counts one more when the word after the halting `ecall` is a legal instruction". That is an RTL behaviour claim the bundle does not support: it has no alice-5 material, no theorem or capture about the word after the `ecall`, and the README only links out. The README at 460-461 and 443-446 also cites the XIP cache's size and ways, the branch predictor's cost and the cache-set offsets from outside sources. Capture line 230 gives only the three-boolean layout result for those offsets. Most other numeric board claims do match the captures, including the slow-run counts per stream and the probe results.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:110, proof/Count.lean:113, proof/Count.lean:114, proof/Count.lean:105, proof/Count.lean:585, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, README.md:8, README.md:9, README.md:10, README.md:11, README.md:12, README.md:13, README.md:19
+reason: `from_boot` covers any image whose first 116 bytes are the kernel, so the samples are arbitrary. It proves the run is still going at COST−1 and halts with 0 at COST, which works out to 8+256·24587+4 = 6,294,284 instructions. Memory at the halt equals `after`: the image, with `hist b` written at 0x1400+4b and `most` (the max of the 256 counts) at 0x1800. That matches README lines 8–11. `most_is_max`, `hist_sum` and `count_constant_time` state what lines 12–13 and 19 say, and the constant-time theorem is stronger than described, since it holds for any two such images.
+J3: YES
+evidence: proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:652, proof/Count.lean:665, README.md:5
+reason: It adds a new 29-instruction kernel that counts 256 bins and takes the max. It proves `most_is_max`, `hist_sum` and a branch-free constant-time acceptance (`accepted`, `count_constant_time`), and shows the checker refuses the plain histogram (`naive_refused`). It also adds new board measurements (the XIP-cache probe) that no prior experiment has.
+J4: YES
+evidence: count.py:39-43, count.py:46-48, proof/Count.lean:95-96, README.md:182
+reason: count.py is written from §6.3.1's text and uses a plain one-pass `counts[s] += 1` plus Python's `max`. The Lean spec is a `filter`/`length` count, and the kernel does 256 passes with xor/`sltiu` and a branchless max. The RTL region is compared byte for byte against count.py's output. The page's JS count is a third implementation.
+INJECTION: NONE
+END

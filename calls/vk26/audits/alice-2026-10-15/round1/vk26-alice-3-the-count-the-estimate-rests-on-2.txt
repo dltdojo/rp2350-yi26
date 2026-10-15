@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:207, README.md:684-685
+reason: README.md:207 says vk26-alice-5 "later found the cause" of the extra RTL instruction, but nothing in the bundle holds that finding. README.md:684-685 says the same extra instruction "is not explained", so the two statements contradict each other. The rest of the checked claims match the proof files, capture.txt and the round logs; I could not confirm every figure from the truncated board-log slices.
+J2: YES
+evidence: README.md:8, README.md:9, README.md:10, README.md:12, README.md:13, proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:110, proof/Count.lean:114, proof/Count.lean:586, proof/Count.lean:627
+reason: `from_boot` is of from_boot form for any image whose first 116 bytes are the kernel, so the samples are arbitrary. It proves the run is still going at COST − 1 and halts with 0 at COST = 8 + 256·(2 + 6·4096 + 9) + 4 = 6,294,284, with memory exactly `after`: each `hist b` as a word at 0x1400 + 4b and `most` at 0x1800, nothing else, as the README says. `most_is_max` and `hist_sum` state the max property and the sum of 4096 as described, with no extra hypotheses.
+J3: YES
+evidence: proof/Count.lean:544-547, proof/Count.lean:585-586, proof/Count.lean:627, proof/Count.lean:673-677
+reason: The kernel is new: it counts 4096 samples into 256 bins, finds the largest count with no branch, and has a proved trace that does not depend on the samples. No prior-work entry has it. The prior health-test kernel (exp222) covers only the repetition and proportion tests.
+J4: YES
+evidence: count.py:39-48, count.py:59-64, proof/Count.lean:95-99
+reason: count.py builds a plain one-pass histogram with `counts[s] += 1` and takes `max`. The Lean specification counts per value with `cnt` by filtering the list, and the kernel scans every sample for each value. The estimate formula is written from §6.3.1's text in Python and again in JavaScript. A shared mistake is unlikely.
+INJECTION: NONE
+END

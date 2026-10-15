@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:51, README.md:58, README.md:139, README.md:144, shell/shell.c:75, shell/shell.c:77, shell/shell.c:87, capture.txt:78, capture.txt:86, proof/mutants.txt:5
+reason: The proved claims match `lives`, `not_before`, `rule30` and `from_boot`. The eleven refused versions and the six caught shells match mutants.txt and the capture. The 20-seed and 3079/3082 counts match the capture. The board claim is a recorded observation that names the UF2 SHA-256, the board and the method. The conclusion that all four checks held follows from shell.c, where each failed check calls `board_fail` before `board_play`. `board_fail` itself is not in the bundle, so that step rests on its name and the README's LED table.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:84, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` is a from-boot theorem for any image whose first 76 bytes are the kernel's. It says the kernel is still running at 3078 and halted with 0 at 3079, and that the whole of memory equals `lived`: the original memory overlaid with 1024 little-endian bytes holding generations 1–256 of `life` from the seed at 0x100. `lives`, `not_before` and `rule30` (whose (i+31)%32 is i−1 mod 32) state what the README table says. The only further hypotheses are code placement and the region fitting, which the README mentions ("from `base`, the kernel's bytes there").
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:288, proof/Life.lean:98
+reason: Rule 30 on a ring of 32 cells is a new kernel (19 instructions, exactly 3079 steps), with new theorems `lives`, `rule30` and `not_before`. None of the prior experiments covers it.
+J4: YES
+evidence: rule30.py:19, rule30.py:24, proof/Life.lean:76, differential/differential.py:49
+reason: `rule30.py` computes each cell separately from the left, centre and right bits with `% 32` indexing, while Lean and the kernel use whole-word shifts and ORs. The differential builds its expected region from `rule30.py` alone.
+INJECTION: NONE
+END

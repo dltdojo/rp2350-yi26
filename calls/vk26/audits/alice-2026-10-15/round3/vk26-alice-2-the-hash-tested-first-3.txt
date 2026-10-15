@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:311, board/round1.txt:1, capture.txt:137, ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:533, capture.txt:15, capture.txt:145, capture.txt:48
+reason: The proved claims match `from_boot` and `trusts_after_kat`. The board counts (18 streams, 4 spoiled, 3 start-up stops, 7 outputs, 3 rounds, minstrets 34897/17470/51/34885) match the saved log and the capture's PASS lines. The LED claim is a person's recorded observation with the UF2 hash given. The one thin spot is the "nine counts" pattern and the vk26-alice-1 listing positions, which rest on a README not in this bundle. The README presents that as an observation rather than an explanation, and the four counts here are consistent with it.
+J2: YES
+evidence: ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:439, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:442, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:533, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:536, ../lean/Alice/Trust.lean:537, ../lean/Alice/Trust.lean:538, ../lean/Alice/Trust.lean:539, ../lean/Alice/Trust.lean:540, ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:86, ../lean/Alice/Trust.lean:94, ../lean/Alice/Trust.lean:98, ../lean/Alice/Trust.lean:99, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:110, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, ../lean/Alice/Window.lean:409, README.md:106, README.md:110, README.md:111, README.md:112, README.md:113, README.md:129, README.md:132
+reason: `from_boot` is in from_boot form. It applies to any `base` satisfying `Placed`, any image whose first 448 bytes are the kernel's, and any `env.hash`. It states the run is still going at `cost - 1` and halts at exactly `cost` with `code`, and memory is `after`. `code`, `cost`, `after`, `Trusted` and `WinOk` are defined as the README describes (2/43, 1/17462, 3/34878, 0/34885; the output appears only when all three checks pass, and otherwise only the KAT scratch is written). `trusts_after_kat` matches the README's Lean block and its English word for word, with no extra hypotheses.
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85, ../lean/Alice/Trust.lean:525, ../lean/Alice/Trust.lean:538, capture.txt:91
+reason: The in-kernel known-answer test of `HASH`, with the theorem that halting with 0 implies `Trusted` and that the output depends only on window 1 (`Trust.trusts_after_kat`), appears in no prior experiment. The earlier ones either compute SHA-256 inside the kernel (exp223) or check `HASH` from outside (vk26-alice-1). The spoiled-KAT runs that stop with code 2 on the model, the RTL and the board are also new.
+J4: YES
+evidence: ../tools/trustref.py:51, ../tools/trustref.py:57, ../tools/health.py:31, ../tools/health.py:46, README.md:169
+reason: The reference is a sample-at-a-time Python loop using hashlib's SHA-256 and its own run and match counters. Lean instead uses a bit-level `rct` and `WinOk` specification over memory, with an abstract `H`. The README says it shares nothing with the kernel's registers, and the code bears that out.
+INJECTION: NONE
+END

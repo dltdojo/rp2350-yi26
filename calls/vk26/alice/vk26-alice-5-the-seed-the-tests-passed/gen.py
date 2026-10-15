@@ -23,7 +23,9 @@
                        kernel halts on decodes as an instruction: in the chain,
                        the Instantiate kernel's 244 bytes are followed by
                        alice-2's, which the shell leaves as Seed.lean's
-                       `restart` does; alone, by zeros
+                       `restart` does; alone, by zeros. Five words put after
+                       it, alone, say so: 0 and 0xffffffff (illegal) leave the
+                       count, a nop, an addi and an ecall add one; printed
 
 Before writing anything: the Instantiate kernel on the model and the RTL for
 the first NIST case, the model after exactly 241 instructions and the region
@@ -93,6 +95,18 @@ def write_seed_expect(out, rv32run, trust_bin, drbg_bin):
     if code != 0:
         sys.exit("gen.py: the RTL's Generate after Instantiate did not halt with 0")
 
+    # Why the chain's Instantiate counts one more: the word after the halting
+    # ecall, at 0xf4. The RTL counts one more when it is a legal instruction.
+    after = []
+    for name, word, legal in (("0x00000000", 0, False), ("nop", 0x00000013, True), ("addi x10, x0, 1", 0x00100513, True),
+                              ("0xffffffff", 0xffffffff, False), ("ecall", 0x00000073, True)):
+        probe = bytearray(img)
+        probe[len(inst):len(inst) + 4] = struct.pack("<I", word)
+        code, n, _ = rtl_code(bytes(probe))
+        if code != 0 or n != n_inst + legal:
+            sys.exit(f"gen.py: with {name} after the ecall the RTL counted {n}, not {n_inst + legal}")
+        after.append(f"{name} {n}")
+
     # vk26-alice-2's kernel, a stream of each halt code; then the chain.
     every = trust_streams()
     n_trust = {}
@@ -137,7 +151,8 @@ def write_seed_expect(out, rv32run, trust_bin, drbg_bin):
         f.write("};\n")
     print(f"{out}: Instantiate {sha[:16]}…, alice-2's {tsha[:16]}…, alice-4's {dsha[:16]}…, {len(cases)} NIST "
           f"cases; RTL minstret Instantiate {n_inst} (the proof's {INST_COST}; {n_inst_chain} in the chain), Generate {n_gen}, alice-2's "
-          f"{' '.join(str(n_trust[k]) for k in range(4))} for codes 0 to 3")
+          f"{' '.join(str(n_trust[k]) for k in range(4))} for codes 0 to 3; the Instantiate kernel alone with the word "
+          f"after its halting ecall {', '.join(after)}")
 
 
 if __name__ == "__main__":

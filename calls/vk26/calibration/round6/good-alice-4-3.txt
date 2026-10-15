@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1430, ../lean/Alice/Drbg.lean:1444, capture.txt:237, capture.txt:240, capture.txt:246, capture.txt:247, capture.txt:198, README.md:411
+reason: The proved claims (from_boot, COST 2030+566m, reseed_boot at 7, generate_twice, after_out) match the theorem statements. The 13 mutants, 120 NIST cases, 4318 minstret, 42,739 mcycle and 8 wrong shells all match the capture. The board numbers (165 whole, 0 wrong, 3 incomplete, 15,078 in 125 of 165, 41 of 54, dropped=0) match the fixtures.py --board output. The XIP-cache explanation for the slow first Generates is stated as a pattern fit, and README.md:411 says it was not probed, so it is not an unsupported claim.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1417, ../lean/Alice/Drbg.lean:1418, ../lean/Alice/Drbg.lean:1419, ../lean/Alice/Drbg.lean:1420, ../lean/Alice/Drbg.lean:1421, ../lean/Alice/Drbg.lean:1422, ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1061, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1373, ../lean/Alice/Drbg.lean:1432, ../lean/Alice/Drbg.lean:1433, ../lean/Alice/Drbg.lean:1451, ../lean/Alice/Drbg.lean:1452, ../lean/Alice/Drbg.lean:1454, README.md:105, README.md:121, README.md:124, README.md:126
+reason: `from_boot` is in from_boot form and is quantified over any image, state (v, c, cnt, m) and `env.hash`. Its hypotheses are the ones the README names: kernel bytes, the 0x03, the zero padding, the number 1, 1 ≤ m, blocks fit, interval < 2^32−1, cnt ≤ interval. It concludes still running at COST m − 1 and halted 0 at COST m = 2030 + 566m, with the region equal to `after`: blocks, data, H, counter bytes, `vnext` = V+H+C+cnt, and counter+1. `after_out`, `reseed_boot` (halt 1 after 7, memory = image) and `generate_twice` (arbitrary registers, cnt+1 ≤ interval, result `after` of `after` from `vnext`) state what the README says of them.
+J3: YES
+evidence: ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1444, capture.txt:237
+reason: No prior experiment has a Hash_DRBG Generate kernel that keeps the state (V, C, reseed_counter). Prior work covers health tests, KAT, entropy counting, SHA-256, Merkle and Rule 30. This one adds a proved 55-byte big-endian carry add and Hashgen, a proved reseed refusal, and the chip's SHA-256 block checked against NIST's ReturnedBits on a board.
+J4: YES
+evidence: ../tools/hashdrbg.py:57, ../tools/hashdrbg.py:63, ../tools/hashdrbg.py:72, ../tools/hashdrbg.py:116, drbg.html:14, ../pages/drbg.js:35
+reason: The reference uses Python big integers and hashlib, written from the SP 800-90A text, where the Lean model adds byte by byte with a carry. It is also checked against NIST's external vectors (capture.txt:31) and against a JavaScript BigInt/WebCrypto page, so a mistake shared with the Lean spec is unlikely.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seam.lean:434-439, proof/Seam.lean:90, capture.txt:4-12, capture.txt:16-27, capture.txt:79-92, capture.txt:101, capture.txt:131-132, board/round1.txt:1, board/round1.txt:35, board/round1.txt:50, board/round1.txt:115, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:27
+reason: Each claim of something proved, measured or run matches the `from_boot` statement, the capture or the board log. This covers the 138-instruction kernel and 552 bytes, the costs, the 8 axiom lines, the 12 refused mutants, the 14 streams, the RTL counts and the seven whole streams with their codes, minstrets and digests. The extra instruction at code 0 is accounted for by alice-5's capture. The LED observation and the "front passes both" remark rest on a plain description and on `Alice/Window.lean`'s header, not on a proof or log of their own, but they are not substantive enough to fail.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:78, proof/Seam.lean:81, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, ../lean/Alice/Window.lean:409, README.md:9, README.md:11, README.md:14, README.md:77, README.md:87
+reason: `from_boot` is a from-boot theorem about the kernel's own 552 bytes, for any `img` and any placed `base`. It proves the kernel is still running at `cost − 1` and halted at `cost (stop …)` with `code`, with memory exactly `wrote env.hash` of the image up to the stop. The definitions of `stop`, `code`, `cost`, `wrote`, `windowBytes`, and `WinOk` match the README's English: the RCT is counted over the stream from its start and the APT over each window, any hash function is allowed, and nothing is fixed or added that the text does not state.
+J3: YES
+evidence: README.md:9-16, proof/Seam.lean:414-439, ../lean/Alice/Window.lean:43-46, capture.txt:79
+reason: This is a new kernel and a new theorem, `from_boot`. It carries the repetition count across window edges, writes one digest per passing window and stops at the first failing one. The prior experiments exp222 and exp223 judge a single window. Window k+1 stopping on a run begun in window k is also a new prediction checked on the board (board/round1.txt:50).
+J4: YES
+evidence: seam.py:53, ../tools/health.py:31-46, ../tools/health.py:56-60, differential/differential.py:44-48, README.md:137-139
+reason: The reference is Python written one sample at a time. It tracks the longest run and a match count, and uses hashlib for digests. The Lean spec is a `rct`/`agree` predicate, and the kernel works in registers. The differential also checks the Lean model and the RTL against it. A third independent implementation exists in the page's health.js.
+INJECTION: seam.html:24-26
+END

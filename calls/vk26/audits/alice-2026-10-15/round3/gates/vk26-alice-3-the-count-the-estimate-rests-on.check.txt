@@ -1,0 +1,152 @@
+PASS  Count.lean checks, with no errors and no warnings
+PASS  all 8 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  look_iter: the proof refuses a version where a sample is loaded sign-extended (lb), so the values 128 to 255 are counted as others
+PASS  tally_regs: the proof refuses a version where a sample one more than the value is counted as the value too (<u 2, not 1)
+PASS  tally_regs: the proof refuses a version where the pointer advances by the comparison, an address made from a sample
+PASS  maxLine_regs: the proof refuses a version where the max's mask is 1, not all ones
+PASS  bin_iter: the proof refuses a version where each count starts at 1
+PASS  bin_iter: the proof refuses a version where the counts are written 8 bytes apart, every other one over the next
+PASS  setup_run: the proof refuses a version where the values stop at 255
+PASS  fin_run: the proof refuses a version where the largest count is written a word late
+PASS  from_boot: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  fin_run: the proof refuses a version where the claim: the most is the largest of the first 255 counts
+PASS  cnt_succ: the proof refuses a version where the specification: a value's count includes the samples below it
+PASS  accepted: the proof refuses a version where the claim: at both heads the value is at most 254
+PASS  kernel.bin is what proof/Count.lean writes, 116 bytes, and kernel.sha256 is its hash
+PASS  each value 16 times: the model and the RTL halt with 0, the model after 6294284; the most 16, and the whole histogram, count.py's
+PASS  each value 16 times, in order: the model and the RTL halt with 0, the model after 6294284; the most 16, and the whole histogram, count.py's
+PASS  all 0: the model and the RTL halt with 0, the model after 6294284; the most 4096, and the whole histogram, count.py's
+PASS  all 255: the model and the RTL halt with 0, the model after 6294284; the most 4096, and the whole histogram, count.py's
+PASS  0xa5 at 1000 places: the model and the RTL halt with 0, the model after 6294284; the most 1012, and the whole histogram, count.py's
+PASS  7 and 200 tied: the model and the RTL halt with 0, the model after 6294284; the most 300, and the whole histogram, count.py's
+PASS  0 once more than the rest: the model and the RTL halt with 0, the model after 6294284; the most 17, and the whole histogram, count.py's
+PASS  255 once more than the rest: the model and the RTL halt with 0, the model after 6294284; the most 17, and the whole histogram, count.py's
+PASS  random 1: the model and the RTL halt with 0, the model after 6294284; the most 25, and the whole histogram, count.py's
+PASS  random 2: the model and the RTL halt with 0, the model after 6294284; the most 27, and the whole histogram, count.py's
+PASS  bits 1 three times in four: the model and the RTL halt with 0, the model after 6294284; the most 440, and the whole histogram, count.py's
+PASS  the RTL's stand-in TRNG: the model and the RTL halt with 0, the model after 6294284; the most 26, and the whole histogram, count.py's
+PASS  the RTL takes the same time on all 12 streams: cycles=7343633
+PASS  the shell builds for the chip and for the RTL, the chip's in 27632 of the 32768 bytes it may use
+PASS  all 108 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
+PASS  together they are exactly the 27632-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: e26e243af145d0eb…
+trap 0x10000134, FIXED 0x10003854: the copy of FIXED[0], [1], [2] over the trap's sets: [True, False, True]
+PASS  the chip build's layout is revision 3's: FIXED[0] and FIXED[2] over the cache sets of mret and the trap entry, FIXED[1] not
+the probe on the RTL: 136 runs, minstret/mcycle [(6, 8)]
+the TRNG's stand-in: count.py's largest 26; the RTL: 26 26 16 1012 440, mcycle 7343633+7343633 7343633+7343633 7343633+7343633 7343633+7343633 7343633+7343633
+PASS  on the RTL the shell runs all five streams twice, every count the shell's own, minstret the RTL's, and one mcycle for all ten runs; then the probe, 136 runs alike
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's minstret is expect.h's, the RTL's
+PASS  the page's count and both estimates are count.py's, on all 12 of count.py's streams
+PASS  §6.3.1's own example, p̂ 0.4 of 20: p_u 0.6895, H 0.5363
+PASS  two rounds as the board sends them, in 64-byte packets: all 10 streams counted right, the 9 after the first one mcycle — the first after boot set aside — and all 10 second runs another
+PASS  one of the kernel's 256 counts one short: the page says which value
+PASS  a largest that is not the largest of the counts: caught
+PASS  minstret one more than the RTL's: caught
+PASS  one stream taking 4 cycles more: no count is wrong, and the page says the cycles differ
+PASS  one second run taking 20 cycles more: no count is wrong, the first runs one number, the second runs two
+PASS  the second run's minstret one more than the RTL's: caught
+PASS  revision 1's lines, no AGAIN: all 10 counted right, no second run claimed
+PASS  a BITS line lost: that stream incomplete, nothing called wrong, the other 9 counted
+PASS  a HIST line lost: that stream incomplete, not judged against counts that never came
+PASS  joined mid-stream: the first stream incomplete, every one after it counted
+PASS  round1.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817 cycles, no second runs (revision 1)
+PASS  round2.txt: every one of 14 second runs took one mcycle, 7343697
+PASS  round2.txt: 14 of 15 streams from a board counted right, 1 incomplete, 3 rounds; the page reads 14 timed streams as 7343697/7343747/7343797/7343817/7343867 cycles, 14 second runs as 7343697
+PASS  round3.txt: every one of 14 second runs took one mcycle, 7343697
+PASS  round3.txt: 14 of 15 streams from a board counted right, 1 incomplete, 3 rounds; the page reads 14 timed streams as 7343697/7343817/7343867 cycles, 14 second runs as 7343697
+PASS  round4.txt: every one of 13 second runs took one mcycle, 7343697
+PASS  round4.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817/7343867 cycles, 13 second runs as 7343697
+PASS  the tests catch a page where each word's low byte is read four times: the page's count and both estimates are count.py's, on all 0 of count.py's streams — each value 16 times: co
+PASS  the tests catch a page where the interval is 1.96 wide, not 2.576: the page's count and both estimates are count.py's, on all 0 of count.py's streams — each value 16 times: co
+PASS  the tests catch a page where the per-bit estimate counts only the ones: the page's count and both estimates are count.py's, on all 2 of count.py's streams — all 0: count.py 4096 -0
+PASS  the tests catch a page where the kernel's counts are not compared: one of the kernel's 256 counts one short: the page says which value — streams 5 ok 5 wrong 0 [] incomplete 0
+PASS  the tests catch a page where minstret is not compared: minstret one more than the RTL's: caught — streams 5 ok 5 wrong 0 [] incomplete 0 rounds 1 timed 4 cycles 73
+PASS  the tests catch a page where the first run after boot is timed too: two rounds as the board sends them, in 64-byte packets: all 10 streams counted right, the 9 after the first on
+PASS  the tests catch a page where the second run's minstret is not compared: the second run's minstret one more than the RTL's: caught — streams 5 ok 5 wrong 0 [] incomplete 0 rounds 1 
+PASS  the tests catch a page where the second runs' cycles are kept with the first runs': two rounds as the board sends them, in 64-byte packets: all 10 streams counted right, the 9 after the first on
+PASS  the tests catch a page where a stream with a HIST line missing is judged anyway: a HIST line lost: that stream incomplete, not judged against counts that never came — streams 10 ok 9 wrong 
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "10 of 10 streams counted right"
+PASS  good.txt: the table shows the last round's 5 streams, and no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (162959 characters)
+PASS  good.txt: Save downloads the same text as a file, vk26-alice-3-<time>.txt, and says how long it is
+PASS  cycles.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  cycles.txt: the verdict line says "the cycles differ"
+PASS  cycles.txt: the table shows the last round's 5 streams, and no script error
+PASS  cycles.txt: Copy puts the verdict and every line received on the clipboard (162967 characters)
+PASS  cycles.txt: Save downloads the same text as a file, vk26-alice-3-<time>.txt, and says how long it is
+PASS  again.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  again.txt: the verdict line says "second runs: the cycles differ"
+PASS  again.txt: the table shows the last round's 5 streams, and no script error
+PASS  again.txt: Copy puts the verdict and every line received on the clipboard (162967 characters)
+PASS  again.txt: Save downloads the same text as a file, vk26-alice-3-<time>.txt, and says how long it is
+PASS  the probe report names the one evicted line that cost cycles, and no other
+PASS  round1.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 2:3 3:0 3:1 3:3 3:4 4:0 4:1 4:3 5:0; 7343797 at 2:4; 7343817 at 3:2 4:2 4:4
+      the TRNG, its tests on: H per byte 6.499 (0.967 a bit; ones 49.54%, -1.7 sd from half), 6.711 (0.980 a bit; ones 50.00%, +0.0 sd from half), 6.539 (0.962 a bit; ones 50.61%, +2.2 sd from half)
+      the TRNG, raw: H per byte 6.622 (0.930 a bit; ones 48.23%, -6.4 sd from half), 6.580 (0.935 a bit; ones 48.41%, -5.8 sd from half)
+PASS  round2.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 0:3 1:0 1:1 1:3 1:4 2:0 2:1 2:3 3:0; 7343747 at 1:2; 7343797 at 2:2; 7343817 at 0:2; 7343867 at 0:4 2:4
+      mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit; ones 49.76%, -0.9 sd from half), 6.580 (0.975 a bit; ones 50.16%, +0.6 sd from half), 6.499 (0.966 a bit; ones 50.49%, +1.8 sd from half)
+      the TRNG, raw: H per byte 6.758 (0.947 a bit; ones 48.84%, -4.2 sd from half), 6.666 (0.943 a bit; ones 48.68%, -4.8 sd from half)
+PASS  round3.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 1:1 1:2 1:4 2:0 2:1 3:0 3:1 3:3 3:4; 7343817 at 1:3 2:2 2:4 3:2; 7343867 at 2:3
+      mcycle of the second run, straight after the first: 7343697 at 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0 3:1 3:2 3:3 3:4
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit; ones 49.77%, -0.9 sd from half), 6.580 (0.978 a bit; ones 50.05%, +0.2 sd from half)
+      the TRNG, raw: H per byte 6.580 (0.951 a bit; ones 48.99%, -3.6 sd from half), 6.622 (0.939 a bit; ones 48.54%, -5.3 sd from half), 6.666 (0.943 a bit; ones 48.70%, -4.7 sd from half)
+PASS  round4.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
+      mcycle, round:stream: 7343697 at 0:4 1:0 1:1 1:4 2:0 2:1 2:2; 7343797 at 2:3; 7343817 at 0:2 0:3 1:2 2:4; 7343867 at 1:3
+      mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4
+      the TRNG, its tests on: H per byte 6.711 (0.968 a bit; ones 49.59%, -1.5 sd from half), 6.666 (0.979 a bit; ones 49.99%, +0.0 sd from half)
+      the TRNG, raw: H per byte 6.666 (0.944 a bit; ones 48.72%, -4.7 sd from half), 6.460 (0.935 a bit; ones 48.40%, -5.8 sd from half)
+      probe, 408 runs, each a HALT 0 (shell.c sends no PROBE line otherwise): minstret 6, XIP accesses 132 in every condition
+      nothing first, in 12 runs: mcycle 8, accesses 132, misses 0/1/2/4/9/11/13
+      FIXED[0] and FIXED[2] read: mcycle 8/108/128/178, misses 38/39/40/41/42/43/44/47, in 12 runs
+      0x10000100 evicted: mcycle 8, misses 1/2/10/13, in 12 runs
+      0x10000108 evicted: mcycle 8, misses 1/2/3/8, in 12 runs
+      0x10000110 evicted: mcycle 8, misses 1/2/3, in 12 runs
+      0x10000118 evicted: mcycle 8, misses 0/1, in 12 runs
+      0x10000120 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000128 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000130 evicted: mcycle 118, misses 1, in 12 runs
+      0x10000138 evicted: mcycle 118, misses 1, in 12 runs
+      0x10000140 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000148 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000150 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000158 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000160 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000168 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000170 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000178 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000180 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000188 evicted: mcycle 8, misses 1, in 12 runs
+      0x10000190 evicted: mcycle 8, misses 0/1, in 12 runs
+      0x10000198 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001a0 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001a8 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001b0 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001b8 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001c0 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001c8 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001d0 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001d8 evicted: mcycle 8, misses 1, in 12 runs
+      0x100001e0 evicted: mcycle 8, misses 0, in 12 runs
+      0x100001e8 evicted: mcycle 8, misses 0, in 12 runs
+      0x100001f0 evicted: mcycle 8, misses 0, in 12 runs
+      0x100001f8 evicted: mcycle 8, misses 0, in 12 runs
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
+PASS  the shell catches a version where the kernel calls HASH where it should halt — check 2
+PASS  the shell catches a version where the chip is asked to count one more instruction — check 3
+PASS  the shell catches a version where gen.py's largest for a fixed stream is off by one — check 4
+PASS  the shell catches a version where the samples go in a word late — check 4, at gen.py's largest
+PASS  the shell catches a version where the largest count is left in the region — check 4
+PASS  the shell catches a version where there is no second run: the first's halt is never recorded — check 2
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check
+PASS  the shell stops at check 10 when the TRNG gives nothing (trng_sim.h's DEVICE 2)
+check.sh exit 0

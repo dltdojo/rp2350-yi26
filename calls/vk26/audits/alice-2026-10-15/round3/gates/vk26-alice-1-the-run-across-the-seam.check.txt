@@ -1,0 +1,77 @@
+PASS  Seam.lean checks, with no errors and no warnings
+PASS  all 8 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  window_fail: the proof refuses a version where the branch goes to FAIL when the window passed, and on when it failed
+PASS  window_fail: the proof refuses a version where the halt code is the number of windows passed, not the failing window's
+PASS  all_pass: the proof refuses a version where four windows passed and it halts with 1
+PASS  window_pass: the proof refuses a version where each digest 16 bytes after the last, half over it
+PASS  window_pass: the proof refuses a version where HASH is asked for the window after the one tested
+PASS  init_regs: the proof refuses a version where the repetition count starts as though a 0 came before the stream
+PASS  window_head: the proof refuses a version where the claim: each window starts with no run behind it
+PASS  from_boot: the proof refuses a version where the claim: the failing window's digest is written too
+PASS  from_boot: the proof refuses a version where the claim: the halt code is the failing window's index, 0 to 3
+PASS  from_boot: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  win_verdict: the proof refuses a version where the specification: the repetition count starts afresh at each window, as front's does
+PASS  start_run: the proof refuses a version where the block takes the whole first word as the window's reference, not its bit 0
+PASS  kernel.bin is what proof/Seam.lean writes, 552 bytes, and kernel.sha256 is its hash
+PASS  seam 11+10: window 2: 21 alike in a row; the model and the RTL halt with 2, the model after 34852; 1 digest(s), hashlib's, and nothing else written
+PASS  seam 10+10: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
+PASS  seam 1+20: window 2: 21 alike in a row; the model and the RTL halt with 2, the model after 34852; 1 digest(s), hashlib's, and nothing else written
+PASS  seam 15+6 at window 4: window 4: 21 alike in a row; the model and the RTL halt with 4, the model after 69694; 3 digest(s), hashlib's, and nothing else written
+PASS  21 alike in window 3: window 3: 21 alike in a row; the model and the RTL halt with 3, the model after 52273; 2 digest(s), hashlib's, and nothing else written
+PASS  20 alike in window 3: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
+PASS  589 of window 2: window 2: 589 of 1024 equal its first; the model and the RTL halt with 2, the model after 34852; 1 digest(s), hashlib's, and nothing else written
+PASS  588 of window 2: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
+PASS  stuck at 1, window 1: window 1: 1024 alike in a row; the model and the RTL halt with 1, the model after 17431; 0 digest(s), hashlib's, and nothing else written
+PASS  nine ones then a zero, window 4: window 4: 922 of 1024 equal its first; the model and the RTL halt with 4, the model after 69694; 3 digest(s), hashlib's, and nothing else written
+PASS  fair throughout: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
+PASS  random 1: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
+PASS  random 2: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
+PASS  noise above bit 0: every window passed; the model and the RTL halt with 0, the model after 69699; 4 digest(s), hashlib's, and nothing else written
+PASS  the shell builds for the chip and for the RTL, the chip's in 17584 of the 32768 bytes it may use
+PASS  all 69 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 32 KiB of flash, 0x10000000..0x10008000
+PASS  together they are exactly the 17584-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: 071f9390bf881cc3…
+the TRNG's stand-in: seam.py says 0; the RTL: 0 2 0 1 3 4
+PASS  on the RTL the shell runs all six streams, SHA-256 answering HASH, each halting with seam.py's code and the RTL's count for it, each digest SHA-256's
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's minstret for each code is expect.h's, the RTL's
+PASS  the page's tests stop where seam.py's do, on all 14 of seam.py's streams
+PASS  the page says which stopped on a run begun in the window before: seam 11+10, seam 1+20, seam 15+6 at window 4
+PASS  two rounds as the board sends them, in 64-byte packets: all 12 streams judged right, each digest SHA-256's, and the seam stream stopped by its run across the edge both times
+PASS  one byte of a digest flipped on the way: that stream is wrong, and the page says which digest
+PASS  a kernel that resets the run at each edge passes the seam stream: the page says its samples stop at window 2
+PASS  a kernel that writes the next window after a failure: caught at the stuck stream
+PASS  minstret one more than the RTL's for a stream: caught
+PASS  a BITS line lost: that stream incomplete, nothing called wrong, the other 11 judged
+PASS  joined mid-stream: the first stream incomplete, every one after it judged
+PASS  round1.txt: 7 of 7 streams from a board judged right, 0 incomplete, 1 rounds, 1 stopped across an edge
+PASS  the tests catch a page where the run is reset at each window's edge: the page's tests stop where seam.py's do, on all 0 of seam.py's streams — seam 11+10: seam.py says 2, the pa
+PASS  the tests catch a page where the adaptive proportion cutoff is 590: the page's tests stop where seam.py's do, on all 6 of seam.py's streams — 589 of window 2: seam.py says 2, t
+PASS  the tests catch a page where each window's reference is the stream's first sample: the page's tests stop where seam.py's do, on all 9 of seam.py's streams — nine ones then a zero, window 4: s
+PASS  the tests catch a page where a digest is never compared: one byte of a digest flipped on the way: that stream is wrong, and the page says which digest — streams 6 ok
+PASS  the tests catch a page where minstret is not compared: minstret one more than the RTL's for a stream: caught — streams 6 ok 6 wrong 0 [] incomplete 0 rounds 1 acro
+PASS  the tests catch a page where a stream with a BITS line missing is judged anyway: a BITS line lost: that stream incomplete, nothing called wrong, the other 11 judged — streams 12 ok 11 wrong
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "12 of 12 streams judged right"
+PASS  good.txt: the table shows the last round's 6 streams, and no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (21747 characters)
+PASS  good.txt: Save downloads the same text as a file, vk26-alice-1-<time>.txt, and says how long it is
+PASS  reset.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  reset.txt: the verdict line says "1 wrong"
+PASS  reset.txt: the table shows the last round's 6 streams, and no script error
+PASS  reset.txt: Copy puts the verdict and every line received on the clipboard (11366 characters)
+PASS  reset.txt: Save downloads the same text as a file, vk26-alice-1-<time>.txt, and says how long it is
+PASS  round1.txt: 7 whole streams from a board, each code, minstret and digest as seam.py and hashlib give them
+      the TRNG's stream, round 4: code 0, the longest run 11, 530, 496, 516, 502 of each window equal to its first
+PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
+PASS  the shell catches a version where the seam stream is said to pass — check 2
+PASS  the shell catches a version where the chip is asked to count one more for code 2 — check 3
+PASS  the shell catches a version where HASH writes its digest a word late — check 4
+PASS  the shell catches a version where HASH hashes 64 bytes too few — check 4
+PASS  the shell catches a version where the samples go in a word late — check 4, at gen.py's digest
+PASS  the shell catches a version where the shell itself traps in step 3 — a fault, not a check
+check.sh exit 0

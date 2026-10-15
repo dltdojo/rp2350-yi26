@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:328, README.md:329, README.md:330, board/round1.txt:1, README.md:301
+reason: The board log in the bundle holds only the page summary line and a few BITS lines. The claimed TRNG figures (longest runs 11, 12 and 11; 516/508, 501/522, 518/527 equal to the window's first) and the per-round, per-code table (README.md:312-316) cannot be checked against it. The LED observation (README.md:301) names no UF2 name or SHA-256, so it cannot stand as a recorded observation.
+J2: YES
+evidence: ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:439, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:442, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:94, ../lean/Alice/Trust.lean:98, ../lean/Alice/Trust.lean:99, ../lean/Alice/Trust.lean:103, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:110, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:536, ../lean/Alice/Trust.lean:537, ../lean/Alice/Trust.lean:538, ../lean/Alice/Trust.lean:539, ../lean/Alice/Trust.lean:540, README.md:11, README.md:13, README.md:14, README.md:15, README.md:16, README.md:17, README.md:18, README.md:19, README.md:103
+reason: `from_boot` is in from_boot form: any `img` whose first 448 bytes are the kernel's, any `env.hash`, any placed `base`, booted, still running at `cost - 1` and halted with `code` at exactly `cost`. Its `code`/`cost` give 2/43, 1/17462, 3/34878 and 0/34885, and `after` gives the KAT answer at the scratch plus `HASH` of window 1 at 0x2400 only when all three checks pass. `trusts_after_kat` states the failed-KAT halt at 43 with memory `katted`, and that halting with 0 implies `Trusted` and the output bytes, as README.md:11-19 and 103 describe.
+J3: YES
+evidence: README.md:12, README.md:19, ../lean/Alice/Trust.lean:533, ../lean/Alice/Trust.lean:438
+reason: The new part is the in-kernel KAT gate and the `Trust.from_boot` / `Trust.trusts_after_kat` theorems. They say that a failed KAT halts with 2 after exactly 43 instructions, and that halting with 0 implies the hash passed its KAT and the output is `HASH` of window 1 only. No prior experiment in the list proves this. vk26-alice-1's carried window run is reused, not claimed as new.
+J4: YES
+evidence: ../tools/health.py:31, ../tools/health.py:46, ../tools/trustref.py:51, ../tools/trustref.py:63, README.md:166
+reason: The reference is a per-sample imperative Python loop for the RCT and APT, with hashlib for SHA-256. The kernel uses registers and the Lean model uses a recursive specification. The README states it shares nothing with the kernel's registers, and the code bears that out.
+INJECTION: NONE
+END

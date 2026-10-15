@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:267, README.md:275, README.md:276
+reason: The README says the instruction-count rule "accounts for every count across the five experiments" and that the chip counting the same is in "vk26-alice-1's and vk26-alice-2's logs, where it did". Counts for alice-1, alice-3 and alice-4's earlier logs are not in the bundle, so those claims are unsupported. Everything else I checked matched the bundle: the theorems, the capture, board/round1.txt, and the counts for alice-2's kernel and this one.
+J2: YES
+evidence: proof/Seed.lean:767, proof/Seed.lean:768, proof/Seed.lean:769, proof/Seed.lean:771, proof/Seed.lean:772, proof/Seed.lean:342, proof/Seed.lean:343, proof/Seed.lean:344, proof/Seed.lean:352, proof/Seed.lean:833, proof/Seed.lean:835, proof/Seed.lean:836, proof/Seed.lean:837, proof/Seed.lean:838, proof/Seed.lean:840, proof/Seed.lean:844, proof/Seed.lean:845, proof/Seed.lean:846, proof/Seed.lean:847, proof/Seed.lean:812, proof/Seed.lean:813, proof/Seed.lean:814, README.md:8, README.md:9, README.md:110, README.md:120, README.md:121, README.md:134
+reason: `inst_boot` is a from_boot-form theorem about the kernel's own bytes. It covers any `env.hash` and any S ≤ 0x80, halts with 0 after exactly 241 instructions, and ends in `Laid`, whose fields are dfV/dfC of the seed material, the Generate fields and the rest-unchanged clause, as README:110-120 says. `chain` states alice-2's from-boot halt with `code`, the 0-iff-KAT-and-both-windows equivalence, and with 0 the `restart` runs halting after 241 and `COST m`, with block j = Hash(dfV(seedMat) + j), where `seedMat` is H(window 1) ‖ the 16 nonce bytes at 0x2420, as README:121-136 says. Its added hypotheses (1 ≤ m, OUT + 32m bound, 1 ≤ iv < 2^32−1) are only the conditions Generate needs to run without reseeding, and the text never claims more than that.
+J3: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:833, README.md:5
+reason: It adds a new 61-instruction Instantiate kernel with `inst_run` (241 instructions, for any hash). It also adds the `chain` theorem across alice-2, this kernel and alice-4, plus the new board-checked prediction that the RTL counts 260 alone and 261 in the chain. Prior work covers only the health tests, KAT, count and Generate.
+J4: YES
+evidence: ../tools/hashdrbg.py:42, ../tools/hashdrbg.py:51, seed.py:96, fixtures.py:233
+reason: The reference uses hashlib and a generic Hash_df loop over counters, which differs from Lean's fixed two-hash bitvector construction. It is also checked against NIST's CAVP vectors, which are independent of both.
+INJECTION: NONE
+END

@@ -60,8 +60,10 @@
 # - Empirical Evidence (for J1): capture.txt (600 lines; runs of lines alike cut to their
 #   first and last three when it is over 600 lines), shell/shell.c (what a board
 #   claim argues from), differential/*.py (what a measured claim's inputs are:
-#   exp225's twenty seeds), board log results (PATIENT/TRIAL lines kept,
-#   polling deduplicated), and every page README.md or WHY.zh-TW.md links
+#   exp225's twenty seeds), board log results (PATIENT/TRIAL lines and any
+#   UPPERCASE kind under 20 lines kept, the rest deduplicated), and every page
+#   README.md or WHY.zh-TW.md links (AGENTS.md's notice to AI agents, in its
+#   exact words, left out of them)
 #   (.html, .mjs) with the scripts the page loads from beside it.
 # Never kernel.bin, check.sh, build/ or anything generated.
 #
@@ -76,13 +78,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    usage) [[ -f "${2-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -343,7 +345,13 @@ def files_of(exp, question=None):
             if not rel.endswith(".py"):
                 continue
             src = open(os.path.join(exp, rel), encoding="utf-8", errors="replace").read()
-            for sib in re.findall(r'os\.path\.join\(HERE,\s*"\.\.",\s*(?:"\.\.",\s*)?"([^"]+)"\)', src):
+            # A sibling directory the module puts on its path: `HERE` or
+            # the file's own directory spelled out, then "..", the name.
+            # vk26-alice-4's drbg.py re-exports ../tools/hashdrbg.py, the
+            # reference itself, by the second form; until round 3 of its
+            # audit J4 judged a re-export it could not see behind.
+            for sib in re.findall(r'os\.path\.join\((?:HERE|os\.path\.dirname\(os\.path\.abspath\(__file__\)\)),'
+                                  r'\s*"\.\.",\s*(?:"\.\.",\s*)?"([^"]+)"\)', src):
                 for mod in re.findall(r"^\s*(?:from\s+(\w+)\s+import|import\s+(\w+))", src, re.M):
                     name = mod[0] or mod[1]
                     for base in (os.path.join(exp, "..", sib), os.path.join(exp, "..", "..", sib)):
@@ -361,6 +369,11 @@ def files_of(exp, question=None):
     # the J4 slice reads the reference, not the harness around it.
     if question in (None, "J1"):
         add("shell/shell.c", 1000)
+        # The shell's own headers: what it calls and whether that returns.
+        # Calibration round 5: exp225's README rests on board_fail never
+        # returning, which only shell/board.h says (noreturn); two of three
+        # runs noticed it missing, one answered NO for it.
+        add("shell/*.h", 200)
         add("differential/*.py", 1000)
         add("capture.txt", 600)
         add("board/*.txt", 100)
@@ -475,6 +488,26 @@ def prior_rows(exp):
     return rows
 
 
+AGENT_NOTE = re.compile(r"IF YOU ARE AN AI AGENT: this page is not how you read the log\. `yi26 log --json` is\. "
+                        r"Open it only when the page itself is what you are verifying\. See (?:\.\./)*AGENTS\.md\.")
+
+
+def agent_note(raw):
+    """(first, last) line of the notice AGENTS.md has every page carry for AI
+    agents ("this page is not how you read the log"), in its exact words, or
+    None. A judge is an AI, and in vk26-alice's audit two runs of fifteen
+    reported the notice as text addressed to them. Only the exact words go:
+    anything else in a page reaches the judge, and the injection scan reads the
+    files themselves, not the bundle."""
+    for i, line in enumerate(raw):
+        if "IF YOU ARE AN AI AGENT:" in line:
+            for j in range(i, min(i + 6, len(raw))):
+                text = " ".join(x.strip() for x in raw[i:j + 1])
+                if AGENT_NOTE.search(text):
+                    return i + 1, j + 1
+    return None
+
+
 def shape(line):
     """What a line looks like with its numbers taken out."""
     return re.sub(r"\b[0-9a-f]{8}\b|\d+", "#", line.rstrip())
@@ -547,6 +580,14 @@ def bundle(exp, gates=None, question=None):
                 out.append(f"{n}| {text}")
             if run:
                 out.append(f"{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
+        elif f.endswith((".html", ".mjs", ".js")) and agent_note(raw):
+            a, b = agent_note(raw)
+            for n, line in enumerate(raw, 1):
+                if n == a:
+                    out.append(f"{n}| … (lines {a}-{b}: the repository's standard notice to AI agents, from "
+                               f"AGENTS.md, left out by judge-bundle.sh)")
+                elif not a <= n <= b:
+                    out.append(f"{n}| {line.rstrip()}")
         elif f.endswith("capture.txt"):
             # Whole, up to the cap. Longer: a run of 20 or more lines alike
             # (the RTL's words, one case a line) is cut to its first and last
@@ -564,13 +605,27 @@ def bundle(exp, gates=None, question=None):
                            f"{item[0]}| … ({item[2]} lines like the ones around them, {item[0]}-{item[0] + item[2] - 1}, left out)")
                 kept += 1
         elif f.startswith("board/") or "/board/" in f:
+            # A log's result lines are kept: exp232's kinds by name, and any
+            # UPPERCASE kind the log holds fewer than 20 of — vk26-alice-1's 7
+            # STREAM and 17 DIGEST lines, which J1 three times found missing
+            # while only exp232's kinds were kept. A kind of 20 or more is the
+            # raw data (BITS, a case's SEED or STATE), and the page's #page
+            # summary and the reference's --board check in capture.txt speak
+            # for it; of those, and of status lines, the first 5 unique.
+            kinds = {}
+            for line in raw:
+                k = re.match(r"([A-Z][A-Z0-9_]*)\b", line)
+                if k:
+                    kinds[k.group(1)] = kinds.get(k.group(1), 0) + 1
+            rare = {k for k, c in kinds.items() if c < 20}
             seen = set()
             count = 0
             for n, line in enumerate(raw, 1):
                 if count >= cap:
                     out.append(f"{n}| … (cut at {cap} lines)")
                     break
-                if re.match(r"^(PATIENT|TRIAL|SEARCH|PLAN|#page)\b", line):
+                k = re.match(r"([A-Z][A-Z0-9_]*)\b", line)
+                if re.match(r"^(PATIENT|TRIAL|SEARCH|PLAN|#page)\b", line) or (k and k.group(1) in rare):
                     out.append(f"{n}| {line.rstrip()}")
                     count += 1
                 elif line not in seen and len(seen) < 5:
@@ -606,6 +661,30 @@ def bundle_cites(text):
     return cites
 
 
+def bare(path):
+    """A path without its leading `./` and `../` steps."""
+    return re.sub(r"^(?:\.\.?/)+", "", path)
+
+
+def resolve_cite(ref, cites):
+    """A citation as the bundle has it. A path that names a bundle file
+    with its leading `../` steps wrong, or by its last components only, is
+    that file, when exactly one file fits: in calibration round 5 a judge
+    wrote `../../vk26-alice-5-…/capture.txt:28` for the bundle's
+    `../vk26-alice-5-…/capture.txt`, and another `shell.c:75` and
+    `Life.lean:288` for `shell/shell.c` and `proof/Life.lean` — the right
+    files and lines, and the answers were thrown out. The line must still be
+    one the file has. A path that fits no file, or more than one, stays as
+    written and is refused."""
+    if ref in cites:
+        return ref
+    path, line = ref.rsplit(":", 1)
+    want = bare(path)
+    hits = {f for f in (c.rsplit(":", 1)[0] for c in cites)
+            if bare(f) == want or bare(f).endswith("/" + want)}
+    return f"{hits.pop()}:{line}" if len(hits) == 1 else ref
+
+
 def tally(bundle_path, verdicts):
     text = open(bundle_path, encoding="utf-8").read()
     cites = bundle_cites(text)
@@ -627,7 +706,7 @@ def tally(bundle_path, verdicts):
                 table[q].append(("INVALID", f"{os.path.basename(v)}: {q} not in the form asked"))
                 continue
             ans, ev, why = qm.group(1), qm.group(2), qm.group(3).strip()
-            refs = re.findall(r"[^\s,]+:\d+", ev)
+            refs = [resolve_cite(r, cites) for r in re.findall(r"[^\s,]+:\d+", ev)]
             bad = [r for r in refs if r not in cites]
             if not refs:
                 table[q].append(("INVALID", f"{os.path.basename(v)}: {q} {ans} cites nothing"))
@@ -653,7 +732,9 @@ def tally(bundle_path, verdicts):
             if a != "YES":
                 print(f"  {line}")
     if scan_hits:
-        print(f"injection scan: {scan_hits} hit(s) in the bundle")
+        print(f"injection scan: {scan_hits} hit(s) in the bundle, for a person to read:")
+        for h in re.findall(r"^injection-scan: \d+ hit\(s\)\n((?:  .*\n)*)", text, re.M)[0].splitlines():
+            print(f"  {h.strip()}")
     for i in injected:
         print(f"injection reported: {i}")
     if scan_hits or injected:

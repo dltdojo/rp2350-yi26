@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:89-90, README.md:154-155
+reason: README.md:89-90 says ADD is called "five times a Generate (once per block for data + 1, three times for V)". The code and cost say m + 3 calls (7 for the 4-block runs): differential.py:38 counts 3 ADDs plus 555 per block, and the Lean file has four call sites. README.md:154-155 states what lean/Rv32/Ct.lean's checker does and does not accept, but Ct.lean is not in the bundle. The remaining proved, run and board claims match the Lean theorems, capture.txt and the saved board log.
+J2: YES
+evidence: ../lean/Alice/Drbg.lean:1407, ../lean/Alice/Drbg.lean:1409, ../lean/Alice/Drbg.lean:1412, ../lean/Alice/Drbg.lean:1413, ../lean/Alice/Drbg.lean:1414, ../lean/Alice/Drbg.lean:1415, ../lean/Alice/Drbg.lean:1416, ../lean/Alice/Drbg.lean:1059, ../lean/Alice/Drbg.lean:1062, ../lean/Alice/Drbg.lean:1066, ../lean/Alice/Drbg.lean:1369, ../lean/Alice/Drbg.lean:1370, ../lean/Alice/Drbg.lean:1426, ../lean/Alice/Drbg.lean:1427, ../lean/Alice/Drbg.lean:1445, ../lean/Alice/Drbg.lean:1446, ../lean/Alice/Drbg.lean:1448, README.md:104, README.md:105, README.md:106, README.md:107, README.md:119, README.md:122, README.md:124, README.md:125, README.md:126, README.md:127
+reason: `from_boot` is quantified over any env (hash), V, C, m and counter, and runs the kernel's bytes from `boot`. Its hypotheses are exactly the ones the README lists: the kernel and state bytes, the 0x03, the zeros and the 1, 1 ≤ m, the blocks fitting, interval < 2^32−1, and counter ≤ interval. It concludes `.halted 0` after `COST m = 2030 + 566m` with the region equal to `after` (blocks, data, H, the counter's bytes, `vnext`, counter+1, everything else the image's). `after_out`, `reseed_boot` (halt 1 after 7, memory the image) and `generate_twice` (pc = base, any registers, memory as the first run left it, cnt+1 ≤ interval, `after` of `after`) likewise state what README.md:119–127 says they state.
+J3: YES
+evidence: ../lean/Alice/Drbg.lean:1407-1416, ../lean/Alice/Drbg.lean:1438-1448, capture.txt:231
+reason: No prior experiment covers SP 800-90A's Hash_DRBG Generate. This one adds a new 70-instruction kernel, with a proved exact cost, reseed refusal, Hashgen output bytes and the second Generate. It also checks 120 NIST vectors and 165 cases on the board against NIST's ReturnedBits.
+J4: YES
+evidence: ../pages/drbg.js:32-45, ../lean/Alice/Drbg.lean:119-120, capture.txt:26, capture.txt:231
+reason: drbg.js does the same arithmetic differently from the Lean model: BigInt and mod 2^440 with WebCrypto SHA-256, where the kernel and Lean add byte by byte with carries. NIST's published ReturnedBits are an external check on top of that. drbg.py itself only re-exports hashdrbg.py, which is not in the bundle, so this answer rests on the JavaScript and NIST rather than on the Python.
+INJECTION: NONE
+END

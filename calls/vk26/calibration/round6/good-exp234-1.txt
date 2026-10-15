@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:71, README.md:75, README.md:129-136, README.md:218-231, proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, board/round1.txt:1, capture.txt:23, capture.txt:67
+reason: The proved claims match theorems quantified over every input and mask (`lives`, `cured_iff`, `answer_world`). The rate, the 40000-patient table and the 19-of-19 replay match the capture. The 4/27 and 8/57 figures and the "38 agreed" claim match the page summary line, and the README says plainly which UF2, board and phone produced them.
+J2: YES
+evidence: proof/World.lean:507, proof/World.lean:508, proof/World.lean:510, proof/World.lean:511, proof/World.lean:188, README.md:71, proof/World.lean:622, README.md:72, proof/World.lean:588, proof/World.lean:589, README.md:73, proof/World.lean:641, proof/World.lean:642, README.md:74, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, README.md:75, proof/World.lean:663, proof/World.lean:664, README.md:76
+reason: `from_boot` holds for any image that starts with the kernel's 296 bytes, so it covers every input and mask. It proves the kernel is still running at 4042 instructions and halts with 0 at 4043, leaving memory equal to `lived`, which is the original memory with only the 64 generations of `wnext` overlaid; that matches W1. `still`, `resistance_stays`, `cured_iff`, `answer_world` and `zero_stays` each state, in quantifiers, hypotheses and conclusion, what the README's table says: every schedule and mask, any position `p`, widths 1–6, and D = 0, 0, 1, 2, 3, 8.
+J3: YES
+evidence: proof/World.lean:489, proof/World.lean:641, proof/World.lean:718, README.md:78-83
+reason: This adds a proved 74-instruction kernel for the world with resistance, where exp232's world was unproved C. It adds the theorems `cured_iff`, `resistance_stays` and `zero_stays`. It also derives an exact predicted failure rate (3276629119/25769803776) and tests it on a board. None of the prior experiments listed has these.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:57-77, world.py:43-50, world.py:61-66, world.py:73
+reason: The reference is cure.py, written cell by cell with a per-cell loop and `cell()`. The Lean kernel uses shifts and bit operations. `world.py` recomputes the divisions from cure.py and compares them with the D parsed from the Lean source, so a mistake copied into both would be unlikely.
+INJECTION: NONE
+END

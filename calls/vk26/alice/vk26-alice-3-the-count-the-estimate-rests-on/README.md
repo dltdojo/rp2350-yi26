@@ -33,9 +33,10 @@ were 1 about 48.3% of the time in both draws, about six standard deviations
 from even; with its tests on, about 50%. Revision 2 ran every stream's
 kernel twice, back to back. All 14 second runs took 7,343,697 cycles, as
 predicted, while the first runs again took several numbers. The slow first
-runs came only after the shell copied a fixed stream out of flash across
-the XIP cache sets that hold the harness's `mret` and trap entry, in both
-revisions' builds. Revision 3 set the cache on purpose before each first
+runs came only after streams 2 and 4, the two whose copy out of flash
+crosses the XIP cache sets that hold the harness's `mret` and trap entry
+(checked for the build committed now; revisions 1 and 2 were read by hand
+at the time, and nothing committed repeats it). Revision 3 set the cache on purpose before each first
 run, and its prediction failed in part. Sweeping those sets made stream 3
 slow for the first time (2 of 3 rounds). Reading the two words of `mret`
 and the trap entry back did not keep streams 2 and 4 fast (3 of 6 slow).
@@ -207,7 +208,9 @@ The RTL counts 6,294,287 instructions, the proof's count plus 3.
 - vk26-alice-5 later found the cause: the RTL counts one more when the word
   after the halting `ecall` is a legal instruction; here it is followed by
   zeros
-  ([its README](../vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)).
+  (its gen.py puts five words after the Instantiate kernel's `ecall` and
+  runs it on the RTL; the counts are in [its capture](../vk26-alice-5-the-seed-the-tests-passed/capture.txt),
+  the `build/expect.h` line).
 
 ## The shell
 
@@ -443,16 +446,17 @@ streams' counts are count.py's, both runs at the RTL's minstret.
 - The XIP cache is 16 KiB (exp212) in two ways (rp-pac 7.0.0's
   `SPLIT_WAYS` documents way 0 and way 1). So each way is 8 KiB, and an
   address's set is its offset modulo 0x2000.
-- `FIXED` in each build, by `llvm-nm`; revision 1 rebuilt from its own
-  sources to its committed UF2, byte for byte:
+- Where `FIXED` lies is a property of the build. check.sh reads it from
+  the build committed now (revision 4's), by `llvm-nm`, and prints it:
+  `trap 0x10000134, FIXED 0x10003854: the copy of FIXED[0], [1], [2] over
+  the trap's sets: [True, False, True]`. Revisions 1 and 2's builds were read
+  the same way, by hand, at the time; no committed check repeats that for
+  them, and their UF2s are not kept, so for revisions 1 and 2 this is a
+  note, not evidence.
 
-| Build | `FIXED[0]`'s words, offset mod 0x2000 | `FIXED[1]`'s | `FIXED[2]`'s |
-| --- | --- | --- | --- |
-| revision 1 | 0x11fc–0x01fc, over 0x130 | 0x0204–0x1204, not | 0x120c–0x020c, over 0x130 |
-| revision 2 | 0x1370–0x0370, over 0x130 | 0x0378–0x1378, not | 0x1380–0x0380, over 0x130 |
-
-The streams whose copy passes over the sets of `mret` and the trap entry
-are 2 and 4, the streams whose first runs were slow. Stream 3's copy
+In the build check.sh reads, the streams whose copy passes over the sets of
+`mret` and the trap entry are 2 and 4, the streams whose first runs were
+slow. Stream 3's copy
 passes over the other half of the sets, and its first run was never slow.
 A copy sweeping a set replaces one of its two ways. That would explain why
 stream 4 was slow most times but not every time: which way goes depends on
@@ -681,8 +685,9 @@ standard deviations below even, if independent). With its tests on:
 - Constant time is about this core's view: no caches, no data-dependent
   latency. The proof says the samples cannot move the trace; the RTL and
   the board measure the time.
-- The one instruction alice-1 and alice-2 counted more is not explained;
-  here it is predicted absent, and the RTL agrees.
+- The one instruction alice-1 and alice-2 counted more was not explained
+  when this experiment was made; here it was predicted absent, and the RTL
+  agrees. vk26-alice-5 later found why (above).
 
 ## What the trial found in the call's settings
 
@@ -728,7 +733,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-15T02:31:32Z from commit e0dd6e6
+recorded at 2026-10-15T11:37:10Z from commit cb703d8
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -796,24 +801,25 @@ PASS  round4.txt: every one of 13 second runs took one mcycle, 7343697
 PASS  round4.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817/7343867 cycles, 13 second runs as 7343697
 PASS  round1.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 2:3 3:0 3:1 3:3 3:4 4:0 4:1 4:3 5:0; 7343797 at 2:4; 7343817 at 3:2 4:2 4:4
-      the TRNG, its tests on: H per byte 6.499 (0.967 a bit), 6.711 (0.980 a bit), 6.539 (0.962 a bit)
-      the TRNG, raw: H per byte 6.622 (0.930 a bit), 6.580 (0.935 a bit)
+      the TRNG, its tests on: H per byte 6.499 (0.967 a bit; ones 49.54%, -1.7 sd from half), 6.711 (0.980 a bit; ones 50.00%, +0.0 sd from half), 6.539 (0.962 a bit; ones 50.61%, +2.2 sd from half)
+      the TRNG, raw: H per byte 6.622 (0.930 a bit; ones 48.23%, -6.4 sd from half), 6.580 (0.935 a bit; ones 48.41%, -5.8 sd from half)
 PASS  round2.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 0:3 1:0 1:1 1:3 1:4 2:0 2:1 2:3 3:0; 7343747 at 1:2; 7343797 at 2:2; 7343817 at 0:2; 7343867 at 0:4 2:4
       mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0
-      the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.975 a bit), 6.499 (0.966 a bit)
-      the TRNG, raw: H per byte 6.758 (0.947 a bit), 6.666 (0.943 a bit)
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit; ones 49.76%, -0.9 sd from half), 6.580 (0.975 a bit; ones 50.16%, +0.6 sd from half), 6.499 (0.966 a bit; ones 50.49%, +1.8 sd from half)
+      the TRNG, raw: H per byte 6.758 (0.947 a bit; ones 48.84%, -4.2 sd from half), 6.666 (0.943 a bit; ones 48.68%, -4.8 sd from half)
 PASS  round3.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 1:1 1:2 1:4 2:0 2:1 3:0 3:1 3:3 3:4; 7343817 at 1:3 2:2 2:4 3:2; 7343867 at 2:3
       mcycle of the second run, straight after the first: 7343697 at 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0 3:1 3:2 3:3 3:4
-      the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.978 a bit)
-      the TRNG, raw: H per byte 6.580 (0.951 a bit), 6.622 (0.939 a bit), 6.666 (0.943 a bit)
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit; ones 49.77%, -0.9 sd from half), 6.580 (0.978 a bit; ones 50.05%, +0.2 sd from half)
+      the TRNG, raw: H per byte 6.580 (0.951 a bit; ones 48.99%, -3.6 sd from half), 6.622 (0.939 a bit; ones 48.54%, -5.3 sd from half), 6.666 (0.943 a bit; ones 48.70%, -4.7 sd from half)
 PASS  round4.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 0:4 1:0 1:1 1:4 2:0 2:1 2:2; 7343797 at 2:3; 7343817 at 0:2 0:3 1:2 2:4; 7343867 at 1:3
       mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4
-      the TRNG, its tests on: H per byte 6.711 (0.968 a bit), 6.666 (0.979 a bit)
-      the TRNG, raw: H per byte 6.666 (0.944 a bit), 6.460 (0.935 a bit)
-      probe, 408 runs: nothing first, mcycle 8, accesses 132, misses 0/1/2/4/9/11/13
+      the TRNG, its tests on: H per byte 6.711 (0.968 a bit; ones 49.59%, -1.5 sd from half), 6.666 (0.979 a bit; ones 49.99%, +0.0 sd from half)
+      the TRNG, raw: H per byte 6.666 (0.944 a bit; ones 48.72%, -4.7 sd from half), 6.460 (0.935 a bit; ones 48.40%, -5.8 sd from half)
+      probe, 408 runs, each a HALT 0 (shell.c sends no PROBE line otherwise): minstret 6, XIP accesses 132 in every condition
+      nothing first, in 12 runs: mcycle 8, accesses 132, misses 0/1/2/4/9/11/13
       FIXED[0] and FIXED[2] read: mcycle 8/108/128/178, misses 38/39/40/41/42/43/44/47, in 12 runs
       0x10000130 evicted: mcycle 118, misses 1, in 12 runs
       0x10000138 evicted: mcycle 118, misses 1, in 12 runs

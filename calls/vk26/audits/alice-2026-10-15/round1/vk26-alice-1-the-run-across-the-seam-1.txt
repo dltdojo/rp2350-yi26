@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:310-313, README.md:295-302, board/round1.txt:1-6
+reason: The README quotes board figures that no board log in the bundle contains. These are the TRNG's longest run of 11 and its 530/496/516/502 window matches, plus the per-stream code, minstret and digest rows. board/round1.txt holds only the #page line, one status line and BITS lines for round 3 stream 5, with no STREAM or DIGEST lines and no round-4 samples. The capture's generic PASS (capture.txt:131) does not supply these numbers.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:78, proof/Seam.lean:81, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, README.md:77, README.md:81, README.md:87, README.md:92, README.md:93
+reason: `from_boot` is of from_boot form: it is about the kernel's actual bytes (`himg` against `bytes`) for any image and any placed `base`, run from `boot`. It states the halt after exactly `cost (stop …)` instructions with `code`, memory equal to `wrote env.hash … stop`, and still running one instruction earlier, which matches the README's quantifiers, hypotheses and conclusion. `stop`, `code`, `cost`, `wrote` and `WinOk` (with `rct` taken over the whole stream to window w's end and `agree` over the window alone) are defined as the README describes them, and the cost arithmetic agrees: 12 + 17421k + 17419 = 17431 + 17421k, and 12 + 4·17421 + 3 = 69699.
+J3: YES
+evidence: README.md:18-20, ../lean/Alice/Window.lean:13-18, proof/Seam.lean:434-439
+reason: This is a new kernel that carries the repetition-count run across window edges and has a theorem `Seam.from_boot` for it. The prior experiments listed (exp222, exp223) judge a single window with `front`, which starts afresh each time.
+J4: YES
+evidence: ../tools/health.py:31-46, seam.py:3-4, seam.py:53, README.md:137-139
+reason: The reference is Python run one sample at a time with a never-reset `run` and `last`, and it uses hashlib for digests. The kernel instead uses registers and a Lean `rct`/`agree` specification. The JS page (../pages/health.js:39-58) is a third independent implementation. The differential and fixtures compare these against the kernel.
+INJECTION: NONE
+END

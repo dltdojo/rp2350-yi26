@@ -180,7 +180,7 @@ SP 800-90B 的 RCT 是對整個樣本流連續計數的。vk26-alice-1 從這裡
 | 路徑深度 | 實驗在 `calls/vk26/alice/vk26-alice-N-<slug>/`，比 `experiments/expNNN/` 深兩層 | `source ../../../../experiments/lib.sh`、`tools/hazard3/shell/` 的相對路徑、`run.sh` 的開跑前檢查 | 確認可行：`TOOLS=../../../../tools`；`shell.sh`、`pagecheck.sh`、`headless.mjs` 都不假設深度 |
 | `check.sh` | 不能呼叫 `presence_check`、`usb_check`（README 第 3 節） | Needs 與 USB 資訊只在 alice 的索引表，沒有機器檢查 | 確認：資訊寫在上面的索引表，沒有機器檢查 |
 | S2 | PR 只能動 `alice/` | 試跑中對徵集設定的修正要另開 PR，不能混進 alice 的提交，才能如實測到 S2 | 兩個設定修正都是獨立 commit，只動 `tools/lean/lean.sh` 或 `calls/vk26/` 的設定檔。alice-3 需要旁路 TRNG 測試的驅動程式，共用的 `trng.h` 沒有這個選項、S2 又不讓提案改 `tools/`：放在 alice 自己的 `shell/trng_raw.h`，重用 `trng.h` 的函式而不複製。alice-4 的 HASHB 是任意長度，共用的 `sha_hw.h` 只收 64 位元組整數倍且對齊的輸入（HASH 的規則）：補位寫在 alice-4 自己的 `board_chip.c`，有第二個使用者時應搬到 `sha_hw.h` 旁邊。alice-5 是第二個使用者：補位搬到 alice 的 `shell/hashb_chip.h`（alice-4 的 UF2 一位元組不差），因為 S2 仍不能放到 `sha_hw.h` 旁邊；同時搬到 alice 共用目錄的還有 Python 的 Hash_DRBG 與 alice-2 參考實作（`alice/tools/`）、網頁的 Generate（`alice/pages/drbg.js`） |
-| 裁判用量 | 7 次判定 × 2 個 session | 依第 4 輪，約 $4–5；`audit-proposal.sh` 第一次對真提案執行 | 未到（五個做完才跑） |
+| 裁判用量 | 7 次判定 × 2 個 session | 依第 4 輪，約 $4–5；`audit-proposal.sh` 第一次對真提案執行 | 跑了兩輪（第八節）。兩輪的抽驗實驗都沒通過，其餘四個補滿三次：每輪 15 次判定，約 35 個 session、250 萬 tokens、$6.5–7.3；bundle 每份 170–280 KB，是校準用的兩到三倍。兩輪都在中途碰到帳號的用量上限，重跑只補缺的判定 |
 | G7 | 需要人、板子、手機 | 每個實驗需要一次手機上板；五個實驗共 5 次 | alice-1 上板一次。紀錄經聊天貼回時被截斷（網頁看到 11 條，貼回 7 條）。**已修**：alice 的網頁加了 Save（存檔，狀態列寫出字元數與行數）；徵集 README 與 ACCEPTANCE 改成紀錄一律以檔案傳回。alice-2 上板一次，紀錄以 Save 存的檔案傳回、原樣放進 `board/`，網頁看到的 18 條樣本流全在檔案裡，沒有截斷：改用檔案之後確實解決了。alice-3 上板四次（revision 1 到 4），同樣以檔案傳回，樣本流都完整。revision 2 和 3 的紀錄格式相同，紀錄本身說不出板子跑的是哪一版；revision 4 起每輪送出 `REVISION` 行。前三趟每趟只測一個猜測，第四趟讓板子自己跑 34 種條件，一次就找到答案。alice-4 上板一次，紀錄以檔案傳回；但有一段整行遺失（10 組），遺失前最後一行狀態列 `dropped=0`、之後沒有狀態列，紀錄本身分不出是板子丟的還是手機丟的。遺失的案例網頁都標為不完整、不做判斷。alice-5 上板一次，紀錄以檔案傳回，`dropped=0`，沒有遺失的行 |
 
 ## 六、這份規劃參考過的既有工作
@@ -208,3 +208,12 @@ exp229（`Limbs.lean`）、exp233、`lean/Rv32/Health.lean`、`lean/Rv32/Sha.lea
 - `lean/Rv32/Ct.lean` 的常數時間檢查器不認得 HASHB、不接受 `jal`/`jalr`（vk26-alice-4）。
 - `tools/hazard3/harness` 進出 kernel 的兩行在 flash，週期數受 XIP 快取影響（vk26-alice-3；vk26-alice-4、5 的板上週期數也看到同樣的現象）。
 - 任意長度的 SHA-256 補位（`alice/shell/hashb_chip.h`）與旁路測試的 TRNG（`alice/shell/trng_raw.h`）：第二份提案也需要時，搬到 `tools/hazard3/shell/`。
+
+## 八、驗收試跑（2026-10-15）
+
+第七節的修正之後，照 ACCEPTANCE.md 對 alice 跑了兩輪完整的驗收（`audit-proposal.sh`）：機器關卡兩輪都全過，J3、J4 在 30 次判定裡全是 YES；J1 第 1 輪五個都 NO，第 2 輪 alice-1 四題全 YES，其餘是 alice-3 FAIL、三個 HUMAN（分歧或回報注入）。紀錄、結果表、流程的七個修正（162d2ac、a1ae250、0201c51）與 alice 尚待修正的項目，在 [calls/vk26/audits/alice-2026-10-15/](../audits/alice-2026-10-15/README.md)。
+
+最主要的教訓有兩個：
+
+- **README 引用的每一個數字，都要由 commit 進來的程式印出來。** 第 1 輪五個 J1 NO 的大部分理由都在此：兩輪比較、慢的是哪幾組、TRNG 的統計，是看紀錄手算的。改由 `--board` 檢查印出、進到 capture 之後，裁判就找得到；其中一個手算的範圍（alice-4 的 69–72）本來就錯了。已寫進徵集 README 第 5 節。
+- **流程本身的問題只有在真的提案上才看得到**：上板紀錄只留 exp232 的行種、capture 截在 200 行、bundle 帶整個套件、AGENTS.md 給 AI agent 的說明被裁判當成注入。校準用的三個主線實驗都碰不到這些情況。
