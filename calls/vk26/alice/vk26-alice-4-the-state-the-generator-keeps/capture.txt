@@ -1,11 +1,15 @@
 === vk26-alice-4 — the state the generator keeps ===
-recorded at 2026-10-15T06:14:24Z from commit 89c2248
+recorded at 2026-10-15T11:54:54Z from commit 93d45d1
 
 >>> the theorems, and what they rest on
 'Drbg.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Drbg.reseed_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Drbg.generate_twice' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Drbg.after_out' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.ct_refuses_jal' depends on axioms: [propext, Quot.sound]
+'Drbg.ct_refuses_jalr' depends on axioms: [propext, Quot.sound]
+'Drbg.ct_refuses_ecall' depends on axioms: [propext, Quot.sound]
+'Drbg.kernel_calls' depends on axioms: [propext]
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
@@ -18,6 +22,7 @@ generate_run  the counter's third byte is written over its second               
 generate_run  the counter is stored back as it was                                                refused in generate_run
 add_iter      ADD's carry is the sum shifted by 9, not 8                                          refused in add_iter
 generate_run  the claim: one instruction fewer to the halt                                        refused in generate_run
+generate_run  the claim: one instruction more to the halt                                         refused in generate_run
 generate_run  the specification: V's next value leaves the counter out                            refused in generate_run
 generate_run  the specification: H is Hash(0x02 ‖ V)                                            refused in generate_run
 blocks_out    the claim: block j is the hash of V + j + 1                                         refused in blocks_out
@@ -155,7 +160,7 @@ build/vk26-alice-4.uf2  98304 bytes  sha256 4843dec170130112df02522e98daf47363e6
 
 >>> the checks
 PASS  Drbg.lean checks, with no errors and no warnings
-PASS  all 4 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 8 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  reseed_run: the proof refuses a version where reseed when the counter equals the interval, not only past it (§10.1.1.4 step 1)
 PASS  generate_run: the proof refuses a version where V is copied to data one byte short
 PASS  gen_iter: the proof refuses a version where Hashgen hashes 54 bytes of data, not seedlen's 55
@@ -165,6 +170,7 @@ PASS  generate_run: the proof refuses a version where the counter's third byte i
 PASS  generate_run: the proof refuses a version where the counter is stored back as it was
 PASS  add_iter: the proof refuses a version where ADD's carry is the sum shifted by 9, not 8
 PASS  generate_run: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  generate_run: the proof refuses a version where the claim: one instruction more to the halt
 PASS  generate_run: the proof refuses a version where the specification: V's next value leaves the counter out
 PASS  generate_run: the proof refuses a version where the specification: H is Hash(0x02 ‖ V)
 PASS  blocks_out: the proof refuses a version where the claim: block j is the hash of V + j + 1
