@@ -13,6 +13,7 @@ part is here once too, since vk26-alice-2's page is the second to need it.
 | [`core.js`](./core.js) | connecting, reading, Disconnect, Copy, Save (the same text as a file, for a log too long to paste): `appliance({ serial, page, onText, report })`, `cdcLines()`, `checkedLines(feed, after)` (each line through a page's checker, in order, shown in #raw), `findCdc` (tools/pages/log.html's, byte for byte) |
 | [`core.css`](./core.css) | the look |
 | [`health.js`](./health.js) | SP 800-90B's repetition count and adaptive proportion tests a sample at a time, as [`../tools/health.py`](../tools/health.py) has them in Python; the BITS, ROUND and FAIL lines; each stream's samples gathered from its BITS lines (`healthJudge`, `healthLine`, `healthStreams`, `healthWindowBytes`) |
+| [`drbg.js`](./drbg.js) | SP 800-90A's Hash_DRBG Generate with WebCrypto's SHA-256 and BigInt (`drbgGenerate`, `drbgHex`, `drbgBig`, `drbgBytes`, `drbgHash`): vk26-alice-4's page wrote it, vk26-alice-5's is the second to need it |
 | [`build.py`](./build.py) | one page, one file: puts `core.js`, `health.js` and `core.css` into a page, for a phone |
 | [`pagetest.mjs`](./pagetest.mjs) | a page's checked block under node with health.js's and `cdcLines`, from the page itself when it is built (so a mutant of the built page is a mutant of what a phone runs); lines in 64-byte packets |
 | [`browser.mjs`](./browser.mjs) | a built page in headless Chromium against a stand-in board: claims, verdict line, table, Copy, Save |

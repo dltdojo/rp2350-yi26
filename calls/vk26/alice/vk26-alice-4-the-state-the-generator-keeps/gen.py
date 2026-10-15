@@ -6,7 +6,7 @@
 
   KERNEL, KERNEL_SHA   kernel.bin, as proof/Drbg.lean writes it, checked
                        against kernel.sha256
-  CASES                every NIST case of cavp/Hash_DRBG_SHA256.txt: V and C
+  CASES                every NIST case of ../tools/cavp/Hash_DRBG_SHA256.txt: V and C
                        as drbg.py instantiates them, NIST's ReturnedBits, and
                        the SHA-256 of the region's first WINDOW bytes after the
                        second Generate, as drbg.py says the kernel leaves them

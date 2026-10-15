@@ -4,7 +4,7 @@
 // experiment's page_test.mjs. vk26-alice-2's is the second to need it.
 //
 //   pageContext(page, block, names)
-//                a node context holding health.js's block, the page's own
+//                a node context holding health.js's block, drbg.js's, the page's own
 //                `// BEGIN block` … `// END block`, and core.js's cdcLines,
 //                with each of `names` on it. From the page itself when
 //                build.py has put them in it — a built page, or a copy of one
@@ -31,6 +31,10 @@ export function pageContext(page, block, names) {
   const html = fs.readFileSync(page, 'utf8');
   const health = between(html, '// BEGIN health', '// END health')
     ?? between(shared('health.js'), '// BEGIN health', '// END health');
+  // drbg.js's Generate (vk26-alice-4's page and vk26-alice-5's): the page's
+  // own copy when build.py put it in, else the shared file. Its markers are
+  // matched as whole lines, so that `// BEGIN drbg-check` is not taken for it.
+  const drbg = between(html, '// BEGIN drbg\n', '// END drbg\n') ?? between(shared('drbg.js'), '// BEGIN drbg\n', '// END drbg\n');
   const own = between(html, `// BEGIN ${block}`, `// END ${block}`);
   if (own === null) throw new Error(`${page} has no // BEGIN ${block} … // END ${block}`);
   const core = html.includes('function cdcLines(') ? html : shared('core.js');
@@ -38,7 +42,7 @@ export function pageContext(page, block, names) {
   const lines = core.slice(at, core.indexOf('\n}\n', at) + 3);
   const ctx = { crypto: globalThis.crypto, TextEncoder };
   vm.createContext(ctx);
-  vm.runInContext(`${health}\n${own}\n${lines}\n${names.map((n) => `this.${n} = ${n};`).join(' ')}`, ctx);
+  vm.runInContext(`${health}\n${drbg}\n${own}\n${lines}\n${names.map((n) => `this.${n} = ${n};`).join(' ')}`, ctx);
   return ctx;
 }
 

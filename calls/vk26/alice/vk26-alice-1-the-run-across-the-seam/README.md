@@ -326,6 +326,9 @@ What it adds to the RTL:
   samples pass, as seam.py says they should.
 - The extra instruction counted at code 0, on the RTL and on the chip, is
   measured, not explained.
+  vk26-alice-5 later found the cause: the RTL counts one more when the word
+  after the halting `ecall` is a legal instruction
+  ([its README](../vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)).
 - One window at a time is still how the adaptive proportion test runs, and
   the stream is four windows: what happens after the fourth (a fifth
   window, a reseed) is not here.

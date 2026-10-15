@@ -221,6 +221,11 @@ gate "exp205's count computed from its input, \`run env (4141 + 3 * steps …)\`
 gate "exp224's \`∃ n, run env n (boot …)\` is not an exact count" FAIL "$E224" "not an exact number of instructions"
 gate "exp207's \`∀ n, … run env n (boot …)\` is not one either" FAIL "$E207" "not an exact number of instructions"
 gate "exp208 has no \`run env N (boot …)\`" FAIL "$E208" "no theorem states"
+gate "vk26-alice-4's from_boot is in alice's package, imported by its thin proof file" PASS \
+    "$HERE/alice/vk26-alice-4-the-state-the-generator-keeps"
+mkdir -p "$WORK/g/thin/proof"
+printf 'import Alice.Addr\n\ndef main : IO Unit := pure ()\n' > "$WORK/g/thin/proof/K.lean"
+gate "  … and a proof file outside a proposer's directory does not reach into it" FAIL "$WORK/g/thin" "no theorem states"
 
 conclusion_case() { # name conclusion
     mkdir -p "$WORK/g/$1/proof"

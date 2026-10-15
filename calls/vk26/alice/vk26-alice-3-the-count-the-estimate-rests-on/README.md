@@ -204,6 +204,10 @@ The RTL counts 6,294,287 instructions, the proof's count plus 3.
 - That is ten counts across three experiments on one pattern. The pattern
   is now this experiment's prediction for the chip, and still not an
   explanation.
+- vk26-alice-5 later found the cause: the RTL counts one more when the word
+  after the halting `ecall` is a legal instruction; here it is followed by
+  zeros
+  ([its README](../vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)).
 
 ## The shell
 

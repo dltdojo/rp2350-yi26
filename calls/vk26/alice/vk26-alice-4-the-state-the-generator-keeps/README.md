@@ -59,7 +59,7 @@ time would notice. So this one is proved.
 
 ## The kernel
 
-proof/Drbg.lean's `kernel`, 70 instructions, 280 bytes, written to
+`Drbg.kernel`, 70 instructions, 280 bytes, written to
 `kernel.bin` by the proof (`sha256 de651726…`). Everything is an offset from
 `base`, the region's start (`auipc`):
 
@@ -97,7 +97,8 @@ so, byte for byte.
 
 ## What is proved
 
-[proof/Drbg.lean](./proof/Drbg.lean), on Lean's own axioms only (no
+[`../lean/Alice/Drbg.lean`](../lean/Alice/Drbg.lean), in alice's package since vk26-alice-5
+became its second user, checked from [proof/Drbg.lean](./proof/Drbg.lean), on Lean's own axioms only (no
 `sorry`, no `native_decide`):
 
 - **`generate_run` / `from_boot`**: the image holds the kernel and a state.
@@ -161,13 +162,16 @@ Twelve wrong versions are each refused (`proof/mutants.txt`):
 ## The reference, and the differential
 
 - [`drbg.py`](./drbg.py) is Hash_DRBG written from SP 800-90A Rev. 1's
-  text, nothing like the kernel's registers. Its parts:
+  text, nothing like the kernel's registers. Since vk26-alice-5 became its
+  second user, the code is alice's, in
+  [`../tools/hashdrbg.py`](../tools/hashdrbg.py), and drbg.py imports it.
+  Its parts:
   - `hash_df` and `drbg_instantiate` (§10.3.1, §10.1.1.2);
   - `drbg_generate` (§10.1.1.4);
   - `drbg_image` and `drbg_outcome`: what the kernel's region must hold
     before and after;
   - `drbg_region`: the whole region afterwards.
-- [`cavp/Hash_DRBG_SHA256.txt`](./cavp/Hash_DRBG_SHA256.txt) is every
+- [`../tools/cavp/Hash_DRBG_SHA256.txt`](../tools/cavp/Hash_DRBG_SHA256.txt) is every
   SHA-256 group without additional input and without prediction
   resistance, from NIST's CAVP DRBG vectors (drbgvectors_no_reseed.zip):
   120 cases, copied unchanged but for the header, which says where from and
@@ -192,8 +196,10 @@ Twelve wrong versions are each refused (`proof/mutants.txt`):
   - one block, seven and forty.
 
   All pass. The RTL's minstret for a Generate of 4 blocks is 4318: the
-  proof's 4294, plus the harness's 3 and 1 around every run, plus 4 for
-  each of the five HASHB calls.
+  proof's 4294, plus the harness's 3, plus 4 for each of the five HASHB
+  calls, plus 1: vk26-alice-5 found the RTL counts one more when the word
+  after the halting `ecall` is a legal instruction, here the RESEED
+  branch. (This README first counted that 1 as the harness's.)
 
 ## The shell
 
@@ -220,9 +226,11 @@ held to what the model accepts (`tools/hazard3/harness/hashcall.h`).
 - **On the chip** it goes to the RP2350's SHA-256 block.
   `tools/hazard3/shell/sha_hw.h` takes only whole 64-byte blocks from a
   word-aligned address, and HASHB's inputs are 55 and 56 bytes, the second
-  from 0x43f. So `board_chip.c` gathers the bytes into words itself and
-  pads them itself: 0x80, zeros to 56 bytes into a block, the length in
-  bits.
+  from 0x43f. So the shell gathers the bytes into words itself and pads
+  them itself: 0x80, zeros to 56 bytes into a block, the length in bits.
+  This was `board_chip.c`'s; since vk26-alice-5 needed it too it is alice's,
+  [`../shell/hashb_chip.h`](../shell/hashb_chip.h), and the UF2 is byte for
+  byte the same.
 - **On the RTL** it goes to `tools/hazard3/harness/sha256.c`.
 
 The checks, numbered as the LED counts them:
@@ -411,9 +419,10 @@ Found while making this experiment, and recorded in
 - **The SHA-256 block's helper takes whole blocks only.** `sha_hw.h` hashes
   multiples of 64 bytes from word-aligned addresses: HASH's rule, not
   HASHB's. exp228 answered HASHB in software on the chip. Here the padding
-  for any length is in alice-4's own `board_chip.c`, as `trng_raw.h` was
-  for alice-3, because S2 keeps `tools/` closed. If a second proposal needs
-  it, it belongs beside `sha_hw.h`.
+  for any length is alice's own (`../shell/hashb_chip.h`, first in this
+  experiment's `board_chip.c`), as `trng_raw.h` was for alice-3, because S2
+  keeps `tools/` closed. If a second proposal needs it, it belongs beside
+  `sha_hw.h`.
 - **The big-endian lemmas live in this experiment's proof**, not in
   `alice/lean/` as the plan said. Nothing else uses them yet. The second
   caller is where they move, and vk26-alice-5's Hash_df will be one.

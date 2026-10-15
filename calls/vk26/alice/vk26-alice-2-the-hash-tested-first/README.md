@@ -74,7 +74,7 @@ been observed to fire is indistinguishable from a check that cannot fire."
 
 ## The kernel
 
-`proof/Trust.lean` writes it; `kernel.bin` is its 448 bytes.
+`proof/Trust.lean` writes it (the kernel and its proof are in alice's package, [`../lean/Alice/Trust.lean`](../lean/Alice/Trust.lean), since vk26-alice-5 became their second user); `kernel.bin` is its 448 bytes.
 
 | Instructions | What |
 | --- | --- |
@@ -344,6 +344,9 @@ What it adds to the RTL:
   shows the KAT fires; it is not evidence about how the block fails.
 - The one more instruction for codes 0 to 2, on the RTL and on the chip, is measured, not
   explained.
+  vk26-alice-5 later found the cause: the RTL counts one more when the word
+  after the halting `ecall` is a legal instruction
+  ([its README](../vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)).
 
 ## What the trial found in the call's settings
 
