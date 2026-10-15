@@ -219,7 +219,11 @@ kernel.sha256. HASH and HASHB are answered by the shell, their arguments
 held to what the model accepts (`tools/hazard3/harness/hashcall.h`). On the
 chip both go to the RP2350's SHA-256 block, HASHB through vk26-alice-4's
 padding, now alice's [`../shell/hashb_chip.h`](../shell/hashb_chip.h)
-(vk26-alice-4's UF2 is byte for byte the same); on the RTL to
+(vk26-alice-4's UF2 is byte for byte the same: its
+[capture](../vk26-alice-4-the-state-the-generator-keeps/capture.txt),
+recorded after the move, says `PASS  the UF2 is byte for byte the committed
+one: 4843dec170130112…`, and its `vk26-alice-4.uf2.sha256` has not changed
+since its own shell was committed); on the RTL to
 `tools/hazard3/harness/sha256.c`.
 
 The checks, numbered as the LED counts them:
@@ -517,7 +521,8 @@ Found while making this experiment, and recorded in
   vk26-alice-4's Lean, their Python references, vk26-alice-4's padding and
   its page's Generate each had a second user here. All moved into alice's
   shared directories; both kernel.bin files and vk26-alice-4's UF2 stayed
-  byte for byte the same. `duplication.sh` found two names clashing
+  byte for byte the same (vk26-alice-2's and vk26-alice-4's captures,
+  recorded after the move, each check both against what is committed). `duplication.sh` found two names clashing
   (`rounds`, `chain`) and one copy in vk26-alice-4's fixtures that
   `alice/tools/lines.py` already had.
 - **The one more instruction**, above: not a setting, but the question

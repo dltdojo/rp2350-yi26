@@ -200,7 +200,12 @@ refused in the theorem its label names:
 
 The RTL counts 6,294,287 instructions, the proof's count plus 3.
 - alice-1 and alice-2 counted plus 3 plus 4 for each HASH call, and one
-  more whenever the halting `ecall` was not the kernel's last instruction.
+  more whenever the halting `ecall` was not the kernel's last instruction:
+  [alice-1's capture](../vk26-alice-1-the-run-across-the-seam/capture.txt)
+  has five `code N: the proof's count …, the RTL's minstret …, k more` lines
+  (20 more with 4 HASH calls for code 0, then 3, 7, 11, 15),
+  [alice-2's](../vk26-alice-2-the-hash-tested-first/capture.txt) four
+  (code 3: 34878 and 34885, 7 more with one HASH call).
 - Here there is no HASH, the `ecall` is last, and there is no one more.
 - That is ten counts across three experiments on one pattern. The pattern
   is now this experiment's prediction for the chip, and still not an

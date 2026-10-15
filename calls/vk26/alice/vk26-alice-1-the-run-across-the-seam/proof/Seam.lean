@@ -460,6 +460,7 @@ theorem from_boot (hp : Placed env base) (img : ByteArray) (hsize : 552 ≤ img.
     · rw [hc, show 12 + 17421 * k + (17418 + 1) - 1 = (12 + 17421 * k) + 17418 by omega, run_add_running e, e1]
     · rw [hc, run_add_running e, run_add_running e1, h1]; simp only [hk, ↓reduceIte]
 
+#print axioms Alice.Window.win_run
 #print axioms init_regs
 #print axioms setup_run
 #print axioms window_head

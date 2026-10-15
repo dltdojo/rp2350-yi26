@@ -20,6 +20,10 @@ written for it or for any window after it.
   seam_outcome(words) what the kernel must leave: the halt code (0 if every
                      window passed, else the failing window's number, 1 to 4)
                      and the SHA-256 of each window that passed, in order
+  by_window(bits)    the same tests with the repetition count started afresh
+                     at each window, as lean/Rv32/Health.lean's `front` judges
+                     one window: what the seam streams would give a kernel
+                     that ran `front` window by window
 
 A sample is the word the shell writes; the tests see its bit 0.
 """
@@ -45,6 +49,19 @@ IMAGE_END = DIGESTS
 def judge(bits):
     """alice/tools/health.py's tests, over this experiment's four windows."""
     return _judge(bits, WINDOWS)
+
+
+def by_window(bits):
+    """Each window judged alone: (windows passed before the first failure,
+    why it failed, each judged window's longest run)."""
+    tops = []
+    for w in range(WINDOWS):
+        window = bits[w * N:(w + 1) * N]
+        passed, why = _judge(window, 1)
+        tops.append(_longest(window))
+        if passed == 0:
+            return w, why.replace("window 1", f"window {w + 1}"), tops
+    return WINDOWS, None, tops
 
 
 def seam_outcome(words):
@@ -124,6 +141,11 @@ def streams():
 
 
 if __name__ == "__main__":
-    for name, words in streams().items():
+    all_streams = streams()
+    for name, words in all_streams.items():
         code, digests, why = seam_outcome(words)
         print(f"{name:34} halt {code}  digests {len(digests)}  {why or 'every window passed'}")
+    print("each window alone, the count started afresh at its edge, as front's is:")
+    for name in ("seam 11+10", "seam 1+20", "seam 15+6 at window 4"):
+        passed, why, tops = by_window([x & 1 for x in all_streams[name]])
+        print(f"  {name:32} {why or 'every window passed'}; longest run in each window {' '.join(map(str, tops))}")
