@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: proof/Fly.lean:578, proof/Fly.lean:576, README.md:68
+reason: README.md:68 says `watches_life` shows the kernel reports up at least down at every one of the 256 steps and in total. As stated at proof/Fly.lean:576-578, its conclusion is `True`, which proves nothing about the reported counts. Only `watches_shift` (proof/Fly.lean:585-586) has a real conclusion. README.md:11-12 and the `watches_life` row of WHY.zh-TW.md:39 lean on the same theorem.
+J2: NO
+evidence: proof/Fly.lean:578, README.md:68, README.md:69, proof/Fly.lean:556, proof/Fly.lean:559
+reason: `detects_boot` is a valid from_boot theorem matching T1. But `watches_life`, which the README says shows "the kernel reports up at least down at every one of the 256 steps, and in total", concludes only `True` (proof/Fly.lean:578). That says nothing about the kernel's run, so this main theorem is much weaker than its description.
+J3: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:44, proof/Fly.lean:130
+reason: It adds a new 41-instruction detector kernel, T1 and T2 for it, and T3 `life_moves_up`, a new property of Rule 30 on the ring. None of these appear in the prior-work list.
+J4: YES
+evidence: fly.py:13-14, fly.py:39, ../exp225-the-life-every-beat-proved/rule30.py:19-24
+reason: fly.py counts bits with `bin().count` on Python rotations, where the kernel uses a 32-round bit loop and shifts. Rule 30 is written cell by cell with modular indices, where Lean uses whole-word shifts and XOR. README and docstring say this, and the code bears it out.
+INJECTION: NONE
+END

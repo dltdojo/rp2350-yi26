@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:75, proof/World.lean:719, proof/World.lean:707
+reason: README.md:75 claims that for a lump of 1 to 6 cells "anywhere on the ring" 0, 0, 1, 2, 3 or 8 cells are left to chance. The `answer_world` theorem is stated only for `patient w 0 ANSWER`, which is position 0 (proof/World.lean:719), and `answer_zero` is also only at position 0 (proof/World.lean:707). The bundle proves rotation only for `born` and `divisions` (`born_rot` at proof/World.lean:691, `divisions_iter` at proof/World.lean:697). It holds no theorem that a rotated patient is cured at generation 64 exactly as the unrotated one is, so the "anywhere" claim, and the 12.715% rate built on it, is not fully supported. Every other substantive claim I checked matches its evidence: the table counts, the 4-of-30 and 4-of-27 figures, the 19-of-19 board replay, and patients 7 and 16.
+J2: NO
+evidence: README.md:75, proof/World.lean:711, proof/World.lean:712, proof/World.lean:718, proof/World.lean:719, proof/World.lean:720, proof/World.lean:697, proof/World.lean:707
+reason: `from_boot`, `lives`, `still`, `resistance_stays`, `cured_iff` and `zero_stays` match their descriptions. But `answer_world` is described as covering a lump "anywhere on the ring", while the Lean statement fixes the position at 0 (`patient w 0 ANSWER`), and so does `answer_zero`. `divisions_iter` carries only the division count to other positions. No theorem in the bundle proves the cured-iff equivalence, or the model's cure at generation 64, for a position other than 0.
+J3: YES
+evidence: proof/World.lean:79, proof/World.lean:641, proof/World.lean:718, README.md:78-83
+reason: The prior work has exp232's proved model but only an unproved C world. This experiment adds a proved world kernel (`lives`), the exact condition for failure (`cured_iff`), the per-width counts of divisions left to chance (`answer_world`), and the 12.715% rate with its board comparison.
+J4: YES
+evidence: ../exp232-the-cure-the-proof-predicts/cure.py:1-4, ../exp232-the-cure-the-proof-predicts/cure.py:61-77, world.py:43-50
+reason: The reference `cure.py` is written cell by cell, with per-cell loops and `cell(x, i)` lookups, where the Lean kernel uses shifts and bitwise operations. `world.py` computes the divisions through `cure.dose_and_grow` and does not transcribe `wnext`. The README states this difference at README.md:110.
+INJECTION: NONE
+END

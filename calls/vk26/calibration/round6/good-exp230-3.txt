@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:7-8, proof/Fly.lean:496, README.md:47-48, capture.txt:40, README.md:63, proof/Fly.lean:115, README.md:78-79, capture.txt:26, capture.txt:27, README.md:81-84, capture.txt:17-23, README.md:95-96, capture.txt:30, proof/Fly.lean:576-580
+reason: Each proved claim matches a theorem: T1 is `detects`, T3 is `life_moves_up`, and `watches_life` is stated with its hypothesis. Each measured claim matches the capture: the 70924 count, RTL 70927/71697, the 2^32 count, the four period-two rings, the seven refused mutants and the Rule 30 totals. The shared-library notes, the exp225 history, and the WHY remark that the brute-force count was a "C 程式" are not checkable from the bundle, but they are history or operating detail rather than substantive claims.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:577, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:593, README.md:54, README.md:58, README.md:63, README.md:68
+reason: `detects_boot` is of from_boot form: from `boot` on any image that begins with the kernel's bytes, the kernel halts with 0 at exactly instruction 70924, and `Sees` fixes every step's `toUp`/`toDn`, both totals and the unchanged frames, for arbitrary frame contents. T2, T3, `watches_life` and `watches_shift` carry exactly the quantifiers and hypotheses the README describes (∀ x; the period-two exclusion `up1 (up1 x) ≠ x`; the life and shift frame hypotheses), and their conclusions say what the text says.
+J3: YES
+evidence: README.md:5-12, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:496
+reason: No prior experiment has a motion-detector kernel. This one adds the proved kernel (T1), T2 with its four-ring aliasing exception, and T3, a new property relating the detector to exp225's Rule 30.
+J4: YES
+evidence: fly.py:30-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24, fly.py:13-14, proof/Fly.lean:24
+reason: The reference computes the moves with rotations and `bin().count`, and Rule 30 cell by cell, where Lean uses `up1`/`dn1` bit operations and its own `pc`. The README says the two differ, and the code bears that out.
+INJECTION: NONE
+END

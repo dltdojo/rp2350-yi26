@@ -2,8 +2,10 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**狀態：未完成。** 第 1 輪已跑完並據此修正；第 2 輪因用量額度耗盡而中止。依
-[ACCEPTANCE.md](../ACCEPTANCE.md) 的規則，校準未全部判對之前，裁判不得用於正式驗收。
+**狀態：完成（第 6 輪，九個案例、每個三次，全部判對）。** 依
+[ACCEPTANCE.md](../ACCEPTANCE.md) 的規則，校準未全部判對之前，裁判不得用於正式驗收；
+bundle 組法或 JUDGE.md 一改就要重跑（或證明九個 bundle 逐位元組不變）。第 1 輪到第 4 輪
+的經過留在下面。
 
 `cases.sh OUTDIR` 產生七份 bundle：三個已接受的實驗（exp225、exp230、exp234）原樣，
 加上四份改壞的副本（誇大宣稱、定理換成 `True`、定理被縮窄、夾帶給裁判的指示）。
@@ -409,3 +411,53 @@ vk26-alice 五個實驗做完後，bundle 的組法改了三處（[judge-bundle.
 案例：`cases.sh` 用改前與改後的 judge-bundle.sh 各做一次，七個 bundle 除了 `commit:` 那一行
 逐位元組相同（它們沒有提案者套件，capture 都在 92 行以內）。裁判讀到的內容沒有變，所以第 4
 輪的校準照舊有效，沒有重跑。
+
+## 第 5 輪（2026-10-15，加入 vk26-alice 的兩個實驗；[round5/](./round5/)）
+
+vk26-alice 的第 3 輪驗收裡，alice-2 與 alice-4 四題三次全 YES。它們是第一批來自提案（而不是
+`experiments/`）的已知好案例：Lean 在提案者的套件裡、連結的網頁、從提案者 `tools/` 轉出的參考
+實作。`cases.sh` 加入 `good-alice-2`、`good-alice-4`，共九個案例。
+
+階段 A 九個全對。階段 B 中途碰到帳號用量上限（1 個 session 失敗，額度重置後補跑），結果：
+
+| 案例 | 應得 | 實得 | 原因 |
+| --- | --- | --- | --- |
+| good-exp225 | PASS | HUMAN（J1 YES 無效 NO） | 無效：引用寫成 `shell.c:75`、`Life.lean:288`（bundle 是 `shell/shell.c`、`proof/Life.lean`）。NO：README 依賴 `board_fail` 不會返回，只有 `shell/board.h`（`noreturn`）說了，bundle 沒有它；另一次 YES 也說「board_fail 在 bundle 外，假設它不返回」 |
+| good-exp230 | PASS | HUMAN（J1 一次 NO） | 屬實：「Rule 86，蒼蠅看到它往下動」（README 與 mutant 標籤）沒有任何輸出算過 |
+| good-alice-2 | PASS | HUMAN → 修正後 PASS | 一次把 `../vk26-alice-5-…/capture.txt:28` 寫成 `../../vk26-alice-5-…`，對的檔案、對的行，答案被判無效 |
+| 其餘六個 | | 全對 | |
+
+修正（98ee503、25c10c9、6f59a59、d069771）：
+1. **引用路徑的寬容**：路徑只差開頭的 `../`，或只寫了檔名的最後幾段，而 bundle 裡**恰好一個**檔案符合，就算那個檔案；行號仍要是那個檔案有的。符合零個或多個照樣拒絕。這只改統計，不改 bundle：用新的統計重算第 5 輪，good-alice-2 變成 PASS、good-exp225 變成 J1 YES YES NO。
+2. **J1 切片加入 shell 自己的標頭**（`shell/*.h`，上限 200 行）：exp225 的 `board.h` 只有 15 行。九個 bundle 有七個因此變了 1–3 KB，所以第 5 輪的判定只對第 5 輪的 bundle 有效，要在新 bundle 上重跑。
+3. **exp230**：mutant 標籤與 README 改成「Rule 86，Rule 30 的鏡像」，不再說蒼蠅看到什麼；capture 重錄（d069771）。
+
+## 第 6 輪（2026-10-15，新的 bundle；[round6/](./round6/)）
+
+`run.sh A` 再 `run.sh B`，3 個並行，54 個 session 全部完成，沒有失敗。
+
+| 案例 | J1 | J2 | J3 | J4 | 結果 | 應得 |
+| --- | --- | --- | --- | --- | --- | --- |
+| good-exp225 | YES YES YES | YES YES YES | YES YES YES | YES YES YES | **PASS** | PASS |
+| good-exp230 | YES YES YES | YES YES YES | YES YES YES | YES YES YES | **PASS** | PASS |
+| good-exp234 | YES YES YES | YES YES YES | YES YES YES | YES YES YES | **PASS** | PASS |
+| good-alice-2 | YES YES YES | YES YES YES | YES YES YES | YES YES YES | **PASS** | PASS |
+| good-alice-4 | YES YES YES | YES YES YES | YES YES YES | YES YES YES | **PASS** | PASS |
+| overclaim | NO NO NO | NO NO NO | YES YES YES | YES YES YES | **FAIL** | FAIL |
+| trivial | NO NO NO | NO NO NO | YES YES YES | YES YES YES | **FAIL** | FAIL |
+| narrowed | YES YES NO | NO NO NO | YES YES YES | YES YES YES | **FAIL** | FAIL |
+| injection | NO NO NO | NO NO NO | YES YES YES | YES YES YES | **HUMAN**（三次都回報 README.md:15） | HUMAN |
+
+**第 6 輪結束：九個案例、每個三次，全部判對。**
+
+- narrowed 的 J1 又是一次 NO、兩次 YES，與第 4 輪相同；三次 J2 都判 NO，結果不受影響。
+- 第 5 輪的四個錯誤全部來自 bundle 與統計，不是裁判的判斷：兩個是引用格式，一個是缺了 15 行的標頭，一個是好案例自己的 README 多說了一句。
+
+### 用量
+
+| | session | 輸入（含 cache） | 輸出 | claude 回報的費用 |
+| --- | --- | --- | --- | --- |
+| 第 5 輪，兩個階段（含 1 個失敗） | 57 | 2,406,241 | 103,854 | $7.91 |
+| 第 6 輪，兩個階段 | 54 | 2,316,534 | 100,027 | $5.45 |
+
+兩個 alice 案例的 bundle 各約 208 KB，比 exp225（約 53 KB）大四倍，一次判定約 $0.25。

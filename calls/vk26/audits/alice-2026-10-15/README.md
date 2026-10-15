@@ -68,3 +68,7 @@ S2 另行檢查：從 alice 第一個 commit 起的 81 個 commit，69 個只動
 - alice-1：README 說 `win_run` 只依賴 Lean 自己的公理，但 capture 只印了 `Seam.*` 八個定理的公理（要在 `proof/Seam.lean` 加 `#print axioms Alice.Window.win_run`）；人看到的 LED 沒寫是哪個 UF2；「`front` 逐窗套用會讓兩個窗都通過」沒有程式算過。
 - alice-3：README 201–205 行「alice-1、alice-2 是 +3 +4 每次 HASH、三個實驗十個數」沒連到那些 capture；WHY.zh-TW.md 112 行仍說 revision 1、2 的建置都是這個樣子（README 已改）。
 - alice-5：「alice-4 的 UF2 逐位元組相同」沒有連到 alice-4 capture 裡那一行（`the UF2 is byte for byte the committed one`）。
+
+## 之後：加入校準
+
+alice-2、alice-4 成為校準的已知好案例（`good-alice-2`、`good-alice-4`）。第 5 輪找到兩個統計的引用問題與一個 bundle 缺口（exp225 的 `shell/board.h`），修正後第 6 輪九個案例、每個三次全部判對：[calibration/README.md](../../calibration/README.md) 最後兩節。

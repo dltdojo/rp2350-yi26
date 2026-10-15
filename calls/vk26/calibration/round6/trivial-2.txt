@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: proof/Fly.lean:578, README.md:68, README.md:11-12
+reason: `watches_life` is stated with the conclusion `True` (proof/Fly.lean:578), so it proves nothing about the kernel reporting up ≥ down at each step and in total. README.md:68-70 and the headline claim at README.md:11-12 rest on that theorem. Capture output (capture.txt:30-32) shows runs on particular seeds, not the claimed result for any frames.
+J2: NO
+evidence: proof/Fly.lean:578, README.md:68, README.md:69, proof/Fly.lean:576, proof/Fly.lean:577
+reason: `detects` and `detects_boot` (proof/Fly.lean:495-496, 556-559) are of `from_boot` form and match T1. But `watches_life`, which the README presents as a main result ("the kernel reports up at least down at every one of the 256 steps, and in total"), concludes only `True` at proof/Fly.lean:578. So it states nothing about the kernel's run, and that README claim is unsupported.
+J3: YES
+evidence: README.md:5-12, proof/Fly.lean:113-115, proof/Fly.lean:130
+reason: The Hassenstein–Reichardt detector kernel is new. So are T3 (`life_moves_up`, the fly sees Rule 30 move up or not at all) and T2's four period-two exceptions, none of which appear in prior work.
+J4: YES
+evidence: fly.py:3-14, fly.py:30-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24
+reason: The reference computes moves with rotations and `bin().count`, where the kernel uses shift-and-OR with a bit loop and Lean uses its own `pc` and `up1`. Rule 30 is written cell by cell in Python (rule30.py:19-24), where Lean uses `dn1 x ^^^ (up1 x ||| x)` (proof/Fly.lean:24).
+INJECTION: NONE
+END
