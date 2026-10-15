@@ -1,5 +1,5 @@
 === vk26-alice-2 — the hash tested first ===
-recorded at 2026-10-15T02:26:34Z from commit fa2dce9
+recorded at 2026-10-15T05:52:42Z from commit bd6ab5d
 
 >>> the theorems, and what they rest on
 'Trust.compare_iff' depends on axioms: [propext, Quot.sound]
@@ -135,6 +135,9 @@ PASS  unchecked.txt: the table shows the last round's 5 streams, and no script e
 PASS  unchecked.txt: Copy puts the verdict and every line received on the clipboard (5421 characters)
 PASS  unchecked.txt: Save downloads the same text as a file, vk26-alice-2-<time>.txt, and says how long it is
 PASS  round1.txt: 18 whole streams from a board, each KAT answer, code, minstret and output as trust.py and hashlib give them
+      the TRNG's stream, round 7: code 0, the longest run 11, 516, 508 of each window equal to its first
+      the TRNG's stream, round 8: code 0, the longest run 12, 501, 522 of each window equal to its first
+      the TRNG's stream, round 9: code 0, the longest run 11, 518, 527 of each window equal to its first
 PASS  the shell catches a version where kernel.sha256 is not kernel.bin's hash — check 1
 PASS  the shell catches a version where the shell forgets to spoil HASH's answer for the fair stream — check 2, code 0 where 2 is due
 PASS  the shell catches a version where the spoiled stream is said to pass — check 2
