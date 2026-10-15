@@ -550,7 +550,7 @@ first and last NIST cases and both chains on the RTL:
 
 ```
 === vk26-alice-5 — the seed the tests passed ===
-recorded at 2026-10-15T06:21:36Z from commit 2c55f31
+recorded at 2026-10-15T12:02:24Z from commit a22a413
 
 >>> the theorems, and what they rest on
 'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -567,6 +567,7 @@ inst_run       one word fewer of zeros: the number 1's field is not cleared     
 inst_run       the counter starts at 2                                                        refused in inst_run
 inst_run       the byte before V, which Generate's H needs, is 0x02                           refused in inst_run
 inst_run       the claim: one instruction fewer to the halt                                   refused in inst_run
+inst_run       the claim: one instruction more to the halt                                    refused in inst_run
 inst_run       the specification: C is Hash_df of V, the 0x00 before it left off              refused in inst_run
 chain          the specification: the seed material is the digest and 15 bytes of the nonce   refused in chain
 code_zero_iff  the claim: the chain goes on when the start-up window failed                   refused in code_zero_iff

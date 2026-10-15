@@ -733,7 +733,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-15T05:58:08Z from commit 1951306
+recorded at 2026-10-15T11:37:10Z from commit cb703d8
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -801,24 +801,25 @@ PASS  round4.txt: every one of 13 second runs took one mcycle, 7343697
 PASS  round4.txt: 13 of 13 streams from a board counted right, 0 incomplete, 3 rounds; the page reads 13 timed streams as 7343697/7343797/7343817/7343867 cycles, 13 second runs as 7343697
 PASS  round1.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 2:3 3:0 3:1 3:3 3:4 4:0 4:1 4:3 5:0; 7343797 at 2:4; 7343817 at 3:2 4:2 4:4
-      the TRNG, its tests on: H per byte 6.499 (0.967 a bit), 6.711 (0.980 a bit), 6.539 (0.962 a bit)
-      the TRNG, raw: H per byte 6.622 (0.930 a bit), 6.580 (0.935 a bit)
+      the TRNG, its tests on: H per byte 6.499 (0.967 a bit; ones 49.54%, -1.7 sd from half), 6.711 (0.980 a bit; ones 50.00%, +0.0 sd from half), 6.539 (0.962 a bit; ones 50.61%, +2.2 sd from half)
+      the TRNG, raw: H per byte 6.622 (0.930 a bit; ones 48.23%, -6.4 sd from half), 6.580 (0.935 a bit; ones 48.41%, -5.8 sd from half)
 PASS  round2.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 0:3 1:0 1:1 1:3 1:4 2:0 2:1 2:3 3:0; 7343747 at 1:2; 7343797 at 2:2; 7343817 at 0:2; 7343867 at 0:4 2:4
       mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0
-      the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.975 a bit), 6.499 (0.966 a bit)
-      the TRNG, raw: H per byte 6.758 (0.947 a bit), 6.666 (0.943 a bit)
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit; ones 49.76%, -0.9 sd from half), 6.580 (0.975 a bit; ones 50.16%, +0.6 sd from half), 6.499 (0.966 a bit; ones 50.49%, +1.8 sd from half)
+      the TRNG, raw: H per byte 6.758 (0.947 a bit; ones 48.84%, -4.2 sd from half), 6.666 (0.943 a bit; ones 48.68%, -4.8 sd from half)
 PASS  round3.txt: 14 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 1:1 1:2 1:4 2:0 2:1 3:0 3:1 3:3 3:4; 7343817 at 1:3 2:2 2:4 3:2; 7343867 at 2:3
       mcycle of the second run, straight after the first: 7343697 at 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4 3:0 3:1 3:2 3:3 3:4
-      the TRNG, its tests on: H per byte 6.580 (0.973 a bit), 6.580 (0.978 a bit)
-      the TRNG, raw: H per byte 6.580 (0.951 a bit), 6.622 (0.939 a bit), 6.666 (0.943 a bit)
+      the TRNG, its tests on: H per byte 6.580 (0.973 a bit; ones 49.77%, -0.9 sd from half), 6.580 (0.978 a bit; ones 50.05%, +0.2 sd from half)
+      the TRNG, raw: H per byte 6.580 (0.951 a bit; ones 48.99%, -3.6 sd from half), 6.622 (0.939 a bit; ones 48.54%, -5.3 sd from half), 6.666 (0.943 a bit; ones 48.70%, -4.7 sd from half)
 PASS  round4.txt: 13 whole streams from a board, each of the 256 counts and the largest as count.py gives them, minstret the RTL's
       mcycle, round:stream: 7343697 at 0:4 1:0 1:1 1:4 2:0 2:1 2:2; 7343797 at 2:3; 7343817 at 0:2 0:3 1:2 2:4; 7343867 at 1:3
       mcycle of the second run, straight after the first: 7343697 at 0:2 0:3 0:4 1:0 1:1 1:2 1:3 1:4 2:0 2:1 2:2 2:3 2:4
-      the TRNG, its tests on: H per byte 6.711 (0.968 a bit), 6.666 (0.979 a bit)
-      the TRNG, raw: H per byte 6.666 (0.944 a bit), 6.460 (0.935 a bit)
-      probe, 408 runs: nothing first, mcycle 8, accesses 132, misses 0/1/2/4/9/11/13
+      the TRNG, its tests on: H per byte 6.711 (0.968 a bit; ones 49.59%, -1.5 sd from half), 6.666 (0.979 a bit; ones 49.99%, +0.0 sd from half)
+      the TRNG, raw: H per byte 6.666 (0.944 a bit; ones 48.72%, -4.7 sd from half), 6.460 (0.935 a bit; ones 48.40%, -5.8 sd from half)
+      probe, 408 runs, each a HALT 0 (shell.c sends no PROBE line otherwise): minstret 6, XIP accesses 132 in every condition
+      nothing first, in 12 runs: mcycle 8, accesses 132, misses 0/1/2/4/9/11/13
       FIXED[0] and FIXED[2] read: mcycle 8/108/128/178, misses 38/39/40/41/42/43/44/47, in 12 runs
       0x10000130 evicted: mcycle 118, misses 1, in 12 runs
       0x10000138 evicted: mcycle 118, misses 1, in 12 runs

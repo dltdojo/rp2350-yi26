@@ -375,7 +375,7 @@ Pasted from it — the theorems, the mutants, the six streams on the RTL:
 
 ```
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-15T05:45:40Z from commit bd6ab5d
+recorded at 2026-10-15T11:23:55Z from commit 06e4001
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]

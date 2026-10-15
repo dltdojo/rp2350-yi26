@@ -457,13 +457,17 @@ first and last cases on the RTL:
 
 ```
 === vk26-alice-4 — the state the generator keeps ===
-recorded at 2026-10-15T06:14:24Z from commit 89c2248
+recorded at 2026-10-15T11:54:54Z from commit 93d45d1
 
 >>> the theorems, and what they rest on
 'Drbg.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Drbg.reseed_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Drbg.generate_twice' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Drbg.after_out' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Drbg.ct_refuses_jal' depends on axioms: [propext, Quot.sound]
+'Drbg.ct_refuses_jalr' depends on axioms: [propext, Quot.sound]
+'Drbg.ct_refuses_ecall' depends on axioms: [propext, Quot.sound]
+'Drbg.kernel_calls' depends on axioms: [propext]
 exit 0
 
 >>> wrong kernels and wrong claims: each must be refused
@@ -476,6 +480,7 @@ generate_run  the counter's third byte is written over its second               
 generate_run  the counter is stored back as it was                                                refused in generate_run
 add_iter      ADD's carry is the sum shifted by 9, not 8                                          refused in add_iter
 generate_run  the claim: one instruction fewer to the halt                                        refused in generate_run
+generate_run  the claim: one instruction more to the halt                                         refused in generate_run
 generate_run  the specification: V's next value leaves the counter out                            refused in generate_run
 generate_run  the specification: H is Hash(0x02 ‖ V)                                            refused in generate_run
 blocks_out    the claim: block j is the hash of V + j + 1                                         refused in blocks_out
