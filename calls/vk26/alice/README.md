@@ -189,3 +189,22 @@ exp114（`crates/entropy-health`）、exp208、exp222–exp224、exp226、exp227
 exp229（`Limbs.lean`）、exp233、`lean/Rv32/Health.lean`、`lean/Rv32/Sha.lean`、
 `lean/Rv32/Machine.lean`（`ecall` 表）、`tools/hazard3/shell/`（`speak.h`、`sources.h`）、
 `calls/vk26/README.md` 第 3、4 節、`calls/vk26/judge-bundle.sh`、`experiments/duplication.sh`。
+
+## 七、五個實驗做完之後：徵集設定的檢討（2026-10-15）
+
+第五節的表是邊做邊記的。五個都做完後，把每個實驗 README 的「What the trial found in the call's settings」與這張表重新過一次，再對 alice 跑一次不呼叫模型的驗收（`DRY_RUN=1`），又找到四個試跑中沒發現的問題。修正都在 `calls/vk26/` 的設定檔，一個獨立的 commit（4c212f0），不碰 `alice/`：
+
+| 問題 | 怎麼發現 | 修正 |
+| --- | --- | --- |
+| 驗收腳本只跑 G1.5：S2、S3、G2、G6 與各實驗的 `check.sh` 都靠人，S4 是人讀表格 | 讀 `audit-proposal.sh` | 新增 [`gates.sh`](../gates.sh)：提案層級 S1–S4（S2 對 `BASE` 比較），每個實驗 G1.5、G2、G6 與 `check.sh`（從 lean.sh、shell.sh 自己印的行判 G1、G3、G5）。`audit-proposal.sh` 先跑它，有一項不過就不呼叫裁判；新跑的 `check.sh` 輸出成為 bundle 的 GATES |
+| 沒有東西檢查 `capture.txt` 是否還是最新的 | 用 `gates.sh` 檢查 alice：五個 capture 都比它依賴的檔案舊（alice-1 到 4 之後搬了共用程式，alice-5 之後加了上板紀錄） | G6 拒絕比它依賴的東西還舊的 capture（實驗本身、提案者共用的 `lean/`、`tools/`、`pages/`、`shell/`；`.md` 與其他實驗除外）。上板紀錄在 capture 之後加入也算：README 引用的板子數字要靠 `--board` 檢查的輸出進 capture，J1 讀到的紀錄本身只有開頭幾行與網頁的摘要行 |
+| bundle 把提案者整個 Lean 套件放進每個切片，J3 也有 | `DRY_RUN=1` 的 bundle 有 200–263 KB，比校準用的大兩三倍；alice-3 一個套件模組都沒 import，卻帶了 60 KB | 只收證明檔 import 到的模組（以及它們 import 的），只進讀 Lean 的切片。J3 切片從最多 119 KB 降到 31–57 KB |
+| `capture.txt` 截在 200 行 | 同上：alice-3、4、5 的 capture 最後的網頁測試、錯的 shell、上板檢查都被截掉，J1 看不到它們的證據 | 600 行內全收；超過才把 20 行以上形狀相同的一段截成頭尾各三行。注入掃描也改成掃 bundle 送出的每一個檔案（原本漏了套件與網頁的腳本） |
+
+校準的七個 bundle 在修改前後逐位元組相同（`commit:` 行除外），第 4 輪的校準照舊有效（[calibration/README.md](../calibration/README.md) 最後一節）。另外兩處文件的修正：ACCEPTANCE 的 G1 與徵集 README 第 2 節原本寫「以 0 停止」，但 alice-2 的 kernel 依輸入以 0 到 3 停止，JUDGE.md 也只要求「規格所說的結果」，改成「以規格所說的停止碼停止」；vk26-alice-5 找到的 RTL minstret 規則、上板紀錄要能說出是哪一版韌體，寫進徵集 README。
+
+**記錄、未修改**（都在 `lean/` 或 `tools/`，屬於任務方的主線，不是徵集設定）：
+
+- `lean/Rv32/Ct.lean` 的常數時間檢查器不認得 HASHB、不接受 `jal`/`jalr`（vk26-alice-4）。
+- `tools/hazard3/harness` 進出 kernel 的兩行在 flash，週期數受 XIP 快取影響（vk26-alice-3；vk26-alice-4、5 的板上週期數也看到同樣的現象）。
+- 任意長度的 SHA-256 補位（`alice/shell/hashb_chip.h`）與旁路測試的 TRNG（`alice/shell/trng_raw.h`）：第二份提案也需要時，搬到 `tools/hazard3/shell/`。

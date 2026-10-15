@@ -384,7 +384,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-2 — the hash tested first ===
-recorded at 2026-10-13T23:54:32Z from commit 65f5999
+recorded at 2026-10-15T02:26:34Z from commit fa2dce9
 
 >>> the theorems, and what they rest on
 'Trust.compare_iff' depends on axioms: [propext, Quot.sound]
@@ -414,7 +414,7 @@ win_verdict  the specification: the repetition count starts afresh at each windo
 5354524d 00000001 00000002 00000002 00000033 00000001
 5354524d 00000002 00000003 00000003 00008845 00000000
 5354524d 00000003 00000000 00000000 00008851 00000000
-5354524d 00000004 00000001 00000001 0000443e 00000000 444f4e45 00000005 exit=0 
+5354524d 00000004 00000001 00000001 0000443e 00000000 444f4e45 00000005 exit=0
 ```
 
 and the KAT at work, and the phone's log, among 83 PASS, 0 FAIL and 0 SKIP:

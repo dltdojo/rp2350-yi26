@@ -728,7 +728,7 @@ Pasted from it — the theorems, the mutants, the five streams on the RTL:
 
 ```
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-14T06:18:49Z from commit c273227
+recorded at 2026-10-15T02:31:32Z from commit e0dd6e6
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -769,7 +769,7 @@ accepted      the claim: at both heads the value is at most 254                 
 50524f42 00000000 00000000 00000006 00000008 00000000 00000000
 ...
 50524f42 00000021 800001f8 00000006 00000008 00000000 00000000
-444f4e45 00000005 exit=0 
+444f4e45 00000005 exit=0
 ```
 
 the time, among 98 PASS, 0 FAIL and 0 SKIP:

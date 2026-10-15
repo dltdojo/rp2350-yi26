@@ -445,7 +445,7 @@ first and last cases on the RTL:
 
 ```
 === vk26-alice-4 — the state the generator keeps ===
-recorded at 2026-10-14T07:44:45Z from commit 05083dd
+recorded at 2026-10-15T02:46:29Z from commit e0dd6e6
 
 >>> the theorems, and what they rest on
 'Drbg.from_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -481,5 +481,5 @@ build/vk26-alice-4.uf2  98304 bytes  sha256 4843dec170130112df02522e98daf47363e6
 43415345 00000001 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
 ...
 43415345 00000077 000010de 0000a6f3 000010de 0000a6f3 0000000b 0000000f
-444f4e45 00000078 exit=0 
+444f4e45 00000078 exit=0
 ```

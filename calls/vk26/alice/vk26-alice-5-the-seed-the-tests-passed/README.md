@@ -518,7 +518,7 @@ first and last NIST cases and both chains on the RTL:
 
 ```
 === vk26-alice-5 — the seed the tests passed ===
-recorded at 2026-10-15T01:21:21Z from commit d5aed77
+recorded at 2026-10-15T02:53:03Z from commit 659f254
 
 >>> the theorems, and what they rest on
 'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
