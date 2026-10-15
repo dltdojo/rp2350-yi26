@@ -62,7 +62,8 @@
 #   claim argues from), differential/*.py (what a measured claim's inputs are:
 #   exp225's twenty seeds), board log results (PATIENT/TRIAL lines and any
 #   UPPERCASE kind under 20 lines kept, the rest deduplicated), and every page
-#   README.md or WHY.zh-TW.md links
+#   README.md or WHY.zh-TW.md links (AGENTS.md's notice to AI agents, in its
+#   exact words, left out of them)
 #   (.html, .mjs) with the scripts the page loads from beside it.
 # Never kernel.bin, check.sh, build/ or anything generated.
 #
@@ -77,13 +78,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    usage) [[ -f "${2-}" ]] || { sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,73p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,74p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -476,6 +477,26 @@ def prior_rows(exp):
     return rows
 
 
+AGENT_NOTE = re.compile(r"IF YOU ARE AN AI AGENT: this page is not how you read the log\. `yi26 log --json` is\. "
+                        r"Open it only when the page itself is what you are verifying\. See (?:\.\./)*AGENTS\.md\.")
+
+
+def agent_note(raw):
+    """(first, last) line of the notice AGENTS.md has every page carry for AI
+    agents ("this page is not how you read the log"), in its exact words, or
+    None. A judge is an AI, and in vk26-alice's audit two runs of fifteen
+    reported the notice as text addressed to them. Only the exact words go:
+    anything else in a page reaches the judge, and the injection scan reads the
+    files themselves, not the bundle."""
+    for i, line in enumerate(raw):
+        if "IF YOU ARE AN AI AGENT:" in line:
+            for j in range(i, min(i + 6, len(raw))):
+                text = " ".join(x.strip() for x in raw[i:j + 1])
+                if AGENT_NOTE.search(text):
+                    return i + 1, j + 1
+    return None
+
+
 def shape(line):
     """What a line looks like with its numbers taken out."""
     return re.sub(r"\b[0-9a-f]{8}\b|\d+", "#", line.rstrip())
@@ -548,6 +569,14 @@ def bundle(exp, gates=None, question=None):
                 out.append(f"{n}| {text}")
             if run:
                 out.append(f"{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
+        elif f.endswith((".html", ".mjs", ".js")) and agent_note(raw):
+            a, b = agent_note(raw)
+            for n, line in enumerate(raw, 1):
+                if n == a:
+                    out.append(f"{n}| … (lines {a}-{b}: the repository's standard notice to AI agents, from "
+                               f"AGENTS.md, left out by judge-bundle.sh)")
+                elif not a <= n <= b:
+                    out.append(f"{n}| {line.rstrip()}")
         elif f.endswith("capture.txt"):
             # Whole, up to the cap. Longer: a run of 20 or more lines alike
             # (the RTL's words, one case a line) is cut to its first and last
