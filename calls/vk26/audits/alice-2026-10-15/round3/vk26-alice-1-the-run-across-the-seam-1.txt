@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:18-20, README.md:22-23, README.md:284-286
+reason: The claim that `front`, applied window by window, passes the 11+10 stream is never run, and no theorem about it is in the bundle. `Health.lean` is not in the bundle either. Only a synthetic fixture models a resetting kernel (fixtures.py:89-92). The LED observation at README.md:22-23 and README.md:284-286 does not name the UF2 or its SHA-256, which a person's recorded observation needs to count as board evidence. The same README does name `build/vk26-alice-1.uf2` at README.md:268-269.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:78, proof/Seam.lean:81, proof/Seam.lean:82, proof/Seam.lean:83, proof/Seam.lean:86, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, ../lean/Alice/Window.lean:408, ../lean/Alice/Window.lean:409, README.md:9, README.md:11, README.md:12, README.md:13, README.md:14, README.md:15, README.md:16, README.md:77, README.md:87, README.md:88, README.md:89, README.md:90, README.md:91, README.md:92, README.md:93, README.md:94
+reason: `from_boot` is in from_boot form: any `Placed` base, any image whose first 552 bytes are the kernel's, run from `boot`. Its conclusion matches the README. It is still running at `cost (stop …) - 1` and halts at exactly `cost (stop …)`, which is 17431 + 17421·k or 69699. The halt code is 0 if no window fails, else stop + 1. Memory is exactly `wrote env.hash` with the digests for windows before the stop. `WinOk` uses `rct` over the whole stream and `agree` over the window, as README.md:87-91 describes.
+J3: YES
+evidence: README.md:5-16, proof/Seam.lean:434-439, ../lean/Alice/Window.lean:354-376
+reason: This is a new kernel and theorem. The repetition count is carried across window edges over four windows, the halt count depends on the stop, and the digests written are exactly those of the windows before the stop. The prior-work entries (exp222/exp223) judge a single window, and the seam stream stopping at window 2 is checked on a board (board/round1.txt:50).
+J4: YES
+evidence: seam.py:3-8, ../tools/health.py:31-46, seam.py:53, differential/differential.py:44-59
+reason: The reference is imperative Python that steps one sample at a time, in the style of exp114's crate. It takes the longest run with `max` and counts matches directly, and it uses hashlib for SHA-256. It is run against the Lean model and the RTL on 14 streams. I could not compare it with Lean's `rct` definitions, which are not in the bundle, so this rests on the code and the README's description.
+INJECTION: NONE
+END

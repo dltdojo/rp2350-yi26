@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:113, capture.txt:4, capture.txt:12, README.md:284-287
+reason: README.md:113 says each theorem in the table rests on Lean's own axioms only, but the table includes `Alice.Window.win_run`. The capture prints axioms only for the eight `Seam.*` theorems (capture.txt:4-12), none for `win_run`. The LED observation at README.md:284-287 names no UF2 (name or SHA-256) for the build the person ran, which the board-observation rule requires.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:78, proof/Seam.lean:81, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, ../lean/Alice/Window.lean:409, README.md:11, README.md:12, README.md:13, README.md:14, README.md:15, README.md:16, README.md:77, README.md:87, README.md:96
+reason: `from_boot` is stated for any placed `base`, with any image whose first 552 bytes are the kernel's (so any samples), and any `env.hash`. Its conclusion matches the README exactly: still running at `cost (stop …) - 1`, halted at `cost (stop …)` with `code`, and memory equal to `wrote`. The definitions match the text: `cost` is 17431 + 17421·k or 69699, `code` is 0 or stop + 1, `stop` is the first window where `WinOk` fails, `WinOk` is `rct` over the whole stream plus `agree` over the window, and `wrote` writes H of each passed window's 4096 bytes at DIG + 32j.
+J3: YES
+evidence: README.md:9-16, proof/Seam.lean:81-90, proof/Seam.lean:434-439
+reason: A new 138-instruction kernel carries the repetition count across four windows' edges, with a theorem for exact cost, halt code and region contents. Prior experiments (exp222, exp223) judge a single window, and the seam is the new property.
+J4: YES
+evidence: ../tools/health.py:31-46, seam.py:53, README.md:137-139
+reason: The reference runs one sample at a time in Python with plain `run` and `last` variables, and SHA-256 comes from hashlib. The Lean side defines the tests through `Health.rct` and `agree` over a register-level kernel. The README states the difference, and the code bears it out.
+INJECTION: NONE
+END

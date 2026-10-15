@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seed.lean:355-359, proof/Seed.lean:839-854, board/round1.txt:1, board/round1.txt:994, board/round1.txt:1007, capture.txt:28, capture.txt:222, capture.txt:248, capture.txt:255-264
+reason: The proved claims match `inst_run` (S ≤ 0x80, any hash, still running after 240, halted with 0 after 241) and `chain` (including the `code_zero_iff` iff). The measured claims match the capture: the 120 NIST cases, the five-word `ecall` table, the cycle counts, the 104/98 split, 15,088 for every second Generate, and the 27 of 82 slow in both rounds. The board claims match the saved log: 202 cases and 2 chains, the chain's Instantiate at 261 (0x105), and the spoiled chain stopping with 2 at 51 instructions with 1,547 cycles. The cross-experiment minstret arithmetic agrees with the cited captures.
+J2: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:357, proof/Seed.lean:358, proof/Seed.lean:359, proof/Seed.lean:342, proof/Seed.lean:343, proof/Seed.lean:344, proof/Seed.lean:352, proof/Seed.lean:193, proof/Seed.lean:196, proof/Seed.lean:772, proof/Seed.lean:776, proof/Seed.lean:778, proof/Seed.lean:794, proof/Seed.lean:818, proof/Seed.lean:839, proof/Seed.lean:846, proof/Seed.lean:850, proof/Seed.lean:851, proof/Seed.lean:852, proof/Seed.lean:853, proof/Seed.lean:854, README.md:111, README.md:113, README.md:122, README.md:127, README.md:133, README.md:138
+reason: `inst_boot`, the `from_boot`-form theorem, states the kernel's actual bytes run from boot: running after 240, halted with 0 after 241, and the region `Laid`. That means V is Hash_df of the S ≤ 0x80 seed bytes, C is Hash_df of 0x00 ‖ V, Generate's fields are set, and everything outside the written ranges is unchanged, for any `env.hash`. This matches README.md:111-122. `chain` states alice-2's halt, the code-0 iff, the exact 240/241 and COST m − 1/COST m halts after `restart`, and block j = Hash(dfV(seedMat) + j) with seedMat = digest of window 1 ‖ 16 nonce bytes, as README.md:123-140 says. Its added side conditions on m and the interval (1 ≤ m, fits, 1 ≤ iv < 2^32−1) do not change the claim's meaning.
+J3: YES
+evidence: proof/Seed.lean:52-65, proof/Seed.lean:355-359, proof/Seed.lean:839-854, capture.txt:28
+reason: The Hash_DRBG Instantiate kernel, with its exact-count theorem, is new, as is the `chain` theorem joining alice-2's, this kernel and alice-4's. The RTL finding about minstret and the word after `ecall` is a new checked prediction. Prior work has the health tests, the KAT, the count and Generate, but no Instantiate.
+J4: YES
+evidence: ../tools/hashdrbg.py:42-54, seed.py:68-88, seed.py:107-121, proof/Seed.lean:182-196
+reason: The reference uses hashlib and a generic counter loop for Hash_df, plus a byte-offset region model, while Lean has its own two-hash definition (`dfV`, `dfC`) over `env.hash`. Both are also checked against NIST's 120 ReturnedBits vectors, which are independent of either.
+INJECTION: NONE
+END

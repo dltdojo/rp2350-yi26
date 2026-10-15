@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Count.lean:544, proof/Count.lean:585, proof/Count.lean:626, proof/Count.lean:673, capture.txt:222, capture.txt:230, capture.txt:251, capture.txt:302, board/round1.txt:1, board/round4.txt:1, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28
+reason: The proved claims match `from_boot`, `most_is_max`, `hist_sum` and `count_constant_time` with the axiom checks. The RTL cycle count, the 12 mutants and the probe table match the capture. The per-round board numbers I rechecked against the capture and the log headers hold, including the slow-run tallies, the 9 raw-TRNG draws and the 408 probe runs. The claim that the extra RTL instruction depends on the word after the `ecall` is supported by alice-5's capture. The "plus 3 plus 4 per HASH call, ten counts across three experiments" line about alice-1 and alice-2 is not in the bundle, but it is a historical aside and the alice-5 explanation is supported.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:92, proof/Count.lean:110, proof/Count.lean:114, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, proof/Count.lean:666, README.md:8, README.md:9, README.md:10, README.md:12, README.md:18
+reason: `from_boot` is in `from_boot` form and matches the README. It holds for any `img` whose first 116 bytes are the kernel's, so it covers every sample set. It proves the kernel is still running at COST−1 and halts with 0 at COST, where COST = 8 + 256·(2+6·4096+9) + 4 = 6,294,284, and memory is then exactly `after`: the image with the 256 counts written from 0x1400 and `most` at 0x1800. `most_is_max`, `hist_sum`, `count_constant_time` (stated for any two images that begin with the kernel, which is stronger than the README's "differ only in samples") and `naive_refused` (`check … = false`) each state what the README describes.
+J3: YES
+evidence: proof/Count.lean:544, proof/Count.lean:585, proof/Count.lean:665, proof/Count.lean:673
+reason: This is a new kernel that proves a count of the commonest value (`from_boot`, `most_is_max`, `hist_sum`) and a constant-time trace (`count_constant_time`, `naive_refused`). None of the prior experiments counts a histogram or computes a maximum. It also adds a raw-TRNG board measurement and a board probe of the cycle cost.
+J4: YES
+evidence: count.py:39, count.py:46, count.py:59, README.md:183, proof/Count.lean:95
+reason: count.py counts with a direct `counts[s] += 1` histogram and a Python `max`, and writes §6.3.1 from its text. Lean defines the count as a `filter`/`length` over a range, and the kernel scans every value with xor and `sltiu`. The estimate is also written separately in JS, so a shared mistake is unlikely.
+INJECTION: NONE
+END

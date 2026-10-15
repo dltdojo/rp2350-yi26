@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:11-16, proof/Seam.lean:434-439, capture.txt:47-51, board/round1.txt:1, board/round1.txt:50, capture.txt:131-132, capture.txt:76-77, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28
+reason: The proof claims match `Seam.from_boot` and the axiom checks. The measured claims match the RTL and board counts, the page summary line, the TRNG statistics and the mutant refusals. The claim that `front` applied window by window passes the seam stream is not computed anywhere in the bundle; it follows only from the author's own description of `front`, so I counted it as a derivation rather than a gap.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:78, proof/Seam.lean:81, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, README.md:77, README.md:81, README.md:87, README.md:92, README.md:93
+reason: `from_boot` covers any placement the model allows and any image whose first 552 bytes are the kernel's. It states that the kernel is still running at `cost (stop …) - 1` and halts at exactly `cost (stop …)` with `code` and memory equal to `wrote env.hash …`, which matches the README's quantifiers, hypotheses, counts (17431 + 17421·k / 69699), halt codes and digest layout. `WinOk` uses `rct` over the stream up to the window's end and `agree` over the window alone, as the README says.
+J3: YES
+evidence: README.md:11-16, proof/Seam.lean:434-439, proof/Seam.lean:80-90, board/round1.txt:50
+reason: Prior work judges one window (exp222, exp223). This adds a multi-window kernel with the repetition count carried across the edge, per-window digests and a stop at the first failing window. It is proved by `from_boot`, with an exact instruction count, and the seam stream was run on a board, stopping at window 2.
+J4: YES
+evidence: seam.py:50-54, ../tools/health.py:31-46, differential/differential.py:44-59
+reason: The reference is Python. It judges one sample at a time with a plain run counter and uses hashlib for the digests, whereas the Lean side works with registers and an arbitrary `env.hash`. The differential compares the model and the RTL against the reference's codes and digests, and the README says how they differ.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: README.md:201, README.md:202, README.md:205
+reason: README.md:202 says alice-1 and alice-2 "counted plus 3 plus 4 for each HASH call", and README.md:205 says "That is ten counts across three experiments". Those counts come from other experiments' runs and are not in this bundle. The one thing the bundle does show is that alice-5's capture reports the word after the halting ecall changing the count (../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28), and that does not cover the ten-count tally. Everything else I checked matches the proofs, the capture and the four board logs.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:110, proof/Count.lean:114, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, proof/Count.lean:666, README.md:8, README.md:9, README.md:10, README.md:12, README.md:19
+reason: `from_boot` covers any image whose first 116 bytes are the kernel, at any placed `base`, with the samples left free. It proves the kernel is running at COST−1 and halts with 0 at COST, where COST = 8 + 256·(2 + 6·4096 + 9) + 4 = 6,294,284, and that memory then equals `after`: the image with the 256 counts as words from 0x1400, the largest at 0x1800, and nothing else, which is what README.md:8-11 says. `most_is_max`, `hist_sum`, `naive_refused` and `count_constant_time` state what the README says, and the constant-time theorem is in fact stronger, since it lets the two images differ anywhere outside the kernel.
+J3: YES
+evidence: proof/Count.lean:585, proof/Count.lean:627, proof/Count.lean:673, README.md:5
+reason: This is a new 29-instruction kernel that counts 4096 samples into 256 bins, with `most_is_max`, `hist_sum` and `count_constant_time` proved of it. None of the prior experiments, including the health-test and SHA-256 ones, has this count or its estimate. The board work on the cache-line cost of the first run is also new (capture.txt:311-312).
+J4: YES
+evidence: count.py:39-48, count.py:59-64, proof/Count.lean:50, proof/Count.lean:55
+reason: count.py tallies each sample into a list and takes `max`. The Lean kernel instead sweeps all samples once per value with xor/sltiu and a branchless mask, so it is not a transcription. The estimate formula is also written separately in the page's JavaScript, and page_test.mjs holds it to count.py.
+INJECTION: NONE
+END
