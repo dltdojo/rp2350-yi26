@@ -1071,7 +1071,8 @@ theorem generate_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F
     (hpre3 : F0 PRE = 3) (hhb : ∀ i, i < 23 → F0 (HB + i) = 0) (hcb : ∀ i, i < 51 → F0 (CB + i) = 0)
     (hm : word F0 PAR = m) (hcnt : word F0 (PAR + 8) = cnt) (hm1 : 1 ≤ m) (hm2 : OUT + 32 * m < 0x10000)
     (hiv : word F0 (PAR + 4) < 2 ^ 32 - 1) (hok : cnt ≤ word F0 (PAR + 4)) :
-    ∃ s', run env (COST m) s = .halted 0 s' ∧ View s'.mem base (after env F0 v c cnt m) := by
+    ∃ s', run env (COST m - 1) s = .running s' ∧ run env (COST m) s = .halted 0 s'
+      ∧ View s'.mem base (after env F0 v c cnt m) := by
   obtain ⟨s3, e3, p3, m3, b0, bt, b3, k3⟩ := head_run hp hpc hv0 hc0
   have hc3 : CodeAt s3.mem base kernel := by rw [m3]; exact hc0
   obtain ⟨s4, e4, p4, m4, r4⟩ := brStep hp 3 (by rw [kernel_length]; decide) hc3 p3
@@ -1323,18 +1324,21 @@ theorem generate_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F
   have hc21 : CodeAt s21.mem base kernel := by rw [← hs21, line_mem]; exact hc20
   have e22 := haltStep hp 51 (by rw [kernel_length]; decide) hc21 p21 rfl g5 hlen 0
   rw [g0] at e22
-  refine ⟨s21, ?_, ?_⟩
-  · have e5' : run env 3 s4 = .running s5 := e5
-    have e8' : run env 1 s7 = .running s8 := e8
-    have e10' : run env 4 s9 = .running s10 := e10
-    have e19' : run env 1 s18 = .running s19 := e19
-    have e21' : run env 2 s20 = .running s21 := e21
-    rw [show COST m = 3 + (1 + (3 + (6 * 55 + (1 + (1 + (566 * m + (4 + ((0 + 1) + ((3 + ADD) + ((3 + ADD)
-      + (2 + (2 + (2 + (1 + ((3 + ADD) + (1 + (1 + (2 + (0 + 1))))))))))))))))))) by simp only [COST, ADD]; omega,
+  -- one instruction before the halt, still running: COST m is exact, not a bound
+  have e5' : run env 3 s4 = .running s5 := e5
+  have e8' : run env 1 s7 = .running s8 := e8
+  have e10' : run env 4 s9 = .running s10 := e10
+  have e19' : run env 1 s18 = .running s19 := e19
+  have e21' : run env 2 s20 = .running s21 := e21
+  have r21 : run env (COST m - 1) s = .running s21 := by
+    rw [show COST m - 1 = 3 + (1 + (3 + (6 * 55 + (1 + (1 + (566 * m + (4 + ((0 + 1) + ((3 + ADD) + ((3 + ADD)
+      + (2 + (2 + (2 + (1 + ((3 + ADD) + (1 + (1 + (2 + 0)))))))))))))))))) by simp only [COST, ADD]; omega,
       run_add_running e3, run_add_running e4, run_add_running e5', run_add_running e6, run_add_running e7,
       run_add_running e8', run_add_running e9, run_add_running e10', run_add_running e11, run_add_running e12,
       run_add_running e13, run_add_running e14, run_add_running e15, run_add_running e16, run_add_running e17,
-      run_add_running e18, run_add_running e19', run_add_running e20, run_add_running e21', e22]
+      run_add_running e18, run_add_running e19', run_add_running e20, run_add_running e21', run_zero]
+  refine ⟨s21, r21, ?_, ?_⟩
+  · rw [show COST m = (COST m - 1) + (0 + 1) by simp only [COST]; omega, run_add_running r21, e22]
   · rw [← hs21, line_mem]
     simp only [after, vnext]; rw [hFm, hG1, ← setF_setT G1 (v + hnum (hpre env v) + c), hG2]; exact mv20
 
@@ -1402,8 +1406,9 @@ theorem code_of_image (hfit : base.toNat + 0x10000 ≤ 2^32) (img : ByteArray)
 
 /-- **Generate, from boot.** An image holding the kernel and a state (V, C,
 reseed_counter) with the counter at most the interval: `COST m` instructions
-later the kernel halts with 0, the region `after`: Hashgen's `m` blocks at
-0x600 (`after_out`), V the next V, the counter one more. -/
+later the kernel halts with 0, and not one sooner (it is still running at
+`COST m - 1`), the region `after`: Hashgen's `m` blocks at 0x600
+(`after_out`), V the next V, the counter one more. -/
 theorem from_boot (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤ img.size)
     (himg : ∀ d (h : d < 280), img.get d (by omega) = bytes.getD d 0)
     {v c m cnt : Nat} (hV : Holds (imgF img) VV v) (hC : Holds (imgF img) CC c) (hone : Holds (imgF img) ONE 1)
@@ -1412,7 +1417,8 @@ theorem from_boot (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤ img.
     (hm : word (imgF img) PAR = m) (hcnt : word (imgF img) (PAR + 8) = cnt) (hm1 : 1 ≤ m)
     (hm2 : OUT + 32 * m < 0x10000) (hiv : word (imgF img) (PAR + 4) < 2 ^ 32 - 1)
     (hok : cnt ≤ word (imgF img) (PAR + 4)) :
-    ∃ s', run env (COST m) (boot env.region img) = .halted 0 s'
+    ∃ s', run env (COST m - 1) (boot env.region img) = .running s'
+      ∧ run env (COST m) (boot env.region img) = .halted 0 s'
       ∧ View s'.mem base (after env (imgF img) v c cnt m) := by
   have hpc : (boot env.region img).pc = base := by simp [boot, hp.region]
   have hmem : (boot env.region img).mem = memOfImage base img := by simp [boot, hp.region]
@@ -1433,7 +1439,7 @@ theorem reseed_boot (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤ im
 
 /-- **The second Generate**, as the shell runs it for NIST's vectors: the
 kernel started again on the region the first left, any registers. It halts
-with 0 after `COST m` more, its blocks Hashgen of the next V, the counter
+with 0 after exactly `COST m` more, its blocks Hashgen of the next V, the counter
 two more, as long as one more is still at most the interval. -/
 theorem generate_twice (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤ img.size)
     (himg : ∀ d (h : d < 280), img.get d (by omega) = bytes.getD d 0)
@@ -1444,10 +1450,10 @@ theorem generate_twice (hp : Placed env base) (img : ByteArray) (hsize : 280 ≤
     (hm2 : OUT + 32 * m < 0x10000) (hiv : word (imgF img) (PAR + 4) < 2 ^ 32 - 1)
     (hok : cnt + 1 ≤ word (imgF img) (PAR + 4)) {s : Machine} (hs : s.pc = base)
     (hrun : ∃ s1, run env (COST m) (boot env.region img) = .halted 0 s1 ∧ s.mem = s1.mem) :
-    ∃ s', run env (COST m) s = .halted 0 s'
+    ∃ s', run env (COST m - 1) s = .running s' ∧ run env (COST m) s = .halted 0 s'
       ∧ View s'.mem base (after env (after env (imgF img) v c cnt m) (vnext env v c cnt) c (cnt + 1) m) := by
   obtain ⟨s1, e1, ms⟩ := hrun
-  obtain ⟨s1', e1', mv1⟩ := from_boot hp img hsize himg hV hC hone hpre3 hhb hcb hm hcnt hm1 hm2 hiv (by omega)
+  obtain ⟨s1', -, e1', mv1⟩ := from_boot hp img hsize himg hV hC hone hpre3 hhb hcb hm hcnt hm1 hm2 hiv (by omega)
   rw [e1] at e1'; cases e1'
   rw [← ms] at mv1
   have hk : ∀ o, o < OUT → ¬ (DATA ≤ o ∧ o < DATA + 55) → ¬ (HB + 23 ≤ o ∧ o < HB + 55) →

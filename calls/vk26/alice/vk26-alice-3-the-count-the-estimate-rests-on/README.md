@@ -33,9 +33,10 @@ were 1 about 48.3% of the time in both draws, about six standard deviations
 from even; with its tests on, about 50%. Revision 2 ran every stream's
 kernel twice, back to back. All 14 second runs took 7,343,697 cycles, as
 predicted, while the first runs again took several numbers. The slow first
-runs came only after the shell copied a fixed stream out of flash across
-the XIP cache sets that hold the harness's `mret` and trap entry, in both
-revisions' builds. Revision 3 set the cache on purpose before each first
+runs came only after streams 2 and 4, the two whose copy out of flash
+crosses the XIP cache sets that hold the harness's `mret` and trap entry
+(checked for the build committed now; revisions 1 and 2 were read by hand
+at the time, and nothing committed repeats it). Revision 3 set the cache on purpose before each first
 run, and its prediction failed in part. Sweeping those sets made stream 3
 slow for the first time (2 of 3 rounds). Reading the two words of `mret`
 and the trap entry back did not keep streams 2 and 4 fast (3 of 6 slow).
@@ -445,16 +446,17 @@ streams' counts are count.py's, both runs at the RTL's minstret.
 - The XIP cache is 16 KiB (exp212) in two ways (rp-pac 7.0.0's
   `SPLIT_WAYS` documents way 0 and way 1). So each way is 8 KiB, and an
   address's set is its offset modulo 0x2000.
-- `FIXED` in each build, by `llvm-nm`; revision 1 rebuilt from its own
-  sources to its committed UF2, byte for byte:
+- Where `FIXED` lies is a property of the build. check.sh reads it from
+  the build committed now (revision 4's), by `llvm-nm`, and prints it:
+  `trap 0x10000134, FIXED 0x10003854: the copy of FIXED[0], [1], [2] over
+  the trap's sets: [True, False, True]`. Revisions 1 and 2's builds were read
+  the same way, by hand, at the time; no committed check repeats that for
+  them, and their UF2s are not kept, so for revisions 1 and 2 this is a
+  note, not evidence.
 
-| Build | `FIXED[0]`'s words, offset mod 0x2000 | `FIXED[1]`'s | `FIXED[2]`'s |
-| --- | --- | --- | --- |
-| revision 1 | 0x11fc–0x01fc, over 0x130 | 0x0204–0x1204, not | 0x120c–0x020c, over 0x130 |
-| revision 2 | 0x1370–0x0370, over 0x130 | 0x0378–0x1378, not | 0x1380–0x0380, over 0x130 |
-
-The streams whose copy passes over the sets of `mret` and the trap entry
-are 2 and 4, the streams whose first runs were slow. Stream 3's copy
+In the build check.sh reads, the streams whose copy passes over the sets of
+`mret` and the trap entry are 2 and 4, the streams whose first runs were
+slow. Stream 3's copy
 passes over the other half of the sets, and its first run was never slow.
 A copy sweeping a set replaces one of its two ways. That would explain why
 stream 4 was slow most times but not every time: which way goes depends on

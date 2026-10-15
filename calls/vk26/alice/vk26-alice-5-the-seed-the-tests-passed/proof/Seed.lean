@@ -355,7 +355,8 @@ structure Laid (H : List Byte → Fin 32 → Byte) (F : Nat → Byte) (S m iv : 
 theorem inst_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F : Nat → Byte}
     (hv0 : View s.mem base F) (hc0 : CodeAt s.mem base kernel) {S m iv : Nat}
     (hS : word F (PI + 8) = S) (hS2 : S ≤ 0x80) (hm : word F PI = m) (hiv : word F (PI + 4) = iv) :
-    ∃ s' G, run env 241 s = .halted 0 s' ∧ View s'.mem base G ∧ Laid env.hash F S m iv G := by
+    ∃ s' G, run env 240 s = .running s' ∧ run env 241 s = .halted 0 s' ∧ View s'.mem base G
+      ∧ Laid env.hash F S m iv G := by
   obtain ⟨s1, e1, p1, m1, r1⟩ := regStep (prog := kernel) hp 0 (by decide) hc0 (by rw [hpc]; simp)
     (i := .auipc S0 0) rfl (rd := S0) (v := s.pc + (0#20 ++ 0#12)) rfl hlen
   have b1 : s1.reg S0 = base := by
@@ -707,26 +708,29 @@ theorem inst_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F : N
   have e32 := haltStep hp 60 (by rw [kernel_length]; decide) (by rw [← hs31, line_mem]; exact hc30)
     (by rw [← hs31]; exact line_pc_at _ p30 (by decide)) rfl g5 hlen 0
   rw [g0] at e32
-  refine ⟨s31, setW (setW (setW G24 0x400 m) 0x404 iv) 0x408 1, ?_, by rw [← hs31, line_mem]; exact mv30, ?_⟩
-  · have e1' : run env 1 s = .running s1 := e1
-    have e3' : run env 1 s2 = .running s3 := e3
-    have e7' : run env 1 s6 = .running s7 := e7
-    have e12' : run env 1 s11 = .running s12 := e12
-    have e14' : run env 1 s13 = .running s14 := e14
-    have e19' : run env 1 s18 = .running s19 := e19
-    have e21' : run env 2 s20 = .running s21 := e21
-    have e23' : run env 1 s22 = .running s23 := e23
-    have e29' : run env 1 s28 = .running s29 := e29
-    have e31' : run env 2 s30 = .running s31 := e31
-    rw [show 241 = 1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (7 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (7 + (1 + (1
-      + (2 + (4 * 46 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (2 + (0 + 1))))))))))))))))))))))))))))))) by rfl,
+  -- one instruction before the halt, still running: 241 is exact, not a bound
+  have e1' : run env 1 s = .running s1 := e1
+  have e3' : run env 1 s2 = .running s3 := e3
+  have e7' : run env 1 s6 = .running s7 := e7
+  have e12' : run env 1 s11 = .running s12 := e12
+  have e14' : run env 1 s13 = .running s14 := e14
+  have e19' : run env 1 s18 = .running s19 := e19
+  have e21' : run env 2 s20 = .running s21 := e21
+  have e23' : run env 1 s22 = .running s23 := e23
+  have e29' : run env 1 s28 = .running s29 := e29
+  have e31' : run env 2 s30 = .running s31 := e31
+  have r31 : run env 240 s = .running s31 := by
+    rw [show 240 = 1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (7 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (7 + (1 + (1
+      + (2 + (4 * 46 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (2 + 0)))))))))))))))))))))))))))))) by rfl,
       run_add_running e1', run_add_running e2, run_add_running e3', run_add_running e4, run_add_running e5,
       run_add_running e6, run_add_running e7', run_add_running e8, run_add_running e9, run_add_running e10,
       run_add_running e11, run_add_running e12', run_add_running e13, run_add_running e14', run_add_running e15,
       run_add_running e16, run_add_running e17, run_add_running e18, run_add_running e19', run_add_running e20,
       run_add_running e21', run_add_running e22, run_add_running e23', run_add_running e24, run_add_running e25,
       run_add_running e26, run_add_running e27, run_add_running e28, run_add_running e29', run_add_running e30,
-      run_add_running e31', e32]
+      run_add_running e31', run_zero]
+  refine ⟨s31, setW (setW (setW G24 0x400 m) 0x404 iv) 0x408 1, r31, ?_, by rw [← hs31, line_mem]; exact mv30, ?_⟩
+  · rw [show 241 = 240 + (0 + 1) by rfl, run_add_running r31, e32]
   have hz : ∀ o, ¬ (0x400 ≤ o ∧ o < 0x40c) →
       setW (setW (setW G24 0x400 m) 0x404 iv) 0x408 1 o = G24 o := fun o h => by
     simp only [setW, show ¬ (0x408 ≤ o ∧ o < 0x408 + 4) by omega, show ¬ (0x404 ≤ o ∧ o < 0x404 + 4) by omega,
@@ -761,14 +765,16 @@ theorem inst_run (hp : Placed env base) {s : Machine} (hpc : s.pc = base) {F : N
 
 /-- **Instantiate from boot**: an image that begins with this kernel's 244
 bytes, with the seed material's length `S` (at most 0x80), `m` and the
-interval at 0x2480. 241 instructions later it halts with 0, the region laid
+interval at 0x2480. 241 instructions later it halts with 0, and not one
+sooner (it is still running after 240), the region laid
 out as vk26-alice-4's Generate asks, V and C SP 800-90A's Instantiate of the
 seed material (`Laid`). -/
 theorem inst_boot (hp : Placed env base) (img : ByteArray) (hsize : 244 ≤ img.size)
     (himg : ∀ d (h : d < 244), img.get d (by omega) = bytes.getD d 0) {S m iv : Nat}
     (hS : word (Drbg.imgF img) (PI + 8) = S) (hS2 : S ≤ 0x80) (hm : word (Drbg.imgF img) PI = m)
     (hiv : word (Drbg.imgF img) (PI + 4) = iv) :
-    ∃ s' G, run env 241 (boot env.region img) = .halted 0 s' ∧ View s'.mem base G
+    ∃ s' G, run env 240 (boot env.region img) = .running s' ∧ run env 241 (boot env.region img) = .halted 0 s'
+      ∧ View s'.mem base G
       ∧ Laid env.hash (Drbg.imgF img) S m iv G := by
   have hpc : (boot env.region img).pc = base := by simp [boot, hp.region]
   have hmem : (boot env.region img).mem = memOfImage base img := by simp [boot, hp.region]
@@ -841,8 +847,9 @@ theorem chain (hp : Placed env base) (img : ByteArray) (hsize : 0x248c ≤ img.s
         ∧ Alice.Window.WinOk (memOfImage base img) base Trust.SMP 0
         ∧ Alice.Window.WinOk (memOfImage base img) base Trust.SMP 1) ∧
       (Trust.code env.hash (memOfImage base img) base = 0 →
-        ∃ s2, run env 241 (restart s1 base bytes) = .halted 0 s2 ∧
-        ∃ s3, run env (Drbg.COST m) (restart s2 base Drbg.bytes) = .halted 0 s3 ∧
+        ∃ s2, run env 240 (restart s1 base bytes) = .running s2 ∧ run env 241 (restart s1 base bytes) = .halted 0 s2 ∧
+        ∃ s3, run env (Drbg.COST m - 1) (restart s2 base Drbg.bytes) = .running s3
+          ∧ run env (Drbg.COST m) (restart s2 base Drbg.bytes) = .halted 0 s3 ∧
         ∀ j d, j < m → ∀ (hd : d < 32), s3.mem (base + BitVec.ofNat 32 (Drbg.OUT + 32 * j + d))
           = env.hash (digs (dfV env.hash (seedMat env.hash (memOfImage base img) base) + j)) ⟨d, hd⟩) := by
   obtain ⟨-, s1, e1, ms1⟩ := Trust.from_boot hp img (by omega) himg
@@ -884,11 +891,11 @@ theorem chain (hp : Placed env base) (img : ByteArray) (hsize : 0x248c ≤ img.s
       rw [hFpast _ (by omega) (by omega), show 0x2400 + (32 + d) = 0x2420 + d by omega,
         s1keep _ (by omega) (by omega), ← hm0]
       exact (Drbg.view_image img _ (by omega)).symm
-  obtain ⟨s2, G, e2, mv2, hL⟩ := inst_run (env := env) hp (s := restart s1 base bytes) rfl (F := F) (S := 48) (m := m) (iv := iv)
+  obtain ⟨s2, G, r2, e2, mv2, hL⟩ := inst_run (env := env) hp (s := restart s1 base bytes) rfl (F := F) (S := 48) (m := m) (iv := iv)
     (by rw [← hF]; intro o _; rfl) (code_loaded hp.fit hlen _)
     (by rw [hFw _ (by decide) (by decide)]; exact hS) (by decide)
     (by rw [hFw _ (by decide) (by decide)]; exact hm) (by rw [hFw _ (by decide) (by decide)]; exact hiv)
-  refine ⟨s2, e2, ?_⟩
+  refine ⟨s2, r2, e2, ?_⟩
   -- vk26-alice-4's Generate, on what this one left
   generalize hF' : (fun o => loadCode s2.mem base Drbg.bytes (base + BitVec.ofNat 32 o)) = F'
   have hFG : ∀ o, 280 ≤ o → o < 0x10000 → F' o = G o := fun o h1 h2 => by
@@ -899,7 +906,7 @@ theorem chain (hp : Placed env base) (img : ByteArray) (hsize : 0x248c ≤ img.s
   have hwd : ∀ x, 280 ≤ x → x + 4 ≤ 0x10000 → word F' x = word G x := fun x a b => by
     simp only [word]; rw [hFG x (by omega) (by omega), hFG (x + 1) (by omega) (by omega),
       hFG (x + 2) (by omega) (by omega), hFG (x + 3) (by omega) (by omega)]
-  obtain ⟨s3, e3, mv3⟩ := Drbg.generate_run (env := env) hp (s := restart s2 base Drbg.bytes) rfl (F0 := F') (m := m) (cnt := 1)
+  obtain ⟨s3, r3, e3, mv3⟩ := Drbg.generate_run (env := env) hp (s := restart s2 base Drbg.bytes) rfl (F0 := F') (m := m) (cnt := 1)
     (by rw [← hF']; intro o _; rfl) (code_loaded hp.fit Drbg.hlen _)
     (hol _ _ (by decide) (by decide) hL.v) (hol _ _ (by decide) (by decide) hL.c)
     (hol _ _ (by decide) (by decide) hL.one) (by rw [hFG _ (by decide) (by decide)]; exact hL.pre3)
@@ -907,7 +914,7 @@ theorem chain (hp : Placed env base) (img : ByteArray) (hsize : 0x248c ≤ img.s
     (fun i hi => by rw [hFG _ (by simp only [Drbg.CB]; omega) (by simp only [Drbg.CB]; omega)]; exact hL.cb i hi)
     (by rw [hwd _ (by decide) (by decide)]; exact hL.m) (by rw [hwd _ (by decide) (by decide)]; exact hL.cnt) hm1 hm2
     (by rw [hwd _ (by decide) (by decide), hL.iv]; omega) (by rw [hwd _ (by decide) (by decide), hL.iv]; omega)
-  refine ⟨s3, e3, fun j d hj hd => ?_⟩
+  refine ⟨s3, r3, e3, fun j d hj hd => ?_⟩
   rw [mv3 _ (by simp only [Drbg.OUT] at hm2 ⊢; omega), ← hseed]
   exact Drbg.after_out F' _ _ _ hj hd
 

@@ -39,7 +39,9 @@ and carried repetition count this one uses.
 [exp223](../../../../experiments/exp223-the-digest-the-kernel-withholds/)
 conditions with a SHA-256 written in RV32IM and proved
 ([exp208](../../../../experiments/exp208-the-hash-the-kernel-computes/)):
-334284 instructions for one window. vk26-alice-1 and this experiment call
+334284 instructions for one window ([exp223's
+capture](../../../../experiments/exp223-the-digest-the-kernel-withholds/capture.txt):
+`the model after 334284`). vk26-alice-1 and this experiment call
 `HASH` instead, an `ecall` the shell answers with the RP2350's SHA-256 block
 ([exp210](../../../../experiments/exp210-the-hash-the-chip-computes/)), and
 the whole kernel, two windows and two `HASH` calls, is 34885 instructions.
@@ -220,7 +222,9 @@ digest, on the Lean model and the RTL before it writes anything:
 3 + 4 per `HASH` call, as in vk26-alice-1, and one more for codes 0, 1
 and 2 but not 3. Across both experiments the one more appears exactly when
 the halting `ecall` is not the kernel's last instruction: here HALT 3 is the
-last, and in vk26-alice-1 HALT 0 is the only halt followed by more code.
+last, and in vk26-alice-1 HALT 0 is the only halt followed by more code
+([its listing](../vk26-alice-1-the-run-across-the-seam/README.md#the-kernel):
+HALT 0 at instruction 132, the FAIL halt after it at 135).
 That is a pattern seen in nine counts, not an explanation; the shell holds
 the chip to the RTL's figure either way.
 

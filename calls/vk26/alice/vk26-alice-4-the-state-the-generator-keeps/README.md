@@ -9,7 +9,7 @@ that Generate, with SHA-256's seedlen of 55 bytes and no additional input,
 and Lean proves it for every state and every hash function
 (`Drbg.from_boot`):
 - with the counter at most the interval, it halts with 0 after exactly
-  2030 + 566m instructions for m blocks;
+  2030 + 566m instructions for m blocks — still running after one fewer;
 - memory is then the image with Hashgen's m blocks at 0x600
   (`after_out`), V the next V, the counter one more, the work it did
   (data, H, the counter's bytes) where it did it, and nothing else;
@@ -86,9 +86,10 @@ time would notice. So this one is proved.
 
 The byte 0x03 sits just before V, so Hash(0x03 ‖ V) is one HASHB of 56
 bytes, no copy. H and the counter are given 55-byte fields with leading
-zeros, so all four additions are the same ADD: a subroutine, `jal`/`jalr`,
-called five times a Generate (once per block for data + 1, three times for
-V). The hash is `ecall` with t0 = 2, exp228's HASHB: SHA-256 of a1 bytes at
+zeros, so all four kinds of addition are the same ADD: a subroutine,
+`jal`/`jalr`, called m + 3 times a Generate for m blocks (once per block for
+data + 1, then V += H, V += C and V += counter): four `jal`s in the listing
+above, the GEN one inside the loop. The hash is `ecall` with t0 = 2, exp228's HASHB: SHA-256 of a1 bytes at
 a0, written at a2, of any length.
 
 The image holds what the kernel needs beside the state: the 0x03, H's and
@@ -104,7 +105,8 @@ became its second user, checked from [proof/Drbg.lean](./proof/Drbg.lean), on Le
 - **`generate_run` / `from_boot`**: the image holds the kernel and a state.
   1 ≤ m, the m blocks fit in the region, and the counter is at most an
   interval below 2^32 − 1. Then from boot the kernel halts with 0 after
-  exactly `COST m = 2030 + 566m` instructions. Memory is then `after`: the
+  exactly `COST m = 2030 + 566m` instructions: it is still running after
+  `COST m − 1`, and halted after `COST m`. Memory is then `after`: the
   image with
   - blocks at 0x600;
   - data at V + m;
@@ -123,7 +125,7 @@ became its second user, checked from [proof/Drbg.lean](./proof/Drbg.lean), on Le
   with 1 after 7 instructions and memory is the image. That is step 1.
 - **`generate_twice`**: the kernel is started again on the region its first
   run left, any registers. With one more still at most the interval, it
-  halts with 0 after `COST m` more. Its result is `after` of `after`: the
+  halts with 0 after exactly `COST m` more. Its result is `after` of `after`: the
   second Generate's blocks are Hashgen of the first's V. NIST's vectors are
   checked this way, and the shell runs them this way.
 
@@ -135,7 +137,7 @@ The steps underneath:
 - `call_add`: a call of ADD, returning three instructions on.
 - `head_run`, `reseed_run`: the first four instructions and the branch.
 
-Twelve wrong versions are each refused (`proof/mutants.txt`):
+Thirteen wrong versions are each refused (`proof/mutants.txt`):
 - reseed already at the interval;
 - V copied a byte short;
 - Hashgen over 54 bytes;
@@ -144,17 +146,21 @@ Twelve wrong versions are each refused (`proof/mutants.txt`):
 - a counter byte written over another;
 - the counter never stored back;
 - ADD's carry shifted by 9;
-- and four wrong claims: one instruction fewer, `vnext` without the
-  counter, H over 0x02, block j hashing V + j + 1.
+- and five wrong claims: one instruction fewer, one more, `vnext` without
+  the counter, H over 0x02, block j hashing V + j + 1.
 
 **Not proved:**
 - **Instantiate**, whose Hash_df turns entropy into V and C. drbg.py does
   it, from the standard's text, so that NIST's vectors can be used;
   vk26-alice-5 is where it is meant to be proved.
-- **Constant time.** lean/Rv32/Ct.lean's checker knows HASH and HALT but
-  not HASHB, and has no rule for `jal` or `jalr`. So it cannot be asked
-  about this kernel. That is a finding about the call's settings (below),
-  not a claim either way.
+- **Constant time.** lean/Rv32/Ct.lean's checker refuses, from any state
+  it may be in, a `jal`, a `jalr`, and an `ecall` whose t0 is neither
+  HASH's 0 nor HALT's 1 — [proof/Drbg.lean](./proof/Drbg.lean)'s
+  `ct_refuses_jal`, `ct_refuses_jalr` and `ct_refuses_ecall`, checked with
+  the rest. This kernel's GEN loop, which every run with m ≥ 1 enters,
+  starts with a HASHB, t0 = 2, and calls ADD with `jal`
+  (`kernel_calls`). So it cannot be asked about this kernel. That is a
+  finding about the call's settings (below), not a claim either way.
 - **The counter is a word**, so the interval is below 2^32 − 1; the
   standard allows 2^48.
 - **Whole blocks only.** A request is m × 256 bits.
@@ -416,7 +422,7 @@ Found while making this experiment, and recorded in
   later run needs no network.
 - **Ct.lean cannot be asked about this kernel.** The constant-time
   checker's `ecall` rule knows HASH (t0 = 0) and HALT, not HASHB (t0 = 2).
-  It also refuses `jal` and `jalr`, which is why exp229 inlined its
+  It also refuses `jal` and `jalr` (the three theorems above), which is why exp229 inlined its
   kernel. A kernel that hashes any length (exp228, this one) or calls a
   subroutine (this one) cannot be put to it. Recorded, not changed: the
   checker is in `lean/`, which S2 keeps out of a proposal.

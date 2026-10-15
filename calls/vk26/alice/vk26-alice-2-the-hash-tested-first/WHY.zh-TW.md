@@ -17,7 +17,7 @@
 
 ## 2. 兩條路：自己算，或先考它
 
-這個 repo 已經走過第一條路。exp223 把 exp208 證明過的 RV32IM SHA-256 放進 kernel，雜湊在 kernel 裡算、在證明裡驗：一個視窗要 **334284 條指令**。
+這個 repo 已經走過第一條路。exp223 把 exp208 證明過的 RV32IM SHA-256 放進 kernel，雜湊在 kernel 裡算、在證明裡驗：一個視窗要 **334284 條指令**（見 [exp223 的 capture](../../../../experiments/exp223-the-digest-the-kernel-withholds/capture.txt) 的 `the model after 334284`）。
 
 vk26-alice-1 和這個實驗走第二條路：呼叫硬體，整個 kernel（兩個視窗、兩次 `HASH`）只要 **34885 條指令**。代價是要信任硬體。vk26-alice-1 把檢查交給外面：shell 拿 Python 的 hashlib、網頁拿瀏覽器的 WebCrypto，事後比對每一個雜湊。
 
