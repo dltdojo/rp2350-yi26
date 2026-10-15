@@ -1,5 +1,5 @@
 === vk26-alice-3 — the count the estimate rests on ===
-recorded at 2026-10-14T06:18:49Z from commit c273227
+recorded at 2026-10-15T02:31:32Z from commit e0dd6e6
 
 >>> the theorems, and what they rest on
 'Count.look_loop' depends on axioms: [propext, Classical.choice, Quot.sound]

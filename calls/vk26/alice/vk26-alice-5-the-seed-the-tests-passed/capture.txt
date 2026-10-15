@@ -1,5 +1,5 @@
 === vk26-alice-5 — the seed the tests passed ===
-recorded at 2026-10-15T01:21:21Z from commit d5aed77
+recorded at 2026-10-15T02:53:03Z from commit 659f254
 
 >>> the theorems, and what they rest on
 'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -217,6 +217,7 @@ PASS  the TRNG stuck at 1, then a run of 21 across the seam: both chains stopped
 PASS  a BLOCK line and a BITS line lost: that case and that chain incomplete, nothing called wrong
 PASS  joined mid-case: the first case incomplete, every one after it right
 PASS  one Generate taking 30 cycles more: nothing wrong, and the page says the cycles differ
+PASS  round1.txt: 202 of 202 NIST cases and 2 of 2 chains from a board right (1 gave bits, 1 refused, 0 stopped), 0 incomplete, 1 rounds; mcycle as read: inst 9212/9312/9322/9332/9372/9422/9441/9442/9492/9502/9542/9552/9562/9631/9652/9692/9711/9750/9782/9822/9852/9902/9952/10021/10052/10062/10102/10142/11372/11482/11638/11652/11702/11801/11842/11999/12152/12286/12297/12342/12389/12414/12497/12721/12734/12780/12887/12974, gen 15088/15195/15198/15208/15242/15248/15298/15312/15315/15318/15365/15368/15418/15425/15472/15475, trust 58945, chainInst 9212, chainGen 15088
 PASS  the tests catch a page where Hash_df asks for 432 bits, not 440: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
 PASS  the tests catch a page where C is Hash_df of V, the 0x00 before it left out: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
 PASS  the tests catch a page where the second Generate starts from Instantiate's V again: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
@@ -242,7 +243,12 @@ PASS  cblock.txt: the verdict line says "first wrong: round 0, chain 0"
 PASS  cblock.txt: the table shows the last round's 2 streams, and no script error
 PASS  cblock.txt: Copy puts the verdict and every line received on the clipboard (15562 characters)
 PASS  cblock.txt: Save downloads the same text as a file, vk26-alice-5-<time>.txt, and says how long it is
-SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  round1.txt: 202 whole NIST cases and 2 whole chains from a board (codes 0×1 2×1), 0 incomplete; every case NIST's, every chain seed.py's from its samples, every minstret the RTL's
+      mcycle of Instantiate: 9212 in 62; 9312 in 1; 9322 in 5; 9332 in 5; 9372 in 2; 9422 in 1; 9441 in 1; 9442 in 1; 9492 in 3; 9502 in 1; 9542 in 1; 9552 in 1; 9562 in 1; 9631 in 1; 9652 in 1; 9692 in 1; 9711 in 1; 9750 in 1; 9782 in 1; 9822 in 1; 9852 in 1; 9902 in 2; 9952 in 1; 10021 in 1; 10052 in 2; 10062 in 2; 10102 in 1; 10142 in 2; 11372 in 78; 11482 in 1; 11638 in 1; 11652 in 2; 11702 in 1; 11801 in 1; 11842 in 1; 11999 in 1; 12152 in 1; 12286 in 1; 12297 in 1; 12342 in 1; 12389 in 1; 12414 in 1; 12497 in 1; 12721 in 1; 12734 in 1; 12780 in 1; 12887 in 1; 12974 in 1
+      mcycle of Generate: 15088 in 377; 15195 in 1; 15198 in 8; 15208 in 1; 15242 in 1; 15248 in 3; 15298 in 1; 15312 in 1; 15315 in 1; 15318 in 4; 15365 in 1; 15368 in 1; 15418 in 1; 15425 in 1; 15472 in 1; 15475 in 1
+      mcycle of alice-2's kernel: 58945 in 1
+      mcycle of Instantiate in the chain: 9212 in 1
+      mcycle of Generate in the chain: 15088 in 1
 PASS  the shell catches a version where kernel.sha256 is not the Instantiate kernel's hash — check 1
 PASS  the shell catches a version where HASHB is answered one byte short — check 4, the state after Instantiate
 PASS  the shell catches a version where the seed material's length is given one long — check 4

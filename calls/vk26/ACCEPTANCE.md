@@ -12,28 +12,30 @@
 
 另外有**提案層級 S1–S4**，對整份提案判斷一次。
 
+三層都由 [audit-proposal.sh](./audit-proposal.sh) 依序執行（G7 除外）：先以 [gates.sh](./gates.sh) 跑提案層級與每個實驗的機器關卡，有一項不通過就停下，不呼叫裁判。
+
 原則：**能讓機器判斷的，不交給 LLM；LLM 判斷的，必須引用證據。** 抽驗的實驗、申訴、以及抽驗失敗後的其餘實驗，要三次一致；其他實驗單次確認（見「判定規則」）。
 
 ## 提案層級
 
 | | 條件 | 怎麼判斷 |
 | --- | --- | --- |
-| **S1** | 剛好五個實驗目錄，`vk26-<帳號>-1-<slug>` 到 `vk26-<帳號>-5-<slug>`，1 到 5 各一個；識別碼最多 34 個字元（USB 字串的上限） | `audit-proposal.sh` |
-| **S2** | PR 只新增或修改 `calls/vk26/<帳號>/` 之下的檔案 | `git diff --name-only <merge-base>...<head>`，每一行都以 `calls/vk26/<帳號>/` 開頭 |
-| **S3** | 五個實驗的主要 kernel 彼此不同：不是同一段程式換參數 | 五個 `kernel.sha256` 互不相同，且 J3 對每個實驗都回答「是」 |
-| **S4** | `calls/vk26/<帳號>/README.md` 有五列索引表：實驗、Needs 等級（0–3）、USB 介面、一句話 | 人工確認 |
+| **S1** | 剛好五個實驗目錄，`vk26-<帳號>-1-<slug>` 到 `vk26-<帳號>-5-<slug>`，1 到 5 各一個；識別碼最多 34 個字元（USB 字串的上限） | `gates.sh proposal`、`audit-proposal.sh` |
+| **S2** | PR 只新增或修改 `calls/vk26/<帳號>/` 之下的檔案 | `gates.sh proposal <目錄> <base>`：`git diff --name-only <base>...HEAD` 的每一行都以 `calls/vk26/<帳號>/` 開頭（`audit-proposal.sh` 以環境變數 `BASE` 傳入） |
+| **S3** | 五個實驗的主要 kernel 彼此不同：不是同一段程式換參數 | `gates.sh proposal`：五個 `kernel.sha256` 互不相同、各是自己 `kernel.bin` 的雜湊；且 J3 對每個實驗都回答「是」 |
+| **S4** | `calls/vk26/<帳號>/README.md` 有五列索引表：實驗、Needs 等級（0–3）、USB 介面、一句話 | `gates.sh proposal`：每個實驗一列、連結到它的目錄、Needs 是 0 到 3、最後一欄是一句話（這一欄也是 J3 的材料）；一句話寫得對不對，仍由 J3 與人判斷 |
 
 ## 機器關卡（每個實驗）
 
 | | 條件 | 怎麼判斷 |
 | --- | --- | --- |
 | **G1.5 預檢** | `proof/*.lean` 至少一個定理的敘述含 `run env N (boot …)`，且 N 是確定的指令數：數字，或由參數算出的式子（如 exp205 的 `(4141 + 3 * steps …)`）；被 `∃`、`∀` 綁住的變數（如 `∃ n, run env n (boot …)`）不算。另外，沒有任何定理的結論就是 `True` | `judge-bundle.sh gates <實驗>`。`1 = 1` 這類結論、互相矛盾的假設，正規表示式擋不住，由 J2 判斷（主要定理和 README 對不上就是 NO）；G3 只檢查提案者自己寫的 mutant，不能代替這一步 |
-| **G1 證明** | 證明檔通過 `tools/lean/lean.sh check`：沒有錯誤、沒有警告、沒有 `sorry`；每個 `#print axioms` 只列 `propext`、`Classical.choice`、`Quot.sound` 之中的公理；不用 `native_decide`、`bv_decide`；不 import Mathlib。至少一個定理是 `from_boot` 形式：從開機執行 `kernel.bin` 的位元組，剛好 N 條指令後以 0 停止，留下規格所說的結果 | `lean.sh check`；`from_boot` 形式由 J2 確認 |
-| **G2 位元組** | `lean.sh exec proof/<Name>.lean <out>` 寫出的檔案與 commit 進來的 `kernel.bin` 逐位元組相同，`kernel.sha256` 是它的雜湊 | `cmp`、`sha256sum` |
-| **G3 定理有牙齒** | `proof/mutants.txt` 至少 **4** 個錯誤版本，至少一個改 kernel 的指令、至少一個改宣稱；Lean 全部拒絕 | `lean.sh mutants` 全部 PASS |
+| **G1 證明** | 證明檔通過 `tools/lean/lean.sh check`：沒有錯誤、沒有警告、沒有 `sorry`（證明檔 import 的提案者套件也算在內）；每個 `#print axioms` 只列 `propext`、`Classical.choice`、`Quot.sound` 之中的公理；不用 `native_decide`、`bv_decide`；不 import Mathlib。至少一個定理是 `from_boot` 形式：從開機執行 `kernel.bin` 的位元組，剛好 N 條指令後以規格所說的停止碼停止（多半是 0；vk26-alice-2 的 kernel 依輸入以 0 到 3 停止），留下規格所說的結果 | `check.sh` 裡的 `lean.sh check`，由 `gates.sh experiment` 讀它的輸出；`from_boot` 形式由 J2 確認 |
+| **G2 位元組** | `lean.sh exec proof/<Name>.lean <out>` 寫出的檔案與 commit 進來的 `kernel.bin` 逐位元組相同，`kernel.sha256` 是它的雜湊 | `gates.sh experiment`：每個有 `main` 的 `proof/*.lean` 以 `lean.sh exec` 執行，其中一個寫出的就是 `kernel.bin` |
+| **G3 定理有牙齒** | `proof/mutants.txt` 至少 **4** 個錯誤版本，至少一個改 kernel 的指令、至少一個改宣稱；Lean 全部拒絕 | `lean.sh mutants` 全部 PASS；`gates.sh experiment` 數 `check.sh` 輸出裡 lean.sh 印的拒絕行 |
 | **G4 三方一致** | 至少 **10** 個輸入上，Lean 模型（`rv32run`）、Hazard3 RTL、與一份**獨立撰寫**的參考實作結果完全相同：停止碼、指令數、整個 64 KiB 區域 | 實驗的 differential，照 exp225 或 exp234 的寫法；獨立性由 J4 確認 |
-| **G5 韌體** | UF2 建得出來，`uf2check.py` 通過；`build-toolchain.txt` 記錄工具鏈，相同工具鏈下建出的 UF2 雜湊等於 commit 進來的；shell 在 RTL 上的輸出等於參考實作的預期；至少 **3** 個故意寫錯的 shell 被各自的檢查抓到 | `check.sh` |
-| **G6 文件與紀錄** | 有 `README.md`（英文）、`WHY.zh-TW.md`（台灣繁體中文，給學生看的白話說明）；README 的 Expected output 是 `capture.txt` 原文貼上，`capture.txt` 由 `run.sh` 從乾淨的 commit 錄製；`check.sh` exit 0；沒有在提案目錄裡複製 `lean/`、`tools/` 的檔案；同一段程式在兩個實驗中出現，已抽到提案者自己的 `lean/` 或 `tools/` | 腳本加上 `judge-bundle.sh`（J1 會讀到 capture 與 README 是否一致） |
+| **G5 韌體** | UF2 建得出來，`uf2check.py` 通過；`build-toolchain.txt` 記錄工具鏈，相同工具鏈下建出的 UF2 雜湊等於 commit 進來的；shell 在 RTL 上的輸出等於參考實作的預期；至少 **3** 個故意寫錯的 shell 被各自的檢查抓到 | `check.sh`；`gates.sh experiment` 數 shell.sh 印的抓到行 |
+| **G6 文件與紀錄** | 有 `README.md`（英文）、`WHY.zh-TW.md`（台灣繁體中文，給學生看的白話說明）；README 的 Expected output 是 `capture.txt` 原文貼上（可以用 `...` 或 `…` 省略一段）；`capture.txt` 由 `run.sh` 從乾淨的 commit 錄製，**而且之後它依賴的東西都沒有再改**：實驗本身、提案者共用的 `lean/`、`tools/`、`pages/`、`shell/` 等（其他實驗的目錄與 `.md` 文字除外）。上板紀錄 `board/*.txt` 在 capture 之後才加入，也算改了：重跑 `run.sh`，讓參考實作 `--board` 檢查的輸出（README 引用的板子數字所在）進到 capture；`check.sh` exit 0；沒有在提案目錄裡複製 `lean/`、`tools/` 的檔案；同一段程式在兩個實驗中出現，已抽到提案者自己的 `lean/` 或 `tools/` | `gates.sh experiment`（文件、capture 的 commit 與新舊、Expected output 逐行在 capture 裡）、`gates.sh proposal`（沒有複製的檔案、`duplication.sh --check`） |
 
 一個實驗如果沒有韌體（Needs 等級 0，例如純粹的證明或函式庫），G5 與 G7 不適用；但五個
 實驗中**至少三個**要有韌體並通過 G7。

@@ -53,10 +53,12 @@
 #   and for a proposal, its own earlier experiments' rows (its S4 table).
 # - Documentation (for J1, J2, J3): README.md and WHY.zh-TW.md.
 # - Proof & Specification (for J1, J2, J4): Lean definitions, theorem statements
-#   (proof bodies omitted, line numbers preserved), and mutants.txt.
+#   (proof bodies omitted, line numbers preserved), and mutants.txt; for a
+#   proposal, the modules of its own package the proof imports, and only those.
 # - Reference Implementation (for J4): top-level Python algorithms (differential
 #   harnesses omitted; imported sibling algorithms capped).
-# - Empirical Evidence (for J1): capture.txt summary, shell/shell.c (what a board
+# - Empirical Evidence (for J1): capture.txt (600 lines; runs of lines alike cut to their
+#   first and last three when it is over 600 lines), shell/shell.c (what a board
 #   claim argues from), differential/*.py (what a measured claim's inputs are:
 #   exp225's twenty seeds), board log results (PATIENT/TRIAL lines kept,
 #   polling deduplicated), and every page README.md or WHY.zh-TW.md links
@@ -74,13 +76,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 case "${1-}" in
-    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
-    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
-    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
-    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
+    bundle|scan|gates) [[ -d "${2-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
+    slice) [[ -d "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
+    judge) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
+    tally) [[ -f "${2-}" && -n "${3-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
     prompt) ;;
-    usage) [[ -f "${2-}" ]] || { sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2; };;
-    *) sed -n '3,68p' "${BASH_SOURCE[0]}"; exit 2;;
+    usage) [[ -f "${2-}" ]] || { sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2; };;
+    *) sed -n '3,72p' "${BASH_SOURCE[0]}"; exit 2;;
 esac
 
 exec python3 - "$REPO" "$@" <<'PY'
@@ -360,7 +362,7 @@ def files_of(exp, question=None):
     if question in (None, "J1"):
         add("shell/shell.c", 1000)
         add("differential/*.py", 1000)
-        add("capture.txt", 200)
+        add("capture.txt", 600)
         add("board/*.txt", 100)
         # A claim about an earlier experiment rests on that experiment's
         # record: its board logs, or its capture. The README or WHY.zh-TW.md
@@ -399,28 +401,33 @@ def files_of(exp, question=None):
                     if r not in [x for x, _ in out]:
                         out.append((r, 2000))
 
-    # A proposer's own package: calls/<call>/<proposer>/lean/.
-    rel = os.path.relpath(os.path.abspath(exp), REPO).split(os.sep)
-    if len(rel) >= 4 and rel[0] == "calls":
-        pkg = os.path.join(REPO, *rel[:3], "lean")
-        for p in sorted(glob.glob(os.path.join(pkg, "**", "*.lean"), recursive=True)):
-            if "/.lake/" not in p:
-                out.append((os.path.relpath(p, exp), 4000))
+    # A proposer's own package, calls/<call>/<proposer>/lean/: the modules
+    # the proof imports, and those import — not the whole package. alice's
+    # held five modules; vk26-alice-3 imports none of them, and its J3 slice
+    # carried 60 KB of Lean it had nothing to do with.
+    if question in (None, "J1", "J2", "J4"):
+        own = {os.path.abspath(p) for p in glob.glob(os.path.join(exp, "proof", "*.lean"))}
+        for p in proof_files(exp):
+            r = os.path.relpath(os.path.abspath(p), os.path.abspath(exp))
+            if os.path.abspath(p) not in own and r not in [x for x, _ in out]:
+                out.append((r, 4000))
     return out
 
 
 def scan(exp):
+    """Every file the bundle can send, whole: the package modules and the pages
+    a README links are read by the judge too, so text addressed to it there
+    counts (the list here once stopped at the experiment's own files, and at
+    line 2000)."""
     hits = []
-    scan_files = []
-    for pattern in ["README.md", "WHY.zh-TW.md", "proof/*.lean", "*.py", "check.sh", "shell/shell.c", "differential/*.py", "capture.txt", "board/*.txt"]:
+    scan_files = [r for r, _ in files_of(exp)]
+    for pattern in ["check.sh"]:
         for p in sorted(glob.glob(os.path.join(exp, pattern))):
-            if os.path.isfile(p):
+            if os.path.isfile(p) and os.path.relpath(p, exp) not in scan_files:
                 scan_files.append(os.path.relpath(p, exp))
     for rel in scan_files:
         with open(os.path.join(exp, rel), encoding="utf-8", errors="replace") as f:
             for n, line in enumerate(f, 1):
-                if n > 2000:
-                    break
                 low = line.lower()
                 if (re.search(JUDGE_WORD, low) and re.search(ORDER_WORD, low)) or any(re.search(p, low) for p in PHRASES):
                     hits.append(f"{rel}:{n}  {line.strip()[:160]}")
@@ -466,6 +473,29 @@ def prior_rows(exp):
             text = re.sub(r"\*\*|`", "", m.group(4))
             rows.append(f"{m.group(1)} (this proposal) [{m.group(3).strip()}]: {text[:150]}{'…' if len(text) > 150 else ''}")
     return rows
+
+
+def shape(line):
+    """What a line looks like with its numbers taken out."""
+    return re.sub(r"\b[0-9a-f]{8}\b|\d+", "#", line.rstrip())
+
+
+def compact_lines(raw, keep=3, least=20):
+    """(n, text) for each line kept, (n, None, k) for k lines left out: a run of
+    `least` or more lines of the same shape keeps its first and last `keep`."""
+    out, i = [], 0
+    while i < len(raw):
+        j = i
+        while j + 1 < len(raw) and raw[j + 1].strip() and shape(raw[j + 1]) == shape(raw[i]):
+            j += 1
+        if raw[i].strip() and j - i + 1 >= least:
+            out += [(n + 1, raw[n].rstrip()) for n in range(i, i + keep)]
+            out.append((i + keep + 1, None, j - i + 1 - 2 * keep))
+            out += [(n + 1, raw[n].rstrip()) for n in range(j - keep + 1, j + 1)]
+        else:
+            out += [(n + 1, raw[n].rstrip()) for n in range(i, j + 1)]
+        i = j + 1
+    return out
 
 
 def bundle(exp, gates=None, question=None):
@@ -517,6 +547,22 @@ def bundle(exp, gates=None, question=None):
                 out.append(f"{n}| {text}")
             if run:
                 out.append(f"{run[0]}| … (proof, lines {run[0]}-{run[1]}, left out)")
+        elif f.endswith("capture.txt"):
+            # Whole, up to the cap. Longer: a run of 20 or more lines alike
+            # (the RTL's words, one case a line) is cut to its first and last
+            # three, every other line kept, then the cap. Shorter runs are kept
+            # whole: exp234's width table is six lines a claim may cite.
+            # A plain cut at 200 lines left the checks at the end of
+            # vk26-alice-3's, -4's and -5's captures out: their page tests,
+            # their wrong shells and their board logs' checks.
+            kept = 0
+            for item in (compact_lines(raw) if len(raw) > cap else [(n, l.rstrip()) for n, l in enumerate(raw, 1)]):
+                if kept >= cap:
+                    out.append(f"{item[0]}| … (cut at {cap} lines)")
+                    break
+                out.append(f"{item[0]}| {item[1]}" if len(item) == 2 else
+                           f"{item[0]}| … ({item[2]} lines like the ones around them, {item[0]}-{item[0] + item[2] - 1}, left out)")
+                kept += 1
         elif f.startswith("board/") or "/board/" in f:
             seen = set()
             count = 0

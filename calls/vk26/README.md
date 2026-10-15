@@ -33,8 +33,8 @@ RV32 核心（Hazard3）上執行「被 Lean 證明的程式」：證明說的�
 每個實驗都必須**與形式化驗證和被證明的 RV32 kernel 有關**。最低要求是：
 
 > 一段 RV32 kernel 的位元組，以及一個 Lean 定理，說這些位元組從開機執行，剛好 N 條
-> 指令後以 0 停止，並在記憶體裡留下規格所說的結果，其他位元組一個不動——也就是本 repo
-> 的 `from_boot` 這一種定理。
+> 指令後以規格所說的停止碼停止（多半是 0），並在記憶體裡留下規格所說的結果，其他位元組
+> 一個不動——也就是本 repo 的 `from_boot` 這一種定理。
 
 可以是（只是例子，不限於此）：
 
@@ -174,7 +174,8 @@ calls/vk26/alice/
 | 用 `lean/Rv32/Ct.lean` 證明常數時間時，以 `slli` 做常數（如 4096） | 檢查器只知道位移的結果是 public，不知道數值，之後以它為基底的存取會被拒絕 | 用 `lui`（檢查器知道它的值） |
 | 在 `List.range 256` 這類具體長度上做歸納或 `simp` | Lean 會試著展開整個串列而逾時 | 對一般的長度 `K` 證明，最後再代入 256 |
 
-另外兩個實務上的提醒：
+另外三個實務上的提醒：
+- **RTL 數的 minstret**：證明的指令數，加上 harness 的 3，加上每次 `HASH`／`HASHB` 呼叫的 4，再加上 **1，如果停下的那個 `ecall` 後面一個字是合法的指令**（後面是 0 或 0xffffffff 就不加）。同一個 kernel 單獨跑與接在別的程式碼前面跑，會差這 1；晶片上也一樣。vk26-alice-1、2 以為是「停在中間的 `ecall`」才多一條，vk26-alice-5 找到真正的規則（[它的 README](./alice/vk26-alice-5-the-seed-the-tests-passed/README.md#one-instruction-more-explained)）。shell 要求晶片的數字等於 RTL 的，就照 RTL 實際數到的寫，不要用公式推。
 - 目標裡有大定義（例如 `WinOk`）時，`assumption`、`decide` 可能把它整個展開而跑很久，
   甚至耗盡記憶體；直接 `exact h` 指名要用的假設。
 - Lean 耗盡記憶體時，錯誤訊息可能被吃掉，只看到很久沒有輸出。先單獨檢查最後改的那
@@ -196,6 +197,9 @@ calls/vk26/alice/
      - **紀錄要以檔案傳回，不要貼進聊天或表單**。幾輪的紀錄就超過一則訊息能裝的長度，貼上時會被截斷，而且截斷處不一定看得出來：vk26-alice-1 的網頁判了 11 條樣本流，貼回來的只剩 7 條，最後一行斷在欄位中間。
      - 所以你的網頁除了 Copy，還要有 **Save**：把同一份文字存成檔案（手機的「下載」資料夾），狀態列寫出字元數與行數，收到的人才能核對是否完整。寫法可參考 [alice/pages/core.js](./alice/pages/core.js) 的 `save()`。
      - 參考實作的 `--board` 檢查只核對**完整**的樣本流或案例；被截掉的部分不會被當成錯，但也不算數。
+     - **讓紀錄說出是哪一版韌體**：每一輪送一行版本（例如 `REVISION n`），網頁的 Save 在檔頭寫出自己的版本。vk26-alice-3 改了三次韌體，紀錄格式相同，紀錄本身說不出板子跑的是哪一版。
+     - **加入 `board/*.txt` 之後重跑 `run.sh`**：`check.sh` 會以 `--board` 檢查紀錄，這段輸出要進到 `capture.txt`，README 引用的板子數字（幾組、幾次、週期數）才有證據；J1 讀到的紀錄本身只有開頭幾行和網頁的摘要行。G6 會拒絕比它所依賴的檔案還舊的 capture。
+   - **機器關卡自檢**：`calls/vk26/gates.sh proposal calls/vk26/<帳號> origin/main` 與每個實驗的 `calls/vk26/gates.sh experiment <實驗目錄>`，就是任務方跑的機器關卡（第 7 節）。
    - **裁判自檢**：可使用 `judge-bundle.sh` 對自己的實驗先跑一次 LLM 裁判自檢（第 7 節）。
 5. **PR**：一個 PR，包含五個實驗。標題 `vk26/<帳號>: <五個主題>`。
 6. **機器關卡與 LLM 裁判**：任務方在 PR head 上執行 G1–G6 與 J1–J4，結果貼在 PR。
@@ -261,10 +265,22 @@ calls/vk26/alice/
   - **模型分級**：J2 送公告指定的深層模型（J2 切片，實測約為完整 bundle 的 42%–61%），其餘 J1/J3/J4 送公告指定的快速模型；深層模型讀的量約為單獨判四題時的一半。兩個模型的實際名稱寫在 [models.env](./models.env)，換模型只改那個檔案，並重跑校準。
   - LLM 不能推翻機器關卡的結果。
 
-自己先跑裁判：
+自己先跑機器關卡，再跑裁判：
 
 ```sh
-# 改了 judge-bundle.sh、JUDGE.md 或 audit-proposal.sh 之後，先跑回歸測試（不呼叫模型）：
+# 提案層級 S1–S4 與沒有複製的檔案（S2 需要 base）：
+calls/vk26/gates.sh proposal calls/vk26/alice origin/main
+
+# 每個實驗：G1.5、G2、G6，以及 check.sh（G1、G3、G4、G5，約五分鐘）：
+calls/vk26/gates.sh experiment calls/vk26/alice/vk26-alice-1-foo
+
+# 整份提案照驗收的順序：機器關卡，全過才呼叫裁判（DRY_RUN=1 不呼叫）：
+BASE=origin/main calls/vk26/audit-proposal.sh calls/vk26/alice
+```
+
+
+```sh
+# 改了 judge-bundle.sh、JUDGE.md、gates.sh 或 audit-proposal.sh 之後，先跑回歸測試（不呼叫模型）：
 calls/vk26/selftest.sh
 
 # 看裁判實際收到的提示詞（由 JUDGE.md 組出）：

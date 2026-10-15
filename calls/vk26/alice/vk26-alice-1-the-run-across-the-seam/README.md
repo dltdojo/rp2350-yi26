@@ -372,7 +372,7 @@ Pasted from it — the theorems, the mutants, the six streams on the RTL:
 
 ```
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-13T16:11:02Z from commit 92c6418
+recorded at 2026-10-15T02:19:29Z from commit 4c212f0
 
 >>> the theorems, and what they rest on
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -405,7 +405,7 @@ start_run    the block takes the whole first word as the window's reference, not
 5354524d 00000002 00000000 00000000 00011057 00000004
 5354524d 00000003 00000001 00000001 0000441a 00000000
 5354524d 00000004 00000003 00000003 0000cc3c 00000002
-5354524d 00000005 00000004 00000004 0001104d 00000003 444f4e45 00000006 exit=0 
+5354524d 00000005 00000004 00000004 0001104d 00000003 444f4e45 00000006 exit=0
 ```
 
 and the phone's log, among 74 PASS, 0 FAIL and 0 SKIP:
