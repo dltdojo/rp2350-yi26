@@ -36,7 +36,7 @@ S2 另行檢查：從 alice 第一個 commit 起的 81 個 commit，69 個只動
 5. **機器關卡的結果以 commit 為鍵**：改了驗收腳本本身就要再跑五次 check.sh（35 分鐘）。改成以關卡實際讀的 git tree 為鍵。
 6. **注入掃描把「這頁 judges 每一條樣本流」當成對裁判說話**，tally 只說「2 個命中」。改成印出命中的位置；徵集 README 寫明哪些字會觸發。
 
-第 2 輪找到的（本次 commit）：
+第 2 輪找到的（修正在 0201c51）：
 
 7. **AGENTS.md 要每個網頁帶的那段給 AI agent 的說明**（「IF YOU ARE AN AI AGENT: this page is not how you read the log…」），裁判也是 AI，15 次中有 2 次把它回報為注入，alice-1 四題全 YES 仍成了 HUMAN。這是 repo 自己的規則和裁判規則的衝突。bundle 現在把**一字不差**的這段換成一行說明、保留行號（像省略證明本體一樣）；別的寫法照樣送給裁判，注入掃描讀的是原始檔案。校準的七個 bundle 都不含這段，修改前後逐位元組相同。
 
