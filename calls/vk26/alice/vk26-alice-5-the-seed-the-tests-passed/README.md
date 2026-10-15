@@ -448,4 +448,49 @@ Found while making this experiment, and recorded in
 
 ## Expected output
 
-CAPTURE
+[capture.txt](./capture.txt), recorded by `run.sh` from a clean commit.
+
+Pasted from it — the theorems, the mutants, NIST's vectors, the build, the
+first and last NIST cases and both chains on the RTL:
+
+```
+=== vk26-alice-5 — the seed the tests passed ===
+recorded at 2026-10-15T01:21:21Z from commit d5aed77
+
+>>> the theorems, and what they rest on
+'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seed.inst_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seed.chain' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+inst_run       Hash_df is told 432 bits, not 440 (00 00 01 b0)                                refused in inst_run
+inst_run       V's second hash is written over C, not after V's first                         refused in inst_run
+inst_run       C is Hash_df of 60 bytes, V's last left off                                    refused in inst_run
+inst_run       C's second hash has the counter 1 again                                        refused in inst_run
+inst_run       one word fewer of zeros: the number 1's field is not cleared                   refused in inst_run
+inst_run       the counter starts at 2                                                        refused in inst_run
+inst_run       the byte before V, which Generate's H needs, is 0x02                           refused in inst_run
+inst_run       the claim: one instruction fewer to the halt                                   refused in inst_run
+inst_run       the specification: C is Hash_df of V, the 0x00 before it left off              refused in inst_run
+chain          the specification: the seed material is the digest and 15 bytes of the nonce   refused in chain
+code_zero_iff  the claim: the chain goes on when the start-up window failed                   refused in code_zero_iff
+
+>>> seed.py, from SP 800-90A's text, against NIST's vectors
+120 of 120 NIST cases: the Instantiate kernel's region holds hashdrbg's V and C, and two Generates from it give NIST's ReturnedBits
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3
+build/vk26-alice-5.bin  49076 bytes, the build allows 65536
+build/vk26-alice-5.uf2  98304 bytes  sha256 a411ebbef2fd8a92e484e72eada821dc916b5d049cb469a9df1dd3e6e58c72bd
+
+>>> on the RTL, every NIST case: CASE i, then minstret mcycle of Instantiate and two Generates;
+>>> then each chain: CHN s code, alice-2's minstret mcycle, and with 0 Instantiate's and Generate's; then DONE cases
+43415345 00000000 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000001 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+...
+43415345 00000077 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43484e00 00000000 00000000 00008851 0005d2d3 00000105 00008fde 000010de 0000a6fd
+43484e00 00000001 00000002 00000033 00002d89
+444f4e45 00000078 exit=0
+```

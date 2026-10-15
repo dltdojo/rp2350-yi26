@@ -1,0 +1,252 @@
+=== vk26-alice-5 — the seed the tests passed ===
+recorded at 2026-10-15T01:21:21Z from commit d5aed77
+
+>>> the theorems, and what they rest on
+'Seed.inst_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seed.inst_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Seed.chain' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong kernels and wrong claims: each must be refused
+inst_run       Hash_df is told 432 bits, not 440 (00 00 01 b0)                                refused in inst_run
+inst_run       V's second hash is written over C, not after V's first                         refused in inst_run
+inst_run       C is Hash_df of 60 bytes, V's last left off                                    refused in inst_run
+inst_run       C's second hash has the counter 1 again                                        refused in inst_run
+inst_run       one word fewer of zeros: the number 1's field is not cleared                   refused in inst_run
+inst_run       the counter starts at 2                                                        refused in inst_run
+inst_run       the byte before V, which Generate's H needs, is 0x02                           refused in inst_run
+inst_run       the claim: one instruction fewer to the halt                                   refused in inst_run
+inst_run       the specification: C is Hash_df of V, the 0x00 before it left off              refused in inst_run
+chain          the specification: the seed material is the digest and 15 bytes of the nonce   refused in chain
+code_zero_iff  the claim: the chain goes on when the start-up window failed                   refused in code_zero_iff
+
+>>> seed.py, from SP 800-90A's text, against NIST's vectors
+120 of 120 NIST cases: the Instantiate kernel's region holds hashdrbg's V and C, and two Generates from it give NIST's ReturnedBits
+
+>>> the shell, for the chip and for the RTL
+build/expect.h: Instantiate d89e5fba3fed788e…, alice-2's a02eb99737e609aa…, alice-4's de65172659774701…, 120 NIST cases; RTL minstret Instantiate 260 (the proof's 241; 261 in the chain), Generate 4318, alice-2's 34897 17470 51 34885 for codes 0 to 3
+build/vk26-alice-5.bin  49076 bytes, the build allows 65536
+build/vk26-alice-5.uf2  98304 bytes  sha256 a411ebbef2fd8a92e484e72eada821dc916b5d049cb469a9df1dd3e6e58c72bd
+
+>>> on the RTL, every NIST case: CASE i, then minstret mcycle of Instantiate and two Generates;
+>>> then each chain: CHN s code, alice-2's minstret mcycle, and with 0 Instantiate's and Generate's; then DONE cases
+43415345 00000000 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000001 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000002 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000003 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000004 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000005 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000006 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000007 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000008 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000009 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000000a 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000000b 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000000c 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000000d 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000000e 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000000f 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000010 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000011 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000012 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000013 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000014 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000015 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000016 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000017 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000018 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000019 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000001a 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000001b 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000001c 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000001d 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000001e 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000001f 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000020 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000021 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000022 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000023 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000024 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000025 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000026 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000027 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000028 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000029 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000002a 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000002b 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000002c 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000002d 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000002e 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000002f 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000030 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000031 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000032 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000033 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000034 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000035 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000036 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000037 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000038 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000039 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000003a 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000003b 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000003c 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000003d 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000003e 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000003f 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000040 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000041 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000042 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000043 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000044 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000045 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000046 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000047 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000048 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000049 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000004a 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000004b 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000004c 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000004d 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000004e 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000004f 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000050 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000051 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000052 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000053 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000054 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000055 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000056 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000057 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000058 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000059 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000005a 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000005b 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000005c 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000005d 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000005e 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000005f 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000060 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000061 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000062 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000063 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000064 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000065 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000066 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000067 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000068 00000104 00008fde 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000069 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000006a 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000006b 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000006c 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000006d 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000006e 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 0000006f 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000070 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000071 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000072 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000073 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000074 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000075 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000076 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43415345 00000077 00000104 0000b67e 000010de 0000a6fd 000010de 0000a6fd
+43484e00 00000000 00000000 00008851 0005d2d3 00000105 00008fde 000010de 0000a6fd
+43484e00 00000001 00000002 00000033 00002d89
+444f4e45 00000078 exit=0 
+
+>>> the checks
+PASS  Seed.lean checks, with no errors and no warnings
+PASS  all 3 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  inst_run: the proof refuses a version where Hash_df is told 432 bits, not 440 (00 00 01 b0)
+PASS  inst_run: the proof refuses a version where V's second hash is written over C, not after V's first
+PASS  inst_run: the proof refuses a version where C is Hash_df of 60 bytes, V's last left off
+PASS  inst_run: the proof refuses a version where C's second hash has the counter 1 again
+PASS  inst_run: the proof refuses a version where one word fewer of zeros: the number 1's field is not cleared
+PASS  inst_run: the proof refuses a version where the counter starts at 2
+PASS  inst_run: the proof refuses a version where the byte before V, which Generate's H needs, is 0x02
+PASS  inst_run: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  inst_run: the proof refuses a version where the specification: C is Hash_df of V, the 0x00 before it left off
+PASS  chain: the proof refuses a version where the specification: the seed material is the digest and 15 bytes of the nonce
+PASS  code_zero_iff: the proof refuses a version where the claim: the chain goes on when the start-up window failed
+PASS  seed.py's Instantiate, then two Generates, give NIST's ReturnedBits for all 120 cases
+PASS  the shell builds for the chip and for the RTL, the chip's in 49076 of the 65536 bytes it may use
+PASS  kernel.bin is what proof/Seed.lean writes, 244 bytes, and kernel.sha256 is its hash; alice-2's and alice-4's, as alice's package writes them, are their committed kernel.bin
+PASS  all 120 NIST cases, on the model and on the RTL: the Instantiate kernel's region seed.py's, the model after 241 instructions, then vk26-alice-4's Generate twice from it, the second's 1024 bits NIST's ReturnedBits
+PASS  fair, nonce 0: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  stuck at 1 from the start, nonce 1: the model and the RTL stop with alice-2's halt 1, nothing after it
+PASS  21 alike in the start-up window, nonce 2: the model and the RTL stop with alice-2's halt 1, nothing after it
+PASS  20 alike in the start-up window, nonce 3: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  seam 11+10, nonce 4: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  seam 10+10, nonce 5: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  seam 20+1, nonce 6: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  589 of window 1, nonce 7: the model and the RTL stop with alice-2's halt 1, nothing after it
+PASS  589 of window 2, nonce 8: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  588 of window 2, nonce 9: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  nine ones then a zero, window 2, nonce 10: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  random 1, nonce 11: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  random 2, nonce 12: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  noise above bit 0, nonce 13: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  fair, a KAT the hash fails (first bit flipped): the model and the RTL stop with alice-2's halt 2, nothing after it
+PASS  fair, a KAT the hash fails (last bit flipped): the model and the RTL stop with alice-2's halt 2, nothing after it
+PASS  fair, a KAT the hash fails (all zeros): the model and the RTL stop with alice-2's halt 2, nothing after it
+PASS  all 192 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 64 KiB of flash, 0x10000000..0x10010000
+PASS  together they are exactly the 49076-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: a411ebbef2fd8a92…
+the RTL: 120 NIST cases at 260 4318 4318; chain 0 code 0 at 34897 261 4318; chain 1, the KAT spoiled, code 2 at 51
+PASS  on the RTL the shell runs all 120 NIST cases, each its state seed.py's and its bits NIST's, then the chain from the stand-in TRNG through all three kernels, then the chain with the KAT spoiled, stopped at the first with 2
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's minstrets, block count and KAT message are expect.h's
+PASS  two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; each round's chain gave bits, its spoiled one stopped at the KAT; each run one mcycle
+PASS  one bit of V after a NIST case's Instantiate: the page says it is V
+PASS  one bit of the second Generate's block 2: the page says which block
+PASS  the seed material sent one byte short, V and C NIST's: the page instantiates what it was sent, and it is not those
+PASS  the Instantiate kernel's minstret one more than the RTL's: caught
+PASS  the chain digesting the start-up window, and the rest made from that: the digest named, and V and C, which the page makes from its own digest
+PASS  one bit of the digest flipped on the way, V, C and the bits right: caught at the digest, and only there
+PASS  Instantiate on the digest without the nonce: V, C and the bits not this page's
+PASS  one bit of C in the chain: caught
+PASS  one bit of the chain's block 3: the page says which block
+PASS  the chain's Instantiate counted as it is alone, 260: the RTL counts 261 there, and the page holds it to that
+PASS  the spoiled chain going on to bits: a kernel that never asked the KAT is caught
+PASS  the KAT answered wrong with nothing spoiling it: the chain is right to stop, and the page says the board is not
+PASS  the TRNG stuck at 1, then a run of 21 across the seam: both chains stopped by the tests, with 1 and 3, nothing wrong
+PASS  a BLOCK line and a BITS line lost: that case and that chain incomplete, nothing called wrong
+PASS  joined mid-case: the first case incomplete, every one after it right
+PASS  one Generate taking 30 cycles more: nothing wrong, and the page says the cycles differ
+PASS  the tests catch a page where Hash_df asks for 432 bits, not 440: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where C is Hash_df of V, the 0x00 before it left out: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where the second Generate starts from Instantiate's V again: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where a NIST case's blocks are not compared: one bit of the second Generate's block 2: the page says which block — cases 12 ok 12 wrong 0 incomplete 0; c
+PASS  the tests catch a page where the nonce is the next round's: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where the digest is of the start-up window: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where the shell's spoiling is not allowed for: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where a failed second window lets the chain go on: the TRNG stuck at 1, then a run of 21 across the seam: both chains stopped by the tests, with 1 and 3, nothing
+PASS  the tests catch a page where the chain's Instantiate is held to its minstret alone: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where an output from a stopped chain is not refused: the spoiled chain going on to bits: a kernel that never asked the KAT is caught — cases 12 ok 12 wrong 0 inc
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "240 of 240 NIST cases right"
+PASS  good.txt: the table shows the last round's 2 streams, and no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (255321 characters)
+PASS  good.txt: Save downloads the same text as a file, vk26-alice-5-<time>.txt, and says how long it is
+PASS  stopped.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  stopped.txt: the verdict line says "4 of 4 chains right"
+PASS  stopped.txt: the table shows the last round's 2 streams, and no script error
+PASS  stopped.txt: Copy puts the verdict and every line received on the clipboard (8394 characters)
+PASS  stopped.txt: Save downloads the same text as a file, vk26-alice-5-<time>.txt, and says how long it is
+PASS  cblock.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  cblock.txt: the verdict line says "first wrong: round 0, chain 0"
+PASS  cblock.txt: the table shows the last round's 2 streams, and no script error
+PASS  cblock.txt: Copy puts the verdict and every line received on the clipboard (15562 characters)
+PASS  cblock.txt: Save downloads the same text as a file, vk26-alice-5-<time>.txt, and says how long it is
+SKIP  checking a phone's log: none recorded yet (board/*.txt)
+PASS  the shell catches a version where kernel.sha256 is not the Instantiate kernel's hash — check 1
+PASS  the shell catches a version where HASHB is answered one byte short — check 4, the state after Instantiate
+PASS  the shell catches a version where the seed material's length is given one long — check 4
+PASS  the shell catches a version where alice-4's kernel is never put in: Instantiate runs again — check 3
+PASS  the shell catches a version where the chip is asked to count one more instruction for a Generate — check 3
+PASS  the shell catches a version where the second chain's KAT is not spoiled after all — check 2
+PASS  the shell catches a version where the shell itself traps in step 2 — a fault, not a check
