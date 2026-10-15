@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: NO
+evidence: proof/Fly.lean:578, README.md:11, README.md:68
+reason: `watches_life` is the theorem behind the headline claim that the kernel shown Rule 30 reports up at least down at every step and in total. As the bundle shows it, its conclusion is `True`, so nothing about the kernel's output is proved. The README claims more than that at lines 11-12 and 68-70. (`README.md:99-101` also lists additions to `lean/Rv32/Flow.lean`, `Limbs.lean` and `Blocks.lean`, which are not in the bundle.)
+J2: NO
+evidence: proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, README.md:68, README.md:69, WHY.zh-TW.md:39
+reason: `detects` and `detects_boot` are of `from_boot` form and match T1, and T2 and T3 match their descriptions, but `watches_life` has the conclusion `True` (Fly.lean:578), so it says nothing about the kernel's run. The README and WHY claim it proves the kernel reports up at least down at every one of the 256 steps and in total.
+J3: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:496, proof/Fly.lean:130
+reason: No prior experiment has a Hassenstein–Reichardt motion-detector kernel. It adds the proved T1 count of 70924 instructions, the new Rule 30 property T3 (`life_moves_up`), and T2 with its four aliasing exceptions.
+J4: YES
+evidence: fly.py:13, fly.py:30-39, ../exp225-the-life-every-beat-proved/rule30.py:19-24
+reason: `fly.py` takes its counts with `bin().count` and its Rule 30 from `rule30.py`, which works cell by cell. The Lean spec and kernel use bit operations and a 32-round bit loop. The one overlap is that the rotation formula in `fly.py` is the same shifts-and-OR as the kernel's, which the docstring at `fly.py:13-14` states as "written with rotations" and "neither is the kernel's formula of shifts".
+INJECTION: NONE
+END

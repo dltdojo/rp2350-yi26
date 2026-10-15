@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Life.lean:288, proof/Life.lean:294, proof/Life.lean:98, proof/Life.lean:309, proof/mutants.txt:5, capture.txt:77, capture.txt:78, capture.txt:85, shell/shell.c:75, shell/shell.c:82, shell/shell.c:87, README.md:139, README.md:144
+reason: The proved claims match `lives` (3079, halt 0, memory), `not_before`, `rule30` and `from_boot`, and the 11 refused mutants are listed in mutants.txt. The differential and RTL numbers (20 seeds, 3079, 3082) match the capture. The board claim rests on a recorded observation that names the UF2 SHA-256 (matching the capture), the board and how it was run. The conclusion that all four checks held follows from shell.c, where each failing check calls the noreturn `board_fail` before `board_play`. The README says plainly what was not recorded and does not claim a board log.
+J2: YES
+evidence: proof/Life.lean:309, proof/Life.lean:310, proof/Life.lean:311, proof/Life.lean:312, proof/Life.lean:313, proof/Life.lean:288, proof/Life.lean:289, proof/Life.lean:294, proof/Life.lean:295, proof/Life.lean:98, proof/Life.lean:99, proof/Life.lean:84, proof/Life.lean:87, proof/Life.lean:91, proof/Life.lean:92, README.md:51, README.md:52, README.md:53, README.md:54
+reason: `from_boot` is of `from_boot` form. It covers any image whose first 76 bytes are the kernel's bytes, run from `boot`, still running at 3078, halted with 0 at 3079, and with memory equal to `lived`. `lived` overlays exactly 4·256 bytes from 0x200 with generations 1 to 256 of `life`, taken from the seed word read at 0x100 of arbitrary memory, which matches "any seed" and "nothing else". `lives`, `not_before` and `rule30` state what the README table says, with left = (i+1)%32 and right = (i+31)%32; the only extra hypothesis, `Placed`, is the region-fit condition the docstring names.
+J3: YES
+evidence: proof/Life.lean:76, proof/Life.lean:98, proof/Life.lean:288, README.md:5
+reason: A new kernel: Rule 30 over 256 generations in 19 instructions. It comes with new theorems (`rule30`, `lives`, `not_before`, `from_boot`) and a first-life check on a board. None of the prior-work entries mentions a cellular automaton or an LED-played life.
+J4: YES
+evidence: rule30.py:19, rule30.py:22, proof/Life.lean:76, differential/differential.py:50
+reason: `rule30.py` computes Rule 30 cell by cell with per-bit extraction and a loop, while the Lean `life` is a whole-word shift-and-or formula. The README states this difference, and the code bears it out. The differential compares both the model and the RTL against the Python history.
+INJECTION: NONE
+END

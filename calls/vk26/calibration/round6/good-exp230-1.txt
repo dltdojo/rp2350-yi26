@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Fly.lean:496, proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:576, capture.txt:26, capture.txt:27, capture.txt:30, capture.txt:40
+reason: The headline claims are each backed. T1, T2, T3 and `watches_life` are theorems in `Fly.lean` with the axiom check passing. The 2^32 brute-force count, the 4 period-two rings, the 2053/1030 totals, and 70927 instructions retired / 71697 cycles on the RTL all appear in the capture. The WHY note that the 2^32 count was done in C, and the README's remarks about library moves, are not shown in the bundle. They describe method and history rather than results, so I did not count them as unsupported claims.
+J2: YES
+evidence: proof/Fly.lean:556, proof/Fly.lean:557, proof/Fly.lean:558, proof/Fly.lean:559, proof/Fly.lean:484, proof/Fly.lean:485, proof/Fly.lean:486, proof/Fly.lean:487, proof/Fly.lean:488, proof/Fly.lean:489, proof/Fly.lean:495, proof/Fly.lean:496, proof/Fly.lean:130, proof/Fly.lean:153, proof/Fly.lean:115, proof/Fly.lean:576, proof/Fly.lean:577, proof/Fly.lean:578, proof/Fly.lean:579, proof/Fly.lean:580, proof/Fly.lean:589, proof/Fly.lean:590, proof/Fly.lean:591, proof/Fly.lean:592, proof/Fly.lean:593, README.md:54, README.md:58, README.md:59, README.md:60, README.md:63, README.md:68, README.md:69, README.md:70, README.md:71
+reason: `detects_boot` is of from_boot form. It starts from `boot env.region img` for any image that begins with the kernel's bytes, is running after 70923 steps, halts with 0 at 70924, and its `Sees` conclusion gives every step's toUp/toDn, both totals and the unchanged frames, with no constraint on the frames. That matches README T1. T2 (`shift_up`/`shift_dn`, with only the period-two exclusion the README names), T3 (`life_moves_up`, for all x) and `watches_life`/`watches_shift` (per-step and total, with hypotheses matching "generations of Rule 30" and "none of period two") also state what the README says.
+J3: YES
+evidence: proof/Fly.lean:115, proof/Fly.lean:130, proof/Fly.lean:496
+reason: It adds a new 41-instruction motion-detector kernel with its exact-count theorem (`detects`). It also proves new properties about it: T3, that the fly never sees Rule 30 move down, and T2, the aliasing exception with exactly four rings. None of the prior experiments contain these.
+J4: YES
+evidence: fly.py:30, fly.py:38, ../exp225-the-life-every-beat-proved/rule30.py:19, ../exp225-the-life-every-beat-proved/rule30.py:22
+reason: The reference counts bits with Python's `bin().count` on integer rotations, and writes Rule 30 cell by cell with modular indexing. The Lean spec uses `pc`, `up1`/`dn1` and bitwise `life`, and the kernel uses shift/loop forms. The reference is not a transcription of either, and the README states the difference.
+INJECTION: NONE
+END
