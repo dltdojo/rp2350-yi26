@@ -224,9 +224,11 @@ held to what the model accepts (`tools/hazard3/harness/hashcall.h`).
 - **On the chip** it goes to the RP2350's SHA-256 block.
   `tools/hazard3/shell/sha_hw.h` takes only whole 64-byte blocks from a
   word-aligned address, and HASHB's inputs are 55 and 56 bytes, the second
-  from 0x43f. So `board_chip.c` gathers the bytes into words itself and
-  pads them itself: 0x80, zeros to 56 bytes into a block, the length in
-  bits.
+  from 0x43f. So the shell gathers the bytes into words itself and pads
+  them itself: 0x80, zeros to 56 bytes into a block, the length in bits.
+  This was `board_chip.c`'s; since vk26-alice-5 needed it too it is alice's,
+  [`../shell/hashb_chip.h`](../shell/hashb_chip.h), and the UF2 is byte for
+  byte the same.
 - **On the RTL** it goes to `tools/hazard3/harness/sha256.c`.
 
 The checks, numbered as the LED counts them:
@@ -415,9 +417,10 @@ Found while making this experiment, and recorded in
 - **The SHA-256 block's helper takes whole blocks only.** `sha_hw.h` hashes
   multiples of 64 bytes from word-aligned addresses: HASH's rule, not
   HASHB's. exp228 answered HASHB in software on the chip. Here the padding
-  for any length is in alice-4's own `board_chip.c`, as `trng_raw.h` was
-  for alice-3, because S2 keeps `tools/` closed. If a second proposal needs
-  it, it belongs beside `sha_hw.h`.
+  for any length is alice's own (`../shell/hashb_chip.h`, first in this
+  experiment's `board_chip.c`), as `trng_raw.h` was for alice-3, because S2
+  keeps `tools/` closed. If a second proposal needs it, it belongs beside
+  `sha_hw.h`.
 - **The big-endian lemmas live in this experiment's proof**, not in
   `alice/lean/` as the plan said. Nothing else uses them yet. The second
   caller is where they move, and vk26-alice-5's Hash_df will be one.

@@ -102,4 +102,4 @@ RTL 上 120 組全部通過：每次 Generate 4318 條指令，每次拒絕 11 �
 
 - **NIST 的向量拿得到**：討論結果第 4 點的疑問解決了。
 - **Ct.lean 問不了這種 kernel**：只認得 HASH 和 HALT、不接受 `jal`/`jalr`。檢查器在 `lean/`，S2 不讓提案修改，所以只記錄，不改。
-- **SHA-256 硬體區塊的共用程式只接受整塊**：任意長度的補位放在 alice-4 自己的 `board_chip.c`，和 alice-3 的 `trng_raw.h` 一樣，是 S2 讓 `tools/` 不能改的結果。若第二份提案也需要，它應該搬到 `sha_hw.h` 旁邊。
+- **SHA-256 硬體區塊的共用程式只接受整塊**：任意長度的補位放在 alice 自己的 `shell/hashb_chip.h`（最初寫在 alice-4 的 `board_chip.c`，alice-5 也用到後才抽出），和 alice-3 的 `trng_raw.h` 一樣，是 S2 讓 `tools/` 不能改的結果。若第二份提案也需要，它應該搬到 `sha_hw.h` 旁邊。
