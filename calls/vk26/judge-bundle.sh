@@ -345,7 +345,13 @@ def files_of(exp, question=None):
             if not rel.endswith(".py"):
                 continue
             src = open(os.path.join(exp, rel), encoding="utf-8", errors="replace").read()
-            for sib in re.findall(r'os\.path\.join\(HERE,\s*"\.\.",\s*(?:"\.\.",\s*)?"([^"]+)"\)', src):
+            # A sibling directory the module puts on its path: `HERE` or
+            # the file's own directory spelled out, then "..", the name.
+            # vk26-alice-4's drbg.py re-exports ../tools/hashdrbg.py, the
+            # reference itself, by the second form; until round 3 of its
+            # audit J4 judged a re-export it could not see behind.
+            for sib in re.findall(r'os\.path\.join\((?:HERE|os\.path\.dirname\(os\.path\.abspath\(__file__\)\)),'
+                                  r'\s*"\.\.",\s*(?:"\.\.",\s*)?"([^"]+)"\)', src):
                 for mod in re.findall(r"^\s*(?:from\s+(\w+)\s+import|import\s+(\w+))", src, re.M):
                     name = mod[0] or mod[1]
                     for base in (os.path.join(exp, "..", sib), os.path.join(exp, "..", "..", sib)):

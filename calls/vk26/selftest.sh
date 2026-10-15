@@ -211,6 +211,15 @@ lacks "  … nor one outside the proposer's directory" "$WORK/sprop-j1.txt" "===
 "$JB" slice "$WORK/prop/e1" J2 > "$WORK/sprop-j2.txt"
 lacks "  … and not in the J2 slice" "$WORK/sprop-j2.txt" "=== BEGIN seam.html"
 
+# A reference that re-exports the proposer's shared module, its directory
+# spelled out rather than through HERE (vk26-alice-4's drbg.py): the module
+# is what J4 reads.
+mkdir -p "$WORK/prop/tools"
+printf 'import os\nimport sys\nsys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))\nfrom shared import step  # noqa\n' > "$WORK/prop/e1/ref.py"
+printf 'def step(x):\n    return x + 1\n' > "$WORK/prop/tools/shared.py"
+"$JB" slice "$WORK/prop/e1" J4 > "$WORK/sprop-j4.txt"
+has "a module the reference imports from the proposer's tools/ is in the J4 slice" "$WORK/sprop-j4.txt" "=== BEGIN ../tools/shared.py"
+
 # A proposer's package goes in as far as the proof imports it, and only into
 # the slices that read Lean: alice's package held five modules, vk26-alice-3
 # imports none, and every slice of every alice experiment carried all five.
