@@ -80,7 +80,7 @@ written cell by cell: none is seen moving down, 4,870,848 are seen not moving.
 
 `proof/mutants.txt` holds seven wrong versions, each refused: a bit loop of 31
 rounds, a shift where the rotation should be, the down total adding the up
-count, the rule mirrored (Rule 86, which the fly sees moving down), T3 claimed
+count, the rule mirrored (Rule 86, Rule 30's mirror image), T3 claimed
 strictly, T2 claimed for the period-two stripes, and a count one short.
 
 ## What the experiment found
