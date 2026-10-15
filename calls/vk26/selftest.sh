@@ -176,6 +176,15 @@ cite_case viewer "b225.txt:120"
 (( n_readme > n_rule30 + 1 )) && { "$JB" tally "$WORK/b225.txt" "$WORK/cite-wrongfile.txt" > "$WORK/t2.txt"; has "  … refuses rule30.py:$(( n_rule30 + 1 )), a number README.md has but rule30.py does not" "$WORK/t2.txt" "not in the bundle"; }
 "$JB" tally "$WORK/b225.txt" "$WORK/cite-nofile.txt" > "$WORK/t3.txt"; has "  … refuses a file the bundle does not hold" "$WORK/t3.txt" "not in the bundle"
 "$JB" tally "$WORK/b225.txt" "$WORK/cite-viewer.txt" > "$WORK/t4.txt"; has "  … refuses the bundle's own line numbers" "$WORK/t4.txt" "not in the bundle"
+# A path that names a linked file with one `../` too many is that file, when
+# only one file fits (calibration round 5); one that fits none is refused.
+cite_234() { # name J1-evidence
+    printf 'VERDICT vk26\nJ1: YES\nevidence: %s\nreason: t\nJ2: YES\nevidence: README.md:1\nreason: t\nJ3: YES\nevidence: README.md:2\nreason: t\nJ4: YES\nevidence: README.md:3\nreason: t\nINJECTION: NONE\nEND\n' "$2" > "$WORK/cite-$1.txt"
+}
+cite_234 extra "../../exp232-the-cure-the-proof-predicts/capture.txt:1"
+cite_234 stranger "../../exp999-nothing/capture.txt:1"
+"$JB" tally "$WORK/b234.txt" "$WORK/cite-extra.txt" > "$WORK/t6.txt" && pass "  … accepts a linked capture cited with one \`../\` too many" || fail "  … accepts a linked capture cited with one \`../\` too many" "$(grep -m1 cites "$WORK/t6.txt")"
+"$JB" tally "$WORK/b234.txt" "$WORK/cite-stranger.txt" > "$WORK/t7.txt"; has "  … but not a path that fits no file" "$WORK/t7.txt" "not in the bundle"
 
 # Everything the judge reads is scanned for text addressed to it, the
 # differential included now that J1 reads it.
@@ -557,10 +566,12 @@ fresh_sent
 # A verdict answers the bundle it was given: a README changed after it sets it
 # aside, and that run is judged again; a bundle unchanged but for its commit
 # line keeps its verdicts (the third start above called no model).
-echo "a sentence added after the verdicts" >> "$WORK/prop/zz/vk26-zz-4-life/README.md"
+# One that was not sampled, so one run: which one is sampled is random.
+other=vk26-zz-4-life; [[ "$target" == "$other" ]] && other=vk26-zz-5-life
+echo "a sentence added after the verdicts" >> "$WORK/prop/zz/$other/README.md"
 fresh_sent
 "$AUD" "$WORK/prop/zz" "$O" > "$WORK/a5.txt" 2>&1; rc=$?
-[[ $rc == 0 && $(sent) == 2 ]] && ls "$O"/vk26-zz-4-life-1.txt.stale-* > /dev/null 2>&1 \
+[[ $rc == 0 && $(sent) == 2 ]] && ls "$O"/"$other"-1.txt.stale-* > /dev/null 2>&1 \
     && pass "a bundle that changed since its verdict: the verdict is set aside and that one run judged again (2 sessions)" \
     || fail "stale verdicts: exit $rc, $(sent) sessions" "$(grep -m2 'bundle changed\|OVERALL' "$WORK/a5.txt")"
 
@@ -675,7 +686,7 @@ fresh_sent
 STUB_FAIL=opus VK26_JOBS=1 "$RUN" A "$C" > "$WORK/r1.txt" 2>&1; rc=$?
 [[ $rc == 2 && $(sent) == 2 ]] && pass "stage A stops at the first 429: 1 run, 2 sessions, exit 2" || fail "stage A after a 429" "exit $rc, $(sent) sessions"
 has "  … the failed run is moved aside" "$WORK/r1.txt" "good-exp225-1.txt.failed"
-has "  … the stage says it stopped short" "$WORK/r1.txt" "STOPPED: 7 of 7 run(s) have no verdict"
+has "  … the stage says it stopped short" "$WORK/r1.txt" "STOPPED: 9 of 9 run(s) have no verdict"
 has "  … a case with no run is named, not tallied" "$WORK/r1.txt" "== narrowed: 0 of 1 run(s), not tallied"
 has "  … the usage so far is reported" "$WORK/r1.txt" "TOTAL: 2 session(s)"
 
@@ -688,8 +699,8 @@ has "  … usage counts the failed attempt too" "$WORK/r2.txt" "TOTAL: 4 session
 
 fresh_sent
 "$RUN" A "$C" > "$WORK/r3.txt" 2>&1; rc=$?
-[[ $rc == 0 && $(sent) == 12 ]] && pass "stage A started again runs only the 6 runs left: 12 sessions" || fail "stage A resumed" "exit $rc, $(sent) sessions"
-[[ $(grep -c "^OVERALL" "$WORK/r3.txt") == 7 ]] && pass "  … and tallies all seven cases" || fail "  … not all seven tallied"
+[[ $rc == 0 && $(sent) == 16 ]] && pass "stage A started again runs only the 8 runs left: 16 sessions" || fail "stage A resumed" "exit $rc, $(sent) sessions"
+[[ $(grep -c "^OVERALL" "$WORK/r3.txt") == 9 ]] && pass "  … and tallies all nine cases" || fail "  … not all nine tallied"
 
 fresh_sent
 STUB_FAIL=opus "$RUN" B "$C" > /dev/null 2>&1; rc=$?

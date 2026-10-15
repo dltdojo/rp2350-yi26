@@ -656,6 +656,26 @@ def bundle_cites(text):
     return cites
 
 
+def bare(path):
+    """A path without its leading `./` and `../` steps."""
+    return re.sub(r"^(?:\.\.?/)+", "", path)
+
+
+def resolve_cite(ref, cites):
+    """A citation as the bundle has it. One whose path differs from a bundle
+    file's only in its leading `../` steps is that file, when exactly one
+    file is: in calibration round 5 a judge wrote
+    `../../vk26-alice-5-…/capture.txt:28` for the bundle's
+    `../vk26-alice-5-…/capture.txt`, the right file and line, and the answer
+    was thrown out. A path that matches no file, or more than one, stays as
+    written and is refused."""
+    if ref in cites:
+        return ref
+    path, line = ref.rsplit(":", 1)
+    hits = {c.rsplit(":", 1)[0] for c in cites if bare(c.rsplit(":", 1)[0]) == bare(path)}
+    return f"{hits.pop()}:{line}" if len(hits) == 1 else ref
+
+
 def tally(bundle_path, verdicts):
     text = open(bundle_path, encoding="utf-8").read()
     cites = bundle_cites(text)
@@ -677,7 +697,7 @@ def tally(bundle_path, verdicts):
                 table[q].append(("INVALID", f"{os.path.basename(v)}: {q} not in the form asked"))
                 continue
             ans, ev, why = qm.group(1), qm.group(2), qm.group(3).strip()
-            refs = re.findall(r"[^\s,]+:\d+", ev)
+            refs = [resolve_cite(r, cites) for r in re.findall(r"[^\s,]+:\d+", ev)]
             bad = [r for r in refs if r not in cites]
             if not refs:
                 table[q].append(("INVALID", f"{os.path.basename(v)}: {q} {ans} cites nothing"))
