@@ -13,6 +13,8 @@ chain, is the second to need it.
   image(kernel, words, want)
                      the region's image: the kernel, the KAT message and its
                      expected digest, the samples
+  trust_streams()    named streams of 2048 samples, each test's edges
+  bad_wants()        expected digests the KAT must refuse
 
 A sample is the word the shell writes; the tests see its bit 0.
 """
@@ -68,3 +70,61 @@ def image(kernel, words, want=None):
     img[KAT_WANT:KAT_WANT + 32] = kat_want() if want is None else want
     img[SAMPLES:OUTPUT] = struct.pack(f"<{N * WINDOWS}I", *words)
     return bytes(img)
+
+
+def trust_streams():
+    """Named streams of 2048 words: the start-up window, then the one whose
+    digest is the output."""
+    rng = random.Random(0xA11CE2)
+
+    def run_at(start, bit, n):
+        out = fair(rng, WINDOWS * N)
+        out[start:start + n] = [bit] * n
+        if start > 0:
+            out[start - 1] = 1 - bit
+        if start + n < WINDOWS * N:
+            out[start + n] = 1 - bit
+        return out
+
+    s = {}
+    s["fair"] = fair(rng, WINDOWS * N)
+    # The start-up test fails: nothing after it, the output never computed.
+    s["stuck at 1 from the start"] = [1] * N + fair(rng, N)
+    s["21 alike in the start-up window"] = run_at(300, 0, 21)
+    s["20 alike in the start-up window"] = run_at(300, 0, 20)
+    # The run across the edge between the window discarded and the one used.
+    s["seam 11+10"] = run_at(N - 11, 1, 21)
+    s["seam 10+10"] = run_at(N - 10, 1, 20)
+    s["seam 20+1"] = run_at(N - 20, 0, 21)
+    # The adaptive proportion test, in each window.
+    for w, k in ((0, 589), (1, 589), (1, 588)):
+        out = fair(rng, WINDOWS * N)
+        win = [1] * k + [0] * (N - k)
+        rng2 = random.Random(k + 7 * w)
+        while True:
+            rng2.shuffle(win)
+            if win[0] == 1 and longest(win) < 21:
+                break
+        out[w * N:(w + 1) * N] = win
+        if w == 1 and out[N - 1] == out[N]:
+            out[N - 1] = 1 - out[N]
+        if w == 0 and out[N] == out[N - 1]:
+            out[N] = 1 - out[N - 1]
+        s[f"{k} of window {w + 1}"] = out
+    s["nine ones then a zero, window 2"] = fair(rng, N - 1) + [0] + (([1] * 9 + [0]) * (N // 10 + 1))[:N]
+    for k in range(2):
+        r = random.Random(2000 + k)
+        s[f"random {k + 1}"] = [r.getrandbits(32) for _ in range(WINDOWS * N)]
+    s["noise above bit 0"] = [b | (rng.getrandbits(31) << 1) for b in fair(rng, WINDOWS * N)]
+    for name, words in s.items():
+        assert len(words) == WINDOWS * N, name
+    return s
+
+
+def bad_wants():
+    """Expected digests the KAT must refuse: one bit of the right one flipped,
+    in its first and its last byte, and all zeros."""
+    w = kat_want()
+    return {"first bit flipped": bytes([w[0] ^ 1]) + w[1:],
+            "last bit flipped": w[:31] + bytes([w[31] ^ 0x80]),
+            "all zeros": bytes(32)}
