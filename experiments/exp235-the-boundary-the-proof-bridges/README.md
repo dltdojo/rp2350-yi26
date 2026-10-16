@@ -120,13 +120,15 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp235 — the boundary the proof bridges ===
-recorded at 2026-10-16T00:59:19Z from commit ef2588c
+recorded at 2026-10-16T01:04:45Z from commit b363245
 
 >>> the theorems, and what they rest on
 'Exp235.pmp_napot_readback' depends on axioms: [propext, Quot.sound]
 'Exp235.pmp_umode_default_deny' depends on axioms: [propext, Quot.sound]
 'Exp235.priv_umode_zicsr_traps' depends on axioms: [propext, Quot.sound]
 'Exp235.priv_umode_mret_traps' depends on axioms: [propext, Quot.sound]
+'Exp235.priv_zicsr_unimplemented_traps' depends on axioms: [propext, Quot.sound]
+'Exp235.priv_zicsr_readonly_write_traps' depends on axioms: [propext, Quot.sound]
 'Exp235.priv_mcountinhibit_mcycle' depends on axioms: [propext]
 'Exp235.priv_mcountinhibit_minstret' depends on axioms: [propext]
 'Exp235.priv_minstret_step' depends on axioms: [propext]
@@ -153,6 +155,8 @@ off_entry_matches           the model lets a PMP entry that is OFF match every a
 minstret_counted_twice      the model counts two instructions per step in minstret                      refused in bumpCounters_minstret_step
 step_drops_core_update      a safe step leaves the Tier 1 core as it was                                refused in PrivMachine.step_eq_of_safe
 step_escalates_to_mmode     a safe step leaves the machine in M-mode                                    refused in PrivMachine.step_eq_of_safe
+unimplemented_csr_accepted  the model lets an M-mode access to a CSR it does not have go through        refused in csrIllegal_of_unimplemented
+readonly_csr_written        the model lets an M-mode write to a read-only CSR go through                refused in csrIllegal_of_readonly_write
 
 >>> Python test vectors for Hazard3 NAPOT boundary logic
 PASS  NAPOT encoding/decoding verified across 8 window sizes
@@ -163,7 +167,7 @@ PASS  the Lean model agrees on all 1210 vectors (NAPOT range and U-mode load che
 PASS  no lifeline, and it says why: no firmware of its own
 PASS  lean/Rv32/Machine.lean is byte-for-byte what it was at 70ca711, before the privileged model (0 lines modified)
 PASS  Bridge.lean checks, with no errors and no warnings
-PASS  all 16 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 18 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  napot_readback_zero: the proof refuses a version where NAPOT readback claims bits [1:0] read as 00b instead of 11b
 PASS  default_deny_inverted: the proof refuses a version where default-deny claims U-mode access is granted when all PMP entries are OFF
 PASS  pmp_bounds_inverted: the proof refuses a version where PMP UBoxed equivalence claims out-of-bounds addresses are accepted
@@ -175,6 +179,8 @@ PASS  off_entry_matches: the proof refuses a version where the model lets a PMP 
 PASS  minstret_counted_twice: the proof refuses a version where the model counts two instructions per step in minstret
 PASS  step_drops_core_update: the proof refuses a version where a safe step leaves the Tier 1 core as it was
 PASS  step_escalates_to_mmode: the proof refuses a version where a safe step leaves the machine in M-mode
+PASS  unimplemented_csr_accepted: the proof refuses a version where the model lets an M-mode access to a CSR it does not have go through
+PASS  readonly_csr_written: the proof refuses a version where the model lets an M-mode write to a read-only CSR go through
 PASS  NAPOT encoding/decoding verified across 8 window sizes
 PASS  PMP boundary containment and partial match cases verified
 PASS  the Lean model agrees on all 1210 vectors (NAPOT range and U-mode load check)
