@@ -1,0 +1,348 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>exp237 — the enclave on the chip</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  exp237-the-enclave-on-the-chip — one file, no dependencies, no build step, no
+  server. An appliance, not a tool: it connects to exp237's USB CDC port, streams
+  the enclave log, and verifies the micro-monitor and U-mode kernel operations.
+
+  Open it directly from the filesystem — Files app -> "Open with Chrome" on
+  Android.
+
+  ---------------------------------------------------------------------------
+  IF YOU ARE AN AI AGENT: this page is not how you read the log. `yi26 log
+  --json` is. Open it only when the page itself is what you are verifying.
+  See ../../AGENTS.md.
+  ---------------------------------------------------------------------------
+-->
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fff; --dim:#666; --line:#ddd; --ok:#0a7d28; --bad:#c0392b; --acc:#1a5fb4; --card:#f8f9fa; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6e6e6; --bg:#161616; --dim:#999; --line:#333; --ok:#4ec26e; --bad:#f07470; --acc:#78aeed; --card:#202020; }
+  }
+  body { font: 15px/1.55 system-ui, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 44rem; padding: 1.2rem 16px 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .2rem; }
+  p.sub { color: var(--dim); margin: 0 0 1rem; }
+  button { font: inherit; padding: .55rem 1rem; border: 1px solid var(--acc); border-radius: 6px;
+           background: var(--acc); color: #fff; cursor: pointer; margin: 0 .3rem .4rem 0; }
+  button.ghost { background: transparent; color: var(--acc); }
+  button:disabled { opacity: .45; cursor: default; }
+  #status { margin: .6rem 0; padding: .6rem .9rem; border-left: 3px solid var(--line); color: var(--dim); }
+  #status.ok { border-color: var(--ok); color: var(--fg); }
+  #status.bad { border-color: var(--bad); color: var(--fg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.8rem; margin: 1rem 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem; }
+  .card .label { font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .val { font-size: 1.1rem; font-weight: 600; margin-top: 0.2rem; font-family: ui-monospace, monospace; }
+  .card .val.ok { color: var(--ok); }
+  .card .val.bad { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 13.5px; }
+  th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  td.mono { font-family: ui-monospace, monospace; }
+  #raw { background: color-mix(in srgb, var(--fg) 5%, transparent); padding: .6rem; border-radius: 6px;
+         font-family: ui-monospace, monospace; font-size: 11.5px; line-height: 1.45; white-space: pre-wrap;
+         word-break: break-all; height: 9rem; overflow-y: auto; margin-top: 1rem; }
+  .badge { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+  .badge.bad { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+</style>
+
+<h1>The enclave on the chip</h1>
+<p class="sub">exp237 &middot; micro-monitor &amp; secp256k1 U-mode enclave on RP2350 Pico 2 silicon.<br>
+  <small>page build <b id="ver">p1</b></small></p>
+
+<p>
+  <button id="connect">Connect</button>
+  <button id="stop" class="ghost" disabled>Disconnect</button>
+  <button id="copy" class="ghost">Copy</button>
+</p>
+
+<div id="status">Not connected.</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Monitor</div>
+    <div class="val" id="val-monitor">—</div>
+  </div>
+  <div class="card">
+    <div class="label">PMP Sandbox</div>
+    <div class="val" id="val-pmp">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Enclave Result</div>
+    <div class="val" id="val-status">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Secret Scrubbing</div>
+    <div class="val" id="val-scrub">—</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Operation</th>
+      <th>Return (a0)</th>
+      <th>Minstret</th>
+      <th>Cycles</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody id="ops-body">
+    <tr><td colspan="5" style="color:var(--dim);text-align:center;">No operations recorded yet.</td></tr>
+  </tbody>
+</table>
+
+<div id="raw"></div>
+
+<script>
+const FILTERS = [{ vendorId: 0x1209, productId: 0x0001 }];
+const SET_CONTROL_LINE_STATE = 0x22;
+const SET_LINE_CODING        = 0x20;
+const BAUD = 115200;
+
+// BEGIN enclave-check
+// ---------------------------------------------------------------------------
+// Parses exp237's output lines and verifies the enclave execution.
+// ---------------------------------------------------------------------------
+
+function enclaveLines() {
+  let buf = '';
+  return function(chunk) {
+    buf += chunk;
+    const lines = [];
+    let idx;
+    while ((idx = buf.indexOf('\n')) !== -1) {
+      let line = buf.slice(0, idx);
+      if (line.endsWith('\r')) line = line.slice(0, -1);
+      buf = buf.slice(idx + 1);
+      if (line.length > 0) lines.push(line);
+    }
+    return lines;
+  };
+}
+
+function enclaveChecker() {
+  let bootOk = false;
+  let pmpOk = false;
+  let instCount = 0;
+  let ops = []; // array of { op, a0, instret, cycles, ok }
+  let pass = false;
+  let secretsScrubbed = false;
+  let errors = [];
+
+  return {
+    feed(line) {
+      if (line.startsWith('ENCLAVE ')) {
+        const parts = line.split(' ');
+        for (const p of parts.slice(1)) {
+          const [k, v] = p.split('=');
+          if (k === 'boot' && v === 'ok') bootOk = true;
+          if (k === 'monitor') instCount = parseInt(v, 10);
+          if (k === 'pmp' && v === '64k_napot') pmpOk = true;
+        }
+        return { type: 'boot', bootOk, instCount, pmpOk };
+      }
+      if (line.startsWith('OP ')) {
+        const parts = line.split(' ');
+        const opName = parts[1];
+        let a0 = -1, instret = 0, cycles = 0, ok = false;
+        for (const p of parts.slice(2)) {
+          const [k, v] = p.split('=');
+          if (k === 'a0') a0 = parseInt(v, 10);
+          if (k === 'minstret') instret = parseInt(v, 10);
+          if (k === 'cycles') cycles = parseInt(v, 10);
+          if (k === 'status') ok = (v === 'OK');
+        }
+        const opRec = { op: opName, a0, instret, cycles, ok };
+        ops.push(opRec);
+        if (opName === 'add' && instret !== 331) errors.push(`add minstret expected 331, got ${instret}`);
+        if (opName === 'sub' && instret !== 238) errors.push(`sub minstret expected 238, got ${instret}`);
+        if (opName === 'mul' && instret !== 1903) errors.push(`mul minstret expected 1903, got ${instret}`);
+        if (a0 !== 0) errors.push(`${opName} return a0 expected 0, got ${a0}`);
+        if (!ok) errors.push(`${opName} status failed`);
+        return { type: 'op', ...opRec };
+      }
+      if (line.startsWith('STATUS ')) {
+        if (line.includes('PASS')) pass = true;
+        if (line.includes('secrets_scrubbed=ok')) secretsScrubbed = true;
+        return { type: 'status', pass, secretsScrubbed };
+      }
+      return { type: 'other', line };
+    },
+    summary() {
+      const allOpsOk = ops.length >= 3 && ops.every(o => o.ok);
+      const isComplete = bootOk && pmpOk && allOpsOk && pass && secretsScrubbed && errors.length === 0;
+      return {
+        bootOk,
+        pmpOk,
+        instCount,
+        ops,
+        pass,
+        secretsScrubbed,
+        errors,
+        isComplete
+      };
+    }
+  };
+}
+// END enclave-check
+
+function findCdc(dev) {
+  const cfg = dev.configurations[0];
+  let control = null, data = null, endpointIn = null;
+  for (const iface of cfg.interfaces) {
+    const alt = iface.alternates[0];
+    if (alt.interfaceClass === 0x02 && control === null) control = iface.interfaceNumber;
+    if (alt.interfaceClass === 0x0a && data === null) {
+      data = iface.interfaceNumber;
+      const ep = alt.endpoints.find((e) => e.direction === 'in' && e.type === 'bulk');
+      if (ep) endpointIn = ep.endpointNumber;
+    }
+  }
+  return { control, data, endpointIn };
+}
+
+let device = null, running = false, logText = '';
+const checker = enclaveChecker();
+const splitLines = enclaveLines();
+
+const statusEl = document.getElementById('status');
+const valMonitor = document.getElementById('val-monitor');
+const valPmp = document.getElementById('val-pmp');
+const valStatus = document.getElementById('val-status');
+const valScrub = document.getElementById('val-scrub');
+const opsBody = document.getElementById('ops-body');
+const rawEl = document.getElementById('raw');
+const btnConnect = document.getElementById('connect');
+const btnStop = document.getElementById('stop');
+const btnCopy = document.getElementById('copy');
+
+function updateUI() {
+  const s = checker.summary();
+  if (s.bootOk) {
+    valMonitor.textContent = `${s.instCount} insts`;
+    valMonitor.className = 'val ok';
+  }
+  if (s.pmpOk) {
+    valPmp.textContent = '64 KiB NAPOT';
+    valPmp.className = 'val ok';
+  }
+  if (s.pass) {
+    valStatus.textContent = 'PASS';
+    valStatus.className = 'val ok';
+  } else if (s.errors.length > 0) {
+    valStatus.textContent = 'FAIL';
+    valStatus.className = 'val bad';
+  }
+  if (s.secretsScrubbed) {
+    valScrub.textContent = 'OK';
+    valScrub.className = 'val ok';
+  }
+
+  if (s.ops.length > 0) {
+    opsBody.innerHTML = '';
+    for (const op of s.ops) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="mono">secp256k1_${op.op}</td>
+        <td class="mono">${op.a0}</td>
+        <td class="mono">${op.instret}</td>
+        <td class="mono">${op.cycles}</td>
+        <td><span class="badge ${op.ok ? 'ok' : 'bad'}">${op.ok ? 'PASS' : 'FAIL'}</span></td>
+      `;
+      opsBody.appendChild(tr);
+    }
+  }
+}
+
+async function start(dev) {
+  device = dev;
+  await device.open();
+  if (device.configuration === null) await device.selectConfiguration(1);
+
+  const cdc = findCdc(device);
+  if (cdc.control === null || cdc.data === null || cdc.endpointIn === null) {
+    throw new Error('Device does not present CDC ACM interfaces');
+  }
+
+  await device.claimInterface(cdc.control);
+  await device.claimInterface(cdc.data);
+
+  const lineCoding = new Uint8Array([
+    (BAUD) & 0xff, (BAUD >> 8) & 0xff, (BAUD >> 16) & 0xff, (BAUD >> 24) & 0xff,
+    0, 0, 8
+  ]);
+  await device.controlTransferOut({
+    requestType: 'class', recipient: 'interface',
+    request: SET_LINE_CODING, value: 0, index: cdc.control
+  }, lineCoding);
+
+  await device.controlTransferOut({
+    requestType: 'class', recipient: 'interface',
+    request: SET_CONTROL_LINE_STATE, value: 0x01, index: cdc.control
+  });
+
+  statusEl.textContent = 'Connected. Streaming enclave output…';
+  statusEl.className = 'ok';
+  btnConnect.disabled = true;
+  btnStop.disabled = false;
+  running = true;
+
+  const decoder = new TextDecoder();
+  while (running) {
+    try {
+      const res = await device.transferIn(cdc.endpointIn, 64);
+      if (res.data && res.data.byteLength > 0) {
+        const text = decoder.decode(res.data);
+        logText += text;
+        rawEl.textContent = logText;
+        rawEl.scrollTop = rawEl.scrollHeight;
+
+        for (const ln of splitLines(text)) {
+          checker.feed(ln);
+        }
+        updateUI();
+      }
+    } catch (err) {
+      if (running) {
+        statusEl.textContent = `Transfer error: ${err.message}`;
+        statusEl.className = 'bad';
+      }
+      break;
+    }
+  }
+}
+
+btnConnect.addEventListener('click', async () => {
+  try {
+    const dev = await navigator.usb.requestDevice({ filters: FILTERS });
+    await start(dev);
+  } catch (err) {
+    statusEl.textContent = `Connection failed: ${err.message}`;
+    statusEl.className = 'bad';
+  }
+});
+
+btnStop.addEventListener('click', async () => {
+  running = false;
+  if (device) {
+    try { await device.close(); } catch (_) {}
+    device = null;
+  }
+  statusEl.textContent = 'Disconnected.';
+  statusEl.className = '';
+  btnConnect.disabled = false;
+  btnStop.disabled = true;
+});
+
+btnCopy.addEventListener('click', () => {
+  navigator.clipboard.writeText(logText).then(() => {
+    btnCopy.textContent = 'Copied!';
+    setTimeout(() => { btnCopy.textContent = 'Copy'; }, 1500);
+  });
+});
+</script>
