@@ -4,9 +4,15 @@ SPDX-License-Identifier: Apache-2.0
 # Two-Tiered Refinement and Bridge Theorems
 
 Bridges Tier 2 privileged execution (PrivMachine) and Tier 1 pure computation
-(Rv32.Machine). Proves that under UBoxed sandbox constraints, U-mode single-step
-and multi-step epoch execution strictly refines Rv32.step and Rv32.run without
-modifying any existing Tier 1 definitions or proofs.
+(Rv32.Machine). Proves that under UBoxed sandbox constraints, U-mode execution
+of safe instructions agrees with Rv32.step (one step) and with Rv32.run (n
+steps, ending running or halted), keeps the box configuration, and counts
+`minstret` exactly, without modifying any Tier 1 definition or proof.
+
+Scope: the refinement needs `env.region` to contain the box, because Tier 1
+checks its own region on fetch, load and store. A Tier 1 run that ends in a
+fault is not covered: the Tier 2 machine traps into M-mode there and goes on
+running the handler, so the two have no common end state to compare.
 -/
 import Rv32.Machine
 import Rv32.Priv
@@ -17,10 +23,6 @@ open Rv32
 open Rv32.Priv
 
 /-- Project a Tier 2 privileged machine state onto its Tier 1 unprivileged core. -/
-@[inline]
-def Priv.PrivMachine.toUMachine (s : PrivMachine) : Rv32.Machine :=
-  s.core
-
 @[inline]
 def toUMachine (s : PrivMachine) : Rv32.Machine :=
   s.core
@@ -217,10 +219,12 @@ theorem PrivMachine.run_add (env : Rv32.Env) (m n : Nat) (s : PrivMachine) :
     · next hNotHalted =>
       exact ih (PrivMachine.step env s)
 
-/-- Predicate asserting that n contiguous execution steps remain safe in U-mode. -/
+/-- `n` more steps stay safe: this instruction is safe, and so is every one after
+    it for as long as Tier 1 keeps running. A halt or a fault ends the epoch. -/
 def SafeUEpoch (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat) : Nat → Prop
   | 0 => True
-  | n + 1 => SafeUInstr s lo hi ∧ SafeUEpoch env (PrivMachine.step env s) lo hi n
+  | n + 1 => SafeUInstr s lo hi ∧
+      ∀ c, Rv32.step env s.core = .running c → SafeUEpoch env (PrivMachine.step env s) lo hi n
 
 /-- When SafeUInstr holds, PrivMachine.step directly executes Rv32.exec without trap. -/
 theorem PrivMachine.step_eq_of_safe (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat)
@@ -280,5 +284,140 @@ theorem step_refines_halted (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat)
   rw [hiDec] at hDec; injection hDec with hEq; subst hEq
   rw [hStep, hExec]
   exact ⟨rfl, rfl, hBox.isUMode, rfl⟩
+
+/-- With the box inside `env.region`, Tier 1's own `step` is its `exec` of the decoded word:
+    fetch cannot fail on a safe instruction. -/
+theorem tier1_step_eq_exec (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat)
+    (hSafe : SafeUInstr s lo hi) (hReg : env.region.lo ≤ lo ∧ hi ≤ env.region.hi) :
+    ∃ instr, Rv32.decode (BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4)) = some instr ∧
+      Rv32.step env s.core = Rv32.exec env s.core instr := by
+  cases hDec : Rv32.decode (BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4)) with
+  | none =>
+    have hMem := hSafe.memInBounds
+    rw [hDec] at hMem
+    contradiction
+  | some instr =>
+    refine ⟨instr, rfl, ?_⟩
+    have hAlign : ¬ (s.core.pc.toNat % 4 ≠ 0) := by
+      have := hSafe.alignPc
+      omega
+    have hOk : env.region.ok s.core.pc 4 := by
+      have := hSafe.fetchInBounds
+      unfold Rv32.Region.ok
+      omega
+    unfold Rv32.step Rv32.fetch
+    simp only [hAlign, ite_false, hOk, not_true_eq_false, hDec]
+
+/-- One step, Tier 2 against Tier 1, when Tier 1 keeps running: same core, still in
+    U-mode, still boxed, and the counters are `bumpCounters`. -/
+theorem step_simulates_running (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat)
+    (hBox : UBoxed s lo hi) (hSafe : SafeUInstr s lo hi)
+    (hReg : env.region.lo ≤ lo ∧ hi ≤ env.region.hi)
+    {c : Rv32.Machine} (hStep : Rv32.step env s.core = .running c) :
+    toUMachine (PrivMachine.step env s) = c ∧
+    UBoxed (PrivMachine.step env s) lo hi ∧
+    (PrivMachine.step env s).csrs = bumpCounters s.csrs := by
+  have ⟨i, hDec, hEq⟩ := tier1_step_eq_exec env s lo hi hSafe hReg
+  rw [hEq] at hStep
+  have ⟨hCore, hNotHalt, hMode, hCsrs⟩ := step_refines_running env s lo hi hBox hSafe hDec hStep
+  refine ⟨hCore, ?_, hCsrs⟩
+  exact { isUMode := hMode, notHalted := hNotHalt
+          cfg0Mode := by rw [hCsrs]; exact hBox.cfg0Mode
+          cfg0Read := by rw [hCsrs]; exact hBox.cfg0Read
+          cfg0Write := by rw [hCsrs]; exact hBox.cfg0Write
+          cfg0Exec := by rw [hCsrs]; exact hBox.cfg0Exec
+          addr0Range := by rw [hCsrs]; exact hBox.addr0Range
+          otherOff := fun i hi' => by rw [hCsrs]; exact hBox.otherOff i hi' }
+
+/-- `bumpCounters` leaves `mcountinhibit` alone. -/
+theorem bumpCounters_mcountinhibit (csrs : PrivCSRs) :
+    (bumpCounters csrs).mcountinhibit = csrs.mcountinhibit := rfl
+
+/-- n steps, Tier 2 against Tier 1, when Tier 1 is still running after n: same core,
+    still boxed, `mcountinhibit` unchanged, and `minstret` up by exactly n when it is
+    not inhibited. -/
+theorem run_refines_running (env : Rv32.Env) (lo hi : Nat)
+    (hReg : env.region.lo ≤ lo ∧ hi ≤ env.region.hi) :
+    ∀ (n : Nat) (s : PrivMachine) (c : Rv32.Machine),
+      UBoxed s lo hi → SafeUEpoch env s lo hi n →
+      Rv32.run env n s.core = .running c →
+      toUMachine (PrivMachine.run env n s) = c ∧
+      UBoxed (PrivMachine.run env n s) lo hi ∧
+      (PrivMachine.run env n s).csrs.mcountinhibit = s.csrs.mcountinhibit ∧
+      (s.csrs.mcountinhibit.ir = false →
+        (PrivMachine.run env n s).csrs.minstret = s.csrs.minstret + BitVec.ofNat 32 n) := by
+  intro n
+  induction n with
+  | zero =>
+    intro s c hBox _ hRun
+    simp only [Rv32.run] at hRun
+    cases hRun
+    exact ⟨rfl, hBox, rfl, fun _ => by simp [PrivMachine.run]⟩
+  | succ n ih =>
+    intro s c hBox hEpoch hRun
+    obtain ⟨hSafe, hNext⟩ := hEpoch
+    simp only [Rv32.run] at hRun
+    cases hStep : Rv32.step env s.core with
+    | running c1 =>
+      rw [hStep] at hRun
+      dsimp only at hRun
+      have ⟨hCore, hBox1, hCsrs⟩ := step_simulates_running env s lo hi hBox hSafe hReg hStep
+      have hRunEq : PrivMachine.run env (n + 1) s = PrivMachine.run env n (PrivMachine.step env s) := by
+        rw [PrivMachine.run_succ, hBox.notHalted]; rfl
+      rw [hRunEq]
+      have hCore' : (PrivMachine.step env s).core = c1 := hCore
+      have ⟨r1, r2, r3, r4⟩ := ih (PrivMachine.step env s) c hBox1 (hNext c1 hStep)
+        (by rw [hCore']; exact hRun)
+      have hInh : (PrivMachine.step env s).csrs.mcountinhibit = s.csrs.mcountinhibit := by
+        rw [hCsrs]; rfl
+      refine ⟨r1, r2, by rw [r3, hInh], fun hIR => ?_⟩
+      have hIR1 : (PrivMachine.step env s).csrs.mcountinhibit.ir = false := by rw [hInh]; exact hIR
+      rw [r4 hIR1, hCsrs]
+      simp only [bumpCounters, hIR, Bool.false_eq_true, ite_false]
+      rw [BitVec.ofNat_add, BitVec.add_assoc]
+      congr 1
+      exact BitVec.add_comm _ _
+    | halted code c1 => rw [hStep] at hRun; cases hRun
+    | fault f c1 => rw [hStep] at hRun; cases hRun
+
+/-- n steps, Tier 2 against Tier 1, when Tier 1 halts within n: the Tier 2 machine halts
+    with the same core, still in U-mode. -/
+theorem run_refines_halted (env : Rv32.Env) (lo hi : Nat)
+    (hReg : env.region.lo ≤ lo ∧ hi ≤ env.region.hi) :
+    ∀ (n : Nat) (s : PrivMachine) (code : Word) (c : Rv32.Machine),
+      UBoxed s lo hi → SafeUEpoch env s lo hi n →
+      Rv32.run env n s.core = .halted code c →
+      toUMachine (PrivMachine.run env n s) = c ∧
+      (PrivMachine.run env n s).halted = true ∧
+      (PrivMachine.run env n s).mode = .U := by
+  intro n
+  induction n with
+  | zero =>
+    intro s code c _ _ hRun
+    simp only [Rv32.run] at hRun
+    cases hRun
+  | succ n ih =>
+    intro s code c hBox hEpoch hRun
+    obtain ⟨hSafe, hNext⟩ := hEpoch
+    simp only [Rv32.run] at hRun
+    have hRunEq : PrivMachine.run env (n + 1) s = PrivMachine.run env n (PrivMachine.step env s) := by
+      rw [PrivMachine.run_succ, hBox.notHalted]; rfl
+    cases hStep : Rv32.step env s.core with
+    | running c1 =>
+      rw [hStep] at hRun
+      dsimp only at hRun
+      have ⟨hCore, hBox1, _⟩ := step_simulates_running env s lo hi hBox hSafe hReg hStep
+      have hCore' : (PrivMachine.step env s).core = c1 := hCore
+      rw [hRunEq]
+      exact ih (PrivMachine.step env s) code c hBox1 (hNext c1 hStep) (by rw [hCore']; exact hRun)
+    | halted code1 c1 =>
+      rw [hStep] at hRun
+      cases hRun
+      have ⟨i, hDec, hEq⟩ := tier1_step_eq_exec env s lo hi hSafe hReg
+      rw [hEq] at hStep
+      have ⟨h1, h2, h3, _⟩ := step_refines_halted env s lo hi hBox hSafe hDec hStep
+      rw [hRunEq, PrivMachine.run_halted env n _ h2]
+      exact ⟨h1, h2, h3⟩
+    | fault f c1 => rw [hStep] at hRun; cases hRun
 
 end Rv32.Refinement

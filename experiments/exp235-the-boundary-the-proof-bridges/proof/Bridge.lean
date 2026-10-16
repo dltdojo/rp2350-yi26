@@ -95,9 +95,9 @@ theorem safe_step_running_core
     {core' : Rv32.Machine} (hExec : Rv32.exec env s.core instr = .running core') :
     toUMachine (PrivMachine.step env s) = core' ∧
     (PrivMachine.step env s).halted = false ∧
-    (PrivMachine.step env s).mode = .U := by
-  have ⟨hCore, hNotHalt, hMode, _⟩ := step_refines_running env s lo hi hBox hSafe hDec hExec
-  exact ⟨hCore, hNotHalt, hMode⟩
+    (PrivMachine.step env s).mode = .U ∧
+    (PrivMachine.step env s).csrs = bumpCounters s.csrs :=
+  step_refines_running env s lo hi hBox hSafe hDec hExec
 
 /-- When instruction halts, Tier 1 core state is preserved and machine transitions to halted. -/
 theorem safe_step_halted_core
@@ -107,13 +107,58 @@ theorem safe_step_halted_core
     {code : Word} {core' : Rv32.Machine} (hExec : Rv32.exec env s.core instr = .halted code core') :
     toUMachine (PrivMachine.step env s) = core' ∧
     (PrivMachine.step env s).halted = true ∧
-    (PrivMachine.step env s).mode = .U := by
-  have ⟨hCore, hHalt, hMode, _⟩ := step_refines_halted env s lo hi hBox hSafe hDec hExec
-  exact ⟨hCore, hHalt, hMode⟩
+    (PrivMachine.step env s).mode = .U ∧
+    (PrivMachine.step env s).csrs = bumpCounters s.csrs :=
+  step_refines_halted env s lo hi hBox hSafe hDec hExec
 
-/-! ## 4. Multi-step Execution and Hardware Counter Invariance -/
+/-! ## 4. Multi-step Refinement against Tier 1 `Rv32.run`
 
-/-- Compositional execution: fuel split lemma holds for PrivMachine.run. -/
+The Tier 1 machine checks its own region on fetch, load and store, so the box
+has to sit inside `env.region`. A Tier 1 run that ends in a fault is not covered:
+the Tier 2 machine traps into M-mode there and goes on running the handler. -/
+
+/-- One step against Tier 1's own `Rv32.step`: when it keeps running, so does Tier 2, on the
+    same core, still boxed. -/
+theorem safe_step_simulates_tier1
+    (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat)
+    (hBox : UBoxed s lo hi) (hSafe : SafeUInstr s lo hi)
+    (hReg : env.region.lo ≤ lo ∧ hi ≤ env.region.hi)
+    {c : Rv32.Machine} (hStep : Rv32.step env s.core = .running c) :
+    toUMachine (PrivMachine.step env s) = c ∧
+    UBoxed (PrivMachine.step env s) lo hi ∧
+    (PrivMachine.step env s).csrs = bumpCounters s.csrs :=
+  step_simulates_running env s lo hi hBox hSafe hReg hStep
+
+/-- n safe steps against `Rv32.run`, Tier 1 still running: the same core, the box
+    configuration kept, and `minstret` up by exactly n when it is not inhibited. -/
+theorem safe_run_refines_tier1_running
+    (env : Rv32.Env) (s : PrivMachine) (lo hi n : Nat) {c : Rv32.Machine}
+    (hBox : UBoxed s lo hi) (hEpoch : SafeUEpoch env s lo hi n)
+    (hReg : env.region.lo ≤ lo ∧ hi ≤ env.region.hi)
+    (hRun : Rv32.run env n s.core = .running c) :
+    toUMachine (PrivMachine.run env n s) = c ∧
+    UBoxed (PrivMachine.run env n s) lo hi ∧
+    (PrivMachine.run env n s).csrs.mcountinhibit = s.csrs.mcountinhibit ∧
+    (s.csrs.mcountinhibit.ir = false →
+      (PrivMachine.run env n s).csrs.minstret = s.csrs.minstret + BitVec.ofNat 32 n) :=
+  run_refines_running env lo hi hReg n s c hBox hEpoch hRun
+
+/-- n safe steps against `Rv32.run`, Tier 1 halting within n: Tier 2 halts with the same
+    core, still in U-mode. -/
+theorem safe_run_refines_tier1_halted
+    (env : Rv32.Env) (s : PrivMachine) (lo hi n : Nat) {code : Word} {c : Rv32.Machine}
+    (hBox : UBoxed s lo hi) (hEpoch : SafeUEpoch env s lo hi n)
+    (hReg : env.region.lo ≤ lo ∧ hi ≤ env.region.hi)
+    (hRun : Rv32.run env n s.core = .halted code c) :
+    toUMachine (PrivMachine.run env n s) = c ∧
+    (PrivMachine.run env n s).halted = true ∧
+    (PrivMachine.run env n s).mode = .U :=
+  run_refines_halted env lo hi hReg n s code c hBox hEpoch hRun
+
+/-! ## 5. Fuel arithmetic -/
+
+/-- Fuel splits: running m then n steps is running m + n. Holds in any mode; it says
+    nothing about U-mode. -/
 theorem priv_run_split (env : Rv32.Env) (m n : Nat) (s : PrivMachine) :
     PrivMachine.run env (m + n) s = PrivMachine.run env n (PrivMachine.run env m s) :=
   PrivMachine.run_add env m n s
@@ -132,4 +177,7 @@ end Exp235
 #print axioms Exp235.safe_step_executes
 #print axioms Exp235.safe_step_running_core
 #print axioms Exp235.safe_step_halted_core
+#print axioms Exp235.safe_step_simulates_tier1
+#print axioms Exp235.safe_run_refines_tier1_running
+#print axioms Exp235.safe_run_refines_tier1_halted
 #print axioms Exp235.priv_run_split

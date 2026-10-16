@@ -2,10 +2,21 @@
 # Each must be refused by Lean.
 #
 # <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# A mutant of the model changes one definition and no theorem statement: a sed
+# on every `raiseTrap s CAUSE_ILLEGAL_INSTR` would rewrite the claim together
+# with the thing it is about, and the proof would still go through. So each
+# sed of lean/Rv32/Priv.lean is confined to one definition by an address range,
+# and must be refused in the theorem that states the property, or in the
+# refinement that rests on it.
 napot_readback_zero|NAPOT readback claims bits [1:0] read as 00b instead of 11b|s/(readPmpAddr csrs idx &&& 3#32) = 3#32/(readPmpAddr csrs idx &&& 3#32) = 0#32/
 default_deny_inverted|default-deny claims U-mode access is granted when all PMP entries are OFF|s/pmpCheck csrs .U addr width acc = false/pmpCheck csrs .U addr width acc = true/
 pmp_bounds_inverted|PMP UBoxed equivalence claims out-of-bounds addresses are accepted|s/(lo ≤ addr.toNat ∧ addr.toNat + width ≤ hi)/(lo > addr.toNat ∨ addr.toNat + width > hi)/
-csr_umode_permitted|U-mode CSR execution is permitted without raising illegal instruction trap|s/raiseTrap s CAUSE_ILLEGAL_INSTR/s/|lean/Rv32/Priv.lean
-mret_umode_permitted|U-mode MRET execution is permitted without raising illegal instruction trap|s/if s.mode ≠ .M then/if False then/|lean/Rv32/Priv.lean
 step_switches_to_mmode|Safe U-mode execution is claimed to escalate mode to M-mode|s/(PrivMachine.step env s).mode = .U/(PrivMachine.step env s).mode = .M/
-
+minstret_claimed_one_extra|a run of n safe steps is claimed to count n + 1 instructions in minstret|s/s.csrs.minstret + BitVec.ofNat 32 n) :=/s.csrs.minstret + BitVec.ofNat 32 (n + 1)) :=/
+csr_umode_permitted|the model lets U-mode execute Zicsr instead of trapping|/^def execZicsr/,/^  else/ s/if s.mode ≠ .M then/if False then/|lean/Rv32/Priv.lean
+mret_umode_permitted|the model lets U-mode execute MRET instead of trapping|/^def execMret/,/^  else/ s/if s.mode ≠ .M then/if False then/|lean/Rv32/Priv.lean
+off_entry_matches|the model lets a PMP entry that is OFF match every access|s/if cfg.mode = .OFF then .NoMatch/if cfg.mode = .OFF then .FullMatch cfg/|lean/Rv32/Priv.lean
+minstret_counted_twice|the model counts two instructions per step in minstret|s/csrs.minstret + 1 }/csrs.minstret + 2 }/|lean/Rv32/Priv.lean
+step_drops_core_update|a safe step leaves the Tier 1 core as it was|/^def PrivMachine.step/,/^def PrivMachine.run/ s/{ s with core := core', csrs := csrs' }/{ s with csrs := csrs' }/|lean/Rv32/Priv.lean
+step_escalates_to_mmode|a safe step leaves the machine in M-mode|/^def PrivMachine.step/,/^def PrivMachine.run/ s/{ s with core := core', csrs := csrs' }/{ s with mode := .M, core := core', csrs := csrs' }/|lean/Rv32/Priv.lean

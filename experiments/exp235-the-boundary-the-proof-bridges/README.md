@@ -6,11 +6,12 @@
 modifying a single line of Tier 1 `lean/Rv32/Machine.lean`, a Tier 2 privileged
 micro-model (`PrivMachine`) formalizes RP2350 Hazard3's M-mode CSRs, 32-byte
 NAPOT PMP address matching, hardware readback quirks (bits `[1:0] == 0b11`),
-default-deny protection, and trap handling. A bridge theorem proves that under
-`UBoxed` configuration, every safe U-mode instruction executes step-for-step
-identically to Tier 1 unprivileged execution, while hardware counters
-(`minstret`) track execution without drift. Six wrong privilege models and
-claims in `proof/mutants.txt` are refused.**
+default-deny protection, and trap handling. A bridge theorem proves that, with
+the PMP box inside the Tier 1 region, `n` safe U-mode steps end in exactly the
+state `Rv32.run` ends in (running or halted), the box configuration survives
+every step, and `minstret` rises by exactly `n`. Eleven wrong privilege models
+and claims in `proof/mutants.txt` are refused, each in the theorem that states
+the property it breaks.**
 
 Needs: **no board**. The foundational bridge connecting the unprivileged
 cryptographic proofs of `exp229` to the verified physical monitor of `exp236`
@@ -38,7 +39,7 @@ state:
   Tier 1: Core Semantics         ▼
   ┌─────────────────────────────────────────────────────────────┐
   │ Rv32.Machine (lean/Rv32/Machine.lean)                       │
-  │ - Untouched: 0 lines modified (verified by check.sh)        │
+  │ - Untouched: 0 lines modified since 70ca711 (check.sh)      │
   │ - Deterministic instruction execution (Rv32.exec)           │
   └─────────────────────────────────────────────────────────────┘
 ```
@@ -60,25 +61,50 @@ state:
    Attempting to execute `Zicsr` instructions (`priv_umode_zicsr_traps`) or
    `MRET` (`priv_umode_mret_traps`) from U-mode immediately raises an illegal
    instruction trap (`mcause = 2`), transferring execution to M-mode at `mtvec`.
+   For `Zicsr` this is a fact about the model, which has no `mcounteren`; on the
+   chip it holds while `mcounteren` is 0, and nothing here checks that.
 
 4. **Hardware Performance Counters**:
    `mcountinhibit` controls whether `mcycle` (bit 0) and `minstret` (bit 2)
    advance. Theorems `priv_mcountinhibit_mcycle` and `priv_mcountinhibit_minstret`
    prove that inhibited counters remain frozen, while `priv_minstret_step`
-   proves exact +1 progression on uninhibited steps.
+   proves exact +1 progression on uninhibited steps. A trapping instruction is
+   counted too, as exp203 measured for `ecall` and an illegal instruction; the
+   frontend effect exp203 also found (5 or 4 counts for the same instructions)
+   is not modelled.
 
 ## The Refinement Bridge
 
 Under `UBoxed s lo hi`, PMP entry 0 is configured as NAPOT covering `[lo, hi)`
 with `RWX` permissions, and all other entries are `OFF`.
 - **`uboxed_pmp_iff`**: An access succeeds if and only if $[addr, addr + width) \subseteq [lo, hi)$.
-- **`safe_step_no_trap`**: Instructions staying within the box never trigger privilege faults.
-- **`safe_step_running_core`**: Running instructions step the Tier 1 core state identically,
-  staying in U-mode with halted = false.
-- **`safe_step_halted_core`**: Halting instructions transition to halted = true with the core
-  state preserved.
-- **`priv_run_split`**: Multi-step execution satisfies compositional fuel splitting:
-  `PrivMachine.run env (m + n) s = PrivMachine.run env n (PrivMachine.run env m s)`.
+- **`safe_step_no_trap`**: Instructions staying within the box never trigger *privilege* faults
+  (a Tier 1 `.fault` from `exec` still traps).
+- **`safe_step_running_core`** / **`safe_step_halted_core`**: one step steps the Tier 1 core
+  identically, stays in U-mode, and the counters are `bumpCounters`.
+- **`safe_step_simulates_tier1`**: the same against Tier 1's own `Rv32.step`, with the box
+  still in force afterwards. Tier 1 checks `env.region` on fetch, load and store, so the
+  theorem needs `env.region` to contain `[lo, hi)`.
+- **`safe_run_refines_tier1_running`**: if `SafeUEpoch` holds for `n` steps and
+  `Rv32.run env n` is still running, `PrivMachine.run env n` has the same core, is still
+  `UBoxed`, kept `mcountinhibit`, and `minstret` is up by exactly `n` (when not inhibited).
+- **`safe_run_refines_tier1_halted`**: if `Rv32.run env n` halts, the Tier 2 machine halts
+  with the same core, in U-mode.
+- **`priv_run_split`**: fuel arithmetic, `run (m + n) = run n ∘ run m`. True in any mode; it
+  says nothing about U-mode.
+
+## What these theorems do not say
+
+- A Tier 1 run that ends in a **fault** is not covered: Tier 2 traps into M-mode and goes on
+  running the handler, so there is no common end state to compare.
+- `SafeUInstr` is a hypothesis about each instruction. Nothing here derives it from a program;
+  a caller who wants the 458-instruction kernel of exp229 has to establish it for each one.
+- The model is not the chip. It omits `mcounteren`, the C extension, CSR access checks
+  (read-only and unimplemented CSRs neither trap nor write; `mcycle`/`minstret` writes are
+  dropped), and exp203's frontend effect on `minstret`. The cause codes for misaligned
+  accesses (4 and 6) and for the other traps are written down, not proved.
+- `test_vectors.py` checks the model's NAPOT decoding and U-mode load check against
+  independent arithmetic on 1210 vectors; it does not check the CSR or trap code.
 
 ## Expected output
 

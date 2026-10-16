@@ -4,8 +4,19 @@ SPDX-License-Identifier: Apache-2.0
 # RISC-V M-Mode Privileged Micro-Model Semantics
 
 Privileged state, CSRs, PMP access enforcement, and trap transitions for
-RP2350 Hazard3. Keeps the TCB small (< 300 lines) and faithfully models
-Hazard3 silicon quirks (PMP_GRAIN = 3 and counter inhibition).
+RP2350 Hazard3, in about 440 lines. Models two silicon facts measured on the
+chip or its RTL: the PMP_GRAIN = 3 readback (exp209) and that a trapping
+instruction still bumps `minstret` (exp203: `ecall` and an illegal instruction
+are counted).
+
+What it does not model, so no theorem about it is a claim about the chip:
+  * `mcounteren` — U-mode `Zicsr` always traps here, which is true of the chip
+    only while `mcounteren` is 0;
+  * the C extension — fetch is always 4 bytes at a 4-aligned pc;
+  * CSR access checks — a write to a read-only CSR, a write to `mcycle` or
+    `minstret`, and any access to an unimplemented CSR neither trap nor write;
+  * exp203's frontend effect: the same instructions are counted 5 or 4 times
+    depending on what was fetched behind an `mret`.
 -/
 import Rv32.Isa
 import Rv32.Machine
@@ -179,7 +190,9 @@ def pmpCheck (csrs : PrivCSRs) (mode : PrivMode) (addr : Word) (width : Nat) (ac
 
 def CAUSE_FETCH_ACCESS_FAULT : Word := 1
 def CAUSE_ILLEGAL_INSTR      : Word := 2
+def CAUSE_LOAD_MISALIGNED    : Word := 4
 def CAUSE_LOAD_ACCESS_FAULT  : Word := 5
+def CAUSE_STORE_MISALIGNED   : Word := 6
 def CAUSE_STORE_ACCESS_FAULT : Word := 7
 def CAUSE_ECALL_UMODE        : Word := 8
 def CAUSE_ECALL_MMODE        : Word := 11
@@ -323,12 +336,12 @@ def uModeTrapCause (s : PrivMachine) (w : Word) : Option Word :=
     | none => if isMret w ∨ isZicsr w then none else some CAUSE_ILLEGAL_INSTR
     | some (.ld op _ rs1 imm) =>
       let a := s.core.reg rs1 + imm.signExtend 32
-      if a.toNat % op.size ≠ 0 then some CAUSE_LOAD_ACCESS_FAULT
+      if a.toNat % op.size ≠ 0 then some CAUSE_LOAD_MISALIGNED
       else if ¬ pmpCheck s.csrs s.mode a op.size .Load then some CAUSE_LOAD_ACCESS_FAULT
       else none
     | some (.st op rs1 _ imm) =>
       let a := s.core.reg rs1 + imm.signExtend 32
-      if a.toNat % op.size ≠ 0 then some CAUSE_STORE_ACCESS_FAULT
+      if a.toNat % op.size ≠ 0 then some CAUSE_STORE_MISALIGNED
       else if ¬ pmpCheck s.csrs s.mode a op.size .Store then some CAUSE_STORE_ACCESS_FAULT
       else none
     | some _ => none
