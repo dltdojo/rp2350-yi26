@@ -52,7 +52,7 @@
 
 <h1>The enclave on the chip</h1>
 <p class="sub">exp237 &middot; micro-monitor &amp; secp256k1 U-mode enclave on RP2350 Pico 2 silicon.<br>
-  <small>page build <b id="ver">p1</b></small></p>
+  <small>page build <b id="ver">p2</b></small></p>
 
 <p>
   <button id="connect">Connect</button>
@@ -79,13 +79,17 @@
     <div class="label">Secret Scrubbing</div>
     <div class="val" id="val-scrub">—</div>
   </div>
+  <div class="card">
+    <div class="label">Attacks refused</div>
+    <div class="val" id="val-faults">—</div>
+  </div>
 </div>
 
 <table>
   <thead>
     <tr>
-      <th>Operation</th>
-      <th>Return (a0)</th>
+      <th>Run</th>
+      <th>a0 / result</th>
       <th>Minstret</th>
       <th>Cycles</th>
       <th>Status</th>
@@ -106,7 +110,10 @@ const BAUD = 115200;
 
 // BEGIN enclave-check
 // ---------------------------------------------------------------------------
-// Parses exp237's output lines and verifies the enclave execution.
+// Parses exp237's report and decides it from the numbers, not from the word PASS:
+// the firmware prints the whole report again every few seconds, so each ENCLAVE
+// line starts a fresh one, and a report is complete only when every line of it has
+// arrived and held. A page opened mid-report is incomplete until the next one.
 // ---------------------------------------------------------------------------
 
 function enclaveLines() {
@@ -126,65 +133,85 @@ function enclaveLines() {
 }
 
 function enclaveChecker() {
-  let bootOk = false;
-  let pmpOk = false;
-  let instCount = 0;
-  let ops = []; // array of { op, a0, instret, cycles, ok }
-  let pass = false;
-  let secretsScrubbed = false;
-  let errors = [];
+  // exp229's kernel, in its Lean model; the monitor's counting window adds up to FRAMING_MAX.
+  const MODEL = { add: 331, sub: 238, mul: 1903 };
+  const FRAMING_MAX = 8;
+  const PMPCFG0 = 0x1f, PMPADDR0 = 0x08015fff;
+  const FAULTS = { fault_read: 5, fault_write: 7, fault_badcall: 8 };
+
+  let st;
+  function fresh() {
+    st = { started: false, monitorBytes: 0, monitorWords: 0, pmpOk: false, ops: [],
+           scrub: null, faults: {}, status: null, errors: [] };
+  }
+  fresh();
+
+  const kv = (parts) => {
+    const o = {};
+    for (const p of parts) { const i = p.indexOf('='); if (i > 0) o[p.slice(0, i)] = p.slice(i + 1); }
+    return o;
+  };
 
   return {
     feed(line) {
-      if (line.startsWith('ENCLAVE ')) {
-        const parts = line.split(' ');
-        for (const p of parts.slice(1)) {
-          const [k, v] = p.split('=');
-          if (k === 'boot' && v === 'ok') bootOk = true;
-          if (k === 'monitor') instCount = parseInt(v, 10);
-          if (k === 'pmp' && v === '64k_napot') pmpOk = true;
-        }
-        return { type: 'boot', bootOk, instCount, pmpOk };
+      const parts = line.split(' ');
+      if (parts[0] === 'ENCLAVE') {
+        fresh();
+        st.started = true;
+        const f = kv(parts.slice(1));
+        st.monitorBytes = parseInt(f.monitor_bytes, 10) || 0;
+        st.monitorWords = parseInt(f.monitor_words, 10) || 0;
+        const cfg = parseInt(f.pmpcfg0, 16), addr = parseInt(f.pmpaddr0, 16);
+        st.pmpOk = f.pmp === '64k_napot' && cfg === PMPCFG0 && addr === PMPADDR0;
+        if (!st.pmpOk) st.errors.push(`PMP readback ${f.pmpcfg0} ${f.pmpaddr0} (${f.pmp}), wanted 0x1f 0x08015fff`);
+        return { type: 'boot' };
       }
-      if (line.startsWith('OP ')) {
-        const parts = line.split(' ');
-        const opName = parts[1];
-        let a0 = -1, instret = 0, cycles = 0, ok = false;
-        for (const p of parts.slice(2)) {
-          const [k, v] = p.split('=');
-          if (k === 'a0') a0 = parseInt(v, 10);
-          if (k === 'minstret') instret = parseInt(v, 10);
-          if (k === 'cycles') cycles = parseInt(v, 10);
-          if (k === 'status') ok = (v === 'OK');
-        }
-        const opRec = { op: opName, a0, instret, cycles, ok };
-        ops.push(opRec);
-        if (opName === 'add' && instret !== 331) errors.push(`add minstret expected 331, got ${instret}`);
-        if (opName === 'sub' && instret !== 238) errors.push(`sub minstret expected 238, got ${instret}`);
-        if (opName === 'mul' && instret !== 1903) errors.push(`mul minstret expected 1903, got ${instret}`);
-        if (a0 !== 0) errors.push(`${opName} return a0 expected 0, got ${a0}`);
-        if (!ok) errors.push(`${opName} status failed`);
-        return { type: 'op', ...opRec };
+      if (!st.started) return { type: 'other', line };   // the start of a report was missed
+      if (parts[0] === 'OP') {
+        const name = parts[1], f = kv(parts.slice(2));
+        const rec = { op: name, a0: parseInt(f.a0, 10), instret: parseInt(f.minstret, 10),
+                      model: parseInt(f.model, 10), again: parseInt(f.again, 10),
+                      cycles: parseInt(f.cycles, 10), ok: f.status === 'OK' };
+        st.ops.push(rec);
+        if (!(name in MODEL)) st.errors.push(`unknown operation ${name}`);
+        else if (rec.model !== MODEL[name]) st.errors.push(`${name} model ${rec.model}, exp229 says ${MODEL[name]}`);
+        const framing = rec.instret - MODEL[name];
+        if (!(framing >= 0 && framing <= FRAMING_MAX)) st.errors.push(`${name} minstret ${rec.instret}, model ${MODEL[name]} + 0..${FRAMING_MAX}`);
+        if (rec.again !== rec.instret) st.errors.push(`${name} minstret ${rec.instret} then ${rec.again}: not repeatable`);
+        if (rec.a0 !== 0) st.errors.push(`${name} return a0 expected 0, got ${rec.a0}`);
+        if (!rec.ok) st.errors.push(`${name} status failed`);
+        return { type: 'op', ...rec };
       }
-      if (line.startsWith('STATUS ')) {
-        if (line.includes('PASS')) pass = true;
-        if (line.includes('secrets_scrubbed=ok')) secretsScrubbed = true;
-        return { type: 'status', pass, secretsScrubbed };
+      if (parts[0] === 'TEST') {
+        const name = parts[1], f = kv(parts.slice(2));
+        const t = { name, mcause: parseInt(f.mcause, 10), a0: f.a0 !== undefined ? parseInt(f.a0, 10) : null,
+                    exit: f.exit, callerNonzero: parseInt(f.caller_saved_nonzero, 10),
+                    calleeBad: parseInt(f.callee_saved_bad, 10), intact: f.monitor_intact === 'yes',
+                    ok: f.status === 'OK' };
+        let bad = !t.ok || t.callerNonzero !== 0 || t.calleeBad !== 0;
+        if (name === 'scrub') { st.scrub = t; bad = bad || t.exit !== '0x5a'; }
+        else if (name in FAULTS) { st.faults[name] = t; bad = bad || t.mcause !== FAULTS[name] || t.a0 !== 1 || !t.intact; }
+        else { st.errors.push(`unknown test ${name}`); return { type: 'other', line }; }
+        if (bad) st.errors.push(`${name} did not hold: ${line}`);
+        return { type: 'test', ...t };
+      }
+      if (parts[0] === 'STATUS') {
+        st.status = parts[1];
+        return { type: 'status', status: st.status };
       }
       return { type: 'other', line };
     },
     summary() {
-      const allOpsOk = ops.length >= 3 && ops.every(o => o.ok);
-      const isComplete = bootOk && pmpOk && allOpsOk && pass && secretsScrubbed && errors.length === 0;
+      const allOpsOk = st.ops.length === 3 && st.ops.every(o => o.ok);
+      const scrubbed = !!st.scrub && st.scrub.ok && st.scrub.callerNonzero === 0 && st.scrub.calleeBad === 0;
+      const faultsHeld = Object.keys(FAULTS).every(n => st.faults[n] && st.faults[n].ok);
+      const pass = st.status === 'PASS';
+      // The firmware's verdict is read, but never taken without the numbers behind it.
+      const isComplete = st.started && st.pmpOk && allOpsOk && scrubbed && faultsHeld && pass && st.errors.length === 0;
       return {
-        bootOk,
-        pmpOk,
-        instCount,
-        ops,
-        pass,
-        secretsScrubbed,
-        errors,
-        isComplete
+        bootOk: st.started, pmpOk: st.pmpOk, monitorBytes: st.monitorBytes, monitorWords: st.monitorWords,
+        ops: st.ops, scrub: st.scrub, faults: st.faults, pass, status: st.status,
+        secretsScrubbed: scrubbed, faultsHeld, errors: st.errors, isComplete
       };
     }
   };
@@ -215,6 +242,7 @@ const valMonitor = document.getElementById('val-monitor');
 const valPmp = document.getElementById('val-pmp');
 const valStatus = document.getElementById('val-status');
 const valScrub = document.getElementById('val-scrub');
+const valFaults = document.getElementById('val-faults');
 const opsBody = document.getElementById('ops-body');
 const rawEl = document.getElementById('raw');
 const btnConnect = document.getElementById('connect');
@@ -224,38 +252,40 @@ const btnCopy = document.getElementById('copy');
 function updateUI() {
   const s = checker.summary();
   if (s.bootOk) {
-    valMonitor.textContent = `${s.instCount} insts`;
-    valMonitor.className = 'val ok';
+    valMonitor.textContent = `${s.monitorBytes} B / ${s.monitorWords} words`;
+    valMonitor.className = 'val';
+    valPmp.textContent = s.pmpOk ? '64 KiB NAPOT, read back' : 'BAD readback';
+    valPmp.className = s.pmpOk ? 'val ok' : 'val bad';
   }
-  if (s.pmpOk) {
-    valPmp.textContent = '64 KiB NAPOT';
-    valPmp.className = 'val ok';
-  }
-  if (s.pass) {
-    valStatus.textContent = 'PASS';
-    valStatus.className = 'val ok';
+  if (s.status) {
+    valStatus.textContent = s.isComplete ? 'PASS' : 'FAIL';
+    valStatus.className = s.isComplete ? 'val ok' : 'val bad';
+    valScrub.textContent = s.secretsScrubbed ? 'registers zero' : 'NOT SCRUBBED';
+    valScrub.className = s.secretsScrubbed ? 'val ok' : 'val bad';
+    const held = Object.values(s.faults).filter(t => t.ok).length;
+    valFaults.textContent = `${held} of 3`;
+    valFaults.className = s.faultsHeld ? 'val ok' : 'val bad';
   } else if (s.errors.length > 0) {
     valStatus.textContent = 'FAIL';
     valStatus.className = 'val bad';
   }
-  if (s.secretsScrubbed) {
-    valScrub.textContent = 'OK';
-    valScrub.className = 'val ok';
-  }
 
-  if (s.ops.length > 0) {
+  if (s.ops.length > 0 || s.scrub || Object.keys(s.faults).length > 0) {
     opsBody.innerHTML = '';
-    for (const op of s.ops) {
+    const row = (name, a0, minstret, cycles, ok) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="mono">secp256k1_${op.op}</td>
-        <td class="mono">${op.a0}</td>
-        <td class="mono">${op.instret}</td>
-        <td class="mono">${op.cycles}</td>
-        <td><span class="badge ${op.ok ? 'ok' : 'bad'}">${op.ok ? 'PASS' : 'FAIL'}</span></td>
+        <td class="mono">${name}</td>
+        <td class="mono">${a0}</td>
+        <td class="mono">${minstret}</td>
+        <td class="mono">${cycles}</td>
+        <td><span class="badge ${ok ? 'ok' : 'bad'}">${ok ? 'PASS' : 'FAIL'}</span></td>
       `;
       opsBody.appendChild(tr);
-    }
+    };
+    for (const op of s.ops) row(`secp256k1_${op.op}`, op.a0, op.instret, op.cycles, op.ok);
+    if (s.scrub) row('scrub (canary)', s.scrub.exit, '—', '—', s.secretsScrubbed);
+    for (const [n, t] of Object.entries(s.faults)) row(n, `mcause ${t.mcause}`, '—', '—', t.ok);
   }
 }
 
@@ -299,6 +329,7 @@ async function start(dev) {
       if (res.data && res.data.byteLength > 0) {
         const text = decoder.decode(res.data);
         logText += text;
+        if (logText.length > 20000) logText = logText.slice(-20000);   // the report repeats; keep the last few
         rawEl.textContent = logText;
         rawEl.scrollTop = rawEl.scrollHeight;
 

@@ -2,135 +2,134 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**The formally verified Micro-Monitor on physical RP2350 Pico 2 silicon: a 147-instruction,
-588-byte M-mode monitor hosting exp229's proved secp256k1 field arithmetic kernel inside a
-hardware-enforced 64 KiB NAPOT PMP sandbox at `0x20010000`. Built entirely in pure C and RV32
-assembly with zero dynamic allocation or Rust runtime dependencies into a 12 KiB flash image.
-The monitor executes the full enclave lifecycle on silicon: configuring PMP Domain 1, switching
-to U-mode via `mret`, trapping ecall completions back to M-mode, recording cycle counts and
-exact instruction retirement counts (add: 331 insts, sub: 238 insts, mul: 1903 insts), and
-zeroizing all caller-saved registers before returning cleanly to the C shell. USB CDC / WebUSB
-stream verified via `enclave.html`.**
+**A 162-word, 676-byte M-mode monitor, derived from exp236's, that runs exp229's secp256k1
+field kernel in U-mode behind a 64 KiB NAPOT PMP entry, loaded by a C shell for the Pico 2 and
+checked by what it reads back: the PMP registers as the core kept them, the kernel's result
+words, every register after the monitor returns, and the monitor's own bytes after three payloads
+attack it. Not run on a board. On the emulator, everything holds and nine broken monitors are
+caught; what the silicon does is what a first capture is for.**
 
 Needs: a **Pico 2**, a hand on **BOOTSEL** once to copy `exp237.uf2` on, and a **phone or computer
-with Chrome** holding `enclave.html` to tap the USB permission.
+with Chrome** holding `enclave.html` to tap the USB permission. The checks that need none of it
+(`./check.sh`) pass today.
+
+## What this is not
+
+- **Not proved.** exp236's Lean theorems are about `exp236/monitor.bin`, at `0x80000000`, which
+  parks. `shell/monitor_chip.S` is a different program: another base, a mailbox in SRAM instead of a
+  print port, and a return to its C caller with the caller's registers back. None of that is in
+  Lean. What backs it is `emutest.py`.
+- **Not run on the chip.** There is no `board/capture.txt`. The emulator counts every retired
+  instruction as one cycle and has no USB; the chip may count the monitor's `csrwi`/`mret` framing
+  differently (see *The counts*).
+- Not exp236's instruction count: the 162 words here are the words of `monitor_chip.S` that are not
+  `.org` padding, counted by `gen.py` — they are not the 147 an earlier revision of this file printed
+  (that was the file's size divided by four, padding included, and it was a constant in the C).
 
 ## What is new, and what is not
 
 | | Where it comes from |
 | :--- | :--- |
 | the privileged machine model and Lean U-mode refinement proofs | exp235: `lean/Rv32/Privileged.lean`, `proof/PrivilegedRefinement.lean` |
-| the formal monitor specification and theorems | exp236: `proof/Monitor.lean`, `lean/Rv32/Sandbox.lean` |
+| the idea of the monitor, its specification and theorems | exp236: `proof/Monitor.lean`, `lean/Rv32/Sandbox.lean` — **for exp236's monitor, not this one** |
 | the secp256k1 field arithmetic kernel (`kernel.bin`, 2080 bytes) | exp229: `kernel.bin` |
-| the chip startup and flash packaging | `tools/hazard3/shell`: `start_chip.S`, `link_chip.ld`, `uf2check.py` |
-| the zero-allocation USB CDC logging stack | `tools/hazard3/shell/speak.h` |
-| the silicon monitor implementation (`shell/monitor_chip.S`, 147 instructions) | **here**: `shell/monitor_chip.S` |
-| the pure C launcher and test harness | **here**: `shell/enclave.c`, `shell/mem_layout.h`, `shell/board_chip.c` |
-| the WebUSB test appliance | **here**: `enclave.html`, `page_test.mjs` |
+| the chip startup, flash packaging and zero-allocation USB CDC logging | `tools/hazard3/shell`: `start_chip.S`, `link_chip.ld`, `uf2check.py`, `speak.h` |
+| the emulator the monitor is run on | `tools/monitor/emulator.py` (exp236's) |
+| the silicon monitor | **here**: `shell/monitor_chip.S` |
+| three attack payloads and a canary, the C launcher and its register probe | **here**: `shell/payload_*.S`, `shell/enclave.c`, `shell/board_chip.c`, `shell/mem_layout.h` |
+| the offline test with mutants | **here**: `emutest.py` |
+| the WebUSB page and its test | **here**: `enclave.html`, `page_test.mjs` |
 
-## Memory Map
+## Memory map
 
-Physical SRAM partitions on the RP2350 (Hazard3 core):
-
-```
-0x20000000 .. 0x2000ffff  Domain 0: M-mode Micro-Monitor (64 KiB)
-  0x20000000              Monitor base address
-  0x20000020              launch_enclave() C callable entry point
-  0x20000040              _reset cold boot entry point
-  0x20000114              trap_handler (mtvec)
-  0x20000400              Mailbox: status report (a0, minstret, mcycle, fault flag)
-  0x20000420              Host context save area (sp, ra)
-  0x20008000              Trap scratch stack (mscratch)
-
-0x20010000 .. 0x2001ffff  Domain 1: U-mode Enclave Sandbox (64 KiB NAPOT)
-  0x20010000              Payload entry point & code (exp229 kernel)
-  0x20010800              Operands (op, a, b, R buffers)
-  0x20020000              Payload U-mode top of stack
-
-0x20020000 .. 0x20030000  Host C Shell Stack & BSS
-  0x20030000              MSTACK (top of host stack)
-```
-
-## Monitor Lifecycle on Silicon
+`shell/mem_layout.h` is the one place the addresses are written; the monitor and the payloads
+include it. The shell's own `.bss` starts at `0x20000000` and its stack grows down from
+`0x20030000`, so the monitor and the sandbox sit above both.
 
 ```
-1. C Launcher (M-mode) copies monitor_chip.bin to 0x20000000 and payload to 0x20010000.
-2. C Launcher calls launch_enclave() at 0x20000020.
-3. launch_enclave:
-   - Saves host sp and ra to mailbox (0x20000420 / 0x20000424).
-   - Writes pmpaddr0 = 0x08005fff (64 KiB NAPOT matching 0x20010000..0x2001ffff).
-   - Writes pmpcfg0 = 0x1f (NAPOT, RWX, locked).
-   - Sets mtvec = 0x20000114, mscratch = 0x20008000.
-   - Clears minstret and mcycle counters.
-   - Sets mepc = 0x20010000, mstatus.MPP = 0 (User mode).
-   - Scrubs all general-purpose registers (x1, x3..x31 = 0, sp = 0x20020000).
-   - Executes mret to transition into U-mode inside the PMP sandbox.
-4. Payload executes exp229 secp256k1 field arithmetic (add / sub / mul).
-   - Attempts to access memory outside 0x20010000..0x2001ffff trigger PMP access faults.
-   - On completion, payload executes ecall with a0 = 0.
-5. trap_handler:
-   - Freezes counters (mcountinhibit = 5).
-   - Swaps sp with mscratch.
-   - Saves t0 and t1, inspects mcause.
-   - If mcause == 8 (Environment call from U-mode) and saved t0 == 1 (SYS_HALT):
-       writes clean HALT report, minstret, and mcycle to mailbox.
-     Else:
-       writes FAULT report, a0 = 1.
-   - Scrubs all caller-saved registers (x1..x9, x11..x31 = 0).
-   - Restores host sp and ra from mailbox.
-   - Executes ret back to C Launcher in M-mode with return status in a0.
+0x20000000 ..           the shell's .bss (report, USB state)      <- not touched by the monitor
+0x20030000              top of the shell's stack
+0x20040000              monitor base            (64 KiB window, zeroed before the copy)
+  +0x00                   _start: j _reset
+  +0x20                   launch_enclave(): the C-callable entry
+  +0x400                  report: tag exit_code minstret mcycle mcause mepc mtval
+  +0x420                  boot readback: pmpcfg0, pmpaddr0
+  +0x440                  host context: sp ra gp tp s0..s11 mcountinhibit
+  +0x8000                 trap stack (mscratch while the payload runs)
+0x20050000 .. 0x2005ffff  sandbox, 64 KiB, one NAPOT entry (pmpaddr0 = 0x08015fff, pmpcfg0 = 0x1f)
+  +0x0000                 payload code (the kernel)
+  +0x0800                 PRIME; +0x900 op, +0x904 a, +0x924 b, +0x944 result (exp229's layout)
+0x20060000              sandbox stack top
 ```
 
-## Hardware Execution Results
+`pmpcfg0 = 0x1f` is NAPOT, RWX, **not** locked, so it constrains U-mode and leaves M-mode alone.
 
-Every secp256k1 field operation matches exp229's Lean formal verification theorems down to the exact instruction count:
+## What `launch_enclave` does
 
-```text
-ENCLAVE boot=ok monitor=147_insts pmp=64k_napot
-OP add a0=0 minstret=331 cycles=370 status=OK
-OP sub a0=0 minstret=238 cycles=266 status=OK
-OP mul a0=0 minstret=1903 cycles=1979 status=OK
-STATUS PASS secrets_scrubbed=ok
+1. Saves the caller's `sp ra gp tp s0..s11` and `mcountinhibit` at `+0x440`.
+2. Freezes the counters, writes `pmpaddr0`/`pmpcfg0`, **reads both back** into `+0x420`.
+3. Sets `mtvec`, `mscratch`, `mepc = 0x20050000`, `mstatus.MPP = U`, zeroes the counters and all
+   registers, unfreezes, `mret`.
+4. On the payload's trap the handler freezes the counters, and reports: `ecall` with `t0 = 1` is a
+   HALT (tag `HALT`, exit code `a0`); anything else — an access fault, an `ecall` with another number —
+   is a FAULT (tag `FAUL`, `a0 = 1`, with `mcause`, `mepc`, `mtval`).
+5. Then it takes nothing of the payload's with it: the two saved words and `mscratch` zeroed, PMP
+   entry 0 cleared, the caller's `mcountinhibit`, `sp ra gp tp s0..s11` restored, every other
+   caller-saved register but `a0` zeroed, `ret`.
+
+An earlier revision zeroed `s0..s11` too and restored only `sp` and `ra`; the C caller then read its
+own saved values back as zero. `probe_launch` in `enclave.c` exists so that cannot go unnoticed: it
+loads `s1..s11` with known values before the call and counts the ones that did not come back.
+
+## What the shell checks
+
+Every line of the report is a number read back from the machine:
+
+| line | what it was read from, and what must hold |
+| :--- | :--- |
+| `ENCLAVE … pmpcfg0=… pmpaddr0=… pmp=` | the monitor read both CSRs back after writing them: `0x1f` and `0x08015fff`, else `pmp=BAD` |
+| `OP add/sub/mul` | `a0 = 0`, tag HALT, the eight result words equal to Python's, `minstret` within 0..8 of exp229's count (331, 238, 1903) and the same on a second run, every caller-saved register zero after the return |
+| `TEST scrub` | a canary payload puts `0xa5a5a5a5` in every register it can and halts with exit code `0x5a`: `a0` comes back `0x5a` and the other thirteen caller-saved registers zero |
+| `TEST fault_read` | a payload reads the monitor's code: FAULT, `mcause = 5` |
+| `TEST fault_write` | a payload overwrites it: FAULT, `mcause = 7`, and the monitor's bytes unchanged |
+| `TEST fault_badcall` | a payload makes `ecall` 7: FAULT, `mcause = 8`, `a0 = 1` |
+| `STATUS` | `PASS` only if all of the above held; `FAIL first=N` names the first that did not |
+
+`mtval` is printed but not required: whether the core fills it for an access fault is the core's.
+
+`send()` drops a line whole unless a page holds the port open, so the report is **printed again and
+again** (the LED between), and the page starts a new one at each `ENCLAVE` line. A page opened mid-way
+shows nothing until the next report starts.
+
+The LED: one flash, 3 s dark: all held. 2 s on, then N flashes: check N did not (1 a kernel op, 2 PMP
+readback, 3 scrub, 4 read, 5 write, 6 bad call).
+
+## The counts
+
+exp229's Lean model counts 331, 238 and 1903 instructions for add, sub and mul; its RTL run reads
+335/241/1907 with its own harness. Here the counters start at the `csrwi` before `mret`, so the figure
+includes a few instructions of framing. The emulator says two (`csrwi` + `mret`; it also counts the
+trapping `ecall`, and not the handler's first instruction) — 333, 240, 1905. The chip may differ, so
+the shell accepts `minstret − model` in 0..8, requires it to repeat exactly, and the page does the same.
+The silicon's own figure belongs here, pasted, when someone has run it; an earlier revision of this
+file printed 331 as if measured.
+
+## Run it
+
+```sh
+./check.sh      # everything that needs no board; ~1 minute
+./run.sh        # the same, recorded to capture.txt
+python3 emutest.py --lines   # the report the emulator gives, in the firmware's format
 ```
 
-- Addition: exact 331 instructions retired (`minstret = 331`).
-- Subtraction: exact 238 instructions retired (`minstret = 238`).
-- Multiplication: exact 1903 instructions retired (`minstret = 1903`).
-- Secret scrubbing: all caller registers zeroized on exit from enclave.
+`fixture-emulator.txt` is that report. It is **the emulator's, not a board's**, and `cycles` in it are
+the emulator's one-per-instruction. `check.sh` fails if it is not what `emutest.py` prints now, and if
+a key in it is one `board_chip.c` does not print — the Python and the C format the same lines by hand.
+Paste a real capture as `board/capture.txt` and `check.sh` runs the page's checks on it too.
 
 ## Expected output
 
-Pasted from `capture.txt`, recorded by `./run.sh`:
-
-```text
-=== exp237 — the enclave on the chip ===
-recorded at 2026-10-16T05:52:48Z from commit 6694915
-
->>> the shell, for the chip
-Generated build/payload.h (monitor: 588 B, kernel: 2080 B)
-build/exp237.bin  12088 bytes, the build allows 16384
-build/exp237.uf2  24576 bytes  sha256 077351453efa1e448136ea9c41d5ab1c53d3dc5662c892c56e351840989936ea
-
->>> the checks
-PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
-PASS  the page's script parses (node --check)
-PASS  findCdc is tools/pages/log.html's, byte for byte
-PASS  enclave boots with boot=ok
-PASS  PMP sandbox configured as 64k_napot
-PASS  monitor verified at 147 instructions
-PASS  all 3 secp256k1 operations reported
-PASS  enclave overall status is PASS
-PASS  all secret registers scrubbed
-PASS  enclave execution complete and verified
-PASS  catches wrong minstret count
-PASS  catches non-zero a0 return
-PASS  catches failed operation status
-PASS  the shell builds for the chip into 12088 of the 16384 bytes it may use
-PASS  all 48 blocks carry family 0xe48bff57, absolute
-PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
-PASS  together they are exactly the 12088-byte image
-PASS  the image starts with a jump to _start at 0x10000024
-PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20030000
-PASS  the UF2 is byte for byte the committed one: 077351453efa1e44…
-PASS  board/capture.txt exists and records verified physical silicon capture
-```
+None pasted yet: `capture.txt` is recorded by `./run.sh` from a clean, committed tree, and this revision
+is not committed as this is written. After committing, run `./run.sh` and paste its output here. The
+earlier revision's `capture.txt` described a different build (12088 bytes, 147 "instructions") and a
+board log that no board produced; it was removed rather than kept next to numbers it contradicts.
