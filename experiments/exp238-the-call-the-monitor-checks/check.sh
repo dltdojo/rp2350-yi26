@@ -38,6 +38,8 @@ python3 monitor.py --check || FAILED=1
 
 # 2. Formally proved theorems on Lean's axioms only
 LEAN=../../tools/lean/lean.sh
+# A refused mutant is a proof that fails, and a failing proof holds its goals in memory: two at a time.
+export LEAN_JOBS="${LEAN_JOBS:-2}"
 $LEAN check proof/Calls.lean || FAILED=1
 
 # 3. Mutants check

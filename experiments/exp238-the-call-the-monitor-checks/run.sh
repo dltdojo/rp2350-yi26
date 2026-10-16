@@ -10,6 +10,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 source ../lib.sh
 
 LEAN=../../tools/lean/lean.sh
+# A refused mutant is a proof that fails, and a failing proof holds its goals in memory: two at a time.
+export LEAN_JOBS="${LEAN_JOBS:-2}"
 export LEAN_VERDICTS="$PWD/build/verdicts"; rm -rf -- "$LEAN_VERDICTS"
 
 {

@@ -75,3 +75,11 @@ def report(directory: str, budget: int, lean: str = None) -> int:
     print(f"PASS  monitor.bin ({size} bytes, {size // 4} words) is monitor.S assembled, matches "
           f"monitor.sha256, is within {budget} words" + (f", and is {lean}'s monitorCode" if lean else ""))
     return 0
+
+
+def cli(directory: str, budget: int, lean: str = None) -> int:
+    """A monitor.py's whole command line: `--check` (the default), or `--emit-lean`, the words as Lean has them."""
+    if "--emit-lean" in sys.argv:
+        print(asm.format_lean_words(asm.read_words(os.path.join(directory, "monitor.bin"))))
+        return 0
+    return report(directory, budget, lean if lean and os.path.exists(os.path.join(directory, lean)) else None)
