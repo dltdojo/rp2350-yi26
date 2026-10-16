@@ -10,6 +10,8 @@
 
 **這份文件沒有用到板子，也沒有新的實測。**
 
+零知識證明、MPC-in-the-Head、雜湊式金鑰、Note 模型與登錄層的背景說明，見 [zk-background-notes-zh-tw.md](./zk-background-notes-zh-tw.md)。
+
 ---
 
 ## 審查結論
