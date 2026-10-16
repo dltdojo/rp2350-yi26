@@ -638,9 +638,9 @@ theorem entry_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -685,9 +685,9 @@ theorem entry_2a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -732,9 +732,9 @@ theorem entry_2b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -779,9 +779,9 @@ theorem entry_2c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -826,10 +826,11 @@ theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
+  by_cases hq : c = 8#32
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -873,9 +874,9 @@ theorem fault_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 5 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -920,9 +921,9 @@ theorem fault_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -967,9 +968,9 @@ theorem fault_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1014,9 +1015,9 @@ theorem fault_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1061,9 +1062,9 @@ theorem fault_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1108,9 +1109,9 @@ theorem fault_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1156,10 +1157,11 @@ theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hmem] at hk
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp, hk] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp, hk]
+  by_cases hq : BitVec.ofNat 32 k = 1#32
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp, hk, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp, hk, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1203,10 +1205,11 @@ theorem call_is_hashb (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
+  by_cases hq : s.core.reg 5#5 = 2#32
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1250,10 +1253,11 @@ theorem call_is_checksig (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
+  by_cases hq : s.core.reg 5#5 = 3#32
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1297,9 +1301,9 @@ theorem call_unknown (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1344,9 +1348,9 @@ theorem hashb_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1391,10 +1395,11 @@ theorem hashb_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
+  by_cases hq : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1438,10 +1443,11 @@ theorem hashb_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1485,10 +1491,11 @@ theorem hashb_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1532,10 +1539,11 @@ theorem hashb_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
+  by_cases hq : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1579,10 +1587,11 @@ theorem hashb_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1626,10 +1635,11 @@ theorem hashb_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -1676,9 +1686,9 @@ theorem hashb_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1726,9 +1736,9 @@ theorem hashb_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1776,9 +1786,9 @@ theorem hashb_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1826,9 +1836,9 @@ theorem hashb_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1873,9 +1883,9 @@ theorem hashb_fwd_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1920,9 +1930,9 @@ theorem checksig_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1967,10 +1977,11 @@ theorem checksig_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
+  by_cases hq : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -2014,10 +2025,11 @@ theorem checksig_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -2061,10 +2073,11 @@ theorem checksig_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -2108,10 +2121,11 @@ theorem checksig_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
+  by_cases hq : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -2155,10 +2169,11 @@ theorem checksig_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -2202,10 +2217,11 @@ theorem checksig_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
+  by_cases hq : BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -2252,9 +2268,9 @@ theorem checksig_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2302,9 +2318,9 @@ theorem checksig_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2352,9 +2368,9 @@ theorem checksig_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2399,9 +2415,9 @@ theorem checksig_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2446,9 +2462,9 @@ theorem return_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2493,9 +2509,9 @@ theorem return_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 4 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2540,10 +2556,10 @@ theorem return_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp, hmpp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp, hmpp]
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp, hmpp, BitVec.add_assoc] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp, hmpp, BitVec.add_assoc]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -2556,7 +2572,7 @@ theorem return_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  all_goals first | rfl | omega)
   all_goals try (intro r
                  have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp, hmpp])
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp, hmpp, BitVec.add_assoc])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2587,9 +2603,9 @@ theorem halt_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 5 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2634,9 +2650,9 @@ theorem halt_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2681,9 +2697,9 @@ theorem halt_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2728,9 +2744,9 @@ theorem halt_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2775,9 +2791,9 @@ theorem scrub_1a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2822,9 +2838,9 @@ theorem scrub_1b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2869,9 +2885,9 @@ theorem scrub_1c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2916,9 +2932,9 @@ theorem scrub_1d (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2963,9 +2979,9 @@ theorem scrub_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 10 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3010,9 +3026,9 @@ theorem scrub_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 12 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3057,9 +3073,9 @@ theorem scrub_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 9 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3104,9 +3120,9 @@ theorem scrub_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 3 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3151,9 +3167,9 @@ theorem scrub_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3

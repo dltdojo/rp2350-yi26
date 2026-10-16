@@ -144,6 +144,10 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         simp_in = f"pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured{ex}"
         simp_out = f"pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd{ex}"
         holes = ", ".join(["?_"] * (5 + 4 + self.nsv + 2))
+        m = re.match(r"^\(?if (.*) then .* else .*?\)?$", self.pc_out)
+        cond = m.group(1) if m else None
+        split = f"  by_cases hq : {cond}\n" if cond else ""
+        hq = ", hq" if cond else ""
         return f"""  obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
   have hA' : Agree M0 Mc 0x80000000 {BYTES} := hmem ▸ hA
@@ -155,10 +159,10 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     fun t ht h1 h2 => step_mon hW ht h1 h2
 {self.pre}  obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env {n} s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [{simp_in}] at hF
-  subst hF
-  refine ⟨{holes}⟩
-  all_goals try psimpH [{simp_out}]
+{split}  all_goals psimpH [{simp_in}{hq}] at hF
+  all_goals subst hF
+  all_goals refine ⟨{holes}⟩
+  all_goals try psimpH [{simp_out}{hq}]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
                  simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
@@ -502,9 +506,9 @@ add(Chunk("return_1", "Past the `ecall`: `mepc <- mepc + 4`.", 3, h(0x22c), h(0x
           regs="(5, BitVec.ofNat 32 (readLE s.core.mem 0x80008000#32 4)), (6, BitVec.ofNat 32 (readLE s.core.mem 0x80008004#32 4)), "
                "(7, BitVec.ofNat 32 (readLE s.core.mem 0x80008008#32 4)), (28, BitVec.ofNat 32 (readLE s.core.mem 0x8000800c#32 4))"),
     Chunk("return_3", "The payload's `sp` back, the counters released, `mret`.", 3, h(0x248), "e",
-          hyps=HSP + " (hmpp : ms.mpp = .U)", extra=", hsp, hmpp", mode_out=".U",
+          hyps=HSP + " (hmpp : ms.mpp = .U)", mode_out=".U",
           csr_out="csrsH { mie := ms.mpie, mpie := true, mpp := .U } e c (m + 2#32) (cy + 2#32) {} (0x80008000#32)",
-          regs="(2, p)"))
+          regs="(2, p)", extra=", hsp, hmpp, BitVec.add_assoc"))
 
 # ---- HALT
 add(Chunk("halt_1", "Report HALT: address and tag.", 5, h(0x254), h(0x268), regs="(6, 0xc0000004#32), (5, 0x48414c54#32)", store=True),
