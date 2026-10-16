@@ -57,8 +57,10 @@ class Host:
         self.valid = []             # the answers CHECKSIG gave, in order
 
     def read(self, addr: int, n: int) -> bytes:
+        """`n` bytes from `addr`. A request for more than the machine has memory (a length of 2^32 - 1, say) is
+        a request the monitor must have refused: it is served the first 256 KiB, so that the test fails, not the host."""
         emu, out = self.emu, bytearray()
-        for i in range(n):
+        for i in range(min(n, 0x40000)):
             off = ((addr + i) & M32) - BASE
             out.append(emu.mem[off] if 0 <= off < len(emu.mem) else 0)
         return bytes(out)
