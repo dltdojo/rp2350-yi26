@@ -1,0 +1,9 @@
+# exp236 — wrong versions of the micro-monitor and wrong claims about its properties.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+isolation_inverted|PMP domain isolation claims out-of-bounds addresses are accepted|s/(0x80010000 ≤ addr.toNat ∧ addr.toNat + width ≤ 0x80020000)/(0x80010000 > addr.toNat ∨ addr.toNat + width > 0x80020000)/
+zeroization_skips_registers|Secret zeroization claims other GP registers are preserved instead of zeroed|s/zeroizeRegs regs r = 0#32/zeroizeRegs regs r = regs r/
+forwarding_clears_exit_code|Exit status forwarding claims a0 is overwritten with 0 instead of preserved|s/zeroizeRegs regs 10#5 = regs 10#5/zeroizeRegs regs 10#5 = 0#32/
+counters_minstret_leak|Counters claim minstret increments even when mcountinhibit has ir=true|s/(bumpCounters csrs).minstret = csrs.minstret/(bumpCounters csrs).minstret = csrs.minstret + 1/
+counters_mcycle_leak|Counters claim mcycle increments even when mcountinhibit has cy=true|s/(bumpCounters csrs).mcycle = csrs.mcycle/(bumpCounters csrs).mcycle = csrs.mcycle + 1/
