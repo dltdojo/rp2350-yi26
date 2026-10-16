@@ -229,3 +229,5 @@ alice-2、alice-4 成為校準的已知好案例：第 5 輪再找到兩個統�
 ### 第 4 輪：通過（2026-10-16）
 
 只重錄 alice-1 之後跑第 4 輪：抽中的 alice-1 三次四題全 YES，其餘四個各一次全 YES，`audit-proposal.sh` 判定 **ALL 5 EXPERIMENTS PASSED**。四輪驗收合計 115 個 session、約 $26.16（[audits/alice-2026-10-15/](../audits/alice-2026-10-15/README.md)）。
+
+alice 不另跑 G7：提案者就是任務方，五個實驗的上板紀錄已經由任務方的人與板子做過。真正的提案每一份都要另外跑 G7（[ACCEPTANCE.md](../ACCEPTANCE.md)「現場上板」）。試跑對徵集的教訓——什麼會讓 capture 過期、送出前的自我檢查清單、一輪驗收的實際成本——寫進了徵集 README 第 5、7 節。
