@@ -64,9 +64,13 @@ def hexpc(x: str) -> str:
     return x if ("#32" in x or x[0].isalpha()) else f"{x}#32"
 
 
-R32 = f"""intro r
-    have hr32 : {REGLIST} := by bv_omega
-    rcases hr32 with {RCASES}"""
+def r32(ind):
+    pad = " " * ind
+    return f"intro r\n{pad}have hr32 : {REGLIST} := by bv_omega\n{pad}rcases hr32 with {RCASES}"
+
+
+R32 = r32(4)
+R32T = r32(17)
 
 HNAMES = re.compile(r"\((h\w*) :")
 
@@ -161,7 +165,7 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  simp only [writeLE4_apply, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 ⊢
                  repeat' split
                  all_goals first | rfl | omega)
-  all_goals try ({R32} <;> psimpH [pmpCheck_mon, regsUpd{ex}])
+  all_goals try ({R32T} <;> psimpH [pmpCheck_mon, regsUpd{ex}])
 """
 
     # ---- chains: a chunk that is a run of other chunks

@@ -342,6 +342,37 @@ theorem Frame.trans {a b c : Word → Byte} (h1 : Frame a b) (h2 : Frame b c) : 
 theorem SvcSame.trans {a b c : Word → Byte} (h1 : SvcSame a b) (h2 : SvcSame b c) : SvcSame a c :=
   fun x h => (h2 x h).trans (h1 x h)
 
+theorem SvcSame.read {m m' : Word → Byte} (h : SvcSame m m') (a : Word)
+    (ha : 0xc0000010 ≤ a.toNat ∧ a.toNat + 4 ≤ 0xc0000020) : readLE m' a 4 = readLE m a 4 := by
+  apply readLE_four_congr
+  intro d hd
+  apply h
+  unfold InSvc
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
+  omega
+
+/-! ## The bounds check, as arithmetic -/
+
+/-- The three comparisons of the bounds check pass exactly when `[a, a + len)` lies in the box, the sum
+    taken in the naturals: a range whose end wraps past `2^32` does not. -/
+theorem bounds_ok_iff (a len : Word) :
+    (BitVec.ult a 0x80010000#32 = false ∧ BitVec.ult 0x80020000#32 a = false ∧
+      BitVec.ult (0x80020000#32 - a) len = false) ↔
+    (0x80010000 ≤ a.toNat ∧ a.toNat + len.toNat ≤ 0x80020000) := by
+  have h1 := a.isLt
+  have h2 := len.isLt
+  simp only [BitVec.ult, decide_eq_false_iff_not, not_lt, BitVec.toNat_sub, BitVec.toNat_ofNat,
+    Nat.reducePow, Nat.reduceMod]
+  omega
+
+/-- The same, for a length that is a constant. -/
+theorem bounds_len_iff (a : Word) (n : Nat) (hn : n < 4294967296) :
+    (BitVec.ult a 0x80010000#32 = false ∧ BitVec.ult 0x80020000#32 a = false ∧
+      BitVec.ult (0x80020000#32 - a) (BitVec.ofNat 32 n) = false) ↔
+    (0x80010000 ≤ a.toNat ∧ a.toNat + n ≤ 0x80020000) := by
+  rw [bounds_ok_iff]
+  simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.mod_eq_of_lt hn]
+
 theorem writeLE4_apply (m : Word → Byte) (a : Word) (v : Nat) (x : Word) :
     writeLE m a v 4 x = if (x - a).toNat < 4 then BitVec.ofNat 8 (v / 256 ^ (x - a).toNat) else m x :=
   writeLE_apply m a v 4 (by decide) x
@@ -606,8 +637,8 @@ theorem entry_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -653,8 +684,8 @@ theorem entry_2a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -700,8 +731,8 @@ theorem entry_2b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -747,8 +778,8 @@ theorem entry_2c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -794,8 +825,8 @@ theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -841,8 +872,8 @@ theorem fault_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -888,8 +919,8 @@ theorem fault_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -935,8 +966,8 @@ theorem fault_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -982,8 +1013,8 @@ theorem fault_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1029,8 +1060,8 @@ theorem fault_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1076,8 +1107,8 @@ theorem fault_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1124,8 +1155,8 @@ theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp, hk])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp, hk])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1171,8 +1202,8 @@ theorem call_is_hashb (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1218,8 +1249,8 @@ theorem call_is_checksig (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1265,8 +1296,8 @@ theorem call_unknown (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1312,8 +1343,8 @@ theorem hashb_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1359,8 +1390,8 @@ theorem hashb_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1406,8 +1437,8 @@ theorem hashb_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1453,8 +1484,8 @@ theorem hashb_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1500,8 +1531,8 @@ theorem hashb_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1547,8 +1578,8 @@ theorem hashb_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1594,8 +1625,8 @@ theorem hashb_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1644,8 +1675,8 @@ theorem hashb_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1694,8 +1725,8 @@ theorem hashb_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1744,8 +1775,8 @@ theorem hashb_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1794,8 +1825,8 @@ theorem hashb_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1841,8 +1872,8 @@ theorem hashb_fwd_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1888,8 +1919,8 @@ theorem checksig_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1935,8 +1966,8 @@ theorem checksig_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -1982,8 +2013,8 @@ theorem checksig_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2029,8 +2060,8 @@ theorem checksig_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2076,8 +2107,8 @@ theorem checksig_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2123,8 +2154,8 @@ theorem checksig_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2170,8 +2201,8 @@ theorem checksig_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht2])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2220,8 +2251,8 @@ theorem checksig_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2270,8 +2301,8 @@ theorem checksig_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2320,8 +2351,8 @@ theorem checksig_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2367,8 +2398,8 @@ theorem checksig_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht3])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2414,8 +2445,8 @@ theorem return_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2461,8 +2492,8 @@ theorem return_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2508,8 +2539,8 @@ theorem return_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp, hmpp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp, hmpp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2555,8 +2586,8 @@ theorem halt_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2602,8 +2633,8 @@ theorem halt_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2649,8 +2680,8 @@ theorem halt_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2696,8 +2727,8 @@ theorem halt_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, ht1])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2743,8 +2774,8 @@ theorem scrub_1a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2790,8 +2821,8 @@ theorem scrub_1b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2837,8 +2868,8 @@ theorem scrub_1c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2884,8 +2915,8 @@ theorem scrub_1d (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd, hsp])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2931,8 +2962,8 @@ theorem scrub_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -2978,8 +3009,8 @@ theorem scrub_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3025,8 +3056,8 @@ theorem scrub_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3072,8 +3103,8 @@ theorem scrub_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
-    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3119,7 +3150,2343 @@ theorem scrub_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                  repeat' split
                  all_goals first | rfl | omega)
   all_goals try (intro r
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- The scrub, all of it: every register but `a0` zero, `mscratch` zero, the four saved words zero, the machine at the park loop. -/
+theorem monitor_scrub (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
+    (hpc : s.core.pc = 0x8000027c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 39 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 39 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 39 s).halted = false ∧
+    (PrivMachine.run env 39 s).mode = .M ∧
+    (PrivMachine.run env 39 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 39 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 39 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 39 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 39 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 39 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 39 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 39 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 1 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := scrub_1a env M0 s hS0 ms e c m cy p p0 c0 (by simp [regsUpd, hsp])
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := scrub_1b env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 1 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := scrub_1c env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 1 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := scrub_1d env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 10 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := scrub_2 env M0 s4 hS4 ms e c m cy p p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 12 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := scrub_3 env M0 s5 hS5 ms e c m cy p5 c5
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 9 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := scrub_4 env M0 s6 hS6 ms e c m cy p6 c6
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 3 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := scrub_5 env M0 s7 hS7 ms e c m cy p7 c7
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := scrub_6 env M0 s8 hS8 ms e c m cy p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  have hall : PrivMachine.run env 39 s = s9 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (hs9))))))))
+  rw [hall]
+  refine ⟨p9, a9, h9, m9, c9, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w1 => simp [w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w2 => simp [w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w3 => simp [w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans sv9))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans fr9))))))))
+  case r =>
+    intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- The fault report, then the scrub: `a0 = 1`, every other register zero. -/
+theorem monitor_fault_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
+    (hpc : s.core.pc = 0x80000138#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 54 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 54 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 54 s).halted = false ∧
+    (PrivMachine.run env 54 s).mode = .M ∧
+    (PrivMachine.run env 54 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 54 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 54 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 54 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 54 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 54 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 54 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 54 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 5 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := fault_1 env M0 s hS0 ms e c m cy p p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 2 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := fault_2 env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := fault_3 env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := fault_4 env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := fault_5 env M0 s4 hS4 ms e c m cy p p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hsp])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 2 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := fault_6 env M0 s5 hS5 ms e c m cy p p5 c5
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 39 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_scrub env M0 s6 hS6 ms e c m cy p p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hsp])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  have hall : PrivMachine.run env 54 s = s7 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (hs7))))))
+  rw [hall]
+  refine ⟨p7, a7, h7, m7, c7, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w1 => simp [w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w2 => simp [w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w3 => simp [w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans sv7))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans fr7))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- The HALT report, then the scrub: `a0` is the payload's exit code, every other register zero. -/
+theorem monitor_halt_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
+    (hpc : s.core.pc = 0x80000254#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 49 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 49 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 49 s).halted = false ∧
+    (PrivMachine.run env 49 s).mode = .M ∧
+    (PrivMachine.run env 49 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 49 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 49 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 49 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 49 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 49 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 49 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 49 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 5 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := halt_1 env M0 s hS0 ms e c m cy p p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := halt_2 env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := halt_3 env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := halt_4 env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 39 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := monitor_scrub env M0 s4 hS4 ms e c m cy p p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hsp])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hall : PrivMachine.run env 49 s = s5 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (hs5))))
+  rw [hall]
+  refine ⟨p5, a5, h5, m5, c5, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w5_0, w4_0, w3_0, w2_0, w1_0, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w1 => simp [w5_1, w4_1, w3_1, w2_1, w1_1, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w2 => simp [w5_2, w4_2, w3_2, w2_2, w1_2, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case w3 => simp [w5_3, w4_3, w3_3, w2_3, w1_3, r5, r4, r3, r2, r1, regsUpd, hsp]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans sv5))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans fr5))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r5, r4, r3, r2, r1, regsUpd, hsp]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- Trap entry: the counters frozen, the M-mode stack swapped in, the payload's `t0..t3` saved, `mcause` read. -/
+theorem monitor_enter (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
+    (PrivMachine.run env 9 s).core.pc = if c = 8#32 then 0x80000174#32 else 0x80000138#32 ∧
+    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 9 s).halted = false ∧
+    (PrivMachine.run env 9 s).mode = .M ∧
+    (PrivMachine.run env 9 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (s.core.reg 2#5) ∧
+    readLE (PrivMachine.run env 9 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 9 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 9 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 9 s).core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 ∧
+    SvcSame s.core.mem (PrivMachine.run env 9 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 9 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 9 s).core.reg r = regsUpd s.core.reg [(2, 0x80008000#32), (5, c), (6, 8#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 3 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := entry_1 env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := entry_2a env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) p1 c1 (by simp [r1, regsUpd])
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 1 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := entry_2b env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2 (by simp [r2, r1, regsUpd])
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 1 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := entry_2c env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3 (by simp [r3, r2, r1, regsUpd])
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 3 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := entry_mcause env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hall : PrivMachine.run env 9 s = s5 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (hs5))))
+  rw [hall]
+  refine ⟨p5, a5, h5, m5, c5, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w5_0, w4_0, w3_0, w2_0, w1_0, r5, r4, r3, r2, r1, regsUpd]
+  case w1 => simp [w5_1, w4_1, w3_1, w2_1, w1_1, r5, r4, r3, r2, r1, regsUpd]
+  case w2 => simp [w5_2, w4_2, w3_2, w2_2, w1_2, r5, r4, r3, r2, r1, regsUpd]
+  case w3 => simp [w5_3, w4_3, w3_3, w2_3, w1_3, r5, r4, r3, r2, r1, regsUpd]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans sv5))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans fr5))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r5, r4, r3, r2, r1, regsUpd]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- `ecall` with `t0 = 1`: from the trap vector the machine parks, `a0` the payload's own exit code, every other register zero. -/
+theorem monitor_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 1#32) :
+    (PrivMachine.run env 61 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 61 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 61 s).halted = false ∧
+    (PrivMachine.run env 61 s).mode = .M ∧
+    (PrivMachine.run env 61 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 61 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 61 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 61 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 61 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 61 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 61 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 61 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 49 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := monitor_halt_exit env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2 (by simp [r2, r1, regsUpd, hc, ht0])
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  have hall : PrivMachine.run env 61 s = s3 := run_two hs1 (run_two hs2 (hs3))
+  rw [hall]
+  refine ⟨p3, a3, h3, m3, c3, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w3_0, w2_0, w1_0, r3, r2, r1, regsUpd, hc, ht0]
+  case w1 => simp [w3_1, w2_1, w1_1, r3, r2, r1, regsUpd, hc, ht0]
+  case w2 => simp [w3_2, w2_2, w1_2, r3, r2, r1, regsUpd, hc, ht0]
+  case w3 => simp [w3_3, w2_3, w1_3, r3, r2, r1, regsUpd, hc, ht0]
+  case sv => exact (sv1.trans (sv2.trans sv3))
+  case fr => exact (fr1.trans (fr2.trans fr3))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r3, r2, r1, regsUpd, hc, ht0]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A trap that is not an `ecall`: from the trap vector the machine parks with `a0 = 1` and every other register zero. -/
+theorem monitor_fault_cause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c ≠ 8#32) :
+    (PrivMachine.run env 63 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 63 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 63 s).halted = false ∧
+    (PrivMachine.run env 63 s).mode = .M ∧
+    (PrivMachine.run env 63 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 63 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 63 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 63 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 63 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 63 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 63 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 63 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 54 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := monitor_fault_exit env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) p1 c1 (by simp [r1, regsUpd, hc])
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  have hall : PrivMachine.run env 63 s = s2 := run_two hs1 (hs2)
+  rw [hall]
+  refine ⟨p2, a2, h2, m2, c2, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w2_0, w1_0, r2, r1, regsUpd, hc]
+  case w1 => simp [w2_1, w1_1, r2, r1, regsUpd, hc]
+  case w2 => simp [w2_2, w1_2, r2, r1, regsUpd, hc]
+  case w3 => simp [w2_3, w1_3, r2, r1, regsUpd, hc]
+  case sv => exact (sv1.trans sv2)
+  case fr => exact (fr1.trans fr2)
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r2, r1, regsUpd, hc]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- An `ecall` whose `t0` is none of 1, 2, 3: from the trap vector the machine parks with `a0 = 1` and every other register zero. -/
+theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 ≠ 1#32) (ht2 : s.core.reg 5#5 ≠ 2#32) (ht3 : s.core.reg 5#5 ≠ 3#32) :
+    (PrivMachine.run env 71 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 71 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 71 s).halted = false ∧
+    (PrivMachine.run env 71 s).mode = .M ∧
+    (PrivMachine.run env 71 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 71 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 71 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 71 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, ht2, ht3]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht2, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht3, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := call_unknown env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 54 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := monitor_fault_exit env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  have hall : PrivMachine.run env 71 s = s6 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (hs6)))))
+  rw [hall]
+  refine ⟨p6, a6, h6, m6, c6, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
+  case w1 => simp [w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
+  case w2 => simp [w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
+  case w3 => simp [w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans sv6)))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans fr6)))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `HASHB` whose ranges lie in the box: from the trap vector the call is forwarded exactly as the payload gave it, and the machine is back in the payload at the word after the `ecall` — the payload's registers as they were, the counters released and moved on by two. -/
+theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hin : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + (s.core.reg 11#5).toNat ≤ 0x80020000) (hout : 0x80010000 ≤ (s.core.reg 12#5).toNat ∧ (s.core.reg 12#5).toNat + 32 ≤ 0x80020000) (hmpp : ms.mpp = .U) :
+    (PrivMachine.run env 43 s).core.pc = e + 4#32 ∧
+    Agree M0 (PrivMachine.run env 43 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 43 s).halted = false ∧
+    (PrivMachine.run env 43 s).mode = .U ∧
+    (PrivMachine.run env 43 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc0000018#32 4 = (s.core.reg 12#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc000001c#32 4 = 2 ∧
+    Frame s.core.mem (PrivMachine.run env 43 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 43 s).core.reg r = regsUpd s.core.reg [] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨hb1, hb2, hb3⟩ := (bounds_ok_iff _ _).mpr hin
+  obtain ⟨hb4, hb5, hb6⟩ := (bounds_len_iff _ 32 (by decide)).mpr hout
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hin, hout, hmpp]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  simp [r4, r3, r2, r1, hb1, regsUpd] at p5
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 2 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_b3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b4 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b5 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 3 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b6 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p10
+  have hS10 := hS9.next a10 h10 m10
+  obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 3 s10 = t := ⟨_, rfl⟩
+  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11_0, sv11_1, sv11_2, sv11_3, fr11, r11⟩ := hashb_fwd_1 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10
+  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11_0 sv11_1 sv11_2 sv11_3 fr11 r11
+  have hS11 := hS10.next a11 h11 m11
+  obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 1 s11 = t := ⟨_, rfl⟩
+  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12_0, sv12_1, sv12_2, sv12_3, fr12, r12⟩ := hashb_fwd_2 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12_0 sv12_1 sv12_2 sv12_3 fr12 r12
+  have hS12 := hS11.next a12 h12 m12
+  obtain ⟨s13, hs13⟩ : ∃ t, PrivMachine.run env 1 s12 = t := ⟨_, rfl⟩
+  obtain ⟨p13, a13, h13, m13, c13, w13_0, w13_1, w13_2, w13_3, sv13_0, sv13_1, sv13_2, sv13_3, fr13, r13⟩ := hashb_fwd_3 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12 (by simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs13] at p13 a13 h13 m13 c13 w13_0 w13_1 w13_2 w13_3 sv13_0 sv13_1 sv13_2 sv13_3 fr13 r13
+  have hS13 := hS12.next a13 h13 m13
+  obtain ⟨s14, hs14⟩ : ∃ t, PrivMachine.run env 2 s13 = t := ⟨_, rfl⟩
+  obtain ⟨p14, a14, h14, m14, c14, w14_0, w14_1, w14_2, w14_3, sv14_0, sv14_1, sv14_2, sv14_3, fr14, r14⟩ := hashb_fwd_4 env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13 (by simp [r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs14] at p14 a14 h14 m14 c14 w14_0 w14_1 w14_2 w14_3 sv14_0 sv14_1 sv14_2 sv14_3 fr14 r14
+  have hS14 := hS13.next a14 h14 m14
+  obtain ⟨s15, hs15⟩ : ∃ t, PrivMachine.run env 1 s14 = t := ⟨_, rfl⟩
+  obtain ⟨p15, a15, h15, m15, c15, w15_0, w15_1, w15_2, w15_3, sv15, fr15, r15⟩ := hashb_fwd_5 env M0 s14 hS14 ms e c m cy (s.core.reg 2#5) p14 c14
+  rw [hs15] at p15 a15 h15 m15 c15 w15_0 w15_1 w15_2 w15_3 sv15 fr15 r15
+  have sv15_0 : readLE s15.core.mem 0xc0000010#32 4 = readLE s14.core.mem 0xc0000010#32 4 := SvcSame.read sv15 _ (by decide)
+  have sv15_1 : readLE s15.core.mem 0xc0000014#32 4 = readLE s14.core.mem 0xc0000014#32 4 := SvcSame.read sv15 _ (by decide)
+  have sv15_2 : readLE s15.core.mem 0xc0000018#32 4 = readLE s14.core.mem 0xc0000018#32 4 := SvcSame.read sv15 _ (by decide)
+  have sv15_3 : readLE s15.core.mem 0xc000001c#32 4 = readLE s14.core.mem 0xc000001c#32 4 := SvcSame.read sv15 _ (by decide)
+  have hS15 := hS14.next a15 h15 m15
+  obtain ⟨s16, hs16⟩ : ∃ t, PrivMachine.run env 3 s15 = t := ⟨_, rfl⟩
+  obtain ⟨p16, a16, h16, m16, c16, w16_0, w16_1, w16_2, w16_3, sv16, fr16, r16⟩ := return_1 env M0 s15 hS15 ms e c m cy (s.core.reg 2#5) p15 c15
+  rw [hs16] at p16 a16 h16 m16 c16 w16_0 w16_1 w16_2 w16_3 sv16 fr16 r16
+  have sv16_0 : readLE s16.core.mem 0xc0000010#32 4 = readLE s15.core.mem 0xc0000010#32 4 := SvcSame.read sv16 _ (by decide)
+  have sv16_1 : readLE s16.core.mem 0xc0000014#32 4 = readLE s15.core.mem 0xc0000014#32 4 := SvcSame.read sv16 _ (by decide)
+  have sv16_2 : readLE s16.core.mem 0xc0000018#32 4 = readLE s15.core.mem 0xc0000018#32 4 := SvcSame.read sv16 _ (by decide)
+  have sv16_3 : readLE s16.core.mem 0xc000001c#32 4 = readLE s15.core.mem 0xc000001c#32 4 := SvcSame.read sv16 _ (by decide)
+  have hS16 := hS15.next a16 h16 m16
+  obtain ⟨s17, hs17⟩ : ∃ t, PrivMachine.run env 4 s16 = t := ⟨_, rfl⟩
+  obtain ⟨p17, a17, h17, m17, c17, w17_0, w17_1, w17_2, w17_3, sv17, fr17, r17⟩ := return_2 env M0 s16 hS16 ms (e + 4#32) c m cy (s.core.reg 2#5) p16 c16 (by simp [r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs17] at p17 a17 h17 m17 c17 w17_0 w17_1 w17_2 w17_3 sv17 fr17 r17
+  have sv17_0 : readLE s17.core.mem 0xc0000010#32 4 = readLE s16.core.mem 0xc0000010#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_1 : readLE s17.core.mem 0xc0000014#32 4 = readLE s16.core.mem 0xc0000014#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_2 : readLE s17.core.mem 0xc0000018#32 4 = readLE s16.core.mem 0xc0000018#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_3 : readLE s17.core.mem 0xc000001c#32 4 = readLE s16.core.mem 0xc000001c#32 4 := SvcSame.read sv17 _ (by decide)
+  have hS17 := hS16.next a17 h17 m17
+  obtain ⟨s18, hs18⟩ : ∃ t, PrivMachine.run env 3 s17 = t := ⟨_, rfl⟩
+  obtain ⟨p18, a18, h18, m18, c18, w18_0, w18_1, w18_2, w18_3, sv18, fr18, r18⟩ := return_3 env M0 s17 hS17 ms (e + 4#32) c m cy (s.core.reg 2#5) p17 c17 (by simp [r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]) hmpp
+  rw [hs18] at p18 a18 h18 m18 c18 w18_0 w18_1 w18_2 w18_3 sv18 fr18 r18
+  have sv18_0 : readLE s18.core.mem 0xc0000010#32 4 = readLE s17.core.mem 0xc0000010#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_1 : readLE s18.core.mem 0xc0000014#32 4 = readLE s17.core.mem 0xc0000014#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_2 : readLE s18.core.mem 0xc0000018#32 4 = readLE s17.core.mem 0xc0000018#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_3 : readLE s18.core.mem 0xc000001c#32 4 = readLE s17.core.mem 0xc000001c#32 4 := SvcSame.read sv18 _ (by decide)
+  have hall : PrivMachine.run env 43 s = s18 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (run_two hs13 (run_two hs14 (run_two hs15 (run_two hs16 (run_two hs17 (hs18)))))))))))))))))
+  rw [hall]
+  refine ⟨p18, a18, h18, m18, c18, ?w0, ?w1, ?w2, ?w3, ?sv0, ?sv1, ?sv2, ?sv3, ?fr, ?r⟩
+  case w0 => simp [w18_0, w17_0, w16_0, w15_0, w14_0, w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case w1 => simp [w18_1, w17_1, w16_1, w15_1, w14_1, w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case w2 => simp [w18_2, w17_2, w16_2, w15_2, w14_2, w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case w3 => simp [w18_3, w17_3, w16_3, w15_3, w14_3, w13_3, w12_3, w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case sv0 => simp [sv18_0, sv17_0, sv16_0, sv15_0, sv14_0, sv13_0, sv12_0, sv11_0, sv10_0, sv9_0, sv8_0, sv7_0, sv6_0, sv5_0, sv4_0, sv3_0, sv2_0, sv1_0, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case sv1 => simp [sv18_1, sv17_1, sv16_1, sv15_1, sv14_1, sv13_1, sv12_1, sv11_1, sv10_1, sv9_1, sv8_1, sv7_1, sv6_1, sv5_1, sv4_1, sv3_1, sv2_1, sv1_1, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case sv2 => simp [sv18_2, sv17_2, sv16_2, sv15_2, sv14_2, sv13_2, sv12_2, sv11_2, sv10_2, sv9_2, sv8_2, sv7_2, sv6_2, sv5_2, sv4_2, sv3_2, sv2_2, sv1_2, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case sv3 => simp [sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans (fr11.trans (fr12.trans (fr13.trans (fr14.trans (fr15.trans (fr16.trans (fr17.trans fr18)))))))))))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `HASHB` that fails check 1 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true) :
+    (PrivMachine.run env 71 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 71 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 71 s).halted = false ∧
+    (PrivMachine.run env 71 s).mode = .M ∧
+    (PrivMachine.run env 71 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 71 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 71 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 71 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 71 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  simp [r4, r3, r2, r1, hb1, regsUpd] at p5
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 54 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := monitor_fault_exit env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  have hall : PrivMachine.run env 71 s = s6 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (hs6)))))
+  rw [hall]
+  refine ⟨p6, a6, h6, m6, c6, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case w1 => simp [w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case w2 => simp [w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case w3 => simp [w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans sv6)))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans fr6)))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `HASHB` that fails check 2 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true) :
+    (PrivMachine.run env 72 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 72 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 72 s).halted = false ∧
+    (PrivMachine.run env 72 s).mode = .M ∧
+    (PrivMachine.run env 72 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 72 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 72 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 72 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 72 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 72 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 72 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 72 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  simp [r4, r3, r2, r1, hb1, regsUpd] at p5
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 54 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_fault_exit env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  have hall : PrivMachine.run env 72 s = s7 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (hs7))))))
+  rw [hall]
+  refine ⟨p7, a7, h7, m7, c7, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case w1 => simp [w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case w2 => simp [w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case w3 => simp [w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans sv7))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans fr7))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `HASHB` that fails check 3 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = true) :
+    (PrivMachine.run env 74 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 74 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 74 s).halted = false ∧
+    (PrivMachine.run env 74 s).mode = .M ∧
+    (PrivMachine.run env 74 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 74 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 74 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 74 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  simp [r4, r3, r2, r1, hb1, regsUpd] at p5
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 2 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_b3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 54 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := monitor_fault_exit env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  have hall : PrivMachine.run env 74 s = s8 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (hs8)))))))
+  rw [hall]
+  refine ⟨p8, a8, h8, m8, c8, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case w1 => simp [w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case w2 => simp [w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case w3 => simp [w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans sv8)))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans fr8)))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `HASHB` that fails check 4 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = false) (hb4 : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true) :
+    (PrivMachine.run env 75 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 75 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 75 s).halted = false ∧
+    (PrivMachine.run env 75 s).mode = .M ∧
+    (PrivMachine.run env 75 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 75 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 75 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 75 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 75 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 75 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 75 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 75 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  simp [r4, r3, r2, r1, hb1, regsUpd] at p5
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 2 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_b3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b4 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 54 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := monitor_fault_exit env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  have hall : PrivMachine.run env 75 s = s9 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (hs9))))))))
+  rw [hall]
+  refine ⟨p9, a9, h9, m9, c9, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case w1 => simp [w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case w2 => simp [w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case w3 => simp [w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans sv9))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans fr9))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `HASHB` that fails check 5 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = false) (hb4 : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true) :
+    (PrivMachine.run env 76 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 76 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 76 s).halted = false ∧
+    (PrivMachine.run env 76 s).mode = .M ∧
+    (PrivMachine.run env 76 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 76 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 76 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 76 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 76 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 76 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 76 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 76 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  simp [r4, r3, r2, r1, hb1, regsUpd] at p5
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 2 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_b3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b4 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b5 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 54 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := monitor_fault_exit env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  have hall : PrivMachine.run env 76 s = s10 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (hs10)))))))))
+  rw [hall]
+  refine ⟨p10, a10, h10, m10, c10, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case w1 => simp [w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case w2 => simp [w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case w3 => simp [w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans (sv9.trans sv10)))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans fr10)))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `HASHB` that fails check 6 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = false) (hb4 : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = false) (hb6 : BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = true) :
+    (PrivMachine.run env 79 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 79 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 79 s).halted = false ∧
+    (PrivMachine.run env 79 s).mode = .M ∧
+    (PrivMachine.run env 79 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 79 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 79 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 79 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  simp [r4, r3, r2, r1, hb1, regsUpd] at p5
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 2 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_b3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b4 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b5 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 3 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b6 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p10
+  have hS10 := hS9.next a10 h10 m10
+  obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 54 s10 = t := ⟨_, rfl⟩
+  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := monitor_fault_exit env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
+  have hall : PrivMachine.run env 79 s = s11 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (hs11))))))))))
+  rw [hall]
+  refine ⟨p11, a11, h11, m11, c11, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case w1 => simp [w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case w2 => simp [w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case w3 => simp [w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans (sv9.trans (sv10.trans sv11))))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans fr11))))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` whose ranges lie in the box: from the trap vector the call is forwarded exactly as the payload gave it, and the machine is back in the payload at the word after the `ecall` — the payload's registers as they were but `a0`, which holds the service port word the request read, the counters released and moved on by two. -/
+theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hkey : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000) (hsig : 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000) (hmpp : ms.mpp = .U) :
+    (PrivMachine.run env 45 s).core.pc = e + 4#32 ∧
+    Agree M0 (PrivMachine.run env 45 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 45 s).halted = false ∧
+    (PrivMachine.run env 45 s).mode = .U ∧
+    (PrivMachine.run env 45 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 ∧
+    readLE (PrivMachine.run env 45 s).core.mem 0xc000001c#32 4 = 3 ∧
+    Frame s.core.mem (PrivMachine.run env 45 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 45 s).core.reg r = regsUpd s.core.reg [(10, BitVec.ofNat 32 (readLE (PrivMachine.run env 45 s).core.mem 0xc000001c#32 4))] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨hb1, hb2, hb3⟩ := (bounds_len_iff _ 32 (by decide)).mpr hkey
+  obtain ⟨hb4, hb5, hb6⟩ := (bounds_len_iff _ 64 (by decide)).mpr hsig
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hkey, hsig, hmpp]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 3 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p10
+  have hS10 := hS9.next a10 h10 m10
+  obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 3 s10 = t := ⟨_, rfl⟩
+  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b6 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
+  simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p11
+  have hS11 := hS10.next a11 h11 m11
+  obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 3 s11 = t := ⟨_, rfl⟩
+  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12_0, sv12_1, sv12_2, sv12_3, fr12, r12⟩ := checksig_fwd_1 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11
+  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12_0 sv12_1 sv12_2 sv12_3 fr12 r12
+  have hS12 := hS11.next a12 h12 m12
+  obtain ⟨s13, hs13⟩ : ∃ t, PrivMachine.run env 1 s12 = t := ⟨_, rfl⟩
+  obtain ⟨p13, a13, h13, m13, c13, w13_0, w13_1, w13_2, w13_3, sv13_0, sv13_1, sv13_2, sv13_3, fr13, r13⟩ := checksig_fwd_2 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12 (by simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs13] at p13 a13 h13 m13 c13 w13_0 w13_1 w13_2 w13_3 sv13_0 sv13_1 sv13_2 sv13_3 fr13 r13
+  have hS13 := hS12.next a13 h13 m13
+  obtain ⟨s14, hs14⟩ : ∃ t, PrivMachine.run env 2 s13 = t := ⟨_, rfl⟩
+  obtain ⟨p14, a14, h14, m14, c14, w14_0, w14_1, w14_2, w14_3, sv14_0, sv14_1, sv14_2, sv14_3, fr14, r14⟩ := checksig_fwd_3 env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13 (by simp [r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs14] at p14 a14 h14 m14 c14 w14_0 w14_1 w14_2 w14_3 sv14_0 sv14_1 sv14_2 sv14_3 fr14 r14
+  have hS14 := hS13.next a14 h14 m14
+  obtain ⟨s15, hs15⟩ : ∃ t, PrivMachine.run env 1 s14 = t := ⟨_, rfl⟩
+  obtain ⟨p15, a15, h15, m15, c15, w15_0, w15_1, w15_2, w15_3, sv15, fr15, r15⟩ := checksig_fwd_4 env M0 s14 hS14 ms e c m cy (s.core.reg 2#5) p14 c14 (by simp [r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs15] at p15 a15 h15 m15 c15 w15_0 w15_1 w15_2 w15_3 sv15 fr15 r15
+  have sv15_0 : readLE s15.core.mem 0xc0000010#32 4 = readLE s14.core.mem 0xc0000010#32 4 := SvcSame.read sv15 _ (by decide)
+  have sv15_1 : readLE s15.core.mem 0xc0000014#32 4 = readLE s14.core.mem 0xc0000014#32 4 := SvcSame.read sv15 _ (by decide)
+  have sv15_2 : readLE s15.core.mem 0xc0000018#32 4 = readLE s14.core.mem 0xc0000018#32 4 := SvcSame.read sv15 _ (by decide)
+  have sv15_3 : readLE s15.core.mem 0xc000001c#32 4 = readLE s14.core.mem 0xc000001c#32 4 := SvcSame.read sv15 _ (by decide)
+  have hS15 := hS14.next a15 h15 m15
+  obtain ⟨s16, hs16⟩ : ∃ t, PrivMachine.run env 3 s15 = t := ⟨_, rfl⟩
+  obtain ⟨p16, a16, h16, m16, c16, w16_0, w16_1, w16_2, w16_3, sv16, fr16, r16⟩ := return_1 env M0 s15 hS15 ms e c m cy (s.core.reg 2#5) p15 c15
+  rw [hs16] at p16 a16 h16 m16 c16 w16_0 w16_1 w16_2 w16_3 sv16 fr16 r16
+  have sv16_0 : readLE s16.core.mem 0xc0000010#32 4 = readLE s15.core.mem 0xc0000010#32 4 := SvcSame.read sv16 _ (by decide)
+  have sv16_1 : readLE s16.core.mem 0xc0000014#32 4 = readLE s15.core.mem 0xc0000014#32 4 := SvcSame.read sv16 _ (by decide)
+  have sv16_2 : readLE s16.core.mem 0xc0000018#32 4 = readLE s15.core.mem 0xc0000018#32 4 := SvcSame.read sv16 _ (by decide)
+  have sv16_3 : readLE s16.core.mem 0xc000001c#32 4 = readLE s15.core.mem 0xc000001c#32 4 := SvcSame.read sv16 _ (by decide)
+  have hS16 := hS15.next a16 h16 m16
+  obtain ⟨s17, hs17⟩ : ∃ t, PrivMachine.run env 4 s16 = t := ⟨_, rfl⟩
+  obtain ⟨p17, a17, h17, m17, c17, w17_0, w17_1, w17_2, w17_3, sv17, fr17, r17⟩ := return_2 env M0 s16 hS16 ms (e + 4#32) c m cy (s.core.reg 2#5) p16 c16 (by simp [r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
+  rw [hs17] at p17 a17 h17 m17 c17 w17_0 w17_1 w17_2 w17_3 sv17 fr17 r17
+  have sv17_0 : readLE s17.core.mem 0xc0000010#32 4 = readLE s16.core.mem 0xc0000010#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_1 : readLE s17.core.mem 0xc0000014#32 4 = readLE s16.core.mem 0xc0000014#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_2 : readLE s17.core.mem 0xc0000018#32 4 = readLE s16.core.mem 0xc0000018#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_3 : readLE s17.core.mem 0xc000001c#32 4 = readLE s16.core.mem 0xc000001c#32 4 := SvcSame.read sv17 _ (by decide)
+  have hS17 := hS16.next a17 h17 m17
+  obtain ⟨s18, hs18⟩ : ∃ t, PrivMachine.run env 3 s17 = t := ⟨_, rfl⟩
+  obtain ⟨p18, a18, h18, m18, c18, w18_0, w18_1, w18_2, w18_3, sv18, fr18, r18⟩ := return_3 env M0 s17 hS17 ms (e + 4#32) c m cy (s.core.reg 2#5) p17 c17 (by simp [r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]) hmpp
+  rw [hs18] at p18 a18 h18 m18 c18 w18_0 w18_1 w18_2 w18_3 sv18 fr18 r18
+  have sv18_0 : readLE s18.core.mem 0xc0000010#32 4 = readLE s17.core.mem 0xc0000010#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_1 : readLE s18.core.mem 0xc0000014#32 4 = readLE s17.core.mem 0xc0000014#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_2 : readLE s18.core.mem 0xc0000018#32 4 = readLE s17.core.mem 0xc0000018#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_3 : readLE s18.core.mem 0xc000001c#32 4 = readLE s17.core.mem 0xc000001c#32 4 := SvcSame.read sv18 _ (by decide)
+  have hall : PrivMachine.run env 45 s = s18 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (run_two hs13 (run_two hs14 (run_two hs15 (run_two hs16 (run_two hs17 (hs18)))))))))))))))))
+  rw [hall]
+  refine ⟨p18, a18, h18, m18, c18, ?w0, ?w1, ?w2, ?w3, ?sv0, ?sv1, ?sv2, ?sv3, ?fr, ?r⟩
+  case w0 => simp [w18_0, w17_0, w16_0, w15_0, w14_0, w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case w1 => simp [w18_1, w17_1, w16_1, w15_1, w14_1, w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case w2 => simp [w18_2, w17_2, w16_2, w15_2, w14_2, w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case w3 => simp [w18_3, w17_3, w16_3, w15_3, w14_3, w13_3, w12_3, w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case sv0 => simp [sv18_0, sv17_0, sv16_0, sv15_0, sv14_0, sv13_0, sv12_0, sv11_0, sv10_0, sv9_0, sv8_0, sv7_0, sv6_0, sv5_0, sv4_0, sv3_0, sv2_0, sv1_0, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case sv1 => simp [sv18_1, sv17_1, sv16_1, sv15_1, sv14_1, sv13_1, sv12_1, sv11_1, sv10_1, sv9_1, sv8_1, sv7_1, sv6_1, sv5_1, sv4_1, sv3_1, sv2_1, sv1_1, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case sv2 => simp [sv18_2, sv17_2, sv16_2, sv15_2, sv14_2, sv13_2, sv12_2, sv11_2, sv10_2, sv9_2, sv8_2, sv7_2, sv6_2, sv5_2, sv4_2, sv3_2, sv2_2, sv1_2, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case sv3 => simp [sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans (fr11.trans (fr12.trans (fr13.trans (fr14.trans (fr15.trans (fr16.trans (fr17.trans fr18)))))))))))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` that fails check 1 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true) :
+    (PrivMachine.run env 73 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 73 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 73 s).halted = false ∧
+    (PrivMachine.run env 73 s).mode = .M ∧
+    (PrivMachine.run env 73 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 73 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 73 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 73 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 73 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 73 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 73 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 73 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 54 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_fault_exit env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  have hall : PrivMachine.run env 73 s = s7 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (hs7))))))
+  rw [hall]
+  refine ⟨p7, a7, h7, m7, c7, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case w1 => simp [w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case w2 => simp [w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case w3 => simp [w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans sv7))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans fr7))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` that fails check 2 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true) :
+    (PrivMachine.run env 74 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 74 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 74 s).halted = false ∧
+    (PrivMachine.run env 74 s).mode = .M ∧
+    (PrivMachine.run env 74 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 74 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 74 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 74 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 74 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 54 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := monitor_fault_exit env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  have hall : PrivMachine.run env 74 s = s8 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (hs8)))))))
+  rw [hall]
+  refine ⟨p8, a8, h8, m8, c8, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case w1 => simp [w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case w2 => simp [w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case w3 => simp [w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans sv8)))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans fr8)))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` that fails check 3 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = true) :
+    (PrivMachine.run env 77 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 77 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 77 s).halted = false ∧
+    (PrivMachine.run env 77 s).mode = .M ∧
+    (PrivMachine.run env 77 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 77 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 77 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 77 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 77 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 77 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 77 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 77 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 3 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 54 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := monitor_fault_exit env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  have hall : PrivMachine.run env 77 s = s9 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (hs9))))))))
+  rw [hall]
+  refine ⟨p9, a9, h9, m9, c9, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case w1 => simp [w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case w2 => simp [w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case w3 => simp [w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans sv9))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans fr9))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` that fails check 4 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = false) (hb4 : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true) :
+    (PrivMachine.run env 78 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 78 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 78 s).halted = false ∧
+    (PrivMachine.run env 78 s).mode = .M ∧
+    (PrivMachine.run env 78 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 78 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 78 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 78 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 78 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 78 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 78 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 78 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 3 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 54 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := monitor_fault_exit env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  have hall : PrivMachine.run env 78 s = s10 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (hs10)))))))))
+  rw [hall]
+  refine ⟨p10, a10, h10, m10, c10, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case w1 => simp [w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case w2 => simp [w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case w3 => simp [w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans (sv9.trans sv10)))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans fr10)))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` that fails check 5 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = false) (hb4 : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true) :
+    (PrivMachine.run env 79 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 79 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 79 s).halted = false ∧
+    (PrivMachine.run env 79 s).mode = .M ∧
+    (PrivMachine.run env 79 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 79 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 79 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 79 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 79 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 3 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p10
+  have hS10 := hS9.next a10 h10 m10
+  obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 54 s10 = t := ⟨_, rfl⟩
+  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := monitor_fault_exit env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
+  have hall : PrivMachine.run env 79 s = s11 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (hs11))))))))))
+  rw [hall]
+  refine ⟨p11, a11, h11, m11, c11, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case w1 => simp [w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case w2 => simp [w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case w3 => simp [w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans (sv9.trans (sv10.trans sv11))))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans fr11))))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` that fails check 6 of 6: from the trap vector the machine parks with `a0 = 1`, every other register zero, and the service port as it was. -/
+theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = false) (hb4 : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = false) (hb6 : BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = true) :
+    (PrivMachine.run env 82 s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env 82 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 82 s).halted = false ∧
+    (PrivMachine.run env 82 s).mode = .M ∧
+    (PrivMachine.run env 82 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env 82 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 82 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 82 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 82 s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env 82 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 82 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 82 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 3 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p10
+  have hS10 := hS9.next a10 h10 m10
+  obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 3 s10 = t := ⟨_, rfl⟩
+  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b6 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
+  simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p11
+  have hS11 := hS10.next a11 h11 m11
+  obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 54 s11 = t := ⟨_, rfl⟩
+  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := monitor_fault_exit env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
+  have sv12_0 : readLE s12.core.mem 0xc0000010#32 4 = readLE s11.core.mem 0xc0000010#32 4 := SvcSame.read sv12 _ (by decide)
+  have sv12_1 : readLE s12.core.mem 0xc0000014#32 4 = readLE s11.core.mem 0xc0000014#32 4 := SvcSame.read sv12 _ (by decide)
+  have sv12_2 : readLE s12.core.mem 0xc0000018#32 4 = readLE s11.core.mem 0xc0000018#32 4 := SvcSame.read sv12 _ (by decide)
+  have sv12_3 : readLE s12.core.mem 0xc000001c#32 4 = readLE s11.core.mem 0xc000001c#32 4 := SvcSame.read sv12 _ (by decide)
+  have hall : PrivMachine.run env 82 s = s12 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (hs12)))))))))))
+  rw [hall]
+  refine ⟨p12, a12, h12, m12, c12, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case w0 => simp [w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case w1 => simp [w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case w2 => simp [w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case w3 => simp [w12_3, w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+  case sv => exact (sv1.trans (sv2.trans (sv3.trans (sv4.trans (sv5.trans (sv6.trans (sv7.trans (sv8.trans (sv9.trans (sv10.trans (sv11.trans sv12)))))))))))
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans (fr11.trans fr12)))))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- **A `HASHB` that is not wholly in the box is refused.** Whichever of its ranges is out — below the box, past it, straddling either end, or one whose end wraps past `2^32` — the machine parks with `a0 = 1`, every other register zero, and the service port as it was: the host is never asked. -/
+theorem monitor_hashb_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hbad : ¬ (0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + (s.core.reg 11#5).toNat ≤ 0x80020000 ∧ 0x80010000 ≤ (s.core.reg 12#5).toNat ∧ (s.core.reg 12#5).toNat + 32 ≤ 0x80020000)) :
+    ∃ N, (PrivMachine.run env N s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env N s).halted = false ∧
+    (PrivMachine.run env N s).mode = .M ∧
+    (PrivMachine.run env N s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env N s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env N s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env N s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env N s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env N s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env N s).core.mem ∧
+    (∀ r, (PrivMachine.run env N s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  by_cases c1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true
+  · exact ⟨_, monitor_hashb_oob_1 env M0 s hS ms e c m cy hpc hcs hc ht0 c1⟩
+  have c1' : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false := by simpa using c1
+  by_cases c2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true
+  · exact ⟨_, monitor_hashb_oob_2 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2⟩
+  have c2' : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false := by simpa using c2
+  by_cases c3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = true
+  · exact ⟨_, monitor_hashb_oob_3 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3⟩
+  have c3' : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = false := by simpa using c3
+  by_cases c4 : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true
+  · exact ⟨_, monitor_hashb_oob_4 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4⟩
+  have c4' : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = false := by simpa using c4
+  by_cases c5 : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true
+  · exact ⟨_, monitor_hashb_oob_5 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4' c5⟩
+  have c5' : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = false := by simpa using c5
+  by_cases c6 : BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = true
+  · exact ⟨_, monitor_hashb_oob_6 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4' c5' c6⟩
+  have c6' : BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = false := by simpa using c6
+  exact absurd ⟨(bounds_ok_iff _ _).mp ⟨c1', c2', c3'⟩, (bounds_len_iff _ 32 (by decide)).mp ⟨c4', c5', c6'⟩⟩ hbad
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- **A `CHECKSIG` that is not wholly in the box is refused.** Whichever of its ranges is out — below the box, past it, straddling either end, or one whose end wraps past `2^32` — the machine parks with `a0 = 1`, every other register zero, and the service port as it was: the host is never asked. -/
+theorem monitor_checksig_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hbad : ¬ (0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000 ∧ 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000)) :
+    ∃ N, (PrivMachine.run env N s).core.pc = 0x80000318#32 ∧
+    Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env N s).halted = false ∧
+    (PrivMachine.run env N s).mode = .M ∧
+    (PrivMachine.run env N s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    readLE (PrivMachine.run env N s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env N s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env N s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env N s).core.mem 0x8000800c#32 4 = 0 ∧
+    SvcSame s.core.mem (PrivMachine.run env N s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env N s).core.mem ∧
+    (∀ r, (PrivMachine.run env N s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  by_cases c1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true
+  · exact ⟨_, monitor_checksig_oob_1 env M0 s hS ms e c m cy hpc hcs hc ht0 c1⟩
+  have c1' : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false := by simpa using c1
+  by_cases c2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true
+  · exact ⟨_, monitor_checksig_oob_2 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2⟩
+  have c2' : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false := by simpa using c2
+  by_cases c3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = true
+  · exact ⟨_, monitor_checksig_oob_3 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3⟩
+  have c3' : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = false := by simpa using c3
+  by_cases c4 : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true
+  · exact ⟨_, monitor_checksig_oob_4 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4⟩
+  have c4' : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = false := by simpa using c4
+  by_cases c5 : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true
+  · exact ⟨_, monitor_checksig_oob_5 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4' c5⟩
+  have c5' : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = false := by simpa using c5
+  by_cases c6 : BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = true
+  · exact ⟨_, monitor_checksig_oob_6 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4' c5' c6⟩
+  have c6' : BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = false := by simpa using c6
+  exact absurd ⟨(bounds_len_iff _ 32 (by decide)).mp ⟨c1', c2', c3'⟩, (bounds_len_iff _ 64 (by decide)).mp ⟨c4', c5', c6'⟩⟩ hbad
 
 end Exp238
