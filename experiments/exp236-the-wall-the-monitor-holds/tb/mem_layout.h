@@ -27,3 +27,4 @@
 #define DOMAIN_PMPCFG0  0x0000001fu  // NAPOT, RWX, unlocked
 
 #endif // MEM_LAYOUT_H
+

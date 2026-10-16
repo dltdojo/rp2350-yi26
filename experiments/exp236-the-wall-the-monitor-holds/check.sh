@@ -58,3 +58,4 @@ if ../../tools/hazard3/sim.sh ready 2>/dev/null; then
 fi
 
 exit "$FAILED"
+

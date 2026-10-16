@@ -7,3 +7,4 @@ zeroization_skips_registers|Secret zeroization claims other GP registers are pre
 forwarding_clears_exit_code|Exit status forwarding claims a0 is overwritten with 0 instead of preserved|s/zeroizeRegs regs 10#5 = regs 10#5/zeroizeRegs regs 10#5 = 0#32/
 counters_minstret_leak|Counters claim minstret increments even when mcountinhibit has ir=true|s/(bumpCounters csrs).minstret = csrs.minstret/(bumpCounters csrs).minstret = csrs.minstret + 1/
 counters_mcycle_leak|Counters claim mcycle increments even when mcountinhibit has cy=true|s/(bumpCounters csrs).mcycle = csrs.mcycle/(bumpCounters csrs).mcycle = csrs.mcycle + 1/
+

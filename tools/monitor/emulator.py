@@ -284,3 +284,4 @@ class SandboxEmulator:
             off = addr - 0x80000000
             if 0 <= off < len(self.mem) - 3:
                 struct.pack_into("<I", self.mem, off, self.regs[rs2])
+
