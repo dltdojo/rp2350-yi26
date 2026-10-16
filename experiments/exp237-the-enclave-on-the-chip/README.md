@@ -129,7 +129,83 @@ Paste a real capture as `board/capture.txt` and `check.sh` runs the page's check
 
 ## Expected output
 
-None pasted yet: `capture.txt` is recorded by `./run.sh` from a clean, committed tree, and this revision
-is not committed as this is written. After committing, run `./run.sh` and paste its output here. The
-earlier revision's `capture.txt` described a different build (12088 bytes, 147 "instructions") and a
-board log that no board produced; it was removed rather than kept next to numbers it contradicts.
+Pasted from `capture.txt`, recorded by `./run.sh` from commit fd4dcb7. This is **the half that needs
+no board**: the emulator, the page's checks and the build. There is no capture from a Pico 2 yet.
+
+```text
+=== exp237 — the enclave on the chip ===
+recorded at 2026-10-16T06:16:02Z from commit fd4dcb7
+
+>>> the shell, for the chip
+Generated build/payload.h (monitor: 676 B, 162 words, kernel: 2080 B)
+build/exp237.bin  16036 bytes, the build allows 16384
+build/exp237.uf2  32256 bytes  sha256 c10a277e29d6f39f6b0d38233166d96f8484315c2099c5300367007462a8bd7a
+
+>>> the checks
+PASS  no lifeline, and it says why: a C shell, not crates/lifeline — BOOTSEL by hand is the way back
+PASS  the monitor, run on the emulator, does everything enclave.c asks of the chip
+PASS  probe_launch as built for the chip: the canary's registers come back zero, the callee-saved ones restored
+PASS  probe_launch counts a callee-saved register the monitor did not restore
+PASS  mutant refused: s0 not restored
+PASS  mutant refused: gp not restored
+PASS  mutant refused: a caller-saved register left
+PASS  mutant refused: t1 left holding the context
+PASS  mutant refused: mscratch left
+PASS  mutant refused: counters left frozen
+PASS  mutant refused: pmp wide open
+PASS  mutant refused: pmp never set
+PASS  mutant refused: every ecall is a halt
+PASS  fixture-emulator.txt is what emutest.py prints now
+PASS  every key of the fixture's lines is one board_chip.c prints
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the PMP readback is 0x1f and 0x08015fff
+PASS  three kernel operations reported
+PASS  the canary left no register non-zero
+PASS  all three attacks were refused
+PASS  the firmware says PASS
+PASS  the report is complete and every number holds
+PASS  a report whose start was missed is not complete
+PASS  mutant is a change: minstret under the model
+PASS  refused: minstret under the model
+PASS  mutant is a change: minstret far over the model
+PASS  refused: minstret far over the model
+PASS  mutant is a change: minstret not repeatable
+PASS  refused: minstret not repeatable
+PASS  mutant is a change: model is not exp229's
+PASS  refused: model is not exp229's
+PASS  mutant is a change: a0 not zero
+PASS  refused: a0 not zero
+PASS  mutant is a change: an operation failed
+PASS  refused: an operation failed
+PASS  mutant is a change: PMP readback is not the NAPOT entry
+PASS  refused: PMP readback is not the NAPOT entry
+PASS  mutant is a change: PMP flagged bad
+PASS  refused: PMP flagged bad
+PASS  mutant is a change: a caller-saved register left non-zero
+PASS  refused: a caller-saved register left non-zero
+PASS  mutant is a change: a callee-saved register not restored
+PASS  refused: a callee-saved register not restored
+PASS  mutant is a change: the canary exit code is not the payload's
+PASS  refused: the canary exit code is not the payload's
+PASS  mutant is a change: the read attack did not fault with a load access fault
+PASS  refused: the read attack did not fault with a load access fault
+PASS  mutant is a change: the write attack left the monitor changed
+PASS  refused: the write attack left the monitor changed
+PASS  mutant is a change: the bad call was taken for a halt
+PASS  refused: the bad call was taken for a halt
+PASS  mutant is a change: an attack is missing
+PASS  refused: an attack is missing
+PASS  mutant is a change: STATUS PASS over a failed test
+PASS  refused: STATUS PASS over a failed test
+PASS  mutant is a change: STATUS FAIL
+PASS  refused: STATUS FAIL
+SKIP  board/capture.txt: no capture from a board has been pasted
+PASS  the shell builds for the chip into 16036 of the 16384 bytes it may use
+PASS  all 63 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 16 KiB of flash, 0x10000000..0x10004000
+PASS  together they are exactly the 16036-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20030000
+PASS  the UF2 is byte for byte the committed one: c10a277e29d6f39f…
+```
