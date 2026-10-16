@@ -1,0 +1,11 @@
+# exp235 — wrong versions of the privilege model and wrong claims about refinement.
+# Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+napot_readback_zero|NAPOT readback claims bits [1:0] read as 00b instead of 11b|s/(readPmpAddr csrs idx &&& 3#32) = 3#32/(readPmpAddr csrs idx &&& 3#32) = 0#32/
+default_deny_inverted|default-deny claims U-mode access is granted when all PMP entries are OFF|s/pmpCheck csrs .U addr width acc = false/pmpCheck csrs .U addr width acc = true/
+pmp_bounds_inverted|PMP UBoxed equivalence claims out-of-bounds addresses are accepted|s/(lo ≤ addr.toNat ∧ addr.toNat + width ≤ hi)/(lo > addr.toNat ∨ addr.toNat + width > hi)/
+csr_umode_permitted|U-mode CSR execution is permitted without raising illegal instruction trap|s/raiseTrap s CAUSE_ILLEGAL_INSTR/s/|lean/Rv32/Priv.lean
+mret_umode_permitted|U-mode MRET execution is permitted without raising illegal instruction trap|s/if s.mode ≠ .M then/if False then/|lean/Rv32/Priv.lean
+step_switches_to_mmode|Safe U-mode execution is claimed to escalate mode to M-mode|s/(PrivMachine.step env s).mode = .U/(PrivMachine.step env s).mode = .M/
+

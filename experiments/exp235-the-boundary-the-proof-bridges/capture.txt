@@ -1,0 +1,44 @@
+=== exp235 — the boundary the proof bridges ===
+recorded at 2026-10-16T00:43:50Z from commit cd9c650
+
+>>> the theorems, and what they rest on
+'Exp235.pmp_napot_readback' depends on axioms: [propext, Quot.sound]
+'Exp235.pmp_umode_default_deny' depends on axioms: [propext, Quot.sound]
+'Exp235.priv_umode_zicsr_traps' depends on axioms: [propext, Quot.sound]
+'Exp235.priv_umode_mret_traps' depends on axioms: [propext, Quot.sound]
+'Exp235.priv_mcountinhibit_mcycle' depends on axioms: [propext]
+'Exp235.priv_mcountinhibit_minstret' depends on axioms: [propext]
+'Exp235.priv_minstret_step' depends on axioms: [propext]
+'Exp235.uboxed_pmp_iff' depends on axioms: [propext, Quot.sound]
+'Exp235.safe_step_no_trap' depends on axioms: [propext, Quot.sound]
+'Exp235.safe_step_executes' depends on axioms: [propext, Quot.sound]
+'Exp235.safe_step_running_core' depends on axioms: [propext, Quot.sound]
+'Exp235.safe_step_halted_core' depends on axioms: [propext, Quot.sound]
+'Exp235.priv_run_split' depends on axioms: [propext, Quot.sound]
+exit 0
+
+>>> wrong privilege semantics and wrong claims: each must be refused
+napot_readback_zero     NAPOT readback claims bits [1:0] read as 00b instead of 11b                   refused in pmp_napot_readback
+default_deny_inverted   default-deny claims U-mode access is granted when all PMP entries are OFF     refused in pmp_umode_default_deny
+pmp_bounds_inverted     PMP UBoxed equivalence claims out-of-bounds addresses are accepted            refused in uboxed_pmp_iff
+csr_umode_permitted     U-mode CSR execution is permitted without raising illegal instruction trap    refused in PrivMachine.step_eq_of_safe
+mret_umode_permitted    U-mode MRET execution is permitted without raising illegal instruction trap   refused in umode_zicsr_traps
+step_switches_to_mmode  Safe U-mode execution is claimed to escalate mode to M-mode                   refused in safe_step_running_core
+
+>>> Python test vectors for Hazard3 NAPOT boundary logic
+PASS  NAPOT encoding/decoding verified across 8 window sizes
+PASS  PMP boundary containment and partial match cases verified
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  lean/Rv32/Machine.lean is completely untouched (0 lines modified)
+PASS  Bridge.lean checks, with no errors and no warnings
+PASS  all 13 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  napot_readback_zero: the proof refuses a version where NAPOT readback claims bits [1:0] read as 00b instead of 11b
+PASS  default_deny_inverted: the proof refuses a version where default-deny claims U-mode access is granted when all PMP entries are OFF
+PASS  pmp_bounds_inverted: the proof refuses a version where PMP UBoxed equivalence claims out-of-bounds addresses are accepted
+PASS  csr_umode_permitted: the proof refuses a version where U-mode CSR execution is permitted without raising illegal instruction trap
+PASS  mret_umode_permitted: the proof refuses a version where U-mode MRET execution is permitted without raising illegal instruction trap
+PASS  step_switches_to_mmode: the proof refuses a version where Safe U-mode execution is claimed to escalate mode to M-mode
+PASS  NAPOT encoding/decoding verified across 8 window sizes
+PASS  PMP boundary containment and partial match cases verified
