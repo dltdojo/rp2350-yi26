@@ -108,6 +108,7 @@ def main():
     good = build(src)
     with open(os.path.join(EXP238, "monitor.bin"), "rb") as f:
         assert good == f.read(), "monitor.S does not assemble to monitor.bin"
+    host.MAX_STEPS = 12000      # the slowest honest case is a few thousand instructions; a loop need not run on
     miss = []
     for label, what, edit in VARIANTS:
         mon = build(edit(src))

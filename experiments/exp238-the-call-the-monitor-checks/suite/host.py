@@ -138,9 +138,12 @@ def image(monitor: bytes, pay: bytes) -> bytes:
     return harness.image(monitor, pay)
 
 
-def run(monitor: bytes, pay: bytes, steps: int = 400000) -> ServiceEmulator:
+MAX_STEPS = 400000       # a monitor with a fault in it can loop: broken_monitors.py lowers this
+
+
+def run(monitor: bytes, pay: bytes, steps: int = 0) -> ServiceEmulator:
     emu = ServiceEmulator(image(monitor, pay))
-    emu.run(steps)
+    emu.run(steps or MAX_STEPS)
     return emu
 
 
