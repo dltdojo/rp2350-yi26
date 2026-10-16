@@ -147,6 +147,10 @@ Per experiment:
 | exp238 | **No board at all**, and no USB anywhere in it (scaffold, TODO). Migrating exp228's Bitcoin Tapscript interpreter under `monitor.bin` to verify bidirectional syscalls (`HASHB`, `CHECKSIG`), overflow-safe Confused-Deputy PMP bounds checks, and `mepc + 4` resume. |
 | exp239 | **No board at all**, and no USB anywhere in it (scaffold, TODO). Migrating exp223's NIST SP 800-90B TRNG health tests and SHA-256 conditioner under `monitor.bin` to verify privilege-enforced fail-closed output wiping and confidential scratch SRAM zeroization. |
 | exp240 | **No board at all**, and no USB anywhere in it (scaffold, TODO). Migrating exp225's Rule 30 cellular automaton under `monitor.bin` to verify multi-entry W^X PMP partitioning (Code `RX`, Data `RW`, Stack `RW` with guard page) and multi-round re-entry. |
+| exp241 | **No board at all**, and no USB anywhere in it (scaffold, TODO). A ZKB++ zero-knowledge proof of a SHA-256 preimage, 219 rounds, the circuit proved in Lean equal to the compression function; Python and JS provers must make byte-identical proofs. First of four on the single-board ZK payment plan in `docs/zkp-rv32/`. |
+| exp242 | **No board at all**, and no USB anywhere in it (scaffold, TODO). One Pico 2 and one page trading the prover's and verifier's parts over USB; the same flash measures the constants the plan waits for. Planned: a board, a hand on BOOTSEL once, and a phone or computer with Chrome. |
+| exp243 | **No board at all**, and no USB anywhere in it (scaffold, TODO). A private transaction and its double-spend refusal, once with each role; the registry is the side that verifies, the board's being a power-cut-safe flash log. Planned: a board and a phone or computer with Chrome. |
+| exp244 | **No board at all**, and no USB anywhere in it (scaffold, TODO). Merkle membership: hiding which token was spent, with the proof's growth against tree depth measured. Planned: a board and a phone or computer with Chrome. |
 | exp183 | Any RP2350 board. `cdc+hid`, and host Python tools. Evaluates 4 pluggable key backends under a zero-allocation trait contract and simulates RP2350 Secure Boot / Secure Lock in dry-run mode. **Repaired 2026-08-29**: its `CTAPHID_INIT` said `nocbor`, and correcting that byte exposed a `StaticCell` claimed per request — it could answer exactly one CBOR command per boot. |
 | exp182 | Any RP2350 board, **a power cycle after every flash**, and a finger on BOOTSEL for each credential operation. `cdc+hid`, and `libfido2`'s own tools on the host. **RP2350 only**, for exp181's reasons: the key comes out of SRAM bank 8. The LED is the only channel that reaches somebody driving this remotely. |
 | exp181 | Any RP2350 board, and **two cable pulls** — the power has to actually go, twice. `cdc`, one log, no browser. **RP2350 only**: SRAM bank 8 at `0x20080000` is this chip's, and the whole claim rests on exp179's measurement that this part does not clear SRAM on power-on. It writes one flash sector at 3 MiB. |
@@ -554,7 +558,7 @@ awake — and because most of these experiments cost nothing.
 
 | | Means | Experiments |
 | --- | --- | --- |
-| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204, exp205, exp206, exp207, exp208, exp213, exp215, exp217, exp229, exp230, exp235, exp236, exp238, exp239, exp240 |
+| **0 · none** | No board at all. A machine and nothing else | exp102, exp140, exp178, exp198, exp199, exp201, exp202, exp203, exp204, exp205, exp206, exp207, exp208, exp213, exp215, exp217, exp229, exp230, exp235, exp236, exp238, exp239, exp240, exp241, exp242, exp243, exp244 |
 | **1 · board** | A board attached, and nothing but software after that | exp104, exp105, exp107–exp114, exp118, exp119, exp121–exp125, exp128, exp129, exp134, exp136–exp139, exp142–exp145, exp154–exp160, exp161, exp162, exp163, exp164, exp165, exp166, exp167, exp168, exp169, exp170, exp183, exp190, exp193, exp194, exp195, exp196, exp197, exp200 |
 | **2 · a moment** | A person for one action, then software does the rest | exp101, exp115–exp117, exp120, exp126, exp130–exp133, exp135, exp141, exp146, exp171, exp172, exp173, exp174, exp175, exp176, exp177, exp179, exp180, exp181, exp182, exp184, exp185, exp186, exp187, exp188, exp189, exp191, exp192, exp226, exp227, exp228, exp231, exp232, exp233, exp234, exp237 |
 | **3 · a person** | A person **is** the instrument — nothing here can see the result | exp103, exp106, exp127, exp147–exp153, exp209, exp210, exp211, exp212, exp214, exp216, exp218, exp219, exp220, exp221, exp222, exp223, exp224, exp225 |
@@ -855,6 +859,10 @@ Read down the *Host side* column and that jump is the only thing that happens.
 | exp238 | `none` | `none` | `none` | `none` |
 | exp239 | `none` | `none` | `none` | `none` |
 | exp240 | `none` | `none` | `none` | `none` |
+| exp241 | `none` | `none` | `none` | `none` |
+| exp242 | `none` | `none` | `none` | `none` |
+| exp243 | `none` | `none` | `none` | `none` |
+| exp244 | `none` | `none` | `none` | `none` |
 
 ### Reading the columns
 
@@ -1074,6 +1082,10 @@ the page. `tools/pages/check.sh` asserts every one of them still says it.
 | [exp238-the-call-the-monitor-checks](./exp238-the-call-the-monitor-checks/) | 0 · none | **Scaffold (TODO): migrating exp228's Bitcoin Tapscript interpreter under `monitor.bin` to verify bidirectional non-halting syscalls (`t0 = 2 HASHB`, `t0 = 3 CHECKSIG`), overflow-safe Confused-Deputy PMP bounds checks, and `mepc + 4` resume to U-mode.** |
 | [exp239-the-scratch-the-monitor-scrubs](./exp239-the-scratch-the-monitor-scrubs/) | 0 · none | **Scaffold (TODO): migrating exp223's NIST SP 800-90B TRNG health tests and SHA-256 conditioner under `monitor.bin` to verify privilege-enforced fail-closed output wiping and confidential scratch SRAM zeroization on exit.** |
 | [exp240-the-code-the-box-forbids-writing](./exp240-the-code-the-box-forbids-writing/) | 0 · none | **Scaffold (TODO): migrating exp225's Rule 30 cellular automaton under `monitor.bin` to verify multi-entry W^X PMP partitioning (Code `RX`, Data `RW`, Stack `RW` with hardware guard page) and multi-round enclave re-entry.** |
+| [exp241-the-preimage-the-proof-hides](./exp241-the-preimage-the-proof-hides/) | 0 · none | **Scaffold (TODO): a ZKB++ zero-knowledge proof of a SHA-256 preimage (219 rounds, NIST level 1) whose circuit Lean proves equal to the compression function, and a proof format that a Python and a JS prover must produce byte for byte. First of four on the single-board ZK payment plan.** |
+| [exp242-the-roles-the-board-trades](./exp242-the-roles-the-board-trades/) | 0 · none | **Scaffold (TODO): one Pico 2 and one page trading prover and verifier — the board proves and the page verifies, then the page proves and the board verifies — with the constants the plan waits for measured in the same flash.** |
+| [exp243-the-coin-the-registry-refuses](./exp243-the-coin-the-registry-refuses/) | 0 · none | **Scaffold (TODO): a private transaction and its double-spend refusal in both roles, the registry being whichever side verifies; the spent token is still named, only the key and the amounts are hidden.** |
+| [exp244-the-crowd-the-spender-hides-in](./exp244-the-crowd-the-spender-hides-in/) | 0 · none | **Scaffold (TODO): Merkle membership, hiding which token was spent, with how the proof grows with the tree's depth measured against the plan's estimate.** |
 
 ## The browser track, finished
 
