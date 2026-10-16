@@ -12,6 +12,8 @@
 
 零知識證明、MPC-in-the-Head、雜湊式金鑰、Note 模型與登錄層的背景說明，見 [zk-background-notes-zh-tw.md](./zk-background-notes-zh-tw.md)。
 
+**實作改採單板配置**：本文第 2 節、第 5 節 Phase 3–4 與第 6 節原本要兩塊板子；實際的實驗計畫改成一塊板子加一個靜態網頁，兩者互換證明端與驗證端，見 [single-board-experiment-plan-zh-tw.md](./single-board-experiment-plan-zh-tw.md)。密碼學模型與成本估算仍以本文為準。
+
 ---
 
 ## 審查結論
