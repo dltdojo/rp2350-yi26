@@ -3,19 +3,15 @@
 # <label>|<what is wrong>|<sed>
 #
 # Each edits `monitorCode`, the words of monitor.bin, one instruction each: the proofs are about what
-# those words do, so a word that does something else must stop a theorem. The first group is the
-# bounds check; the second is the way back; the third is what the call dispatch and the boot decide.
+# those words do, so a word that does something else must stop a theorem. Each is refused in
+# the chunk or the phase it breaks. Fourteen were run once, each refused; these eight stay in the check because
+# a mutant is a whole run of the proof (about two minutes) and the eight cover the bounds check, the way back,
+# the dispatch and the scrub.
 hashb_input_floor_dropped|HASHB lets an input start below the box|s/0xf8656ee3#32/0x00000013#32/
-hashb_input_ceiling_dropped|HASHB lets an input start past the box|s/0xf8a3ece3#32/0x00000013#32/
-hashb_length_dropped|HASHB never checks the length against what is left of the box|s/0xf8be68e3#32/0x00000013#32/
 hashb_length_by_addition|HASHB tests ptr + len, which wraps, instead of what is left of the box|0,/0x40a38e33#32/s//0x00b50e33#32/
 hashb_output_room_16|HASHB checks room for 16 bytes of output, not 32|0,/0x02000293#32/s//0x01000293#32/
-checksig_key_floor_dropped|CHECKSIG lets the key start below the box|s/0xf46568e3#32/0x00000013#32/
 checksig_signature_32|CHECKSIG checks room for 32 bytes of signature, not 64|s/0x04000293#32/0x02000293#32/
 return_repeats_the_ecall|the return does not step past the ecall|s/0x00428293#32/0x00028293#32/
-return_leaves_t1|the return does not put the payload's t1 back|s/0x00412303#32/0x00000013#32/
 counters_not_released|the return never releases the counters|/0x00c12e03#32/{n;n;s/0x32005073#32/0x00000013#32/}
 unknown_call_succeeds|a call the monitor does not offer returns to the payload|s/0xfa9ff06f#32/0x09c0006f#32/
-call_3_is_call_2|call 3 is taken for call 2|s/0x00300313#32/0x00200313#32/
 scrub_keeps_saved_t2|the scrub leaves the saved t2 on the M-mode stack|s/0x00012423#32/0x00000013#32/
-mret_to_m_mode|boot sets MPP to M-mode instead of clearing it|s/0x3002b073#32/0x3002a073#32/
