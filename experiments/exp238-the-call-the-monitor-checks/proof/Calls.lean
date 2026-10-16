@@ -353,17 +353,33 @@ theorem SvcSame.read {m m' : Word → Byte} (h : SvcSame m m') (a : Word)
 
 /-! ## The bounds check, as arithmetic -/
 
+theorem ult_lo_iff (a : Word) : BitVec.ult a 0x80010000#32 = false ↔ 0x80010000 ≤ a.toNat := by
+  simp only [BitVec.ult, decide_eq_false_iff_not, Nat.not_lt, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
+
+theorem ult_hi_iff (a : Word) : BitVec.ult 0x80020000#32 a = false ↔ a.toNat ≤ 0x80020000 := by
+  simp only [BitVec.ult, decide_eq_false_iff_not, Nat.not_lt, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
+
+theorem ult_room_iff (a len : Word) (h : a.toNat ≤ 0x80020000) :
+    BitVec.ult (0x80020000#32 - a) len = false ↔ a.toNat + len.toNat ≤ 0x80020000 := by
+  have e : (0x80020000#32 - a).toNat = 0x80020000 - a.toNat := by
+    rw [BitVec.toNat_sub_of_le (by rw [BitVec.le_def]; simpa using h)]
+    simp
+  simp only [BitVec.ult, decide_eq_false_iff_not, Nat.not_lt, e]
+  omega
+
 /-- The three comparisons of the bounds check pass exactly when `[a, a + len)` lies in the box, the sum
     taken in the naturals: a range whose end wraps past `2^32` does not. -/
 theorem bounds_ok_iff (a len : Word) :
     (BitVec.ult a 0x80010000#32 = false ∧ BitVec.ult 0x80020000#32 a = false ∧
       BitVec.ult (0x80020000#32 - a) len = false) ↔
     (0x80010000 ≤ a.toNat ∧ a.toNat + len.toNat ≤ 0x80020000) := by
-  have h1 := a.isLt
-  have h2 := len.isLt
-  simp only [BitVec.ult, decide_eq_false_iff_not, not_lt, BitVec.toNat_sub, BitVec.toNat_ofNat,
-    Nat.reducePow, Nat.reduceMod]
-  omega
+  constructor
+  · rintro ⟨h1, h2, h3⟩
+    have h2' := (ult_hi_iff a).mp h2
+    exact ⟨(ult_lo_iff a).mp h1, (ult_room_iff a len h2').mp h3⟩
+  · rintro ⟨h1, h2⟩
+    have h2' : a.toNat ≤ 0x80020000 := by omega
+    exact ⟨(ult_lo_iff a).mpr h1, (ult_hi_iff a).mpr h2', (ult_room_iff a len h2').mpr h2⟩
 
 /-- The same, for a length that is a constant. -/
 theorem bounds_len_iff (a : Word) (n : Nat) (hn : n < 4294967296) :
@@ -787,7 +803,7 @@ set_option maxRecDepth 100000 in
 theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000012c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 3 s).core.pc = if c = 8#32 then 0x80000174#32 else 0x80000138#32 ∧
+    (PrivMachine.run env 3 s).core.pc = (if c = 8#32 then 0x80000174#32 else 0x80000138#32) ∧
     Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
@@ -1116,7 +1132,7 @@ set_option maxRecDepth 100000 in
 theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word) (k : Nat)
     (hpc : s.core.pc = 0x80000174#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) (hk : readLE s.core.mem 0x80008000#32 4 = k) :
-    (PrivMachine.run env 3 s).core.pc = if BitVec.ofNat 32 k = 1#32 then 0x80000254#32 else 0x80000180#32 ∧
+    (PrivMachine.run env 3 s).core.pc = (if BitVec.ofNat 32 k = 1#32 then 0x80000254#32 else 0x80000180#32) ∧
     Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
@@ -1164,7 +1180,7 @@ set_option maxRecDepth 100000 in
 theorem call_is_hashb (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000180#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 2 s).core.pc = if s.core.reg 5#5 = 2#32 then 0x80000194#32 else 0x80000188#32 ∧
+    (PrivMachine.run env 2 s).core.pc = (if s.core.reg 5#5 = 2#32 then 0x80000194#32 else 0x80000188#32) ∧
     Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
@@ -1211,7 +1227,7 @@ set_option maxRecDepth 100000 in
 theorem call_is_checksig (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000188#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 2 s).core.pc = if s.core.reg 5#5 = 3#32 then 0x800001e0#32 else 0x80000190#32 ∧
+    (PrivMachine.run env 2 s).core.pc = (if s.core.reg 5#5 = 3#32 then 0x800001e0#32 else 0x80000190#32) ∧
     Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
@@ -1352,7 +1368,7 @@ set_option maxRecDepth 100000 in
 theorem hashb_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000019c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001a0#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001a0#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -1399,7 +1415,7 @@ set_option maxRecDepth 100000 in
 theorem hashb_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001a0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true then 0x80000138#32 else 0x800001a4#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true then 0x80000138#32 else 0x800001a4#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -1446,7 +1462,7 @@ set_option maxRecDepth 100000 in
 theorem hashb_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001a4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 2 s).core.pc = if BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = true then 0x80000138#32 else 0x800001ac#32 ∧
+    (PrivMachine.run env 2 s).core.pc = (if BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = true then 0x80000138#32 else 0x800001ac#32) ∧
     Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
@@ -1493,7 +1509,7 @@ set_option maxRecDepth 100000 in
 theorem hashb_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001ac#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001b0#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001b0#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -1540,7 +1556,7 @@ set_option maxRecDepth 100000 in
 theorem hashb_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001b0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true then 0x80000138#32 else 0x800001b4#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true then 0x80000138#32 else 0x800001b4#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -1587,7 +1603,7 @@ set_option maxRecDepth 100000 in
 theorem hashb_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001b4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 3 s).core.pc = if BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = true then 0x80000138#32 else 0x800001c0#32 ∧
+    (PrivMachine.run env 3 s).core.pc = (if BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = true then 0x80000138#32 else 0x800001c0#32) ∧
     Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
@@ -1928,7 +1944,7 @@ set_option maxRecDepth 100000 in
 theorem checksig_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001e8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001ec#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001ec#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -1975,7 +1991,7 @@ set_option maxRecDepth 100000 in
 theorem checksig_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001ec#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true then 0x80000138#32 else 0x800001f0#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true then 0x80000138#32 else 0x800001f0#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -2022,7 +2038,7 @@ set_option maxRecDepth 100000 in
 theorem checksig_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001f0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 3 s).core.pc = if BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = true then 0x80000138#32 else 0x800001fc#32 ∧
+    (PrivMachine.run env 3 s).core.pc = (if BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = true then 0x80000138#32 else 0x800001fc#32) ∧
     Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
@@ -2069,7 +2085,7 @@ set_option maxRecDepth 100000 in
 theorem checksig_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001fc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true then 0x80000138#32 else 0x80000200#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true then 0x80000138#32 else 0x80000200#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -2116,7 +2132,7 @@ set_option maxRecDepth 100000 in
 theorem checksig_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000200#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 1 s).core.pc = if BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true then 0x80000138#32 else 0x80000204#32 ∧
+    (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true then 0x80000138#32 else 0x80000204#32) ∧
     Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -2163,7 +2179,7 @@ set_option maxRecDepth 100000 in
 theorem checksig_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000204#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
-    (PrivMachine.run env 3 s).core.pc = if BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = true then 0x80000138#32 else 0x80000210#32 ∧
+    (PrivMachine.run env 3 s).core.pc = (if BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = true then 0x80000138#32 else 0x80000210#32) ∧
     Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
@@ -3257,7 +3273,7 @@ theorem monitor_scrub (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3347,7 +3363,7 @@ theorem monitor_fault_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3421,7 +3437,7 @@ theorem monitor_halt_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r5, r4, r3, r2, r1, regsUpd, hsp]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r5, r4, r3, r2, r1, regsUpd, hsp]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3429,7 +3445,7 @@ set_option maxRecDepth 100000 in
 theorem monitor_enter (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
-    (PrivMachine.run env 9 s).core.pc = if c = 8#32 then 0x80000174#32 else 0x80000138#32 ∧
+    (PrivMachine.run env 9 s).core.pc = (if c = 8#32 then 0x80000174#32 else 0x80000138#32) ∧
     Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env 9 s).halted = false ∧
     (PrivMachine.run env 9 s).mode = .M ∧
@@ -3495,7 +3511,7 @@ theorem monitor_enter (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r5, r4, r3, r2, r1, regsUpd]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r5, r4, r3, r2, r1, regsUpd]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3555,7 +3571,7 @@ theorem monitor_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r3, r2, r1, regsUpd, hc, ht0]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r3, r2, r1, regsUpd, hc, ht0]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3606,7 +3622,7 @@ theorem monitor_fault_cause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r2, r1, regsUpd, hc]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r2, r1, regsUpd, hc]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3692,7 +3708,7 @@ theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMac
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3871,7 +3887,7 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w18_0, w18_1, w18_2, w18_3, w17_0, w17_1, w17_2, w17_3, w16_0, w16_1, w16_2, w16_3, w15_0, w15_1, w15_2, w15_3, w14_0, w14_1, w14_2, w14_3, w13_0, w13_1, w13_2, w13_3, w12_0, w12_1, w12_2, w12_3, w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -3957,7 +3973,7 @@ theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4052,7 +4068,7 @@ theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4156,7 +4172,7 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4269,7 +4285,7 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4391,7 +4407,7 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4522,7 +4538,7 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4706,7 +4722,7 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w18_0, w18_1, w18_2, w18_3, w17_0, w17_1, w17_2, w17_3, w16_0, w16_1, w16_2, w16_3, w15_0, w15_1, w15_2, w15_3, w14_0, w14_1, w14_2, w14_3, w13_0, w13_1, w13_2, w13_3, w12_0, w12_1, w12_2, w12_3, w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4801,7 +4817,7 @@ theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -4905,7 +4921,7 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -5018,7 +5034,7 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -5140,7 +5156,7 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -5271,7 +5287,7 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -5411,14 +5427,14 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w12_0, w12_1, w12_2, w12_3, w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
 /-- **A `HASHB` that is not wholly in the box is refused.** Whichever of its ranges is out — below the box, past it, straddling either end, or one whose end wraps past `2^32` — the machine parks with `a0 = 1`, every other register zero, and the service port as it was: the host is never asked. -/
 theorem monitor_hashb_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hbad : ¬ (0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + (s.core.reg 11#5).toNat ≤ 0x80020000 ∧ 0x80010000 ≤ (s.core.reg 12#5).toNat ∧ (s.core.reg 12#5).toNat + 32 ≤ 0x80020000)) :
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hbad : ¬ ((0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + (s.core.reg 11#5).toNat ≤ 0x80020000) ∧ (0x80010000 ≤ (s.core.reg 12#5).toNat ∧ (s.core.reg 12#5).toNat + 32 ≤ 0x80020000))) :
     ∃ N, (PrivMachine.run env N s).core.pc = 0x80000318#32 ∧
     Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env N s).halted = false ∧
@@ -5449,14 +5465,14 @@ theorem monitor_hashb_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : PrivM
   by_cases c6 : BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = true
   · exact ⟨_, monitor_hashb_oob_6 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4' c5' c6⟩
   have c6' : BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = false := by simpa using c6
-  exact absurd ⟨(bounds_ok_iff _ _).mp ⟨c1', c2', c3'⟩, (bounds_len_iff _ 32 (by decide)).mp ⟨c4', c5', c6'⟩⟩ hbad
+  exact absurd (And.intro ((bounds_ok_iff _ _).mp ⟨c1', c2', c3'⟩) ((bounds_len_iff _ 32 (by decide)).mp ⟨c4', c5', c6'⟩)) hbad
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
 /-- **A `CHECKSIG` that is not wholly in the box is refused.** Whichever of its ranges is out — below the box, past it, straddling either end, or one whose end wraps past `2^32` — the machine parks with `a0 = 1`, every other register zero, and the service port as it was: the host is never asked. -/
 theorem monitor_checksig_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hbad : ¬ (0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000 ∧ 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000)) :
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hbad : ¬ ((0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000) ∧ (0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000))) :
     ∃ N, (PrivMachine.run env N s).core.pc = 0x80000318#32 ∧
     Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 800 ∧
     (PrivMachine.run env N s).halted = false ∧
@@ -5487,6 +5503,6 @@ theorem monitor_checksig_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : Pr
   by_cases c6 : BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = true
   · exact ⟨_, monitor_checksig_oob_6 env M0 s hS ms e c m cy hpc hcs hc ht0 c1' c2' c3' c4' c5' c6⟩
   have c6' : BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = false := by simpa using c6
-  exact absurd ⟨(bounds_len_iff _ 32 (by decide)).mp ⟨c1', c2', c3'⟩, (bounds_len_iff _ 64 (by decide)).mp ⟨c4', c5', c6'⟩⟩ hbad
+  exact absurd (And.intro ((bounds_len_iff _ 32 (by decide)).mp ⟨c1', c2', c3'⟩) ((bounds_len_iff _ 64 (by decide)).mp ⟨c4', c5', c6'⟩)) hbad
 
 end Exp238

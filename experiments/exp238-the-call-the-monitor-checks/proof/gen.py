@@ -21,7 +21,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "../../.."))
 EXP236 = os.path.join(REPO, "experiments", "exp236-the-wall-the-monitor-holds")
-OUT = os.path.join(HERE, "Calls.lean")
+OUT = os.path.join(HERE, os.environ.get("OUT", "Calls.lean"))
 
 WORDS = 200
 BYTES = WORDS * 4
@@ -61,6 +61,8 @@ FROZEN = "{ cy := true, ir := true }"
 
 
 def hexpc(x: str) -> str:
+    if x.startswith("if "):
+        return f"({x})"
     return x if ("#32" in x or x[0].isalpha()) else f"{x}#32"
 
 
@@ -136,6 +138,8 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         return self.statement() + (self.custom if self.custom else self.chain_proof() if self.steps else self.simp_proof())
 
     def simp_proof(self) -> str:
+        if os.environ.get("STUB"):
+            return "  sorry\n"
         n, ex = self.n, self.extra
         simp_in = f"pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured{ex}"
         simp_out = f"pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd{ex}"
@@ -258,7 +262,9 @@ def final_chain(c):
             lines.append(f"  case sv{k} => simp [{simp(w)}]\n")
     fr = "".join(f"(fr{i}.trans " for i in range(1, n)) + f"fr{n}" + ")" * (n - 1)
     lines.append(f"  case fr => exact {fr}\n")
-    extra = ", ".join(f"sv{j}_3" for j in range(n, 0, -1)) if "{RUN}" in c.regs else ""
+    extra = ", ".join(f"w{j}_{k}" for j in range(n, 0, -1) for k in range(4)) + ", ofNat_toNat_mod"
+    if "{RUN}" in c.regs:
+        extra += ", " + ", ".join(f"sv{j}_3" for j in range(n, 0, -1))
     lines.append(f"  case r =>\n    {R32} <;> simp [{simp(extra)}]\n")
     return "".join(lines)
 
@@ -330,17 +336,33 @@ theorem SvcSame.read {m m' : Word → Byte} (h : SvcSame m m') (a : Word)
 
 /-! ## The bounds check, as arithmetic -/
 
+theorem ult_lo_iff (a : Word) : BitVec.ult a 0x80010000#32 = false ↔ 0x80010000 ≤ a.toNat := by
+  simp only [BitVec.ult, decide_eq_false_iff_not, Nat.not_lt, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
+
+theorem ult_hi_iff (a : Word) : BitVec.ult 0x80020000#32 a = false ↔ a.toNat ≤ 0x80020000 := by
+  simp only [BitVec.ult, decide_eq_false_iff_not, Nat.not_lt, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
+
+theorem ult_room_iff (a len : Word) (h : a.toNat ≤ 0x80020000) :
+    BitVec.ult (0x80020000#32 - a) len = false ↔ a.toNat + len.toNat ≤ 0x80020000 := by
+  have e : (0x80020000#32 - a).toNat = 0x80020000 - a.toNat := by
+    rw [BitVec.toNat_sub_of_le (by rw [BitVec.le_def]; simpa using h)]
+    simp
+  simp only [BitVec.ult, decide_eq_false_iff_not, Nat.not_lt, e]
+  omega
+
 /-- The three comparisons of the bounds check pass exactly when `[a, a + len)` lies in the box, the sum
     taken in the naturals: a range whose end wraps past `2^32` does not. -/
 theorem bounds_ok_iff (a len : Word) :
     (BitVec.ult a 0x80010000#32 = false ∧ BitVec.ult 0x80020000#32 a = false ∧
       BitVec.ult (0x80020000#32 - a) len = false) ↔
     (0x80010000 ≤ a.toNat ∧ a.toNat + len.toNat ≤ 0x80020000) := by
-  have h1 := a.isLt
-  have h2 := len.isLt
-  simp only [BitVec.ult, decide_eq_false_iff_not, not_lt, BitVec.toNat_sub, BitVec.toNat_ofNat,
-    Nat.reducePow, Nat.reduceMod]
-  omega
+  constructor
+  · rintro ⟨h1, h2, h3⟩
+    have h2' := (ult_hi_iff a).mp h2
+    exact ⟨(ult_lo_iff a).mp h1, (ult_room_iff a len h2').mp h3⟩
+  · rintro ⟨h1, h2⟩
+    have h2' : a.toNat ≤ 0x80020000 := by omega
+    exact ⟨(ult_lo_iff a).mpr h1, (ult_hi_iff a).mpr h2', (ult_room_iff a len h2').mpr h2⟩
 
 /-- The same, for a length that is a constant. -/
 theorem bounds_len_iff (a : Word) (n : Nat) (hn : n < 4294967296) :
@@ -667,18 +689,20 @@ for call, conds in BOUND:
         body.append(f"  by_cases c{k} : {conds[k-1]} = true\n")
         body.append(f"  · exact ⟨_, monitor_{call}_oob_{k} env M0 s hS ms e c m cy hpc hcs hc ht0{prev} c{k}⟩\n")
         body.append(f"  have c{k}' : {conds[k-1]} = false := by simpa using c{k}\n")
-    body.append(f"  exact absurd ⟨{done[0]}, {done[1]}⟩ hbad\n")
+    body.append(f"  exact absurd (And.intro ({done[0]}) ({done[1]})) hbad\n")
     c = Chunk(f"monitor_{call}_oob_fault",
               f"**A `{call.upper()}` that is not wholly in the box is refused.** Whichever of its ranges is out — below the box, "
               "past it, straddling either end, or one whose end wraps past `2^32` — the machine parks with `a0 = 1`, every other "
               "register zero, and the service port as it was: the host is never asked.",
-              "N", h(0x114), PARK, pbind="", hyps=HC + HT + f" (hbad : ¬ ({a} ∧ {b}))", csr_in=CSR0, csr_out=CSRZ,
+              "N", h(0x114), PARK, pbind="", hyps=HC + HT + f" (hbad : ¬ (({a}) ∧ ({b})))", csr_in=CSR0, csr_out=CSRZ,
               words=ZW, regs=ZALL + ", (10, 1#32)", custom="".join(body))
     c.exists_n = True
     CHUNKS.append(c)
 
 def main():
-    text = build("\n".join(c.lean() for c in CHUNKS))
+    only = os.environ.get("ONLY")
+    cs = [c for c in CHUNKS if not only or not (c.steps or c.custom) or c.name in only.split(",")]
+    text = build("\n".join(c.lean() for c in cs))
     if "--check" in sys.argv:
         with open(OUT, encoding="utf-8") as g:
             return 0 if g.read() == text else 1
