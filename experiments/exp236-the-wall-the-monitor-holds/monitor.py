@@ -7,11 +7,12 @@ Checks:
   1. monitor.S assembles byte-for-byte to monitor.bin.
   2. monitor.bin has SHA-256 matching monitor.sha256.
   3. Instruction count is <= 150 (<= 600 bytes).
-  4. With --check, verifies that proof/Monitor.lean's monitorCode matches.
+  4. proof/Monitor.lean's `monitorCode` is monitor.bin, word for word and in order.
 """
 
 import hashlib
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -54,18 +55,20 @@ def check_all():
         sys.stderr.write(f"FAIL: monitor.bin has {n_words} instructions, exceeding budget of 150\n")
         return 1
 
-    # Check words in Monitor.lean
+    # monitorCode in Monitor.lean must be exactly the words of the binary
     words = asm.read_words(out)
-    if os.path.exists(lean_file):
-        with open(lean_file, "r") as f:
-            lean_content = f.read()
-        for i, w in enumerate(words):
-            pattern = f"0x{w:08x}#32"
-            if pattern not in lean_content:
-                sys.stderr.write(f"FAIL: Word {i} ({pattern}) not found in proof/Monitor.lean\n")
-                return 1
+    with open(lean_file, "r") as f:
+        lean_content = f.read()
+    start = lean_content.index("def monitorCode")
+    end = lean_content.index("]", start)
+    lean_words = [int(m, 16) for m in re.findall(r"0x([0-9a-f]{8})#32", lean_content[start:end])]
+    if lean_words != words:
+        n = next((i for i, (x, y) in enumerate(zip(lean_words, words)) if x != y), min(len(lean_words), len(words)))
+        sys.stderr.write(f"FAIL: proof/Monitor.lean monitorCode differs from monitor.bin at word {n} "
+                         f"({len(lean_words)} words in Lean, {len(words)} in the binary)\n")
+        return 1
 
-    print(f"PASS  monitor.bin ({len(committed_data)} bytes, {n_words} insts) matches monitor.S and monitor.sha256")
+    print(f"PASS  monitor.bin ({len(committed_data)} bytes, {n_words} insts) matches monitor.S, monitor.sha256 and monitorCode")
     return 0
 
 def monitor_cli():

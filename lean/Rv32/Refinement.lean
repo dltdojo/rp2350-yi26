@@ -245,7 +245,7 @@ theorem PrivMachine.step_eq_of_safe (env : Rv32.Env) (s : PrivMachine) (lo hi : 
     contradiction
   | some instr =>
     refine ⟨instr, rfl, ?_⟩
-    unfold PrivMachine.step
+    unfold PrivMachine.step PrivMachine.stepW
     rw [hBox.notHalted]
     dsimp only [ite_false]
     have hTrap := uModeTrapCause_eq_none_of_SafeUInstr s lo hi hBox hSafe

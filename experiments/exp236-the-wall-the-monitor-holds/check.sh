@@ -3,18 +3,20 @@
 #
 # exp236 quick check — non-interactive, zero hardware requirements.
 #
-#   1. Micro-monitor binary check: monitor.S assembles byte-for-byte to
-#      monitor.bin, matching monitor.sha256, within 150 instructions (< 600 bytes).
-#   2. The formal security proofs check, on Lean's own axioms only:
-#      - Domain isolation: PMP NAPOT configuration locks U-mode to payload region
-#      - Secret zeroization: registers x1..x9 and x11..x31 wiped to zero on halt
-#      - Exit status forwarding: a0 preserved across zeroization
-#      - Counter inhibit invariance: mcountinhibit freezes mcycle and minstret
-#   3. Every mutant in proof/mutants.txt is refused by Lean.
-#   4. Normal execution: monitor.bin + exp229 secp256k1 field arithmetic payload
-#      (add, sub, mul) run under PMP sandbox, producing expected results with a0=0
-#      and GP registers scrubbed.
-#   5. Adversarial attack suite: 5 hostile U-mode attacks caught and rejected.
+#   1. monitor.bin: monitor.S assembles to it byte for byte, the SHA-256 matches, it is within
+#      150 instructions, and `monitorCode` in proof/Monitor.lean is its words, in order.
+#   2. proof/Monitor.lean checks on Lean's own axioms, and proves what monitor.bin does when
+#      PrivMachine runs its words:
+#        - boot: from reset, the PMP fences the payload into 64 KiB, the machine is in U-mode
+#          at the payload's first word, every register but sp is zero;
+#        - the trap handler: HALT, a trap, a bad ecall each end parked, with every register but
+#          a0 zero, mscratch and the saved words zero;
+#        - the payload: in U-mode it stays boxed or traps, and writes only inside the box;
+#        - end to end: from reset, whatever the payload does.
+#   3. Every mutant in proof/mutants.txt — a word of the monitor, or a rule of the model — is refused.
+#   4. On the emulator: the exp229 field kernel runs under the monitor and its results are right.
+#   5. On the emulator: hostile payloads end parked and scrubbed with the hardware's cause.
+#   6. On the emulator: twelve monitors with one thing wrong each are caught by 4 and 5.
 #
 #   ./check.sh        exit 0 = all checks pass, exit 1 = something failed
 
@@ -51,11 +53,7 @@ python3 cases/normal_cases.py || FAILED=1
 # 5. Adversarial attack cases
 python3 cases/attack_cases.py || FAILED=1
 
-# 6. Optional RTL execution if testbench is ready
-if ../../tools/hazard3/sim.sh ready 2>/dev/null; then
-    echo "Hazard3 Verilator testbench ready, running RTL..."
-    # Build combined image and run bare
-fi
+# 6. Monitors with one thing wrong each
+python3 cases/broken_monitors.py || FAILED=1
 
 exit "$FAILED"
-

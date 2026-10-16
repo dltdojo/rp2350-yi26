@@ -1,111 +1,230 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """
-RV32 Privileged + PMP Sandbox Emulator for Micro-Monitor verification.
+RV32IM + Zicsr emulator with machine/user privilege and a four-entry NAPOT PMP.
 
-Emulates RV32I + Zicsr + RV32M (mul, mulhu) with machine (M) and user (U)
-privilege modes and PMP NAPOT enforcement.
+It exists to run the micro-monitor and a hostile payload against each other, and to say
+something when the monitor is *wrong*: nothing about the monitor's configuration is written
+into it. The PMP is whatever `pmpcfg0` and `pmpaddr0..3` say when the instruction runs,
+`mret` returns to the privilege `mstatus.MPP` holds, and a CSR the model does not have traps.
+
+It is a second, independent reading of the specification next to `lean/Rv32/Priv.lean`, written
+for testing rather than proof: a monitor and a payload agree with it, or they do not.
+
+Memory is flat RAM at `BASE`; two words of MMIO stand for the testbench's print and exit ports.
+Not modelled: interrupts, the C extension, `mcounteren`, `fence`, `ebreak` beyond its trap.
 """
 
 import struct
-from typing import List, Optional
+from typing import List
+
+BASE = 0x80000000
+IO_PRINT = 0xC0000004
+IO_EXIT = 0xC0000008
+
+M32 = 0xFFFFFFFF
+
+# mcause
+C_FETCH_MISALIGNED = 0
+C_FETCH_ACCESS = 1
+C_ILLEGAL = 2
+C_BREAKPOINT = 3
+C_LOAD_MISALIGNED = 4
+C_LOAD_ACCESS = 5
+C_STORE_MISALIGNED = 6
+C_STORE_ACCESS = 7
+C_ECALL_U = 8
+C_ECALL_M = 11
+
+# CSR numbers
+MSTATUS, MTVEC, MCOUNTINHIBIT = 0x300, 0x305, 0x320
+MSCRATCH, MEPC, MCAUSE, MTVAL = 0x340, 0x341, 0x342, 0x343
+PMPCFG0, PMPADDR0 = 0x3A0, 0x3B0
+MCYCLE, MINSTRET, MCYCLEH, MINSTRETH = 0xB00, 0xB02, 0xB80, 0xB82
+CYCLE, INSTRET = 0xC00, 0xC02
+
+MIE, MPIE = 1 << 3, 1 << 7
+
+
+def sext(v: int, bits: int) -> int:
+    v &= (1 << bits) - 1
+    return v - (1 << bits) if v & (1 << (bits - 1)) else v
+
+
+class Trap(Exception):
+    def __init__(self, cause: int, tval: int = 0):
+        self.cause, self.tval = cause, tval
+
 
 class SandboxEmulator:
     def __init__(self, image: bytes, mem_size: int = 0x40000):
-        # Base RAM at 0x80000000
         self.mem = bytearray(image + b"\x00" * max(0, mem_size - len(image)))
-        self.regs = [0] * 32
-        self.pc = 0x80000040  # Reset vector (monitor entry)
-        self.mode = "M"       # Privilege mode: "M" or "U"
+        # Registers come out of reset holding whatever they hold: junk, so that a monitor that
+        # trusts them to be zero is caught.
+        self.regs = [0] + [0xA5A50000 | r for r in range(1, 32)]
+        self.pc = BASE + 0x40            # reset vector: the monitor's first word after `_start`
+        self.mode = "M"
         self.halted = False
         self.exit_code = 0
-        self.cycles = 0
-        self.instret = 0
-        self.mcountinhibit_ir = True
-        self.mcountinhibit_cy = True
-        self.mstatus = 0x1800  # MPP = 3 initially
-        self.mtvec = 0x80000040
+        self.mstatus = 0
+        self.mtvec = 0
         self.mscratch = 0
         self.mepc = 0
         self.mcause = 0
         self.mtval = 0
-        self.pmp_lo = 0
-        self.pmp_hi = 0
-        self.pmp_active = False
+        self.mcountinhibit = 0
+        self.pmpcfg0 = 0
+        self.pmpaddr = [0, 0, 0, 0]
+        self.mcycle = 0
+        self.minstret = 0
         self.prints: List[int] = []
         self.traps: List[dict] = []
 
-    def check_pmp(self, addr: int, width: int, acc: str) -> bool:
-        if self.mode == "M":
-            return True
-        if not self.pmp_active:
-            return False
-        return self.pmp_lo <= addr and (addr + width) <= self.pmp_hi
+    # ---- PMP -------------------------------------------------------------------------------
 
-    def read_csr(self, csr: int) -> int:
-        if csr == 0x300:
+    def pmp_entry(self, i: int):
+        """(mode, r, w, x, lock, lo, hi) of entry i; only OFF and NAPOT exist (PMP_GRAIN = 3)."""
+        cfg = (self.pmpcfg0 >> (8 * i)) & 0xFF
+        a = (cfg >> 3) & 3
+        if a != 3:
+            return ("OFF", False, False, False, bool(cfg & 0x80), 0, 0)
+        eff = (self.pmpaddr[i] | 3) & M32
+        t = 0
+        while (eff >> t) & 1 and t < 32:
+            t += 1
+        base = ((eff >> (t + 1)) << (t + 1)) << 2
+        size = 1 << (t + 3)
+        return ("NAPOT", bool(cfg & 1), bool(cfg & 2), bool(cfg & 4), bool(cfg & 0x80), base, base + size)
+
+    def pmp_ok(self, addr: int, width: int, acc: str) -> bool:
+        for i in range(4):
+            mode, r, w, x, lock, lo, hi = self.pmp_entry(i)
+            if mode == "OFF":
+                continue
+            if addr + width <= lo or addr >= hi:
+                continue
+            if not (lo <= addr and addr + width <= hi):
+                return False                      # partial match
+            if self.mode == "M" and not lock:
+                return True
+            return {"R": r, "W": w, "X": x}[acc]
+        return self.mode == "M"
+
+    # ---- memory ----------------------------------------------------------------------------
+
+    def load(self, addr: int, width: int) -> int:
+        if addr % width:
+            raise Trap(C_LOAD_MISALIGNED, addr)
+        if not self.pmp_ok(addr, width, "R"):
+            raise Trap(C_LOAD_ACCESS, addr)
+        off = addr - BASE
+        if not (0 <= off and off + width <= len(self.mem)):
+            raise Trap(C_LOAD_ACCESS, addr)
+        return int.from_bytes(self.mem[off:off + width], "little")
+
+    def store(self, addr: int, width: int, val: int):
+        if addr % width:
+            raise Trap(C_STORE_MISALIGNED, addr)
+        if not self.pmp_ok(addr, width, "W"):
+            raise Trap(C_STORE_ACCESS, addr)
+        if addr == IO_PRINT and width == 4:
+            self.prints.append(val & M32)
+            return
+        if addr == IO_EXIT and width == 4:
+            self.exit_code = val & M32
+            return
+        off = addr - BASE
+        if not (0 <= off and off + width <= len(self.mem)):
+            raise Trap(C_STORE_ACCESS, addr)
+        self.mem[off:off + width] = (val & ((1 << (8 * width)) - 1)).to_bytes(width, "little")
+
+    # ---- CSRs ------------------------------------------------------------------------------
+
+    CSRS = {MSTATUS, MTVEC, MCOUNTINHIBIT, MSCRATCH, MEPC, MCAUSE, MTVAL, PMPCFG0,
+            PMPADDR0, PMPADDR0 + 1, PMPADDR0 + 2, PMPADDR0 + 3,
+            MCYCLE, MINSTRET, MCYCLEH, MINSTRETH, CYCLE, INSTRET}
+
+    def csr_read(self, n: int) -> int:
+        if n == MSTATUS:
             return self.mstatus
-        elif csr == 0x305:
+        if n == MTVEC:
             return self.mtvec
-        elif csr == 0x340:
+        if n == MCOUNTINHIBIT:
+            return self.mcountinhibit
+        if n == MSCRATCH:
             return self.mscratch
-        elif csr == 0x341:
+        if n == MEPC:
             return self.mepc
-        elif csr == 0x342:
+        if n == MCAUSE:
             return self.mcause
-        elif csr == 0x343:
+        if n == MTVAL:
             return self.mtval
-        elif csr == 0x320:
-            return (1 if self.mcountinhibit_cy else 0) | (4 if self.mcountinhibit_ir else 0)
-        elif csr in (0xB00, 0xC00):
-            return self.cycles & 0xFFFFFFFF
-        elif csr in (0xB02, 0xC02):
-            return self.instret & 0xFFFFFFFF
-        return 0
+        if n == PMPCFG0:
+            return self.pmpcfg0
+        if PMPADDR0 <= n < PMPADDR0 + 4:
+            i = n - PMPADDR0
+            cfg_a = (self.pmpcfg0 >> (8 * i + 3)) & 3
+            return (self.pmpaddr[i] | 3) if cfg_a == 3 else (self.pmpaddr[i] & ~7 & M32)
+        if n in (MCYCLE, CYCLE):
+            return self.mcycle & M32
+        if n in (MINSTRET, INSTRET):
+            return self.minstret & M32
+        return 0                                  # mcycleh / minstreth: the counters are 32 bits
 
-    def write_csr(self, csr: int, val: int):
-        val &= 0xFFFFFFFF
-        if csr == 0x300:
-            self.mstatus = val
-        elif csr == 0x305:
-            self.mtvec = val
-        elif csr == 0x340:
-            self.mscratch = val
-        elif csr == 0x341:
-            self.mepc = val
-        elif csr == 0x342:
-            self.mcause = val
-        elif csr == 0x343:
-            self.mtval = val
-        elif csr == 0x320:
-            self.mcountinhibit_cy = bool(val & 1)
-            self.mcountinhibit_ir = bool(val & 4)
-        elif csr == 0x3B0:
-            # PMPADDR0 for 64 KiB NAPOT at 0x80010000:
-            # (addr >> 2) | ((size >> 3) - 1)
-            self.pmp_lo = 0x80010000
-            self.pmp_hi = 0x80020000
-        elif csr == 0x3A0:
-            self.pmp_active = bool(val & 0x1F)
-        elif csr in (0xB00, 0xC00):
-            self.cycles = 0
-        elif csr in (0xB02, 0xC02):
-            self.instret = 0
+    def csr_write(self, n: int, v: int):
+        v &= M32
+        if n == MSTATUS:
+            self.mstatus = v & (MIE | MPIE | (3 << 11))
+        elif n == MTVEC:
+            self.mtvec = v & ~3 & M32
+        elif n == MCOUNTINHIBIT:
+            self.mcountinhibit = v & 5
+        elif n == MSCRATCH:
+            self.mscratch = v
+        elif n == MEPC:
+            self.mepc = v
+        elif n == MCAUSE:
+            self.mcause = v
+        elif n == MTVAL:
+            self.mtval = v
+        elif n == PMPCFG0:
+            new = 0
+            for i in range(4):
+                old_b = (self.pmpcfg0 >> (8 * i)) & 0xFF
+                new_b = old_b if old_b & 0x80 else (v >> (8 * i)) & 0xFF
+                new |= new_b << (8 * i)
+            self.pmpcfg0 = new
+        elif PMPADDR0 <= n < PMPADDR0 + 4:
+            i = n - PMPADDR0
+            if not ((self.pmpcfg0 >> (8 * i)) & 0x80):
+                self.pmpaddr[i] = v
+        elif n == MCYCLE:
+            self.mcycle = v
+        elif n == MINSTRET:
+            self.minstret = v
+        # mcycleh / minstreth: dropped
 
-    def trap(self, cause: int, val: int):
-        self.traps.append({
-            "cause": cause,
-            "val": val,
-            "mepc": self.pc,
-            "mode": self.mode
-        })
+    # ---- traps -----------------------------------------------------------------------------
+
+    def take_trap(self, cause: int, tval: int):
+        self.traps.append({"cause": cause, "tval": tval, "mepc": self.pc, "mode": self.mode})
+        mpp = 3 if self.mode == "M" else 0
+        mie = bool(self.mstatus & MIE)
+        self.mstatus = (mpp << 11) | (MPIE if mie else 0)
+        self.mepc, self.mcause, self.mtval = self.pc, cause, tval
         self.mode = "M"
-        self.mcause = cause
-        self.mepc = self.pc
-        self.mtval = val
         self.pc = self.mtvec
+        self.count()
 
-    def run(self, max_steps: int = 100000) -> int:
+    def count(self):
+        if not self.mcountinhibit & 1:
+            self.mcycle = (self.mcycle + 1) & M32
+        if not self.mcountinhibit & 4:
+            self.minstret = (self.minstret + 1) & M32
+
+    # ---- run -------------------------------------------------------------------------------
+
+    def run(self, max_steps: int = 200000) -> int:
         for _ in range(max_steps):
             if self.halted:
                 break
@@ -113,175 +232,168 @@ class SandboxEmulator:
         return self.exit_code
 
     def step(self):
-        # Fetch check
-        if not self.check_pmp(self.pc, 4, "X"):
-            self.trap(1, self.pc)  # Fetch access fault
-            return
+        try:
+            self.execute()
+        except Trap as t:
+            self.take_trap(t.cause, t.tval)
 
-        offset = self.pc - 0x80000000
-        if offset < 0 or offset + 4 > len(self.mem):
-            self.trap(1, self.pc)
-            return
+    def execute(self):
+        pc = self.pc
+        if pc % 4:
+            raise Trap(C_FETCH_MISALIGNED, pc)
+        if not self.pmp_ok(pc, 4, "X"):
+            raise Trap(C_FETCH_ACCESS, pc)
+        off = pc - BASE
+        if not (0 <= off and off + 4 <= len(self.mem)):
+            raise Trap(C_FETCH_ACCESS, pc)
+        w = struct.unpack("<I", self.mem[off:off + 4])[0]
+        op = w & 0x7F
+        rd, f3, rs1, rs2, f7 = (w >> 7) & 31, (w >> 12) & 7, (w >> 15) & 31, (w >> 20) & 31, w >> 25
+        R = self.regs
+        a, b = R[rs1], R[rs2]
+        nxt = (pc + 4) & M32
+        res = None
 
-        w = struct.unpack("<I", self.mem[offset:offset+4])[0]
-        curr_pc = self.pc
-        self.pc += 4
+        if op == 0x37:
+            res = w & 0xFFFFF000
+        elif op == 0x17:
+            res = (pc + (w & 0xFFFFF000)) & M32
+        elif op == 0x6F:
+            imm = sext(((w >> 31) << 20) | (((w >> 12) & 0xFF) << 12) | (((w >> 20) & 1) << 11)
+                       | (((w >> 21) & 0x3FF) << 1), 21)
+            res, nxt = (pc + 4) & M32, (pc + imm) & M32
+        elif op == 0x67 and f3 == 0:
+            res, nxt = (pc + 4) & M32, (a + sext(w >> 20, 12)) & ~1 & M32
+        elif op == 0x63 and f3 not in (2, 3):
+            imm = sext(((w >> 31) << 12) | (((w >> 7) & 1) << 11) | (((w >> 25) & 0x3F) << 5)
+                       | (((w >> 8) & 0xF) << 1), 13)
+            sa, sb = sext(a, 32), sext(b, 32)
+            take = [a == b, a != b, False, False, sa < sb, sa >= sb, a < b, a >= b][f3]
+            if take:
+                nxt = (pc + imm) & M32
+        elif op == 0x03 and f3 in (0, 1, 2, 4, 5):
+            addr = (a + sext(w >> 20, 12)) & M32
+            width = (1, 2, 4, 0, 1, 2)[f3]
+            v = self.load(addr, width)
+            res = sext(v, 8 * width) & M32 if f3 < 3 else v
+        elif op == 0x23 and f3 in (0, 1, 2):
+            imm = sext(((w >> 25) << 5) | ((w >> 7) & 31), 12)
+            self.store((a + imm) & M32, (1, 2, 4)[f3], b)
+        elif op == 0x13:
+            imm = sext(w >> 20, 12)
+            if f3 == 0:
+                res = (a + imm) & M32
+            elif f3 == 2:
+                res = int(sext(a, 32) < imm)
+            elif f3 == 3:
+                res = int(a < (imm & M32))
+            elif f3 == 4:
+                res = (a ^ imm) & M32
+            elif f3 == 6:
+                res = (a | imm) & M32
+            elif f3 == 7:
+                res = (a & imm) & M32
+            elif f3 == 1 and f7 == 0:
+                res = (a << rs2) & M32
+            elif f3 == 5 and f7 in (0, 0x20):
+                res = ((sext(a, 32) >> rs2) & M32) if f7 == 0x20 else (a >> rs2)
+            else:
+                raise Trap(C_ILLEGAL, w)
+        elif op == 0x33:
+            res = self.alu(f3, f7, a, b, w)
+        elif op == 0x73:
+            return self.system(w, pc, rd, f3, rs1)
+        else:
+            raise Trap(C_ILLEGAL, w)
 
-        if not self.mcountinhibit_ir:
-            self.instret += 1
-        if not self.mcountinhibit_cy:
-            self.cycles += 1
+        if res is not None and rd:
+            R[rd] = res & M32
+        self.pc = nxt
+        self.count()
 
-        opcode = w & 0x7F
-        rd = (w >> 7) & 0x1F
-        funct3 = (w >> 12) & 7
-        rs1 = (w >> 15) & 0x1F
-        rs2 = (w >> 20) & 0x1F
-        imm_i = (w >> 20)
-        if imm_i & 0x800:
-            imm_i -= 0x1000
+    def alu(self, f3, f7, a, b, w):
+        sa, sb = sext(a, 32), sext(b, 32)
+        if f7 == 1:
+            if f3 == 0:
+                return (a * b) & M32
+            if f3 == 1:
+                return ((sa * sb) >> 32) & M32
+            if f3 == 2:
+                return ((sa * b) >> 32) & M32
+            if f3 == 3:
+                return (a * b) >> 32
+            if f3 in (4, 6):
+                if b == 0:
+                    return M32 if f3 == 4 else a
+                q = abs(sa) // abs(sb)
+                if (sa < 0) != (sb < 0):
+                    q = -q
+                return (q if f3 == 4 else sa - q * sb) & M32
+            if f3 == 5:
+                return M32 if b == 0 else a // b
+            return a if b == 0 else a % b
+        if f7 not in (0, 0x20) or (f7 == 0x20 and f3 not in (0, 5)):
+            raise Trap(C_ILLEGAL, w)
+        if f3 == 0:
+            return (a - b if f7 == 0x20 else a + b) & M32
+        if f3 == 1:
+            return (a << (b & 31)) & M32
+        if f3 == 2:
+            return int(sa < sb)
+        if f3 == 3:
+            return int(a < b)
+        if f3 == 4:
+            return a ^ b
+        if f3 == 5:
+            return ((sa >> (b & 31)) & M32) if f7 == 0x20 else (a >> (b & 31))
+        return a | b if f3 == 6 else a & b
 
-        # Zicsr / System
-        if opcode == 0x73:
-            if w == 0x30200073:  # mret
+    def system(self, w, pc, rd, f3, rs1):
+        if f3 == 0:
+            if w == 0x00000073:
+                raise Trap(C_ECALL_U if self.mode == "U" else C_ECALL_M, 0)
+            if w == 0x00100073:
+                raise Trap(C_BREAKPOINT, pc)
+            if w == 0x30200073:                               # mret
                 if self.mode != "M":
-                    self.pc = curr_pc
-                    self.trap(2, curr_pc)  # Illegal instruction
-                else:
-                    self.mode = "U"
-                    self.pc = self.mepc
+                    raise Trap(C_ILLEGAL, w)
+                mpp = (self.mstatus >> 11) & 3
+                mpie = bool(self.mstatus & MPIE)
+                self.mstatus = (MIE if mpie else 0) | MPIE
+                self.mode = "M" if mpp == 3 else "U"
+                self.pc = self.mepc
+                self.count()
                 return
-            elif w == 0x00000073:  # ecall
-                self.pc = curr_pc
-                if self.mode == "U":
-                    self.trap(8, curr_pc)
-                else:
-                    self.trap(11, curr_pc)
-                return
-            elif w == 0x10500073:  # wfi
+            if w == 0x10500073:                               # wfi: park
+                if self.mode != "M":
+                    raise Trap(C_ILLEGAL, w)
                 self.halted = True
                 return
-            elif funct3 in (1, 2, 3, 5):  # CSR instructions
-                if self.mode == "U":
-                    self.pc = curr_pc
-                    self.trap(2, curr_pc)  # Illegal instruction in U-mode
-                    return
-                csr = w >> 20
-                old_val = self.read_csr(csr)
-                in_val = rs1 if funct3 in (5, 6, 7) else self.regs[rs1]
-                if funct3 in (1, 5):
-                    new_val = in_val
-                elif funct3 == 2:
-                    new_val = old_val | in_val
-                elif funct3 == 3:
-                    new_val = old_val & ~in_val
-                else:
-                    new_val = old_val
-                self.write_csr(csr, new_val)
-                if rd != 0:
-                    self.regs[rd] = old_val
-                return
-
-        # Basic RV32I instructions
-        if opcode == 0x13:  # OP-IMM
-            v1 = self.regs[rs1]
-            if funct3 == 0:    # addi
-                res = (v1 + imm_i) & 0xFFFFFFFF
-            elif funct3 == 7:  # andi
-                res = (v1 & imm_i) & 0xFFFFFFFF
-            elif funct3 == 4:  # xori
-                res = (v1 ^ imm_i) & 0xFFFFFFFF
-            elif funct3 == 6:  # ori
-                res = (v1 | imm_i) & 0xFFFFFFFF
-            elif funct3 == 1:  # slli
-                res = (v1 << (imm_i & 31)) & 0xFFFFFFFF
-            elif funct3 == 5:  # srli/srai
-                res = (v1 >> (imm_i & 31)) & 0xFFFFFFFF
-            else:
-                res = 0
-            if rd != 0:
-                self.regs[rd] = res
-        elif opcode == 0x33:  # OP
-            v1 = self.regs[rs1]
-            v2 = self.regs[rs2]
-            funct7 = (w >> 25) & 0x7F
-            if funct7 == 1:  # M extension
-                if funct3 == 0:    # mul
-                    res = (v1 * v2) & 0xFFFFFFFF
-                elif funct3 == 3:  # mulhu
-                    res = ((v1 & 0xFFFFFFFF) * (v2 & 0xFFFFFFFF)) >> 32
-                else:
-                    res = 0
-            elif funct3 == 0:  # add/sub
-                res = (v1 - v2 if funct7 == 0x20 else v1 + v2) & 0xFFFFFFFF
-            elif funct3 == 4:  # xor
-                res = (v1 ^ v2) & 0xFFFFFFFF
-            elif funct3 == 6:  # or
-                res = (v1 | v2) & 0xFFFFFFFF
-            elif funct3 == 7:  # and
-                res = (v1 & v2) & 0xFFFFFFFF
-            elif funct3 == 3:  # sltu
-                res = 1 if (v1 & 0xFFFFFFFF) < (v2 & 0xFFFFFFFF) else 0
-            else:
-                res = 0
-            if rd != 0:
-                self.regs[rd] = res
-        elif opcode == 0x37:  # LUI
-            imm_u = w & 0xFFFFF000
-            if rd != 0:
-                self.regs[rd] = imm_u
-        elif opcode == 0x17:  # AUIPC
-            imm_u = w & 0xFFFFF000
-            if rd != 0:
-                self.regs[rd] = (curr_pc + imm_u) & 0xFFFFFFFF
-        elif opcode == 0x6F:  # JAL
-            imm_j = (((w >> 31) & 1) << 20) | (((w >> 21) & 0x3FF) << 1) | (((w >> 20) & 1) << 11) | (((w >> 12) & 0xFF) << 12)
-            if imm_j & 0x100000:
-                imm_j -= 0x200000
-            if rd != 0:
-                self.regs[rd] = self.pc
-            self.pc = (curr_pc + imm_j) & 0xFFFFFFFF
-        elif opcode == 0x67:  # JALR
-            if rd != 0:
-                self.regs[rd] = self.pc
-            self.pc = (self.regs[rs1] + imm_i) & ~1
-        elif opcode == 0x63:  # Branch
-            imm_b = (((w >> 31) & 1) << 12) | (((w >> 7) & 1) << 11) | (((w >> 25) & 0x3F) << 5) | (((w >> 8) & 0xF) << 1)
-            if imm_b & 0x1000:
-                imm_b -= 0x2000
-            v1, v2 = self.regs[rs1], self.regs[rs2]
-            cond = (funct3 == 0 and v1 == v2) or (funct3 == 1 and v1 != v2) or (funct3 == 6 and (v1 & 0xFFFFFFFF) < (v2 & 0xFFFFFFFF))
-            if cond:
-                self.pc = (curr_pc + imm_b) & 0xFFFFFFFF
-        elif opcode == 0x03:  # Load
-            addr = (self.regs[rs1] + imm_i) & 0xFFFFFFFF
-            if not self.check_pmp(addr, 4, "R"):
-                self.pc = curr_pc
-                self.trap(5, addr)  # Load access fault
-                return
-            off = addr - 0x80000000
-            if 0 <= off < len(self.mem) - 3:
-                val = struct.unpack("<I", self.mem[off:off+4])[0]
-            else:
-                val = 0
-            if rd != 0:
-                self.regs[rd] = val
-        elif opcode == 0x23:  # Store
-            imm_s = (((w >> 25) & 0x7F) << 5) | ((w >> 7) & 0x1F)
-            if imm_s & 0x800:
-                imm_s -= 0x1000
-            addr = (self.regs[rs1] + imm_s) & 0xFFFFFFFF
-            if not self.check_pmp(addr, 4, "W"):
-                self.pc = curr_pc
-                self.trap(7, addr)  # Store access fault
-                return
-            if addr == 0xC0000004:  # Print port
-                self.prints.append(self.regs[rs2])
-                return
-            if addr == 0xC0000008:  # MMIO exit
-                self.exit_code = self.regs[rs2]
-                return
-            off = addr - 0x80000000
-            if 0 <= off < len(self.mem) - 3:
-                struct.pack_into("<I", self.mem, off, self.regs[rs2])
-
+            raise Trap(C_ILLEGAL, w)
+        if self.mode != "M" or f3 == 4:
+            raise Trap(C_ILLEGAL, w)
+        n = w >> 20
+        if n not in self.CSRS:
+            raise Trap(C_ILLEGAL, w)
+        src = rs1 if f3 >= 5 else self.regs[rs1]
+        writes = True if f3 in (1, 5) else src != 0
+        if writes and (n >> 10) == 3:                         # read-only CSR
+            raise Trap(C_ILLEGAL, w)
+        old = self.csr_read(n)
+        if f3 in (1, 5):
+            new = src
+        elif f3 in (2, 6):
+            new = old | src
+        else:
+            new = old & ~src
+        if writes:
+            self.csr_write(n, new)
+        if rd:
+            self.regs[rd] = old
+        self.pc = (pc + 4) & M32
+        self.count()
+        # a write to a counter is the last word on it
+        if writes and n == MCYCLE:
+            self.mcycle = new & M32
+        if writes and n == MINSTRET:
+            self.minstret = new & M32

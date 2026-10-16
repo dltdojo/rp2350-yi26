@@ -62,6 +62,7 @@ structure PrivCSRs where
   mscratch      : Word          := 0
   mepc          : Word          := 0
   mcause        : Word          := 0
+  mtval         : Word          := 0
   pmpcfg0       : Word          := 0
   pmpaddr0      : Word          := 0
   pmpaddr1      : Word          := 0
@@ -249,6 +250,7 @@ def readCSR (csrs : PrivCSRs) (csrNum : Word) : Word :=
   else if csrNum = 0x340 then csrs.mscratch
   else if csrNum = 0x341 then csrs.mepc
   else if csrNum = 0x342 then csrs.mcause
+  else if csrNum = 0x343 then csrs.mtval
   else if csrNum = 0x3A0 then csrs.pmpcfg0
   else if csrNum = 0x3B0 then readPmpAddr csrs ⟨0, by decide⟩
   else if csrNum = 0x3B1 then readPmpAddr csrs ⟨1, by decide⟩
@@ -273,6 +275,7 @@ def writeCSR (csrs : PrivCSRs) (csrNum : Word) (val : Word) : PrivCSRs :=
   else if csrNum = 0x340 then { csrs with mscratch := val }
   else if csrNum = 0x341 then { csrs with mepc := val }
   else if csrNum = 0x342 then { csrs with mcause := val }
+  else if csrNum = 0x343 then { csrs with mtval := val }
   else if csrNum = 0xB00 then { csrs with mcycle := val }
   else if csrNum = 0xB02 then { csrs with minstret := val }
   else if csrNum = 0x3A0 then
@@ -301,10 +304,12 @@ def isZicsr (w : Word) : Bool :=
   opcode = 0x73#32 ∧ (funct3 = 1#32 ∨ funct3 = 2#32 ∨ funct3 = 3#32 ∨
                       funct3 = 5#32 ∨ funct3 = 6#32 ∨ funct3 = 7#32)
 
-/-- The CSRs the model has. Any other number is not modelled and an access traps. -/
+/-- The CSRs the model has. Any other number is not modelled and an access traps.
+    `mcycleh`/`minstreth` (0xB80/0xB82) read 0 and drop writes: the counters are 32 bits here.
+    `mtval` is a plain register: a trap does not write it. -/
 def csrImplemented (n : Word) : Bool :=
-  [0x300#32, 0x305, 0x320, 0x340, 0x341, 0x342, 0x3A0, 0x3B0, 0x3B1, 0x3B2, 0x3B3,
-   0xB00, 0xB02, 0xC00, 0xC02].contains n
+  [0x300#32, 0x305, 0x320, 0x340, 0x341, 0x342, 0x343, 0x3A0, 0x3B0, 0x3B1, 0x3B2, 0x3B3,
+   0xB00, 0xB02, 0xB80, 0xB82, 0xC00, 0xC02].contains n
 
 /-- Address bits [11:10] = 11 mark a read-only CSR. -/
 def csrReadOnly (n : Word) : Bool := ((n >>> 10) &&& 3#32) = 3#32
@@ -377,10 +382,11 @@ def uModeTrapCause (s : PrivMachine) (w : Word) : Option Word :=
       else none
     | some _ => none
 
-def PrivMachine.step (env : Rv32.Env) (s : PrivMachine) : PrivMachine :=
+/-- One step, given the word fetched at `pc`. `step` is this with the word read from memory;
+    the split lets a proof about loaded code supply the word and evaluate it. -/
+def PrivMachine.stepW (env : Rv32.Env) (s : PrivMachine) (w : Word) : PrivMachine :=
   if s.halted then s
   else
-    let w := BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4)
     match uModeTrapCause s w with
     | some cause => raiseTrap s cause
     | none =>
@@ -398,6 +404,10 @@ def PrivMachine.step (env : Rv32.Env) (s : PrivMachine) : PrivMachine :=
             { s with core := core', csrs := csrs', halted := true }
           | .fault _ _ => raiseTrap s CAUSE_ILLEGAL_INSTR
         | none => raiseTrap s CAUSE_ILLEGAL_INSTR
+
+
+def PrivMachine.step (env : Rv32.Env) (s : PrivMachine) : PrivMachine :=
+  PrivMachine.stepW env s (BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4))
 
 def PrivMachine.run (env : Rv32.Env) : Nat → PrivMachine → PrivMachine
   | 0, s => s

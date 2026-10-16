@@ -9,9 +9,14 @@
 //   2. Clears all general purpose registers and initializes U-mode stack.
 //   3. Switches to User mode via mret with precise counter unfreezing.
 //   4. On ecall (t0 = 1): reports HALT with exit code and cycle counts,
-//      scrubs all registers x1..x9 and x11..x31 to 0, and halts.
-//   5. On fault (PMP violation, illegal CSR, etc.): catches trap,
-//      reports FAULT with mcause, mepc, mtval, and halts safely.
+//      then scrubs and halts.
+//   5. On fault (PMP violation, illegal CSR, bad syscall, etc.): catches the trap,
+//      reports FAULT with mcause, mepc, mtval and minstret, sets a0 = 1, then
+//      scrubs and halts by the same tail as HALT.
+//
+// The scrub (scrub_exit) zeroes x1..x9 and x11..x31, the two words the trap entry
+// saved on the M-mode stack, and mscratch (which holds the payload's sp). It does
+// not touch the payload region: memory the payload wrote stays where it is.
 
 .section .text.entry, "ax"
 .globl _start
@@ -131,15 +136,9 @@ handle_fault:
     csrr  t0, minstret
     sw    t0, 0(t1)
 
-    // Exit simulation with failure code 1
-    li    t1, 0xc0000008
-    li    t0, 1
-    sw    t0, 0(t1)
-    li    t0, 0
-    li    t1, 0
-fault_loop:
-    wfi
-    j     fault_loop
+    // Failure code 1 in a0, then the same tail as HALT
+    li    a0, 1
+    j     scrub_exit
 
 handle_ecall:
     // Check syscall number in t0 (saved on stack at 0(sp))
@@ -160,6 +159,13 @@ handle_halt:
     csrr  t0, mcycle
     sw    t0, 0(t1)
 
+scrub_exit:
+    // The two words trap entry saved on the M-mode stack held U-mode's t0 and t1;
+    // mscratch holds U-mode's sp.
+    sw    zero, 0(sp)
+    sw    zero, 4(sp)
+    csrw  mscratch, zero
+
     // Secret zeroization: scrub all general purpose registers except a0 (x10)
     li    x1, 0
     li    x2, 0
@@ -170,7 +176,6 @@ handle_halt:
     li    x7, 0
     li    x8, 0
     li    x9, 0
-    // Preserve a0 (x10)
     li    x11, 0
     li    x12, 0
     li    x13, 0

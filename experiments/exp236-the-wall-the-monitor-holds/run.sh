@@ -23,7 +23,7 @@ echo ">>> the formal theorems, and what they rest on"
 "$LEAN" run proof/Monitor.lean | grep -E "axioms|^exit"
 echo
 
-echo ">>> wrong monitor properties: each must be refused"
+echo ">>> wrong monitors and wrong sandboxes: each must be refused"
 "$LEAN" table proof/Monitor.lean
 echo
 
@@ -31,8 +31,12 @@ echo ">>> normal execution: secp256k1 field arithmetic under PMP sandbox"
 python3 cases/normal_cases.py
 echo
 
-echo ">>> adversarial attack test suite: 5 hostile U-mode attacks"
+echo ">>> hostile payloads"
 python3 cases/attack_cases.py
+echo
+
+echo ">>> monitors with one thing wrong: each must be caught"
+python3 cases/broken_monitors.py
 echo
 
 echo ">>> the checks"

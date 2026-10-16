@@ -303,3 +303,22 @@ Before advancing from Phase 3 (`monitor.bin` & `proof/Monitor.lean`) to Phase 4 
   * `monitor_syscall_forwarding_thm` and `monitor_confused_deputy_reject_thm` (Exact ABI preservation for `t0 ∈ {0, 1, 2, 3}` and overflow-safe rejection of out-of-bounds `U-mode` pointers).
   * `monitor_instruction_count_thm` (Exact constant `minstret` overhead via `csrwi mcountinhibit, 5`, replacing empirical compensation constants).
   * `monitor_implements_env` (Concrete instantiation of Phase 2's `MonitorImplementsEnv` interface).
+
+## 7. What exp236 delivered, against this design
+
+`experiments/exp236-the-wall-the-monitor-holds` is the Phase 3 monitor. Where it differs from the
+design above:
+
+| Design | exp236 |
+| :--- | :--- |
+| ~120 instructions | 143 instructions, 572 bytes (the register zeroing is written out twice: boot and scrub) |
+| SRAM at `0x20000000`, two domains | the testbench map: monitor at `0x80000000`, one 64 KiB payload region at `0x80010000`, MMIO words at `0xc0000004/8` |
+| the monitor returns to U-mode after a syscall (`trap_return`) | it does not: HALT or a fault, then scrub and park. There is no `trap_return` |
+| `HASH`, `CHECKSIG` forwarded after a bounds check | not offered. Any `ecall` but HALT is a fault |
+| `monitor_isolation_thm`, `monitor_zeroization_thm` over a `zeroizeRegs` helper | stated on `PrivMachine` running the monitor's own words: `monitor_boot`, `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall`, `monitor_scrub`, `monitor_end_to_end`, with `umode_step`/`umode_run` in `lean/Rv32/Sandbox.lean` |
+| `monitor_instruction_count_thm`: a trap-and-return costs a proved constant | not stated: there is no return. The monitor freezes the counters and parks |
+| `monitor_implements_env` | not proved. The sandbox theorems hold for any `env`; the handler theorems assume `env.region = [0x80000000, 0xC0000100)` |
+| the fault path reports and exits | it also scrubs: every register but `a0`, `mscratch` and the two saved words are zero when it parks |
+| — | payload memory is not scrubbed |
+
+The model limits in section 8 of `phase1_priv_machine_design.md` apply to every theorem.
