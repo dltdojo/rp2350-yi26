@@ -40,6 +40,19 @@ theorem priv_umode_mret_traps (s : PrivMachine) (hMode : s.mode = .U) :
     execMret s = raiseTrap s CAUSE_ILLEGAL_INSTR :=
   umode_mret_traps s hMode
 
+/-- CSR access: an M-mode access to a CSR the model does not have raises illegal instruction. -/
+theorem priv_zicsr_unimplemented_traps (s : PrivMachine) (w : Word) (hM : s.mode = .M)
+    (h : csrImplemented (w >>> 20) = false) :
+    execZicsr s w = raiseTrap s CAUSE_ILLEGAL_INSTR :=
+  execZicsr_unimplemented_traps s w hM h
+
+/-- CSR access: an M-mode write to a read-only CSR (address bits [11:10] = 11) raises
+    illegal instruction. -/
+theorem priv_zicsr_readonly_write_traps (s : PrivMachine) (w : Word) (hM : s.mode = .M)
+    (hW : csrWrites w = true) (hRO : csrReadOnly (w >>> 20) = true) :
+    execZicsr s w = raiseTrap s CAUSE_ILLEGAL_INSTR :=
+  execZicsr_readonly_write_traps s w hM hW hRO
+
 /-- Counter inhibit: bit 0 of mcountinhibit holds mcycle frozen. -/
 theorem priv_mcountinhibit_mcycle (csrs : PrivCSRs) (hCY : csrs.mcountinhibit.cy = true) :
     (bumpCounters csrs).mcycle = csrs.mcycle :=
@@ -169,6 +182,8 @@ end Exp235
 #print axioms Exp235.pmp_umode_default_deny
 #print axioms Exp235.priv_umode_zicsr_traps
 #print axioms Exp235.priv_umode_mret_traps
+#print axioms Exp235.priv_zicsr_unimplemented_traps
+#print axioms Exp235.priv_zicsr_readonly_write_traps
 #print axioms Exp235.priv_mcountinhibit_mcycle
 #print axioms Exp235.priv_mcountinhibit_minstret
 #print axioms Exp235.priv_minstret_step

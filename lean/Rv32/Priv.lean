@@ -4,17 +4,21 @@ SPDX-License-Identifier: Apache-2.0
 # RISC-V M-Mode Privileged Micro-Model Semantics
 
 Privileged state, CSRs, PMP access enforcement, and trap transitions for
-RP2350 Hazard3, in about 440 lines. Models two silicon facts measured on the
+RP2350 Hazard3, in about 500 lines. Models two silicon facts measured on the
 chip or its RTL: the PMP_GRAIN = 3 readback (exp209) and that a trapping
 instruction still bumps `minstret` (exp203: `ecall` and an illegal instruction
 are counted).
+
+CSR access follows the RISC-V rule, not a measurement: an unimplemented CSR, or a write
+to one whose address bits [11:10] are 11, raises illegal instruction (`csrIllegal`), and a
+write to `mcycle`/`minstret` is not overwritten by the instruction's own increment.
 
 What it does not model, so no theorem about it is a claim about the chip:
   * `mcounteren` — U-mode `Zicsr` always traps here, which is true of the chip
     only while `mcounteren` is 0;
   * the C extension — fetch is always 4 bytes at a 4-aligned pc;
-  * CSR access checks — a write to a read-only CSR, a write to `mcycle` or
-    `minstret`, and any access to an unimplemented CSR neither trap nor write;
+  * the CSRs outside the list in `csrImplemented` (`misa`, `mhartid`, ...): an access
+    traps here, which is stricter than the chip, and the monitor does not use them;
   * exp203's frontend effect: the same instructions are counted 5 or 4 times
     depending on what was fetched behind an `mret`.
 -/
@@ -269,6 +273,8 @@ def writeCSR (csrs : PrivCSRs) (csrNum : Word) (val : Word) : PrivCSRs :=
   else if csrNum = 0x340 then { csrs with mscratch := val }
   else if csrNum = 0x341 then { csrs with mepc := val }
   else if csrNum = 0x342 then { csrs with mcause := val }
+  else if csrNum = 0xB00 then { csrs with mcycle := val }
+  else if csrNum = 0xB02 then { csrs with minstret := val }
   else if csrNum = 0x3A0 then
     let old := csrs.pmpcfg0
     let b0 := if (decodePmpCfgByte old ⟨0, by decide⟩).lock then old &&& 0xFF#32 else val &&& 0xFF#32
@@ -295,8 +301,32 @@ def isZicsr (w : Word) : Bool :=
   opcode = 0x73#32 ∧ (funct3 = 1#32 ∨ funct3 = 2#32 ∨ funct3 = 3#32 ∨
                       funct3 = 5#32 ∨ funct3 = 6#32 ∨ funct3 = 7#32)
 
+/-- The CSRs the model has. Any other number is not modelled and an access traps. -/
+def csrImplemented (n : Word) : Bool :=
+  [0x300#32, 0x305, 0x320, 0x340, 0x341, 0x342, 0x3A0, 0x3B0, 0x3B1, 0x3B2, 0x3B3,
+   0xB00, 0xB02, 0xC00, 0xC02].contains n
+
+/-- Address bits [11:10] = 11 mark a read-only CSR. -/
+def csrReadOnly (n : Word) : Bool := ((n >>> 10) &&& 3#32) = 3#32
+
+/-- Does this Zicsr instruction write its CSR? `csrrs`/`csrrc` with `rs1 = x0` and
+    `csrrsi`/`csrrci` with a zero immediate only read. -/
+def csrWrites (w : Word) : Bool :=
+  match (w >>> 12) &&& 7#32 with
+  | 1 | 5 => true
+  | 2 | 3 => ((w >>> 15).extractLsb' 0 5) ≠ 0
+  | 6 | 7 => ((w >>> 15) &&& 0x1F#32) ≠ 0
+  | _ => false
+
+/-- Illegal-instruction conditions of a Zicsr access: an unimplemented CSR, or a write to a
+    read-only one. -/
+def csrIllegal (w : Word) : Bool :=
+  !csrImplemented (w >>> 20) || (csrWrites w && csrReadOnly (w >>> 20))
+
 def execZicsr (s : PrivMachine) (w : Word) : PrivMachine :=
   if s.mode ≠ .M then
+    raiseTrap s CAUSE_ILLEGAL_INSTR
+  else if csrIllegal w then
     raiseTrap s CAUSE_ILLEGAL_INSTR
   else
     let rd : Reg := (w >>> 7).extractLsb' 0 5
@@ -313,14 +343,15 @@ def execZicsr (s : PrivMachine) (w : Word) : PrivMachine :=
       | 6 => oldVal ||| uimm
       | 7 => oldVal &&& ~~~uimm
       | _ => oldVal
-    let shouldWrite := match funct3 with
-      | 1 | 5 => true
-      | 2 | 3 => ((w >>> 15).extractLsb' 0 5) ≠ 0
-      | 6 | 7 => uimm ≠ 0
-      | _ => false
+    let shouldWrite := csrWrites w
     let csrs' := if shouldWrite then writeCSR s.csrs csrNum writeVal else s.csrs
     let core' := s.core.setReg rd oldVal
-    let csrs'' := bumpCounters csrs'
+    let bumped := bumpCounters csrs'
+    -- a write to a counter is the last word: the instruction's own increment does not overwrite it
+    let csrs'' :=
+      if shouldWrite ∧ csrNum = 0xB00 then { bumped with mcycle := writeVal }
+      else if shouldWrite ∧ csrNum = 0xB02 then { bumped with minstret := writeVal }
+      else bumped
     { s with csrs := csrs'', core := core'.next }
 
 /-- Factorized trap cause evaluation for U-mode / M-mode single step. -/
@@ -430,6 +461,34 @@ theorem umode_mret_traps (s : PrivMachine) (hU : s.mode = .U) :
   unfold execMret
   have hNotM : s.mode ≠ .M := by rw [hU]; decide
   simp [hNotM]
+
+theorem csrIllegal_of_unimplemented (w : Word) (h : csrImplemented (w >>> 20) = false) :
+    csrIllegal w = true := by
+  unfold csrIllegal
+  simp [h]
+
+theorem csrIllegal_of_readonly_write (w : Word) (hW : csrWrites w = true)
+    (hRO : csrReadOnly (w >>> 20) = true) : csrIllegal w = true := by
+  unfold csrIllegal
+  simp [hW, hRO]
+
+/-- An M-mode access to a CSR the model does not have raises illegal instruction. -/
+theorem execZicsr_unimplemented_traps (s : PrivMachine) (w : Word) (hM : s.mode = .M)
+    (h : csrImplemented (w >>> 20) = false) :
+    execZicsr s w = raiseTrap s CAUSE_ILLEGAL_INSTR := by
+  unfold execZicsr
+  have hIll := csrIllegal_of_unimplemented w h
+  have hNotU : ¬ s.mode ≠ .M := by rw [hM]; decide
+  simp [hNotU, hIll]
+
+/-- An M-mode write to a read-only CSR raises illegal instruction. -/
+theorem execZicsr_readonly_write_traps (s : PrivMachine) (w : Word) (hM : s.mode = .M)
+    (hW : csrWrites w = true) (hRO : csrReadOnly (w >>> 20) = true) :
+    execZicsr s w = raiseTrap s CAUSE_ILLEGAL_INSTR := by
+  unfold execZicsr
+  have hIll := csrIllegal_of_readonly_write w hW hRO
+  have hNotU : ¬ s.mode ≠ .M := by rw [hM]; decide
+  simp [hNotU, hIll]
 
 theorem mcountinhibit_holds_mcycle (csrs : PrivCSRs) (hCY : csrs.mcountinhibit.cy = true) :
     (bumpCounters csrs).mcycle = csrs.mcycle := by

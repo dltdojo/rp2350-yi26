@@ -300,8 +300,10 @@ When an instruction in either `U-mode` or `M-mode` triggers a synchronous except
 | Exception Event | `mcause` Code | Triggering Condition in `PrivMachine.step` | `mepc` Value Latched |
 | :--- | :--- | :--- | :--- |
 | **Instruction Access Fault** | `1` (`0x00000001`) | `pmpCheck s.csrs s.mode s.core.pc 4 .Fetch == false` | Faulting fetch `s.core.pc` |
-| **Illegal Instruction** | `2` (`0x00000002`) | Decoding fails, or a privileged instruction (`mret`, `Zicsr`) is executed when `s.mode == .U`, or read-only/unimplemented CSR access | Faulting instruction `s.core.pc` |
+| **Illegal Instruction** | `2` (`0x00000002`) | Decoding fails, or a privileged instruction (`mret`, `Zicsr`) is executed when `s.mode == .U`, or an M-mode `Zicsr` access to a CSR the model does not have, or a write to a read-only CSR (address bits `[11:10] = 11`) — `csrIllegal` in `Priv.lean` | Faulting instruction `s.core.pc` |
+| **Load Address Misaligned** | `4` (`0x00000004`) | `lh`/`lhu`/`lw` with `addr % width ≠ 0` (the RISC-V cause for a misaligned access; Tier 1 faults it too; checked before PMP) | Faulting load `s.core.pc` |
 | **Load Access Fault** | `5` (`0x00000005`) | `lb`/`lh`/`lw`/`lbu`/`lhu` target `[addr, addr + width)` fails `pmpCheck ... .Load` | Faulting load `s.core.pc` |
+| **Store Address Misaligned** | `6` (`0x00000006`) | `sh`/`sw` with `addr % width ≠ 0` (checked before PMP) | Faulting store `s.core.pc` |
 | **Store/AMO Access Fault** | `7` (`0x00000007`) | `sb`/`sh`/`sw` target `[addr, addr + width)` fails `pmpCheck ... .Store` | Faulting store `s.core.pc` |
 | **Environment Call from U-mode** | `8` (`0x00000008`) | `ecall` executed when `s.mode == .U` | `ecall` instruction `s.core.pc` |
 | **Environment Call from M-mode** | `11` (`0x0000000B`) | `ecall` executed when `s.mode == .M` | `ecall` instruction `s.core.pc` |
@@ -310,7 +312,9 @@ When an instruction in either `U-mode` or `M-mode` triggers a synchronous except
 /-- Exception cause constants modeled in Phase 1. -/
 def CAUSE_FETCH_ACCESS_FAULT : UInt32 := 1
 def CAUSE_ILLEGAL_INSTR      : UInt32 := 2
+def CAUSE_LOAD_MISALIGNED    : UInt32 := 4
 def CAUSE_LOAD_ACCESS_FAULT  : UInt32 := 5
+def CAUSE_STORE_MISALIGNED   : UInt32 := 6
 def CAUSE_STORE_ACCESS_FAULT : UInt32 := 7
 def CAUSE_ECALL_UMODE        : UInt32 := 8
 def CAUSE_ECALL_MMODE        : UInt32 := 11
@@ -380,10 +384,10 @@ def execMret (s : PrivMachine) : PrivMachine :=
 3. **Stage 3 (Privileged vs. Unprivileged Dispatch)**:
    * If the instruction is `ecall`: return `raiseTrap s (if s.mode == .U then CAUSE_ECALL_UMODE else CAUSE_ECALL_MMODE)`.
    * If the instruction is `mret`: return `execMret s`.
-   * If the instruction is in the `Zicsr` encoding space (`opcode == 0b1110011` and `funct3 ∈ {1, 2, 3, 5, 6, 7}`): if `s.mode != .M`, return `raiseTrap s CAUSE_ILLEGAL_INSTR`; otherwise execute the atomic CSR read-modify-write, update `rd`, advance `pc ← pc + 4`, and update counters.
+   * If the instruction is in the `Zicsr` encoding space (`opcode == 0b1110011` and `funct3 ∈ {1, 2, 3, 5, 6, 7}`): if `s.mode != .M` or `csrIllegal w`, return `raiseTrap s CAUSE_ILLEGAL_INSTR`; otherwise execute the atomic CSR read-modify-write, update `rd`, advance `pc ← pc + 4`, and update counters.
 4. **Stage 4 (Tier 1 Unprivileged `RV32IM` Delegation with Load/Store PMP Gate)**:
-   * If the decoded instruction is a memory load (`lb`, `lh`, `lw`, `lbu`, `lhu`), compute the effective address `addr` and transfer size `width ∈ {1, 2, 4}`. If `pmpCheck s.csrs s.mode addr width .Load == false`, return `raiseTrap s CAUSE_LOAD_ACCESS_FAULT`.
-   * If the decoded instruction is a memory store (`sb`, `sh`, `sw`), compute `addr` and `width ∈ {1, 2, 4}`. If `pmpCheck s.csrs s.mode addr width .Store == false`, return `raiseTrap s CAUSE_STORE_ACCESS_FAULT`.
+   * If the decoded instruction is a memory load (`lb`, `lh`, `lw`, `lbu`, `lhu`), compute the effective address `addr` and transfer size `width ∈ {1, 2, 4}`. If `addr % width ≠ 0`, return `raiseTrap s CAUSE_LOAD_MISALIGNED`; else if `pmpCheck s.csrs s.mode addr width .Load == false`, return `raiseTrap s CAUSE_LOAD_ACCESS_FAULT`.
+   * If the decoded instruction is a memory store (`sb`, `sh`, `sw`), compute `addr` and `width ∈ {1, 2, 4}`. If `addr % width ≠ 0`, return `raiseTrap s CAUSE_STORE_MISALIGNED`; else if `pmpCheck s.csrs s.mode addr width .Store == false`, return `raiseTrap s CAUSE_STORE_ACCESS_FAULT`.
    * Otherwise, step `s.core` using the existing Tier 1 `Rv32.step` transition and apply `bumpCounters s.csrs`.
 
 ```lean
@@ -431,3 +435,20 @@ Before advancing from Phase 1 (`lean/Rv32/Priv.lean`) to Phase 2 (`lean/Rv32/Ref
   * `theorem pmp_readback_napot_low_bits`: Proves that reading `pmpaddr0` in `NAPOT` mode always returns bits `[1:0] == 0b11` (`exp209` quirk).
   * `theorem umode_default_deny`: Proves that when all 4 PMP entries are `OFF`, `pmpCheck csrs .U addr width acc = false` for all `addr`, `width`, and `acc`.
   * `theorem umode_zicsr_traps`: Proves that executing any `Zicsr` or `mret` instruction with `s.mode = .U` transitions to `s'.mode = .M` with `s'.csrs.mcause = 2` and leaves all CSRs (other than `mstatus`, `mepc`, `mcause`, and counters) and general-purpose registers unchanged.
+
+## 8. Model Scope and Assumptions (as implemented in `lean/Rv32/Priv.lean`)
+
+A theorem about `PrivMachine` is a theorem about the model. These are the places where the
+model and the chip are known to differ, or where the model's behaviour comes from the RISC-V
+rule rather than from a measurement. They are also listed in the header of `Priv.lean`.
+
+| Topic | What the model does | What the chip does | What it means for a proof |
+| :--- | :--- | :--- | :--- |
+| **`mcounteren`** | No such CSR. Every U-mode `Zicsr` traps (`umode_zicsr_traps`). | A RISC-V core with U-mode may let M-mode open `cycle`/`instret` to U-mode through `mcounteren`. Whether and how Hazard3 does so was not checked in this repository. | "U-mode `Zicsr` always traps" holds on the chip only while `mcounteren` is 0. The Micro-Monitor never writes it, so it keeps its reset value; that is an assumption to confirm against the Hazard3 documentation, not a theorem. |
+| **C extension** | Fetch is 4 bytes at a 4-aligned `pc`; Tier 1 is `RV32IM`. | Not checked in this repository. The RISC-V C extension, if the image uses it, makes `pc` 2-aligned and instructions 2 or 4 bytes. | Holds for code built without C (`-march=rv32im`). Nothing in the repository checks the build flags of a given image. |
+| **CSR access checks** | `csrImplemented` lists 15 CSRs; any other number traps. A write to a CSR whose address bits `[11:10]` are `11` traps (`priv_zicsr_unimplemented_traps`, `priv_zicsr_readonly_write_traps`). `csrrs`/`csrrc` with `rs1 = x0` and `csrrsi`/`csrrci` with a zero immediate only read. | Not measured. A core normally has more CSRs than this list (`misa`, `mhartid`, ...) and does not trap on reading them. | Stricter than the chip: code that reads `mhartid` is illegal in the model and fine on the chip. The monitor reads none of them. |
+| **Counter writes** | A `Zicsr` write to `mcycle` (`0xB00`) or `minstret` (`0xB02`) lands and is not overwritten by that instruction's own increment. | The RISC-V rule says the same; not measured on the chip. | No theorem states it; it is code only. |
+| **Trap and `minstret`** | A trapping instruction is counted (`raiseTrap` calls `bumpCounters`). | exp203 measured `ecall` and an illegal instruction counted on Hazard3. | Matches exp203, with one exception below. |
+| **Frontend effect** | None: one step, one count. | exp203: the same four instructions were counted 5 or 4 times depending on what the frontend had fetched behind an `mret`. | A model count and a chip count can differ by a constant that belongs to the shell code; Phase 3's constants must be measured, not derived. |
+| **Misaligned access** | Traps with cause 4 (load) or 6 (store), before the PMP check. | Not measured here. The RISC-V rule gives 4 and 6; Tier 1 faults the same accesses (`loadMisaligned`, `storeMisaligned`). | The cause codes are written down; no theorem proves them. |
+

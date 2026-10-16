@@ -132,7 +132,7 @@ When `PrivMachine` takes a single step from a state satisfying `UBoxed s lo hi`,
 | :--- | :--- | :--- | :--- |
 | **In-Bounds Unprivileged `RV32IM`** (`ALU`, `Branch`, `Jump`, `Load`, `Store`, `Mul/Div`) | Fetch `[pc, pc+4) ⊆ [lo, hi)` and Load/Store `[addr, addr+w) ⊆ [lo, hi)` | Executes instruction in `U-mode`, updates `s.core`, preserves `UBoxed`, increments counters | **Strict Equality**: `(PrivMachine.step s).core = Rv32.step env s.core` |
 | **In-Bounds `U-Mode` `ecall`** (`0x00000073`) | Fetch `[pc, pc+4) ⊆ [lo, hi)` | Raises synchronous trap (`mcause = 8`, `mepc = pc`, `mode = .M`, `pc = mtvec_base`) | **Handled by Syscall Contract**: M-mode monitor executes syscall and returns via `mret` to match `Rv32.step env s.core` |
-| **Faulting / Out-of-Bounds / Privileged Attempt** (`Zicsr`, `mret`, or OOB Fetch/Load/Store) | Fetch or data access $\not\subseteq [\text{lo}, \text{hi})$, or illegal opcode in `U-mode` | Raises synchronous trap (`mcause ∈ {1, 2, 5, 7}`, `mepc = pc`, `mode = .M`, `pc = mtvec_base`) | **Containment Guarantee**: `s.core.mem` and `s.core.regs` are 100% unmodified (`NoLeakageOnFault`) |
+| **Faulting / Out-of-Bounds / Privileged Attempt** (`Zicsr`, `mret`, or OOB Fetch/Load/Store) | Fetch or data access $\not\subseteq [\text{lo}, \text{hi})$, or illegal opcode in `U-mode` | Raises synchronous trap (`mcause ∈ {1, 2, 4, 5, 6, 7}`, `mepc = pc`, `mode = .M`, `pc = mtvec_base`) | **Containment Guarantee**: `s.core.mem` and `s.core.regs` are 100% unmodified (`NoLeakageOnFault`) |
 
 ### Instruction Safety Predicate (`SafeUInstr`)
 

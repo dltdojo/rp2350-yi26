@@ -9,7 +9,7 @@ NAPOT PMP address matching, hardware readback quirks (bits `[1:0] == 0b11`),
 default-deny protection, and trap handling. A bridge theorem proves that, with
 the PMP box inside the Tier 1 region, `n` safe U-mode steps end in exactly the
 state `Rv32.run` ends in (running or halted), the box configuration survives
-every step, and `minstret` rises by exactly `n`. Eleven wrong privilege models
+every step, and `minstret` rises by exactly `n`. Thirteen wrong privilege models
 and claims in `proof/mutants.txt` are refused, each in the theorem that states
 the property it breaks.**
 
@@ -64,7 +64,13 @@ state:
    For `Zicsr` this is a fact about the model, which has no `mcounteren`; on the
    chip it holds while `mcounteren` is 0, and nothing here checks that.
 
-4. **Hardware Performance Counters**:
+4. **CSR access rule**:
+   An M-mode `Zicsr` access to a CSR the model does not have
+   (`priv_zicsr_unimplemented_traps`), or a write to a read-only one — address
+   bits `[11:10] = 11` (`priv_zicsr_readonly_write_traps`) — raises illegal
+   instruction. This is the RISC-V rule, not a measurement on the chip.
+
+5. **Hardware Performance Counters**:
    `mcountinhibit` controls whether `mcycle` (bit 0) and `minstret` (bit 2)
    advance. Theorems `priv_mcountinhibit_mcycle` and `priv_mcountinhibit_minstret`
    prove that inhibited counters remain frozen, while `priv_minstret_step`
@@ -99,10 +105,12 @@ with `RWX` permissions, and all other entries are `OFF`.
   running the handler, so there is no common end state to compare.
 - `SafeUInstr` is a hypothesis about each instruction. Nothing here derives it from a program;
   a caller who wants the 458-instruction kernel of exp229 has to establish it for each one.
-- The model is not the chip. It omits `mcounteren`, the C extension, CSR access checks
-  (read-only and unimplemented CSRs neither trap nor write; `mcycle`/`minstret` writes are
-  dropped), and exp203's frontend effect on `minstret`. The cause codes for misaligned
-  accesses (4 and 6) and for the other traps are written down, not proved.
+- The model is not the chip. It omits `mcounteren` and the C extension, and traps on every CSR
+  outside its list of 15 (stricter than the chip). A write to `mcycle`/`minstret` is kept, not
+  overwritten by the instruction's own increment: the RISC-V rule, no theorem. It does not model
+  exp203's frontend effect on `minstret`. The cause codes (4 and 6 for misaligned accesses, and
+  the rest) are written down, not proved. `docs/micro-monitor/phase1_priv_machine_design.md`
+  section 8 lists each of these with what it means for a proof.
 - `test_vectors.py` checks the model's NAPOT decoding and U-mode load check against
   independent arithmetic on 1210 vectors; it does not check the CSR or trap code.
 
