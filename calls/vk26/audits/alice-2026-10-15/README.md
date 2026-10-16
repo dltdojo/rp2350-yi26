@@ -8,20 +8,22 @@
 
 ## 結果
 
-| | 第 1 輪（[round1/](./round1/)） | 第 2 輪（[round2/](./round2/)） | 第 3 輪（[round3/](./round3/)） |
-| --- | --- | --- | --- |
-| 抽中 | vk26-alice-1 | vk26-alice-3 | vk26-alice-5 |
-| 機器關卡 S1–S4、G1.5、G2、G6、check.sh | 五個全過（S2 未跑：這個 branch 也有設定的 commit，另行檢查，見下） | 五個全過 | 五個全過 |
-| alice-1 | J1 NO NO NO → FAIL | 四題 YES ×3；一次回報注入 → HUMAN | J1 NO YES NO → HUMAN |
-| alice-2 | J1 NO ×3、J2 分歧；注入掃描 2 個命中 → HUMAN | J1 YES YES NO → HUMAN | **四題 YES ×3 → PASS** |
-| alice-3 | J1 NO ×3 → FAIL | J1 NO ×3 → FAIL | J1 YES NO NO → HUMAN |
-| alice-4 | J1 NO ×3 → FAIL | J1 無效 NO NO → HUMAN | **四題 YES ×3 → PASS** |
-| alice-5 | J1 NO ×3、J2 分歧 → FAIL | J1 分歧、J2 分歧；一次回報注入 → HUMAN | J1 YES NO YES → HUMAN（J2 三次 YES） |
-| J3、J4 | 每一次都 YES | 每一次都 YES | 每一次都 YES |
-| session | 36（3 個因帳號用量上限失敗） | 35（3 個失敗） | 30（無失敗） |
-| 用量 | 2,389,479 + 81,363 tokens，$6.49 | 2,475,221 + 129,886 tokens，$7.26 | 2,414,127 + 105,443 tokens，$6.92 |
+| | 第 1 輪（[round1/](./round1/)） | 第 2 輪（[round2/](./round2/)） | 第 3 輪（[round3/](./round3/)） | 第 4 輪（[round4/](./round4/)） |
+| --- | --- | --- | --- | --- |
+| 抽中 | vk26-alice-1 | vk26-alice-3 | vk26-alice-5 | vk26-alice-1 |
+| 機器關卡 S1–S4、G1.5、G2、G6、check.sh | 五個全過（S2 未跑：這個 branch 也有設定的 commit，另行檢查，見下） | 五個全過 | 五個全過 | 五個全過 |
+| alice-1 | J1 NO NO NO → FAIL | 四題 YES ×3；一次回報注入 → HUMAN | J1 NO YES NO → HUMAN | **四題 YES ×3 → PASS** |
+| alice-2 | J1 NO ×3、J2 分歧；注入掃描 2 個命中 → HUMAN | J1 YES YES NO → HUMAN | **四題 YES ×3 → PASS** | 四題 YES（單次確認）→ PASS |
+| alice-3 | J1 NO ×3 → FAIL | J1 NO ×3 → FAIL | J1 YES NO NO → HUMAN | 四題 YES（單次確認）→ PASS |
+| alice-4 | J1 NO ×3 → FAIL | J1 無效 NO NO → HUMAN | **四題 YES ×3 → PASS** | 四題 YES（單次確認）→ PASS |
+| alice-5 | J1 NO ×3、J2 分歧 → FAIL | J1 分歧、J2 分歧；一次回報注入 → HUMAN | J1 YES NO YES → HUMAN（J2 三次 YES） | 四題 YES（單次確認）→ PASS |
+| J3、J4 | 每一次都 YES | 每一次都 YES | 每一次都 YES | 每一次都 YES |
+| session | 36（3 個因帳號用量上限失敗） | 35（3 個失敗） | 30（無失敗） | 14（無失敗；抽檢通過，不必補滿） |
+| 用量 | 2,389,479 + 81,363 tokens，$6.49 | 2,475,221 + 129,886 tokens，$7.26 | 2,414,127 + 105,443 tokens，$6.92 | 1,072,868 + 50,940 tokens，$5.49 |
 
-三輪的抽驗實驗都沒通過，所以其餘四個都補滿三次：每輪是 15 次判定、30 個 session，不是抽檢模式省下來的 7 次。
+前三輪的抽驗實驗都沒通過，所以其餘四個都補滿三次：每輪是 15 次判定、30 個 session。第 4 輪抽中的 alice-1 三次全 YES，其餘四個各判一次也全 YES，**提案通過**（`ALL 5 EXPERIMENTS PASSED`）：這是抽檢模式第一次照設計省下來，7 次判定、14 個 session。
+
+第 4 輪中途容器重啟過一次（`round4/audit-interrupted.log`）：機器關卡已完成的 alice-1–3 依輸入的 git tree 重用，重啟後只補做 alice-4、alice-5 的關卡，再跑裁判。
 
 S2 另行檢查：從 alice 第一個 commit 起的 81 個 commit，69 個只動 `alice/`，11 個只動設定，1 個兩者都動（89931d7：把實驗識別碼改成 `vk26-alice-N` 時，設定與 alice 的目錄一起改名）。真正的流程裡，那是任務方先改設定、提案者再跟著改名，兩個 PR。
 
@@ -72,3 +74,7 @@ S2 另行檢查：從 alice 第一個 commit 起的 81 個 commit，69 個只動
 ## 之後：加入校準
 
 alice-2、alice-4 成為校準的已知好案例（`good-alice-2`、`good-alice-4`）。第 5 輪找到兩個統計的引用問題與一個 bundle 缺口（exp225 的 `shell/board.h`），修正後第 6 輪九個案例、每個三次全部判對：[calibration/README.md](../../calibration/README.md) 最後兩節。
+
+## 第 4 輪（2026-10-16）：通過
+
+第 3 輪之後的修正（1dea371）盡量只動 `.md`，只有 alice-1 需要重錄。抽中 alice-1，三次四題全 YES；其餘四個各一次全 YES。**五個實驗全部通過。** 判定紀錄在 [round4/](./round4/)。

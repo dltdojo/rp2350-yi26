@@ -1,0 +1,115 @@
+=== vk26 Proposal Spot-Check Audit: alice ===
+Model: tiered
+Sampled audit experiment (3 runs): vk26-alice-1-the-run-across-the-seam
+Single confirmation experiments (1 run):
+  - vk26-alice-2-the-hash-tested-first
+  - vk26-alice-3-the-count-the-estimate-rests-on
+  - vk26-alice-4-the-state-the-generator-keeps
+  - vk26-alice-5-the-seed-the-tests-passed
+
+--- Step 1: Machine Gates (gates.sh) ---
+PASS  S1 five experiments vk26-alice-1-<slug> to vk26-alice-5-<slug>, the id at most 34 characters
+SKIP  S2 every path the PR changes is under the proposer's directory — no BASE given
+PASS  S3 five kernel.bin, five different hashes (J3 still judges each one new)
+PASS  S4 the index table: a row per experiment, its link, Needs 0–3, one sentence
+PASS  G6 no file of the proposal is a copy of one in lean/ or tools/
+PASS  G6 experiments/duplication.sh --check: nothing gained a copy
+vk26-alice-1-the-run-across-the-seam: passed already on these inputs (calls/vk26/audits/alice-2026-10-15/round4/gates/vk26-alice-1-the-run-across-the-seam.txt)
+vk26-alice-2-the-hash-tested-first: passed already on these inputs (calls/vk26/audits/alice-2026-10-15/round4/gates/vk26-alice-2-the-hash-tested-first.txt)
+vk26-alice-3-the-count-the-estimate-rests-on: passed already on these inputs (calls/vk26/audits/alice-2026-10-15/round4/gates/vk26-alice-3-the-count-the-estimate-rests-on.txt)
+vk26-alice-4-the-state-the-generator-keeps:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Drbg.lean writes, 280 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 93d45d1
+  PASS  G6 commit 93d45d1 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 93d45d1
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (44 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 13 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-5-the-seed-the-tests-passed:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Seed.lean writes, 244 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit a22a413
+  PASS  G6 commit a22a413 is in this history
+  PASS  G6 nothing capture.txt rests on changed since a22a413
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (41 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 7 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+Every machine gate passed.
+
+--- Step 2: Generating Slice Bundles ---
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round4/bundles/vk26-alice-1-the-run-across-the-seam.txt (177832 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round4/bundles/vk26-alice-2-the-hash-tested-first.txt (207995 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round4/bundles/vk26-alice-3-the-count-the-estimate-rests-on.txt (271298 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round4/bundles/vk26-alice-4-the-state-the-generator-keeps.txt (208938 bytes)
+Bundle generated: calls/vk26/audits/alice-2026-10-15/round4/bundles/vk26-alice-5-the-seed-the-tests-passed.txt (350507 bytes)
+
+--- Step 3: Running Judge Sessions ---
+Judging vk26-alice-1-the-run-across-the-seam (run 1, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 2, model tiered)...
+Judging vk26-alice-1-the-run-across-the-seam (run 3, model tiered)...
+Judging vk26-alice-2-the-hash-tested-first (run 1, model tiered)...
+Judging vk26-alice-3-the-count-the-estimate-rests-on (run 1, model tiered)...
+Judging vk26-alice-4-the-state-the-generator-keeps (run 1, model tiered)...
+Judging vk26-alice-5-the-seed-the-tests-passed (run 1, model tiered)...
+Judge runs complete.
+
+--- Step 4: Tallying Results ---
+==================================================
+Experiment: vk26-alice-1-the-run-across-the-seam
+Mode: 3-run Consensus Audit
+J1: YES YES YES -> YES
+J2: YES YES YES -> YES
+J3: YES YES YES -> YES
+J4: YES YES YES -> YES
+OVERALL: PASS (every question YES in every run)
+==================================================
+Experiment: vk26-alice-2-the-hash-tested-first
+Mode: Single Confirmation
+J1: YES -> YES
+J2: YES -> YES
+J3: YES -> YES
+J4: YES -> YES
+OVERALL: PASS (every question YES (single confirmation; spot-check requires 3 runs on sampled experiments))
+==================================================
+Experiment: vk26-alice-3-the-count-the-estimate-rests-on
+Mode: Single Confirmation
+J1: YES -> YES
+J2: YES -> YES
+J3: YES -> YES
+J4: YES -> YES
+OVERALL: PASS (every question YES (single confirmation; spot-check requires 3 runs on sampled experiments))
+==================================================
+Experiment: vk26-alice-4-the-state-the-generator-keeps
+Mode: Single Confirmation
+J1: YES -> YES
+J2: YES -> YES
+J3: YES -> YES
+J4: YES -> YES
+OVERALL: PASS (every question YES (single confirmation; spot-check requires 3 runs on sampled experiments))
+==================================================
+Experiment: vk26-alice-5-the-seed-the-tests-passed
+Mode: Single Confirmation
+J1: YES -> YES
+J2: YES -> YES
+J3: YES -> YES
+J4: YES -> YES
+OVERALL: PASS (every question YES (single confirmation; spot-check requires 3 runs on sampled experiments))
+==================================================
+--- Usage recorded in calls/vk26/audits/alice-2026-10-15/round4 so far (failed sessions included) ---
+TOTAL sonnet: 7 session(s), 0 failed, prompt 764607 tokens (input + cache), output 39787 tokens, $3.4253 as reported
+TOTAL opus: 7 session(s), 0 failed, prompt 308261 tokens (input + cache), output 11153 tokens, $2.0694 as reported
+TOTAL: 14 session(s), prompt 1072868 tokens, output 50940 tokens
+PROPOSAL AUDIT RESULT: ALL 5 EXPERIMENTS PASSED

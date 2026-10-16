@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seed.lean:355, proof/Seed.lean:829, capture.txt:28, capture.txt:248, capture.txt:261, board/round1.txt:994
+reason: The proved claims match `inst_run`, `inst_boot`, `chain` and `code_zero_iff`. The RTL counts of 260, 261 and the five-word probe are in capture.txt:28. The board claims (202 whole cases, the 261-instruction chain Instantiate, the spoiled chain, the cycle clusters) match capture.txt:248-264 and the saved log.
+J2: YES
+evidence: proof/Seed.lean:772, proof/Seed.lean:773, proof/Seed.lean:774, proof/Seed.lean:776, proof/Seed.lean:778, proof/Seed.lean:342, proof/Seed.lean:343, proof/Seed.lean:344, proof/Seed.lean:352, proof/Seed.lean:183, proof/Seed.lean:193, proof/Seed.lean:196, proof/Seed.lean:794, proof/Seed.lean:818, proof/Seed.lean:839, proof/Seed.lean:841, proof/Seed.lean:844, proof/Seed.lean:846, proof/Seed.lean:850, proof/Seed.lean:851, proof/Seed.lean:853, README.md:8, README.md:111, README.md:123, README.md:138
+reason: `inst_boot` is a from_boot theorem about the kernel's own bytes, for any `env.hash` and any S ≤ 0x80. It states that the kernel is still running after 240 instructions and halted with 0 after 241, with `Laid` giving V = Hash_df(seed), C = Hash_df(0x00 ‖ V) (prefix 01/02 ‖ 00 00 01 b8), Generate's fields, and every other byte unchanged, as README.md:111-122 says. `chain` states the Trust halt, the code-0 iff, both `restart` runs with exact running/halted counts, and block j = Hash(dfV(digest ‖ 16-byte nonce) + j), matching README.md:123-140. Its extra hypotheses 1 ≤ m, 1 ≤ iv < 2^32−1 and the output fitting the region are natural side conditions that do not weaken the described claim.
+J3: YES
+evidence: proof/Seed.lean:52, proof/Seed.lean:355, proof/Seed.lean:829, capture.txt:28
+reason: No prior experiment has an Instantiate (Hash_df) kernel, the `inst_run` theorem, or the `chain` theorem composing three proved kernels. The five-word RTL probe, which explains the extra minstret, is also new, as is its board confirmation.
+J4: YES
+evidence: seed.py:75-80, ../tools/hashdrbg.py:42-48, seed.py:107-121, capture.txt:25
+reason: The reference builds the region byte by byte in Python with hashlib, and checks it against hashdrbg's generic counter-loop `hash_df`, written from the standard's text. Lean uses explicit `two` and `pre` definitions. All 120 NIST CAVP vectors give an external check that neither side wrote.
+INJECTION: NONE
+END

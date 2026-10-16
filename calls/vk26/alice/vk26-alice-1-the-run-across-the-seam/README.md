@@ -16,11 +16,13 @@ in Lean for every input (`Seam.from_boot`):
   else; one instruction earlier it is still running.
 
 So 11 ones at the end of one window and 10 at the start of the next are a
-run of 21, and stop the kernel at the second window, where
-`lean/Rv32/Health.lean`'s `front`, applied window by window, passes both.
-On the RTL the shell runs six streams, the run across the seam among them,
-each halting with the reference's code and the RTL's count for it. On a
-Pico 2, read on a phone through the page: the LED blinked as it should, and
+run of 21, and stop the kernel at the second window, where a count started
+afresh at each window, as `lean/Rv32/Health.lean`'s `front` counts, passes
+both (seam.py prints it: `every window passed; longest run in each window
+11 10 2 2`). On the RTL the shell runs six streams, the run across the seam
+among them, each halting with the reference's code and the RTL's count for
+it. On a Pico 2 running the committed UF2 (`vk26-alice-1.uf2.sha256`,
+071f9390…), read on a phone through the page: the LED blinked as it should, and
 all seven whole streams in the log — the TRNG's among them — halted with
 seam.py's code at the RTL's minstret, each digest hashlib's SHA-256 of its
 window; the seam stream stopped at window 2.**
@@ -281,9 +283,11 @@ runs it through the page's block.
 
 ## On the board
 
-[`board/round1.txt`](./board/round1.txt): a Pico 2, the page on a phone,
-the log Copy gave back. The LED blinked as described: one long light, two
-flashes, one long light, one, three, four.
+[`board/round1.txt`](./board/round1.txt): a Pico 2 running the UF2
+[`vk26-alice-1.uf2.sha256`](./vk26-alice-1.uf2.sha256) names (071f9390…,
+unchanged since before the log was taken), the page on a phone, the log
+Copy gave back. A person watching it saw the LED blink as described: one
+long light, two flashes, one long light, one, three, four.
 
 The page, as it copied: 11 streams, 11 judged right, 0 wrong, 0
 incomplete, 2 rounds, 2 stopped by a run across an edge, no FAIL line. The
@@ -375,9 +379,10 @@ Pasted from it — the theorems, the mutants, the six streams on the RTL:
 
 ```
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-15T11:23:55Z from commit 06e4001
+recorded at 2026-10-15T23:52:37Z from commit 1dea371
 
 >>> the theorems, and what they rest on
+'Alice.Window.win_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.window_head' depends on axioms: [propext, Classical.choice, Quot.sound]

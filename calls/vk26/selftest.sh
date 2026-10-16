@@ -682,6 +682,10 @@ RUN="$HERE/calibration/run.sh"
 C="$WORK/cal"
 mkdir -p "$C/bundles"
 "$HERE/calibration/cases.sh" "$C/bundles" > /dev/null
+at="$(sed -n 's/^AT="\${VK26_CASES_AT:-\([0-9a-f]*\)}"$/\1/p' "$HERE/calibration/cases.sh")"
+has "the calibration cases are built at the commit they were calibrated on" "$C/bundles/good-alice-4.txt" "commit: $at"
+[[ -z "$(git -C "$HERE" worktree list | grep -v "^$(git -C "$HERE" rev-parse --show-toplevel) ")" ]] \
+    && pass "  … and the worktree it built them in is gone" || fail "  … a worktree was left behind" "$(git -C "$HERE" worktree list)"
 VK26_CASES=no-such-case "$RUN" A "$C" > /dev/null 2>&1; rc=$?
 [[ $rc == 2 ]] && pass "an unknown VK26_CASES name is refused before anything runs" || fail "unknown case: exit $rc"
 

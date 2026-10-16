@@ -217,3 +217,15 @@ exp229（`Limbs.lean`）、exp233、`lean/Rv32/Health.lean`、`lean/Rv32/Sha.lea
 
 - **README 引用的每一個數字，都要由 commit 進來的程式印出來。** 第 1 輪五個 J1 NO 的大部分理由都在此：兩輪比較、慢的是哪幾組、TRNG 的統計，是看紀錄手算的。改由 `--board` 檢查印出、進到 capture 之後，裁判就找得到；其中一個手算的範圍（alice-4 的 69–72）本來就錯了。已寫進徵集 README 第 5 節。
 - **流程本身的問題只有在真的提案上才看得到**：上板紀錄只留 exp232 的行種、capture 截在 200 行、bundle 帶整個套件、AGENTS.md 給 AI agent 的說明被裁判當成注入。校準用的三個主線實驗都碰不到這些情況。
+
+### 第 3 輪之後
+
+第 2 輪找到的 alice 問題修正後（06e4001），第 3 輪 **alice-2、alice-4 通過**（四題三次全 YES）；alice-1、3、5 各剩一處 J1 單次 NO，三次各指向不同的地方。流程又找到一個問題：J4 看不到從 `alice/tools/` 轉出的參考實作（2cc2eed）。
+
+alice-2、alice-4 成為校準的已知好案例：第 5 輪再找到兩個統計的引用寬容問題與一個 bundle 缺口（exp225 的 `shell/board.h`），修正後第 6 輪九個案例、每個三次全部判對（[calibration/README.md](../calibration/README.md)）。之後校準案例改從校準時的 commit 組 bundle（c765d0a），修改 alice 的實驗不再連帶要重跑校準。
+
+第 4 輪之前的修正盡量只動 `.md`，避免重錄：alice-3、alice-5 只補連結與改 WHY.zh-TW.md；alice-1 要讓 capture 多印 `win_run` 的公理與「每窗重新計數」的結果，所以只有 alice-1 重錄。動到 alice 共用的目錄（`lean/`、`tools/`、`shell/`、`pages/`）會讓五個 capture 一起過期，這一輪都沒有動。
+
+### 第 4 輪：通過（2026-10-16）
+
+只重錄 alice-1 之後跑第 4 輪：抽中的 alice-1 三次四題全 YES，其餘四個各一次全 YES，`audit-proposal.sh` 判定 **ALL 5 EXPERIMENTS PASSED**。四輪驗收合計 115 個 session、約 $26.16（[audits/alice-2026-10-15/](../audits/alice-2026-10-15/README.md)）。
