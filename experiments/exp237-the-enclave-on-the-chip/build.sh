@@ -37,3 +37,4 @@ cargo run -q --offline --manifest-path ../../tools/partimg/Cargo.toml -- \
 
 echo "build/exp237.bin  $(stat -c %s build/exp237.bin) bytes, the build allows $FLASH_LIMIT"
 echo "build/exp237.uf2  $(stat -c %s build/exp237.uf2) bytes  sha256 $(sha256sum build/exp237.uf2 | cut -d' ' -f1)"
+

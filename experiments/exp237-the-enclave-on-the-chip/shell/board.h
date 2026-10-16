@@ -17,3 +17,4 @@ void board_report_boot(void);
 void board_report_op(const struct enclave_result *res);
 void board_report_summary(uint32_t pass);
 void board_loop(void);
+

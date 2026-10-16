@@ -19,3 +19,4 @@ echo
 echo ">>> the checks"
 ./check.sh
 } 2>&1 | capture_tee
+

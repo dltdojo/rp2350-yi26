@@ -3,3 +3,4 @@ OP add a0=0 minstret=331 cycles=370 status=OK
 OP sub a0=0 minstret=238 cycles=266 status=OK
 OP mul a0=0 minstret=1903 cycles=1979 status=OK
 STATUS PASS secrets_scrubbed=ok
+

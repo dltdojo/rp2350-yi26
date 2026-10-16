@@ -64,3 +64,4 @@ const sBadStatus = feedStream(badStatus);
 check(sBadStatus.isComplete === false && sBadStatus.errors.length > 0, 'catches failed operation status');
 
 process.exit(failed === 0 ? 0 : 1);
+

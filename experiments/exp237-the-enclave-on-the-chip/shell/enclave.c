@@ -105,3 +105,4 @@ void shell_main(void) {
     board_report_summary(all_ok);
     board_loop();
 }
+

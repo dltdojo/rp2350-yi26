@@ -216,3 +216,4 @@ scrub_exit:
     lw    ra, 4(t1)
     li    t1, 0
     ret
+
