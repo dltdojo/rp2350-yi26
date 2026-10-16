@@ -135,6 +135,8 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
 """
 
     def lean(self) -> str:
+        if os.environ.get("STUBALL"):
+            return self.statement() + "  sorry\n"
         return self.statement() + (self.custom if self.custom else self.chain_proof() if self.steps else self.simp_proof())
 
     def simp_proof(self) -> str:
@@ -383,11 +385,51 @@ theorem writeLE4_apply (m : Word → Byte) (a : Word) (v : Nat) (x : Word) :
 """
 
 
+DEFS_RP = '''/-! ## The payload running, and the monitor parked -/
+
+/-- While a payload runs: in U-mode, boxed, the monitor's words where they were, the CSRs boot set. -/
+def Running (M0 : Word → Byte) (s : PrivMachine) : Prop :=
+  UBoxed s 0x80010000 0x80020000 ∧ Agree M0 s.core.mem 0x80000000 800 ∧
+  ∃ ms e c m cy, s.csrs = csrsH ms e c m cy {} 0x80008000#32
+
+/-- The park loop, reached: every register but `a0` zero, `mscratch` zero, the saved words zero. -/
+def Parked (t : PrivMachine) (a0 : Word) : Prop :=
+  t.core.pc = 0x80000318#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
+  readLE t.core.mem 0x80008000#32 4 = 0 ∧ readLE t.core.mem 0x80008004#32 4 = 0 ∧
+  readLE t.core.mem 0x80008008#32 4 = 0 ∧ readLE t.core.mem 0x8000800c#32 4 = 0 ∧
+  t.core.reg 10#5 = a0 ∧ ∀ r, r ≠ 10#5 → t.core.reg r = 0#32
+
+'''
+
+
+def parked_lemmas() -> str:
+    def lemma(name, lst, a0):
+        return f"""theorem {name} {{u t : PrivMachine}} {{ms : MStatus}} {{e c m cy : Word}}
+    (q1 : t.core.pc = 0x80000318#32) (q3 : t.halted = false) (q4 : t.mode = .M)
+    (q5 : t.csrs = csrsH ms e c m cy {FROZEN} (0#32))
+    (w0 : readLE t.core.mem 0x80008000#32 4 = 0) (w1 : readLE t.core.mem 0x80008004#32 4 = 0)
+    (w2 : readLE t.core.mem 0x80008008#32 4 = 0) (w3 : readLE t.core.mem 0x8000800c#32 4 = 0)
+    (q12 : ∀ r, t.core.reg r = regsUpd u.core.reg [{lst}] r) : Parked t {a0} := by
+  refine ⟨q1, q3, q4, by rw [q5]; rfl, w0, w1, w2, w3, ?_, ?_⟩
+  · rw [q12 10#5]; simp [regsUpd]
+  · intro r hr
+    rw [q12 r]
+    rcases reg32 r with {RCASES} <;> first | (exfalso; exact hr rfl) | simp [regsUpd]
+
+"""
+    return (DEFS_RP + f"""
+/-! ## The park loop, from the facts a phase gives -/
+
+theorem reg32 (r : Reg) : {REGLIST} := by bv_omega
+
+""" + lemma("parked_halt", ZALL, "(u.core.reg 10#5)") + lemma("parked_fault", ZALL + ", (10, 1#32)", "1#32"))
+
+
 def build(chunks_text: str) -> str:
     f = from_236()
     with open(os.path.join(HERE, "tail.lean"), encoding="utf-8") as g:
         tail = g.read()
-    parts = [HEAD, monitor_code(), LENGTH, f["step"], f["defs"], MEM, f["boot"], f["helpers"], f["ofnat"], chunks_text, tail]
+    parts = [HEAD, monitor_code(), LENGTH, f["step"], f["defs"], MEM, f["boot"], f["helpers"], f["ofnat"], chunks_text, parked_lemmas(), tail]
     return "\n".join(parts)
 
 
