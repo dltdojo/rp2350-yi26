@@ -112,5 +112,147 @@ the kernel cannot check, and a store changes the memory the next fetch reads. Bo
 From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
-(pasted from capture.txt)
+=== exp236 — the wall the monitor holds ===
+recorded at 2026-10-16T05:19:01Z from commit c328059
+
+>>> the micro-monitor binary and size budget
+PASS  monitor.bin (572 bytes, 143 insts) matches monitor.S, monitor.sha256 and monitorCode
+
+>>> the formal theorems, and what they rest on
+'Exp236.monitorCode_length' does not depend on any axioms
+'Exp236.monitor_boot' depends on axioms: [propext, Quot.sound]
+'Exp236.monitor_scrub' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp236.monitor_halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp236.monitor_fault_cause' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp236.monitor_fault_syscall' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp236.monitor_end_to_end' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.umode_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.umode_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong monitors and wrong sandboxes: each must be refused
+pmp_window_small         boot writes a PMP address that fences off 32 bytes, not 64 KiB   refused in monitor_boot_config
+pmp_no_execute           boot makes the payload region read-write but not executable      refused in monitor_boot_config
+mret_to_m_mode           boot sets MPP to M-mode instead of clearing it                   refused in monitor_boot_config
+payload_entry_wrong      boot sends the payload to 0x80020000, past its region            refused in monitor_boot_config
+payload_sp_wrong         boot gives the payload an sp at the bottom of its region         refused in monitor_launch_1
+boot_leaves_x31          boot loads 1 into x31 instead of zero                            refused in monitor_launch_3
+trap_vector_wrong        boot points mtvec four bytes past the handler                    refused in monitor_boot_config
+mscratch_wrong           boot puts the M-mode stack in the payload's region               refused in monitor_boot_config
+no_stack_swap            the handler keeps the payload's sp                               refused in handler_e1
+cause_check_dropped      the handler never looks at mcause                                refused in handler_e3_ecall
+syscall_check_dropped    the handler takes every ecall for HALT                           refused in handler_c_bad
+fault_exit_code_two      a fault exits with 2                                             refused in handler_f6
+fault_skips_scrub        a fault jumps to the park loop, not the scrub                    refused in handler_f6
+saved_t0_stays           the scrub leaves the saved t0 on the M-mode stack                refused in scrub_s1
+scrub_leaves_sp          the scrub loads 1 into x2                                        refused in scrub_s3
+mmio_address_wrong       the reports go to a word in the payload's region                 refused in handler_h1
+sandbox_store_unchecked  U-mode stores skip the PMP check                                 refused in st_in_box
+sandbox_ecall_passes     U-mode ecall is executed instead of trapped                      refused in trap_none_plain
+
+>>> normal execution: secp256k1 field arithmetic under PMP sandbox
+PASS  4 normal cases verified (exp229 add/sub/mul, a0=0, secret scrubbed)
+
+>>> hostile payloads
+PASS  23 hostile payloads end parked and scrubbed, with the hardware's cause:
+      fault mcause=7  store into the monitor's code
+      fault mcause=5  load the monitor's code
+      fault mcause=7  write the M-mode stack
+      fault mcause=5  read system SRAM
+      fault mcause=1  jump into the monitor
+      fault mcause=1  jump to the trap vector
+      fault mcause=2  read mstatus
+      fault mcause=2  set a bit in mstatus
+      fault mcause=2  write mscratch
+      fault mcause=2  read the cycle counter
+      fault mcause=2  mret to M-mode
+      fault mcause=2  wfi
+      fault mcause=3  ebreak
+      fault mcause=2  an illegal word
+      fault mcause=4  a misaligned load
+      fault mcause=8  an unknown syscall
+      fault mcause=8  hash syscall (not offered)
+      fault mcause=7  a fault with secrets in every register
+      halt  exit=7    a clean halt with secrets in every register
+      fault mcause=2  a fault with sp pointing into the monitor
+      halt  exit=0    the registers it starts with
+      halt  exit=0    a clean halt, exit code 0
+      halt  exit=3    writes in the box are allowed
+
+>>> monitors with one thing wrong: each must be caught
+PASS  12 broken monitors, each caught by the attack and normal suites:
+      pmp_window_4gib            the PMP window is the whole address space
+      pmp_window_covers_monitor  the PMP window is 128 KiB from the monitor's base
+      pmp_no_execute             the payload region is read-write but not executable
+      mret_stays_in_m_mode       mret returns to M-mode
+      boot_leaves_a_register     boot does not zero x31 before the payload
+      no_stack_swap              the trap entry keeps the payload's sp
+      scrub_skips_register       the scrub forgets x17
+      scrub_skips_ra             the scrub forgets x1
+      fault_does_not_scrub       a fault parks without scrubbing
+      saved_words_stay           the saved t0 and t1 stay on the stack
+      mscratch_stays             mscratch keeps the payload's sp
+      any_syscall_halts          every ecall is taken for HALT
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  monitor.bin (572 bytes, 143 insts) matches monitor.S, monitor.sha256 and monitorCode
+PASS  Monitor.lean checks, with no errors and no warnings
+PASS  all 9 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  pmp_window_small: the proof refuses a version where boot writes a PMP address that fences off 32 bytes, not 64 KiB
+PASS  pmp_no_execute: the proof refuses a version where boot makes the payload region read-write but not executable
+PASS  mret_to_m_mode: the proof refuses a version where boot sets MPP to M-mode instead of clearing it
+PASS  payload_entry_wrong: the proof refuses a version where boot sends the payload to 0x80020000, past its region
+PASS  payload_sp_wrong: the proof refuses a version where boot gives the payload an sp at the bottom of its region
+PASS  boot_leaves_x31: the proof refuses a version where boot loads 1 into x31 instead of zero
+PASS  trap_vector_wrong: the proof refuses a version where boot points mtvec four bytes past the handler
+PASS  mscratch_wrong: the proof refuses a version where boot puts the M-mode stack in the payload's region
+PASS  no_stack_swap: the proof refuses a version where the handler keeps the payload's sp
+PASS  cause_check_dropped: the proof refuses a version where the handler never looks at mcause
+PASS  syscall_check_dropped: the proof refuses a version where the handler takes every ecall for HALT
+PASS  fault_exit_code_two: the proof refuses a version where a fault exits with 2
+PASS  fault_skips_scrub: the proof refuses a version where a fault jumps to the park loop, not the scrub
+PASS  saved_t0_stays: the proof refuses a version where the scrub leaves the saved t0 on the M-mode stack
+PASS  scrub_leaves_sp: the proof refuses a version where the scrub loads 1 into x2
+PASS  mmio_address_wrong: the proof refuses a version where the reports go to a word in the payload's region
+PASS  sandbox_store_unchecked: the proof refuses a version where U-mode stores skip the PMP check
+PASS  sandbox_ecall_passes: the proof refuses a version where U-mode ecall is executed instead of trapped
+PASS  4 normal cases verified (exp229 add/sub/mul, a0=0, secret scrubbed)
+PASS  23 hostile payloads end parked and scrubbed, with the hardware's cause:
+      fault mcause=7  store into the monitor's code
+      fault mcause=5  load the monitor's code
+      fault mcause=7  write the M-mode stack
+      fault mcause=5  read system SRAM
+      fault mcause=1  jump into the monitor
+      fault mcause=1  jump to the trap vector
+      fault mcause=2  read mstatus
+      fault mcause=2  set a bit in mstatus
+      fault mcause=2  write mscratch
+      fault mcause=2  read the cycle counter
+      fault mcause=2  mret to M-mode
+      fault mcause=2  wfi
+      fault mcause=3  ebreak
+      fault mcause=2  an illegal word
+      fault mcause=4  a misaligned load
+      fault mcause=8  an unknown syscall
+      fault mcause=8  hash syscall (not offered)
+      fault mcause=7  a fault with secrets in every register
+      halt  exit=7    a clean halt with secrets in every register
+      fault mcause=2  a fault with sp pointing into the monitor
+      halt  exit=0    the registers it starts with
+      halt  exit=0    a clean halt, exit code 0
+      halt  exit=3    writes in the box are allowed
+PASS  12 broken monitors, each caught by the attack and normal suites:
+      pmp_window_4gib            the PMP window is the whole address space
+      pmp_window_covers_monitor  the PMP window is 128 KiB from the monitor's base
+      pmp_no_execute             the payload region is read-write but not executable
+      mret_stays_in_m_mode       mret returns to M-mode
+      boot_leaves_a_register     boot does not zero x31 before the payload
+      no_stack_swap              the trap entry keeps the payload's sp
+      scrub_skips_register       the scrub forgets x17
+      scrub_skips_ra             the scrub forgets x1
+      fault_does_not_scrub       a fault parks without scrubbing
+      saved_words_stay           the saved t0 and t1 stay on the stack
+      mscratch_stays             mscratch keeps the payload's sp
+      any_syscall_halts          every ecall is taken for HALT
 ```
