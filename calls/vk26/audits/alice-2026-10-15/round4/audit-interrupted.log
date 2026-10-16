@@ -1,0 +1,62 @@
+=== vk26 Proposal Spot-Check Audit: alice ===
+Model: tiered
+Sampled audit experiment (3 runs): vk26-alice-1-the-run-across-the-seam
+Single confirmation experiments (1 run):
+  - vk26-alice-2-the-hash-tested-first
+  - vk26-alice-3-the-count-the-estimate-rests-on
+  - vk26-alice-4-the-state-the-generator-keeps
+  - vk26-alice-5-the-seed-the-tests-passed
+
+--- Step 1: Machine Gates (gates.sh) ---
+PASS  S1 five experiments vk26-alice-1-<slug> to vk26-alice-5-<slug>, the id at most 34 characters
+SKIP  S2 every path the PR changes is under the proposer's directory — no BASE given
+PASS  S3 five kernel.bin, five different hashes (J3 still judges each one new)
+PASS  S4 the index table: a row per experiment, its link, Needs 0–3, one sentence
+PASS  G6 no file of the proposal is a copy of one in lean/ or tools/
+PASS  G6 experiments/duplication.sh --check: nothing gained a copy
+vk26-alice-1-the-run-across-the-seam:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Seam.lean writes, 552 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 1dea371
+  PASS  G6 commit 1dea371 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 1dea371
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (37 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 7 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-2-the-hash-tested-first:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Trust.lean writes, 448 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit 06e4001
+  PASS  G6 commit 06e4001 is in this history
+  PASS  G6 nothing capture.txt rests on changed since 06e4001
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (33 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 11 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-3-the-count-the-estimate-rests-on:
+  PASS  G1.5 a from_boot theorem, no conclusion that is literally True
+  PASS  G2 kernel.bin is what proof/Count.lean writes, 116 bytes, and kernel.sha256 is its hash
+  PASS  G6 README.md is there
+  PASS  G6 WHY.zh-TW.md is there
+  PASS  G6 capture.txt was recorded from a clean tree, commit cb703d8
+  PASS  G6 commit cb703d8 is in this history
+  PASS  G6 nothing capture.txt rests on changed since cb703d8
+  PASS  G6 the experiment has no uncommitted changes
+  PASS  G6 README's Expected output is capture.txt's own lines (44 pasted)
+  PASS  G1 G3 G4 G5 check.sh exits 0, no FAIL
+  PASS  G1 lean.sh check: no error, no warning, Lean's own axioms
+  PASS  G3 12 wrong versions refused by Lean (4 at least)
+  PASS  G5 8 wrong shells caught (3 at least)
+  PASS  G5 the UF2 is byte for byte the committed one
+vk26-alice-4-the-state-the-generator-keeps:

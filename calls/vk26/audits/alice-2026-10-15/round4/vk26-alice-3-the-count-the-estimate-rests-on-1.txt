@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Count.lean:546-547, proof/Count.lean:585-586, proof/Count.lean:627, proof/Count.lean:665-666, proof/Count.lean:673-677, capture.txt:7-12, capture.txt:222, capture.txt:233, capture.txt:283-286, capture.txt:302-312
+reason: The proved claims (from_boot, most_is_max, hist_sum, naive_refused, count_constant_time) each match a theorem quantified over every input. The cycle figures, the per-revision slow-run tallies and the probe results match the capture lines and board logs I checked. The remaining board claims rest on dated, UF2-named observations. External facts such as the XIP cache size and the Hazard3 timings doc are cited as outside the bundle or only offered as an explanation, not as a result.
+J2: YES
+evidence: proof/Count.lean:544, proof/Count.lean:545, proof/Count.lean:546, proof/Count.lean:547, proof/Count.lean:117, proof/Count.lean:89, proof/Count.lean:92, proof/Count.lean:96, proof/Count.lean:99, proof/Count.lean:105, proof/Count.lean:108, proof/Count.lean:110, proof/Count.lean:113, proof/Count.lean:114, proof/Count.lean:585, proof/Count.lean:586, proof/Count.lean:627, proof/Count.lean:673, proof/Count.lean:676, proof/Count.lean:677, README.md:8, README.md:9, README.md:10, README.md:12, README.md:13, README.md:19, README.md:133, README.md:137, README.md:138, README.md:144
+reason: `from_boot` is in from_boot form. It quantifies over any image whose first 116 bytes are the kernel's, at any `Placed` base, so the samples are arbitrary. It proves `.running` at COST−1 and `.halted 0` at COST, where COST = 8 + 256·(2 + 6·4096 + 9) + 4 = 6,294,284. Memory at the halt equals exactly `after`: `hist b` as words from 0x1400 and `most` at 0x1800, which matches README lines 8–11 and 133–145. `most_is_max`, `hist_sum` and `count_constant_time` state what the text says; the last is stronger than "differ only in their samples", since it allows any difference past the kernel.
+J3: YES
+evidence: proof/Count.lean:60-63, proof/Count.lean:585-586, proof/Count.lean:627, proof/Count.lean:673-677, capture.txt:311-312
+reason: This is a new kernel (a branch-free 256-bin count and max) with new proved properties (most_is_max, hist_sum and count_constant_time on it). It also adds a new board result: the probe locating the cache lines at 0x10000130 and 0x10000138 as the cost. None of the listed prior experiments has a histogram or most-common-value kernel.
+J4: YES
+evidence: count.py:39-48, count.py:59-64, proof/Count.lean:95-96, proof/Count.lean:102, differential/differential.py:37-39, differential/differential.py:45-46
+reason: count.py is written from §6.3.1's text. It builds the histogram with `counts[s] += 1`, takes `max`, and computes p_u and H with `math`. Lean instead filters and counts per value and uses a branch-free max. The differential compares the model and RTL regions byte for byte against count.py's output, and count.html's JS is a third implementation.
+INJECTION: NONE
+END

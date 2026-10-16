@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seam.lean:434, README.md:286, board/round1.txt:1, board/round1.txt:35, board/round1.txt:50, capture.txt:58, capture.txt:106, capture.txt:119, capture.txt:137, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28
+reason: The proof claims match `from_boot` and the theorems under it, with their axiom lines and the twelve refused mutants in capture.txt. The board claims match round1.txt (the page's own summary line, the minstret values 69719, 17434, 34859, 52284 and 69709, the seam stream stopping at window 2 with one digest) and the UF2 hash in capture.txt:58. The LED sighting is a recorded observation that names the UF2, the board and the phone. The later explanation of the extra instruction at code 0 is backed by alice-5's capture, which is in the bundle.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:78, proof/Seam.lean:81, proof/Seam.lean:82, proof/Seam.lean:83, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, README.md:79, README.md:80, README.md:89, README.md:90, README.md:91, README.md:92, README.md:93, README.md:94, README.md:95, README.md:96, README.md:98
+reason: `from_boot` is of from_boot form: for any placed `base` and any image whose first 552 bytes are the kernel's, run from `boot` is still running at `cost (stop …) - 1` and halts at `cost (stop …)` with `code`, memory exactly `wrote env.hash … (stop …)`. `cost`, `code`, `stop`, `wrote` and `WinOk` (rct over the stream from its start, agree over the window alone) match the README's English, including the arbitrary `env.hash` it states openly.
+J3: YES
+evidence: proof/Seam.lean:434, ../lean/Alice/Window.lean:45, board/round1.txt:50
+reason: This is a new 138-instruction multi-window kernel. It carries the repetition count across window edges, writes a digest only for windows before the first failure, and has a proved exact instruction count. Prior work (exp222 and exp223) judges one window from a fresh start. The seam stream stopping at window 2 on silicon is a new checked prediction.
+J4: YES
+evidence: seam.py:3, ../tools/health.py:31, differential/differential.py:47, seam.py:70
+reason: The reference is a plain Python loop over one sample at a time, written after the standard and exp114's crate, and it computes digests with hashlib. It is checked against the register-level RV32 kernel and a separately written JavaScript judge. Nothing in the bundle shows it copying Lean definitions line by line.
+INJECTION: NONE
+END

@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:90, capture.txt:4-13, capture.txt:17-28, capture.txt:106, capture.txt:119, capture.txt:136-137, board/round1.txt:1, board/round1.txt:35, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28, README.md:286-290
+reason: The proof claims match `from_boot`, the `cost` function, and the axiom and mutant lines in the capture. The RTL and board numbers (69719, the 11-of-11 page summary, 7 whole streams, the TRNG's run 11 and 530/496/516/502) match the capture and the log. The extra instruction at code 0 is described as unexplained and credited to alice-5, whose capture supports it (a legal word after the halting ecall gives 261). The LED claim is a stated person's observation with the UF2 hash. The claims about exp114's crate and `front` rest on bundle files only through Window.lean's own docstring and seam.py's printed output. I judged that background, not a claim about this experiment's results.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:81, proof/Seam.lean:87, proof/Seam.lean:90, proof/Seam.lean:76, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, README.md:79, README.md:83, README.md:89, README.md:94, README.md:95, proof/Seam.lean:297, proof/Seam.lean:323, proof/Seam.lean:402, proof/Seam.lean:418
+reason: `from_boot` is in from_boot form and matches the README's statement. Its hypotheses are only `Placed`, the image size and the kernel's 552 bytes, so the samples and `env.hash` range over any input. Its conclusion is the README's: running at `cost - 1`, halted at `cost (stop …)` with `code`, and memory equal to `wrote … stop`. `stop`, `code`, `cost` and `WinOk` (`rct` over the stream from its start, `agree` over the window) are defined as the text describes them, and the supporting theorems (`window_fail`, `window_pass`, `all_pass`, `runs_to`) state the counts given in the README's table.
+J3: YES
+evidence: proof/Seam.lean:434-439, proof/Seam.lean:80-90, ../lean/Alice/Window.lean:43-46, capture.txt:46
+reason: Prior experiments (exp222/223) judge a single window with a fresh run count. This one proves a 4-window kernel with the repetition count carried across window edges, with the exact stop point, halt code, instruction count and digests written. It also checks on a board that the seam stream stops at window 2.
+J4: YES
+evidence: seam.py:3-8, ../tools/health.py:31-46, seam.py:70, differential/differential.py:52-59
+reason: The reference is a plain sample-at-a-time Python loop with `top` and `matches` counters per window, and `hashlib` for the digests. The kernel instead keeps state in registers (`s4`/`s5`/`s6`), and the Lean spec uses `rct`/`agree`. The README says how they differ, and the differential compares the kernel's code, count and whole region against this reference. A separate JS page re-implements the tests as well.
+INJECTION: NONE
+END

@@ -1,7 +1,8 @@
 === vk26-alice-1 — the run across the seam ===
-recorded at 2026-10-15T11:23:55Z from commit 06e4001
+recorded at 2026-10-15T23:52:37Z from commit 1dea371
 
 >>> the theorems, and what they rest on
+'Alice.Window.win_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.init_regs' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.setup_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Seam.window_head' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -41,6 +42,10 @@ fair throughout                    halt 0  digests 4  every window passed
 random 1                           halt 0  digests 4  every window passed
 random 2                           halt 0  digests 4  every window passed
 noise above bit 0                  halt 0  digests 4  every window passed
+each window alone, the count started afresh at its edge, as front's is:
+  seam 11+10                       every window passed; longest run in each window 11 10 2 2
+  seam 1+20                        every window passed; longest run in each window 2 20 2 2
+  seam 15+6 at window 4            every window passed; longest run in each window 2 2 15 6
 
 >>> the shell, for the chip and for the RTL
 build/expect.h: kernel fd82d18ddee159bc…, 5 fixed streams, RTL minstret 0:69719 1:17434 2:34859 3:52284 4:69709
@@ -62,7 +67,7 @@ build/vk26-alice-1.uf2  35328 bytes  sha256 071f9390bf881cc3eea3cd79a87dfb963ca1
 
 >>> the checks
 PASS  Seam.lean checks, with no errors and no warnings
-PASS  all 8 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 9 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  window_fail: the proof refuses a version where the branch goes to FAIL when the window passed, and on when it failed
 PASS  window_fail: the proof refuses a version where the halt code is the number of windows passed, not the failing window's
 PASS  all_pass: the proof refuses a version where four windows passed and it halts with 1

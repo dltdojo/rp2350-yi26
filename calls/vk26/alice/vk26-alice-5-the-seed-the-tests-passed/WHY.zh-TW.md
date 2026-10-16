@@ -99,7 +99,7 @@ Instantiate kernel 單獨跑時，244 位元組後面是零，RTL 數 260；在�
 **代價**：
 
 - 三個 kernel 依序跑，比一個大 kernel 多了 shell 的步驟。這一步在證明裡是假設（`restart`），不是被證明的程式碼。
-- 為了讓兩個實驗共用，alice-2 的 `Trust.lean` 和 alice-4 的 `Drbg.lean` 整個搬進 `alice/lean/Alice/`，Python 參考實作、補位程式、網頁的 Generate 也一樣搬到 alice 的共用目錄。搬完 `kernel.bin` 和 alice-4 的 UF2 都一位元組不差。
+- 為了讓兩個實驗共用，alice-2 的 `Trust.lean` 和 alice-4 的 `Drbg.lean` 整個搬進 `alice/lean/Alice/`，Python 參考實作、補位程式、網頁的 Generate 也一樣搬到 alice 的共用目錄。搬完 `kernel.bin` 和 alice-4 的 UF2 都一位元組不差（搬移之後重錄的 [alice-4 capture](../vk26-alice-4-the-state-the-generator-keeps/capture.txt) 印出 `the UF2 is byte for byte the committed one: 4843dec170130112…`）。
 
 ## 9. 試跑在徵集設定裡找到的問題
 

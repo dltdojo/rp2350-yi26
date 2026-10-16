@@ -461,3 +461,12 @@ vk26-alice 的第 3 輪驗收裡，alice-2 與 alice-4 四題三次全 YES。它
 | 第 6 輪，兩個階段 | 54 | 2,316,534 | 100,027 | $5.45 |
 
 兩個 alice 案例的 bundle 各約 208 KB，比 exp225（約 53 KB）大四倍，一次判定約 $0.25。
+
+## 案例固定在校準時的 commit（第 6 輪之後）
+
+第 5 輪改了 exp230 一句話，就得重新校準；而 vk26-alice-4 若因 `Ct.lean` 擴充而修改，也會連帶要重跑。現在 `cases.sh` 從 `AT`（第 6 輪校準的 commit，70ca711）另開一個 git worktree 組 bundle，`judge-bundle.sh` 以 `VK26_SRC` 讀那份 checkout 的實驗、前人索引與 git 狀態；`JUDGE.md`、`models.env` 與 bundle 的組法仍取目前的版本。所以：
+
+- 之後修改任何案例來源的實驗（`experiments/` 或 `calls/vk26/alice/`），校準照舊有效；
+- 改 `judge-bundle.sh`、`JUDGE.md`、`models.env`，或移動 `AT`，仍要重跑——那正是校準要量的東西。
+
+改動前後九個 bundle 除了 `commit:` 一行逐位元組相同；在工作目錄裡改 exp230 與 alice-4 的 README，九個 bundle 也不變。selftest 檢查 bundle 的 commit 是 `AT`、worktree 用完即刪。

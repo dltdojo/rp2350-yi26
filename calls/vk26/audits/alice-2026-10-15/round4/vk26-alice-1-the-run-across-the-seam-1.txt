@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:11, README.md:83-86, proof/Seam.lean:434-439, proof/Seam.lean:90, capture.txt:46, capture.txt:51-56, capture.txt:106, capture.txt:119, capture.txt:136-137, board/round1.txt:1, board/round1.txt:35, board/round1.txt:50, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28
+reason: Each proved claim matches a theorem, chiefly `from_boot` (quantified over any `env`, so any `HASH`) and the cost function. The RTL, differential, mutant and page results match capture.txt. The board claims match round1.txt: the 11/11 page tally, the 7 whole streams, minstret 69719 and the seam stream stopping at window 2. The LED observation is recorded as a person's, with the UF2 hash named. The extra instruction at code 0 is stated as unexplained, and the later explanation is backed by alice-5's capture.
+J2: YES
+evidence: proof/Seam.lean:434, proof/Seam.lean:435, proof/Seam.lean:436, proof/Seam.lean:437, proof/Seam.lean:438, proof/Seam.lean:439, proof/Seam.lean:76, proof/Seam.lean:78, proof/Seam.lean:81, proof/Seam.lean:87, proof/Seam.lean:90, ../lean/Alice/Window.lean:45, ../lean/Alice/Window.lean:46, ../lean/Alice/Window.lean:409, README.md:9, README.md:11, README.md:12, README.md:13, README.md:14, README.md:16, README.md:79, README.md:89, README.md:94, README.md:98
+reason: `from_boot` is a from-boot theorem about the kernel's actual 552 bytes, for any image and any `base` that `Placed` allows. It says the kernel is still running at `cost (stop …) - 1` and halted at exactly `cost (stop …)`. The halt code is 0 when the stop is 4, else stop + 1, and memory equals `wrote`: the image plus `env.hash` of each pre-stop window's 4096 bytes at 0x4400 + 32j and nothing else. `WinOk` takes `rct` over the stream from its start to the window's end and `agree` over the window alone. The cost is 69699 or 17431 + 17421·k. All of this matches README lines 9–16 and 79–98, including that the result holds for any `HASH`. No hidden hypothesis weakens it.
+J3: YES
+evidence: README.md:5-9, README.md:36-46, proof/Seam.lean:434-439, ../lean/Alice/Window.lean:43-46
+reason: Prior experiments (exp222/exp223) judge a single window from a fresh start. This one adds a multi-window kernel with the repetition count carried across window edges, `from_boot` proved for it, and the seam prediction (stop at window 2) checked on a board.
+J4: YES
+evidence: seam.py:3-5, ../tools/health.py:31-46, differential/differential.py:44-59, fixtures.py:122-124
+reason: The reference is Python written one sample at a time, in the manner of exp114's crate. It keeps a per-window top and match count, uses hashlib for digests, and shares no structure with the kernel's registers or the Lean memory-based `rct`/`agree` spec. A copied error would be unlikely to match across the Lean model, the RTL and this reference.
+INJECTION: NONE
+END
