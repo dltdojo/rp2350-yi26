@@ -225,3 +225,7 @@ exp229（`Limbs.lean`）、exp233、`lean/Rv32/Health.lean`、`lean/Rv32/Sha.lea
 alice-2、alice-4 成為校準的已知好案例：第 5 輪再找到兩個統計的引用寬容問題與一個 bundle 缺口（exp225 的 `shell/board.h`），修正後第 6 輪九個案例、每個三次全部判對（[calibration/README.md](../calibration/README.md)）。之後校準案例改從校準時的 commit 組 bundle（c765d0a），修改 alice 的實驗不再連帶要重跑校準。
 
 第 4 輪之前的修正盡量只動 `.md`，避免重錄：alice-3、alice-5 只補連結與改 WHY.zh-TW.md；alice-1 要讓 capture 多印 `win_run` 的公理與「每窗重新計數」的結果，所以只有 alice-1 重錄。動到 alice 共用的目錄（`lean/`、`tools/`、`shell/`、`pages/`）會讓五個 capture 一起過期，這一輪都沒有動。
+
+### 第 4 輪：通過（2026-10-16）
+
+只重錄 alice-1 之後跑第 4 輪：抽中的 alice-1 三次四題全 YES，其餘四個各一次全 YES，`audit-proposal.sh` 判定 **ALL 5 EXPERIMENTS PASSED**。四輪驗收合計 115 個 session、約 $26.16（[audits/alice-2026-10-15/](../audits/alice-2026-10-15/README.md)）。

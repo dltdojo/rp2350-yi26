@@ -1,0 +1,114 @@
+PASS  Seed.lean checks, with no errors and no warnings
+PASS  all 3 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  inst_run: the proof refuses a version where Hash_df is told 432 bits, not 440 (00 00 01 b0)
+PASS  inst_run: the proof refuses a version where V's second hash is written over C, not after V's first
+PASS  inst_run: the proof refuses a version where C is Hash_df of 60 bytes, V's last left off
+PASS  inst_run: the proof refuses a version where C's second hash has the counter 1 again
+PASS  inst_run: the proof refuses a version where one word fewer of zeros: the number 1's field is not cleared
+PASS  inst_run: the proof refuses a version where the counter starts at 2
+PASS  inst_run: the proof refuses a version where the byte before V, which Generate's H needs, is 0x02
+PASS  inst_run: the proof refuses a version where the claim: one instruction fewer to the halt
+PASS  inst_run: the proof refuses a version where the claim: one instruction more to the halt
+PASS  inst_run: the proof refuses a version where the specification: C is Hash_df of V, the 0x00 before it left off
+PASS  chain: the proof refuses a version where the specification: the seed material is the digest and 15 bytes of the nonce
+PASS  code_zero_iff: the proof refuses a version where the claim: the chain goes on when the start-up window failed
+PASS  seed.py's Instantiate, then two Generates, give NIST's ReturnedBits for all 120 cases
+PASS  the shell builds for the chip and for the RTL, the chip's in 49076 of the 65536 bytes it may use
+PASS  kernel.bin is what proof/Seed.lean writes, 244 bytes, and kernel.sha256 is its hash; alice-2's and alice-4's, as alice's package writes them, are their committed kernel.bin
+PASS  all 120 NIST cases, on the model and on the RTL: the Instantiate kernel's region seed.py's, the model after 241 instructions, then vk26-alice-4's Generate twice from it, the second's 1024 bits NIST's ReturnedBits
+PASS  fair, nonce 0: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  stuck at 1 from the start, nonce 1: the model and the RTL stop with alice-2's halt 1, nothing after it
+PASS  21 alike in the start-up window, nonce 2: the model and the RTL stop with alice-2's halt 1, nothing after it
+PASS  20 alike in the start-up window, nonce 3: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  seam 11+10, nonce 4: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  seam 10+10, nonce 5: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  seam 20+1, nonce 6: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  589 of window 1, nonce 7: the model and the RTL stop with alice-2's halt 1, nothing after it
+PASS  589 of window 2, nonce 8: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  588 of window 2, nonce 9: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  nine ones then a zero, window 2, nonce 10: the model and the RTL stop with alice-2's halt 3, nothing after it
+PASS  random 1, nonce 11: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  random 2, nonce 12: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  noise above bit 0, nonce 13: the model and the RTL stop with alice-2's halt 0, then Instantiate and Generate: seed.py's 1024 bits
+PASS  fair, a KAT the hash fails (first bit flipped): the model and the RTL stop with alice-2's halt 2, nothing after it
+PASS  fair, a KAT the hash fails (last bit flipped): the model and the RTL stop with alice-2's halt 2, nothing after it
+PASS  fair, a KAT the hash fails (all zeros): the model and the RTL stop with alice-2's halt 2, nothing after it
+PASS  all 192 blocks carry family 0xe48bff57, absolute
+PASS  every block lies in the first 64 KiB of flash, 0x10000000..0x10010000
+PASS  together they are exactly the 49076-byte image
+PASS  the image starts with a jump to _start at 0x10000024
+PASS  the IMAGE_DEF block: RISC-V EXE for RP2350, entry _start, stack 0x20070000
+PASS  the UF2 is byte for byte the committed one: a411ebbef2fd8a92…
+the RTL: 120 NIST cases at 260 4318 4318; chain 0 code 0 at 34897 261 4318; chain 1, the KAT spoiled, code 2 at 51
+PASS  on the RTL the shell runs all 120 NIST cases, each its state seed.py's and its bits NIST's, then the chain from the stand-in TRNG through all three kernels, then the chain with the KAT spoiled, stopped at the first with 2
+PASS  the page's script parses (node --check)
+PASS  findCdc is tools/pages/log.html's, byte for byte
+PASS  the page's minstrets, block count and KAT message are expect.h's
+PASS  two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; each round's chain gave bits, its spoiled one stopped at the KAT; each run one mcycle
+PASS  one bit of V after a NIST case's Instantiate: the page says it is V
+PASS  one bit of the second Generate's block 2: the page says which block
+PASS  the seed material sent one byte short, V and C NIST's: the page instantiates what it was sent, and it is not those
+PASS  the Instantiate kernel's minstret one more than the RTL's: caught
+PASS  the chain digesting the start-up window, and the rest made from that: the digest named, and V and C, which the page makes from its own digest
+PASS  one bit of the digest flipped on the way, V, C and the bits right: caught at the digest, and only there
+PASS  Instantiate on the digest without the nonce: V, C and the bits not this page's
+PASS  one bit of C in the chain: caught
+PASS  one bit of the chain's block 3: the page says which block
+PASS  the chain's Instantiate counted as it is alone, 260: the RTL counts 261 there, and the page holds it to that
+PASS  the spoiled chain going on to bits: a kernel that never asked the KAT is caught
+PASS  the KAT answered wrong with nothing spoiling it: the chain is right to stop, and the page says the board is not
+PASS  the TRNG stuck at 1, then a run of 21 across the seam: both chains stopped by the tests, with 1 and 3, nothing wrong
+PASS  a BLOCK line and a BITS line lost: that case and that chain incomplete, nothing called wrong
+PASS  joined mid-case: the first case incomplete, every one after it right
+PASS  one Generate taking 30 cycles more: nothing wrong, and the page says the cycles differ
+PASS  round1.txt: 202 of 202 NIST cases and 2 of 2 chains from a board right (1 gave bits, 1 refused, 0 stopped), 0 incomplete, 1 rounds; mcycle as read: inst 9212/9312/9322/9332/9372/9422/9441/9442/9492/9502/9542/9552/9562/9631/9652/9692/9711/9750/9782/9822/9852/9902/9952/10021/10052/10062/10102/10142/11372/11482/11638/11652/11702/11801/11842/11999/12152/12286/12297/12342/12389/12414/12497/12721/12734/12780/12887/12974, gen 15088/15195/15198/15208/15242/15248/15298/15312/15315/15318/15365/15368/15418/15425/15472/15475, trust 58945, chainInst 9212, chainGen 15088
+PASS  the tests catch a page where Hash_df asks for 432 bits, not 440: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where C is Hash_df of V, the 0x00 before it left out: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where the second Generate starts from Instantiate's V again: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where a NIST case's blocks are not compared: one bit of the second Generate's block 2: the page says which block — cases 12 ok 12 wrong 0 incomplete 0; c
+PASS  the tests catch a page where the nonce is the next round's: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where the digest is of the start-up window: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where the shell's spoiling is not allowed for: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where a failed second window lets the chain go on: the TRNG stuck at 1, then a run of 21 across the seam: both chains stopped by the tests, with 1 and 3, nothing
+PASS  the tests catch a page where the chain's Instantiate is held to its minstret alone: two rounds as the board sends them, in 64-byte packets: all 240 NIST cases instantiated and generated right; e
+PASS  the tests catch a page where an output from a stopped chain is not refused: the spoiled chain going on to bits: a kernel that never asked the KAT is caught — cases 12 ok 12 wrong 0 inc
+PASS  good.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  good.txt: the verdict line says "240 of 240 NIST cases right"
+PASS  good.txt: the table shows the last round's 2 streams, and no script error
+PASS  good.txt: Copy puts the verdict and every line received on the clipboard (255321 characters)
+PASS  good.txt: Save downloads the same text as a file, vk26-alice-5-<time>.txt, and says how long it is
+PASS  stopped.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  stopped.txt: the verdict line says "4 of 4 chains right"
+PASS  stopped.txt: the table shows the last round's 2 streams, and no script error
+PASS  stopped.txt: Copy puts the verdict and every line received on the clipboard (8394 characters)
+PASS  stopped.txt: Save downloads the same text as a file, vk26-alice-5-<time>.txt, and says how long it is
+PASS  cblock.txt: the page claims interfaces 0 and 1, sets the line coding, then raises DTR
+PASS  cblock.txt: the verdict line says "first wrong: round 0, chain 0"
+PASS  cblock.txt: the table shows the last round's 2 streams, and no script error
+PASS  cblock.txt: Copy puts the verdict and every line received on the clipboard (15562 characters)
+PASS  cblock.txt: Save downloads the same text as a file, vk26-alice-5-<time>.txt, and says how long it is
+PASS  round1.txt: 202 whole NIST cases and 2 whole chains from a board (codes 0×1 2×1), 0 incomplete; every case NIST's, every chain seed.py's from its samples, every minstret the RTL's
+      mcycle of Instantiate: 9212 in 62; 9312 in 1; 9322 in 5; 9332 in 5; 9372 in 2; 9422 in 1; 9441 in 1; 9442 in 1; 9492 in 3; 9502 in 1; 9542 in 1; 9552 in 1; 9562 in 1; 9631 in 1; 9652 in 1; 9692 in 1; 9711 in 1; 9750 in 1; 9782 in 1; 9822 in 1; 9852 in 1; 9902 in 2; 9952 in 1; 10021 in 1; 10052 in 2; 10062 in 2; 10102 in 1; 10142 in 2; 11372 in 78; 11482 in 1; 11638 in 1; 11652 in 2; 11702 in 1; 11801 in 1; 11842 in 1; 11999 in 1; 12152 in 1; 12286 in 1; 12297 in 1; 12342 in 1; 12389 in 1; 12414 in 1; 12497 in 1; 12721 in 1; 12734 in 1; 12780 in 1; 12887 in 1; 12974 in 1
+      mcycle of Generate: 15088 in 377; 15195 in 1; 15198 in 8; 15208 in 1; 15242 in 1; 15248 in 3; 15298 in 1; 15312 in 1; 15315 in 1; 15318 in 4; 15365 in 1; 15368 in 1; 15418 in 1; 15425 in 1; 15472 in 1; 15475 in 1
+      mcycle of alice-2's kernel: 58945 in 1
+      mcycle of Instantiate in the chain: 9212 in 1
+      mcycle of Generate in the chain: 15088 in 1
+      the log: from round 0's case 31 to round 1's case 113; whole NIST cases 202
+      seed material 48 bytes, 104 cases: Instantiate 9212 in 62, up to 10142
+      seed material 48 bytes, 104 cases: Generate 1 15088 in 92, up to 15418
+      seed material 48 bytes, 104 cases: Generate 2 15088 in 104, up to 15088
+      seed material 80 bytes, 98 cases: Instantiate 11372 in 78, up to 12974
+      seed material 80 bytes, 98 cases: Generate 1 15088 in 83, up to 15475
+      seed material 80 bytes, 98 cases: Generate 2 15088 in 98, up to 15088
+      round 0: a run slower than its least in cases 31–36, 47–50, 63–69, 79–82, 95–99, 111–113
+      round 1: a run slower than its least in cases 0–4, 16–19, 32–38, 47–50, 63–69, 79–82, 95–99, 111–112
+      cases whole in rounds 0 and 1: 82; slow in both: 27
+      status lines: 44, dropped [0], errors [0]
+PASS  the shell catches a version where kernel.sha256 is not the Instantiate kernel's hash — check 1
+PASS  the shell catches a version where HASHB is answered one byte short — check 4, the state after Instantiate
+PASS  the shell catches a version where the seed material's length is given one long — check 4
+PASS  the shell catches a version where alice-4's kernel is never put in: Instantiate runs again — check 3
+PASS  the shell catches a version where the chip is asked to count one more instruction for a Generate — check 3
+PASS  the shell catches a version where the second chain's KAT is not spoiled after all — check 2
+PASS  the shell catches a version where the shell itself traps in step 2 — a fault, not a check
+check.sh exit 0

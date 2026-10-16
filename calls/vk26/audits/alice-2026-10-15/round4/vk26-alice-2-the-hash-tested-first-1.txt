@@ -1,0 +1,15 @@
+VERDICT vk26
+J1: YES
+evidence: README.md:12, README.md:311, README.md:336, ../lean/Alice/Trust.lean:533-540, ../lean/Alice/Trust.lean:97-99, capture.txt:4-11, capture.txt:15-25, capture.txt:48-51, capture.txt:119-126, capture.txt:137-140, capture.txt:145-146, board/round1.txt:1, ../vk26-alice-5-the-seed-the-tests-passed/capture.txt:28
+reason: The proof claims match `from_boot` and `trusts_after_kat`, with counts 43, 17462, 34878 and 34885 and the axiom and mutant lines in the capture. The board claims match the page's saved summary (18 of 18 judged right, 4 refused, 7 outputs), the TRNG figures, and the person's recorded observation of the LED. The cross-experiment "nine counts" pattern about vk26-alice-1 cannot be checked from this bundle, but it is hedged as an observation and is not a substantive claim.
+J2: YES
+evidence: ../lean/Alice/Trust.lean:438, ../lean/Alice/Trust.lean:439, ../lean/Alice/Trust.lean:440, ../lean/Alice/Trust.lean:441, ../lean/Alice/Trust.lean:442, ../lean/Alice/Trust.lean:443, ../lean/Alice/Trust.lean:94, ../lean/Alice/Trust.lean:98, ../lean/Alice/Trust.lean:99, ../lean/Alice/Trust.lean:108, ../lean/Alice/Trust.lean:109, ../lean/Alice/Trust.lean:110, ../lean/Alice/Trust.lean:535, ../lean/Alice/Trust.lean:536, ../lean/Alice/Trust.lean:537, ../lean/Alice/Trust.lean:538, ../lean/Alice/Trust.lean:539, ../lean/Alice/Trust.lean:540, README.md:11, README.md:13, README.md:16, README.md:17, README.md:18, README.md:106, README.md:110, README.md:129
+reason: `from_boot` is in from_boot form. It covers any image whose first 448 bytes are the kernel's, any placed `base`, and any `env.hash`. It states that the kernel is still running at `cost - 1` and halts with `code` at exactly `cost`, with memory equal to `after`; `code`, `cost` and `after` give 2/1/3/0, 43/17462/34878/34885, and the output only when all three checks hold, exactly as README.md:13-20 and 116-124 describe. `trusts_after_kat` matches its README statement (README.md:129-134) word for word, and the README states its hypotheses (the placement, the kernel's first 448 bytes, and that `Trusted` is relative to the bytes at 0x340).
+J3: YES
+evidence: ../lean/Alice/Trust.lean:85-86, ../lean/Alice/Trust.lean:525-540, README.md:12, README.md:305-334
+reason: Prior work has no kernel that first asks `HASH` a known-answer question and then states trust in it as a condition of the output. `Trust.trusts_after_kat` is that theorem: halt 0 implies `Trusted` and an output equal to `HASH` of the second window only. The 4 spoiled KATs refused on the board are a new prediction checked on a board.
+J4: YES
+evidence: ../tools/trustref.py:44-63, ../tools/health.py:31-46, README.md:169-171, differential/differential.py:41-45
+reason: The reference uses hashlib for `HASH` and compares the KAT digest as byte strings. It judges windows with a per-sample Python loop, where the kernel works through registers with an xor/or word compare and Lean states the window test through `WinOk`/`rct`. It is not a transcription of the Lean definitions, and the README states that it shares nothing with the kernel's registers.
+INJECTION: NONE
+END
