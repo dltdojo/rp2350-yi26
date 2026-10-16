@@ -138,7 +138,7 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         return self.statement() + (self.custom if self.custom else self.chain_proof() if self.steps else self.simp_proof())
 
     def simp_proof(self) -> str:
-        if os.environ.get("STUB"):
+        if os.environ.get("STUB") and self.name not in os.environ.get("REAL", "").split(","):
             return "  sorry\n"
         n, ex = self.n, self.extra
         simp_in = f"pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured{ex}"
@@ -463,12 +463,12 @@ SUB = lambda r: f"{HI} - {u(r)}"
 add(Chunk("hashb_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x194), h(0x19c), regs=f"(6, {LO}), (7, {HI})"),
     branch("hashb_b1", "`a0 < BOX_LO`", 0x19c, 1, f"BitVec.ult ({u(10)}) {LO}", 0x1a0, hyps=HT1, extra=", ht1"),
     branch("hashb_b2", "`BOX_HI < a0`", 0x1a0, 1, f"BitVec.ult {HI} ({u(10)})", 0x1a4, hyps=HT2, extra=", ht2"),
-    branch("hashb_b3", "`BOX_HI - a0 < a1`", 0x1a4, 2, f"BitVec.ult ({SUB(10)}) ({u(11)})", 0x1ac,
-           regs=f"(28, {SUB(10)})", hyps=HT2, extra=", ht2"),
+    Chunk("hashb_s3", "`t3 = BOX_HI - a0`.", 1, h(0x1a4), h(0x1a8), regs=f"(28, {SUB(10)})", hyps=HT2, extra=", ht2"),
+    branch("hashb_b3", "`BOX_HI - a0 < a1`", 0x1a8, 1, f"BitVec.ult ({u(28)}) ({u(11)})", 0x1ac),
     branch("hashb_b4", "`a2 < BOX_LO`", 0x1ac, 1, f"BitVec.ult ({u(12)}) {LO}", 0x1b0, hyps=HT1, extra=", ht1"),
     branch("hashb_b5", "`BOX_HI < a2`", 0x1b0, 1, f"BitVec.ult {HI} ({u(12)})", 0x1b4, hyps=HT2, extra=", ht2"),
-    branch("hashb_b6", "`BOX_HI - a2 < 32`", 0x1b4, 3, f"BitVec.ult ({SUB(12)}) 32#32", 0x1c0,
-           regs=f"(28, {SUB(12)}), (5, 32#32)", hyps=HT2, extra=", ht2"),
+    Chunk("hashb_s6", "`t3 = BOX_HI - a2`, `t0 = 32`.", 2, h(0x1b4), h(0x1bc), regs=f"(28, {SUB(12)}), (5, 32#32)", hyps=HT2, extra=", ht2"),
+    branch("hashb_b6", "`BOX_HI - a2 < 32`", 0x1bc, 1, f"BitVec.ult ({u(28)}) ({u(5)})", 0x1c0),
     Chunk("hashb_fwd_1", "Forward: the port's address, and the input pointer.", 3, h(0x1c0), h(0x1cc),
           regs="(28, 0xc0000010#32)", svc=[num(10), None, None, None], store=True),
     Chunk("hashb_fwd_2", "Forward: the length.", 1, h(0x1cc), h(0x1d0), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
@@ -483,12 +483,12 @@ add(Chunk("hashb_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x194), h(0x19c), re
 add(Chunk("checksig_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x1e0), h(0x1e8), regs=f"(6, {LO}), (7, {HI})"),
     branch("checksig_b1", "`a0 < BOX_LO`", 0x1e8, 1, f"BitVec.ult ({u(10)}) {LO}", 0x1ec, hyps=HT1, extra=", ht1"),
     branch("checksig_b2", "`BOX_HI < a0`", 0x1ec, 1, f"BitVec.ult {HI} ({u(10)})", 0x1f0, hyps=HT2, extra=", ht2"),
-    branch("checksig_b3", "`BOX_HI - a0 < 32`", 0x1f0, 3, f"BitVec.ult ({SUB(10)}) 32#32", 0x1fc,
-           regs=f"(28, {SUB(10)}), (5, 32#32)", hyps=HT2, extra=", ht2"),
+    Chunk("checksig_s3", "`t3 = BOX_HI - a0`, `t0 = 32`.", 2, h(0x1f0), h(0x1f8), regs=f"(28, {SUB(10)}), (5, 32#32)", hyps=HT2, extra=", ht2"),
+    branch("checksig_b3", "`BOX_HI - a0 < 32`", 0x1f8, 1, f"BitVec.ult ({u(28)}) ({u(5)})", 0x1fc),
     branch("checksig_b4", "`a1 < BOX_LO`", 0x1fc, 1, f"BitVec.ult ({u(11)}) {LO}", 0x200, hyps=HT1, extra=", ht1"),
     branch("checksig_b5", "`BOX_HI < a1`", 0x200, 1, f"BitVec.ult {HI} ({u(11)})", 0x204, hyps=HT2, extra=", ht2"),
-    branch("checksig_b6", "`BOX_HI - a1 < 64`", 0x204, 3, f"BitVec.ult ({SUB(11)}) 64#32", 0x210,
-           regs=f"(28, {SUB(11)}), (5, 64#32)", hyps=HT2, extra=", ht2"),
+    Chunk("checksig_s6", "`t3 = BOX_HI - a1`, `t0 = 64`.", 2, h(0x204), h(0x20c), regs=f"(28, {SUB(11)}), (5, 64#32)", hyps=HT2, extra=", ht2"),
+    branch("checksig_b6", "`BOX_HI - a1 < 64`", 0x20c, 1, f"BitVec.ult ({u(28)}) ({u(5)})", 0x210),
     Chunk("checksig_fwd_1", "Forward: the port's address, and the key pointer.", 3, h(0x210), h(0x21c),
           regs="(28, 0xc0000010#32)", svc=[num(10), None, None, None], store=True),
     Chunk("checksig_fwd_2", "Forward: the signature pointer.", 1, h(0x21c), h(0x220), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
@@ -634,6 +634,8 @@ def call_steps(call, upto, ok):
         st.append(S("call_is_checksig", resolve=OFM + ", ht0"))
     st.append(S(f"{pre}_load"))
     for j in range(1, upto + 1):
+        if j in (3, 6):
+            st.append(S(f"{pre}_s{j}"))
         st.append(S(f"{pre}_b{j}", resolve=f"{{R}}, hb{j}"))
     return st
 
