@@ -16,7 +16,7 @@ theorem FrameSP.trans {a b c : Word → Byte} (h1 : FrameSP a b) (h2 : FrameSP b
 
 /-- The park loop, reached: every register but `a0` zero, `mscratch` zero, the two words trap entry saved zero. -/
 def Parked (t : PrivMachine) (a0 : Word) : Prop :=
-  t.core.pc = 0x80000250#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
+  t.core.pc = 0x80000254#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
   readLE t.core.mem 0x80008000#32 4 = 0 ∧ readLE t.core.mem 0x80008004#32 4 = 0 ∧
   t.core.reg 10#5 = a0 ∧ ∀ r, r ≠ 10#5 → t.core.reg r = 0#32
 
@@ -30,9 +30,9 @@ def exitCode (u : PrivMachine) : Word :=
 def trapSteps (u : PrivMachine) : Nat :=
   if u.csrs.mcause = 8#32 then (if u.core.reg 5#5 = 1#32 then 57 else 62) else 59
 
-/-- The machine `k` steps into the payload, after boot's `60`. -/
+/-- The machine `k` steps into the payload, after boot's `61`. -/
 def payloadAt (env : Rv32.Env) (s : PrivMachine) (k : Nat) : PrivMachine :=
-  PrivMachine.run env k (PrivMachine.run env 60 s)
+  PrivMachine.run env k (PrivMachine.run env 61 s)
 
 /-- The machine the monitor leaves after handling the trap at `u`. -/
 def parkedAfter (env : Rv32.Env) (u : PrivMachine) : PrivMachine :=

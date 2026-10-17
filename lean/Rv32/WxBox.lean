@@ -28,6 +28,8 @@ stack, or past the stack, matches nothing, and U-mode that matches nothing is re
     instructions is assumed; it is the PMP alone.
 
 `pmpCheck_M_outside_in` is the other side: M-mode code outside the box is never refused, whatever the entries.
+`pmpCheck_M_unlocked`: while no entry is locked, M-mode is refused nowhere, for an aligned word -- what a boot needs
+that starts from whatever CSRs it finds.
 
 The data and the stack have to sit inside the 32-bit address space (`dHi, kHi ≤ 2^32`), or a store at the top
 would wrap round into the bottom.
@@ -364,4 +366,51 @@ theorem pmpCheck_M_outside_in (csrs : PrivCSRs) (lo hi : Nat) (addr : Word) (wid
   decide
 
 end
+
+/-! ## M-mode is not refused anywhere while no entry is locked -/
+
+/-- No entry of `pmpcfg0` is locked. M-mode is then held to none of them: what a reset leaves, and what a monitor
+    that never sets `L` leaves for the next round. -/
+def PmpUnlocked (cfg : Word) : Prop := ∀ i : Fin 4, (decodePmpCfgByte cfg i).lock = false
+
+/-- The two ends of a NAPOT range are multiples of four. -/
+theorem decodeNapotRange_mod4 (raw : Word) :
+    (decodeNapotRange raw).1 % 4 = 0 ∧ (decodeNapotRange raw).2 % 4 = 0 := by
+  unfold decodeNapotRange
+  simp only [Nat.shiftLeft_eq, Nat.one_mul, Nat.pow_add]
+  omega
+
+/-- An aligned word either misses an entry or lies wholly inside it: it never straddles an edge. -/
+theorem matchPmpEntry_aligned4 (csrs : PrivCSRs) (i : Fin 4) (addr : Word) (hal : addr.toNat % 4 = 0) :
+    matchPmpEntry csrs i addr 4 = .NoMatch ∨
+      matchPmpEntry csrs i addr 4 = .FullMatch (decodePmpCfgByte csrs.pmpcfg0 i) := by
+  obtain ⟨h1, h2⟩ := decodeNapotRange_mod4 (pmpAddrVal csrs i)
+  unfold matchPmpEntry
+  generalize decodeNapotRange (pmpAddrVal csrs i) = p at h1 h2
+  obtain ⟨lo, hi⟩ := p
+  simp only at h1 h2 ⊢
+  split
+  · exact Or.inl rfl
+  · split
+    · exact Or.inl rfl
+    · split
+      · exact Or.inr rfl
+      · exfalso; omega
+
+/-- **Whatever the entries say, while none is locked, M-mode reads, writes and runs any aligned word.** A boot that
+    starts from CSRs it did not set needs this for every word it runs before it has set the PMP. -/
+theorem pmpCheck_M_unlocked (csrs : PrivCSRs) (addr : Word) (acc : AccessType)
+    (hl : PmpUnlocked csrs.pmpcfg0) (hal : addr.toNat % 4 = 0) :
+    pmpCheck csrs .M addr 4 acc = true := by
+  have key : ∀ l : List (Fin 4), pmpCheckEntries csrs .M addr 4 acc l = true := by
+    intro l
+    induction l with
+    | nil => simp [pmpCheckEntries]
+    | cons i rest ih =>
+      unfold pmpCheckEntries
+      rcases matchPmpEntry_aligned4 csrs i addr hal with h | h <;> rw [h]
+      · exact ih
+      · simp [hasPermission, hl i]
+  exact key _
+
 end Rv32.Priv

@@ -5,9 +5,12 @@ Writes proof/Wx.lean.
 
 The proof runs `monitorCode` on `PrivMachine` in short runs ("chunks"), as exp238's and exp239's do, with the machinery in
 tools/monitor/chunks.py. The monitor's words are exp236's but for the seven that boot adds to set three PMP entries
-instead of one, so everything from the trap vector on is where exp236's was, 0x1c bytes further on: the definitions and
-the proof of boot are exp236's text with the PMP values changed and the addresses moved (`shift`), and the proof of the
-handler is a table of chunks, as exp239's is, from the trap vector to the park loop.
+instead of one, and the one more it spends on writing every CSR the model has (`mstatus` whole, where exp236 cleared
+`MPP` with three words, and `pmpaddr3`, `mcause`, `mtval`), so everything from the trap vector on is where exp236's was,
+0x20 bytes further on: the definitions and the second half of boot are exp236's text with the PMP values changed and
+the addresses moved (`shift`); the first half of boot is written here, since it starts from any CSRs and exp236's
+starts from reset's; and the proof of the handler is a table of chunks, as exp239's is, from the trap vector to the
+park loop.
 
 What is written by hand is in defs.lean (after the definitions it shares with the chunks) and tail.lean (the theorems
 that join them: from reset, and round after round).
@@ -28,9 +31,9 @@ sys.path.insert(0, os.path.join(REPO, "tools", "monitor"))
 import chunks
 from chunks import Chunk, Step, FROZEN, RCASES, REGLIST, R32T, HNAMES
 
-WORDS = 150
+WORDS = 151
 BYTES = WORDS * 4
-SH = 0x1c                              # seven words more of boot than exp236's: where its trap vector was, plus this
+SH = 0x20                              # eight words more of boot than exp236's: where its trap vector was, plus this
 chunks.configure(WORDS)
 
 HEAD = """/-
@@ -101,8 +104,8 @@ def swap(text: str, old: str, new: str, count: int = 1) -> str:
 # ---- the PMP of this monitor, as exp236 had one entry
 
 CFG, A0, A1, A2 = "0x001b1b1d#32", "0x2000400f#32", "0x200041ff#32", "0x20007dff#32"
-BOOT_STEPS = 27            # exp236's 20 and the seven words the entries add
-ALL_STEPS = 60             # exp236's 53 and the same
+BOOT_STEPS = 28            # exp236's 20, the seven words the entries add, and one for the CSRs written whole
+ALL_STEPS = 61             # exp236's 53 and the same
 
 CODE = "0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000"
 
@@ -110,8 +113,9 @@ CODE = "0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000"
 def definitions(t: str) -> str:
     t = swap(t, "/-- What boot's first twenty steps leave in the CSRs: trap vector, stack pointer for traps, the\n"
                 "    PMP fencing off the payload region, the `mret` target, counters frozen at zero. -/",
-             "/-- What boot's first twenty-seven steps leave in the CSRs: trap vector, stack pointer for traps, the\n"
-             "    three PMP entries (code, data, stack), the `mret` target, counters frozen at zero. -/")
+             "/-- What boot's first twenty-eight steps leave in the CSRs, whatever they held: trap vector, stack pointer\n"
+             "    for traps, the three PMP entries (code, data, stack) and the fourth's address zero, the `mret` target,\n"
+             "    counters frozen at zero, `mstatus`, `mcause` and `mtval` zero. -/")
     t = swap(t, "    pmpcfg0 := 0x1f#32, pmpaddr0 := 0x20005fff#32,\n    mcountinhibit := { cy := true, ir := true } }",
              f"    pmpcfg0 := {CFG}, pmpaddr0 := {A0}, pmpaddr1 := {A1},\n    pmpaddr2 := {A2},\n"
              "    mcountinhibit := { cy := true, ir := true } }")
@@ -149,8 +153,43 @@ def csrsBooted : PrivCSRs :=
 
 
 def boot_proof(t: str) -> str:
-    """exp236's boot, changed to set the three entries, and to say `WXBoxed` where it said `UBoxed`."""
+    """exp236's boot, changed to set the three entries, to start from any CSRs that lock no entry, and to say `WXBoxed`
+    where it said `UBoxed`."""
     t = swap(t, "run env 20 ", f"run env {BOOT_STEPS} ", count=t.count("run env 20 "))
+    i = t.index("set_option maxHeartbeats 4000000 in\nset_option maxRecDepth 100000 in\ntheorem monitor_boot_config")
+    j = t.index("/-! ## Boot, second half")
+    end = f"0x{0x80000090 + SH:08x}#32"
+    t = t[:i] + f"""set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- Boot's first {BOOT_STEPS} steps, from any CSRs at all but a locked PMP entry: they write every CSR the model has, so
+    `csrsConfigured` is where they end whatever was there. Until `pmpcfg0` is written the PMP is whatever the
+    machine came with, and what lets M-mode run through it is that none of its entries is locked
+    (`pmpCheck_M_unlocked`). -/
+theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
+    (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
+    (hlock : PmpUnlocked s.csrs.pmpcfg0) :
+    (PrivMachine.run env {BOOT_STEPS} s).core.pc = {end} ∧
+    (PrivMachine.run env {BOOT_STEPS} s).core.mem = M0 ∧
+    (PrivMachine.run env {BOOT_STEPS} s).halted = false ∧
+    (PrivMachine.run env {BOOT_STEPS} s).mode = .M ∧
+    (PrivMachine.run env {BOOT_STEPS} s).csrs = csrsConfigured := by
+  have sm := sm_mon env M0 hW
+  have l0 := hlock 0
+  have l1 := hlock 1
+  have l2 := hlock 2
+  have l3 := hlock 3
+  have hcfg : PmpUnlocked {CFG} := by intro i; revert i; decide
+  have k3 := hcfg 3
+  -- the counters count until `csrwi mcountinhibit, 5`, or not, as the inhibit bits they find say; then they are zeroed
+  rcases hci : s.csrs.mcountinhibit with ⟨_ | _, _ | _⟩ <;>
+  · obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env {BOOT_STEPS} s = F := ⟨_, rfl⟩
+    rw [hF]
+    psimpH [sm, hmem, hpc, monitorCode, hh, hm, hci, l0, l1, l2, l3, k3, hlock, hcfg, pmpCheck_M_unlocked] at hF
+    subst hF
+    psimpH [hpc, hmem, csrsConfigured]
+
+""" + t[j:]
     t = swap(t, "    (PrivMachine.run env 1 s).csrs.pmpcfg0 = 0x1f#32 ∧\n"
                 "    (PrivMachine.run env 1 s).csrs.pmpaddr0 = 0x20005fff#32 ∧\n"
                 "    (PrivMachine.run env 1 s).csrs.pmpaddr1 = 0#32 ∧\n"
@@ -166,20 +205,20 @@ def boot_proof(t: str) -> str:
     b = swap(b, "  psimp [hpc, hmem, csrsConfigured, csrsReady]", "  psimp [hpc, hmem, csrsConfigured, csrsReady, csrsBooted, csrsH]")
     t = a + b
     i = t.index("/-- From reset (the image loaded")
-    return t[:i] + f"""/-- From reset (the image loaded at `0x80000000`, `pc = 0x80000040`, M-mode, CSRs at their reset
-    values, any registers), {ALL_STEPS} steps leave the machine in U-mode at the payload's first word, the PMP fencing it
+    return t[:i] + f"""/-- From reset (the image loaded at `0x80000000`, `pc = 0x80000040`, M-mode, any CSRs that lock no PMP entry --
+    reset's among them -- any registers), {ALL_STEPS} steps leave the machine in U-mode at the payload's first word, the PMP fencing it
     in with three entries -- code `[0x80010000, 0x80010080)` read and execute, data `[0x80010000, 0x80011000)` and
     stack `[0x8001f000, 0x80020000)` read and write -- every register zero but `sp`. -/
 theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
     (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
-    (hcs : s.csrs = {{}}) :
+    (hlock : PmpUnlocked s.csrs.pmpcfg0) :
     WXBoxed (PrivMachine.run env {ALL_STEPS} s) {CODE} ∧
     (PrivMachine.run env {ALL_STEPS} s).core.pc = 0x80010000#32 ∧
     (PrivMachine.run env {ALL_STEPS} s).csrs = csrsBooted ∧
     (PrivMachine.run env {ALL_STEPS} s).core.mem = M0 ∧
     (∀ r, (PrivMachine.run env {ALL_STEPS} s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
-  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hcs
+  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock
   have hC0 : Cleared 0 (PrivMachine.run env {BOOT_STEPS} s) := by
     intro r hr
     have : r = 0 := by bv_omega
@@ -373,7 +412,7 @@ def trap_glue() -> str:
       obtain ⟨k1, k2⟩ := {fix} r
       have hn : trapSteps u = {steps} := by simp [trapSteps, hcu, hc{", ht0" if "ht0" in args else ""}]
       rw [hn]
-      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv⟩
+      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv, by rw [cc]; rfl⟩
       rw [k1]
 {a0}
 """
@@ -388,13 +427,14 @@ def trap_glue() -> str:
     and memory, and whatever it was that trapped -- an `ecall` for HALT, an `ecall` for anything else, or a fault --
     the monitor parks with the exit code `exitCode u` (the payload's own `a0` for a HALT, 1 for the rest), every other
     register zero, `mscratch` and the saved words zero, its own words in place, and **every byte of memory but its stack
-    words and its report words as the payload left it**: the code, the data, the stack, the rest. -/
+    words and its report words as the payload left it**: the code, the data, the stack, the rest; and the PMP as boot set it. -/
 theorem monitor_traps (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
     (hS : HState env M0 u) (ms : MStatus) (e c m cy : Word)
     (hpc : u.core.pc = {h(0x114)}#32) (hcs : u.csrs = csrsH ms e c m cy {{}} 0x80008000#32) :
     Parked (PrivMachine.run env (trapSteps u) u) (exitCode u) ∧
       Agree M0 (PrivMachine.run env (trapSteps u) u).core.mem 0x80000000 {BYTES} ∧
-      FrameSP u.core.mem (PrivMachine.run env (trapSteps u) u).core.mem := by
+      FrameSP u.core.mem (PrivMachine.run env (trapSteps u) u).core.mem ∧
+      (PrivMachine.run env (trapSteps u) u).csrs.pmpcfg0 = {CFG} := by
   have hcu : u.csrs.mcause = c := by rw [hcs]; rfl
   by_cases hc : c = 8#32
   · by_cases ht0 : u.core.reg 5#5 = 1#32

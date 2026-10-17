@@ -12,6 +12,10 @@ It is a second, independent reading of the specification next to `lean/Rv32/Priv
 for testing rather than proof: a monitor and a payload agree with it, or they do not.
 
 Memory is flat RAM at `BASE`; two words of MMIO stand for the testbench's print and exit ports.
+An access the PMP allows to an address with no RAM there faults with the same `mcause` and `mtval`
+as one the PMP refuses, as a bus fault does on the chip; `Trap.by` and each entry of `traps` say
+which it was (`"pmp"` or `"bus"`), so that a test can tell a box that held from a box that let the
+access through to nothing.
 Not modelled: interrupts, the C extension, `mcounteren`, `fence`, `ebreak` beyond its trap.
 """
 
@@ -52,8 +56,9 @@ def sext(v: int, bits: int) -> int:
 
 
 class Trap(Exception):
-    def __init__(self, cause: int, tval: int = 0):
-        self.cause, self.tval = cause, tval
+    """A trap: `cause` and `tval`, and for an access fault `by`, what refused it -- `"pmp"`, or `"bus"`: no memory there."""
+    def __init__(self, cause: int, tval: int = 0, by: str = None):
+        self.cause, self.tval, self.by = cause, tval, by
 
 
 class SandboxEmulator:
@@ -116,17 +121,17 @@ class SandboxEmulator:
         if addr % width:
             raise Trap(C_LOAD_MISALIGNED, addr)
         if not self.pmp_ok(addr, width, "R"):
-            raise Trap(C_LOAD_ACCESS, addr)
+            raise Trap(C_LOAD_ACCESS, addr, "pmp")
         off = addr - BASE
         if not (0 <= off and off + width <= len(self.mem)):
-            raise Trap(C_LOAD_ACCESS, addr)
+            raise Trap(C_LOAD_ACCESS, addr, "bus")
         return int.from_bytes(self.mem[off:off + width], "little")
 
     def store(self, addr: int, width: int, val: int):
         if addr % width:
             raise Trap(C_STORE_MISALIGNED, addr)
         if not self.pmp_ok(addr, width, "W"):
-            raise Trap(C_STORE_ACCESS, addr)
+            raise Trap(C_STORE_ACCESS, addr, "pmp")
         if addr == IO_PRINT and width == 4:
             self.prints.append(val & M32)
             return
@@ -135,7 +140,7 @@ class SandboxEmulator:
             return
         off = addr - BASE
         if not (0 <= off and off + width <= len(self.mem)):
-            raise Trap(C_STORE_ACCESS, addr)
+            raise Trap(C_STORE_ACCESS, addr, "bus")
         self.mem[off:off + width] = (val & ((1 << (8 * width)) - 1)).to_bytes(width, "little")
 
     # ---- CSRs ------------------------------------------------------------------------------
@@ -206,8 +211,8 @@ class SandboxEmulator:
 
     # ---- traps -----------------------------------------------------------------------------
 
-    def take_trap(self, cause: int, tval: int):
-        self.traps.append({"cause": cause, "tval": tval, "mepc": self.pc, "mode": self.mode})
+    def take_trap(self, cause: int, tval: int, by: str = None):
+        self.traps.append({"cause": cause, "tval": tval, "mepc": self.pc, "mode": self.mode, "by": by})
         mpp = 3 if self.mode == "M" else 0
         mie = bool(self.mstatus & MIE)
         self.mstatus = (mpp << 11) | (MPIE if mie else 0)
@@ -235,17 +240,17 @@ class SandboxEmulator:
         try:
             self.execute()
         except Trap as t:
-            self.take_trap(t.cause, t.tval)
+            self.take_trap(t.cause, t.tval, t.by)
 
     def execute(self):
         pc = self.pc
         if pc % 4:
             raise Trap(C_FETCH_MISALIGNED, pc)
         if not self.pmp_ok(pc, 4, "X"):
-            raise Trap(C_FETCH_ACCESS, pc)
+            raise Trap(C_FETCH_ACCESS, pc, "pmp")
         off = pc - BASE
         if not (0 <= off and off + 4 <= len(self.mem)):
-            raise Trap(C_FETCH_ACCESS, pc)
+            raise Trap(C_FETCH_ACCESS, pc, "bus")
         w = struct.unpack("<I", self.mem[off:off + 4])[0]
         op = w & 0x7F
         rd, f3, rs1, rs2, f7 = (w >> 7) & 31, (w >> 12) & 7, (w >> 15) & 31, (w >> 20) & 31, w >> 25

@@ -18,11 +18,14 @@ stack_entry_executable|the stack entry is read, write and execute (0x1f)|s/0x001
 code_entry_off|the code entry is off: the data entry alone, 4 KiB of read and write|s/0xb1d28293#32/0xb0028293#32/
 entry_three_on|entry 3 is on, NAPOT, read, write and execute|s/0x001b22b7#32/0x1f1b22b7#32/
 entries_swapped|the code and the data entries swap places: the data is tried first|s/0x00f28293#32/TMP#32/;s/0x1ff28293#32/0x00f28293#32/;s/TMP#32/0x1ff28293#32/
-mret_to_m_mode|boot sets MPP to M-mode instead of clearing it|s/0x3002b073#32/0x3002a073#32/
+mstatus_kept|boot ORs t0 into mstatus instead of writing it whole: MPP is whatever the last round left|s/0x30001073#32/0x3002a073#32/
+pmpaddr3_kept|boot does not write pmpaddr3: it is whatever the last round left|s/0x3b301073#32/0x00000013#32/
+mcause_kept|boot does not write mcause: it is whatever the last round left|s/0x34201073#32/0x00000013#32/
+mtval_kept|boot does not write mtval: the next fault reports the last round's|s/0x34301073#32/0x00000013#32/
 payload_entry_wrong|boot sends the payload to 0x80020000, past its region|s/0x800102b7#32/0x800202b7#32/
 payload_sp_wrong|boot gives the payload an sp at the bottom of its region|s/0x80020137#32/0x80010137#32/
 boot_leaves_x31|boot loads 1 into x31 instead of zero|0,/0x00000f93#32/s//0x00100f93#32/
-trap_vector_wrong|boot points mtvec four bytes past the handler|s/0x0f028293#32/0x0f428293#32/
+trap_vector_wrong|boot points mtvec four bytes past the handler|s/0x0f428293#32/0x0f828293#32/
 mscratch_wrong|boot puts the M-mode stack in the payload's region|s/0x800082b7#32/0x800092b7#32/
 no_stack_swap|the handler keeps the payload's sp|s/0x34011173#32/0x00000013#32/
 cause_check_dropped|the handler never looks at mcause|s/0x04628063#32/0x00000013#32/
@@ -35,7 +38,10 @@ mmio_address_wrong|the reports go to a word in the payload's region|s/0xc0000337
 counters_start_at_three|claim: boot leaves the counters at 3, not 2|s/0x80010000#32 0#32 2#32 2#32 {}/0x80010000#32 0#32 3#32 3#32 {}/
 halt_takes_56_steps|claim: a HALT takes the monitor 56 steps, not 57|s/then 57 else 62/then 56 else 62/
 code_one_word_longer|claim: the code is four bytes longer, [0x80010000, 0x80010084)|s/x.toNat < 0x80010080 → m x = C x/x.toNat < 0x80010084 → m x = C x/
-park_loop_one_word_on|claim: the park loop is one word on|s/t.core.pc = 0x80000250#32/t.core.pc = 0x80000254#32/
+park_loop_one_word_on|claim: the park loop is one word on|s/t.core.pc = 0x80000254#32/t.core.pc = 0x80000258#32/
+ready_allows_a_lock|claim: a round may start with a PMP entry locked|s/^  unlocked : PmpUnlocked p.csrs.pmpcfg0$//
+host_may_write_code|claim: the host may write the code between rounds|s/ ∨ (0x80010000 ≤ x.toNat ∧ x.toNat < 0x80010080) →$/ →/
+host_may_lock|claim: the host may lock a PMP entry between rounds|s/^  PmpUnlocked q.csrs.pmpcfg0 ∧$/  True ∧/
 sandbox_store_unchecked|U-mode stores skip the PMP check|s/if ¬ pmpCheck s.csrs s.mode a op.size .Store then some CAUSE_STORE_ACCESS_FAULT/if False then some CAUSE_STORE_ACCESS_FAULT/|lean/Rv32/Priv.lean
 sandbox_ecall_passes|U-mode ecall is executed instead of trapped|s/else if isEcall w then/else if False then/|lean/Rv32/Priv.lean
 pmp_entries_tried_backwards|the entries are tried from 3 down to 0, so the lowest does not win|s/def PMP_INDICES : List (Fin 4) := \[0, 1, 2, 3\]/def PMP_INDICES : List (Fin 4) := [3, 2, 1, 0]/|lean/Rv32/Priv.lean
@@ -46,3 +52,4 @@ pmp_unmatched_user_passes|U-mode that matches no entry passes|s/\[\] => mode = \
 lib_code_cfg_writable|the library's code entry has W set|s/def wxCodeCfg : PmpCfgEntry := { r := true, w := false,/def wxCodeCfg : PmpCfgEntry := { r := true, w := true,/|lean/Rv32/WxBox.lean
 lib_data_cfg_executable|the library's data entry has X set|s/def wxDataCfg : PmpCfgEntry := { r := true, w := true, x := false,/def wxDataCfg : PmpCfgEntry := { r := true, w := true, x := true,/|lean/Rv32/WxBox.lean
 lib_frozen_forgets_last_code_word|a byte in the last word of the code is not frozen|s/^  (cLo ≤ x.toNat ∧ x.toNat < cHi) ∨/  (cLo ≤ x.toNat ∧ x.toNat + 4 < cHi) ∨/|lean/Rv32/WxBox.lean
+pmp_m_mode_held_to_entries|M-mode is held to the entries as U-mode is, locked or not|s/if mode = \.M ∧ ¬ cfg\.lock then/if False then/|lean/Rv32/Priv.lean
