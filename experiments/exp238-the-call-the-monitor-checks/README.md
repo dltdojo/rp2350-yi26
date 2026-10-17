@@ -140,7 +140,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp238 — the call the monitor checks ===
-recorded at 2026-10-16T18:46:27Z from commit ac39dcc
+recorded at 2026-10-17T03:57:08Z from commit 5d17005
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
@@ -156,6 +156,7 @@ PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor
 'Exp238.monitor_hashb_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.ends_refuses' depends on axioms: [propext, Quot.sound]
 'Exp238.monitor_cycle' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_end_to_end' depends on axioms: [propext, Classical.choice, Quot.sound]
 exit 0
@@ -297,7 +298,7 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
 PASS  no lifeline, and it says why: no firmware of its own
 PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
 PASS  Calls.lean checks, with no errors and no warnings
-PASS  all 12 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 13 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  hashb_input_floor_dropped: the proof refuses a version where HASHB lets an input start below the box
 PASS  hashb_length_by_addition: the proof refuses a version where HASHB tests ptr + len, which wraps, instead of what is left of the box
 PASS  hashb_output_room_16: the proof refuses a version where HASHB checks room for 16 bytes of output, not 32
