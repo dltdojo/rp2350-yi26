@@ -193,27 +193,29 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp240 — the code the box forbids writing ===
-recorded at 2026-10-17T10:02:06Z from commit 0fb782a
+recorded at 2026-10-17T12:36:35Z from commit 13d1250
 
 >>> the micro-monitor binary and size budget
-PASS  monitor.bin (600 bytes, 150 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
+PASS  monitor.bin (604 bytes, 151 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
 
 >>> the formal theorems, and what they rest on
 'Exp240.monitorCode_length' does not depend on any axioms
-'Exp240.monitor_boot' depends on axioms: [propext, Quot.sound]
+'Exp240.monitor_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.monitor_halt' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.monitor_fault_cause' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.monitor_fault_syscall' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.monitor_traps' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.payload_runs' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.monitor_end_to_end' depends on axioms: [propext, Classical.choice, Quot.sound]
-'Exp240.monitor_reentry' depends on axioms: [propext, Quot.sound]
+'Exp240.ready_of_host' depends on axioms: [propext, Quot.sound]
+'Exp240.monitor_reentry' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.monitor_round_ready' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp240.monitor_rounds' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Rv32.Priv.wx_fetch_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Rv32.Priv.wx_store_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Rv32.Priv.wx_load_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Rv32.Priv.pmpCheck_M_outside_in' depends on axioms: [propext, Quot.sound]
+'Rv32.Priv.pmpCheck_M_unlocked' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Rv32.Priv.wx_step' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Rv32.Priv.wx_run' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Rv32.Priv.wx_code_immutable' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -221,58 +223,70 @@ PASS  monitor.bin (600 bytes, 150 words) is monitor.S assembled, matches monitor
 exit 0
 
 >>> wrong monitors, wrong claims and wrong models: each must be refused
-code_entry_256_bytes               pmpaddr0 fences 256 bytes of code, not 128                                refused in monitor_boot_config
-code_entry_64_bytes                pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable   refused in monitor_boot_config
-data_entry_8_kib                   pmpaddr1 fences 8 KiB of data, not 4                                      refused in monitor_boot_config
-data_entry_2_kib                   pmpaddr1 fences 2 KiB of data, not 4                                      refused in monitor_boot_config
-stack_entry_to_the_monitor         pmpaddr2 reaches down to 0x80000000                                       refused in monitor_boot_config
-stack_entry_8_kib                  pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short           refused in monitor_boot_config
-code_entry_writable                the code entry is read, write and execute (0x1f)                          refused in monitor_boot_config
-data_entry_executable              the data entry is read, write and execute (0x1f)                          refused in monitor_boot_config
-stack_entry_executable             the stack entry is read, write and execute (0x1f)                         refused in monitor_boot_config
-code_entry_off                     the code entry is off: the data entry alone, 4 KiB of read and write      refused in monitor_boot_config
-entry_three_on                     entry 3 is on, NAPOT, read, write and execute                             refused in monitor_boot_config
-entries_swapped                    the code and the data entries swap places: the data is tried first        refused in monitor_boot_config
-mret_to_m_mode                     boot sets MPP to M-mode instead of clearing it                            refused in monitor_boot_config
-payload_entry_wrong                boot sends the payload to 0x80020000, past its region                     refused in monitor_boot_config
-payload_sp_wrong                   boot gives the payload an sp at the bottom of its region                  refused in monitor_launch_1
-boot_leaves_x31                    boot loads 1 into x31 instead of zero                                     refused in monitor_launch_3
-trap_vector_wrong                  boot points mtvec four bytes past the handler                             refused in monitor_boot_config
-mscratch_wrong                     boot puts the M-mode stack in the payload's region                        refused in monitor_boot_config
-no_stack_swap                      the handler keeps the payload's sp                                        refused in entry_1
-cause_check_dropped                the handler never looks at mcause                                         refused in entry_mcause
-syscall_check_dropped              the handler takes every ecall for HALT                                    refused in call_is_halt
-fault_exit_code_two                a fault exits with 2                                                      refused in fault_6
-fault_skips_scrub                  a fault jumps to the park loop, not the scrub                             refused in fault_6
-saved_t0_stays                     the scrub leaves the saved t0 on the M-mode stack                         refused in scrub_1a
-scrub_leaves_sp                    the scrub loads 1 into x2                                                 refused in regs_a
-mmio_address_wrong                 the reports go to a word in the payload's region                          refused in fault_1
-counters_start_at_three            claim: boot leaves the counters at 3, not 2                               refused in monitor_launch_5
-halt_takes_56_steps                claim: a HALT takes the monitor 56 steps, not 57                          refused in monitor_traps
-code_one_word_longer               claim: the code is four bytes longer, [0x80010000, 0x80010084)            refused in monitor_end_to_end
-park_loop_one_word_on              claim: the park loop is one word on                                       refused in monitor_traps
-sandbox_store_unchecked            U-mode stores skip the PMP check                                          refused in st_in_box
-sandbox_ecall_passes               U-mode ecall is executed instead of trapped                               refused in trap_none_plain
-pmp_entries_tried_backwards        the entries are tried from 3 down to 0, so the lowest does not win        refused in umode_default_deny
-pmp_partial_match_passes           an access that straddles an entry's edge passes                           refused in pmpCheck_uboxed_iff
-pmp_store_needs_read_not_write     a store needs the entry's R bit, not its W bit                            refused in pmpCheck_uboxed_iff
-pmp_fetch_needs_read_not_execute   a fetch needs the entry's R bit, not its X bit                            refused in pmpCheck_uboxed_iff
-pmp_unmatched_user_passes          U-mode that matches no entry passes                                       refused in umode_default_deny
-lib_code_cfg_writable              the library's code entry has W set                                        refused in wx_store_ok
-lib_data_cfg_executable            the library's data entry has X set                                        refused in wx_fetch_iff
-lib_frozen_forgets_last_code_word  a byte in the last word of the code is not frozen                         refused in wx_code_immutable
+code_entry_256_bytes               pmpaddr0 fences 256 bytes of code, not 128                                                  refused in monitor_boot_config
+code_entry_64_bytes                pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable                     refused in monitor_boot_config
+data_entry_8_kib                   pmpaddr1 fences 8 KiB of data, not 4                                                        refused in monitor_boot_config
+data_entry_2_kib                   pmpaddr1 fences 2 KiB of data, not 4                                                        refused in monitor_boot_config
+stack_entry_to_the_monitor         pmpaddr2 reaches down to 0x80000000                                                         refused in monitor_boot_config
+stack_entry_8_kib                  pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short                             refused in monitor_boot_config
+code_entry_writable                the code entry is read, write and execute (0x1f)                                            refused in monitor_boot_config
+data_entry_executable              the data entry is read, write and execute (0x1f)                                            refused in monitor_boot_config
+stack_entry_executable             the stack entry is read, write and execute (0x1f)                                           refused in monitor_boot_config
+code_entry_off                     the code entry is off: the data entry alone, 4 KiB of read and write                        refused in monitor_boot_config
+entry_three_on                     entry 3 is on, NAPOT, read, write and execute                                               refused in monitor_boot_config
+entries_swapped                    the code and the data entries swap places: the data is tried first                          refused in monitor_boot_config
+mstatus_kept                       boot ORs t0 into mstatus instead of writing it whole: MPP is whatever the last round left   refused in monitor_boot_config
+pmpaddr3_kept                      boot does not write pmpaddr3: it is whatever the last round left                            refused in monitor_boot_config
+mcause_kept                        boot does not write mcause: it is whatever the last round left                              refused in monitor_boot_config
+mtval_kept                         boot does not write mtval: the next fault reports the last round's                          refused in monitor_boot_config
+payload_entry_wrong                boot sends the payload to 0x80020000, past its region                                       refused in monitor_boot_config
+payload_sp_wrong                   boot gives the payload an sp at the bottom of its region                                    refused in monitor_launch_1
+boot_leaves_x31                    boot loads 1 into x31 instead of zero                                                       refused in monitor_launch_3
+trap_vector_wrong                  boot points mtvec four bytes past the handler                                               refused in monitor_boot_config
+mscratch_wrong                     boot puts the M-mode stack in the payload's region                                          refused in monitor_boot_config
+no_stack_swap                      the handler keeps the payload's sp                                                          refused in entry_1
+cause_check_dropped                the handler never looks at mcause                                                           refused in entry_mcause
+syscall_check_dropped              the handler takes every ecall for HALT                                                      refused in call_is_halt
+fault_exit_code_two                a fault exits with 2                                                                        refused in fault_6
+fault_skips_scrub                  a fault jumps to the park loop, not the scrub                                               refused in fault_6
+saved_t0_stays                     the scrub leaves the saved t0 on the M-mode stack                                           refused in scrub_1a
+scrub_leaves_sp                    the scrub loads 1 into x2                                                                   refused in regs_a
+mmio_address_wrong                 the reports go to a word in the payload's region                                            refused in fault_1
+counters_start_at_three            claim: boot leaves the counters at 3, not 2                                                 refused in monitor_launch_5
+halt_takes_56_steps                claim: a HALT takes the monitor 56 steps, not 57                                            refused in monitor_traps
+code_one_word_longer               claim: the code is four bytes longer, [0x80010000, 0x80010084)                              refused in monitor_end_to_end
+park_loop_one_word_on              claim: the park loop is one word on                                                         refused in monitor_traps
+ready_allows_a_lock                claim: a round may start with a PMP entry locked                                            refused in ready_of_host
+host_may_write_code                claim: the host may write the code between rounds                                           refused in ready_of_host
+host_may_lock                      claim: the host may lock a PMP entry between rounds                                         refused in ready_of_host
+sandbox_store_unchecked            U-mode stores skip the PMP check                                                            refused in st_in_box
+sandbox_ecall_passes               U-mode ecall is executed instead of trapped                                                 refused in trap_none_plain
+pmp_entries_tried_backwards        the entries are tried from 3 down to 0, so the lowest does not win                          refused in umode_default_deny
+pmp_partial_match_passes           an access that straddles an entry's edge passes                                             refused in pmpCheck_uboxed_iff
+pmp_store_needs_read_not_write     a store needs the entry's R bit, not its W bit                                              refused in pmpCheck_uboxed_iff
+pmp_fetch_needs_read_not_execute   a fetch needs the entry's R bit, not its X bit                                              refused in pmpCheck_uboxed_iff
+pmp_unmatched_user_passes          U-mode that matches no entry passes                                                         refused in umode_default_deny
+lib_code_cfg_writable              the library's code entry has W set                                                          refused in wx_store_ok
+lib_data_cfg_executable            the library's data entry has X set                                                          refused in wx_fetch_iff
+lib_frozen_forgets_last_code_word  a byte in the last word of the code is not frozen                                           refused in wx_code_immutable
+pmp_m_mode_held_to_entries         M-mode is held to the entries as U-mode is, locked or not                                   refused in pmpCheck_M_unlocked
 
 >>> exp225's Rule 30 kernel, round after round, under the monitor
 PASS  100 rounds of exp225's Rule 30 kernel under the monitor, 25600 generations, the kernel loaded once:
       each round: HALT 0, minstret 3081 = 3079 + 2, mcycle 3081; one trap, the ecall
       each round: the 1,024 bytes of history are rule30.py's, and the kernel run alone leaves the same
       each round: 256 KiB of RAM unchanged but for the history and the monitor's two stack words
-      the code entry's 128 bytes the same after every round; the parked machine the same after every round
+      the code entry's 128 bytes the same after every round; the parked machine the same after every round,
+      though every other round started from a reset that left junk in the CSRs (MPP M-mode, four PMP entries on)
       SHA-256 of the 25600 generations: 53f14f5b390e205cf7a174142803e8d96adf274ed4b44397d8934b91c3a4bbe0
-PASS  exp236's monitor, one RWX entry over the box, gives the same: the stricter box costs the kernel nothing
+PASS  exp236's monitor, one RWX entry over the box, gives the same from a reset of the CSRs: the stricter box
+      costs the kernel nothing
+PASS  exp236's monitor from a reset that leaves junk in the CSRs parks two different machines: it clears MPP
+      alone and sets one PMP entry, so the interrupt enable it found and the addresses of the entries it does
+      not use are still there at the park; exp240 writes every CSR
 
 >>> payloads that write the code, run the data, and fall off the stack
-PASS  52 payloads end parked and scrubbed, with the cause and the address the PMP rule gives:
+PASS  55 payloads end parked and scrubbed, with the cause and the address the PMP rule gives:
       fault mcause=7 mtval=0x80010000      store into the code, first word
       fault mcause=7 mtval=0x8001007c      store into the code, last word
       fault mcause=7 mtval=0x8001007f      store into the code, last byte
@@ -304,7 +318,10 @@ PASS  52 payloads end parked and scrubbed, with the cause and the address the PM
       fault mcause=5 mtval=0x20000000      read system SRAM
       fault mcause=7 mtval=0x80020000      write past the box
       fault mcause=1 mtval=0x80000040      jump into the monitor
-      fault mcause=1 mtval=0x80000130      jump to the trap vector
+      fault mcause=1 mtval=0x80000134      jump to the trap vector
+      fault mcause=5 mtval=0x0             load from address 0
+      fault mcause=7 mtval=0x0             store to address 0
+      fault mcause=1 mtval=0x0             run address 0
       fault mcause=2                       write pmpcfg0 to unlock the code
       fault mcause=2                       read pmpaddr0
       fault mcause=2                       set a bit in mstatus
@@ -331,7 +348,7 @@ PASS  3 payloads that exp236's one RWX entry lets run are stopped by the three:
       exp236 halt exit=0x0; exp240 fault mcause=1 mtval=0x8001fff0  write an ecall onto the stack and run it
 
 >>> monitors with one thing wrong: each must be caught
-PASS  25 broken monitors, each caught by the hostile payloads or the rounds of Rule 30:
+PASS  27 broken monitors, each caught by the hostile payloads or the rounds of Rule 30:
       code_entry_writable          the code entry is read, write and execute
       data_entry_executable        the data entry is read, write and execute
       stack_entry_executable       the stack entry is read, write and execute
@@ -347,7 +364,9 @@ PASS  25 broken monitors, each caught by the hostile payloads or the rounds of R
       stack_entry_to_the_monitor   the stack entry is 256 KiB from the monitor's base
       code_and_data_swapped        the code entry has the data's address and the data entry the code's
       data_tried_before_code       the data entry is tried first, so it decides a store into the code
+      entry_three_on               entry 3 is on, NAPOT, read, write and execute: the 32 bytes at address 0, where there is no memory
       mret_stays_in_m_mode         mret returns to M-mode
+      mstatus_kept                 boot does not write mstatus: MPP is what the reset left
       boot_leaves_a_register       boot does not zero x31 before the payload
       payload_sp_wrong             the payload's sp is the bottom of the stack entry, not the top
       no_stack_swap                the trap entry keeps the payload's sp
@@ -360,9 +379,9 @@ PASS  25 broken monitors, each caught by the hostile payloads or the rounds of R
 
 >>> the checks
 PASS  no lifeline, and it says why: no firmware of its own
-PASS  monitor.bin (600 bytes, 150 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
+PASS  monitor.bin (604 bytes, 151 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
 PASS  Wx.lean checks, with no errors and no warnings
-PASS  all 19 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 21 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  code_entry_256_bytes: the proof refuses a version where pmpaddr0 fences 256 bytes of code, not 128
 PASS  code_entry_64_bytes: the proof refuses a version where pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable
 PASS  data_entry_8_kib: the proof refuses a version where pmpaddr1 fences 8 KiB of data, not 4
@@ -375,7 +394,10 @@ PASS  stack_entry_executable: the proof refuses a version where the stack entry 
 PASS  code_entry_off: the proof refuses a version where the code entry is off: the data entry alone, 4 KiB of read and write
 PASS  entry_three_on: the proof refuses a version where entry 3 is on, NAPOT, read, write and execute
 PASS  entries_swapped: the proof refuses a version where the code and the data entries swap places: the data is tried first
-PASS  mret_to_m_mode: the proof refuses a version where boot sets MPP to M-mode instead of clearing it
+PASS  mstatus_kept: the proof refuses a version where boot ORs t0 into mstatus instead of writing it whole: MPP is whatever the last round left
+PASS  pmpaddr3_kept: the proof refuses a version where boot does not write pmpaddr3: it is whatever the last round left
+PASS  mcause_kept: the proof refuses a version where boot does not write mcause: it is whatever the last round left
+PASS  mtval_kept: the proof refuses a version where boot does not write mtval: the next fault reports the last round's
 PASS  payload_entry_wrong: the proof refuses a version where boot sends the payload to 0x80020000, past its region
 PASS  payload_sp_wrong: the proof refuses a version where boot gives the payload an sp at the bottom of its region
 PASS  boot_leaves_x31: the proof refuses a version where boot loads 1 into x31 instead of zero
@@ -393,6 +415,9 @@ PASS  counters_start_at_three: the proof refuses a version where claim: boot lea
 PASS  halt_takes_56_steps: the proof refuses a version where claim: a HALT takes the monitor 56 steps, not 57
 PASS  code_one_word_longer: the proof refuses a version where claim: the code is four bytes longer, [0x80010000, 0x80010084)
 PASS  park_loop_one_word_on: the proof refuses a version where claim: the park loop is one word on
+PASS  ready_allows_a_lock: the proof refuses a version where claim: a round may start with a PMP entry locked
+PASS  host_may_write_code: the proof refuses a version where claim: the host may write the code between rounds
+PASS  host_may_lock: the proof refuses a version where claim: the host may lock a PMP entry between rounds
 PASS  sandbox_store_unchecked: the proof refuses a version where U-mode stores skip the PMP check
 PASS  sandbox_ecall_passes: the proof refuses a version where U-mode ecall is executed instead of trapped
 PASS  pmp_entries_tried_backwards: the proof refuses a version where the entries are tried from 3 down to 0, so the lowest does not win
@@ -403,15 +428,21 @@ PASS  pmp_unmatched_user_passes: the proof refuses a version where U-mode that m
 PASS  lib_code_cfg_writable: the proof refuses a version where the library's code entry has W set
 PASS  lib_data_cfg_executable: the proof refuses a version where the library's data entry has X set
 PASS  lib_frozen_forgets_last_code_word: the proof refuses a version where a byte in the last word of the code is not frozen
+PASS  pmp_m_mode_held_to_entries: the proof refuses a version where M-mode is held to the entries as U-mode is, locked or not
 PASS  proof/Wx.lean is what proof/gen.py writes
 PASS  100 rounds of exp225's Rule 30 kernel under the monitor, 25600 generations, the kernel loaded once:
       each round: HALT 0, minstret 3081 = 3079 + 2, mcycle 3081; one trap, the ecall
       each round: the 1,024 bytes of history are rule30.py's, and the kernel run alone leaves the same
       each round: 256 KiB of RAM unchanged but for the history and the monitor's two stack words
-      the code entry's 128 bytes the same after every round; the parked machine the same after every round
+      the code entry's 128 bytes the same after every round; the parked machine the same after every round,
+      though every other round started from a reset that left junk in the CSRs (MPP M-mode, four PMP entries on)
       SHA-256 of the 25600 generations: 53f14f5b390e205cf7a174142803e8d96adf274ed4b44397d8934b91c3a4bbe0
-PASS  exp236's monitor, one RWX entry over the box, gives the same: the stricter box costs the kernel nothing
-PASS  52 payloads end parked and scrubbed, with the cause and the address the PMP rule gives:
+PASS  exp236's monitor, one RWX entry over the box, gives the same from a reset of the CSRs: the stricter box
+      costs the kernel nothing
+PASS  exp236's monitor from a reset that leaves junk in the CSRs parks two different machines: it clears MPP
+      alone and sets one PMP entry, so the interrupt enable it found and the addresses of the entries it does
+      not use are still there at the park; exp240 writes every CSR
+PASS  55 payloads end parked and scrubbed, with the cause and the address the PMP rule gives:
       fault mcause=7 mtval=0x80010000      store into the code, first word
       fault mcause=7 mtval=0x8001007c      store into the code, last word
       fault mcause=7 mtval=0x8001007f      store into the code, last byte
@@ -443,7 +474,10 @@ PASS  52 payloads end parked and scrubbed, with the cause and the address the PM
       fault mcause=5 mtval=0x20000000      read system SRAM
       fault mcause=7 mtval=0x80020000      write past the box
       fault mcause=1 mtval=0x80000040      jump into the monitor
-      fault mcause=1 mtval=0x80000130      jump to the trap vector
+      fault mcause=1 mtval=0x80000134      jump to the trap vector
+      fault mcause=5 mtval=0x0             load from address 0
+      fault mcause=7 mtval=0x0             store to address 0
+      fault mcause=1 mtval=0x0             run address 0
       fault mcause=2                       write pmpcfg0 to unlock the code
       fault mcause=2                       read pmpaddr0
       fault mcause=2                       set a bit in mstatus
@@ -468,7 +502,7 @@ PASS  3 payloads that exp236's one RWX entry lets run are stopped by the three:
       exp236 halt exit=0x7; exp240 fault mcause=7 mtval=0x80010014  rewrite the next instruction (self-modifying code)
       exp236 halt exit=0x0; exp240 fault mcause=1 mtval=0x80010400  write an ecall into the data and run it
       exp236 halt exit=0x0; exp240 fault mcause=1 mtval=0x8001fff0  write an ecall onto the stack and run it
-PASS  25 broken monitors, each caught by the hostile payloads or the rounds of Rule 30:
+PASS  27 broken monitors, each caught by the hostile payloads or the rounds of Rule 30:
       code_entry_writable          the code entry is read, write and execute
       data_entry_executable        the data entry is read, write and execute
       stack_entry_executable       the stack entry is read, write and execute
@@ -484,7 +518,9 @@ PASS  25 broken monitors, each caught by the hostile payloads or the rounds of R
       stack_entry_to_the_monitor   the stack entry is 256 KiB from the monitor's base
       code_and_data_swapped        the code entry has the data's address and the data entry the code's
       data_tried_before_code       the data entry is tried first, so it decides a store into the code
+      entry_three_on               entry 3 is on, NAPOT, read, write and execute: the 32 bytes at address 0, where there is no memory
       mret_stays_in_m_mode         mret returns to M-mode
+      mstatus_kept                 boot does not write mstatus: MPP is what the reset left
       boot_leaves_a_register       boot does not zero x31 before the payload
       payload_sp_wrong             the payload's sp is the bottom of the stack entry, not the top
       no_stack_swap                the trap entry keeps the payload's sp
