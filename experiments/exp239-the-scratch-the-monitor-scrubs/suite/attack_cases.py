@@ -22,7 +22,7 @@ sys.path.insert(0, HERE)
 import oracle
 import harness
 
-# Fill [0x80012100, 0x80014010) with 0x5ec7e700 + (something that changes with the address).
+# Fill [0x80012100, 0x80014010) with each word's own address XOR 0x5a5.
 FILL = """
     lui   t0, 0x80012
     addi  t0, t0, 0x100
@@ -49,7 +49,8 @@ ATTACKS = [
     ("fills, secrets in every register, halts with 0",
      FILL + SECRETS + "\n li t0, 1\n li a0, 0\n ecall", ("halt", 0)),
     ("fills, halts with 0 from the last word of the box",
-     FILL + "lui t0, 0x80020\n addi t0, t0, -4\n li a0, 0\n li t1, 1\n sw x0, 0(t0)\n mv t0, t1\n ecall", ("halt", 0)),
+     FILL + "lui t1, 0x80020\n addi t1, t1, -4\n li t2, 0x73\n sw t2, 0(t1)\n"      # an ecall at +0xfffc
+     " li t0, 1\n li a0, 0\n jalr x0, 0(t1)", ("halt", 0)),
     ("fills, stores into the monitor's code",
      FILL + "lui t0, 0x80000\n sw x0, 0(t0)", ("fault", 7)),
     ("fills, loads from system SRAM",

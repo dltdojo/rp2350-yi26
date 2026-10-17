@@ -6,7 +6,7 @@ exp223's proved kernel on exp222's fourteen sample streams, under exp239's monit
 Each stream runs twice -- alone in M-mode with no monitor (harness.reference_run), and under the monitor --
 and what must agree is:
 
-  - the exit code: 0 for the seven streams exp114's tests pass, 1 for the seven they do not, both runs;
+  - the exit code: 0 for the eight streams exp114's tests pass, 1 for the six they do not, both runs;
   - the instruction count: exp223's theorem, 334,284 for a pass and 17,425 for a fail, alone; under the
     monitor, +2 for its framing (the `csrwi` that releases the counters and the `mret`);
   - the box when the kernel halts: the same in both runs, byte for byte;
