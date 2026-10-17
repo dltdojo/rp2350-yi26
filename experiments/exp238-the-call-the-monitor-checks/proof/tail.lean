@@ -123,30 +123,72 @@ theorem trap_state (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
 
 /-! ## One trap, and what follows it -/
 
-/-- What the monitor did with a call it served, seen from the payload: the registers as they were
-    (but `a0` for a `CHECKSIG`), the word after the `ecall`, two instructions on the payload's counter. -/
+/-- `[a, a + n)` lies wholly in the payload's box, the sum taken in the naturals. -/
+def InBox (a : Word) (n : Nat) : Prop := 0x80010000 ≤ a.toNat ∧ a.toNat + n ≤ 0x80020000
+
+/-- The ranges a call names, as the payload left its registers at the trap. -/
+def CallBoxed (u : PrivMachine) : Prop :=
+  (u.core.reg 5#5 = 2#32 → InBox (u.core.reg 10#5) (u.core.reg 11#5).toNat ∧ InBox (u.core.reg 12#5) 32) ∧
+  (u.core.reg 5#5 = 3#32 → InBox (u.core.reg 10#5) 32 ∧ InBox (u.core.reg 11#5) 64)
+
+/-- An `ecall` for `HASHB` or `CHECKSIG` with a range that is not wholly in the box. -/
+def OutOfBox (u : PrivMachine) : Prop :=
+  u.csrs.mcause = 8#32 ∧
+  ((u.core.reg 5#5 = 2#32 ∧ ¬ (InBox (u.core.reg 10#5) (u.core.reg 11#5).toNat ∧ InBox (u.core.reg 12#5) 32)) ∨
+   (u.core.reg 5#5 = 3#32 ∧ ¬ (InBox (u.core.reg 10#5) 32 ∧ InBox (u.core.reg 11#5) 64)))
+
+/-- What the monitor did with a call it served, seen from the payload: the call's ranges were in the box,
+    the host was asked exactly the payload's arguments and call number, and the payload has its registers
+    as they were (but `a0` for a `CHECKSIG`), the word after its `ecall`, two instructions on the counter. -/
 def Served (u t : PrivMachine) : Prop :=
-  u.csrs.mcause = 8#32 ∧ (u.core.reg 5#5 = 2#32 ∨ u.core.reg 5#5 = 3#32) ∧
+  u.csrs.mcause = 8#32 ∧ (u.core.reg 5#5 = 2#32 ∨ u.core.reg 5#5 = 3#32) ∧ CallBoxed u ∧
+  readLE t.core.mem 0xc0000010#32 4 = (u.core.reg 10#5).toNat % 4294967296 ∧
+  readLE t.core.mem 0xc0000014#32 4 = (u.core.reg 11#5).toNat % 4294967296 ∧
+  readLE t.core.mem 0xc000001c#32 4 = (u.core.reg 5#5).toNat ∧
   t.core.pc = u.csrs.mepc + 4#32 ∧ t.csrs.minstret = u.csrs.minstret + 2#32 ∧
   (∀ r, r ≠ 10#5 → t.core.reg r = u.core.reg r) ∧
   (u.core.reg 5#5 = 2#32 → t.core.reg 10#5 = u.core.reg 10#5) ∧
   Frame u.core.mem t.core.mem
 
+/-- The three ways a trap can end: a fault (parked, `a0 = 1`, the service port as it was), the payload's
+    own HALT (parked, `a0` its exit code), or a served call (the payload running again). -/
+def Ends (M0 : Word → Byte) (u t : PrivMachine) : Prop :=
+  (Parked t 1#32 ∧ SvcSame u.core.mem t.core.mem) ∨
+  (Parked t (u.core.reg 10#5) ∧ u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32) ∨
+  (Running M0 t ∧ Served u t)
+
+/-- A call with a range out of the box can only have ended the first way. -/
+theorem ends_refuses {M0 : Word → Byte} {u t : PrivMachine} (h : Ends M0 u t) (ho : OutOfBox u) :
+    Parked t 1#32 ∧ SvcSame u.core.mem t.core.mem := by
+  obtain ⟨hc8, hcall⟩ := ho
+  rcases h with hf | ⟨_, _, ht1⟩ | ⟨_, _, _, hboxed, _⟩
+  · exact hf
+  · rcases hcall with ⟨h2, _⟩ | ⟨h3, _⟩
+    · rw [ht1] at h2; exact absurd h2 (by decide)
+    · rw [ht1] at h3; exact absurd h3 (by decide)
+  · rcases hcall with ⟨h2, hn⟩ | ⟨h3, hn⟩
+    · exact absurd (hboxed.1 h2) hn
+    · exact absurd (hboxed.2 h3) hn
+
+/-- How a trap ends, and — said outright — that a call with a range out of the box is refused: the
+    machine parks with `a0 = 1` and the service port as it was, so the host is never asked. -/
+def Outcome (M0 : Word → Byte) (u t : PrivMachine) : Prop :=
+  Ends M0 u t ∧ (OutOfBox u → Parked t 1#32 ∧ SvcSame u.core.mem t.core.mem)
+
+theorem outcome_of_ends {M0 : Word → Byte} {u t : PrivMachine} (h : Ends M0 u t) : Outcome M0 u t :=
+  ⟨h, ends_refuses h⟩
+
 set_option maxHeartbeats 4000000 in
 /-- **One trap.** A running payload runs for `n` steps or traps; at the trap the monitor, in the end,
-    either parks (a fault: `a0 = 1`; a HALT: `a0` the payload's own exit code) or has served a call and
-    stands the payload up again, running, at the word after its `ecall`. -/
+    either parks (a fault: `a0 = 1`, the service port untouched; a HALT: `a0` the payload's own exit code)
+    or has served a call whose ranges were in the box and stands the payload up again, running, at the
+    word after its `ecall`. A call with a range out of the box is the first of these. -/
 theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (henv : env.region = monRegion)
     (hR : Running M0 s) (n : Nat) :
     ∃ k, k ≤ n ∧
       ((k = n ∧ Running M0 (PrivMachine.run env k s)) ∨
-       (0 < k ∧ ∃ j,
-        Parked (PrivMachine.run env j (PrivMachine.run env k s)) 1#32 ∨
-        (Parked (PrivMachine.run env j (PrivMachine.run env k s)) ((PrivMachine.run env k s).core.reg 10#5) ∧
-          (PrivMachine.run env k s).csrs.mcause = 8#32 ∧ (PrivMachine.run env k s).core.reg 5#5 = 1#32) ∨
-        (Running M0 (PrivMachine.run env j (PrivMachine.run env k s)) ∧
-          Served (PrivMachine.run env k s) (PrivMachine.run env j (PrivMachine.run env k s))))) := by
+       (0 < k ∧ ∃ j, Outcome M0 (PrivMachine.run env k s) (PrivMachine.run env j (PrivMachine.run env k s)))) := by
   obtain ⟨k, hkn, hres⟩ := trap_state env M0 s hW henv hR n
   refine ⟨k, hkn, ?_⟩
   rcases hres with hrun | ⟨hpos, hS, hpc, hmpp, hcs⟩
@@ -155,6 +197,9 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   refine ⟨hpos, ?_⟩
   obtain ⟨u, hu⟩ : ∃ t, PrivMachine.run env k s = t := ⟨_, rfl⟩
   rw [hu] at hS hpc hmpp hcs ⊢
+  suffices h : ∃ j, Ends M0 u (PrivMachine.run env j u) by
+    obtain ⟨j, hj⟩ := h
+    exact ⟨j, outcome_of_ends hj⟩
   by_cases hc : u.csrs.mcause = 8#32
   · by_cases ht1 : u.core.reg 5#5 = 1#32
     · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
@@ -166,21 +211,25 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
             monitor_hashb_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht2 hbox.1 hbox.2 hmpp
-          refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inl ht2, q1, ?_, ?_, ?_, q14⟩)⟩
+          refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inl ht2,
+            ⟨fun _ => hbox, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14⟩)⟩
+          · rw [q13, ht2]; rfl
           · rw [q5]; rfl
           · intro r hr; rw [q15 r]; simp [regsUpd]
           · intro _; rw [q15 10#5]; simp [regsUpd]
         · obtain ⟨N, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
             monitor_hashb_oob_fault env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht2 hbox
-          exact ⟨N, Or.inl (parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12)⟩
+          exact ⟨N, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
       · by_cases ht3 : u.core.reg 5#5 = 3#32
         · by_cases hbox : (0x80010000 ≤ (u.core.reg 10#5).toNat ∧ (u.core.reg 10#5).toNat + 32 ≤ 0x80020000) ∧
               (0x80010000 ≤ (u.core.reg 11#5).toNat ∧ (u.core.reg 11#5).toNat + 64 ≤ 0x80020000)
           · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
               monitor_checksig_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
                 hpc hcs hc ht3 hbox.1 hbox.2 hmpp
-            refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inr ht3, q1, ?_, ?_, ?_, q14⟩)⟩
+            refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inr ht3,
+              ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14⟩)⟩
+            · rw [q13, ht3]; rfl
             · rw [q5]; rfl
             · intro r hr
               have hr' : ¬ (10 = r.toNat) := fun h => hr (BitVec.eq_of_toNat_eq (by simpa using h.symm))
@@ -189,28 +238,26 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
           · obtain ⟨N, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
               monitor_checksig_oob_fault env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
                 hpc hcs hc ht3 hbox
-            exact ⟨N, Or.inl (parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12)⟩
+            exact ⟨N, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
         · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
             monitor_fault_syscall env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht1 ht2 ht3
-          exact ⟨_, Or.inl (parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12)⟩
+          exact ⟨_, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
   · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
       monitor_fault_cause env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle hpc hcs hc
-    exact ⟨_, Or.inl (parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12)⟩
+    exact ⟨_, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
 
 /-! ## However many calls the payload makes -/
 
-/-- From a running state, however many calls the payload makes: every trap ends in the park loop or
-    in a payload that is running again, `c` times over. -/
+/-- From a running state, however many calls the payload makes: every trap has an `Outcome` — parked, or
+    running again — and a call with a range out of the box is refused, `c` times over. -/
 def SafeFor (env : Rv32.Env) (M0 : Word → Byte) : Nat → PrivMachine → Prop
   | 0, s => Running M0 s
   | c + 1, s => Running M0 s ∧ ∀ n, ∃ k, k ≤ n ∧
       ((k = n ∧ Running M0 (PrivMachine.run env k s)) ∨
        (0 < k ∧ ∃ j,
-        Parked (PrivMachine.run env j (PrivMachine.run env k s)) 1#32 ∨
-        (∃ a0, Parked (PrivMachine.run env j (PrivMachine.run env k s)) a0) ∨
-        (Running M0 (PrivMachine.run env j (PrivMachine.run env k s)) ∧
-          Served (PrivMachine.run env k s) (PrivMachine.run env j (PrivMachine.run env k s)) ∧
+        Outcome M0 (PrivMachine.run env k s) (PrivMachine.run env j (PrivMachine.run env k s)) ∧
+        (Running M0 (PrivMachine.run env j (PrivMachine.run env k s)) →
           SafeFor env M0 c (PrivMachine.run env j (PrivMachine.run env k s)))))
 
 /-- A running payload is safe for any number of calls. -/
@@ -227,18 +274,14 @@ theorem safe_for (env : Rv32.Env) (M0 : Word → Byte) (hW : WordsAt M0 0x800000
     refine ⟨k, hkn, ?_⟩
     rcases h with h | ⟨hpos, j, h⟩
     · exact Or.inl h
-    · right
-      refine ⟨hpos, j, ?_⟩
-      rcases h with h | ⟨h, _⟩ | ⟨hr, hs⟩
-      · exact Or.inl h
-      · exact Or.inr (Or.inl ⟨_, h⟩)
-      · exact Or.inr (Or.inr ⟨hr, hs, ih _ hr⟩)
+    · exact Or.inr ⟨hpos, j, h, fun hr => ih _ hr⟩
 
 /-- **The call the monitor checks.** From reset, the monitor boots (53 steps), and then, however many
-    calls the payload makes and whatever their arguments: each trap ends with the machine parked
-    (a fault, or the payload's HALT), or with the payload running again in U-mode at the word after
-    its `ecall`, the box fence and the monitor's words as they were. A call whose ranges are not
-    wholly inside the box is a fault, and the service port is as it was. -/
+    calls the payload makes and whatever their arguments: each trap ends with the machine parked (a
+    fault, or the payload's HALT), or with a call whose ranges were in the box served and the payload
+    running again in U-mode at the word after its `ecall`, the box fence and the monitor's words as they
+    were. A call with a range that is not wholly inside the box parks the machine with `a0 = 1` and the
+    service port as it was: the host is never asked. -/
 theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
     (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
@@ -260,5 +303,6 @@ end Exp238
 #print axioms Exp238.monitor_hashb_oob_fault
 #print axioms Exp238.monitor_checksig_ok
 #print axioms Exp238.monitor_checksig_oob_fault
+#print axioms Exp238.ends_refuses
 #print axioms Exp238.monitor_cycle
 #print axioms Exp238.monitor_end_to_end
