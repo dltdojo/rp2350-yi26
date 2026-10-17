@@ -19,6 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 import asm
+import binary
 from monitor.emulator import SandboxEmulator, BASE
 
 PAYLOAD_AT = 0x80010000
@@ -97,3 +98,68 @@ def check_fault(emu: SandboxEmulator, monitor: bytes, cause: int = None, tval: i
     if tval is not None and emu.mtval != tval:
         bad.append(f"mtval {emu.mtval:#x}, wanted {tval:#x}")
     return bad
+
+
+# ---- from exp239 on: what a monitor that scrubs the payload's memory is held to ---------------
+
+class ReferenceEmulator(SandboxEmulator):
+    """The payload alone: M-mode, no PMP, no monitor, at the start of its box with `sp` at the end.
+
+    The only `ecall` it answers is HALT (`t0 = 1`), in place, as the monitor's HALT would report it.
+    The oracle for a payload that asks the monitor for nothing else: what it computes, and how many
+    instructions it takes.
+    """
+
+    def __init__(self, pay: bytes):
+        super().__init__(bytes(PAYLOAD_AT - BASE) + pay)
+        self.pc = PAYLOAD_AT
+        self.regs = [0] * 32
+        self.regs[2] = PAYLOAD_AT + PAYLOAD_LEN
+
+    def step(self):
+        off = self.pc - BASE
+        if int.from_bytes(self.mem[off:off + 4], "little") != 0x00000073:
+            return super().step()
+        assert self.regs[5] == 1, f"reference run: ecall {self.regs[5]}"
+        self.count()
+        self.exit_code, self.halted = self.regs[10], True
+
+
+def reference_run(pay: bytes, steps: int = 1000000) -> ReferenceEmulator:
+    emu = ReferenceEmulator(pay)
+    emu.run(steps)
+    return emu
+
+
+def run_snapshot(monitor: bytes, pay: bytes, steps: int = 1000000):
+    """`run`, and the whole of memory as the payload left it: at its first trap, before the monitor writes a byte.
+
+    Returns (emulator, snapshot), the snapshot None if the payload never trapped.
+    """
+    emu = SandboxEmulator(image(monitor, pay))
+    snap = None
+    for _ in range(steps):
+        if emu.halted:
+            break
+        emu.step()
+        if snap is None and emu.traps:
+            snap = bytes(emu.mem)
+    return emu, snap
+
+
+def box(emu: SandboxEmulator) -> bytes:
+    return bytes(emu.mem[PAYLOAD_AT - BASE:PAYLOAD_AT - BASE + PAYLOAD_LEN])
+
+
+def sub(src: str, old: str, new: str, which: str = "first") -> str:
+    """`src` with one thing changed, for a monitor with one thing wrong."""
+    assert old in src, f"{old!r} is not in monitor.S"
+    if which == "all":
+        return src.replace(old, new)
+    i = src.index(old) if which == "first" else src.rindex(old)
+    return src[:i] + new + src[i + len(old):]
+
+
+def build(src: str) -> bytes:
+    """monitor.S text assembled afresh, as a flat binary at the monitor's base."""
+    return binary.assembled(src)

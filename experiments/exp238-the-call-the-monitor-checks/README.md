@@ -74,8 +74,9 @@ All on Lean's own axioms. They are about `PrivMachine` fetching and executing `m
 | `monitor_checksig_ok` | the same for `t0 = 3`: 45 steps, every register but `a0` as it was, the port holding the key, the signature and `3`; `a0` is the word the monitor read back from the port |
 | `monitor_hashb_oob_fault`, `monitor_checksig_oob_fault` | **a call that is not wholly in the box is refused**: whichever range is out — below the box, past it, straddling an end, or one whose end wraps — the machine parks with `a0 = 1`, every other register zero, and the service port as it was: the host is never asked. Twelve theorems, one per check, behind each |
 | `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | as exp236's, for these words: 61, 63, 71 steps |
-| `monitor_cycle` | a running payload runs `n` steps or traps; the trap ends in the park loop (`a0 = 1`, or a HALT's own exit code) or in the payload running again, `Served`: the word after its `ecall`, its registers, two instructions on the counter |
-| `safe_for`, `monitor_end_to_end` | however many calls the payload makes, and whatever their arguments: from reset, boot, then every trap parks the machine or hands the payload back, running and boxed, with the monitor's words in place |
+| `monitor_cycle` | a running payload runs `n` steps or traps, and the trap has an `Outcome`: parked after a fault (`a0 = 1`, the service port as it was), parked after a HALT (`a0` the payload's own exit code), or `Served` — the call's ranges were in the box, the host was asked exactly the payload's arguments and call number, and the payload is running again at the word after its `ecall` with its registers and two instructions on the counter |
+| `ends_refuses` | **a call with a range out of the box can only end the first way**: `OutOfBox` (an `ecall` for `HASHB` or `CHECKSIG` whose ranges are not wholly in the box) gives the park loop with `a0 = 1` and the service port as it was. `Outcome` carries this as a conjunct, so every trap the end-to-end theorem reaches states it |
+| `safe_for`, `monitor_end_to_end` | however many calls the payload makes, and whatever their arguments: from reset, boot, then every trap has an `Outcome` — the machine parks, or a call whose ranges were in the box is served and the payload is running again, boxed, with the monitor's words in place — and **a call with a range out of the box parks the machine with `a0 = 1` and the host never asked** |
 
 Each short run is one theorem — a chunk, a few instructions ending at its first store — and every chunk has
 the same statement and the same proof, so `proof/gen.py` writes them from a table, joins them (the phases,
@@ -139,7 +140,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp238 — the call the monitor checks ===
-recorded at 2026-10-16T18:46:27Z from commit ac39dcc
+recorded at 2026-10-17T03:57:08Z from commit 5d17005
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
@@ -155,6 +156,7 @@ PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor
 'Exp238.monitor_hashb_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.ends_refuses' depends on axioms: [propext, Quot.sound]
 'Exp238.monitor_cycle' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_end_to_end' depends on axioms: [propext, Classical.choice, Quot.sound]
 exit 0
@@ -296,7 +298,7 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
 PASS  no lifeline, and it says why: no firmware of its own
 PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
 PASS  Calls.lean checks, with no errors and no warnings
-PASS  all 12 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 13 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  hashb_input_floor_dropped: the proof refuses a version where HASHB lets an input start below the box
 PASS  hashb_length_by_addition: the proof refuses a version where HASHB tests ptr + len, which wraps, instead of what is left of the box
 PASS  hashb_output_room_16: the proof refuses a version where HASHB checks room for 16 bytes of output, not 32
