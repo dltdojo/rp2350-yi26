@@ -1,0 +1,302 @@
+=== exp240 — the code the box forbids writing ===
+recorded at 2026-10-17T10:02:06Z from commit 0fb782a
+
+>>> the micro-monitor binary and size budget
+PASS  monitor.bin (600 bytes, 150 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
+
+>>> the formal theorems, and what they rest on
+'Exp240.monitorCode_length' does not depend on any axioms
+'Exp240.monitor_boot' depends on axioms: [propext, Quot.sound]
+'Exp240.monitor_halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_fault_cause' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_fault_syscall' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_traps' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.payload_runs' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_end_to_end' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_reentry' depends on axioms: [propext, Quot.sound]
+'Exp240.monitor_round_ready' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_rounds' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_fetch_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_store_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_load_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.pmpCheck_M_outside_in' depends on axioms: [propext, Quot.sound]
+'Rv32.Priv.wx_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_code_immutable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_no_write_exec' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong monitors, wrong claims and wrong models: each must be refused
+code_entry_256_bytes               pmpaddr0 fences 256 bytes of code, not 128                                refused in monitor_boot_config
+code_entry_64_bytes                pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable   refused in monitor_boot_config
+data_entry_8_kib                   pmpaddr1 fences 8 KiB of data, not 4                                      refused in monitor_boot_config
+data_entry_2_kib                   pmpaddr1 fences 2 KiB of data, not 4                                      refused in monitor_boot_config
+stack_entry_to_the_monitor         pmpaddr2 reaches down to 0x80000000                                       refused in monitor_boot_config
+stack_entry_8_kib                  pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short           refused in monitor_boot_config
+code_entry_writable                the code entry is read, write and execute (0x1f)                          refused in monitor_boot_config
+data_entry_executable              the data entry is read, write and execute (0x1f)                          refused in monitor_boot_config
+stack_entry_executable             the stack entry is read, write and execute (0x1f)                         refused in monitor_boot_config
+code_entry_off                     the code entry is off: the data entry alone, 4 KiB of read and write      refused in monitor_boot_config
+entry_three_on                     entry 3 is on, NAPOT, read, write and execute                             refused in monitor_boot_config
+entries_swapped                    the code and the data entries swap places: the data is tried first        refused in monitor_boot_config
+mret_to_m_mode                     boot sets MPP to M-mode instead of clearing it                            refused in monitor_boot_config
+payload_entry_wrong                boot sends the payload to 0x80020000, past its region                     refused in monitor_boot_config
+payload_sp_wrong                   boot gives the payload an sp at the bottom of its region                  refused in monitor_launch_1
+boot_leaves_x31                    boot loads 1 into x31 instead of zero                                     refused in monitor_launch_3
+trap_vector_wrong                  boot points mtvec four bytes past the handler                             refused in monitor_boot_config
+mscratch_wrong                     boot puts the M-mode stack in the payload's region                        refused in monitor_boot_config
+no_stack_swap                      the handler keeps the payload's sp                                        refused in entry_1
+cause_check_dropped                the handler never looks at mcause                                         refused in entry_mcause
+syscall_check_dropped              the handler takes every ecall for HALT                                    refused in call_is_halt
+fault_exit_code_two                a fault exits with 2                                                      refused in fault_6
+fault_skips_scrub                  a fault jumps to the park loop, not the scrub                             refused in fault_6
+saved_t0_stays                     the scrub leaves the saved t0 on the M-mode stack                         refused in scrub_1a
+scrub_leaves_sp                    the scrub loads 1 into x2                                                 refused in regs_a
+mmio_address_wrong                 the reports go to a word in the payload's region                          refused in fault_1
+counters_start_at_three            claim: boot leaves the counters at 3, not 2                               refused in monitor_launch_5
+halt_takes_56_steps                claim: a HALT takes the monitor 56 steps, not 57                          refused in monitor_traps
+code_one_word_longer               claim: the code is four bytes longer, [0x80010000, 0x80010084)            refused in monitor_end_to_end
+park_loop_one_word_on              claim: the park loop is one word on                                       refused in monitor_traps
+sandbox_store_unchecked            U-mode stores skip the PMP check                                          refused in st_in_box
+sandbox_ecall_passes               U-mode ecall is executed instead of trapped                               refused in trap_none_plain
+pmp_entries_tried_backwards        the entries are tried from 3 down to 0, so the lowest does not win        refused in umode_default_deny
+pmp_partial_match_passes           an access that straddles an entry's edge passes                           refused in pmpCheck_uboxed_iff
+pmp_store_needs_read_not_write     a store needs the entry's R bit, not its W bit                            refused in pmpCheck_uboxed_iff
+pmp_fetch_needs_read_not_execute   a fetch needs the entry's R bit, not its X bit                            refused in pmpCheck_uboxed_iff
+pmp_unmatched_user_passes          U-mode that matches no entry passes                                       refused in umode_default_deny
+lib_code_cfg_writable              the library's code entry has W set                                        refused in wx_store_ok
+lib_data_cfg_executable            the library's data entry has X set                                        refused in wx_fetch_iff
+lib_frozen_forgets_last_code_word  a byte in the last word of the code is not frozen                         refused in wx_code_immutable
+
+>>> exp225's Rule 30 kernel, round after round, under the monitor
+PASS  100 rounds of exp225's Rule 30 kernel under the monitor, 25600 generations, the kernel loaded once:
+      each round: HALT 0, minstret 3081 = 3079 + 2, mcycle 3081; one trap, the ecall
+      each round: the 1,024 bytes of history are rule30.py's, and the kernel run alone leaves the same
+      each round: 256 KiB of RAM unchanged but for the history and the monitor's two stack words
+      the code entry's 128 bytes the same after every round; the parked machine the same after every round
+      SHA-256 of the 25600 generations: 53f14f5b390e205cf7a174142803e8d96adf274ed4b44397d8934b91c3a4bbe0
+PASS  exp236's monitor, one RWX entry over the box, gives the same: the stricter box costs the kernel nothing
+
+>>> payloads that write the code, run the data, and fall off the stack
+PASS  52 payloads end parked and scrubbed, with the cause and the address the PMP rule gives:
+      fault mcause=7 mtval=0x80010000      store into the code, first word
+      fault mcause=7 mtval=0x8001007c      store into the code, last word
+      fault mcause=7 mtval=0x8001007f      store into the code, last byte
+      fault mcause=7 mtval=0x80010014      rewrite the next instruction (self-modifying code)
+      fault mcause=7 mtval=0x80010040      store into the code with secrets in 20 registers
+      halt  exit=0x0                       read the code
+      halt  exit=0x0                       a payload of 32 words runs to its last word
+      fault mcause=1 mtval=0x80010080      a payload of 33 words cannot fetch its 33rd
+      halt  exit=0x0                       store into the data, first byte past the code
+      halt  exit=0x0                       store into the data, last word
+      fault mcause=1 mtval=0x80010080      run the data, first byte past the code
+      fault mcause=1 mtval=0x80010400      write an ecall into the data and run it
+      fault mcause=1 mtval=0x80010100      write an ecall where the kernel keeps its seed and run it
+      fault mcause=7 mtval=0x80011000      store into the guard, first word
+      fault mcause=5 mtval=0x80011000      load from the guard, first word
+      fault mcause=1 mtval=0x80011000      run the guard
+      fault mcause=7 mtval=0x8001effc      store into the guard, last word
+      fault mcause=5 mtval=0x8001effc      load from the guard, last word
+      halt  exit=0x0                       store into the stack, bottom word
+      halt  exit=0x0                       store into the stack, top word
+      fault mcause=7 mtval=0x8001eff0      overflow the stack by recursion
+      fault mcause=5 mtval=0x80020000      underflow the stack: load past the top
+      fault mcause=7 mtval=0x80020000      underflow the stack: store past the top
+      fault mcause=1 mtval=0x8001fff0      write an ecall onto the stack and run it
+      fault mcause=1 mtval=0x8001f000      run the stack
+      fault mcause=7 mtval=0x80000000      store into the monitor's code
+      fault mcause=5 mtval=0x80000000      load the monitor's code
+      fault mcause=7 mtval=0x80008000      write the M-mode stack
+      fault mcause=5 mtval=0x20000000      read system SRAM
+      fault mcause=7 mtval=0x80020000      write past the box
+      fault mcause=1 mtval=0x80000040      jump into the monitor
+      fault mcause=1 mtval=0x80000130      jump to the trap vector
+      fault mcause=2                       write pmpcfg0 to unlock the code
+      fault mcause=2                       read pmpaddr0
+      fault mcause=2                       set a bit in mstatus
+      fault mcause=2                       read the cycle counter
+      fault mcause=2                       write mscratch
+      fault mcause=2                       mret to M-mode
+      fault mcause=2                       wfi
+      fault mcause=3                       ebreak
+      fault mcause=2                       an illegal word
+      fault mcause=4                       a misaligned load
+      fault mcause=6                       a misaligned store
+      fault mcause=8                       an unknown syscall
+      fault mcause=8                       hash syscall (not offered)
+      fault mcause=7 mtval=0x80000000      a fault with secrets in 20 registers
+      halt  exit=0x7                       a clean halt with secrets in 20 registers
+      fault mcause=2                       a fault with sp pointing into the monitor
+      halt  exit=0x0                       the registers it starts with
+      halt  exit=0x80020000                the stack pointer it starts with
+      halt  exit=0x0                       a clean halt, exit code 0
+      halt  exit=0x80000000                a clean halt, exit code 0x80000000
+PASS  3 payloads that exp236's one RWX entry lets run are stopped by the three:
+      exp236 halt exit=0x7; exp240 fault mcause=7 mtval=0x80010014  rewrite the next instruction (self-modifying code)
+      exp236 halt exit=0x0; exp240 fault mcause=1 mtval=0x80010400  write an ecall into the data and run it
+      exp236 halt exit=0x0; exp240 fault mcause=1 mtval=0x8001fff0  write an ecall onto the stack and run it
+
+>>> monitors with one thing wrong: each must be caught
+PASS  25 broken monitors, each caught by the hostile payloads or the rounds of Rule 30:
+      code_entry_writable          the code entry is read, write and execute
+      data_entry_executable        the data entry is read, write and execute
+      stack_entry_executable       the stack entry is read, write and execute
+      code_entry_off               the code entry is off
+      data_entry_off               the data entry is off
+      stack_entry_off              the stack entry is off
+      code_entry_256_bytes         the code entry is 256 bytes: the data from +0x80 can be run
+      code_entry_64_bytes          the code entry is 64 bytes: the end of the kernel cannot be fetched
+      data_entry_8_kib             the data entry is 8 KiB: it reaches 4 KiB into the guard
+      data_entry_2_kib             the data entry is 2 KiB: the top half of the data is not there
+      stack_entry_8_kib            the stack entry is 8 KiB: the guard is 4 KiB short
+      stack_entry_32_kib           the stack entry is 32 KiB: the guard is 28 KiB short
+      stack_entry_to_the_monitor   the stack entry is 256 KiB from the monitor's base
+      code_and_data_swapped        the code entry has the data's address and the data entry the code's
+      data_tried_before_code       the data entry is tried first, so it decides a store into the code
+      mret_stays_in_m_mode         mret returns to M-mode
+      boot_leaves_a_register       boot does not zero x31 before the payload
+      payload_sp_wrong             the payload's sp is the bottom of the stack entry, not the top
+      no_stack_swap                the trap entry keeps the payload's sp
+      scrub_skips_register         the scrub forgets x17
+      scrub_skips_ra               the scrub forgets x1
+      fault_does_not_scrub         a fault parks without scrubbing
+      saved_words_stay             the saved t0 and t1 stay on the stack
+      mscratch_stays               mscratch keeps the payload's sp
+      any_syscall_halts            every ecall is taken for HALT
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  monitor.bin (600 bytes, 150 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
+PASS  Wx.lean checks, with no errors and no warnings
+PASS  all 19 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  code_entry_256_bytes: the proof refuses a version where pmpaddr0 fences 256 bytes of code, not 128
+PASS  code_entry_64_bytes: the proof refuses a version where pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable
+PASS  data_entry_8_kib: the proof refuses a version where pmpaddr1 fences 8 KiB of data, not 4
+PASS  data_entry_2_kib: the proof refuses a version where pmpaddr1 fences 2 KiB of data, not 4
+PASS  stack_entry_to_the_monitor: the proof refuses a version where pmpaddr2 reaches down to 0x80000000
+PASS  stack_entry_8_kib: the proof refuses a version where pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short
+PASS  code_entry_writable: the proof refuses a version where the code entry is read, write and execute (0x1f)
+PASS  data_entry_executable: the proof refuses a version where the data entry is read, write and execute (0x1f)
+PASS  stack_entry_executable: the proof refuses a version where the stack entry is read, write and execute (0x1f)
+PASS  code_entry_off: the proof refuses a version where the code entry is off: the data entry alone, 4 KiB of read and write
+PASS  entry_three_on: the proof refuses a version where entry 3 is on, NAPOT, read, write and execute
+PASS  entries_swapped: the proof refuses a version where the code and the data entries swap places: the data is tried first
+PASS  mret_to_m_mode: the proof refuses a version where boot sets MPP to M-mode instead of clearing it
+PASS  payload_entry_wrong: the proof refuses a version where boot sends the payload to 0x80020000, past its region
+PASS  payload_sp_wrong: the proof refuses a version where boot gives the payload an sp at the bottom of its region
+PASS  boot_leaves_x31: the proof refuses a version where boot loads 1 into x31 instead of zero
+PASS  trap_vector_wrong: the proof refuses a version where boot points mtvec four bytes past the handler
+PASS  mscratch_wrong: the proof refuses a version where boot puts the M-mode stack in the payload's region
+PASS  no_stack_swap: the proof refuses a version where the handler keeps the payload's sp
+PASS  cause_check_dropped: the proof refuses a version where the handler never looks at mcause
+PASS  syscall_check_dropped: the proof refuses a version where the handler takes every ecall for HALT
+PASS  fault_exit_code_two: the proof refuses a version where a fault exits with 2
+PASS  fault_skips_scrub: the proof refuses a version where a fault jumps to the park loop, not the scrub
+PASS  saved_t0_stays: the proof refuses a version where the scrub leaves the saved t0 on the M-mode stack
+PASS  scrub_leaves_sp: the proof refuses a version where the scrub loads 1 into x2
+PASS  mmio_address_wrong: the proof refuses a version where the reports go to a word in the payload's region
+PASS  counters_start_at_three: the proof refuses a version where claim: boot leaves the counters at 3, not 2
+PASS  halt_takes_56_steps: the proof refuses a version where claim: a HALT takes the monitor 56 steps, not 57
+PASS  code_one_word_longer: the proof refuses a version where claim: the code is four bytes longer, [0x80010000, 0x80010084)
+PASS  park_loop_one_word_on: the proof refuses a version where claim: the park loop is one word on
+PASS  sandbox_store_unchecked: the proof refuses a version where U-mode stores skip the PMP check
+PASS  sandbox_ecall_passes: the proof refuses a version where U-mode ecall is executed instead of trapped
+PASS  pmp_entries_tried_backwards: the proof refuses a version where the entries are tried from 3 down to 0, so the lowest does not win
+PASS  pmp_partial_match_passes: the proof refuses a version where an access that straddles an entry's edge passes
+PASS  pmp_store_needs_read_not_write: the proof refuses a version where a store needs the entry's R bit, not its W bit
+PASS  pmp_fetch_needs_read_not_execute: the proof refuses a version where a fetch needs the entry's R bit, not its X bit
+PASS  pmp_unmatched_user_passes: the proof refuses a version where U-mode that matches no entry passes
+PASS  lib_code_cfg_writable: the proof refuses a version where the library's code entry has W set
+PASS  lib_data_cfg_executable: the proof refuses a version where the library's data entry has X set
+PASS  lib_frozen_forgets_last_code_word: the proof refuses a version where a byte in the last word of the code is not frozen
+PASS  proof/Wx.lean is what proof/gen.py writes
+PASS  100 rounds of exp225's Rule 30 kernel under the monitor, 25600 generations, the kernel loaded once:
+      each round: HALT 0, minstret 3081 = 3079 + 2, mcycle 3081; one trap, the ecall
+      each round: the 1,024 bytes of history are rule30.py's, and the kernel run alone leaves the same
+      each round: 256 KiB of RAM unchanged but for the history and the monitor's two stack words
+      the code entry's 128 bytes the same after every round; the parked machine the same after every round
+      SHA-256 of the 25600 generations: 53f14f5b390e205cf7a174142803e8d96adf274ed4b44397d8934b91c3a4bbe0
+PASS  exp236's monitor, one RWX entry over the box, gives the same: the stricter box costs the kernel nothing
+PASS  52 payloads end parked and scrubbed, with the cause and the address the PMP rule gives:
+      fault mcause=7 mtval=0x80010000      store into the code, first word
+      fault mcause=7 mtval=0x8001007c      store into the code, last word
+      fault mcause=7 mtval=0x8001007f      store into the code, last byte
+      fault mcause=7 mtval=0x80010014      rewrite the next instruction (self-modifying code)
+      fault mcause=7 mtval=0x80010040      store into the code with secrets in 20 registers
+      halt  exit=0x0                       read the code
+      halt  exit=0x0                       a payload of 32 words runs to its last word
+      fault mcause=1 mtval=0x80010080      a payload of 33 words cannot fetch its 33rd
+      halt  exit=0x0                       store into the data, first byte past the code
+      halt  exit=0x0                       store into the data, last word
+      fault mcause=1 mtval=0x80010080      run the data, first byte past the code
+      fault mcause=1 mtval=0x80010400      write an ecall into the data and run it
+      fault mcause=1 mtval=0x80010100      write an ecall where the kernel keeps its seed and run it
+      fault mcause=7 mtval=0x80011000      store into the guard, first word
+      fault mcause=5 mtval=0x80011000      load from the guard, first word
+      fault mcause=1 mtval=0x80011000      run the guard
+      fault mcause=7 mtval=0x8001effc      store into the guard, last word
+      fault mcause=5 mtval=0x8001effc      load from the guard, last word
+      halt  exit=0x0                       store into the stack, bottom word
+      halt  exit=0x0                       store into the stack, top word
+      fault mcause=7 mtval=0x8001eff0      overflow the stack by recursion
+      fault mcause=5 mtval=0x80020000      underflow the stack: load past the top
+      fault mcause=7 mtval=0x80020000      underflow the stack: store past the top
+      fault mcause=1 mtval=0x8001fff0      write an ecall onto the stack and run it
+      fault mcause=1 mtval=0x8001f000      run the stack
+      fault mcause=7 mtval=0x80000000      store into the monitor's code
+      fault mcause=5 mtval=0x80000000      load the monitor's code
+      fault mcause=7 mtval=0x80008000      write the M-mode stack
+      fault mcause=5 mtval=0x20000000      read system SRAM
+      fault mcause=7 mtval=0x80020000      write past the box
+      fault mcause=1 mtval=0x80000040      jump into the monitor
+      fault mcause=1 mtval=0x80000130      jump to the trap vector
+      fault mcause=2                       write pmpcfg0 to unlock the code
+      fault mcause=2                       read pmpaddr0
+      fault mcause=2                       set a bit in mstatus
+      fault mcause=2                       read the cycle counter
+      fault mcause=2                       write mscratch
+      fault mcause=2                       mret to M-mode
+      fault mcause=2                       wfi
+      fault mcause=3                       ebreak
+      fault mcause=2                       an illegal word
+      fault mcause=4                       a misaligned load
+      fault mcause=6                       a misaligned store
+      fault mcause=8                       an unknown syscall
+      fault mcause=8                       hash syscall (not offered)
+      fault mcause=7 mtval=0x80000000      a fault with secrets in 20 registers
+      halt  exit=0x7                       a clean halt with secrets in 20 registers
+      fault mcause=2                       a fault with sp pointing into the monitor
+      halt  exit=0x0                       the registers it starts with
+      halt  exit=0x80020000                the stack pointer it starts with
+      halt  exit=0x0                       a clean halt, exit code 0
+      halt  exit=0x80000000                a clean halt, exit code 0x80000000
+PASS  3 payloads that exp236's one RWX entry lets run are stopped by the three:
+      exp236 halt exit=0x7; exp240 fault mcause=7 mtval=0x80010014  rewrite the next instruction (self-modifying code)
+      exp236 halt exit=0x0; exp240 fault mcause=1 mtval=0x80010400  write an ecall into the data and run it
+      exp236 halt exit=0x0; exp240 fault mcause=1 mtval=0x8001fff0  write an ecall onto the stack and run it
+PASS  25 broken monitors, each caught by the hostile payloads or the rounds of Rule 30:
+      code_entry_writable          the code entry is read, write and execute
+      data_entry_executable        the data entry is read, write and execute
+      stack_entry_executable       the stack entry is read, write and execute
+      code_entry_off               the code entry is off
+      data_entry_off               the data entry is off
+      stack_entry_off              the stack entry is off
+      code_entry_256_bytes         the code entry is 256 bytes: the data from +0x80 can be run
+      code_entry_64_bytes          the code entry is 64 bytes: the end of the kernel cannot be fetched
+      data_entry_8_kib             the data entry is 8 KiB: it reaches 4 KiB into the guard
+      data_entry_2_kib             the data entry is 2 KiB: the top half of the data is not there
+      stack_entry_8_kib            the stack entry is 8 KiB: the guard is 4 KiB short
+      stack_entry_32_kib           the stack entry is 32 KiB: the guard is 28 KiB short
+      stack_entry_to_the_monitor   the stack entry is 256 KiB from the monitor's base
+      code_and_data_swapped        the code entry has the data's address and the data entry the code's
+      data_tried_before_code       the data entry is tried first, so it decides a store into the code
+      mret_stays_in_m_mode         mret returns to M-mode
+      boot_leaves_a_register       boot does not zero x31 before the payload
+      payload_sp_wrong             the payload's sp is the bottom of the stack entry, not the top
+      no_stack_swap                the trap entry keeps the payload's sp
+      scrub_skips_register         the scrub forgets x17
+      scrub_skips_ra               the scrub forgets x1
+      fault_does_not_scrub         a fault parks without scrubbing
+      saved_words_stay             the saved t0 and t1 stay on the stack
+      mscratch_stays               mscratch keeps the payload's sp
+      any_syscall_halts            every ecall is taken for HALT

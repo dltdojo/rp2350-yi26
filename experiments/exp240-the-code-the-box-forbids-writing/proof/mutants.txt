@@ -1,0 +1,48 @@
+# exp240 — wrong monitors, wrong claims and wrong models. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The first two groups edit `monitorCode`, the words of monitor.bin, one instruction each: the proofs are about what
+# those words do, so a word that does something else must stop a theorem. The first group is the PMP (the one thing
+# this monitor adds to exp236's); the second is what boot and the handler share with exp236. Then claims, in the proof;
+# then rules of the model the proofs run on, and the library's own statements about the three entries.
+code_entry_256_bytes|pmpaddr0 fences 256 bytes of code, not 128|s/0x00f28293#32/0x01f28293#32/
+code_entry_64_bytes|pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable|s/0x00f28293#32/0x00728293#32/
+data_entry_8_kib|pmpaddr1 fences 8 KiB of data, not 4|s/0x1ff28293#32/0x3ff28293#32/
+data_entry_2_kib|pmpaddr1 fences 2 KiB of data, not 4|s/0x1ff28293#32/0x0ff28293#32/
+stack_entry_to_the_monitor|pmpaddr2 reaches down to 0x80000000|s/0xdff28293#32/0xfff28293#32/
+stack_entry_8_kib|pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short|s/0xdff28293#32/0xbff28293#32/
+code_entry_writable|the code entry is read, write and execute (0x1f)|s/0xb1d28293#32/0xb1f28293#32/
+data_entry_executable|the data entry is read, write and execute (0x1f)|s/0xb1d28293#32/0xf1d28293#32/
+stack_entry_executable|the stack entry is read, write and execute (0x1f)|s/0x001b22b7#32/0x001f22b7#32/
+code_entry_off|the code entry is off: the data entry alone, 4 KiB of read and write|s/0xb1d28293#32/0xb0028293#32/
+entry_three_on|entry 3 is on, NAPOT, read, write and execute|s/0x001b22b7#32/0x1f1b22b7#32/
+entries_swapped|the code and the data entries swap places: the data is tried first|s/0x00f28293#32/TMP#32/;s/0x1ff28293#32/0x00f28293#32/;s/TMP#32/0x1ff28293#32/
+mret_to_m_mode|boot sets MPP to M-mode instead of clearing it|s/0x3002b073#32/0x3002a073#32/
+payload_entry_wrong|boot sends the payload to 0x80020000, past its region|s/0x800102b7#32/0x800202b7#32/
+payload_sp_wrong|boot gives the payload an sp at the bottom of its region|s/0x80020137#32/0x80010137#32/
+boot_leaves_x31|boot loads 1 into x31 instead of zero|0,/0x00000f93#32/s//0x00100f93#32/
+trap_vector_wrong|boot points mtvec four bytes past the handler|s/0x0f028293#32/0x0f428293#32/
+mscratch_wrong|boot puts the M-mode stack in the payload's region|s/0x800082b7#32/0x800092b7#32/
+no_stack_swap|the handler keeps the payload's sp|s/0x34011173#32/0x00000013#32/
+cause_check_dropped|the handler never looks at mcause|s/0x04628063#32/0x00000013#32/
+syscall_check_dropped|the handler takes every ecall for HALT|s/0xfa629ee3#32/0x00000013#32/
+fault_exit_code_two|a fault exits with 2|s/0x00100513#32/0x00200513#32/
+fault_skips_scrub|a fault jumps to the park loop, not the scrub|s/0x0380006f#32/0x0000006f#32/
+saved_t0_stays|the scrub leaves the saved t0 on the M-mode stack|s/0x00012023#32/0x00000013#32/
+scrub_leaves_sp|the scrub loads 1 into x2|s/0x00000113#32/0x00100113#32/
+mmio_address_wrong|the reports go to a word in the payload's region|s/0xc0000337#32/0x80010337#32/
+counters_start_at_three|claim: boot leaves the counters at 3, not 2|s/0x80010000#32 0#32 2#32 2#32 {}/0x80010000#32 0#32 3#32 3#32 {}/
+halt_takes_56_steps|claim: a HALT takes the monitor 56 steps, not 57|s/then 57 else 62/then 56 else 62/
+code_one_word_longer|claim: the code is four bytes longer, [0x80010000, 0x80010084)|s/x.toNat < 0x80010080 → m x = C x/x.toNat < 0x80010084 → m x = C x/
+park_loop_one_word_on|claim: the park loop is one word on|s/t.core.pc = 0x80000250#32/t.core.pc = 0x80000254#32/
+sandbox_store_unchecked|U-mode stores skip the PMP check|s/if ¬ pmpCheck s.csrs s.mode a op.size .Store then some CAUSE_STORE_ACCESS_FAULT/if False then some CAUSE_STORE_ACCESS_FAULT/|lean/Rv32/Priv.lean
+sandbox_ecall_passes|U-mode ecall is executed instead of trapped|s/else if isEcall w then/else if False then/|lean/Rv32/Priv.lean
+pmp_entries_tried_backwards|the entries are tried from 3 down to 0, so the lowest does not win|s/def PMP_INDICES : List (Fin 4) := \[0, 1, 2, 3\]/def PMP_INDICES : List (Fin 4) := [3, 2, 1, 0]/|lean/Rv32/Priv.lean
+pmp_partial_match_passes|an access that straddles an entry's edge passes|s/ \.PartialMatch  => false/ .PartialMatch  => true/|lean/Rv32/Priv.lean
+pmp_store_needs_read_not_write|a store needs the entry's R bit, not its W bit|s/\.Store => cfg\.w/.Store => cfg.r/|lean/Rv32/Priv.lean
+pmp_fetch_needs_read_not_execute|a fetch needs the entry's R bit, not its X bit|s/\.Fetch => cfg\.x/.Fetch => cfg.r/|lean/Rv32/Priv.lean
+pmp_unmatched_user_passes|U-mode that matches no entry passes|s/\[\] => mode = \.M/[] => true/|lean/Rv32/Priv.lean
+lib_code_cfg_writable|the library's code entry has W set|s/def wxCodeCfg : PmpCfgEntry := { r := true, w := false,/def wxCodeCfg : PmpCfgEntry := { r := true, w := true,/|lean/Rv32/WxBox.lean
+lib_data_cfg_executable|the library's data entry has X set|s/def wxDataCfg : PmpCfgEntry := { r := true, w := true, x := false,/def wxDataCfg : PmpCfgEntry := { r := true, w := true, x := true,/|lean/Rv32/WxBox.lean
+lib_frozen_forgets_last_code_word|a byte in the last word of the code is not frozen|s/^  (cLo ≤ x.toNat ∧ x.toNat < cHi) ∨/  (cLo ≤ x.toNat ∧ x.toNat + 4 < cHi) ∨/|lean/Rv32/WxBox.lean
