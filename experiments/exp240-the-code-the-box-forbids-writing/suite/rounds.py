@@ -4,9 +4,10 @@
 exp225's Rule 30 kernel, round after round under exp240's monitor.
 
 The kernel is exp225's `kernel.bin`, 76 bytes, loaded once at the start of the code entry. Each round the host does
-what exp225's shell does and nothing more: it resets the core (harness.reenter: the RAM carries over, the registers and
-the CSRs do not), and writes the last generation of the round before, one word, at +0x100 as the seed. The kernel is not
-loaded again and the box is not zeroed. A round must
+what exp225's shell does and nothing more: it writes the last generation of the round before, one word, at +0x100 as the
+seed, and resets the core (harness.reenter: the RAM carries over, the registers do not). Every other round the reset is
+the weakest there is, the one `monitor_reentry` starts from: the CSRs are not reset but hold junk, `MPP` M-mode and four
+PMP entries on among it, with no lock bit set. The kernel is not loaded again and the box is not zeroed. A round must
 
   - end parked with HALT 0, the monitor having counted 3,079 + 2 instructions (exp225's theorem, and the `csrwi` that
     releases the counters and the `mret`), and one trap only, the `ecall`;
@@ -14,7 +15,8 @@ loaded again and the box is not zeroed. A round must
     gives from the seed, which the kernel run alone, in M-mode with no monitor, leaves too;
   - change nothing in 256 KiB of RAM but those 1,024 bytes and the two words the monitor saved and zeroed: the code
     entry's bytes, the monitor's, and the junk in every other byte are what they were;
-  - leave the machine, but for memory, exactly as the round before did: the registers, the CSRs, the report.
+  - leave the machine, but for memory, exactly as the round before did: the registers, the CSRs, the report -- whatever
+    the reset left in the CSRs.
 
 And the hundred rounds together are 25,600 generations of Rule 30 from the first seed.
 
@@ -100,8 +102,9 @@ def one_round(mon: bytes, start: SandboxEmulator, seed: int):
     return bad, emu
 
 
-def run_all(mon: bytes, rounds: int = ROUNDS):
-    """(failures, summary): `rounds` rounds from one first RAM, the seed of each the last generation of the one before."""
+def run_all(mon: bytes, rounds: int = ROUNDS, junk: bool = True):
+    """(failures, summary): `rounds` rounds from one first RAM, the seed of each the last generation of the one before;
+    with `junk`, every other round from a reset that leaves junk in the CSRs."""
     seed0 = rule30.SEED0
     seed, core = seed0, SandboxEmulator(first_ram(mon, seed0))
     code0 = bytes(core.mem[oracle.CODE[0] - BASE:oracle.CODE[1] - BASE])
@@ -119,7 +122,7 @@ def run_all(mon: bytes, rounds: int = ROUNDS):
         prints_set.add(tuple(harness.reported(emu, harness.TAG_HALT) or ()))
         seed = struct.unpack_from("<I", hist, HIST_LEN - 4)[0]
         emu.mem[SEED_AT:SEED_AT + 4] = struct.pack("<I", seed)      # the host's one write
-        core = harness.reenter(emu)
+        core = harness.reenter(emu, junk_csrs=junk and n % 2 == 1)
         if failures:
             break
     cells = rule30.history(seed0, rule30.N * rounds)
@@ -147,14 +150,23 @@ def main():
           "one trap, the ecall")
     print("      each round: the 1,024 bytes of history are rule30.py's, and the kernel run alone leaves the same")
     print("      each round: 256 KiB of RAM unchanged but for the history and the monitor's two stack words")
-    print("      the code entry's 128 bytes the same after every round; the parked machine the same after every round")
+    print("      the code entry's 128 bytes the same after every round; the parked machine the same after every round,")
+    print("      though every other round started from a reset that left junk in the CSRs (MPP M-mode, four PMP entries on)")
     print(f"      SHA-256 of the {s['generations']} generations: {s['digest']}")
-    ctl = run_all(oracle.monitor236(), 10)
+    ctl = run_all(oracle.monitor236(), 10, junk=False)
     if ctl[0]:
         for b in ctl[0]:
             print(f"FAIL  exp236's monitor: {b}")
         sys.exit(1)
-    print("PASS  exp236's monitor, one RWX entry over the box, gives the same: the stricter box costs the kernel nothing")
+    print("PASS  exp236's monitor, one RWX entry over the box, gives the same from a reset of the CSRs: the stricter box")
+    print("      costs the kernel nothing")
+    leak = run_all(oracle.monitor236(), 10)[0]
+    if leak != ["the parked machine differs from round to round: 2 different machines"]:
+        print(f"FAIL  exp236's monitor from junk CSRs: {leak or 'nothing differs'}, wanted two parked machines")
+        sys.exit(1)
+    print("PASS  exp236's monitor from a reset that leaves junk in the CSRs parks two different machines: it clears MPP")
+    print("      alone and sets one PMP entry, so the interrupt enable it found and the addresses of the entries it does")
+    print("      not use are still there at the park; exp240 writes every CSR")
 
 
 if __name__ == "__main__":

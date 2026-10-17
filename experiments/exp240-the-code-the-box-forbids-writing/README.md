@@ -2,7 +2,7 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**A 150-word, 600-byte RISC-V M-mode monitor (`monitor.bin`) that fences its payload into a box where no byte can be
+**A 151-word, 604-byte RISC-V M-mode monitor (`monitor.bin`) that fences its payload into a box where no byte can be
 both written and run, and a Lean 4 proof of what its own words do when the privileged model of exp235 runs them.
 exp236's monitor gives the payload 64 KiB with one read-write-execute entry, so a stray pointer can rewrite the
 payload's own instructions and anything it writes it can run. This one uses three of the four PMP entries, tried in
@@ -10,8 +10,9 @@ order: the **code**, 128 bytes, read and execute; the **data**, 4 KiB, read and 
 the entry before; the **stack**, 4 KiB at the top of the box, read and write; and between the data and the stack a
 52 KiB **guard** that matches nothing. The proof covers whatever the payload does: no address is fetchable and storable;
 the code's bytes are the same after any number of steps, by the PMP alone; and the monitor parks with every register
-but `a0` zero, memory as the payload left it but for the monitor's own stack words. Boot leaves the CSR file at
-one constant whatever came before it, and a round leaves the machine ready for the next, any number of times. exp225's
+but `a0` zero, memory as the payload left it but for the monitor's own stack words. Boot writes every CSR the model has,
+so from any CSRs that lock no PMP entry it leaves the CSR file at one constant; and a round leaves the machine ready
+for the next, with the host's writes between rounds, any number of times. exp225's
 Rule 30 kernel runs a hundred rounds under it on an emulator, loaded once, and every round's 256 generations are
 `rule30.py`'s. Nothing here ran on silicon or on the Hazard3 RTL.**
 
@@ -22,20 +23,23 @@ where this differs from it.
 ## What the monitor does
 
 `monitor.S`, assembled at `0x80000000`. It is exp236's, word for word, but for the seven words boot adds to set three
-entries where exp236 set one: the trap vector and everything after it is exp236's, `0x1c` bytes further on.
+entries where exp236 set one, and one more: boot writes `mstatus` whole, with one word where exp236 cleared `MPP` with
+three, and writes `pmpaddr3`, `mcause` and `mtval`, which exp236 left as it found them. The trap vector and everything
+after it is exp236's, `0x20` bytes further on.
 
 ```
-0x80000040  _reset (boot, 60 steps)   mtvec <- 0x80000130, mscratch <- 0x80008000, mcountinhibit <- 5,
+0x80000040  _reset (boot, 61 steps)   mtvec <- 0x80000134, mscratch <- 0x80008000, mcountinhibit <- 5,
                                       pmpaddr0 <- 0x2000400f, pmpaddr1 <- 0x200041ff, pmpaddr2 <- 0x20007dff,
-                                      pmpcfg0 <- 0x001b1b1d, mepc <- 0x80010000, MPP <- U, counters <- 0,
+                                      pmpcfg0 <- 0x001b1b1d, mepc <- 0x80010000, mstatus <- 0 (MPP U),
+                                      pmpaddr3, mcause, mtval <- 0, counters <- 0,
                                       sp <- 0x80020000, x1, x3..x31 <- 0, mcountinhibit <- 0, mret
-0x80000130  trap_handler              freeze counters, swap sp with mscratch, save t0 and t1 at
+0x80000134  trap_handler              freeze counters, swap sp with mscratch, save t0 and t1 at
                                       0x80008000/4, read mcause
                                         mcause == 8 and saved t0 == 1  ->  handle_halt: report HALT
                                         anything else                  ->  handle_fault: report FAULT, a0 <- 1
-0x800001bc  scrub_exit                clear the two saved words and mscratch, x1..x9 and x11..x31,
+0x800001c0  scrub_exit                clear the two saved words and mscratch, x1..x9 and x11..x31,
                                       write a0 to the exit port, x6 <- 0
-0x80000250  halt_loop                 wfi; j halt_loop
+0x80000254  halt_loop                 wfi; j halt_loop
 ```
 
 The three entries, and what each makes of an access (`pmpcfg0 = 0x001b1b1d`):
@@ -58,7 +62,8 @@ its history at `+0x200..+0x600`: past its own 76 bytes of code, and in the data.
 two the kernel fits in; a payload has to fit in it, and one of 33 words cannot fetch its 33rd.
 
 The reports go to two testbench words, `0xc0000004` (print) and `0xc0000008` (exit); the proof treats them as memory.
-Only HALT is served. A round is a hardware reset, boot, the payload to its first trap, and the monitor to the park loop.
+Only HALT is served. A round is a reset -- the hardware's, or one that leaves the CSRs as they were -- boot, the payload
+to its first trap, and the monitor to the park loop; between rounds the host may write memory.
 
 ## What is proved
 
@@ -74,27 +79,31 @@ entries (`WXBoxed`), not about this monitor:
 | `wx_step`, `wx_run` | one step, and any number of steps up to the first trap, of a boxed payload: it stays in U-mode, boxed, the CSRs the monitor set unchanged, and no byte `WxFrozen` names -- the code, and everything outside the data and the stack -- changes; or it traps to the vector with the registers and memory as it left them |
 | `wx_code_immutable` | the code's bytes are the same after any number of steps. Nothing about the payload's instructions is assumed: it is the PMP alone |
 | `pmpCheck_M_outside_in` | M-mode outside the box is never refused, whichever of the entries are on |
+| `pmpCheck_M_unlocked` | while no entry is locked, M-mode is refused **nowhere**, for an aligned word, whatever the entries say: what boot needs for the words it runs before it has set the PMP |
 
 And about the words of `monitor.bin`, in `proof/Wx.lean`, which `check.sh` holds against `monitor.S` assembled afresh:
 
 | theorem | says |
 | :--- | :--- |
-| `monitor_boot` | from reset (image loaded, `pc = 0x80000040`, M-mode, CSRs at reset, any registers), 60 steps give `WXBoxed` with the three entries at `0x80010000`, `sp = 0x80020000`, every other register zero, memory untouched, and **the CSR file exactly `csrsBooted`**: counters at 2, `mepc`, the trap vector, `mstatus`, the PMP -- constants |
+| `monitor_boot` | from reset (image loaded, `pc = 0x80000040`, M-mode, **any CSRs that lock no PMP entry**, any registers), 61 steps give `WXBoxed` with the three entries at `0x80010000`, `sp = 0x80020000`, every other register zero, memory untouched, and **the CSR file exactly `csrsBooted`**: counters at 2, `mepc`, `mcause`, `mtval`, the trap vector, `mstatus`, the PMP -- constants |
 | `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | from the trap vector, whatever the payload left: 57, 59 and 62 steps to the park loop, the report made, the saved words and `mscratch` zero, every register but `a0` zero (`a0` the payload's own for a HALT, 1 otherwise), and **every byte of memory but the monitor's stack words and report words as the payload left it** |
-| `monitor_traps` | the three, whichever it was: `Parked (run (trapSteps u) u) (exitCode u)`, the monitor's words in place, `FrameSP` |
+| `monitor_traps` | the three, whichever it was: `Parked (run (trapSteps u) u) (exitCode u)`, the monitor's words in place, `FrameSP`, `pmpcfg0` as boot set it |
 | `payload_runs` | the payload in the box runs up to its first trap; frozen bytes are the image's; at the trap the handler's theorems apply |
-| `monitor_end_to_end` | from reset, boot, then up to `n` payload steps: still running, boxed, in U-mode, with the monitor's words and **the code's 128 bytes as loaded** -- or it trapped, and the machine parks with those, and with memory as the payload left it but for the monitor's stack words |
-| `monitor_reentry` | from any `Ready` machine -- the monitor's words in memory, whatever else: any registers, any CSRs, any privilege, any `pc` -- a reset and boot leave `WXBoxed`, `csrsBooted`, and `sp` at the top. **Nothing a round leaves behind reaches the next** |
-| `monitor_round_ready` | one round from a `Ready` machine ends parked, and `Ready` again, with the code region the bytes it was loaded with |
-| `monitor_rounds` | any number of rounds: `Ready` again |
+| `monitor_end_to_end` | from reset, or any CSRs that lock no entry, boot, then up to `n` payload steps: still running, boxed, in U-mode, with the monitor's words and **the code's 128 bytes as loaded** -- or it trapped, and the machine parks with those, and with memory as the payload left it but for the monitor's stack words |
+| `monitor_reentry` | from any `Ready` machine -- the monitor's words in memory, the code, no PMP entry locked; whatever else: any registers, any other CSRs, any privilege, any `pc` -- a reset that keeps the CSRs and boot leave `WXBoxed`, `csrsBooted`, and `sp` at the top. **No register and no CSR a round leaves behind reaches the next**; memory does, outside the monitor's words, and the next payload reads it |
+| `ready_of_host` | the host's write between rounds -- anything at all but the monitor's words, the code, or a lock bit (`HostWrite`) -- leaves a `Ready` machine `Ready` |
+| `monitor_round_ready` | one round from a `Ready` machine ends parked, and `Ready` again, with the code region the bytes it was loaded with and the PMP as boot set it, which locks nothing |
+| `monitor_rounds` | any number of rounds, and of the host's writes between them: `Ready` again. This is what `suite/rounds.py` runs |
 
 A round is `Round`: reset, boot, the payload to its first trap (`Trapped`: M-mode, every step before it U-mode), and the
-monitor's `trapSteps u` steps. `Ready` is the monitor's words in memory and the code region `C`; the registers and the
-CSRs are not in it, which is the claim.
+monitor's `trapSteps u` steps. `Ready` is the monitor's words in memory, the code region `C`, and no PMP entry locked;
+the registers and the rest of the CSRs are not in it, which is the claim. `Rounds` is any sequence of `Round`s and
+`HostWrite`s.
 
 Each short run of the handler is one theorem -- a chunk, a few instructions -- written by `proof/gen.py` with the machinery
-of `tools/monitor/chunks.py`, as exp238's and exp239's are; boot and the definitions are exp236's proof text with the PMP
-values changed and the addresses moved on, `proof/defs.lean` and `proof/tail.lean` the hand-written parts, and `check.sh`
+of `tools/monitor/chunks.py`, as exp238's and exp239's are; the second half of boot and the definitions are exp236's
+proof text with the PMP values changed and the addresses moved on, the first half of boot written for CSRs it does not
+know, `proof/defs.lean` and `proof/tail.lean` the hand-written parts, and `check.sh`
 fails if `Wx.lean` is not what the generator writes.
 
 ## What is not proved, and what it rests on
@@ -112,9 +121,12 @@ fails if `Wx.lean` is not what the generator writes.
   That is the price of the carve-out; a payload that wants a bigger code entry needs a bigger power of two.
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems assume it is
   `monRegion = [0x80000000, 0xC0000100)`, which holds the box. The sandbox theorems hold for any `env`.
-- **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.
-- **A reset is a model.** `resetOf` keeps the registers and the memory and resets the `pc`, the privilege and the CSRs. A
-  chip's reset also puts the SRAM in whatever state it likes; `Ready` is what a round needs of it.
+- **No interrupts.** The model has none, and no `mie`. The monitor never writes `mie`, and relies on it being 0 at reset;
+  "any CSRs" in the theorems is any of the CSRs the model has, and a reset that kept a non-zero `mie` is outside them.
+- **A reset is a model.** `resetOf` keeps the registers, the CSRs and the memory, and resets the `pc` and the privilege:
+  the weakest reset there is, and the hardware's, which resets the CSRs too, is one. What is assumed of the CSRs is only
+  that no PMP entry is locked: a locked entry holds M-mode too and ignores boot's writes, and this monitor never sets
+  `L`. A chip's reset also puts the SRAM in whatever state it likes; `Ready` is what a round needs of it.
 - **The stack words.** Trap entry saves `t0` and `t1` at `0x80008000/4`; the scrub zeroes them. The two words after are
   never written, and the theorems say nothing about them.
 - **Reads.** `wx_load_ok` is what a load can reach; the monitor does not scrub what the payload wrote, in the data or on the
@@ -122,43 +134,57 @@ fails if `Wx.lean` is not what the generator writes.
 - **The park loop's `wfi`** is not an instruction of the model; the theorems end with `pc` at it.
 - **The emulator** (`tools/monitor/emulator.py`) is a second reading of the specification by the same author as the model.
   It does not hard-code the monitor's configuration: it decodes `pmpcfg0` and `pmpaddr0..3` when each instruction runs.
+  An access the PMP lets through to an address with no memory faults with the same `mcause` and `mtval` as one the PMP
+  refuses, as a bus fault does on the chip, so the monitor's report cannot tell a box that held from a box that let the
+  access through to nothing. The emulator records which it was, and `harness.check_fault` requires the PMP's;
+  `entry_three_on`, a fourth entry over the 32 bytes at address 0, is caught by that and by nothing else. A board run
+  would have no such record.
+- **The model's `mtval`** is a plain register: a trap does not write it, as the chip's does. That is why boot writes it --
+  in the model, the next fault would report the last round's -- and why `mtval_kept` is refused by Lean and not looked
+  for on the emulator.
 
 ## The checks
 
-1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches, 150 ≤ 200 words, and
+1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches, 151 ≤ 200 words, and
    `monitorCode` in the proof is the binary's words in order.
 2. `Wx.lean` checks, with no errors and no warnings, on Lean's own axioms (and so does `WxBox.lean`, which it imports).
-3. **Forty mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks. Twenty-six change one word of
-   `monitorCode`: the three addresses and the configuration word -- a code entry of 256 or 64 bytes, a data entry of 8 or
-   2 KiB, a stack entry of 8 KiB or one that reaches the monitor; a code entry that can be written, a data or stack entry
-   that can be run, an entry off, entry 3 on, the code and the data exchanged -- and boot and handler words, as exp236's.
-   Four change a claim (the counters at 3, a HALT in 56 steps, the code four bytes longer, the park loop a word on). Ten
-   change a rule of the model or a statement of the library: stores and `ecall`s not checked, the entries tried
-   backwards, a straddling access that passes, a store that needs R and not W, a fetch that needs R and not X, an access
-   that matches nothing that passes, a code entry with W, a data entry with X, and a frozen set that forgets the last word
-   of the code.
+3. **Forty-seven mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks. Twenty-nine change one
+   word of `monitorCode`: the three addresses and the configuration word -- a code entry of 256 or 64 bytes, a data entry
+   of 8 or 2 KiB, a stack entry of 8 KiB or one that reaches the monitor; a code entry that can be written, a data or
+   stack entry that can be run, an entry off, entry 3 on, the code and the data exchanged -- boot's four writes of the
+   CSRs it would otherwise find as they were (`mstatus`, `pmpaddr3`, `mcause`, `mtval`), and boot and handler words, as
+   exp236's. Seven change a claim (the counters at 3, a HALT in 56 steps, the code four bytes longer, the park loop a
+   word on, a round that may start with an entry locked, a host that may write the code or lock an entry). Eleven change
+   a rule of the model or a statement of the library: stores and `ecall`s not checked, the entries tried backwards, a
+   straddling access that passes, a store that needs R and not W, a fetch that needs R and not X, an access that matches
+   nothing that passes, M-mode held to the entries as U-mode is, a code entry with W, a data entry with X, and a frozen
+   set that forgets the last word of the code.
 4. `proof/Wx.lean` is what `proof/gen.py` writes.
 5. **Rule 30, round after round** (`suite/rounds.py`): exp225's kernel loaded once into the code entry, the box seeded with
-   junk in every byte it does not own, a hundred rounds. Between rounds the host resets the core and writes one word, the
-   last generation, as the next seed. Each round ends parked with HALT 0, the monitor having counted 3,079 + 2
+   junk in every byte it does not own, a hundred rounds. Between rounds the host writes one word, the last generation, as
+   the next seed, and resets the core: every other round with a reset that leaves junk in the CSRs -- `MPP` M-mode, both
+   interrupt enables, four PMP entries on, none locked. Each round ends parked with HALT 0, the monitor having counted 3,079 + 2
    instructions, one trap, the `ecall`; the 1,024 bytes of history are `rule30.py`'s, and the kernel run alone leaves the
    same; 256 KiB of RAM is what it was but for the history and the monitor's two stack words; the code entry's bytes are
    the same; and the parked machine, registers and CSRs and report, is the same after every round. The 25,600
-   generations are `rule30.py`'s from the first seed. Ten rounds under exp236's monitor give the same: the stricter box
-   costs the kernel nothing.
-6. **Fifty-two hostile payloads** (`suite/wx_attacks.py`), each place tried from both sides: stores into the code (first
+   generations are `rule30.py`'s from the first seed. Ten rounds under exp236's monitor give the same from a reset of the
+   CSRs: the stricter box costs the kernel nothing. From the junk they give two different parked machines: exp236 clears
+   `MPP` alone and sets one entry, so the interrupt enable and the addresses of the entries it does not use are still
+   there at the park.
+6. **Fifty-five hostile payloads** (`suite/wx_attacks.py`), each place tried from both sides: stores into the code (first
    word, last word, last byte, the next instruction, with secrets in 20 registers); the data from the first byte past the
    code to its last word, run and written; the guard, read, written and run, both ends; the stack from its bottom word to
    past its top, by recursion until it overflows, and by popping past the top; shellcode written into the data, where the
    kernel keeps its seed, and onto the stack, and run; a payload of 32 words and one of 33; the monitor, the M-mode stack,
-   system SRAM, past the box; `pmpcfg0`, `mstatus`, the counters, `mret`, `wfi`, `ebreak`, an illegal word, a misaligned
+   system SRAM, past the box; address 0, where there is no memory, read, written and run; `pmpcfg0`, `mstatus`, the counters, `mret`, `wfi`, `ebreak`, an illegal word, a misaligned
    load and store, unknown and unoffered syscalls; and clean halts with secrets in registers. Each ends parked and
-   scrubbed with the cause and the `mtval` the PMP rule gives, and the code entry's bytes as loaded. Three of them --
+   scrubbed with the cause and the `mtval` the PMP rule gives, refused by the PMP and not by the bus, and the code
+   entry's bytes as loaded. Three of them --
    self-modifying code, and shellcode in the data and on the stack -- run to a clean HALT under exp236's monitor and are
    stopped by this one.
-7. **Twenty-five broken monitors** (`suite/broken_monitors.py`): `monitor.S` with one change -- each of the cases of check 3
-   that the emulator can see, the two entries in the wrong order, a payload `sp` at the bottom of the stack, a register
-   boot or the scrub forgets, a fault that does not scrub, saved words or `mscratch` left behind -- each must fail the
+7. **Twenty-seven broken monitors** (`suite/broken_monitors.py`): `monitor.S` with one change -- each of the cases of
+   check 3 that the emulator can see, the two entries in the wrong order, a fourth entry on, `mstatus` not written or
+   `MPP` set to M-mode, a payload `sp` at the bottom of the stack, a register boot or the scrub forgets, a fault that does not scrub, saved words or `mscratch` left behind -- each must fail the
    hostile payloads or the rounds.
 
 ## Expected output

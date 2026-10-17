@@ -7,7 +7,8 @@ A payload is loaded at the start of the code entry and runs in U-mode. The box i
 guard (suite/oracle.py), and each place is tried from both sides: the first byte that is inside and the first byte that
 is not. A payload that does what the box forbids must end the way every payload ends under these monitors -- the monitor
 reports, and parks, every register but `a0` zero -- with the cause the PMP rule gives and the address that caused it
-(`mtval`), and the code entry's bytes as the payload was loaded: the store that was refused wrote nothing. A payload that
+(`mtval`), refused by the PMP and not by the bus (an address with no memory faults the same way), and the code entry's
+bytes as the payload was loaded: the store that was refused wrote nothing. A payload that
 does what the box allows must run on.
 
 `CONTRASTS` are the payloads exp236's box -- one RWX entry over the same 64 KiB -- lets through: they patch their own
@@ -106,7 +107,14 @@ ATTACKS = [
     ("jump into the monitor",
      "lui t0, 0x80000\n addi t0, t0, 0x40\n jalr x0, 0(t0)", ("fault", 1, 0x80000040)),
     ("jump to the trap vector",
-     "lui t0, 0x80000\n addi t0, t0, 0x130\n jalr x0, 0(t0)", ("fault", 1, 0x80000130)),
+     "lui t0, 0x80000\n addi t0, t0, 0x134\n jalr x0, 0(t0)", ("fault", 1, 0x80000134)),
+    # where there is no memory at all: the PMP must refuse it before the bus does (harness.check_fault)
+    ("load from address 0",
+     "lw t1, 0(x0)", ("fault", 5, 0x00000000)),
+    ("store to address 0",
+     "sw x0, 0(x0)", ("fault", 7, 0x00000000)),
+    ("run address 0",
+     "jalr x0, 0(x0)", ("fault", 1, 0x00000000)),
     # ---- the PMP and the CSRs are not the payload's
     ("write pmpcfg0 to unlock the code",
      "li t0, 0x1f\n csrw pmpcfg0, t0", ("fault", 2, None)),

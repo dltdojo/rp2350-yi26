@@ -20,7 +20,8 @@
 // The layout is the one a position-independent payload wants: exp225's Rule 30 kernel finds its own address with
 // `auipc`, reads its seed at +0x100 and writes its history at +0x200..+0x600 -- inside the data entry, past its own
 // 76 bytes of code. Everything else is exp236's, word for word but for the addresses that move with the seven words
-// the entries add to boot.
+// the entries add to boot and the one more that boot spends on writing every CSR it has (below, after `mepc`): a boot
+// that reads nothing from the CSRs it finds is one that a previous round cannot reach.
 //
 //   1. Configures PMP as above, leaving all other physical memory in default-deny.
 //   2. Clears all general purpose registers and initializes U-mode stack: sp = 0x80020000, the top of the stack entry.
@@ -75,9 +76,15 @@ _reset:
     li    t0, 0x80010000
     csrw  mepc, t0
 
-    // Clear mstatus.MPP to User mode (0b00)
-    li    t0, 0x1800
-    csrc  mstatus, t0
+    // mstatus all zero: MPP User mode (0b00), MIE and MPIE off, whatever it held before.
+    // exp236 cleared MPP alone, with three words; this is one.
+    csrw  mstatus, zero
+
+    // The CSRs boot does not otherwise set, set too, so that nothing in them comes from
+    // before the reset: entry 3's address, and the cause and value of the last trap
+    csrw  pmpaddr3, zero
+    csrw  mcause, zero
+    csrw  mtval, zero
 
     // Zero hardware performance counters
     csrw  minstret, zero

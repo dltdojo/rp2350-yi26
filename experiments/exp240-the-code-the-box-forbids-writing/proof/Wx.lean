@@ -42,7 +42,7 @@ def monitorCode : List Word := [
   0x00000000#32,
   0x00000000#32,
   0x00000297#32,
-  0x0f028293#32,
+  0x0f428293#32,
   0x30529073#32,
   0x800082b7#32,
   0x34029073#32,
@@ -61,9 +61,10 @@ def monitorCode : List Word := [
   0x3a029073#32,
   0x800102b7#32,
   0x34129073#32,
-  0x00300293#32,
-  0x00b29293#32,
-  0x3002b073#32,
+  0x30001073#32,
+  0x3b301073#32,
+  0x34201073#32,
+  0x34301073#32,
   0xb0201073#32,
   0xb8201073#32,
   0xb0001073#32,
@@ -180,14 +181,14 @@ def monitorCode : List Word := [
 
 
 set_option maxRecDepth 100000 in
-theorem monitorCode_length : monitorCode.length = 150 := by decide
+theorem monitorCode_length : monitorCode.length = 151 := by decide
 
 
 /-- Run from here, one step at a time, on the words of the monitor. `M0` is the memory the
     words were loaded into; `Agree M0 m` says `m` still has them. -/
 theorem step_mon {env : Rv32.Env} {M0 : Word → Byte} {t : PrivMachine}
     (hW : WordsAt M0 0x80000000#32 monitorCode)
-    (hA : Agree M0 t.core.mem 0x80000000 600)
+    (hA : Agree M0 t.core.mem 0x80000000 604)
     (hlt : (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length)
     (hal : (t.core.pc - 0x80000000#32).toNat % 4 = 0) :
     PrivMachine.step env t =
@@ -208,10 +209,11 @@ theorem sm_mon (env : Rv32.Env) (M0 : Word → Byte) (hW : WordsAt M0 0x80000000
 
 /-! ## Definitions -/
 
-/-- What boot's first twenty-seven steps leave in the CSRs: trap vector, stack pointer for traps, the
-    three PMP entries (code, data, stack), the `mret` target, counters frozen at zero. -/
+/-- What boot's first twenty-eight steps leave in the CSRs, whatever they held: trap vector, stack pointer
+    for traps, the three PMP entries (code, data, stack) and the fourth's address zero, the `mret` target,
+    counters frozen at zero, `mstatus`, `mcause` and `mtval` zero. -/
 def csrsConfigured : PrivCSRs :=
-  { mtvec := 0x80000130#32, mscratch := 0x80008000#32, mepc := 0x80010000#32,
+  { mtvec := 0x80000134#32, mscratch := 0x80008000#32, mepc := 0x80010000#32,
     pmpcfg0 := 0x001b1b1d#32, pmpaddr0 := 0x2000400f#32, pmpaddr1 := 0x200041ff#32,
     pmpaddr2 := 0x20007dff#32,
     mcountinhibit := { cy := true, ir := true } }
@@ -231,12 +233,12 @@ def csrsFixed : PrivCSRs := { csrsConfigured with mcountinhibit := {} }
 
 /-- The handler's CSRs: `csrsFixed` with the free fields, the inhibit and `mscratch` named. -/
 def csrsH (ms : MStatus) (e c m cy : Word) (inh : MCountInhibit) (sc : Word) : PrivCSRs :=
-  { mstatus := ms, mtvec := 0x80000130#32, mscratch := sc, mepc := e, mcause := c, mtval := 0#32,
+  { mstatus := ms, mtvec := 0x80000134#32, mscratch := sc, mepc := e, mcause := c, mtval := 0#32,
     pmpcfg0 := 0x001b1b1d#32, pmpaddr0 := 0x2000400f#32, pmpaddr1 := 0x200041ff#32, pmpaddr2 := 0x20007dff#32,
     pmpaddr3 := 0#32, mcountinhibit := inh, minstret := m, mcycle := cy }
 
 /-- A CSR file whose fixed fields are the monitor's is `csrsH` of its free fields. -/
-theorem csrs_eq_csrsH (c : PrivCSRs) (h1 : c.mtvec = 0x80000130#32) (h2 : c.mscratch = 0x80008000#32)
+theorem csrs_eq_csrsH (c : PrivCSRs) (h1 : c.mtvec = 0x80000134#32) (h2 : c.mscratch = 0x80008000#32)
     (h3 : c.mtval = 0#32) (h4 : c.pmpcfg0 = 0x001b1b1d#32) (h5 : c.pmpaddr0 = 0x2000400f#32)
     (h6 : c.pmpaddr1 = 0x200041ff#32) (h7 : c.pmpaddr2 = 0x20007dff#32) (h8 : c.pmpaddr3 = 0#32)
     (h9 : c.mcountinhibit = {}) :
@@ -272,7 +274,7 @@ theorem pmpCheck_mon (csrs : PrivCSRs) (addr : Word) (width : Nat) (acc : Access
 /-- The common hypotheses of a handler step: loaded words, the region, not halted, M-mode. -/
 structure HState (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine) : Prop where
   words : WordsAt M0 0x80000000#32 monitorCode
-  agree : Agree M0 s.core.mem 0x80000000 600
+  agree : Agree M0 s.core.mem 0x80000000 604
   region : env.region = monRegion
   notHalted : s.halted = false
   mMode : s.mode = .M
@@ -325,21 +327,33 @@ theorem writeLE4_apply (m : Word → Byte) (a : Word) (v : Nat) (x : Word) :
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
+/-- Boot's first 28 steps, from any CSRs at all but a locked PMP entry: they write every CSR the model has, so
+    `csrsConfigured` is where they end whatever was there. Until `pmpcfg0` is written the PMP is whatever the
+    machine came with, and what lets M-mode run through it is that none of its entries is locked
+    (`pmpCheck_M_unlocked`). -/
 theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
     (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
-    (hcs : s.csrs = {}) :
-    (PrivMachine.run env 27 s).core.pc = 0x800000ac#32 ∧
-    (PrivMachine.run env 27 s).core.mem = M0 ∧
-    (PrivMachine.run env 27 s).halted = false ∧
-    (PrivMachine.run env 27 s).mode = .M ∧
-    (PrivMachine.run env 27 s).csrs = csrsConfigured := by
+    (hlock : PmpUnlocked s.csrs.pmpcfg0) :
+    (PrivMachine.run env 28 s).core.pc = 0x800000b0#32 ∧
+    (PrivMachine.run env 28 s).core.mem = M0 ∧
+    (PrivMachine.run env 28 s).halted = false ∧
+    (PrivMachine.run env 28 s).mode = .M ∧
+    (PrivMachine.run env 28 s).csrs = csrsConfigured := by
   have sm := sm_mon env M0 hW
-  obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 27 s = F := ⟨_, rfl⟩
-  rw [hF]
-  psimp [sm, hmem, hpc, monitorCode, hh, hm, hcs] at hF
-  subst hF
-  psimp [hpc, hmem, csrsConfigured]
+  have l0 := hlock 0
+  have l1 := hlock 1
+  have l2 := hlock 2
+  have l3 := hlock 3
+  have hcfg : PmpUnlocked 0x001b1b1d#32 := by intro i; revert i; decide
+  have k3 := hcfg 3
+  -- the counters count until `csrwi mcountinhibit, 5`, or not, as the inhibit bits they find say; then they are zeroed
+  rcases hci : s.csrs.mcountinhibit with ⟨_ | _, _ | _⟩ <;>
+  · obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 28 s = F := ⟨_, rfl⟩
+    rw [hF]
+    psimpH [sm, hmem, hpc, monitorCode, hh, hm, hci, l0, l1, l2, l3, k3, hlock, hcfg, pmpCheck_M_unlocked] at hF
+    subst hF
+    psimpH [hpc, hmem, csrsConfigured]
 
 /-! ## Boot, second half: clear every register, set `sp`, drop to U-mode -/
 
@@ -347,9 +361,9 @@ set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
 theorem monitor_launch_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
-    (hpc : s.core.pc = 0x800000ac#32) (hh : s.halted = false) (hm : s.mode = .M)
+    (hpc : s.core.pc = 0x800000b0#32) (hh : s.halted = false) (hm : s.mode = .M)
     (hcs : s.csrs = csrsConfigured) (hC : Cleared 0 s) :
-    (PrivMachine.run env 12 s).core.pc = 0x800000dc#32 ∧
+    (PrivMachine.run env 12 s).core.pc = 0x800000e0#32 ∧
     (PrivMachine.run env 12 s).core.mem = M0 ∧
     (PrivMachine.run env 12 s).halted = false ∧
     (PrivMachine.run env 12 s).mode = .M ∧
@@ -371,9 +385,9 @@ set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
 theorem monitor_launch_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
-    (hpc : s.core.pc = 0x800000dc#32) (hh : s.halted = false) (hm : s.mode = .M)
+    (hpc : s.core.pc = 0x800000e0#32) (hh : s.halted = false) (hm : s.mode = .M)
     (hcs : s.csrs = csrsConfigured) (hC : Cleared 12 s) :
-    (PrivMachine.run env 12 s).core.pc = 0x8000010c#32 ∧
+    (PrivMachine.run env 12 s).core.pc = 0x80000110#32 ∧
     (PrivMachine.run env 12 s).core.mem = M0 ∧
     (PrivMachine.run env 12 s).halted = false ∧
     (PrivMachine.run env 12 s).mode = .M ∧
@@ -395,9 +409,9 @@ set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
 theorem monitor_launch_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
-    (hpc : s.core.pc = 0x8000010c#32) (hh : s.halted = false) (hm : s.mode = .M)
+    (hpc : s.core.pc = 0x80000110#32) (hh : s.halted = false) (hm : s.mode = .M)
     (hcs : s.csrs = csrsConfigured) (hC : Cleared 24 s) :
-    (PrivMachine.run env 7 s).core.pc = 0x80000128#32 ∧
+    (PrivMachine.run env 7 s).core.pc = 0x8000012c#32 ∧
     (PrivMachine.run env 7 s).core.mem = M0 ∧
     (PrivMachine.run env 7 s).halted = false ∧
     (PrivMachine.run env 7 s).mode = .M ∧
@@ -422,9 +436,9 @@ set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
 theorem monitor_launch_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
-    (hpc : s.core.pc = 0x80000128#32) (hh : s.halted = false) (hm : s.mode = .M)
+    (hpc : s.core.pc = 0x8000012c#32) (hh : s.halted = false) (hm : s.mode = .M)
     (hcs : s.csrs = csrsConfigured) :
-    (PrivMachine.run env 1 s).core.pc = 0x8000012c#32 ∧
+    (PrivMachine.run env 1 s).core.pc = 0x80000130#32 ∧
     (PrivMachine.run env 1 s).core.mem = M0 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
@@ -441,7 +455,7 @@ set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
 theorem monitor_launch_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
-    (hpc : s.core.pc = 0x8000012c#32) (hh : s.halted = false) (hm : s.mode = .M)
+    (hpc : s.core.pc = 0x80000130#32) (hh : s.halted = false) (hm : s.mode = .M)
     (hcs : s.csrs = csrsReady) :
     (PrivMachine.run env 1 s).core.pc = 0x80010000#32 ∧
     (PrivMachine.run env 1 s).core.mem = M0 ∧
@@ -452,7 +466,7 @@ theorem monitor_launch_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 1 s).csrs.pmpaddr1 = 0x200041ff#32 ∧
     (PrivMachine.run env 1 s).csrs.pmpaddr2 = 0x20007dff#32 ∧
     (PrivMachine.run env 1 s).csrs.pmpaddr3 = 0#32 ∧
-    (PrivMachine.run env 1 s).csrs.mtvec = 0x80000130#32 ∧
+    (PrivMachine.run env 1 s).csrs.mtvec = 0x80000134#32 ∧
     (PrivMachine.run env 1 s).csrs.mscratch = 0x80008000#32 ∧
     (PrivMachine.run env 1 s).csrs.mcountinhibit = {} ∧
     (PrivMachine.run env 1 s).csrs.mtval = 0#32 ∧
@@ -465,21 +479,21 @@ theorem monitor_launch_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   subst hF
   psimp [hpc, hmem, csrsConfigured, csrsReady, csrsBooted, csrsH]
 
-/-- From reset (the image loaded at `0x80000000`, `pc = 0x80000040`, M-mode, CSRs at their reset
-    values, any registers), 60 steps leave the machine in U-mode at the payload's first word, the PMP fencing it
+/-- From reset (the image loaded at `0x80000000`, `pc = 0x80000040`, M-mode, any CSRs that lock no PMP entry --
+    reset's among them -- any registers), 61 steps leave the machine in U-mode at the payload's first word, the PMP fencing it
     in with three entries -- code `[0x80010000, 0x80010080)` read and execute, data `[0x80010000, 0x80011000)` and
     stack `[0x8001f000, 0x80020000)` read and write -- every register zero but `sp`. -/
 theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
     (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
-    (hcs : s.csrs = {}) :
-    WXBoxed (PrivMachine.run env 60 s) 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 ∧
-    (PrivMachine.run env 60 s).core.pc = 0x80010000#32 ∧
-    (PrivMachine.run env 60 s).csrs = csrsBooted ∧
-    (PrivMachine.run env 60 s).core.mem = M0 ∧
-    (∀ r, (PrivMachine.run env 60 s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
-  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hcs
-  have hC0 : Cleared 0 (PrivMachine.run env 27 s) := by
+    (hlock : PmpUnlocked s.csrs.pmpcfg0) :
+    WXBoxed (PrivMachine.run env 61 s) 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 ∧
+    (PrivMachine.run env 61 s).core.pc = 0x80010000#32 ∧
+    (PrivMachine.run env 61 s).csrs = csrsBooted ∧
+    (PrivMachine.run env 61 s).core.mem = M0 ∧
+    (∀ r, (PrivMachine.run env 61 s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
+  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock
+  have hC0 : Cleared 0 (PrivMachine.run env 28 s) := by
     intro r hr
     have : r = 0 := by bv_omega
     subst this
@@ -490,7 +504,7 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   obtain ⟨g1, g2, g3, g4, g5, g6⟩ := monitor_launch_4 env M0 _ hW e2 e1 e3 e4 e5
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h12b, hb, h13⟩ :=
     monitor_launch_5 env M0 _ hW g2 g1 g3 g4 g5
-  rw [show 60 = 27 + 12 + 12 + 7 + 1 + 1 from rfl, PrivMachine.run_add, PrivMachine.run_add,
+  rw [show 61 = 28 + 12 + 12 + 7 + 1 + 1 from rfl, PrivMachine.run_add, PrivMachine.run_add,
     PrivMachine.run_add, PrivMachine.run_add, PrivMachine.run_add]
   refine ⟨⟨h4, h3, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, h1, hb, h2, ?_⟩
   · rw [h5]; decide
@@ -524,7 +538,7 @@ theorem reg_set {cur prev : Reg → Word} {l : List (Nat × Word)} {k : Reg} {v 
 
 /-- The state after a chunk is a handler state again. -/
 theorem HState.next {env : Rv32.Env} {M0 : Word → Byte} {s t : PrivMachine} (hS : HState env M0 s)
-    (ha : Agree M0 t.core.mem 0x80000000 600) (hh : t.halted = false) (hm : t.mode = .M) :
+    (ha : Agree M0 t.core.mem 0x80000000 604) (hh : t.halted = false) (hm : t.mode = .M) :
     HState env M0 t := ⟨hS.words, ha, hS.region, hh, hm⟩
 
 
@@ -553,7 +567,7 @@ theorem FrameSP.trans {a b c : Word → Byte} (h1 : FrameSP a b) (h2 : FrameSP b
 
 /-- The park loop, reached: every register but `a0` zero, `mscratch` zero, the two words trap entry saved zero. -/
 def Parked (t : PrivMachine) (a0 : Word) : Prop :=
-  t.core.pc = 0x80000250#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
+  t.core.pc = 0x80000254#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
   readLE t.core.mem 0x80008000#32 4 = 0 ∧ readLE t.core.mem 0x80008004#32 4 = 0 ∧
   t.core.reg 10#5 = a0 ∧ ∀ r, r ≠ 10#5 → t.core.reg r = 0#32
 
@@ -567,9 +581,9 @@ def exitCode (u : PrivMachine) : Word :=
 def trapSteps (u : PrivMachine) : Nat :=
   if u.csrs.mcause = 8#32 then (if u.core.reg 5#5 = 1#32 then 57 else 62) else 59
 
-/-- The machine `k` steps into the payload, after boot's `60`. -/
+/-- The machine `k` steps into the payload, after boot's `61`. -/
 def payloadAt (env : Rv32.Env) (s : PrivMachine) (k : Nat) : PrivMachine :=
-  PrivMachine.run env k (PrivMachine.run env 60 s)
+  PrivMachine.run env k (PrivMachine.run env 61 s)
 
 /-- The machine the monitor leaves after handling the trap at `u`. -/
 def parkedAfter (env : Rv32.Env) (u : PrivMachine) : PrivMachine :=
@@ -584,9 +598,9 @@ set_option maxRecDepth 100000 in
 /-- Trap entry, first three words: freeze the counters, swap in the M-mode stack, save `t0`. -/
 theorem entry_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000130#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
-    (PrivMachine.run env 3 s).core.pc = 0x8000013c#32 ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000134#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
+    (PrivMachine.run env 3 s).core.pc = 0x80000140#32 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (s.core.reg 2#5) ∧
@@ -599,8 +613,8 @@ theorem entry_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(2, 0x80008000#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -631,9 +645,9 @@ set_option maxRecDepth 100000 in
 /-- Save `t1`. -/
 theorem entry_2a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000013c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x80000140#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000140#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x80000144#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -646,8 +660,8 @@ theorem entry_2a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -678,9 +692,9 @@ set_option maxRecDepth 100000 in
 /-- Read `mcause`: an `ecall` goes to the check of what it asked for, anything else to the fault report. -/
 theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000140#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 3 s).core.pc = (if c = 8#32 then 0x80000188#32 else 0x8000014c#32) ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000144#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 3 s).core.pc = (if c = 8#32 then 0x8000018c#32 else 0x80000150#32) ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -693,8 +707,8 @@ theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(5, c), (6, 8#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -726,9 +740,9 @@ set_option maxRecDepth 100000 in
 /-- Report FAULT: address and tag. -/
 theorem fault_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000014c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 5 s).core.pc = 0x80000160#32 ∧
-    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000150#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 5 s).core.pc = 0x80000164#32 ∧
+    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 5 s).halted = false ∧
     (PrivMachine.run env 5 s).mode = .M ∧
     (PrivMachine.run env 5 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -741,8 +755,8 @@ theorem fault_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 5 s).core.reg r = regsUpd s.core.reg [(6, 0xc0000004#32), (5, 0x4641554c#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -773,9 +787,9 @@ set_option maxRecDepth 100000 in
 /-- Report `mcause`. -/
 theorem fault_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000160#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x80000168#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000164#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x8000016c#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -788,8 +802,8 @@ theorem fault_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, c)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -820,9 +834,9 @@ set_option maxRecDepth 100000 in
 /-- Report `mepc`. -/
 theorem fault_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000168#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x80000170#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x8000016c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x80000174#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -835,8 +849,8 @@ theorem fault_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, e)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -867,9 +881,9 @@ set_option maxRecDepth 100000 in
 /-- Report `mtval`. -/
 theorem fault_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000170#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x80000178#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000174#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x8000017c#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -882,8 +896,8 @@ theorem fault_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -914,9 +928,9 @@ set_option maxRecDepth 100000 in
 /-- Report `minstret`. -/
 theorem fault_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000178#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x80000180#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x8000017c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x80000184#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -929,8 +943,8 @@ theorem fault_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, m)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -961,9 +975,9 @@ set_option maxRecDepth 100000 in
 /-- Exit code 1, and on to the scrub. -/
 theorem fault_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000180#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 2 s).core.pc = 0x800001bc#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000184#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 2 s).core.pc = 0x800001c0#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -976,8 +990,8 @@ theorem fault_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(10, 1#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1008,9 +1022,9 @@ set_option maxRecDepth 100000 in
 /-- Is the saved `t0` 1? If so, HALT; if not, it is not a call the monitor offers. -/
 theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word) (k : Nat)
-    (hpc : s.core.pc = 0x80000188#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) (hk : readLE s.core.mem 0x80008000#32 4 = k) :
-    (PrivMachine.run env 3 s).core.pc = (if BitVec.ofNat 32 k = 1#32 then 0x80000194#32 else 0x8000014c#32) ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x8000018c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) (hk : readLE s.core.mem 0x80008000#32 4 = k) :
+    (PrivMachine.run env 3 s).core.pc = (if BitVec.ofNat 32 k = 1#32 then 0x80000198#32 else 0x80000150#32) ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -1023,8 +1037,8 @@ theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(5, BitVec.ofNat 32 k), (6, 1#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1057,9 +1071,9 @@ set_option maxRecDepth 100000 in
 /-- Report HALT: address and tag. -/
 theorem halt_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000194#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 5 s).core.pc = 0x800001a8#32 ∧
-    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000198#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 5 s).core.pc = 0x800001ac#32 ∧
+    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 5 s).halted = false ∧
     (PrivMachine.run env 5 s).mode = .M ∧
     (PrivMachine.run env 5 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -1072,8 +1086,8 @@ theorem halt_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 5 s).core.reg r = regsUpd s.core.reg [(6, 0xc0000004#32), (5, 0x48414c54#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1104,9 +1118,9 @@ set_option maxRecDepth 100000 in
 /-- Report the exit code. -/
 theorem halt_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x800001a8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x800001ac#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001ac#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x800001b0#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -1119,8 +1133,8 @@ theorem halt_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1151,9 +1165,9 @@ set_option maxRecDepth 100000 in
 /-- Report `minstret`. -/
 theorem halt_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x800001ac#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x800001b4#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001b0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x800001b8#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -1166,8 +1180,8 @@ theorem halt_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, m)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1198,9 +1212,9 @@ set_option maxRecDepth 100000 in
 /-- Report `mcycle`. -/
 theorem halt_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x800001b4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x800001bc#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001b8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x800001c0#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -1213,8 +1227,8 @@ theorem halt_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, cy)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1245,9 +1259,9 @@ set_option maxRecDepth 100000 in
 /-- Zero the saved `t0`. -/
 theorem scrub_1a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x800001bc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x800001c0#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001c0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x800001c4#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -1260,8 +1274,8 @@ theorem scrub_1a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1292,9 +1306,9 @@ set_option maxRecDepth 100000 in
 /-- Zero the saved `t1`. -/
 theorem scrub_1b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x800001c0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x800001c4#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001c4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x800001c8#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
@@ -1307,8 +1321,8 @@ theorem scrub_1b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1339,9 +1353,9 @@ set_option maxRecDepth 100000 in
 /-- Zero `mscratch`. -/
 theorem scrub_ms (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x800001c4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 1 s).core.pc = 0x800001c8#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001c8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 1 s).core.pc = 0x800001cc#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1354,8 +1368,8 @@ theorem scrub_ms (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1386,9 +1400,9 @@ set_option maxRecDepth 100000 in
 /-- Zero `x1..x9`. -/
 theorem regs_a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x800001c8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 9 s).core.pc = 0x800001ec#32 ∧
-    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001cc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 9 s).core.pc = 0x800001f0#32 ∧
+    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 9 s).halted = false ∧
     (PrivMachine.run env 9 s).mode = .M ∧
     (PrivMachine.run env 9 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1401,8 +1415,8 @@ theorem regs_a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 9 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1433,9 +1447,9 @@ set_option maxRecDepth 100000 in
 /-- Zero `x11..x22`. -/
 theorem regs_b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x800001ec#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 12 s).core.pc = 0x8000021c#32 ∧
-    Agree M0 (PrivMachine.run env 12 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001f0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 12 s).core.pc = 0x80000220#32 ∧
+    Agree M0 (PrivMachine.run env 12 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 12 s).halted = false ∧
     (PrivMachine.run env 12 s).mode = .M ∧
     (PrivMachine.run env 12 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1448,8 +1462,8 @@ theorem regs_b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 12 s).core.reg r = regsUpd s.core.reg [(11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1480,9 +1494,9 @@ set_option maxRecDepth 100000 in
 /-- Zero `x23..x31`. -/
 theorem regs_c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x8000021c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 9 s).core.pc = 0x80000240#32 ∧
-    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000220#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 9 s).core.pc = 0x80000244#32 ∧
+    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 9 s).halted = false ∧
     (PrivMachine.run env 9 s).mode = .M ∧
     (PrivMachine.run env 9 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1495,8 +1509,8 @@ theorem regs_c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 9 s).core.reg r = regsUpd s.core.reg [(23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1527,9 +1541,9 @@ set_option maxRecDepth 100000 in
 /-- Exit code to the exit word. -/
 theorem regs_port (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000240#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 3 s).core.pc = 0x8000024c#32 ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000244#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 3 s).core.pc = 0x80000250#32 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1542,8 +1556,8 @@ theorem regs_port (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(6, 0xc0000008#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1574,9 +1588,9 @@ set_option maxRecDepth 100000 in
 /-- Last register, and the park loop. -/
 theorem regs_last (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x8000024c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 1 s).core.pc = 0x80000250#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000250#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 1 s).core.pc = 0x80000254#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1589,8 +1603,8 @@ theorem regs_last (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [(6, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 600 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 600 →
+  have hA' : Agree M0 Mc 0x80000000 604 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 604 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1621,9 +1635,9 @@ set_option maxRecDepth 100000 in
 /-- Trap entry: the counters frozen, the M-mode stack swapped in, the payload's `t0` and `t1` saved, `mcause` read. -/
 theorem monitor_enter (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000130#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
-    (PrivMachine.run env 7 s).core.pc = (if c = 8#32 then 0x80000188#32 else 0x8000014c#32) ∧
-    Agree M0 (PrivMachine.run env 7 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000134#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
+    (PrivMachine.run env 7 s).core.pc = (if c = 8#32 then 0x8000018c#32 else 0x80000150#32) ∧
+    Agree M0 (PrivMachine.run env 7 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 7 s).halted = false ∧
     (PrivMachine.run env 7 s).mode = .M ∧
     (PrivMachine.run env 7 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (s.core.reg 2#5) ∧
@@ -1679,9 +1693,9 @@ set_option maxRecDepth 100000 in
 /-- The fault report, then the saved words and `mscratch` zeroed: `a0 = 1`. -/
 theorem monitor_fault_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000014c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 18 s).core.pc = 0x800001c8#32 ∧
-    Agree M0 (PrivMachine.run env 18 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000150#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 18 s).core.pc = 0x800001cc#32 ∧
+    Agree M0 (PrivMachine.run env 18 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 18 s).halted = false ∧
     (PrivMachine.run env 18 s).mode = .M ∧
     (PrivMachine.run env 18 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1785,9 +1799,9 @@ set_option maxRecDepth 100000 in
 /-- The HALT report, then the saved words and `mscratch` zeroed: `a0` is the payload's. -/
 theorem monitor_halt_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000194#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 13 s).core.pc = 0x800001c8#32 ∧
-    Agree M0 (PrivMachine.run env 13 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000198#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 13 s).core.pc = 0x800001cc#32 ∧
+    Agree M0 (PrivMachine.run env 13 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 13 s).halted = false ∧
     (PrivMachine.run env 13 s).mode = .M ∧
     (PrivMachine.run env 13 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1875,9 +1889,9 @@ set_option maxRecDepth 100000 in
 /-- The last of the scrub: every register but `a0` zero, the exit code written, the machine at the park loop. -/
 theorem monitor_regs (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x800001c8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 34 s).core.pc = 0x80000250#32 ∧
-    Agree M0 (PrivMachine.run env 34 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x800001cc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 34 s).core.pc = 0x80000254#32 ∧
+    Agree M0 (PrivMachine.run env 34 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 34 s).halted = false ∧
     (PrivMachine.run env 34 s).mode = .M ∧
     (PrivMachine.run env 34 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -1949,9 +1963,9 @@ set_option maxRecDepth 100000 in
 /-- `ecall` with `t0 = 1`: the HALT reported, the saved words and `mscratch` zero, every register but `a0` zero, the park loop. -/
 theorem monitor_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000130#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 1#32) :
-    (PrivMachine.run env 57 s).core.pc = 0x80000250#32 ∧
-    Agree M0 (PrivMachine.run env 57 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000134#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 1#32) :
+    (PrivMachine.run env 57 s).core.pc = 0x80000254#32 ∧
+    Agree M0 (PrivMachine.run env 57 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 57 s).halted = false ∧
     (PrivMachine.run env 57 s).mode = .M ∧
     (PrivMachine.run env 57 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -2017,9 +2031,9 @@ set_option maxRecDepth 100000 in
 /-- A trap that is not an `ecall`: the fault reported, `a0 = 1`, every other register zero, the park loop. -/
 theorem monitor_fault_cause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000130#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c ≠ 8#32) :
-    (PrivMachine.run env 59 s).core.pc = 0x80000250#32 ∧
-    Agree M0 (PrivMachine.run env 59 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000134#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c ≠ 8#32) :
+    (PrivMachine.run env 59 s).core.pc = 0x80000254#32 ∧
+    Agree M0 (PrivMachine.run env 59 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 59 s).halted = false ∧
     (PrivMachine.run env 59 s).mode = .M ∧
     (PrivMachine.run env 59 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -2076,9 +2090,9 @@ set_option maxRecDepth 100000 in
 /-- An `ecall` whose `t0` is not 1: the fault reported, `a0 = 1`, every other register zero, the park loop. -/
 theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000130#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 ≠ 1#32) :
-    (PrivMachine.run env 62 s).core.pc = 0x80000250#32 ∧
-    Agree M0 (PrivMachine.run env 62 s).core.mem 0x80000000 600 ∧
+    (hpc : s.core.pc = 0x80000134#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 ≠ 1#32) :
+    (PrivMachine.run env 62 s).core.pc = 0x80000254#32 ∧
+    Agree M0 (PrivMachine.run env 62 s).core.mem 0x80000000 604 ∧
     (PrivMachine.run env 62 s).halted = false ∧
     (PrivMachine.run env 62 s).mode = .M ∧
     (PrivMachine.run env 62 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
@@ -2168,13 +2182,14 @@ theorem regs_scrubbed_fault {u t : PrivMachine} (q : ∀ r, t.core.reg r = regsU
     and memory, and whatever it was that trapped -- an `ecall` for HALT, an `ecall` for anything else, or a fault --
     the monitor parks with the exit code `exitCode u` (the payload's own `a0` for a HALT, 1 for the rest), every other
     register zero, `mscratch` and the saved words zero, its own words in place, and **every byte of memory but its stack
-    words and its report words as the payload left it**: the code, the data, the stack, the rest. -/
+    words and its report words as the payload left it**: the code, the data, the stack, the rest; and the PMP as boot set it. -/
 theorem monitor_traps (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
     (hS : HState env M0 u) (ms : MStatus) (e c m cy : Word)
-    (hpc : u.core.pc = 0x80000130#32) (hcs : u.csrs = csrsH ms e c m cy {} 0x80008000#32) :
+    (hpc : u.core.pc = 0x80000134#32) (hcs : u.csrs = csrsH ms e c m cy {} 0x80008000#32) :
     Parked (PrivMachine.run env (trapSteps u) u) (exitCode u) ∧
-      Agree M0 (PrivMachine.run env (trapSteps u) u).core.mem 0x80000000 600 ∧
-      FrameSP u.core.mem (PrivMachine.run env (trapSteps u) u).core.mem := by
+      Agree M0 (PrivMachine.run env (trapSteps u) u).core.mem 0x80000000 604 ∧
+      FrameSP u.core.mem (PrivMachine.run env (trapSteps u) u).core.mem ∧
+      (PrivMachine.run env (trapSteps u) u).csrs.pmpcfg0 = 0x001b1b1d#32 := by
   have hcu : u.csrs.mcause = c := by rw [hcs]; rfl
   by_cases hc : c = 8#32
   · by_cases ht0 : u.core.reg 5#5 = 1#32
@@ -2183,7 +2198,7 @@ theorem monitor_traps (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
       obtain ⟨k1, k2⟩ := regs_scrubbed r
       have hn : trapSteps u = 57 := by simp [trapSteps, hcu, hc, ht0]
       rw [hn]
-      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv⟩
+      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv, by rw [cc]; rfl⟩
       rw [k1]
       simp [exitCode, hcu, hc, ht0]
     · -- an `ecall` for anything else
@@ -2191,7 +2206,7 @@ theorem monitor_traps (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
       obtain ⟨k1, k2⟩ := regs_scrubbed_fault r
       have hn : trapSteps u = 62 := by simp [trapSteps, hcu, hc, ht0]
       rw [hn]
-      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv⟩
+      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv, by rw [cc]; rfl⟩
       rw [k1]
       simp [exitCode, hcu, hc, ht0]
   · -- a trap that is not an `ecall`
@@ -2199,7 +2214,7 @@ theorem monitor_traps (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
       obtain ⟨k1, k2⟩ := regs_scrubbed_fault r
       have hn : trapSteps u = 59 := by simp [trapSteps, hcu, hc]
       rw [hn]
-      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv⟩
+      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv, by rw [cc]; rfl⟩
       rw [k1]
       simp [exitCode, hcu, hc]
 
@@ -2216,11 +2231,11 @@ theorem payload_runs (env : Rv32.Env) (M0 : Word → Byte) (s1 : PrivMachine)
     ∃ k, k ≤ n ∧
       (∀ x : Word, WxFrozen 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 x →
         (PrivMachine.run env k s1).core.mem x = M0 x) ∧
-      Agree M0 (PrivMachine.run env k s1).core.mem 0x80000000 600 ∧
+      Agree M0 (PrivMachine.run env k s1).core.mem 0x80000000 604 ∧
       ((k = n ∧ (PrivMachine.run env k s1).mode = .U ∧
         WXBoxed (PrivMachine.run env k s1) 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000) ∨
        (0 < k ∧ (PrivMachine.run env k s1).mode = .M ∧ HState env M0 (PrivMachine.run env k s1) ∧
-        (PrivMachine.run env k s1).core.pc = 0x80000130#32 ∧
+        (PrivMachine.run env k s1).core.pc = 0x80000134#32 ∧
         ∃ ms e c m cy, (PrivMachine.run env k s1).csrs = csrsH ms e c m cy {} 0x80008000#32)) := by
   obtain ⟨k, hkn, hkept, hhalt, hframe, hres⟩ :=
     wx_run env 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 (by decide) (by decide) n s1 hbox
@@ -2229,7 +2244,7 @@ theorem payload_runs (env : Rv32.Env) (M0 : Word → Byte) (s1 : PrivMachine)
   rw [hu] at hkept hhalt hframe hres ⊢
   have hfroz : ∀ x : Word, WxFrozen 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 x →
       u.core.mem x = M0 x := fun x hx => by rw [hframe x hx, hmem1]
-  have hagree : Agree M0 u.core.mem 0x80000000 600 := by
+  have hagree : Agree M0 u.core.mem 0x80000000 604 := by
     intro x h1 h2
     exact hfroz x (Or.inr ⟨by omega, by omega⟩)
   refine ⟨hfroz, hagree, ?_⟩
@@ -2240,12 +2255,13 @@ theorem payload_runs (env : Rv32.Env) (M0 : Word → Byte) (s1 : PrivMachine)
     rw [hcs1] at k1 k2 k3 k4 k5 k6 k7 k8 k9 hpc2
     have hcsu : u.csrs = csrsH u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle {} 0x80008000#32 :=
       csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8 k9
-    have hpcu : u.core.pc = 0x80000130#32 := by
-      rw [hpc2]; show (0x80000130#32 &&& ~~~3#32) = 0x80000130#32; decide
+    have hpcu : u.core.pc = 0x80000134#32 := by
+      rw [hpc2]; show (0x80000134#32 &&& ~~~3#32) = 0x80000134#32; decide
     exact ⟨hpos, hmode, ⟨hW, hagree, henv, hhalt, hmode⟩, hpcu, _, _, _, _, _, hcsu⟩
 
 set_option maxHeartbeats 4000000 in
-/-- **The code the box forbids writing.** From reset, the monitor boots (60 steps) and the payload runs for up to `n`
+/-- **The code the box forbids writing.** From reset -- or from any CSRs that lock no PMP entry -- the monitor boots
+    (61 steps) and the payload runs for up to `n`
     steps. Either it is still running, in U-mode, boxed by the three entries, the monitor's words where they were and
     the code, `[0x80010000, 0x80010080)`, **the bytes it started with** -- or it trapped, and the monitor takes
     `trapSteps` steps to the park loop with the exit code `exitCode u` (the payload's own `a0` for a HALT, 1 for the
@@ -2254,25 +2270,25 @@ set_option maxHeartbeats 4000000 in
 theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
     (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
-    (hcs : s.csrs = {}) (henv : env.region = monRegion) (n : Nat) :
+    (hlock : PmpUnlocked s.csrs.pmpcfg0) (henv : env.region = monRegion) (n : Nat) :
     ∃ k, k ≤ n ∧
       ((k = n ∧ (payloadAt env s k).mode = .U ∧
         WXBoxed (payloadAt env s k) 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 ∧
-        Agree M0 (payloadAt env s k).core.mem 0x80000000 600 ∧
+        Agree M0 (payloadAt env s k).core.mem 0x80000000 604 ∧
         CodeSame M0 (payloadAt env s k).core.mem) ∨
        (0 < k ∧
         Parked (parkedAfter env (payloadAt env s k)) (exitCode (payloadAt env s k)) ∧
-        Agree M0 (parkedAfter env (payloadAt env s k)).core.mem 0x80000000 600 ∧
+        Agree M0 (parkedAfter env (payloadAt env s k)).core.mem 0x80000000 604 ∧
         CodeSame M0 (parkedAfter env (payloadAt env s k)).core.mem ∧
         FrameSP (payloadAt env s k).core.mem (parkedAfter env (payloadAt env s k)).core.mem)) := by
-  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ := monitor_boot env M0 s hW hmem hpc hh hm hcs
+  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ := monitor_boot env M0 s hW hmem hpc hh hm hlock
   obtain ⟨k, hkn, hfroz, hagree, hres⟩ := payload_runs env M0 _ hW hmem1 henv hcsb hbox n
   refine ⟨k, hkn, ?_⟩
   unfold payloadAt parkedAfter
   rcases hres with ⟨hk, hmode, hb⟩ | ⟨hpos, hmode, hS, hpcu, ms, e, c, m, cy, hcsu⟩
   · exact Or.inl ⟨hk, hmode, hb, hagree, fun x h1 h2 => hfroz x (Or.inl ⟨h1, h2⟩)⟩
   · right
-    obtain ⟨hP, hA, hF⟩ := monitor_traps env M0 _ hS ms e c m cy hpcu hcsu
+    obtain ⟨hP, hA, hF, -⟩ := monitor_traps env M0 _ hS ms e c m cy hpcu hcsu
     refine ⟨hpos, hP, hA, ?_, hF⟩
     intro x h1 h2
     have hs : ¬ InStack x := by unfold InStack; omega
@@ -2282,17 +2298,19 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
 
 /-! ## Round after round -/
 
-/-- A hardware reset: the core starts again at the reset vector, in M-mode, with the CSRs at their reset values and
-    nothing running; the registers and memory are whatever they were. -/
+/-- A reset, as weak as one can be: the core starts again at the reset vector, in M-mode, with nothing running; the
+    registers, the CSRs and memory are whatever they were. A reset that also resets the CSRs is one of these. -/
 def resetOf (p : PrivMachine) : PrivMachine :=
-  { core := { p.core with pc := 0x80000040#32 }, mode := .M, csrs := {}, halted := false }
+  { p with core := { p.core with pc := 0x80000040#32 }, mode := .M, halted := false }
 
 /-- What a round needs of the machine it starts from, and nothing else: the monitor's words in memory, the code region
-    as it was loaded (`C`), and the region Tier 1 lets M-mode touch. The registers and the CSRs are not in it. -/
+    as it was loaded (`C`), no PMP entry locked, and the region Tier 1 lets M-mode touch. The registers and the rest of
+    the CSRs are not in it. -/
 structure Ready (env : Rv32.Env) (C : Word → Byte) (p : PrivMachine) : Prop where
-  words  : WordsAt p.core.mem 0x80000000#32 monitorCode
-  code   : CodeSame C p.core.mem
-  region : env.region = monRegion
+  words    : WordsAt p.core.mem 0x80000000#32 monitorCode
+  code     : CodeSame C p.core.mem
+  unlocked : PmpUnlocked p.csrs.pmpcfg0
+  region   : env.region = monRegion
 
 /-- `k` steps into a payload, `k > 0`, is its first trap: M-mode, and every step before was U-mode. -/
 def Trapped (env : Rv32.Env) (s : PrivMachine) (k : Nat) : Prop :=
@@ -2300,31 +2318,53 @@ def Trapped (env : Rv32.Env) (s : PrivMachine) (k : Nat) : Prop :=
 
 /-- One round, from `p` to `q`: reset, boot, the payload runs to its first trap, and the monitor takes it to the park loop. -/
 def Round (env : Rv32.Env) (p q : PrivMachine) : Prop :=
-  ∃ k, Trapped env (PrivMachine.run env 60 (resetOf p)) k ∧ q = parkedAfter env (payloadAt env (resetOf p) k)
+  ∃ k, Trapped env (PrivMachine.run env 61 (resetOf p)) k ∧ q = parkedAfter env (payloadAt env (resetOf p) k)
 
-/-- Any number of rounds. -/
+/-- What the host may do between rounds: anything at all to the machine -- its registers, its CSRs, its memory -- but
+    write the monitor's words or the code, or lock a PMP entry. rounds.py writes the next round's seed word, in the
+    data. -/
+def HostWrite (p q : PrivMachine) : Prop :=
+  PmpUnlocked q.csrs.pmpcfg0 ∧
+    ∀ x : Word, (0x80000000 ≤ x.toNat ∧ x.toNat < 0x80000000 + 604) ∨ (0x80010000 ≤ x.toNat ∧ x.toNat < 0x80010080) →
+      q.core.mem x = p.core.mem x
+
+/-- Any number of rounds, and between any two of them, any number of the host's writes. -/
 inductive Rounds (env : Rv32.Env) : PrivMachine → PrivMachine → Prop
   | refl (p : PrivMachine) : Rounds env p p
   | step {p q r : PrivMachine} : Round env p q → Rounds env q r → Rounds env p r
+  | host {p q r : PrivMachine} : HostWrite p q → Rounds env q r → Rounds env p r
+
+/-- **The host's write leaves the machine ready.** It did not touch the monitor's words or the code, and locked
+    nothing. -/
+theorem ready_of_host (env : Rv32.Env) (C : Word → Byte) (p q : PrivMachine) (hR : Ready env C p)
+    (h : HostWrite p q) : Ready env C q := by
+  obtain ⟨hl, hm⟩ := h
+  refine ⟨?_, ?_, hl, hR.region⟩
+  · have hA : Agree p.core.mem q.core.mem 0x80000000 604 := fun x h1 h2 => hm x (Or.inl ⟨h1, h2⟩)
+    exact WordsAt.of_agree (by rw [monitorCode_length]; decide) (by rw [monitorCode_length]; exact hA) hR.words
+  · intro x h1 h2
+    rw [hm x (Or.inr ⟨h1, h2⟩)]
+    exact hR.code x h1 h2
 
 /-- **Boot does not depend on what came before.** From any machine that is `Ready` -- whatever its registers, its
-    CSRs, its privilege, its `pc`, and whatever is in memory outside the monitor's words -- a reset and 60 steps leave
-    exactly the machine `monitor_boot` describes: boxed by the three entries, the CSR file `csrsBooted` (counters at 2,
-    `mstatus`, `mepc`, the trap vector, the PMP -- all constants), `sp` at the top of the stack entry, every other
-    register zero, memory untouched. Nothing a round leaves behind reaches the next. -/
+    CSRs but for a lock, its privilege, its `pc`, and whatever is in memory outside the monitor's words -- a reset and
+    61 steps leave exactly the machine `monitor_boot` describes: boxed by the three entries, the CSR file `csrsBooted`
+    (counters at 2, `mstatus`, `mepc`, `mcause`, `mtval`, the trap vector, the PMP -- all constants), `sp` at the top
+    of the stack entry, every other register zero, memory untouched. No register and no CSR a round leaves behind
+    reaches the next; memory outside the monitor's words does, and the payload reads it. -/
 theorem monitor_reentry (env : Rv32.Env) (C : Word → Byte) (p : PrivMachine) (hR : Ready env C p) :
-    WXBoxed (PrivMachine.run env 60 (resetOf p)) 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 ∧
-    (PrivMachine.run env 60 (resetOf p)).csrs = csrsBooted ∧
-    (PrivMachine.run env 60 (resetOf p)).core.pc = 0x80010000#32 ∧
-    (PrivMachine.run env 60 (resetOf p)).core.mem = p.core.mem ∧
-    (∀ r, (PrivMachine.run env 60 (resetOf p)).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
+    WXBoxed (PrivMachine.run env 61 (resetOf p)) 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 ∧
+    (PrivMachine.run env 61 (resetOf p)).csrs = csrsBooted ∧
+    (PrivMachine.run env 61 (resetOf p)).core.pc = 0x80010000#32 ∧
+    (PrivMachine.run env 61 (resetOf p)).core.mem = p.core.mem ∧
+    (∀ r, (PrivMachine.run env 61 (resetOf p)).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
   obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ :=
-    monitor_boot env p.core.mem (resetOf p) hR.words rfl rfl rfl rfl rfl
+    monitor_boot env p.core.mem (resetOf p) hR.words rfl rfl rfl rfl hR.unlocked
   exact ⟨hbox, hcsb, hpc1, hmem1, hreg1⟩
 
 /-- **A round leaves the machine ready for the next.** If `p` is `Ready` and `q` is where a round from `p` ends, `q` is
     parked -- every register but `a0` zero, `mscratch` and the saved words zero -- and `Ready` again, with the code
-    region the bytes it was. -/
+    region the bytes it was and the PMP as boot set it, which locks nothing. -/
 theorem monitor_round_ready (env : Rv32.Env) (C : Word → Byte) (p q : PrivMachine) (hR : Ready env C p)
     (hq : Round env p q) : Ready env C q ∧ ∃ a, Parked q a := by
   obtain ⟨k, ⟨hk0, hkM, hkU⟩, hq⟩ := hq
@@ -2335,7 +2375,7 @@ theorem monitor_round_ready (env : Rv32.Env) (C : Word → Byte) (p q : PrivMach
   have hkk : k' = k := by
     rcases hres with ⟨h1, h2, _⟩ | ⟨h1, h2, _⟩
     · exfalso
-      have : (PrivMachine.run env k' (PrivMachine.run env 60 (resetOf p))).mode = .M := by rw [h1]; exact hkM
+      have : (PrivMachine.run env k' (PrivMachine.run env 61 (resetOf p))).mode = .M := by rw [h1]; exact hkM
       rw [h2] at this
       exact absurd this (by decide)
     · by_cases hne : k' = k
@@ -2349,25 +2389,27 @@ theorem monitor_round_ready (env : Rv32.Env) (C : Word → Byte) (p q : PrivMach
   · exfalso
     rw [h2] at hkM
     exact absurd hkM (by decide)
-  · obtain ⟨hP, hA, hF⟩ := monitor_traps env p.core.mem _ hS ms e c m cy hpcu hcsu
+  · obtain ⟨hP, hA, hF, hC⟩ := monitor_traps env p.core.mem _ hS ms e c m cy hpcu hcsu
     rw [hq]
     unfold parkedAfter payloadAt
-    refine ⟨⟨?_, ?_, hR.region⟩, _, hP⟩
+    refine ⟨⟨?_, ?_, ?_, hR.region⟩, _, hP⟩
     · exact WordsAt.of_agree (by rw [monitorCode_length]; decide) (by rw [monitorCode_length]; exact hA) hR.words
     · intro x h1 h2
       have hs : ¬ InStack x := by unfold InStack; omega
       have hp : ¬ InPorts x := by unfold InPorts; omega
       rw [hF x hs hp, hfroz x (Or.inl ⟨h1, h2⟩)]
       exact hR.code x h1 h2
+    · rw [hC]; intro i; revert i; decide
 
-/-- **Any number of rounds.** From a `Ready` machine, after any number of rounds, the machine is `Ready` again -- the
-    monitor's words in place and the code region the bytes it was loaded with -- and so a reset and boot start the
-    next round exactly as `monitor_reentry` says. -/
+/-- **Any number of rounds.** From a `Ready` machine, after any number of rounds and of the host's writes between them,
+    the machine is `Ready` again -- the monitor's words in place and the code region the bytes it was loaded with --
+    and so a reset and boot start the next round exactly as `monitor_reentry` says. This is what rounds.py runs. -/
 theorem monitor_rounds (env : Rv32.Env) (C : Word → Byte) (p q : PrivMachine) (h : Rounds env p q)
     (hR : Ready env C p) : Ready env C q := by
   induction h with
   | refl => exact hR
   | step hr _ ih => exact ih (monitor_round_ready env C _ _ hR hr).1
+  | host hw _ ih => exact ih (ready_of_host env C _ _ hR hw)
 
 end Exp240
 
@@ -2379,6 +2421,7 @@ end Exp240
 #print axioms Exp240.monitor_traps
 #print axioms Exp240.payload_runs
 #print axioms Exp240.monitor_end_to_end
+#print axioms Exp240.ready_of_host
 #print axioms Exp240.monitor_reentry
 #print axioms Exp240.monitor_round_ready
 #print axioms Exp240.monitor_rounds
@@ -2386,6 +2429,7 @@ end Exp240
 #print axioms Rv32.Priv.wx_store_ok
 #print axioms Rv32.Priv.wx_load_ok
 #print axioms Rv32.Priv.pmpCheck_M_outside_in
+#print axioms Rv32.Priv.pmpCheck_M_unlocked
 #print axioms Rv32.Priv.wx_step
 #print axioms Rv32.Priv.wx_run
 #print axioms Rv32.Priv.wx_code_immutable

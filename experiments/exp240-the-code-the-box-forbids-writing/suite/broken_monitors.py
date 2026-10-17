@@ -4,8 +4,8 @@
 Monitors with one thing wrong in them, each of which the suites must catch.
 
 Each variant is `monitor.S` with one change -- a code entry that can be written, a data entry that can be run, a stack
-entry that reaches too far, two entries in the wrong order, a register the scrub forgets -- assembled afresh, and run
-through the hostile payloads and through three rounds of exp225's kernel. A variant that gets through both is a hole in
+entry that reaches too far, two entries in the wrong order, a fourth entry on, a CSR boot does not write, a register the
+scrub forgets -- assembled afresh, and run through the hostile payloads and through three rounds of exp225's kernel. A variant that gets through both is a hole in
 the tests, and this exits 1.
 """
 
@@ -60,8 +60,12 @@ VARIANTS = [
      lambda s: swapped(s)),
     ("data_tried_before_code", "the data entry is tried first, so it decides a store into the code",
      lambda s: sub(swapped(s), LI + CFG, LI + "0x001b1d1b")),
+    ("entry_three_on", "entry 3 is on, NAPOT, read, write and execute: the 32 bytes at address 0, where there is no memory",
+     lambda s: sub(s, LI + CFG, LI + "0x1f1b1b1d")),
     ("mret_stays_in_m_mode", "mret returns to M-mode",
-     lambda s: sub(s, "csrc  mstatus, t0", "csrs  mstatus, t0")),
+     lambda s: sub(s, "csrw  mstatus, zero", "li    t0, 0x1800\n    csrw  mstatus, t0")),
+    ("mstatus_kept", "boot does not write mstatus: MPP is what the reset left",
+     lambda s: sub(s, "csrw  mstatus, zero", "")),
     ("boot_leaves_a_register", "boot does not zero x31 before the payload",
      lambda s: sub(s, "li    x31, 0", "", "first")),
     ("payload_sp_wrong", "the payload's sp is the bottom of the stack entry, not the top",
