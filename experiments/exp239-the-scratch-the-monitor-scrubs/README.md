@@ -2,7 +2,7 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**A 156-instruction, 624-byte RISC-V M-mode monitor (`monitor.bin`) that zeroes the payload's memory on
+**A 156-word, 624-byte RISC-V M-mode monitor (`monitor.bin`) that zeroes the payload's memory on
 the way out, and a Lean 4 proof of what its own words do when the privileged model of exp235 runs them.
 exp236's monitor scrubs the registers and leaves the payload's SRAM as the payload left it; for an entropy
 conditioner that leaves the SHA-256 schedule and the raw samples in memory after it halts. This one zeroes
@@ -43,9 +43,11 @@ for word; thirteen words between them are new, and exp236's theorems are not abo
 
 The scrub reads `a0` as it is when the report is done: `handle_fault` sets it to 1 and `handle_halt` leaves
 the payload's, so *a0 ≠ 0* is exactly "a fault, or a HALT that said so". The two loops use `t0` and `t1`, which
-the trap entry saved and the register scrub zeroes after. The reports come first, so the `minstret` and `mcycle`
-a HALT reports are the payload's, not the scrub's: the monitor is 2 counted instructions on top of the kernel,
-as in exp238, and the scrub costs the payload nothing it can count.
+the trap entry saved and the register scrub zeroes after. The reports come first so that words 0–106 stay
+exp236's, word for word, and so do their proofs. Where they come does not change what a HALT reports: the first
+instruction of `trap_handler` (`csrwi mcountinhibit, 5`) freezes the counters, so neither the reports nor the
+scrub are counted, and `minstret` and `mcycle` are the payload's either way. The monitor is 2 counted
+instructions on top of the kernel, as in exp238.
 
 The M-mode stores into the box are not refused by the PMP: the entry that fences the payload in is not
 locked, so it binds U-mode and leaves M-mode alone (`pmpCheck_mon_in`).
@@ -115,13 +117,12 @@ the generator writes.
    one word longer, every trap that is not a HALT "exits with 0", the park loop one word on.
 4. `proof/Scrub.lean` is what `proof/gen.py` writes.
 5. **exp223's kernel under the monitor** (`suite/kernel_cases.py`): exp222's fourteen sample streams, eight
-   that pass exp114's health tests and six that do not (exp223's README says seven and seven; its capture
-   says eight and six), each run twice — alone in M-mode with no monitor, and under the monitor — with the
-   box seeded with junk in every byte the kernel does not own. The exit code, the instruction count (334,284
-   for a pass, 17,425 for a fail, exp223's theorem; +2 for the monitor's framing), and the box when the kernel
-   halts must agree between the two runs; the digest of a pass must be SHA-256 of the 4,096 bytes of samples;
-   and when the monitor parks, memory over all 256 KiB of the emulator's RAM must be what the kernel left,
-   with the scratch zero and, on a fail, the digest window zero (`suite/oracle.py`).
+   that pass exp114's health tests and six that do not, each run twice — alone in M-mode with no monitor, and
+   under the monitor — with the box seeded with junk in every byte the kernel does not own. The exit code, the
+   instruction count (334,284 for a pass, 17,425 for a fail, exp223's theorem; +2 for the monitor's framing),
+   and the box when the kernel halts must agree between the two runs; the digest of a pass must be SHA-256 of
+   the 4,096 bytes of samples; and when the monitor parks, memory over all 256 KiB of the emulator's RAM must
+   be what the kernel left, with the scratch zero and, on a fail, the digest window zero (`suite/oracle.py`).
 6. **Payloads that leave secrets in memory** (`suite/attack_cases.py`): nineteen payloads that fill
    `[+0x2100, +0x4010)` — the 64 bytes before the window, the window, the 160 bytes between it and the scratch,
    the scratch, 16 bytes past it — and then leave: a HALT with 0, 1, 2 or `0x80000000`, with secrets in
@@ -140,7 +141,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp239 — the scratch the monitor scrubs ===
-recorded at 2026-10-17T06:39:45Z from commit ddb2fd1
+recorded at 2026-10-17T08:30:27Z from commit 127a13e
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (624 bytes, 156 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Scrub.lean's monitorCode

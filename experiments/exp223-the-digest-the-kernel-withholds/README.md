@@ -123,9 +123,9 @@ and on the Hazard3 RTL, both in the 128 KiB region. They are checked
 against exp114's tests in Python and against hashlib.
 
 Every one agrees:
-- **The 7 healthy streams:** HALT 0. The model counts 334284, and both
+- **The 8 healthy streams:** HALT 0. The model counts 334284, and both
   digests are hashlib's.
-- **The 7 unhealthy streams:** HALT 1. The model counts 17425, and its
+- **The 6 unhealthy streams:** HALT 1. The model counts 17425, and its
   region is untouched.
 
 ## What runs on the chip

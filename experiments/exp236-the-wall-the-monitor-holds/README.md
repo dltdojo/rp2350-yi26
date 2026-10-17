@@ -2,7 +2,7 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**A 143-instruction, 572-byte RISC-V M-mode monitor (`monitor.bin`) and a Lean 4 proof of
+**A 143-word, 572-byte RISC-V M-mode monitor (`monitor.bin`) and a Lean 4 proof of
 what its own words do when the privileged model of exp235 runs them. From reset, boot
 leaves the machine in U-mode at the payload's first word, the PMP fencing the payload into
 64 KiB at `0x80010000`, every register zero but `sp`. Whatever the payload then does, it
@@ -88,7 +88,7 @@ the kernel cannot check, and a store changes the memory the next fetch reads. Bo
 ## The checks
 
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches,
-   143 ≤ 150 instructions, and `monitorCode` in the proof is the binary's words in order.
+   143 ≤ 150 words, and `monitorCode` in the proof is the binary's words in order.
 2. `Monitor.lean` checks, with no errors and no warnings, on Lean's own axioms.
 3. **Eighteen mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks: sixteen
    change one word of `monitorCode` — a PMP address, a permission bit, `MPP`, the payload's entry or `sp`,

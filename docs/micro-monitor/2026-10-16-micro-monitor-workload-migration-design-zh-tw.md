@@ -5,7 +5,7 @@
 * **文件日期**：2026-10-16
 * **前置基礎**：
   * `exp235-the-boundary-the-proof-bridges`（Hazard3 特權模型 `PrivMachine` 與 U-mode 精化橋樑定理）
-  * `exp236-the-wall-the-monitor-holds`（143 指令 `monitor.bin` 形式化驗證）
+  * `exp236-the-wall-the-monitor-holds`（143 字 `monitor.bin` 形式化驗證）
   * `exp237-the-enclave-on-the-chip`（RP2350 Pico 2 晶片純 C + 組語硬體飛地與 `exp229` 有限體運算驗證）
 * **規劃目標**：將既往已驗證的三大代表性核心（`exp228` Tapscript 解譯器、`exp223` TRNG 健康檢驗與條件摘要、`exp225` Rule 30 狀態演進）嵌移至 `monitor.bin` 架構，系統性檢驗並升級現有 Micro-Monitor 在**雙向系統呼叫**、**Fail-Closed 記憶體抹除**與**多條目 W^X PMP 權限細分**上的設計缺口。
 

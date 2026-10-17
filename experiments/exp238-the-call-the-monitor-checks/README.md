@@ -2,7 +2,7 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**A 200-instruction, 800-byte RISC-V M-mode monitor (`monitor.bin`) that answers two calls which do not
+**A 200-word, 800-byte RISC-V M-mode monitor (`monitor.bin`) that answers two calls which do not
 stop the payload — `HASHB` and `CHECKSIG` — and a Lean 4 proof of what its own words do when the
 privileged model of exp235 runs them. It does not hash and does not verify: it owns the *pointers*. Before a
 call is forwarded to the host's service port, every range it names is checked to lie wholly inside the
