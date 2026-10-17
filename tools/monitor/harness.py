@@ -136,7 +136,14 @@ def run_snapshot(monitor: bytes, pay: bytes, steps: int = 1000000):
 
     Returns (emulator, snapshot), the snapshot None if the payload never trapped.
     """
-    emu = SandboxEmulator(image(monitor, pay))
+    return snapshot(SandboxEmulator(image(monitor, pay)), steps)
+
+
+def snapshot(emu: SandboxEmulator, steps: int = 1000000):
+    """Run `emu` to the park, taking the whole of memory at its first trap, before the monitor writes a byte.
+
+    Returns (emulator, snapshot), the snapshot None if the payload never trapped.
+    """
     snap = None
     for _ in range(steps):
         if emu.halted:
@@ -163,3 +170,39 @@ def sub(src: str, old: str, new: str, which: str = "first") -> str:
 def build(src: str) -> bytes:
     """monitor.S text assembled afresh, as a flat binary at the monitor's base."""
     return binary.assembled(src)
+
+
+# ---- from exp240 on: a monitor that is entered again and again --------------------------------
+
+def reenter(emu: SandboxEmulator) -> SandboxEmulator:
+    """A reset, as the hardware does it: a new run of the core over the RAM the last run left.
+
+    The core starts again at the reset vector, in M-mode, with the CSRs at their reset values and junk in the registers
+    (`SandboxEmulator` puts it there); nothing of the last run is carried but memory.
+    """
+    return SandboxEmulator(bytes(emu.mem))
+
+
+def differences(want: bytes, got: bytes, limit: int = 4) -> list:
+    """The ranges, as addresses, where `got` is not `want`: at most `limit` of them, then a count."""
+    out, i, n = [], 0, len(want)
+    while i < n:
+        if want[i] != got[i]:
+            j = i
+            while j < n and want[j] != got[j]:
+                j += 1
+            out.append((BASE + i, BASE + j))
+            i = j
+        else:
+            i += 1
+    shown = [f"[{lo:#x}, {hi:#x})" for lo, hi in out[:limit]]
+    return shown + ([f"and {len(out) - limit} more"] if len(out) > limit else [])
+
+
+def reported(emu: SandboxEmulator, tag: int):
+    """The words of the last report that began with `tag` (HALT: a0, minstret, mcycle), or None."""
+    p = emu.prints
+    for i in range(len(p) - 1, -1, -1):
+        if p[i] == tag:
+            return p[i + 1:i + 4]
+    return None

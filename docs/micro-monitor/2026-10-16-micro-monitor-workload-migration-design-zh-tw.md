@@ -182,6 +182,19 @@ bltu  t3, a1, handle_fault
 * 證明 **W^X 互斥定理（`wx_no_write_exec`）**：在 `WXBoxed` 狀態下，對任意 32-bit 位址 `addr`，`pmpCheck s.csrs .U addr 4 .Fetch = true` 與 `pmpCheck s.csrs .U addr 4 .Store = true` 永遠不可能同時成立。
 * 證明 **Code 區絕對不可變定理（`wx_code_immutable`）**：無論 U-mode 負載執行多少步，只要處於 `WXBoxed`，位於 `[codeLo, codeHi)` 內的機器碼位元組與初始載入時完全相同（不需要像單一條目 RWX 那樣依賴「負載自身不寫入代碼區」的軟體假設，而是由硬體 PMP 直接保證）。
 
+### 4. 實作結果與本設計的差異（2026-10-17，exp240 完成後補記）
+
+`exp240` 已完成，下列幾點與上文不同，以實作為準：
+
+* **以 `exp236` 為底，150 字（600 bytes）。** 比 `exp236` 多 7 字，全部在開機：三個 PMP 位址與 `pmpcfg0` 各一個 `li` 加一個 `csrw`，原本只有一個條目。處理常式與退場清零段整體往後移 `0x1c` bytes，字與 `exp236` 逐字相同。`exp240` 不含 `exp239` 的記憶體清零，兩者是 `exp236` 的兄弟，各有各的字數預算。Lean 檢查約 50 秒。
+* **位址用模型的 `0x8001xxxx`，不是晶片的 `0x2001xxxx`。** 與 `exp236` 至 `exp239` 一致。
+* **Code 與 Data 不是兩個不相交的 4 KiB 頁。** 設計表假設種子與輸出在 Data 頁，核心在 Code 頁；但 `exp225` 的核心用 `auipc` 取自己的位址，種子在 `+0x100`、歷史在 `+0x200..+0x600`，都是相對於核心自己的相對位置，與核心的 76 bytes 在同一頁。實作改為：Code 條目 128 bytes `[+0, +0x80)`（`pmpaddr0 = 0x2000400f`，`R+X`，`0x1d`），Data 條目 4 KiB `[+0, +0x1000)`（`pmpaddr1 = 0x200041ff`，`R+W`，`0x1b`），Stack 條目 4 KiB `[+0xf000, +0x10000)`（`pmpaddr2 = 0x20007dff`，`R+W`，`0x1b`）；`pmpcfg0 = 0x001B1B1D` 與設計相同。**Data 條目蓋住 Code 條目**，靠 PMP「編號最小且碰到存取的條目決定結果」把 Code 的 128 bytes 從 Data 挖出來。W^X 因此靠條目順序成立，不靠區域不相交；`wx_no_write_exec` 證明的正是這一點，把條目順序顛倒（`pmp_entries_tried_backwards`）就被 Lean 拒絕。副作用：負載必須放得進 128 bytes。
+* **定理放在新檔 `lean/Rv32/WxBox.lean`，不是 `Sandbox.lean`。** `WXBoxed` 的參數是三個條目各自的 `lo`、`hi`；`wx_no_write_exec` 與 `wx_code_immutable` 如設計，另有 `wx_fetch_iff`、`wx_store_ok`、`wx_disjoint`、`wx_step`、`wx_run` 與 `pmpCheck_M_outside_in`（M-mode 在方塊之外永不被拒）。`wx_code_immutable` 不假設負載的指令長什麼樣，只靠 PMP。
+* **「多輪重入」是重置後再來一輪。** Monitor 在 `HALT` 後停機、不返回，所以一輪是：重置、開機、負載跑到第一個陷阱、處理、停機。`monitor_boot` 證明開機後的 CSR 檔恰是常數 `csrsBooted`（計數器為 2），不論前一輪留下什麼；`monitor_round_ready` 證明一輪之後機器仍是 `Ready`（monitor 的字在原處、Code 的 128 bytes 與最初載入的相同）；`monitor_rounds` 對任意輪數歸納。設計的 `monitor_reentry_invariant` 因此實作為這三個定理。
+* **每輪 `minstret` 是 3,081，不是 3,079。** 3,079 是核心本身（含最後那個 `ecall`），monitor 的框架另加 2 條（釋放計數器的 `csrwi` 與 `mret`），與 `exp239` 相同。模擬器上 100 輪每輪都是 3,081。
+* **核心的行為沒有串進 Lean。** 與 `exp239` 同：Lean 證明的是 monitor 的字做什麼；`exp225` 的核心在這個方塊裡跑出對的 256 代、不踩任何一條 PMP，是在模擬器上與 `rule30.py` 逐位元組比對（100 輪、25,600 代）。
+* **處理常式的證明是 chunk 表。** `proof/gen.py` 用 `tools/monitor/chunks.py` 的機制，與 `exp238`、`exp239` 同；開機與定義是 `exp236` 證明的文字，換掉 PMP 值並把位址往後移（`shift`）。處理常式每個 chunk 帶 `Frame`，所以「除了 monitor 自己的堆疊字與回報字，記憶體每個位元組都是負載留下的」是定理（`monitor_traps`），Code 區在整輪之後不變因此也是定理。
+
 ## 六、綜合結論：對 `monitor.bin` 標準版之最終修正建議
 
 透過將 `exp228`、`exp223` 與 `exp225` 三個實驗納入規劃，我們清楚界定出目前 `exp236/exp237` 的初版 `monitor.bin` 邁向「通用硬體錢包安全微核心」所需完成的四項核心演進：
@@ -195,5 +208,5 @@ bltu  t3, a1, handle_fault
 4. **保持極簡形式化驗證基底（Minimal TCB）**：
    上述三項升級合計僅增加約 45–60 條 `RV32I + Zicsr` 指令，完整版 `monitor.bin` 總體積仍可嚴格控制在 **200 條指令（800 bytes）以內**，完全維持在 Lean 4 符號執行可於數秒內完成全路徑定理證明的安全邊界內。
 
-   **修正（2026-10-17）**：此估計不成立。`exp238` 單獨就用滿 200 字，其 Lean 檢查約需數分鐘、突變檢查約半小時，而非數秒。`exp239` 改從 `exp236` 分支，自己在預算內，見第四節第 4 小節；`exp240` 的基底到動工時再定。
+   **修正（2026-10-17）**：此估計不成立。`exp238` 單獨就用滿 200 字，其 Lean 檢查約需數分鐘、突變檢查約半小時，而非數秒。`exp239` 改從 `exp236` 分支，自己在預算內，見第四節第 4 小節；`exp240` 同樣從 `exp236` 分支，只多 7 字，見第五節第 4 小節。
 

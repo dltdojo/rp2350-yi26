@@ -23,6 +23,7 @@ REPO = os.path.abspath(os.path.join(EXP239, "../.."))
 sys.path.insert(0, os.path.join(REPO, "tools"))
 sys.path.insert(0, os.path.join(REPO, "tools", "monitor"))
 import harness
+from harness import differences, reported       # shared since exp240 needed them too
 from monitor.emulator import BASE
 
 BOX = 0x80010000
@@ -44,22 +45,6 @@ def expected(snap: bytes, a0: int) -> bytes:
     return bytes(mem)
 
 
-def differences(want: bytes, got: bytes, limit: int = 4) -> list:
-    """The ranges, as addresses, where `got` is not `want`: at most `limit` of them, then a count."""
-    out, i, n = [], 0, len(want)
-    while i < n:
-        if want[i] != got[i]:
-            j = i
-            while j < n and want[j] != got[j]:
-                j += 1
-            out.append((BASE + i, BASE + j))
-            i = j
-        else:
-            i += 1
-    shown = [f"[{lo:#x}, {hi:#x})" for lo, hi in out[:limit]]
-    return shown + ([f"and {len(out) - limit} more"] if len(out) > limit else [])
-
-
 def check_memory(emu, snap, a0: int) -> list:
     """The failures, empty for a pass: memory at the park is the payload's, scrubbed for exit code `a0`."""
     if snap is None:
@@ -73,12 +58,3 @@ def check_memory(emu, snap, a0: int) -> list:
 
 def run(mon: bytes, pay: bytes, steps: int = 1000000):
     return harness.run_snapshot(mon, pay, steps)
-
-
-def reported(emu, tag: int):
-    """The words of the last report that began with `tag` (HALT: a0, minstret, mcycle), or None."""
-    p = emu.prints
-    for i in range(len(p) - 1, -1, -1):
-        if p[i] == tag:
-            return p[i + 1:i + 4]
-    return None
