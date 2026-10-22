@@ -2,74 +2,66 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status: TODO (scaffold).** The design plan and the conceptual discussion are in
-[`DESIGN.zh-TW.md`](./DESIGN.zh-TW.md) and [`WHY.zh-TW.md`](./WHY.zh-TW.md).
+**Status: TODO (scaffold).** The design is in [`DESIGN.zh-TW.md`](./DESIGN.zh-TW.md) and the discussion in
+[`WHY.zh-TW.md`](./WHY.zh-TW.md). Nothing here has been built, assembled or proved yet; the word counts below come from
+assembling the design's snippets, and every step count waits for a capture.
 
 ## Overview
 
-In Tokyo's Kanda Myojin shrine, engineers buy the *IT Information Security Omamori* (IT情報安全守護) —
-a green PCB-styled charm with an IC silhouette, packaged with two stickers for laptops and servers.
-In Taiwan's server rooms, engineers place a green pack of *Kuai Kuai* (綠色乖乖) on top of machines so
-the light stays green. Both are physical tokens of comfort against crashes, leaks and failures.
+Engineers in Tokyo buy Kanda Myojin's *IT情報安全守護* charm: a card and stickers for their machines, sold since 2002
+([IT Leaders](https://it.impress.co.jp/articles/-/27423)). In Taiwan's server rooms, a green pack of *Kuai Kuai* sits on
+top of the machines so the light stays green. Both are tokens of comfort against crashes, leaks and failures.
 
-Formal verification can become a digital *omamori* — **verification theater** — when a proof is treated
-as a badge rather than read as a conditional statement. Every word of the machine code is fetched,
-executed, counted in `minstret`, and backed by a Lean 4 theorem with zero `sorryAx` and zero custom
-axioms, and mutating any of those words makes Lean refuse the proof — yet the bytes do nothing at all
-for the security property a user believes is protected.
+A proof becomes the same kind of token when it is read as a badge rather than as a conditional statement. This
+experiment builds bytes that are fetched and executed, backed by Lean 4 theorems on Lean's own axioms, and guarded by
+mutants that Lean refuses. They do nothing for what the payload can do, and **that is proved in Lean too**: next to each
+charm's own theorem sits an *exposure theorem*, stated from reset, which says the charm changes nothing.
 
-This experiment builds one RISC-V M-mode monitor (`monitor.bin`, extending the track of
-[exp236](../exp236-the-wall-the-monitor-holds/), [exp238](../exp238-the-call-the-monitor-checks/),
-[exp239](../exp239-the-scratch-the-monitor-scrubs/) and [exp240](../exp240-the-code-the-box-forbids-writing/))
-that carries **four formally verified charms** (three structural boundary gaps + one literal IT
-*omamori* seal):
+The monitor is [exp240](../exp240-the-code-the-box-forbids-writing/)'s, with three charms added:
 
-1. **Charm 1 — The Literal IT Omamori Seal (`0x4F4D414D` `"OMAM"` / `0x4B554149` `"KUAI"`):**
-   Boot writes the 8-byte sacred seal into the monitor's altar (`0x80008010..0x80008018`), and the
-   trap handler verifies both words before reporting a clean `HALT`. Lean proves `seal_intact_on_halt`:
-   no run can report a clean halt unless the sacred seal is intact. Yet the seal sits in M-mode memory
-   that U-mode cannot reach anyway, while the payload's own code and data inside the box can be
-   corrupted at will without disturbing a single bit of the seal.
-2. **Charm 2 — The Shadowed PMP Wall (`pmpaddr1` / `pmpcfg0` Entry 1):**
-   Boot configures PMP Entry 1 to make the payload's code window `[0x80010000, 0x80010080)` read-execute
-   only (`W = 0`). Lean proves `entry1_forbids_code_store`: `pmpEntryCheck` on Entry 1 rejects every
-   store into the code window, and a mutant that sets `W = 1` on Entry 1 is refused by Lean. Yet Entry 0
-   is `exp236`'s 64 KiB `RWX` entry (`[0x80010000, 0x80020000)`), and RISC-V's priority rule
-   (*lowest-numbered matching entry wins*) means Entry 0 grants the store before Entry 1 is ever
-   consulted. Self-modifying code overwrites the payload's instructions and exits cleanly.
-3. **Charm 3 — The Ceremonial Scrub (`[+0x2180, +0x21a0)` Sacred Key Slot):**
-   On exit, the monitor runs a verified zeroing loop over the 32-byte "Sacred Key Slot" at
-   `[0x80012180, 0x800121a0)`. Lean proves `sacred_slot_zeroed`: on every halt and every fault, all 32
-   bytes of the slot are zero when the machine parks. Yet the payload's actual working secret lives on
-   its stack at `[0x8001ffc0, 0x80020000)` — inside the proof's `Frame` (the "untouched" clause that
-   sounds like a preservation guarantee) — and survives intact for the next caller to read.
-4. **Charm 4 — The Echoed Rubber-Stamp (`VERIFY_CHARM` Syscall, `t0 = 4`):**
-   A non-halting syscall checks that a 32-byte buffer lies inside the box, writes the call number `4`
-   to the service port word `0xc000001c`, reads `a0` back from `0xc000001c`, and checks `a0 != 0`.
-   Because the formal model treats the service port as plain RAM, Lean proves `verify_charm_always_passes`:
-   any in-box call returns `a0 = 4` (non-zero, "verified") — proving a rubber stamp by modeling MMIO as
-   ordinary memory.
+1. **The shrine seal** (18 words). Boot writes `0x4D414D4F` and `0x4941554B` at `0x80008010`, which read back as the
+   bytes `"OMAMKUAI"`. Before reporting a HALT, the handler checks both words and reports a FAULT if either differs.
+   - *Charm theorem* `halt_requires_shrine`: from any trap state, a HALT is reported only with the seal intact.
+   - *Exposure* `shrine_always_intact`: the seal lies outside the data and stack entries, so `wx_run` keeps it, and boot
+     rewrites it every round. In every round reachable from reset, the check passes.
+2. **The shadowed entry** (2 more words). Boot sets PMP entry 3 read-only over the seed window
+   `[0x80010100, 0x80010200)`, with `pmpaddr3 = 0x2000405f` and `pmpcfg0 = 0x191b1b1d`.
+   - *Charm theorem* `entry3_forbids_seed_store`: `matchPmpEntry` on entry 3 is a `FullMatch` whose `hasPermission`
+     for a U-mode store is `false`.
+   - *Exposure* `pmpCheck_shadowed`, in `lean/Rv32/WxBox.lean`: an entry 3 that lies wholly inside entry 1 never
+     decides, because the lowest-numbered matching entry does. exp240's `wx_store_allowed_data` then lets the store in.
+3. **The ceremonial scrub** (7 words). Every exit zeroes a 32-byte slot at `[0x80010e00, 0x80010e20)` in the data.
+   - *Charm theorem* `slot_zeroed_on_exit`: at park the slot is zero, and every other byte is as the payload left it.
+   - *Exposure* `stack_reaches_next_round`: that frame, joined to exp240's `monitor_reentry`, carries a key the payload
+     left on its stack at `0x8001ffc0` into the next round.
 
-Needs: **no board** (scaffold, and the finished experiment).
+Two of the three restate prior work on purpose. Entry order is exp240's `entries_swapped` and
+`pmp_entries_tried_backwards`. A frame that keeps secrets is the shape of exp239's own `monitor_scrub`.
+
+A fourth charm was in the first draft: a service call that reads its own request word back as a pass. It is discussed
+in WHY §4 and not built. exp238 already discloses it, exp240 serves only HALT, and on the emulator those bytes actually
+fail closed: the placebo there is the theorem, not the bytes.
+
+"Does nothing" means *in exp240's model*: one hart, a U-mode payload, and the host's writes between rounds. Act 1b of
+the emulator suite writes the seal from outside that model, standing for a DMA channel or the other core, and there the
+check turns a HALT into a FAULT.
+
+Needs: **no board** (the scaffold, and the finished experiment).
 
 ## Documents in this directory
 
-- [`WHY.zh-TW.md`](./WHY.zh-TW.md) — Concept discussion: Kanda Myojin's *IT Information Security Omamori*,
-  Taiwan's green *Kuai Kuai*, Verification Theater, and why a machine-checked theorem can be 100% true
-  and 0% protective.
-- [`DESIGN.zh-TW.md`](./DESIGN.zh-TW.md) — Detailed technical design plan: memory map, assembly layout of
-  `monitor.S`, the exact Lean 4 theorem statements and `mutants.txt` entries, and the emulator attack
-  suite that breaks all four charms while every theorem holds.
+- [`WHY.zh-TW.md`](./WHY.zh-TW.md) — the charm and the Kuai Kuai, verification theater, why the fourth charm was
+  dropped, and a checklist for reading a verification claim.
+- [`DESIGN.zh-TW.md`](./DESIGN.zh-TW.md) — memory map, the assembly of each charm, the charm and exposure theorems, the
+  mutants, and the emulator acts.
 
 ## TODO
 
-- [ ] **`monitor.S` & `monitor.bin`**: assemble the 4-charm monitor (~185 words) and pin its SHA-256.
-- [ ] **`proof/Bless.lean` & `proof/gen.py`**: prove all four charm theorems alongside the monitor's
-      end-to-end execution theorems on `Lean`'s own axioms (`propext`, `Classical.choice`, `Quot.sound`).
-- [ ] **`proof/mutants.txt`**: ~16 mutants showing Lean actively guarding the useless bytes (refusing
-      a wrong magic constant, a writable Entry 1, a short scrub loop, or a skipped port check).
-- [ ] **`suite/charms_audit.py`**: pair each charm's theorem with the concrete exploit payload on the
-      emulator that bypasses it while the theorem's postcondition holds verbatim, plus the counter-fix
-      referenced from `exp238` / `exp239` / `exp240`.
-- [ ] `check.sh`, `run.sh`, `capture.txt`, index row updated from scaffold to completed.
-
+- [ ] `monitor.S`: exp240's plus the three charms. With them removed it must assemble to exp240's `monitor.bin`,
+      byte for byte.
+- [ ] `lean/Rv32/WxBox.lean`: `pmpCheck_shadowed`, and `WXBoxed` taking a shadowed entry 3.
+- [ ] `proof/`: `gen.py`, `defs.lean`, `tail.lean`, generated `Bless.lean`; the three charm theorems, the three
+      exposure theorems, and exp240's end-to-end and round theorems for this binary.
+- [ ] `proof/mutants.txt`: the 13 charm mutants in DESIGN §4, plus exp240's for the words the two share.
+- [ ] `suite/charms_audit.py`: Acts 1a, 1b, 2, 3 and the ablation (Act 4).
+- [ ] `check.sh`, `run.sh`, `capture.txt`, and the index row moved from scaffold to done.
