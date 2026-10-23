@@ -86,8 +86,9 @@ class Chunk:
 
     def __init__(self, name, doc, n, pc, pc_out, *, hyps="", binders="", regs="", words=None,
                  csr_in=None, csr_out=None, mode_out=".M", svc=None, extra="", store=False, pbind=" (p : Word)",
-                 pre="", steps=None, prelude="", custom=None):
+                 pre="", steps=None, prelude="", custom=None, io=None):
         self.prelude, self.custom = prelude, custom
+        self.io = io                                                     # None: no port written; else the Lean list appended to `io`
         self.pre = pre
         self.pbind = pbind
         self.name, self.doc, self.n, self.pc, self.pc_out = name, doc, n, pc, pc_out
@@ -132,11 +133,16 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     {run}.halted = false ∧
     {run}.mode = {self.mode_out} ∧
     {run}.csrs = {self.csr_out} ∧
+    {run}.host = s.host ∧
+    {run}.io = {self.io_rhs()} ∧
 {chr(10).join(words)}
 {svc}
     Frame s.core.mem {run}.core.mem ∧
     (∀ r, {run}.core.reg r = regsUpd s.core.reg [{self.regs.replace('{RUN}', run)}] r) := by
 """
+
+    def io_rhs(self) -> str:
+        return "s.io" if self.io is None else f"s.io ++ {self.io}"
 
     def lean(self) -> str:
         if os.environ.get("STUBALL"):
@@ -149,7 +155,7 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         n, ex = self.n, self.extra
         simp_in = f"pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured{ex}"
         simp_out = f"pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd{ex}"
-        holes = ", ".join(["?_"] * (5 + 4 + self.nsv + 2))
+        holes = ", ".join(["?_"] * (5 + 2 + 4 + self.nsv + 2))
         m = re.match(r"^\(?if (.*) then .* else .*?\)?$", self.pc_out)
         cond = m.group(1) if m else None
         split = f"  by_cases hq : {cond}\n" if cond else ""
@@ -188,7 +194,7 @@ theorem {self.name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         """The names of the facts one step of a chain returns, in the order of the statement."""
         ws = [f"w{i}_{k}" for k in range(4)]
         sv = [f"sv{i}"] if self.svc is None else [f"sv{i}_{k}" for k in range(4)]
-        return [f"p{i}", f"a{i}", f"h{i}", f"m{i}", f"c{i}"] + ws + sv + [f"fr{i}", f"r{i}"]
+        return [f"p{i}", f"a{i}", f"h{i}", f"m{i}", f"c{i}", f"ho{i}", f"io{i}"] + ws + sv + [f"fr{i}", f"r{i}"]
 
     def chain_proof(self) -> str:
         return chain(self.steps, "  have p0 := hpc\n  have c0 := hcs\n  have hS0 := hS\n" + self.prelude, final_chain(self), own=HNAMES.findall(self.hyps))
@@ -259,8 +265,13 @@ def final_chain(c):
     simp = lambda w: ", ".join(x for x in [w, R, "regsUpd", own] if x)
     lines = ["  rw [hall]\n"]
     sv = ["?sv"] if c.svc is None else [f"?sv{k}" for k in range(4)]
-    holes = ", ".join([f"p{n}", f"a{n}", f"h{n}", f"m{n}", f"c{n}"] + [f"?w{k}" for k in range(4)] + sv + ["?fr", "?r"])
+    holes = ", ".join([f"p{n}", f"a{n}", f"h{n}", f"m{n}", f"c{n}", "?ho", "?io"] + [f"?w{k}" for k in range(4)] + sv + ["?fr", "?r"])
     lines.append(f"  refine ⟨{holes}⟩\n")
+    ho = "".join(f"(ho{i}.trans " for i in range(n, 1, -1)) + "ho1" + ")" * (n - 1)
+    lines.append(f"  case ho => exact {ho}\n")
+    ios = ", ".join(f"io{i}" for i in range(n, 0, -1))
+    hos = ", ".join(f"ho{i}" for i in range(n, 0, -1))
+    lines.append(f"  case io => simp [{simp(ios + ', ' + hos + ', List.append_assoc')}]\n")
     for k in range(4):
         lines.append(f"  case w{k} => simp [{simp(wlist(n + 1, k))}]\n")
     if c.svc is None:
@@ -275,6 +286,8 @@ def final_chain(c):
     extra = ", ".join(f"w{j}_{k}" for j in range(n, 0, -1) for k in range(4)) + ", ofNat_toNat_mod"
     if "{RUN}" in c.regs:
         extra += ", " + ", ".join(f"sv{j}_3" for j in range(n, 0, -1))
+    if "host" in c.regs:
+        extra += ", " + ", ".join(f"io{j}, ho{j}" for j in range(n, 0, -1)) + ", List.append_assoc"
     lines.append(f"  case r =>\n    {R32} <;> simp [{simp(extra)}]\n")
     return "".join(lines)
 
