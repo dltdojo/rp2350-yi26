@@ -1,5 +1,5 @@
 === exp240 — the code the box forbids writing ===
-recorded at 2026-10-23T05:21:09Z from commit 0b0a2d1
+recorded at 2026-10-23T10:30:41Z from commit 284696e
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (604 bytes, 151 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
@@ -64,6 +64,9 @@ scrub_leaves_sp                    the scrub loads 1 into x2                    
 scrub_skips_ra                     the scrub leaves x1                                                                                           refused in regs_a
 mscratch_stays                     the scrub leaves mscratch holding the payload's sp                                                            refused in scrub_ms
 mmio_address_wrong                 the reports go to a word in the payload's region                                                              refused in fault_1
+halt_tag_wrong                     the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT                         refused in halt_1
+fault_tag_wrong                    the FAULT report's tag is "FAUM", not "FAUL"                                                                  refused in fault_1
+exit_code_to_print_word            the exit code goes to the print word, not the exit word                                                       refused in regs_port
 counters_start_at_three            claim: boot leaves the counters at 3, not 2                                                                   refused in monitor_launch_5
 halt_takes_56_steps                claim: a HALT takes the monitor 56 steps, not 57                                                              refused in monitor_traps
 code_one_word_longer               claim: the code is four bytes longer, [0x80010000, 0x80010084)                                                refused in monitor_end_to_end
@@ -229,6 +232,9 @@ PASS  scrub_leaves_sp: the proof refuses a version where the scrub loads 1 into 
 PASS  scrub_skips_ra: the proof refuses a version where the scrub leaves x1
 PASS  mscratch_stays: the proof refuses a version where the scrub leaves mscratch holding the payload's sp
 PASS  mmio_address_wrong: the proof refuses a version where the reports go to a word in the payload's region
+PASS  halt_tag_wrong: the proof refuses a version where the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT
+PASS  fault_tag_wrong: the proof refuses a version where the FAULT report's tag is "FAUM", not "FAUL"
+PASS  exit_code_to_print_word: the proof refuses a version where the exit code goes to the print word, not the exit word
 PASS  counters_start_at_three: the proof refuses a version where claim: boot leaves the counters at 3, not 2
 PASS  halt_takes_56_steps: the proof refuses a version where claim: a HALT takes the monitor 56 steps, not 57
 PASS  code_one_word_longer: the proof refuses a version where claim: the code is four bytes longer, [0x80010000, 0x80010084)
