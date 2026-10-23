@@ -92,6 +92,10 @@ checked again here on these words.
   report words. So it proves *what the monitor writes there and what it reads back*, not what a host does. In
   particular nothing is proved about `a0` after `CHECKSIG` except that it is the word read from the port: the
   model reads back the request it just wrote.
+- **The reports are not proved.** The print and exit ports are memory in the model, so of the words a report
+  stores at `0xc0000004` only the last is left, and the frame leaves both ports out: no theorem says what was
+  reported, or what the exit port holds, only that `a0` holds the exit code. The report's words, the exit port and
+  `minstret` as reported are checked on the emulator alone ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G1 and G2).
 - **The monitor does not hash and does not verify.** That `HASHB` writes the SHA-256 of the input and that
   `CHECKSIG` answers 1 for a good BIP340 signature is the host's job (here `suite/host.py`, with hashlib and
   exp228's verifier), proved nowhere in this experiment.

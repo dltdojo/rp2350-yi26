@@ -70,6 +70,10 @@ the kernel cannot check, and a store changes the memory the next fetch reads. Bo
   measurement: `mcounteren`, the C extension, the set of CSRs, counter writes, misaligned causes.
   Nothing here ran on the Hazard3 RTL (the Verilator testbench is not built on this machine and
   nothing wires the monitor to it) or on an RP2350.
+- **The reports are not proved.** The print and exit ports are memory in the model, so of the words a report
+  stores at `0xc0000004` only the last is left, and the frame leaves both ports out: no theorem says what was
+  reported, or what the exit port holds, only that `a0` holds the exit code. The report's words and the exit port
+  are checked on the emulator alone ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G1 and G2).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems
   assume it is `monRegion = [0x80000000, 0xC0000100)`. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.

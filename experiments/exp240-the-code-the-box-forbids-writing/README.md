@@ -86,7 +86,7 @@ And about the words of `monitor.bin`, in `proof/Wx.lean`, which `check.sh` holds
 | theorem | says |
 | :--- | :--- |
 | `monitor_boot` | from reset (image loaded, `pc = 0x80000040`, M-mode, **any CSRs that lock no PMP entry**, any registers), 61 steps give `WXBoxed` with the three entries at `0x80010000`, `sp = 0x80020000`, every other register zero, memory untouched, and **the CSR file exactly `csrsBooted`**: counters at 2, `mepc`, `mcause`, `mtval`, the trap vector, `mstatus`, the PMP -- constants |
-| `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | from the trap vector, whatever the payload left: 57, 59 and 62 steps to the park loop, the report made, the saved words and `mscratch` zero, every register but `a0` zero (`a0` the payload's own for a HALT, 1 otherwise), and **every byte of memory but the monitor's stack words and report words as the payload left it** |
+| `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | from the trap vector, whatever the payload left: 57, 59 and 62 steps to the park loop, the report's stores run (what they store is not stated: see below), the saved words and `mscratch` zero, every register but `a0` zero (`a0` the payload's own for a HALT, 1 otherwise), and **every byte of memory but the monitor's stack words and report words as the payload left it** |
 | `monitor_traps` | the three, whichever it was: `Parked (run (trapSteps u) u) (exitCode u)`, the monitor's words in place, `FrameSP`, `pmpcfg0` as boot set it |
 | `payload_runs` | the payload in the box runs up to its first trap; frozen bytes are the image's; at the trap the handler's theorems apply |
 | `monitor_end_to_end` | from reset, or any CSRs that lock no entry, boot, then up to `n` payload steps: still running, boxed, in U-mode, with the monitor's words and **the code's 128 bytes as loaded** -- or it trapped, and the machine parks with those, and with memory as the payload left it but for the monitor's stack words |
@@ -119,6 +119,10 @@ fails if `Wx.lean` is not what the generator writes.
   model). There is no chip build of this monitor.
 - **The payload has to fit in 128 bytes** to run, and to be a position-independent one that keeps its data past its code.
   That is the price of the carve-out; a payload that wants a bigger code entry needs a bigger power of two.
+- **The reports are not proved.** The print and exit ports are memory in the model, so of the words a report
+  stores at `0xc0000004` only the last is left, and the frame leaves both ports out: no theorem says what was
+  reported, or what the exit port holds, only that `a0` holds the exit code. The report's words, the exit port and
+  `minstret` as reported are checked on the emulator alone ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G1 and G2).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems assume it is
   `monRegion = [0x80000000, 0xC0000100)`, which holds the box. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none, and no `mie`. The monitor never writes `mie`, and relies on it being 0 at reset;

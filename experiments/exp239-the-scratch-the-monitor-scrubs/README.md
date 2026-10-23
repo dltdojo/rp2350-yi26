@@ -62,7 +62,7 @@ All on Lean's own axioms. They are about `PrivMachine` fetching and executing `m
 | `monitor_boot` | exp236's, for these words: 53 steps from reset give `UBoxed 0x80010000 0x80020000` at `0x80010000`, every register zero but `sp` |
 | `zloop_conf`, `zloop_dig` | **the loop lemma.** From the store, with `t0 = A` and `t1 = E` four-aligned, `A + 4(k + 1) = E` and `[A, E)` in the box: after `3(k + 1)` steps the machine is at the instruction after the branch, every byte of `[A, E)` is 0, no other byte of memory has changed, and `t0 = E`. Induction on `k`; each trip is three one-instruction theorems (`zstore`, `zadd`, `zbne`) and `zloop_iter`. The two loops are one template at two addresses |
 | `monitor_scrub` | from the word after `mscratch` is zero, whatever `a0` is: the machine parks (`pc` at the `wfi`) with `a0` as it was and every other register zero, the monitor's words in place, and `Scrubbed a0`: the scratch zero; the digest window zero if `a0 ≠ 0` and **the payload's own 32 bytes** if `a0 = 0`; every other byte, bar the monitor's stack and report words, as it was. 5,798 steps for `a0 = 0` (`monitor_scrub_pass`), 5,825 otherwise (`monitor_scrub_fail`) |
-| `monitor_halt_pre`, `monitor_fault_cause_pre`, `monitor_fault_syscall_pre` | the three ways in, from the trap vector to the word before the scrub of memory: 23, 25 and 28 steps, the report made, the saved words and `mscratch` zero, the box untouched |
+| `monitor_halt_pre`, `monitor_fault_cause_pre`, `monitor_fault_syscall_pre` | the three ways in, from the trap vector to the word before the scrub of memory: 23, 25 and 28 steps, the report's stores run (what they store is not stated: see below), the saved words and `mscratch` zero, the box untouched |
 | `monitor_scrubs` | **whatever trapped** — an `ecall` for HALT, an `ecall` for anything else, a fault — the machine parks with `exitCode u` (the payload's `a0` for a HALT, 1 for the rest), every other register zero, and `Scrubbed (exitCode u)` of the memory the payload left |
 | `monitor_fail_closed_scrub` | **a failed run leaves no digest.** Unless the trap is an `ecall` with `t0 = 1` and `a0 = 0`: the scratch and the digest window are both zero, and every other byte, bar the monitor's stack and report words, is the payload's |
 | `monitor_pass_digest_kept` | **only a clean HALT keeps its digest.** An `ecall` with `t0 = 1` and `a0 = 0`: the scratch is zero, the 32 bytes of the digest window are exactly the payload's, everything else is the payload's but for the monitor's stack and report words |
@@ -92,6 +92,10 @@ the generator writes.
 - **The model is not the chip.** As exp236: `Priv.lean` is a reading of the Hazard3 documentation; nothing here
   ran on the RTL or on an RP2350. There is no chip build of this monitor: exp237's `monitor_chip.S` is derived
   from exp236's and unproved, and a port is a later experiment.
+- **The reports are not proved.** The print and exit ports are memory in the model, so of the words a report
+  stores at `0xc0000004` only the last is left, and the frame leaves both ports out: no theorem says what was
+  reported, or what the exit port holds, only that `a0` holds the exit code. The report's words, the exit port and
+  `minstret` as reported are checked on the emulator alone ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G1 and G2).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems assume it is
   `monRegion = [0x80000000, 0xC0000100)`, which holds the box. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.
