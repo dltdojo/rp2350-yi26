@@ -129,8 +129,8 @@ checked again here on these words.
    that does not step past the `ecall`, counters never released, an unoffered call that returns, a saved word
    left on the stack, `CHECKSIG`'s answer check dropped or letting 2 through, and the model reading a port's
    answer back from memory, as it did before the ports were modelled. Fifteen more, one for each broken monitor of check 7 that had no mutant, were run once on
-   2026-10-23 and each was refused; they are in `mutants.txt` commented out, because each is a whole run of the
-   proof (about two minutes) and the check would take half an hour longer.
+   2026-10-23 and each was refused, and again on the 202-word monitor; they are in `mutants.txt` commented out,
+   because each is a whole run of the proof (about five minutes) and the check would take more than an hour longer.
 4. `proof/Calls.lean` is what `proof/gen.py` writes.
 5. **exp228's kernel under the monitor** (`suite/kernel_cases.py`): each of its 34 scripts, and 120 drawn by
    exp228's fuzzer, runs three ways — alone with no monitor, under the monitor, and in the specification

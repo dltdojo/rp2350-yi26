@@ -4,9 +4,9 @@
 #
 # Each edits `monitorCode`, the words of monitor.bin, one instruction each: the proofs are about what
 # those words do, so a word that does something else must stop a theorem. Each is refused in
-# the chunk or the phase it breaks. Fourteen were run once, each refused; these eight stay in the check because
-# a mutant is a whole run of the proof (about two minutes) and the eight cover the bounds check, the way back,
-# the dispatch and the scrub.
+# the chunk or the phase it breaks. Fourteen were run once, each refused; these stay in the check because a mutant
+# is a whole run of the proof (about two minutes for the 200-word monitor, five for the 202-word one), and they cover
+# the bounds check, the way back, the dispatch, the scrub, CHECKSIG's answer check and the model of the ports.
 hashb_input_floor_dropped|HASHB lets an input start below the box|s/0xf8656ee3#32/0x00000013#32/
 hashb_length_by_addition|HASHB tests ptr + len, which wraps, instead of what is left of the box|0,/0x40a38e33#32/s//0x00b50e33#32/
 hashb_output_room_16|HASHB checks room for 16 bytes of output, not 32|0,/0x02000293#32/s//0x01000293#32/
@@ -20,8 +20,9 @@ answer_check_allows_two|CHECKSIG takes an answer of 2 too|/0x00ce2503#32,/{n;s/0
 port_read_is_memory|model: an M-mode load from a port reads back the bytes, not the host's answer|s/then core'.setReg rd (s.host s.io a) else core'/then core' else core'/|lean/Rv32/Priv.lean
 #
 # Fifteen more, one for each broken monitor of suite/broken_monitors.py that had no mutant here, were run once on
-# 2026-10-23 and each was refused (two at a time, about 1.9 minutes each). They stay out of the check for the reason
-# above, written out so that they can be put back: a deleted instruction is a nop, so each keeps monitorCode's length.
+# 2026-10-23 and each was refused, and again on the 202-word monitor with the theorems that say what the host heard:
+# each refused, two at a time, about five minutes each. They stay out of the check for the reason above, written out
+# so that they can be put back: a deleted instruction is a nop, so each keeps monitorCode's length.
 # counters_released_one_early stands for counters_released_early and extra_instruction_counted, whose own edits add a word.
 # hashb_input_ceiling_dropped|HASHB lets an input start past the box|s/0xf8a3ece3#32/0x00000013#32/
 # hashb_length_dropped|HASHB never checks the length against what is left of the box|/0xf8a3ece3#32,/{n;s/0x40a38e33#32/0x00000013#32/;n;s/0xf8be68e3#32/0x00000013#32/}
