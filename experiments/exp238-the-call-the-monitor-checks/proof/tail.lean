@@ -246,8 +246,8 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
             monitor_hashb_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht2 hbox.1 hbox.2 hmpp
-          refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inl ht2,
-            ⟨fun _ => hbox, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩)⟩
+          refine ⟨_, Or.inr (Or.inr (Or.inl ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inl ht2,
+            ⟨fun _ => hbox, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩))⟩
           · rw [q13, ht2]; rfl
           · rw [q5]; rfl
           · intro r hr; rw [q15 r]; simp [regsUpd]
@@ -270,14 +270,14 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
                   hpc hcs hc ht3 hbox.1 hbox.2 (by rw [← hca]; exact hans)
               refine ⟨_, Or.inr (Or.inr (Or.inr ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q15, hc, ht3,
                 ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, hans, ?_⟩))⟩
-              rw [qi]; simp [callIo, faultIo, hn2, hcs, csrsH]
+              rw [qi]; simp [callIo, faultIo, hn2]
             have hans' : BitVec.ult 1#32 (u.host (u.io ++ [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩,
                 ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32) = false := by rw [← hca]; simpa using hans
             obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
               monitor_checksig_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
                 hpc hcs hc ht3 hbox.1 hbox.2 hmpp hans'
-            refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inr ht3,
-              ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩)⟩
+            refine ⟨_, Or.inr (Or.inr (Or.inl ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inr ht3,
+              ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩))⟩
             · rw [q13, ht3]; rfl
             · rw [q5]; rfl
             · intro r hr
@@ -290,7 +290,7 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
               refine ⟨by rw [ha, qi]; simp [answer, callIo, hn2], ?_⟩
               rw [ha]
               have : ¬ BitVec.ult 1#32 (answer u) = true := hans
-              simp only [BitVec.ult, decide_eq_true_eq, not_lt] at this
+              simp only [BitVec.ult, decide_eq_true_eq] at this
               bv_omega
           · obtain ⟨N, q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
               monitor_checksig_oob_fault env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
@@ -359,6 +359,7 @@ end Exp238
 #print axioms Exp238.monitor_hashb_ok
 #print axioms Exp238.monitor_hashb_oob_fault
 #print axioms Exp238.monitor_checksig_ok
+#print axioms Exp238.monitor_checksig_bad_answer
 #print axioms Exp238.monitor_checksig_oob_fault
 #print axioms Exp238.ends_refuses
 #print axioms Exp238.monitor_cycle
