@@ -152,12 +152,13 @@ fails if `Wx.lean` is not what the generator writes.
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches, 151 ≤ 200 words, and
    `monitorCode` in the proof is the binary's words in order.
 2. `Wx.lean` checks, with no errors and no warnings, on Lean's own axioms (and so does `WxBox.lean`, which it imports).
-3. **Forty-seven mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks. Twenty-nine change one
-   word of `monitorCode`: the three addresses and the configuration word -- a code entry of 256 or 64 bytes, a data entry
-   of 8 or 2 KiB, a stack entry of 8 KiB or one that reaches the monitor; a code entry that can be written, a data or
-   stack entry that can be run, an entry off, entry 3 on, the code and the data exchanged -- boot's four writes of the
+3. **Fifty-three mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks. Thirty-five change
+   `monitorCode`, a word or two: the three addresses and the configuration word -- a code entry of 256 or 64 bytes, a data entry
+   of 8 or 2 KiB, a stack entry of 8 or 32 KiB or one that reaches the monitor; a code entry that can be written, a data or
+   stack entry that can be run, the code, the data or the stack entry off, entry 3 on, the code and the data exchanged, in their
+   addresses or in their addresses and permissions both -- boot's four writes of the
    CSRs it would otherwise find as they were (`mstatus`, `pmpaddr3`, `mcause`, `mtval`), and boot and handler words, as
-   exp236's. Seven change a claim (the counters at 3, a HALT in 56 steps, the code four bytes longer, the park loop a
+   exp236's, with the scrub's `x1` and `mscratch` among them. Seven change a claim (the counters at 3, a HALT in 56 steps, the code four bytes longer, the park loop a
    word on, a round that may start with an entry locked, a host that may write the code or lock an entry). Eleven change
    a rule of the model or a statement of the library: stores and `ecall`s not checked, the entries tried backwards, a
    straddling access that passes, a store that needs R and not W, a fetch that needs R and not X, an access that matches

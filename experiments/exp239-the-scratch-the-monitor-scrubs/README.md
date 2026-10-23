@@ -112,10 +112,10 @@ the generator writes.
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches,
    156 ≤ 200 words, and `monitorCode` in the proof is the binary's words in order.
 2. `Scrub.lean` checks, with no errors and no warnings, on Lean's own axioms.
-3. **Thirty mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or lemma it breaks.
-   Twenty-five change one word of `monitorCode`: the scratch loop's end, start, stride, stored value and
-   branch; the digest test removed, inverted, or turned into an unconditional skip; the digest window's length,
-   start, store and stride; a fault that jumps past the scrub of memory; a fault that exits with 2; a saved word
+3. **Thirty-four mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or lemma it breaks.
+   Twenty-nine change `monitorCode` -- one word, or the scratch loop's three turned into `nop`s: the scratch
+   loop's end, start (late or early), stride, stored value and branch, or the whole loop gone; the digest test removed, inverted, or turned into an unconditional skip; the digest window's length
+   (short or long), start, store and stride, and a digest loop that keeps the scratch loop's end; a fault that jumps past the scrub of memory; a fault that exits with 2; a saved word
    or `mscratch` left behind; a register the scrub forgets, and `a0` zeroed where `x9` should be; and boot and
    handler words, as exp236's. Five change a claim: the digest "survives every exit", the scratch or the window
    one word longer, every trap that is not a HALT "exits with 0", the park loop one word on.

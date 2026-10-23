@@ -94,9 +94,10 @@ the kernel cannot check, and a store changes the memory the next fetch reads. Bo
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches,
    143 ≤ 150 words, and `monitorCode` in the proof is the binary's words in order.
 2. `Monitor.lean` checks, with no errors and no warnings, on Lean's own axioms.
-3. **Eighteen mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks: sixteen
-   change one word of `monitorCode` — a PMP address, a permission bit, `MPP`, the payload's entry or `sp`,
-   a register boot or the scrub forgets, the trap vector, the stack swap, the cause or syscall check, the
+3. **Twenty-two mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks: twenty
+   change one word of `monitorCode` — a PMP address (one window too small, one the whole address space, one
+   that covers the monitor), a permission bit, `MPP`, the payload's entry or `sp`,
+   a register boot or the scrub forgets (`x31`, `x2`, `x1`), `mscratch` the scrub leaves, the trap vector, the stack swap, the cause or syscall check, the
    fault exit code, the jump to the scrub, the report port — and two change a rule of the model the sandbox
    proof runs on (U-mode stores not checked against the PMP; U-mode `ecall` executed).
 4. **Four normal cases**: exp229's secp256k1 field kernel (add, subtract, subtract with borrow, multiply)
