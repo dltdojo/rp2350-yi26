@@ -156,10 +156,10 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp238 — the call the monitor checks ===
-recorded at 2026-10-17T03:57:08Z from commit 5d17005
+recorded at 2026-10-23T11:15:03Z from commit 3ac5977
 
 >>> the micro-monitor binary and size budget
-PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
+PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor.sha256, is within 202 words, and is proof/Calls.lean's monitorCode
 
 >>> the formal theorems, and what they rest on
 'Exp238.monitorCode_length' does not depend on any axioms
@@ -171,6 +171,7 @@ PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor
 'Exp238.monitor_hashb_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_hashb_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.monitor_checksig_bad_answer' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.ends_refuses' depends on axioms: [propext, Quot.sound]
 'Exp238.monitor_cycle' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -178,14 +179,17 @@ PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor
 exit 0
 
 >>> wrong monitors: each must be refused
-hashb_input_floor_dropped  HASHB lets an input start below the box                                  refused in hashb_b1
-hashb_length_by_addition   HASHB tests ptr + len, which wraps, instead of what is left of the box   refused in hashb_s3
-hashb_output_room_16       HASHB checks room for 16 bytes of output, not 32                         refused in hashb_s6
-checksig_signature_32      CHECKSIG checks room for 32 bytes of signature, not 64                   refused in checksig_s6
-return_repeats_the_ecall   the return does not step past the ecall                                  refused in return_1
-counters_not_released      the return never releases the counters                                   refused in return_3
-unknown_call_succeeds      a call the monitor does not offer returns to the payload                 refused in call_unknown
-scrub_keeps_saved_t2       the scrub leaves the saved t2 on the M-mode stack                        refused in scrub_1c
+hashb_input_floor_dropped  HASHB lets an input start below the box                                         refused in hashb_b1
+hashb_length_by_addition   HASHB tests ptr + len, which wraps, instead of what is left of the box          refused in hashb_s3
+hashb_output_room_16       HASHB checks room for 16 bytes of output, not 32                                refused in hashb_s6
+checksig_signature_32      CHECKSIG checks room for 32 bytes of signature, not 64                          refused in checksig_s6
+return_repeats_the_ecall   the return does not step past the ecall                                         refused in return_1
+counters_not_released      the return never releases the counters                                          refused in return_3
+unknown_call_succeeds      a call the monitor does not offer returns to the payload                        refused in call_unknown
+scrub_keeps_saved_t2       the scrub leaves the saved t2 on the M-mode stack                               refused in scrub_1c
+answer_check_dropped       CHECKSIG returns whatever the host answered, 0 and 1 or not                     refused in checksig_answer
+answer_check_allows_two    CHECKSIG takes an answer of 2 too                                               refused in checksig_answer
+port_read_is_memory        model: an M-mode load from a port reads back the bytes, not the host's answer   refused in checksig_fwd_4
 
 >>> exp228's kernel and its scripts, under the monitor
 PASS  34 scripts run by exp228's kernel under the monitor: verdict, box and request log as run alone, minstret = alone + 2 + 2*calls, 7 calls served, each wholly inside the box
@@ -228,8 +232,9 @@ PASS  120 fuzzed scripts, the same: 10 calls served
       2+2=5, as in 1984                  367      0
 
 >>> payloads that lean on the calls
-PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
-      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause:
+PASS  68 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
+      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause,
+      and 4 CHECKSIGs whose host answers neither 0 nor 1, refused after the one request:
       refused  hashb: input in the monitor's code
       refused  hashb: input is the M-mode stack
       refused  hashb: input one byte below the box
@@ -281,9 +286,13 @@ PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 
       served   checksig: key and signature at the very end
       served   checksig: key and signature at the very start
       served   checksig: signature at the very end
+      refused  checksig, no answer: the request word, 3, left where it is
+      refused  checksig, an answer of 2
+      refused  checksig, an answer of 0xffffffff
+      refused  checksig, an answer of 2^31
 
 >>> monitors with one thing wrong: each must be caught
-PASS  25 broken monitors, each caught by the attack and kernel suites:
+PASS  27 broken monitors, each caught by the attack and kernel suites:
       hashb_input_floor_dropped          HASHB lets an input start below the box
       hashb_input_ceiling_dropped        HASHB lets an input start past the box
       hashb_length_dropped               HASHB never checks the length against what is left of the box
@@ -297,6 +306,8 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
       checksig_signature_floor_dropped   CHECKSIG lets the signature start below the box
       checksig_signature_32_bytes        CHECKSIG checks room for 32 bytes of signature, not 64
       checksig_is_hashb                  call 3 is taken for call 2
+      answer_check_dropped               CHECKSIG returns whatever the host answered, 0 and 1 or not
+      answer_check_allows_two            CHECKSIG takes an answer of 2 too
       unknown_call_succeeds              a call the monitor does not offer returns to the payload
       return_repeats_the_ecall           the return does not step past the ecall
       return_skips_two_words             the return steps over the word after the ecall too
@@ -312,9 +323,9 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
 
 >>> the checks
 PASS  no lifeline, and it says why: no firmware of its own
-PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
+PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor.sha256, is within 202 words, and is proof/Calls.lean's monitorCode
 PASS  Calls.lean checks, with no errors and no warnings
-PASS  all 13 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 14 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  hashb_input_floor_dropped: the proof refuses a version where HASHB lets an input start below the box
 PASS  hashb_length_by_addition: the proof refuses a version where HASHB tests ptr + len, which wraps, instead of what is left of the box
 PASS  hashb_output_room_16: the proof refuses a version where HASHB checks room for 16 bytes of output, not 32
@@ -323,6 +334,9 @@ PASS  return_repeats_the_ecall: the proof refuses a version where the return doe
 PASS  counters_not_released: the proof refuses a version where the return never releases the counters
 PASS  unknown_call_succeeds: the proof refuses a version where a call the monitor does not offer returns to the payload
 PASS  scrub_keeps_saved_t2: the proof refuses a version where the scrub leaves the saved t2 on the M-mode stack
+PASS  answer_check_dropped: the proof refuses a version where CHECKSIG returns whatever the host answered, 0 and 1 or not
+PASS  answer_check_allows_two: the proof refuses a version where CHECKSIG takes an answer of 2 too
+PASS  port_read_is_memory: the proof refuses a version where model: an M-mode load from a port reads back the bytes, not the host's answer
 PASS  proof/Calls.lean is what proof/gen.py writes
 PASS  34 scripts run by exp228's kernel under the monitor: verdict, box and request log as run alone, minstret = alone + 2 + 2*calls, 7 calls served, each wholly inside the box
 PASS  the run alone counted what the Pico 2 counted (34 cases, + 4 + 4*calls)
@@ -362,8 +376,9 @@ PASS  120 fuzzed scripts, the same: 10 calls served
       equalverify unequal                195      0
       the whole stack, all 32            476      0
       2+2=5, as in 1984                  367      0
-PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
-      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause:
+PASS  68 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
+      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause,
+      and 4 CHECKSIGs whose host answers neither 0 nor 1, refused after the one request:
       refused  hashb: input in the monitor's code
       refused  hashb: input is the M-mode stack
       refused  hashb: input one byte below the box
@@ -415,7 +430,11 @@ PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 
       served   checksig: key and signature at the very end
       served   checksig: key and signature at the very start
       served   checksig: signature at the very end
-PASS  25 broken monitors, each caught by the attack and kernel suites:
+      refused  checksig, no answer: the request word, 3, left where it is
+      refused  checksig, an answer of 2
+      refused  checksig, an answer of 0xffffffff
+      refused  checksig, an answer of 2^31
+PASS  27 broken monitors, each caught by the attack and kernel suites:
       hashb_input_floor_dropped          HASHB lets an input start below the box
       hashb_input_ceiling_dropped        HASHB lets an input start past the box
       hashb_length_dropped               HASHB never checks the length against what is left of the box
@@ -429,6 +448,8 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
       checksig_signature_floor_dropped   CHECKSIG lets the signature start below the box
       checksig_signature_32_bytes        CHECKSIG checks room for 32 bytes of signature, not 64
       checksig_is_hashb                  call 3 is taken for call 2
+      answer_check_dropped               CHECKSIG returns whatever the host answered, 0 and 1 or not
+      answer_check_allows_two            CHECKSIG takes an answer of 2 too
       unknown_call_succeeds              a call the monitor does not offer returns to the payload
       return_repeats_the_ecall           the return does not step past the ecall
       return_skips_two_words             the return steps over the word after the ecall too
