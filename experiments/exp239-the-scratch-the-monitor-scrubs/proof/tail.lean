@@ -22,7 +22,7 @@ theorem monitor_fail_closed_scrub (env : Rv32.Env) (M0 : Word → Byte) (u : Pri
       (∀ x, InConf x ∨ InDigest x → (PrivMachine.run env N u).core.mem x = 0) ∧
       (∀ x, ¬ InConf x → ¬ InDigest x → ¬ InStack x → ¬ InPorts x →
         (PrivMachine.run env N u).core.mem x = u.core.mem x) := by
-  obtain ⟨N, hP, hA, hc, hd, ho⟩ := monitor_scrubs env M0 u hS ms e c m cy hpc hcs
+  obtain ⟨N, hP, hA, ⟨hc, hd, ho⟩, _, _⟩ := monitor_scrubs env M0 u hS ms e c m cy hpc hcs
   have hne : exitCode u ≠ 0#32 := fun h => hfail ((exitCode_zero_iff u).mp h)
   refine ⟨N, hP, hA, ?_, ho⟩
   rintro x (hx | hx)
@@ -42,7 +42,7 @@ theorem monitor_pass_digest_kept (env : Rv32.Env) (M0 : Word → Byte) (u : Priv
       (∀ x, InDigest x → (PrivMachine.run env N u).core.mem x = u.core.mem x) ∧
       (∀ x, ¬ InConf x → ¬ InStack x → ¬ InPorts x →
         (PrivMachine.run env N u).core.mem x = u.core.mem x) := by
-  obtain ⟨N, hP, hA, hc, hd, ho⟩ := monitor_scrubs env M0 u hS ms e c m cy hpc hcs
+  obtain ⟨N, hP, hA, ⟨hc, hd, ho⟩, _, _⟩ := monitor_scrubs env M0 u hS ms e c m cy hpc hcs
   have h0 : exitCode u = 0#32 := (exitCode_zero_iff u).mpr hpass
   rw [h0] at hP hd
   refine ⟨N, hP, hA, hc, fun x hx => by rw [hd x hx]; simp, ?_⟩
@@ -58,7 +58,8 @@ set_option maxHeartbeats 4000000 in
     `n` steps. Either it is still running, in U-mode, boxed in `[0x80010000, 0x80020000)`, and the monitor's words
     are where they were -- or it trapped, and from the trap vector the machine reaches the park loop with the exit
     code `exitCode u`, every other register zero, and memory scrubbed: the confidential scratch zero, the digest
-    window zero unless the payload halted with 0, nothing else changed but the monitor's stack and report words. -/
+    window zero unless the payload halted with 0, nothing else changed but the monitor's stack and report words; and
+    what the host heard of it is `trapIo u`: the report for the way it trapped, then the exit code. -/
 theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
     (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
@@ -73,7 +74,9 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
         Agree M0 (PrivMachine.run env j (PrivMachine.run env k (PrivMachine.run env 53 s))).core.mem 0x80000000 624 ∧
         Scrubbed (exitCode (PrivMachine.run env k (PrivMachine.run env 53 s)))
           (PrivMachine.run env k (PrivMachine.run env 53 s)).core.mem
-          (PrivMachine.run env j (PrivMachine.run env k (PrivMachine.run env 53 s))).core.mem)) := by
+          (PrivMachine.run env j (PrivMachine.run env k (PrivMachine.run env 53 s))).core.mem ∧
+        (PrivMachine.run env j (PrivMachine.run env k (PrivMachine.run env 53 s))).io =
+          (PrivMachine.run env k (PrivMachine.run env 53 s)).io ++ trapIo (PrivMachine.run env k (PrivMachine.run env 53 s)))) := by
   obtain ⟨hbox, hpc1, hcs1, hmem1, hreg1⟩ := monitor_boot env M0 s hW hmem hpc hh hm hcs
   obtain ⟨ms0, e0, c0, m0, cy0, hcs1'⟩ := hcs1
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 53 s = t := ⟨_, rfl⟩
@@ -96,9 +99,9 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
     have hpcu : u.core.pc = 0x80000114#32 := by
       rw [hpc2]; show (0x80000114#32 &&& ~~~3#32) = 0x80000114#32; decide
     have hS : HState env M0 u := ⟨hW, hagree, henv, hhalt, hmode⟩
-    obtain ⟨N, hP, hA, hSc⟩ := monitor_scrubs env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret
+    obtain ⟨N, hP, hA, hSc, _, hio⟩ := monitor_scrubs env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret
       u.csrs.mcycle hpcu hcsu
-    exact ⟨N, hP, hA, hSc⟩
+    exact ⟨N, hP, hA, hSc, hio⟩
 
 end Exp239
 
