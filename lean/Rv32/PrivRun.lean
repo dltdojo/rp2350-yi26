@@ -145,7 +145,7 @@ macro_rules
       PrivMachine.stepW, uModeTrapCause, pmpCheck, PMP_INDICES, pmpCheckEntries, matchPmpEntry,
       decodePmpCfgByte, isEcall, isMret, isZicsr, Rv32.decode, Rv32.decodeNat, Rv32.exec,
       IOp.ofF3, BrOp.ofF3, LdOp.ofF3, StOp.ofF3, ShOp.ofF, ROp.ofF, aluI, shiftI, aluR, taken,
-      LdOp.size, StOp.size, LdOp.extend, raiseTrap, PrivMode.ofBits, PrivMode.toBits, hasPermission,
+      LdOp.size, StOp.size, LdOp.extend, raiseTrap, portRead, portWrites, isPort, PrivMode.ofBits, PrivMode.toBits, hasPermission,
       Rv32.Region.ok, $ls,*] $[$loc]?)
 
 /-! ## Memory after stores -/
@@ -210,7 +210,7 @@ macro_rules
       execMret, csrIllegal, csrImplemented, csrReadOnly, csrWrites, readCSR, writeCSR,
       PrivMachine.stepW, uModeTrapCause, isEcall, isMret, isZicsr, Rv32.decode, Rv32.decodeNat,
       Rv32.exec, IOp.ofF3, BrOp.ofF3, LdOp.ofF3, StOp.ofF3, ShOp.ofF, ROp.ofF, aluI, shiftI,
-      aluR, taken, LdOp.size, StOp.size, LdOp.extend, raiseTrap, PrivMode.ofBits, PrivMode.toBits,
+      aluR, taken, LdOp.size, StOp.size, LdOp.extend, raiseTrap, portRead, portWrites, isPort, PrivMode.ofBits, PrivMode.toBits,
       hasPermission, Rv32.Region.ok, $ls,*] $[$loc]?)
 
 end Rv32.Priv

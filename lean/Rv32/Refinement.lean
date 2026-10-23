@@ -257,6 +257,7 @@ theorem PrivMachine.step_eq_of_safe (env : Rv32.Env) (s : PrivMachine) (lo hi : 
     simp only [Bool.false_eq_true, ↓reduceIte]
     have hw : BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4) = w := rfl
     rw [hw, hDec]
+    simp only [portWrites_U s hBox.isUMode, portRead_U s hBox.isUMode, List.append_nil]
     rfl
 
 theorem step_refines_running (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat)

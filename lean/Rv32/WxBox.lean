@@ -250,6 +250,7 @@ theorem wx_step (env : Rv32.Env) (s : PrivMachine) (hB : WXBoxed s cLo cHi dLo d
       exact ⟨t1, t2, Or.inr ⟨t3, t4, t5, t6⟩⟩
     | running c =>
       dsimp only
+      rw [portRead_U s hB.isUMode c i, portWrites_U s hB.isUMode i, List.append_nil]
       have hkc : KeptCsrs s.csrs (bumpCounters s.csrs) := kept_bump _
       refine ⟨hkc, rfl, Or.inl ⟨hB.isUMode, wxboxed_of_kept hB hkc hB.isUMode rfl, ?_⟩⟩
       intro x hx_out

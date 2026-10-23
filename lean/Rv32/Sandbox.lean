@@ -168,6 +168,7 @@ theorem umode_step (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat) (hBox : UBox
       exact ⟨t1, t2, Or.inr ⟨t3, t4, t5, t6⟩⟩
     | running c =>
       dsimp only
+      rw [portRead_U s hBox.isUMode c i, portWrites_U s hBox.isUMode i, List.append_nil]
       have hk : KeptCsrs s.csrs (bumpCounters s.csrs) := kept_bump _
       refine ⟨hk, rfl, Or.inl ⟨hBox.isUMode, uboxed_of_kept hBox hk hBox.isUMode rfl, ?_⟩⟩
       intro x hx_out
