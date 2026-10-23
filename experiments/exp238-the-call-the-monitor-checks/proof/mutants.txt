@@ -13,8 +13,11 @@ hashb_output_room_16|HASHB checks room for 16 bytes of output, not 32|0,/0x02000
 checksig_signature_32|CHECKSIG checks room for 32 bytes of signature, not 64|s/0x04000293#32/0x02000293#32/
 return_repeats_the_ecall|the return does not step past the ecall|s/0x00428293#32/0x00028293#32/
 counters_not_released|the return never releases the counters|/0x00c12e03#32/{n;n;s/0x32005073#32/0x00000013#32/}
-unknown_call_succeeds|a call the monitor does not offer returns to the payload|s/0xfa9ff06f#32/0x09c0006f#32/
+unknown_call_succeeds|a call the monitor does not offer returns to the payload|s/0xfa9ff06f#32/0x0a40006f#32/
 scrub_keeps_saved_t2|the scrub leaves the saved t2 on the M-mode stack|s/0x00012423#32/0x00000013#32/
+answer_check_dropped|CHECKSIG returns whatever the host answered, 0 and 1 or not|s/0xf0a364e3#32/0x00000013#32/
+answer_check_allows_two|CHECKSIG takes an answer of 2 too|/0x00ce2503#32,/{n;s/0x00100313#32/0x00200313#32/}
+port_read_is_memory|model: an M-mode load from a port reads back the bytes, not the host's answer|s/then core'.setReg rd (s.host s.io a) else core'/then core' else core'/|lean/Rv32/Priv.lean
 #
 # Fifteen more, one for each broken monitor of suite/broken_monitors.py that had no mutant here, were run once on
 # 2026-10-23 and each was refused (two at a time, about 1.9 minutes each). They stay out of the check for the reason
@@ -34,4 +37,4 @@ scrub_keeps_saved_t2|the scrub leaves the saved t2 on the M-mode stack|s/0x00012
 # return_keeps_monitor_sp|the return leaves the monitor's sp in the payload|/0x00c12e03#32,/{n;s/0x34011173#32/0x00000013#32/}
 # counters_released_one_early|the return releases the counters one instruction sooner, and counts one more|/0x00c12e03#32,/{n;s/0x34011173#32/0x32005073#32/;n;s/0x32005073#32/0x34011173#32/}
 # scrub_keeps_saved_t3|the scrub leaves the saved t3 on the M-mode stack|s/0x00012623#32/0x00000013#32/
-# fault_does_not_scrub|a fault parks without scrubbing|s/0x10c0006f#32/0x1a80006f#32/
+# fault_does_not_scrub|a fault parks without scrubbing|s/0x1140006f#32/0x1b00006f#32/

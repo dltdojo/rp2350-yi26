@@ -21,6 +21,15 @@
 
 ---
 
+## 進度（2026-10-23 第二步之後）
+
+| # | 狀態 |
+| :--- | :--- |
+| G1、G2、G7 | **已關閉。** `lean/Rv32/Priv.lean` 把 M-mode 對埠的字組寫入依序記在 `io`；exp236、exp238、exp239、exp240 的定理都陳述 host 聽到的字組（`faultIo`、`haltIo`、`trapIo`、`callIo`），報告標籤、結束碼送錯埠的突變現在都被 Lean 拒絕 |
+| G6 | **已關閉。** 埠的讀取回傳 `host io a`，一個定理不加限制的函數；exp238 的 monitor 在讀回答案之後多兩個字，答案不是 0 或 1 就走 fault（`monitor_checksig_bad_answer`），monitor 因此成為 202 字。模擬器上有四種無效回答的攻擊情境與兩個對應的錯誤 monitor |
+| G3 | 未處理：模型的陷阱仍不寫 `mtval`，所以回報裡的 `mtval` 是 0 |
+| G4、G5 | 未處理，不在第二步 |
+
 ## 一、範圍與方法
 
 **判定條件的來源：**

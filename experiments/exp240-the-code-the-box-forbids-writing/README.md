@@ -86,10 +86,10 @@ And about the words of `monitor.bin`, in `proof/Wx.lean`, which `check.sh` holds
 | theorem | says |
 | :--- | :--- |
 | `monitor_boot` | from reset (image loaded, `pc = 0x80000040`, M-mode, **any CSRs that lock no PMP entry**, any registers), 61 steps give `WXBoxed` with the three entries at `0x80010000`, `sp = 0x80020000`, every other register zero, memory untouched, and **the CSR file exactly `csrsBooted`**: counters at 2, `mepc`, `mcause`, `mtval`, the trap vector, `mstatus`, the PMP -- constants |
-| `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | from the trap vector, whatever the payload left: 57, 59 and 62 steps to the park loop, the report's stores run (what they store is not stated: see below), the saved words and `mscratch` zero, every register but `a0` zero (`a0` the payload's own for a HALT, 1 otherwise), and **every byte of memory but the monitor's stack words and report words as the payload left it** |
-| `monitor_traps` | the three, whichever it was: `Parked (run (trapSteps u) u) (exitCode u)`, the monitor's words in place, `FrameSP`, `pmpcfg0` as boot set it |
+| `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | from the trap vector, whatever the payload left: 57, 59 and 62 steps to the park loop, the report made — the words the host heard, in order — the saved words and `mscratch` zero, every register but `a0` zero (`a0` the payload's own for a HALT, 1 otherwise), and **every byte of memory but the monitor's stack words and report words as the payload left it** |
+| `monitor_traps` | the three, whichever it was: `Parked (run (trapSteps u) u) (exitCode u)`, the monitor's words in place, `FrameSP`, `pmpcfg0` as boot set it, the host as it was and having heard `trapIo u`: the report for the way it trapped, then the exit code |
 | `payload_runs` | the payload in the box runs up to its first trap; frozen bytes are the image's; at the trap the handler's theorems apply |
-| `monitor_end_to_end` | from reset, or any CSRs that lock no entry, boot, then up to `n` payload steps: still running, boxed, in U-mode, with the monitor's words and **the code's 128 bytes as loaded** -- or it trapped, and the machine parks with those, and with memory as the payload left it but for the monitor's stack words |
+| `monitor_end_to_end` | from reset, or any CSRs that lock no entry, boot, then up to `n` payload steps: still running, boxed, in U-mode, with the monitor's words and **the code's 128 bytes as loaded** -- or it trapped, and the machine parks with those, and with memory as the payload left it but for the monitor's stack words, the host having heard `trapIo u` |
 | `monitor_reentry` | from any `Ready` machine -- the monitor's words in memory, the code, no PMP entry locked; whatever else: any registers, any other CSRs, any privilege, any `pc` -- a reset that keeps the CSRs and boot leave `WXBoxed`, `csrsBooted`, and `sp` at the top. **No register and no CSR a round leaves behind reaches the next**; memory does, outside the monitor's words, and the next payload reads it |
 | `ready_of_host` | the host's write between rounds -- anything at all but the monitor's words, the code, or a lock bit (`HostWrite`) -- leaves a `Ready` machine `Ready` |
 | `monitor_round_ready` | one round from a `Ready` machine ends parked, and `Ready` again, with the code region the bytes it was loaded with and the PMP as boot set it, which locks nothing |
@@ -119,10 +119,10 @@ fails if `Wx.lean` is not what the generator writes.
   model). There is no chip build of this monitor.
 - **The payload has to fit in 128 bytes** to run, and to be a position-independent one that keeps its data past its code.
   That is the price of the carve-out; a payload that wants a bigger code entry needs a bigger power of two.
-- **The reports are not proved.** The print and exit ports are memory in the model, so of the words a report
-  stores at `0xc0000004` only the last is left, and the frame leaves both ports out: no theorem says what was
-  reported, or what the exit port holds, only that `a0` holds the exit code. The report's words, the exit port and
-  `minstret` as reported are checked on the emulator alone ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G1 and G2).
+- **The reports are proved as words, not as what they mean.** In `Priv.lean` an M-mode word store to a port
+  (`0xc0000000..0xc000001f`) is recorded, in order, in `io`, and the theorems say which words the host heard:
+  `trapIo u`, the report and then the exit code. The `mtval` a fault reports is 0, because the model's traps
+  do not write `mtval`; the emulator's do ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems assume it is
   `monRegion = [0x80000000, 0xC0000100)`, which holds the box. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none, and no `mie`. The monitor never writes `mie`, and relies on it being 0 at reset;
@@ -152,13 +152,14 @@ fails if `Wx.lean` is not what the generator writes.
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches, 151 ≤ 200 words, and
    `monitorCode` in the proof is the binary's words in order.
 2. `Wx.lean` checks, with no errors and no warnings, on Lean's own axioms (and so does `WxBox.lean`, which it imports).
-3. **Fifty-three mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks. Thirty-five change
+3. **Fifty-six mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks. Thirty-eight change
    `monitorCode`, a word or two: the three addresses and the configuration word -- a code entry of 256 or 64 bytes, a data entry
    of 8 or 2 KiB, a stack entry of 8 or 32 KiB or one that reaches the monitor; a code entry that can be written, a data or
    stack entry that can be run, the code, the data or the stack entry off, entry 3 on, the code and the data exchanged, in their
    addresses or in their addresses and permissions both -- boot's four writes of the
    CSRs it would otherwise find as they were (`mstatus`, `pmpaddr3`, `mcause`, `mtval`), and boot and handler words, as
-   exp236's, with the scrub's `x1` and `mscratch` among them. Seven change a claim (the counters at 3, a HALT in 56 steps, the code four bytes longer, the park loop a
+   exp236's, with the scrub's `x1` and `mscratch` among them, and the HALT or FAULT tag or the exit code sent to the
+   print word, which no theorem refused until 2026-10-23. Seven change a claim (the counters at 3, a HALT in 56 steps, the code four bytes longer, the park loop a
    word on, a round that may start with an entry locked, a host that may write the code or lock an entry). Eleven change
    a rule of the model or a statement of the library: stores and `ecall`s not checked, the entries tried backwards, a
    straddling access that passes, a store that needs R and not W, a fetch that needs R and not X, an access that matches

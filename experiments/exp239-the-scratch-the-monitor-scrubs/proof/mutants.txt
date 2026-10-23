@@ -24,6 +24,9 @@ digest_steps_by_eight|the digest loop steps eight bytes|/0x02028313#32,/{n;n;s/0
 digest_loop_runs_to_scratch_end|the digest loop keeps the scratch loop's end|s/0x02028313#32/0x00000013#32/
 fault_skips_the_scrub|a fault jumps past the scrub of memory|s/0x0380006f#32/0x0780006f#32/
 fault_exit_code_two|a fault exits with 2|s/0x00100513#32/0x00200513#32/
+halt_tag_wrong|the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT|s/0xc5428293#32/0xc5528293#32/
+fault_tag_wrong|the FAULT report's tag is "FAUM", not "FAUL"|s/0x54c28293#32/0x54d28293#32/
+exit_code_to_print_word|the exit code goes to the print word, not the exit word|s/0x00830313#32/0x00430313#32/
 saved_t0_stays|the scrub leaves the saved t0 on the M-mode stack|s/0x00012023#32/0x00000013#32/
 mscratch_stays|the scrub leaves mscratch holding the payload's sp|s/0x34001073#32/0x00000013#32/
 scrub_leaves_x17|the register scrub loads 1 into x17|/0x02028313#32,/,${s/0x00000893#32/0x00100893#32/}

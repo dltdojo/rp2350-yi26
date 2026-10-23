@@ -62,12 +62,12 @@ All on Lean's own axioms. They are about `PrivMachine` fetching and executing `m
 | `monitor_boot` | exp236's, for these words: 53 steps from reset give `UBoxed 0x80010000 0x80020000` at `0x80010000`, every register zero but `sp` |
 | `zloop_conf`, `zloop_dig` | **the loop lemma.** From the store, with `t0 = A` and `t1 = E` four-aligned, `A + 4(k + 1) = E` and `[A, E)` in the box: after `3(k + 1)` steps the machine is at the instruction after the branch, every byte of `[A, E)` is 0, no other byte of memory has changed, and `t0 = E`. Induction on `k`; each trip is three one-instruction theorems (`zstore`, `zadd`, `zbne`) and `zloop_iter`. The two loops are one template at two addresses |
 | `monitor_scrub` | from the word after `mscratch` is zero, whatever `a0` is: the machine parks (`pc` at the `wfi`) with `a0` as it was and every other register zero, the monitor's words in place, and `Scrubbed a0`: the scratch zero; the digest window zero if `a0 ≠ 0` and **the payload's own 32 bytes** if `a0 = 0`; every other byte, bar the monitor's stack and report words, as it was. 5,798 steps for `a0 = 0` (`monitor_scrub_pass`), 5,825 otherwise (`monitor_scrub_fail`) |
-| `monitor_halt_pre`, `monitor_fault_cause_pre`, `monitor_fault_syscall_pre` | the three ways in, from the trap vector to the word before the scrub of memory: 23, 25 and 28 steps, the report's stores run (what they store is not stated: see below), the saved words and `mscratch` zero, the box untouched |
-| `monitor_scrubs` | **whatever trapped** — an `ecall` for HALT, an `ecall` for anything else, a fault — the machine parks with `exitCode u` (the payload's `a0` for a HALT, 1 for the rest), every other register zero, and `Scrubbed (exitCode u)` of the memory the payload left |
+| `monitor_halt_pre`, `monitor_fault_cause_pre`, `monitor_fault_syscall_pre` | the three ways in, from the trap vector to the word before the scrub of memory: 23, 25 and 28 steps, the report made — the words the host heard, in order —, the saved words and `mscratch` zero, the box untouched |
+| `monitor_scrubs` | **whatever trapped** — an `ecall` for HALT, an `ecall` for anything else, a fault — the machine parks with `exitCode u` (the payload's `a0` for a HALT, 1 for the rest), every other register zero, and `Scrubbed (exitCode u)` of the memory the payload left; the host has heard `trapIo u`, the report for the way it trapped and then the exit code |
 | `monitor_fail_closed_scrub` | **a failed run leaves no digest.** Unless the trap is an `ecall` with `t0 = 1` and `a0 = 0`: the scratch and the digest window are both zero, and every other byte, bar the monitor's stack and report words, is the payload's |
 | `monitor_pass_digest_kept` | **only a clean HALT keeps its digest.** An `ecall` with `t0 = 1` and `a0 = 0`: the scratch is zero, the 32 bytes of the digest window are exactly the payload's, everything else is the payload's but for the monitor's stack and report words |
 | `exitCode_zero_iff` | the exit code is 0 only for a HALT with `a0 = 0` |
-| `monitor_end_to_end` | from reset, boot (53 steps), then up to `n` payload steps: it is still running, boxed, in U-mode with the monitor's words in place — or it trapped, and the machine parks with `Scrubbed` of the memory at the trap |
+| `monitor_end_to_end` | from reset, boot (53 steps), then up to `n` payload steps: it is still running, boxed, in U-mode with the monitor's words in place — or it trapped, and the machine parks with `Scrubbed` of the memory at the trap, the host having heard `trapIo u` |
 
 Each short run is one theorem — a chunk, a few instructions — with one statement and one proof, written by
 `tools/monitor/chunks.py` from the table in `proof/gen.py`, which exp238's generator also uses now (its
@@ -92,10 +92,10 @@ the generator writes.
 - **The model is not the chip.** As exp236: `Priv.lean` is a reading of the Hazard3 documentation; nothing here
   ran on the RTL or on an RP2350. There is no chip build of this monitor: exp237's `monitor_chip.S` is derived
   from exp236's and unproved, and a port is a later experiment.
-- **The reports are not proved.** The print and exit ports are memory in the model, so of the words a report
-  stores at `0xc0000004` only the last is left, and the frame leaves both ports out: no theorem says what was
-  reported, or what the exit port holds, only that `a0` holds the exit code. The report's words, the exit port and
-  `minstret` as reported are checked on the emulator alone ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G1 and G2).
+- **The reports are proved as words, not as what they mean.** In `Priv.lean` an M-mode word store to a port
+  (`0xc0000000..0xc000001f`) is recorded, in order, in `io`, and the theorems say which words the host heard:
+  `trapIo u`, the report and then the exit code. The `mtval` a fault reports is 0, because the model's traps
+  do not write `mtval`; the emulator's do ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems assume it is
   `monRegion = [0x80000000, 0xC0000100)`, which holds the box. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.
@@ -112,11 +112,12 @@ the generator writes.
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches,
    156 ≤ 200 words, and `monitorCode` in the proof is the binary's words in order.
 2. `Scrub.lean` checks, with no errors and no warnings, on Lean's own axioms.
-3. **Thirty-four mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or lemma it breaks.
-   Twenty-nine change `monitorCode` -- one word, or the scratch loop's three turned into `nop`s: the scratch
+3. **Thirty-seven mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or lemma it breaks.
+   Thirty-two change `monitorCode` -- one word, or the scratch loop's three turned into `nop`s: the scratch
    loop's end, start (late or early), stride, stored value and branch, or the whole loop gone; the digest test removed, inverted, or turned into an unconditional skip; the digest window's length
    (short or long), start, store and stride, and a digest loop that keeps the scratch loop's end; a fault that jumps past the scrub of memory; a fault that exits with 2; a saved word
-   or `mscratch` left behind; a register the scrub forgets, and `a0` zeroed where `x9` should be; and boot and
+   or `mscratch` left behind; a register the scrub forgets, and `a0` zeroed where `x9` should be; the HALT or
+   FAULT tag, or the exit code sent to the print word, which no theorem refused until 2026-10-23; and boot and
    handler words, as exp236's. Five change a claim: the digest "survives every exit", the scratch or the window
    one word longer, every trap that is not a HALT "exits with 0", the park loop one word on.
 4. `proof/Scrub.lean` is what `proof/gen.py` writes.

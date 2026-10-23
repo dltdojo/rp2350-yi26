@@ -28,7 +28,7 @@ import chunks
 from chunks import (Chunk, Step, chain, final_chain, rlist, wlist, hexpc, r32, R32, R32T, HNAMES,
                     REGLIST, RCASES, STACK, FROZEN, SVCADDR)
 
-WORDS = 200
+WORDS = 202
 BYTES = WORDS * 4
 chunks.configure(WORDS)
 
@@ -115,12 +115,12 @@ DEFS_RP = '''/-! ## The payload running, and the monitor parked -/
 
 /-- While a payload runs: in U-mode, boxed, the monitor's words where they were, the CSRs boot set. -/
 def Running (M0 : Word → Byte) (s : PrivMachine) : Prop :=
-  UBoxed s 0x80010000 0x80020000 ∧ Agree M0 s.core.mem 0x80000000 800 ∧
+  UBoxed s 0x80010000 0x80020000 ∧ Agree M0 s.core.mem 0x80000000 808 ∧
   ∃ ms e c m cy, s.csrs = csrsH ms e c m cy {} 0x80008000#32
 
 /-- The park loop, reached: every register but `a0` zero, `mscratch` zero, the saved words zero. -/
 def Parked (t : PrivMachine) (a0 : Word) : Prop :=
-  t.core.pc = 0x80000318#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
+  t.core.pc = 0x80000320#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
   readLE t.core.mem 0x80008000#32 4 = 0 ∧ readLE t.core.mem 0x80008004#32 4 = 0 ∧
   readLE t.core.mem 0x80008008#32 4 = 0 ∧ readLE t.core.mem 0x8000800c#32 4 = 0 ∧
   t.core.reg 10#5 = a0 ∧ ∀ r, r ≠ 10#5 → t.core.reg r = 0#32
@@ -131,7 +131,7 @@ def Parked (t : PrivMachine) (a0 : Word) : Prop :=
 def parked_lemmas() -> str:
     def lemma(name, lst, a0):
         return f"""theorem {name} {{u t : PrivMachine}} {{ms : MStatus}} {{e c m cy : Word}}
-    (q1 : t.core.pc = 0x80000318#32) (q3 : t.halted = false) (q4 : t.mode = .M)
+    (q1 : t.core.pc = 0x80000320#32) (q3 : t.halted = false) (q4 : t.mode = .M)
     (q5 : t.csrs = csrsH ms e c m cy {FROZEN} (0#32))
     (w0 : readLE t.core.mem 0x80008000#32 4 = 0) (w1 : readLE t.core.mem 0x80008004#32 4 = 0)
     (w2 : readLE t.core.mem 0x80008008#32 4 = 0) (w3 : readLE t.core.mem 0x8000800c#32 4 = 0)
@@ -227,12 +227,12 @@ add(Chunk("fault_1", "Report FAULT: address and tag.", 5, h(FAULT), "0x8000014c"
     Chunk("fault_3", "Report `mepc`.", 2, "0x80000154", "0x8000015c", hyps=HT1P, regs="(5, e)", extra=", ht1", store=True, io=evs(FAULT_REPORT[2])),
     Chunk("fault_4", "Report `mtval`.", 2, "0x8000015c", "0x80000164", hyps=HT1P, regs="(5, 0#32)", extra=", ht1", store=True, io=evs(FAULT_REPORT[3])),
     Chunk("fault_5", "Report `minstret`.", 2, "0x80000164", "0x8000016c", hyps=HT1P, regs="(5, m)", extra=", ht1", store=True, io=evs(FAULT_REPORT[4])),
-    Chunk("fault_6", "Exit code 1, and on to the scrub.", 2, "0x8000016c", "0x8000027c", regs="(10, 1#32)"))
+    Chunk("fault_6", "Exit code 1, and on to the scrub.", 2, "0x8000016c", "0x80000284", regs="(10, 1#32)"))
 
 HK = " (k : Nat)"
 HKS = (" (hk : readLE s.core.mem 0x80008000#32 4 = k)", " (hk1 : BitVec.ofNat 32 k = 1#32)", " (hk1 : BitVec.ofNat 32 k ≠ 1#32)")
 add(Chunk("call_is_halt", "Is the saved `t0` 1? If so, HALT; if not, on.", 3, h(0x174),
-          f"if BitVec.ofNat 32 k = 1#32 then {h(0x254)}#32 else {h(0x180)}#32", binders=HK, hyps=HSP + HKS[0],
+          f"if BitVec.ofNat 32 k = 1#32 then {h(0x25c)}#32 else {h(0x180)}#32", binders=HK, hyps=HSP + HKS[0],
           regs="(5, BitVec.ofNat 32 k), (6, 1#32)", extra=", hsp, hk", pre="  rw [hmem] at hk\n"),
     Chunk("call_is_hashb", "Is `t0` 2? If so, HASHB; if not, on.", 2, h(0x180),
           f"if s.core.reg 5#5 = 2#32 then {h(0x194)}#32 else {h(0x188)}#32", regs="(6, 2#32)"),
@@ -259,7 +259,7 @@ add(Chunk("hashb_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x194), h(0x19c), re
           svc=[None, None, num(12), None], store=True, io=evs(ev(SVCW[2], "s.core.reg 12#5"))),
     Chunk("hashb_fwd_4", "Forward: the request.", 2, h(0x1d4), h(0x1dc), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
           regs="(5, 2#32)", svc=[None, None, None, "2"], store=True, io=evs(ev(SVCW[3], "2#32"))),
-    Chunk("hashb_fwd_5", "On to the way back.", 1, h(0x1dc), h(0x22c)))
+    Chunk("hashb_fwd_5", "On to the way back.", 1, h(0x1dc), h(0x234)))
 
 # ---- CHECKSIG
 add(Chunk("checksig_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x1e0), h(0x1e8), regs=f"(6, {LO}), (7, {HI})"),
@@ -278,40 +278,42 @@ add(Chunk("checksig_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x1e0), h(0x1e8),
     Chunk("checksig_fwd_3", "Forward: the request.", 2, h(0x220), h(0x228), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
           regs="(5, 3#32)", svc=[None, None, None, "3"], store=True, io=evs(ev(SVCW[3], "3#32"))),
     Chunk("checksig_fwd_4", "Read the answer, into `a0`.", 1, h(0x228), h(0x22c), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
-          regs="(10, s.host s.io 0xc000001c#32)"))
+          regs="(10, s.host s.io 0xc000001c#32)"),
+    branch("checksig_answer", "Is the answer more than 1 (`li t1, 1`; `bltu t1, a0`)", 0x22c, 2,
+           "BitVec.ult 1#32 (s.core.reg 10#5)", 0x234, regs="(6, 1#32)"))
 
 # ---- the way back
-add(Chunk("return_1", "Past the `ecall`: `mepc <- mepc + 4`.", 3, h(0x22c), h(0x238), csr_out=f"csrsH ms (e + 4#32) c m cy {FROZEN} (p)",
+add(Chunk("return_1", "Past the `ecall`: `mepc <- mepc + 4`.", 3, h(0x234), h(0x240), csr_out=f"csrsH ms (e + 4#32) c m cy {FROZEN} (p)",
           regs="(5, e + 4#32)"),
-    Chunk("return_2", "The payload's `t0..t3` back from the stack.", 4, h(0x238), h(0x248), hyps=HSP, extra=", hsp",
+    Chunk("return_2", "The payload's `t0..t3` back from the stack.", 4, h(0x240), h(0x250), hyps=HSP, extra=", hsp",
           csr_in=f"csrsH ms e c m cy {FROZEN} (p)",
           regs="(5, BitVec.ofNat 32 (readLE s.core.mem 0x80008000#32 4)), (6, BitVec.ofNat 32 (readLE s.core.mem 0x80008004#32 4)), "
                "(7, BitVec.ofNat 32 (readLE s.core.mem 0x80008008#32 4)), (28, BitVec.ofNat 32 (readLE s.core.mem 0x8000800c#32 4))"),
-    Chunk("return_3", "The payload's `sp` back, the counters released, `mret`.", 3, h(0x248), "e",
+    Chunk("return_3", "The payload's `sp` back, the counters released, `mret`.", 3, h(0x250), "e",
           hyps=HSP + " (hmpp : ms.mpp = .U)", mode_out=".U",
           csr_out="csrsH { mie := ms.mpie, mpie := true, mpp := .U } e c (m + 2#32) (cy + 2#32) {} (0x80008000#32)",
           regs="(2, p)", extra=", hsp, hmpp, BitVec.add_assoc"))
 
 # ---- HALT
-add(Chunk("halt_1", "Report HALT: address and tag.", 5, h(0x254), h(0x268), regs="(6, 0xc0000004#32), (5, 0x48414c54#32)", store=True,
+add(Chunk("halt_1", "Report HALT: address and tag.", 5, h(0x25c), h(0x270), regs="(6, 0xc0000004#32), (5, 0x48414c54#32)", store=True,
           io=evs(HALT_REPORT[0])),
-    Chunk("halt_2", "Report the exit code.", 1, h(0x268), h(0x26c), hyps=HT1P, extra=", ht1", store=True, io=evs(HALT_REPORT[1])),
-    Chunk("halt_3", "Report `minstret`.", 2, h(0x26c), h(0x274), hyps=HT1P, extra=", ht1", regs="(5, m)", store=True, io=evs(HALT_REPORT[2])),
-    Chunk("halt_4", "Report `mcycle`.", 2, h(0x274), h(0x27c), hyps=HT1P, extra=", ht1", regs="(5, cy)", store=True, io=evs(HALT_REPORT[3])))
+    Chunk("halt_2", "Report the exit code.", 1, h(0x270), h(0x274), hyps=HT1P, extra=", ht1", store=True, io=evs(HALT_REPORT[1])),
+    Chunk("halt_3", "Report `minstret`.", 2, h(0x274), h(0x27c), hyps=HT1P, extra=", ht1", regs="(5, m)", store=True, io=evs(HALT_REPORT[2])),
+    Chunk("halt_4", "Report `mcycle`.", 2, h(0x27c), h(0x284), hyps=HT1P, extra=", ht1", regs="(5, cy)", store=True, io=evs(HALT_REPORT[3])))
 
 # ---- the scrub
 Z = "0#32"
 zregs = lambda a, b: ", ".join(f"({i}, {Z})" for i in range(a, b + 1))
-add(Chunk("scrub_1a", "Zero the saved `t0`.", 1, h(0x27c), h(0x280), hyps=HSP, extra=", hsp", words={0: "0"}, store=True),
-    Chunk("scrub_1b", "Zero the saved `t1`.", 1, h(0x280), h(0x284), hyps=HSP, extra=", hsp", words={1: "0"}, store=True),
-    Chunk("scrub_1c", "Zero the saved `t2`.", 1, h(0x284), h(0x288), hyps=HSP, extra=", hsp", words={2: "0"}, store=True),
-    Chunk("scrub_1d", "Zero the saved `t3`.", 1, h(0x288), h(0x28c), hyps=HSP, extra=", hsp", words={3: "0"}, store=True),
-    Chunk("scrub_2", "Zero `mscratch`, and `x1..x9`.", 10, h(0x28c), h(0x2b4), csr_out=f"csrsH ms e c m cy {FROZEN} (0#32)", regs=zregs(1, 9)),
-    Chunk("scrub_3", "Zero `x11..x22`.", 12, h(0x2b4), h(0x2e4), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs=zregs(11, 22), pbind=""),
-    Chunk("scrub_4", "Zero `x23..x31`.", 9, h(0x2e4), h(0x308), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs=zregs(23, 31), pbind=""),
-    Chunk("scrub_5", "Exit code to the exit word.", 3, h(0x308), h(0x314), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs="(6, 0xc0000008#32)", pbind="", store=True,
+add(Chunk("scrub_1a", "Zero the saved `t0`.", 1, h(0x284), h(0x288), hyps=HSP, extra=", hsp", words={0: "0"}, store=True),
+    Chunk("scrub_1b", "Zero the saved `t1`.", 1, h(0x288), h(0x28c), hyps=HSP, extra=", hsp", words={1: "0"}, store=True),
+    Chunk("scrub_1c", "Zero the saved `t2`.", 1, h(0x28c), h(0x290), hyps=HSP, extra=", hsp", words={2: "0"}, store=True),
+    Chunk("scrub_1d", "Zero the saved `t3`.", 1, h(0x290), h(0x294), hyps=HSP, extra=", hsp", words={3: "0"}, store=True),
+    Chunk("scrub_2", "Zero `mscratch`, and `x1..x9`.", 10, h(0x294), h(0x2bc), csr_out=f"csrsH ms e c m cy {FROZEN} (0#32)", regs=zregs(1, 9)),
+    Chunk("scrub_3", "Zero `x11..x22`.", 12, h(0x2bc), h(0x2ec), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs=zregs(11, 22), pbind=""),
+    Chunk("scrub_4", "Zero `x23..x31`.", 9, h(0x2ec), h(0x310), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs=zregs(23, 31), pbind=""),
+    Chunk("scrub_5", "Exit code to the exit word.", 3, h(0x310), h(0x31c), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs="(6, 0xc0000008#32)", pbind="", store=True,
           io=evs(ev(EXIT, A0))),
-    Chunk("scrub_6", "Last register, and the park loop.", 1, h(0x314), h(0x318), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs="(6, 0#32)", pbind=""))
+    Chunk("scrub_6", "Last register, and the park loop.", 1, h(0x31c), h(0x320), csr_in=f"csrsH ms e c m cy {FROZEN} (0#32)", regs="(6, 0#32)", pbind=""))
 
 
 # ---- phases: chains of the chunks above, with the same shape of statement
@@ -333,10 +335,10 @@ ZW = {0: "0", 1: "0", 2: "0", 3: "0"}
 CSR0 = "csrsH ms e c m cy {} (0x80008000#32)"
 CSRZ = f"csrsH ms e c m cy {FROZEN} (0#32)"
 SAVED = {0: num(5), 1: num(6), 2: num(7), 3: num(28)}
-PARK = h(0x318)
+PARK = h(0x320)
 
 phase(Chunk("monitor_scrub", "The scrub, all of it: every register but `a0` zero, `mscratch` zero, the four saved words zero, the machine at the park loop.",
-            0, h(0x27c), PARK, hyps=HSP, csr_out=CSRZ, words=ZW, regs=ZALL, io=evs(ev(EXIT, A0)),
+            0, h(0x284), PARK, hyps=HSP, csr_out=CSRZ, words=ZW, regs=ZALL, io=evs(ev(EXIT, A0)),
             steps=[S("scrub_1a", p="p"), S("scrub_1b", p="p"), S("scrub_1c", p="p"), S("scrub_1d", p="p"), S("scrub_2", p="p"),
                    S("scrub_3"), S("scrub_4"), S("scrub_5"), S("scrub_6", last=True)]), None)
 phase(Chunk("monitor_fault_exit", "The fault report, then the scrub: `a0 = 1`, every other register zero.",
@@ -344,7 +346,7 @@ phase(Chunk("monitor_fault_exit", "The fault report, then the scrub: `a0 = 1`, e
             steps=[S("fault_1", p="p"), S("fault_2", p="p"), S("fault_3", p="p"), S("fault_4", p="p"), S("fault_5", p="p"),
                    S("fault_6", p="p"), S("monitor_scrub", p="p", last=True)]), None)
 phase(Chunk("monitor_halt_exit", "The HALT report, then the scrub: `a0` is the payload's exit code, every other register zero.",
-            0, h(0x254), PARK, hyps=HSP, csr_out=CSRZ, words=ZW, regs=ZALL, io=HALT_IO,
+            0, h(0x25c), PARK, hyps=HSP, csr_out=CSRZ, words=ZW, regs=ZALL, io=HALT_IO,
             steps=[S("halt_1", p="p"), S("halt_2", p="p"), S("halt_3", p="p"), S("halt_4", p="p"), S("monitor_scrub", p="p", last=True)]), None)
 phase(Chunk("monitor_enter", "Trap entry: the counters frozen, the M-mode stack swapped in, the payload's `t0..t3` saved, `mcause` read.",
             0, h(0x114), f"if c = 8#32 then {h(ECALL)}#32 else {h(FAULT)}#32", pbind="", csr_in=CSR0,
@@ -444,12 +446,22 @@ for call, conds in BOUND:
         svc = [num(10), num(11), None, "3"]
         io = evs(ev(SVCW[0], A0), ev(SVCW[1], "s.core.reg 11#5"), ev(SVCW[3], "3#32"))
         regs = f"(10, s.host (s.io ++ {io}) 0xc000001c#32)"
+        ans = f"BitVec.ult 1#32 (s.host (s.io ++ {io}) 0xc000001c#32)"
+        hyps += f" (hans : {ans} = false)"
+        fwd = fwd + [S("checksig_answer", resolve="{R}, {IO}, hans")]
+        bad = call_steps(call, 6, True) + fwd[:-1] + [S("checksig_answer", resolve="{R}, {IO}, hans"), S("monitor_fault_exit", last=True)]
+        scenario("monitor_checksig_bad_answer",
+                 "A `CHECKSIG` whose ranges lie in the box and whose answer is neither 0 nor 1: the request went out, and the "
+                 "machine parks with `a0 = 1`, every other register zero, the host having heard the call and then the fault report.",
+                 HC + HT + f" (hkey : {INBOX(10, 32)}) (hsig : {INBOX(11, 64)}) (hans : {ans} = true)", bad,
+                 pc_out=PARK, csr_out=CSRZ, words=ZW, regs=ZALL + ", (10, 1#32)", svc=svc, prelude=prelude,
+                 io=evs(ev(SVCW[0], A0), ev(SVCW[1], "s.core.reg 11#5"), ev(SVCW[3], "3#32"), *FAULT_REPORT, ev(EXIT, "1#32")))
     steps = call_steps(call, 6, True) + fwd + [
         S("return_1"), S("return_2", e="(e + 4#32)"), S("return_3", e="(e + 4#32)", hyps={"hmpp": "hmpp"}, last=True)]
     scenario(f"monitor_{call}_ok",
              f"A `{call.upper()}` whose ranges lie in the box: from the trap vector the call is forwarded exactly as the payload gave it, "
              f"and the machine is back in the payload at the word after the `ecall` — the payload's registers "
-             f"{'as they were' if call == 'hashb' else 'as they were but `a0`, which holds what the host answered'}, "
+             f"{'as they were' if call == 'hashb' else 'as they were but `a0`, which holds what the host answered, 0 or 1'}, "
              "the counters released and moved on by two.",
              hyps, steps, pc_out="e + 4#32", csr_out=RET_CSR, words=SAVED, regs=regs, svc=svc, mode_out=".U", prelude=prelude, io=io)
     # a refused call: one scenario for each check

@@ -94,7 +94,7 @@ bltu  t3, a1, handle_fault
 * **只保存 `t0..t3`，不保存 `x1..x31`。** Monitor 只動用這四個暫存器，Trap 入口就只存這四個；其餘暫存器在呼叫前後原樣，由 `monitor_hashb_ok` / `monitor_checksig_ok` 證明（`CHECKSIG` 的 `a0` 除外）。
 * **Monitor 不做雜湊也不驗章。** 通過邊界檢查的呼叫轉給宿主的服務埠（`0xc0000010..0xc000001c`），Monitor 只負責「被要求的範圍都在盒子內」。
 * **位址用模型的 `0x80010000..0x80020000`**，不是本文的晶片位址 `0x2001xxxx`。
-* **`monitor.bin` 正好 200 字（800 bytes）**，已用滿第六節的預算。
+* **`monitor.bin` 正好 200 字（800 bytes）**，已用滿第六節的預算。2026-10-23 在 `CHECKSIG` 讀回答案之後加了兩個字：答案不是 0 或 1 就走 fault（見 [稽核](../2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md) 的 G6），成為 202 字（808 bytes），比預算多兩個字。
 * **Lean 證明**：`proof/Calls.lean` 由產生器 `proof/gen.py` 寫出，12 個定理，含任意次呼叫與從重置開始的端到端。完整檢查約半小時，大部分花在 Lean 拒絕突變上。
 
 ## 四、實驗二設計：`exp239` — 嵌移 `exp223` TRNG 健康檢驗與條件摘要（Fail-Closed 與 SRAM 零化）

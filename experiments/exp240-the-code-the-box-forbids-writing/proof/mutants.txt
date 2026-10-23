@@ -41,6 +41,9 @@ scrub_leaves_sp|the scrub loads 1 into x2|s/0x00000113#32/0x00100113#32/
 scrub_skips_ra|the scrub leaves x1|/0x34001073#32,/{n;s/0x00000093#32/0x00000013#32/}
 mscratch_stays|the scrub leaves mscratch holding the payload's sp|s/0x34001073#32/0x00000013#32/
 mmio_address_wrong|the reports go to a word in the payload's region|s/0xc0000337#32/0x80010337#32/
+halt_tag_wrong|the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT|s/0xc5428293#32/0xc5528293#32/
+fault_tag_wrong|the FAULT report's tag is "FAUM", not "FAUL"|s/0x54c28293#32/0x54d28293#32/
+exit_code_to_print_word|the exit code goes to the print word, not the exit word|s/0x00830313#32/0x00430313#32/
 counters_start_at_three|claim: boot leaves the counters at 3, not 2|s/0x80010000#32 0#32 2#32 2#32 {}/0x80010000#32 0#32 3#32 3#32 {}/
 halt_takes_56_steps|claim: a HALT takes the monitor 56 steps, not 57|s/then 57 else 62/then 56 else 62/
 code_one_word_longer|claim: the code is four bytes longer, [0x80010000, 0x80010084)|s/x.toNat < 0x80010080 → m x = C x/x.toNat < 0x80010084 → m x = C x/

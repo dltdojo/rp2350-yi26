@@ -240,7 +240,9 @@ def chain(steps, start, finish, own=(), state0="s") -> str:
                 out.append(f"  have sv{i}_{k} : readLE s{i}.core.mem {a}#32 4 = readLE {prev}.core.mem {a}#32 4 := SvcSame.read sv{i} _ (by decide)\n")
         if st.resolve:
             toks = [t for t in (x.strip() for x in st.resolve.split(",")) if t]
-            toks = [rlist(i) if t == "{R}" else t for t in toks] + ["regsUpd"]
+            ios = ", ".join(f"io{j}, ho{j}" for j in range(i - 1, 0, -1))
+            toks = [rlist(i) if t == "{R}" else (ios + ", List.append_assoc" if ios else "") if t == "{IO}" else t
+                    for t in toks] + ["regsUpd"]
             out.append(f"  simp [{', '.join(t for t in toks if t)}] at p{i}\n")
         if not st.last:
             out.append(f"  have hS{i} := hS{i-1}.next a{i} h{i} m{i}\n")

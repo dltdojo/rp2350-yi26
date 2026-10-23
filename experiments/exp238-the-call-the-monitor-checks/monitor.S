@@ -28,6 +28,11 @@
 // answer. The service is the host's — the testbench here, a C caller on the chip — and
 // is trusted with nothing: it only ever sees ranges the monitor has already confined.
 //
+// CHECKSIG's answer must be 0 or 1, and anything else is a fault. The answer word is the
+// request word, so a host that never answers leaves the request there, 3, and a caller
+// that took "not 0" for "valid" would take that for a good signature. exp228's kernel
+// does (`beq a0, zero, F_INVALID`): the check here is what makes that fail closed.
+//
 // The call then returns: mepc <- mepc + 4, the payload's t0..t3 back, sp swapped back,
 // counters released, mret. The monitor spends t0..t3 and nothing else, so the payload's
 // other registers are never touched; the trap entry saves exactly those four.
@@ -193,6 +198,8 @@ call_checksig:
     li    t0, 3
     sw    t0, 12(t3)                // the request
     lw    a0, 12(t3)                // the answer: 1 or 0
+    li    t1, 1
+    bltu  t1, a0, handle_fault      // anything else is no answer: refused
 
 trap_return:
     // Past the ecall.

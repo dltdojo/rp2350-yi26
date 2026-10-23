@@ -52,11 +52,11 @@ monitor is meant to do.
 | :--- | :--- |
 | `monitor_boot` | from reset (image loaded, `pc = 0x80000040`, M-mode, CSRs at reset, any registers), 53 steps give `UBoxed 0x80010000 0x80020000`, `pc = 0x80010000`, `sp = 0x80020000`, every other register zero, the CSRs the handler relies on |
 | `umode_step`, `umode_run` (library) | from a boxed state, a step stays in U-mode, still boxed, writing only inside the box — or traps to `mtvec` with the registers and memory as the payload left them; the CSRs boot set do not change. For any number of steps, up to the first trap. Needs `hi ≤ 2^32` |
-| `monitor_halt` | at the trap vector, `mcause = 8` and saved `t0 = 1`: 57 steps park the machine (`pc = 0x80000234`) with `a0` the payload's, every other register zero, `mscratch` zero, the saved words zero |
+| `monitor_halt` | at the trap vector, `mcause = 8` and saved `t0 = 1`: 57 steps park the machine (`pc = 0x80000234`) with `a0` the payload's, every other register zero, `mscratch` zero, the saved words zero, and the host having heard the HALT report and then `a0` at the exit word |
 | `monitor_fault_cause` | `mcause ≠ 8`: 59 steps, the same, with `a0 = 1` |
 | `monitor_fault_syscall` | `mcause = 8`, saved `t0 ≠ 1`: 62 steps, the same, with `a0 = 1` |
 | `monitor_scrub` | the scrub alone: 37 steps from `scrub_exit` |
-| `monitor_end_to_end` | from reset, boot, then `n` payload steps: still running boxed with the monitor's words in place, or trapped — and then one of the three cases above applies and the machine parks |
+| `monitor_end_to_end` | from reset, boot, then `n` payload steps: still running boxed with the monitor's words in place, or trapped — and then one of the three cases above applies and the machine parks, the host having heard `haltIo` or `faultIo`: the report, then the exit code |
 | `monitorCode_length` | 143 words |
 
 The handler and the scrub are proved in 23 short runs (`handler_*`, `scrub_*`), each a few
@@ -70,10 +70,10 @@ the kernel cannot check, and a store changes the memory the next fetch reads. Bo
   measurement: `mcounteren`, the C extension, the set of CSRs, counter writes, misaligned causes.
   Nothing here ran on the Hazard3 RTL (the Verilator testbench is not built on this machine and
   nothing wires the monitor to it) or on an RP2350.
-- **The reports are not proved.** The print and exit ports are memory in the model, so of the words a report
-  stores at `0xc0000004` only the last is left, and the frame leaves both ports out: no theorem says what was
-  reported, or what the exit port holds, only that `a0` holds the exit code. The report's words and the exit port
-  are checked on the emulator alone ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G1 and G2).
+- **The reports are proved as words, not as what they mean.** In `Priv.lean` an M-mode word store to a port
+  (`0xc0000000..0xc000001f`) is recorded, in order, in `io`, and the theorems say which words the host heard:
+  `faultIo` or `haltIo`, the report and then the exit code. The `mtval` a fault reports is 0, because the model's traps
+  do not write `mtval`; the emulator's do ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems
   assume it is `monRegion = [0x80000000, 0xC0000100)`. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.
@@ -94,12 +94,14 @@ the kernel cannot check, and a store changes the memory the next fetch reads. Bo
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches,
    143 ≤ 150 words, and `monitorCode` in the proof is the binary's words in order.
 2. `Monitor.lean` checks, with no errors and no warnings, on Lean's own axioms.
-3. **Twenty-two mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks: twenty
+3. **Twenty-six mutants** (`proof/mutants.txt`), each refused by Lean in the theorem it breaks: twenty-three
    change one word of `monitorCode` — a PMP address (one window too small, one the whole address space, one
    that covers the monitor), a permission bit, `MPP`, the payload's entry or `sp`,
    a register boot or the scrub forgets (`x31`, `x2`, `x1`), `mscratch` the scrub leaves, the trap vector, the stack swap, the cause or syscall check, the
-   fault exit code, the jump to the scrub, the report port — and two change a rule of the model the sandbox
-   proof runs on (U-mode stores not checked against the PMP; U-mode `ecall` executed).
+   fault exit code, the jump to the scrub, the report port, the HALT or FAULT tag, the exit code sent to the print
+   word — and three change a rule of the model the proofs run on (U-mode stores not checked against the PMP;
+   U-mode `ecall` executed; an M-mode store to a port not recorded). Until 2026-10-23 no theorem said what was
+   reported, and the three report mutants would have been accepted.
 4. **Four normal cases**: exp229's secp256k1 field kernel (add, subtract, subtract with borrow, multiply)
    runs under the monitor on the emulator, the result is right, `a0 = 0`, and the machine ends parked and scrubbed.
 5. **Twenty-three hostile payloads** (`cases/attack_cases.py`): stores and loads of the monitor and of
