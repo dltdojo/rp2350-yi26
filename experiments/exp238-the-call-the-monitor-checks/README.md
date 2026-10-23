@@ -121,7 +121,9 @@ checked again here on these words.
 3. **Eight mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or phase it breaks: an input
    floor dropped, a length tested by adding, 16 bytes of output room, 32 bytes of signature room, a return
    that does not step past the `ecall`, counters never released, an unoffered call that returns, a saved word
-   left on the stack.
+   left on the stack. Fifteen more, one for each broken monitor of check 7 that had no mutant, were run once on
+   2026-10-23 and each was refused; they are in `mutants.txt` commented out, because each is a whole run of the
+   proof (about two minutes) and the check would take half an hour longer.
 4. `proof/Calls.lean` is what `proof/gen.py` writes.
 5. **exp228's kernel under the monitor** (`suite/kernel_cases.py`): each of its 34 scripts, and 120 drawn by
    exp228's fuzzer, runs three ways — alone with no monitor, under the monitor, and in the specification

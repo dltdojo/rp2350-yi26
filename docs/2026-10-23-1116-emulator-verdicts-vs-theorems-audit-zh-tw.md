@@ -16,8 +16,8 @@
 前兩類缺口有同一個根源：輸出埠被建模成記憶體，同一位址的連續寫入只留下最後一個字組，而 `Frame` 又把埠排除在外。
 **所以第二步的模型修改，應該同時處理「讀」（建議 1）和「寫」（把埠的寫入變成事件序列）。**
 
-這份稽核只讀了原始碼與定理陳述，沒有執行 Lean（本機沒有安裝工具鏈），也沒有用到板子。第三節列出的「沒有對應突變的
-broken monitor」是名稱與內容上的比對，Lean 是否會拒絕它們，沒有實際驗證。
+第二節是讀原始碼與定理陳述得到的，沒有用到板子。第三節的突變則在同一天補上並實際跑過 Lean：29 個新突變全部被拒絕
+（初稿寫「本機沒有安裝工具鏈」是錯的：Lean 4.34.0 早已裝在 `tools/lean/` 下，只是不在 PATH 上）。
 
 ---
 
@@ -77,18 +77,36 @@ broken monitor」是名稱與內容上的比對，Lean 是否會拒絕它們，�
 ## 三、反方向：被套件抓到、但沒有對應 Lean 突變的錯誤 monitor
 
 每個實驗都有兩組「錯誤版本」：`broken_monitors.py`（模擬器必須抓到）與 `proof/mutants.txt`（Lean 必須拒絕）。依名稱與內容比對，
-下列錯誤 monitor 在同一實驗的 `mutants.txt` 裡**沒有對應的突變**。這**不代表** Lean 會接受它們：定理的結論多半已經涵蓋
-（例如「其他暫存器全為零」就涵蓋 `scrub_skips_ra`）。它只代表**沒有被取樣驗證過**。
+下列錯誤 monitor 在同一實驗的 `mutants.txt` 裡沒有對應的突變。
 
-| 實驗 | broken monitor 數 | 突變數 | 沒有對應突變的 broken monitor |
-| :--- | ---: | ---: | :--- |
-| exp236 | 12 | 18 | `pmp_window_4gib`、`pmp_window_covers_monitor`、`scrub_skips_ra`、`mscratch_stays`（突變 `mscratch_wrong` 改的是開機，不是清零） |
-| exp238 | 25 | 8 | `hashb_input_ceiling_dropped`、`hashb_length_dropped`、`hashb_output_floor_dropped`、`hashb_output_ceiling_dropped`、`checksig_key_floor_dropped`、`checksig_key_room_dropped`、`checksig_signature_floor_dropped`、`checksig_is_hashb`、`return_skips_two_words`、`return_leaves_t1`、`return_leaves_t3`、`return_keeps_monitor_sp`、`counters_released_early`、`extra_instruction_counted`、`scrub_keeps_saved_t3`、`fault_does_not_scrub` |
-| exp239 | 19 | 30 | `scratch_one_word_long`、`scratch_starts_early`、`scratch_not_scrubbed`、`halt_with_zero_skips_scratch`、`digest_window_one_word_long`、`digest_loop_runs_to_scratch_end` |
-| exp240 | 27 | 47 | `data_entry_off`、`stack_entry_off`、`stack_entry_32_kib`、`code_and_data_swapped`（`entries_swapped` 換的是設定位元組，不是位址）、`mret_stays_in_m_mode`（exp236 有 `mret_to_m_mode`，exp240 沒有沿用）、`scrub_skips_ra`、`mscratch_stays` |
+**已補上，並跑過 Lean。** 每個突變都是把錯誤 monitor 自己的修改拿來組譯，刪掉的指令換成 `nop` 以維持 `monitorCode` 的長度，
+再與 `monitor.bin` 逐字比對得出要改的字組。29 個全部被拒絕：
 
-exp238 最明顯：十二條越界檢查各有一條定理，但跟範圍檢查有關的突變只有四個。補上這些突變是機械性的工作，不需要改模型，但需要
-`tools/lean/setup.sh` 先下載工具鏈（約 580 MB）。
+| 實驗 | 突變數（前 → 後） | 新增的突變 |
+| :--- | :--- | :--- |
+| exp236 | 18 → 22 | `pmp_window_4gib`、`pmp_window_covers_monitor`、`scrub_skips_ra`、`mscratch_stays`（既有的 `mscratch_wrong` 改的是開機，不是清零） |
+| exp238 | 8（另 15 個註解保留） | `hashb_input_ceiling_dropped`、`hashb_length_dropped`、`hashb_output_floor_dropped`、`hashb_output_ceiling_dropped`、`checksig_key_floor_dropped`、`checksig_key_room_dropped`、`checksig_signature_floor_dropped`、`checksig_is_hashb`、`return_skips_two_words`、`return_leaves_t1`、`return_leaves_t3`、`return_keeps_monitor_sp`、`counters_released_one_early`、`scrub_keeps_saved_t3`、`fault_does_not_scrub` |
+| exp239 | 30 → 34 | `scratch_starts_early`、`scratch_not_scrubbed`、`digest_window_one_word_long`、`digest_loop_runs_to_scratch_end` |
+| exp240 | 47 → 53 | `data_entry_off`、`stack_entry_off`、`stack_entry_32_kib`、`data_tried_before_code`、`scrub_skips_ra`、`mscratch_stays` |
+
+三點修正初稿：
+
+- **exp238 的 8 個是刻意的。** 它的 `mutants.txt` 開頭寫明：14 個突變曾跑過一次、全部被拒，因為每個都要跑完整份證明（約兩分鐘），
+  所以只留 8 個在檢查裡。初稿漏看了這段。這次的 15 個也照這個做法：跑過一次（一次兩個，平均每個約 1.9 分鐘），以註解形式記在
+  `mutants.txt`，拿掉 `#` 就能放回檢查。全部常駐的話，`check.sh` 每次會多跑約半小時。四個同時跑時有 10 個因記憶體不足而沒有結論，
+  這也是 exp238 的 `check.sh` 一次只跑兩個的原因。
+- **exp240 那一列初稿寫錯了。** `code_and_data_swapped` 與既有的 `entries_swapped` 是同一個修改（兩個條目的位址對調）；沒有對應突變的
+  是 `data_tried_before_code`（位址與權限一起對調）。
+- **`counters_released_one_early` 是替身。** exp238 的 `counters_released_early` 與 `extra_instruction_counted` 都會多出一個字組，
+  所以改用「`csrwi mcountinhibit, 0` 與前一條指令對調」，計數器同樣多算一條。
+
+**寫不成等長突變的三個**，這次沒有補：
+
+- exp239 的 `scratch_one_word_long`：結束位址要多 4，需要多一條 `addi`。另一端多清一個字的 `scratch_starts_early` 已補上，既有的宣稱突變
+  `claim_scratch_one_word_more` 也涵蓋同一件事。
+- exp239 的 `halt_with_zero_skips_scratch`：要多插一條 `beqz`。
+- exp240 的 `mret_stays_in_m_mode`：要讓 MPP 成為 M-mode 需要兩個字組。既有的 `mstatus_kept` 已涵蓋：開機不完整寫入 `mstatus` 時，
+  MPP 可能是上一回合留下的 M-mode。
 
 ---
 
@@ -108,17 +126,11 @@ G4（`PrivMachine` 與模擬器的差分）與 G5（kernel 與 monitor 的接縫
 這三項都改 `lean/Rv32/Priv.lean` 的讀寫語意。依賴它的有 `PrivRun`、`Refinement`、`Sandbox`、`WxBox` 四個函式庫檔，以及
 exp235、exp236、exp238、exp239、exp240 的證明。
 
-### 需要你決定的事
+### 決定（2026-10-23）
 
-1. **G6 的修法放在哪一邊。** 模型改完之後，exp238 的 CHECKSIG 在模型裡回傳「任意值」，exp228 的 kernel 照樣把非零當成有效，
-   所以「kernel 跑在 monitor 下只接受有效簽章」仍然證不出來。要讓它成立，有三個選擇：
-   - **kernel 改成只認 `a0 == 1`**：位元組改了，exp228 的證明、kernel 的 SHA-256、以及 Pico 2 上的 capture 都要重做。
-   - **monitor 在讀回答案之後檢查 `a0 ∈ {0, 1}`**，不是就 fault：只動 exp238，kernel 不變。它在模型裡把「任意值」收窄成
-     0 或 1，但「沒有 host 時讀回 3」會變成 fault，也就是 fail-closed。
-   - **monitor 在送出請求之前先把答案字清成 0**：在真正的硬體上，沒有 host 回答時讀回 0。但在「讀取是任意值」的模型裡
-     證明不了任何事，所以只解決晶片那一半。
-
-   我的建議是第二項：只動一個實驗，模型與晶片兩邊都是 fail-closed，kernel 的位元組與它在板子上的 capture 都不用動。
-2. **exp239、exp240 README 的 "the report made"** 是現在就該改的文件錯誤，還是等第二步把回報納入定理之後再讓它成真？
-   我建議現在先改成定理實際陳述的內容（「回報埠的位址已載入 `t1`」並不是「回報已完成」），第二步之後再改回來。
-3. **第三節的突變要不要現在補**：需要先安裝 Lean 工具鏈。它和第二步無關，可以並行，也可以等第二步重新產生證明時一起做。
+1. **G6 修在 monitor 一側**：exp238 在讀回答案後檢查 `a0 ∈ {0, 1}`，不是就 fault；exp228 的 kernel 不動。
+   **但它必須和第二步「服務埠的讀取改成參數」一起做**，初稿沒有點出這個相依。在現行模型裡，讀回的永遠是剛寫入的請求碼 3，
+   所以單獨加上這個檢查，模型裡的 CHECKSIG 會每一次都 fault，定理只能照實寫成「CHECKSIG 永遠失敗」。
+2. **README 已改**：exp239、exp240 定理表的 "the report made" 改成「回報的寫入有執行，寫了什麼沒有陳述」，exp236–exp240 四個 README 的
+   *What is not proved* 都加了 "The reports are not proved"，指向這份稽核的 G1、G2。第二步把回報納入定理之後再改回來。
+3. **突變已補**：見第三節。
