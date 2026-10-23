@@ -45,7 +45,8 @@ set_option maxHeartbeats 4000000 in
     the code, `[0x80010000, 0x80010080)`, **the bytes it started with** -- or it trapped, and the monitor takes
     `trapSteps` steps to the park loop with the exit code `exitCode u` (the payload's own `a0` for a HALT, 1 for the
     rest), every other register zero, and every byte of memory but the monitor's stack and report words as the payload
-    left it -- the code among them, still the bytes it started with. -/
+    left it -- the code among them, still the bytes it started with -- and the host has heard `trapIo u`: the report
+    for the way it trapped, then the exit code. -/
 theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (hmem : s.core.mem = M0)
     (hpc : s.core.pc = 0x80000040#32) (hh : s.halted = false) (hm : s.mode = .M)
@@ -59,7 +60,8 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
         Parked (parkedAfter env (payloadAt env s k)) (exitCode (payloadAt env s k)) ∧
         Agree M0 (parkedAfter env (payloadAt env s k)).core.mem 0x80000000 604 ∧
         CodeSame M0 (parkedAfter env (payloadAt env s k)).core.mem ∧
-        FrameSP (payloadAt env s k).core.mem (parkedAfter env (payloadAt env s k)).core.mem)) := by
+        FrameSP (payloadAt env s k).core.mem (parkedAfter env (payloadAt env s k)).core.mem ∧
+        (parkedAfter env (payloadAt env s k)).io = (payloadAt env s k).io ++ trapIo (payloadAt env s k))) := by
   obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ := monitor_boot env M0 s hW hmem hpc hh hm hlock
   obtain ⟨k, hkn, hfroz, hagree, hres⟩ := payload_runs env M0 _ hW hmem1 henv hcsb hbox n
   refine ⟨k, hkn, ?_⟩
@@ -67,8 +69,8 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
   rcases hres with ⟨hk, hmode, hb⟩ | ⟨hpos, hmode, hS, hpcu, ms, e, c, m, cy, hcsu⟩
   · exact Or.inl ⟨hk, hmode, hb, hagree, fun x h1 h2 => hfroz x (Or.inl ⟨h1, h2⟩)⟩
   · right
-    obtain ⟨hP, hA, hF, -⟩ := monitor_traps env M0 _ hS ms e c m cy hpcu hcsu
-    refine ⟨hpos, hP, hA, ?_, hF⟩
+    obtain ⟨hP, hA, hF, -, -, hio⟩ := monitor_traps env M0 _ hS ms e c m cy hpcu hcsu
+    refine ⟨hpos, hP, hA, ?_, hF, hio⟩
     intro x h1 h2
     have hs : ¬ InStack x := by unfold InStack; omega
     have hp : ¬ InPorts x := by unfold InPorts; omega
@@ -168,7 +170,7 @@ theorem monitor_round_ready (env : Rv32.Env) (C : Word → Byte) (p q : PrivMach
   · exfalso
     rw [h2] at hkM
     exact absurd hkM (by decide)
-  · obtain ⟨hP, hA, hF, hC⟩ := monitor_traps env p.core.mem _ hS ms e c m cy hpcu hcsu
+  · obtain ⟨hP, hA, hF, hC, -, -⟩ := monitor_traps env p.core.mem _ hS ms e c m cy hpcu hcsu
     rw [hq]
     unfold parkedAfter payloadAt
     refine ⟨⟨?_, ?_, ?_, hR.region⟩, _, hP⟩
