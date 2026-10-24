@@ -23,27 +23,27 @@ open Rv32 Rv32.Refinement
 
 /-- The CSRs the monitor set, and a payload cannot change. -/
 def KeptCsrs (c c' : PrivCSRs) : Prop :=
-  c'.mtvec = c.mtvec ∧ c'.mscratch = c.mscratch ∧ c'.mtval = c.mtval ∧ c'.pmpcfg0 = c.pmpcfg0 ∧
+  c'.mtvec = c.mtvec ∧ c'.mscratch = c.mscratch ∧ c'.pmpcfg0 = c.pmpcfg0 ∧
   c'.pmpaddr0 = c.pmpaddr0 ∧ c'.pmpaddr1 = c.pmpaddr1 ∧ c'.pmpaddr2 = c.pmpaddr2 ∧
   c'.pmpaddr3 = c.pmpaddr3 ∧ c'.mcountinhibit = c.mcountinhibit
 
-theorem KeptCsrs.refl (c : PrivCSRs) : KeptCsrs c c := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+theorem KeptCsrs.refl (c : PrivCSRs) : KeptCsrs c c := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem KeptCsrs.trans {a b c : PrivCSRs} (h1 : KeptCsrs a b) (h2 : KeptCsrs b c) : KeptCsrs a c := by
-  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9⟩ := h1
-  obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8, b9⟩ := h2
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := h1
+  obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ := h2
   exact ⟨b1.trans a1, b2.trans a2, b3.trans a3, b4.trans a4, b5.trans a5, b6.trans a6, b7.trans a7,
-    b8.trans a8, b9.trans a9⟩
+    b8.trans a8⟩
 
-theorem kept_bump (c : PrivCSRs) : KeptCsrs c (bumpCounters c) := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+theorem kept_bump (c : PrivCSRs) : KeptCsrs c (bumpCounters c) := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem kept_trap (s : PrivMachine) (cause : Word) : KeptCsrs s.csrs (raiseTrap s cause).csrs :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem uboxed_of_kept {s s' : PrivMachine} {lo hi : Nat} (hBox : UBoxed s lo hi)
     (hk : KeptCsrs s.csrs s'.csrs) (hmode : s'.mode = .U) (hh : s'.halted = false) :
     UBoxed s' lo hi := by
-  obtain ⟨_, _, _, k4, k5, k6, k7, k8, _⟩ := hk
+  obtain ⟨_, _, k4, k5, k6, k7, k8, _⟩ := hk
   refine ⟨hmode, hh, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [k4]; exact hBox.cfg0Mode
   · rw [k4]; exact hBox.cfg0Read

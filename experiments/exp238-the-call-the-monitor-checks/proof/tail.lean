@@ -109,10 +109,10 @@ theorem trap_state (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     intro x h1 h2
     rw [hframe x (by omega)]
     exact hagree x h1 h2
-  obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := hkept
-  rw [hcs0] at k1 k2 k3 k4 k5 k6 k7 k8 k9
+  obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hkept
+  rw [hcs0] at k1 k2 k3 k4 k5 k6 k7 k8
   have hcsu : u.csrs = csrsH u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle {} 0x80008000#32 :=
-    csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8 k9
+    csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8
   rcases hres with ⟨hk, hmode, hb⟩ | ⟨hpos, hmode, hpc, hmpp⟩
   · exact Or.inl ⟨hk, hb, hag, _, _, _, _, _, hcsu⟩
   · right
@@ -140,7 +140,7 @@ def OutOfBox (u : PrivMachine) : Prop :=
 /-! ## What the monitor tells the host -/
 
 /-- A fault, as the host hears it: the report to the print word — the tag, `mcause`, `mepc`, `mtval` and
-    `minstret` — then exit code 1. `mtval` is 0: the model's traps do not write it. -/
+    `minstret` — then exit code 1. `mtval` is 0: Hazard3 hardwires it to 0. -/
 def faultIo (u : PrivMachine) : List IoEvent :=
   [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, u.csrs.mcause⟩, ⟨0xc0000004#32, u.csrs.mepc⟩,
    ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, u.csrs.minstret⟩, ⟨0xc0000008#32, 1#32⟩]

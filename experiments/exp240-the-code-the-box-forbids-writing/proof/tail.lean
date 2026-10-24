@@ -30,10 +30,10 @@ theorem payload_runs (env : Rv32.Env) (M0 : Word → Byte) (s1 : PrivMachine)
   rcases hres with ⟨hk, hmode, hb⟩ | ⟨hpos, hmode, hpc2⟩
   · exact Or.inl ⟨hk, hmode, hb⟩
   · right
-    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := hkept
-    rw [hcs1] at k1 k2 k3 k4 k5 k6 k7 k8 k9 hpc2
+    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hkept
+    rw [hcs1] at k1 k2 k3 k4 k5 k6 k7 k8 hpc2
     have hcsu : u.csrs = csrsH u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle {} 0x80008000#32 :=
-      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8 k9
+      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8
     have hpcu : u.core.pc = 0x80000134#32 := by
       rw [hpc2]; show (0x80000134#32 &&& ~~~3#32) = 0x80000134#32; decide
     exact ⟨hpos, hmode, ⟨hW, hagree, henv, hhalt, hmode⟩, hpcu, _, _, _, _, _, hcsu⟩

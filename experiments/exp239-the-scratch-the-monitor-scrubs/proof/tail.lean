@@ -92,10 +92,10 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
   · exact Or.inl ⟨hk, hmode, hb, hagree⟩
   · right
     refine ⟨hpos, ?_⟩
-    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := hkept
-    rw [hcs1'] at k1 k2 k3 k4 k5 k6 k7 k8 k9 hpc2
+    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hkept
+    rw [hcs1'] at k1 k2 k3 k4 k5 k6 k7 k8 hpc2
     have hcsu : u.csrs = csrsH u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle {} 0x80008000#32 :=
-      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8 k9
+      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8
     have hpcu : u.core.pc = 0x80000114#32 := by
       rw [hpc2]; show (0x80000114#32 &&& ~~~3#32) = 0x80000114#32; decide
     have hS : HState env M0 u := ⟨hW, hagree, henv, hhalt, hmode⟩

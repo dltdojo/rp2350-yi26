@@ -178,7 +178,7 @@ def WxFrozen (cLo cHi dLo dHi kLo kHi : Nat) (x : Word) : Prop :=
 theorem wxboxed_of_kept {s s' : PrivMachine} (hB : WXBoxed s cLo cHi dLo dHi kLo kHi)
     (hk : KeptCsrs s.csrs s'.csrs) (hmode : s'.mode = .U) (hh : s'.halted = false) :
     WXBoxed s' cLo cHi dLo dHi kLo kHi := by
-  obtain ⟨_, _, _, k4, k5, k6, k7, k8, _⟩ := hk
+  obtain ⟨_, _, k4, k5, k6, k7, k8, _⟩ := hk
   refine ⟨hmode, hh, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [k4]; exact hB.cfg0
   · rw [k4]; exact hB.cfg1
