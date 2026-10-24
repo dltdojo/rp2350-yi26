@@ -72,15 +72,6 @@ _reset:
     li    t0, 0x80008000
     csrw  mscratch, t0
 
-    // [Charm 1] {
-    // Enshrine the seal: 0x80008010..0x80008017 read as "OMAMKUAI", outside every PMP entry
-    li    t0, 0x80008010
-    li    t1, 0x4d414d4f
-    sw    t1, 0(t0)
-    li    t1, 0x4941554b
-    sw    t1, 4(t0)
-    // [Charm 1] }
-
     // Freeze hardware counters during boot
     csrwi mcountinhibit, 5
 
@@ -121,6 +112,16 @@ _reset:
     csrw  minstreth, zero
     csrw  mcycle, zero
     csrw  mcycleh, zero
+
+    // [Charm 1] {
+    // Enshrine the seal: 0x80008010..0x80008017 read as "OMAMKUAI", outside every PMP entry.
+    // Last of the CSRs and before the registers: each store is the last step of a proof's run
+    li    t0, 0x80008010
+    li    t1, 0x4d414d4f
+    sw    t1, 0(t0)
+    li    t1, 0x4941554b
+    sw    t1, 4(t0)
+    // [Charm 1] }
 
     // Initialize U-mode stack pointer (top of the stack entry: 0x80020000)
     li    sp, 0x80020000
