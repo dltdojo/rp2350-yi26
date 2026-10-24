@@ -200,6 +200,52 @@ theorem readLE_writeLE_far (m : Word → Byte) (a b : Word) (v : Nat)
     omega
   simp only [this, ↓reduceIte]
 
+/-! ## Memory zeroed (from exp239: a monitor's loop that zeroes a range) -/
+
+/-- `m'` is `m` with the bytes `[lo, hi)` zeroed and every other byte as it was. -/
+def Zeroed (lo hi : Nat) (m m' : Word → Byte) : Prop :=
+  ∀ x : Word, (lo ≤ x.toNat ∧ x.toNat < hi → m' x = 0) ∧ (¬ (lo ≤ x.toNat ∧ x.toNat < hi) → m' x = m x)
+
+theorem zeroed_write (A : Word) (m : Word → Byte) (hw : A.toNat + 4 ≤ 4294967296) :
+    Zeroed A.toNat (A.toNat + 4) m (writeLE m A 0 4) := by
+  intro x
+  rw [writeLE_apply m A 0 4 (by decide) x]
+  simp only [BitVec.toNat_sub, Nat.reducePow, Nat.zero_div]
+  have hx := x.isLt
+  have ha := A.isLt
+  constructor
+  · intro h
+    have : (4294967296 - A.toNat + x.toNat) % 4294967296 < 4 := by omega
+    simp [this]
+  · intro h
+    have : ¬ (4294967296 - A.toNat + x.toNat) % 4294967296 < 4 := by omega
+    simp [this]
+
+theorem zeroed_trans {lo mid hi : Nat} {m0 m1 m2 : Word → Byte} (h1 : Zeroed lo mid m0 m1)
+    (h2 : Zeroed mid hi m1 m2) (hlm : lo ≤ mid) (hmh : mid ≤ hi) : Zeroed lo hi m0 m2 := by
+  intro x
+  obtain ⟨a1, b1⟩ := h1 x
+  obtain ⟨a2, b2⟩ := h2 x
+  constructor
+  · intro h
+    by_cases hx : x.toNat < mid
+    · rw [b2 (by omega)]; exact a1 ⟨h.1, hx⟩
+    · exact a2 ⟨by omega, h.2⟩
+  · intro h
+    rw [b2 (by omega)]
+    exact b1 (by omega)
+
+/-- A four-byte read away from the zeroed bytes is what it was. -/
+theorem readLE_zeroed {lo hi : Nat} {m m' : Word → Byte} (h : Zeroed lo hi m m') (a : Word)
+    (ha : a.toNat + 4 ≤ lo ∨ hi ≤ a.toNat) (hw : a.toNat + 4 ≤ 4294967296) :
+    readLE m' a 4 = readLE m a 4 := by
+  apply readLE_four_congr
+  intro d hd
+  apply (h _).2
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow]
+  have := a.isLt
+  omega
+
 /-- `psimp` without the PMP: the caller brings a lemma that settles `pmpCheck` for the
     configuration it has, instead of `simp` working it out from the registers each time. -/
 syntax (name := psimpH) "psimpH" " [" Lean.Parser.Tactic.simpLemma,* "]" (Lean.Parser.Tactic.location)? : tactic

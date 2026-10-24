@@ -177,11 +177,12 @@ theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
 
 
 def boot_proof(t: str, config: str, *, binders="", front=None, m1="M0", hw1="hW", mem_out="M0", split=None,
-               cfg3="exact Or.inl (by rw [h5]; decide)", boot_doc="") -> str:
+               state0=None, cfg3="exact Or.inl (by rw [h5]; decide)", boot_doc="") -> str:
     """exp236's boot, changed to set the three entries, to start from any CSRs that lock no entry, and to say `WXBoxed`
     where it said `UBoxed`. `config` is the first part of boot (exp240's: `boot_config`); `front`, the lines of
     `monitor_boot` that run it and leave `c1`..`c5` about the state after it, whose memory is `m1`, its words `hw1`;
-    `mem_out`, the memory boot ends with; `split`, the run's steps as a sum; `cfg3`, why entry 3 decides nothing."""
+    `mem_out`, the memory boot ends with; `split`, the run's steps as a sum; `state0`, the state after the first part,
+    as `split` writes it; `cfg3`, why entry 3 decides nothing."""
     t = swap(t, "run env 20 ", f"run env {BOOT_STEPS} ", count=t.count("run env 20 "))
     i = t.index("set_option maxHeartbeats 4000000 in\nset_option maxRecDepth 100000 in\ntheorem monitor_boot_config")
     j = t.index("/-! ## Boot, second half")
@@ -206,6 +207,8 @@ def boot_proof(t: str, config: str, *, binders="", front=None, m1="M0", hw1="hW"
         front = "  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock\n"
     if split is None:
         split = [BOOT_STEPS, 12, 12, 7, 1, 1]
+    if state0 is None:
+        state0 = f"PrivMachine.run env {BOOT_STEPS} s"
     sums = " + ".join(str(x) for x in split)
     adds = ["PrivMachine.run_add"] * (len(split) - 1)
     adds = ", ".join(adds[:2]) + ",\n    " + ", ".join(adds[2:])
@@ -223,7 +226,7 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env {ALL_STEPS} s).csrs = csrsBooted ∧
     (PrivMachine.run env {ALL_STEPS} s).core.mem = {mem_out} ∧
     (∀ r, (PrivMachine.run env {ALL_STEPS} s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
-{front}  have hC0 : Cleared 0 (PrivMachine.run env {BOOT_STEPS} s) := by
+{front}  have hC0 : Cleared 0 ({state0}) := by
     intro r hr
     have : r = 0 := by bv_omega
     subst this

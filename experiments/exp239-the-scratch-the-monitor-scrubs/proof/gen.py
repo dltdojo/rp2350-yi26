@@ -9,7 +9,8 @@ payload's memory. A loop of 1,920 iterations cannot be run one step at a time, s
 instruction (the store, the add, the branch), a theorem about one trip round it, and an induction on the number
 of trips: `zloop_*` says that after `3 * (k + 1)` steps the range `[A, E)` is zero, the rest of memory is as it
 was, and the registers are the loop's. The two loops are the same three words at different addresses, so they
-are one template here, written twice.
+are one template, written twice: `chunks.zloop`, which exp245 uses too, with `Zeroed` and its lemmas in
+lean/Rv32/PrivRun.lean.
 
 Boot is exp236's, cut from its proof. What is written by hand is in defs.lean (before the chunks) and tail.lean
 (after them).
@@ -240,199 +241,6 @@ scenario("monitor_fault_syscall_pre",
          regs="(2, 0x80008000#32), (5, m), (6, 0xc0000004#32), (10, 1#32)", io=evs(*FAULT_REPORT))
 
 
-# ---- the zeroing loops: one template, twice
-
-def loop_lean(tag: str, store: int, exit_: int) -> str:
-    """The three words at `store`, `store + 4`, `store + 8`: `sw zero, 0(t0)`, `addi t0, t0, 4`, `bne t0, t1, store`."""
-    B = BYTES
-    st, ad, bn, ex = h(store), h(store + 4), h(store + 8), h(exit_)
-    assert exit_ == store + 12
-    R32 = R32T
-    guard = "set_option maxHeartbeats 4000000 in\nset_option maxRecDepth 100000 in\n"
-    sm = f"""  obtain ⟨hW, hA', henv, hh, hm⟩ := hS
-  obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hAg : Agree M0 Mc 0x80000000 {B} := hmem ▸ hA'
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 {B} →
-      (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
-      (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
-      PrivMachine.step env t =
-        PrivMachine.stepW env t (monitorCode.getD ((t.core.pc - 0x80000000#32).toNat / 4) 0) :=
-    fun t ht h1 h2 => step_mon hW ht h1 h2
-"""
-    shape = lambda pc_out, mem_out, regs: f"""    (PrivMachine.run env 1 s).core.pc = {pc_out} ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 {B} ∧
-    (PrivMachine.run env 1 s).halted = false ∧
-    (PrivMachine.run env 1 s).mode = .M ∧
-    (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy {FRAMED} (0#32) ∧
-    (PrivMachine.run env 1 s).host = s.host ∧
-    (PrivMachine.run env 1 s).io = s.io ∧
-    (PrivMachine.run env 1 s).core.mem = {mem_out} ∧
-    (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [{regs}] r)"""
-    head = lambda name, pc, extra="": f"""theorem {name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
-    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word){extra}
-    (hpc : s.core.pc = {pc}#32)
-    (hcs : s.csrs = csrsH ms e c m cy {FRAMED} (0#32))"""
-    tail = f"""  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hAg, agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, regsUpd]
-  all_goals try ({R32} <;> psimpH [pmpCheck_mon, regsUpd])
-"""
-    out = f"""
-/-! ### The zeroing loop at `{st}` ({tag}) -/
-
-{guard}/-- The store: `sw zero, 0(t0)` zeroes the four bytes at `t0`, which lie wholly in the payload's box. -/
-{head(f"zstore_{tag}", st, " (A : Word)")}
-    (hA : s.core.reg 5#5 = A)
-    (hal : A.toNat % 4 = 0) (hlo : 0x80010000 ≤ A.toNat) (hhi : A.toNat + 4 ≤ 0x80020000) :
-{shape(ad + "#32", "writeLE s.core.mem A 0 4", "")} := by
-{sm}  have hd1 : {0x80000000 + B} ≤ A.toNat := by omega
-  have hw32 : A.toNat + 4 ≤ 4294967296 := by omega
-  have hnr : ¬ (2147483648 ≤ A.toNat → 3221225724 < A.toNat) := by omega
-  have hnp : ¬ (3221225472 ≤ A.toNat) := by omega
-  obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
-  rw [hF]
-  psimpH [hnr, hnp, hal, hlo, hhi, hd1, hw32, pmpCheck_mon, pmpCheck_mon_in, sm, hmem, hAg, henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hA] at hF
-  subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [hnp, hAg, hd1, hw32, hmem, hpc, csrsH, csrsFixed, csrsConfigured, agree_writeLE_iff, hlo, hhi, regsUpd]
-  all_goals try ({R32} <;> psimpH [regsUpd])
-
-{guard}/-- The add: `addi t0, t0, 4`. -/
-{head(f"zadd_{tag}", ad)} :
-{shape(bn + "#32", "s.core.mem", "(5, s.core.reg 5#5 + 4#32)")} := by
-{sm}  obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
-  rw [hF]
-  psimpH [pmpCheck_mon, sm, hmem, hAg, henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
-  subst hF
-{tail}
-{guard}/-- The branch: `bne t0, t1, {st}` -- back to the store, or on. -/
-{head(f"zbne_{tag}", bn)} :
-{shape(f"(if s.core.reg 5#5 = s.core.reg 6#5 then {ex}#32 else {st}#32)", "s.core.mem", "")} := by
-{sm}  obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
-  rw [hF]
-  by_cases hq : s.core.reg 5#5 = s.core.reg 6#5
-  all_goals psimpH [pmpCheck_mon, sm, hmem, hAg, henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
-  all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hAg, agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, regsUpd, hq]
-  all_goals try ({R32} <;> psimpH [pmpCheck_mon, regsUpd, hq])
-
-{guard}/-- One trip round the loop: three steps; the four bytes at `t0` zeroed, `t0` four on, and back to the store
-    unless that was the last. -/
-theorem zloop_iter_{tag} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
-    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (A E : Word)
-    (hpc : s.core.pc = {st}#32)
-    (hcs : s.csrs = csrsH ms e c m cy {FRAMED} (0#32))
-    (hA : s.core.reg 5#5 = A) (hE : s.core.reg 6#5 = E)
-    (hal : A.toNat % 4 = 0) (hlo : 0x80010000 ≤ A.toNat) (hhi : A.toNat + 4 ≤ 0x80020000) :
-    (PrivMachine.run env 3 s).core.pc = (if A + 4#32 = E then {ex}#32 else {st}#32) ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 {B} ∧
-    (PrivMachine.run env 3 s).halted = false ∧
-    (PrivMachine.run env 3 s).mode = .M ∧
-    (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy {FRAMED} (0#32) ∧
-    (PrivMachine.run env 3 s).host = s.host ∧
-    (PrivMachine.run env 3 s).io = s.io ∧
-    (PrivMachine.run env 3 s).core.mem = writeLE s.core.mem A 0 4 ∧
-    (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(5, A + 4#32)] r) := by
-  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 1 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, o1, i1, x1, r1⟩ := zstore_{tag} env M0 s hS ms e c m cy A hpc hcs hA hal hlo hhi
-  rw [hs1] at p1 a1 h1 m1 c1 o1 i1 x1 r1
-  have hS1 := hS.next a1 h1 m1
-  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, o2, i2, x2, r2⟩ := zadd_{tag} env M0 s1 hS1 ms e c m cy p1 c1
-  rw [hs2] at p2 a2 h2 m2 c2 o2 i2 x2 r2
-  have hS2 := hS1.next a2 h2 m2
-  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 1 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, o3, i3, x3, r3⟩ := zbne_{tag} env M0 s2 hS2 ms e c m cy p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 o3 i3 x3 r3
-  have hall : PrivMachine.run env 3 s = s3 := run_two hs1 (run_two hs2 hs3)
-  have q1 : ∀ r, s1.core.reg r = s.core.reg r := fun r => by rw [r1 r]; simp [regsUpd]
-  have t5 : s2.core.reg 5#5 = A + 4#32 := by rw [r2 5#5]; simp [regsUpd, q1, hA]
-  have t6 : s2.core.reg 6#5 = E := by rw [r2 6#5]; simp [regsUpd, q1, hE]
-  rw [hall]
-  refine ⟨?_, a3, h3, m3, c3, by rw [o3, o2, o1], by rw [i3, i2, i1], ?_, ?_⟩
-  · rw [p3, t5, t6]
-  · rw [x3, x2, x1]
-  · intro r
-    have h3r := r3 r
-    have h2r := r2 r
-    simp only [regsUpd, List.find?_nil] at h3r h2r ⊢
-    rw [h3r, h2r]
-    simp [q1, hA]
-
-{guard}/-- **The loop.** From the store, with `t0 = A` and `t1 = E` four-aligned, `A + 4 * (k + 1) = E`, and `[A, E)` in
-    the payload's box: after `3 * (k + 1)` steps the machine stands at the instruction after the branch, `[A, E)` is
-    zero, no other byte of memory has changed, and `t0 = E`. -/
-theorem zloop_{tag} (env : Rv32.Env) (M0 : Word → Byte) :
-    ∀ (k : Nat) (s : PrivMachine), HState env M0 s → ∀ (ms : MStatus) (e c m cy : Word) (A E : Word),
-      s.core.pc = {st}#32 → s.csrs = csrsH ms e c m cy {FRAMED} (0#32) →
-      s.core.reg 5#5 = A → s.core.reg 6#5 = E →
-      A.toNat % 4 = 0 → 0x80010000 ≤ A.toNat → A.toNat + 4 * (k + 1) = E.toNat → E.toNat ≤ 0x80020000 →
-      (PrivMachine.run env (3 * (k + 1)) s).core.pc = {ex}#32 ∧
-      Agree M0 (PrivMachine.run env (3 * (k + 1)) s).core.mem 0x80000000 {B} ∧
-      (PrivMachine.run env (3 * (k + 1)) s).halted = false ∧
-      (PrivMachine.run env (3 * (k + 1)) s).mode = .M ∧
-      (PrivMachine.run env (3 * (k + 1)) s).csrs = csrsH ms e c m cy {FRAMED} (0#32) ∧
-      (PrivMachine.run env (3 * (k + 1)) s).host = s.host ∧
-      (PrivMachine.run env (3 * (k + 1)) s).io = s.io ∧
-      Zeroed A.toNat E.toNat s.core.mem (PrivMachine.run env (3 * (k + 1)) s).core.mem ∧
-      (∀ r, (PrivMachine.run env (3 * (k + 1)) s).core.reg r = regsUpd s.core.reg [(5, E)] r) := by
-  intro k
-  induction k with
-  | zero =>
-    intro s hS ms e c m cy A E hpc hcs hA hE hal hlo hk hEhi
-    have hAE : A + 4#32 = E := by
-      apply BitVec.eq_of_toNat_eq
-      have := A.isLt
-      simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
-      omega
-    obtain ⟨p, a, h, m', c', o, i, x, rr⟩ := zloop_iter_{tag} env M0 s hS ms e c m cy A E hpc hcs hA hE hal hlo (by omega)
-    refine ⟨?_, a, h, m', c', o, i, ?_, ?_⟩
-    · rw [p]; simp [hAE]
-    · rw [x]
-      have := zeroed_write A s.core.mem (by omega)
-      rw [show E.toNat = A.toNat + 4 by omega]
-      exact this
-    · intro r
-      rw [rr r, hAE]
-  | succ k ih =>
-    intro s hS ms e c m cy A E hpc hcs hA hE hal hlo hk hEhi
-    have hne : ¬ (A + 4#32 = E) := by
-      intro h
-      have := congrArg BitVec.toNat h
-      have := A.isLt
-      simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at *
-      omega
-    have hA4 : (A + 4#32).toNat = A.toNat + 4 := by
-      have := A.isLt
-      simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
-      omega
-    obtain ⟨p, a, h, m', c', o, i, x, r⟩ := zloop_iter_{tag} env M0 s hS ms e c m cy A E hpc hcs hA hE hal hlo (by omega)
-    obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 3 s = t := ⟨_, rfl⟩
-    rw [hs1] at p a h m' c' o i x r
-    simp only [hne, ↓reduceIte] at p
-    have hS1 := hS.next a h m'
-    have hA1 : s1.core.reg 5#5 = A + 4#32 := by rw [r 5#5]; simp [regsUpd]
-    have hE1 : s1.core.reg 6#5 = E := by rw [r 6#5]; simp [regsUpd, hE]
-    obtain ⟨p2, a2, h2, m2, c2, o2, i2, z2, r2⟩ := ih s1 hS1 ms e c m cy (A + 4#32) E p c' hA1 hE1
-      (by rw [hA4]; omega) (by rw [hA4]; omega) (by rw [hA4]; omega) hEhi
-    rw [show 3 * (k + 1 + 1) = 3 + 3 * (k + 1) by omega, PrivMachine.run_add, hs1]
-    refine ⟨p2, a2, h2, m2, c2, o2.trans o, i2.trans i, ?_, ?_⟩
-    · rw [x] at z2
-      rw [hA4] at z2
-      have := zeroed_write A s.core.mem (by omega)
-      exact zeroed_trans this z2 (by omega) (by omega)
-    · intro r'
-      rw [r2 r']
-      by_cases h5 : r'.toNat = 5
-      · simp [regsUpd, h5]
-      · have h5' : 5 ≠ r'.toNat := fun h => h5 h.symm
-        have h1r := r r'
-        simp [regsUpd, h5, h5'] at h1r ⊢
-        exact h1r
-"""
-    return out
-
-
 # ---- the second half of the scrub: memory, then registers, from the first word after mscratch is zero
 
 REG_LEMMAS = f"""
@@ -628,7 +436,7 @@ theorem monitor_scrubs (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
 
 def build(chunks_text: str) -> str:
     f = chunks.from_236("Exp239")
-    loops = loop_lean("conf", CONF, CONF_EXIT) + loop_lean("dig", DIG, DIG_EXIT)
+    loops = chunks.zloop("conf", h(CONF), h(CONF_EXIT), FRAMED) + chunks.zloop("dig", h(DIG), h(DIG_EXIT), FRAMED)
     parts = [HEAD, monitor_code(), LENGTH, f["step"], f["defs"], chunks.FRAME, chunks.WRITELE4, f["boot"], f["helpers"], f["ofnat"],
              read("defs.lean"), chunks_text, loops, REG_LEMMAS, scrub_glue(), trap_glue(), read("tail.lean")]
     return "\n".join(parts)

@@ -548,10 +548,6 @@ def InConf (x : Word) : Prop := 0x80012200 ≤ x.toNat ∧ x.toNat < 0x80014000
 /-- The 32-byte digest window, at `+0x2140`. -/
 def InDigest (x : Word) : Prop := 0x80012140 ≤ x.toNat ∧ x.toNat < 0x80012160
 
-/-- `m'` is `m` with the bytes `[lo, hi)` zeroed and every other byte as it was. -/
-def Zeroed (lo hi : Nat) (m m' : Word → Byte) : Prop :=
-  ∀ x : Word, (lo ≤ x.toNat ∧ x.toNat < hi → m' x = 0) ∧ (¬ (lo ≤ x.toNat ∧ x.toNat < hi) → m' x = m x)
-
 /-- **What the monitor leaves of memory.** The payload left `m0` and exited with `a0`; the monitor parks with
     `m`: the confidential scratch zero; the digest window zero too, unless `a0` is 0, when its 32 bytes are
     the payload's; every other byte but the monitor's own stack words and report words as it was. -/
@@ -559,46 +555,6 @@ def Scrubbed (a0 : Word) (m0 m : Word → Byte) : Prop :=
   (∀ x, InConf x → m x = 0) ∧
   (∀ x, InDigest x → m x = if a0 = 0#32 then m0 x else 0) ∧
   (∀ x, ¬ InConf x → ¬ InDigest x → ¬ InStack x → ¬ InPorts x → m x = m0 x)
-
-theorem zeroed_write (A : Word) (m : Word → Byte) (hw : A.toNat + 4 ≤ 4294967296) :
-    Zeroed A.toNat (A.toNat + 4) m (writeLE m A 0 4) := by
-  intro x
-  rw [writeLE4_apply]
-  simp only [BitVec.toNat_sub, Nat.reducePow, Nat.zero_div]
-  have hx := x.isLt
-  have ha := A.isLt
-  constructor
-  · intro h
-    have : (4294967296 - A.toNat + x.toNat) % 4294967296 < 4 := by omega
-    simp [this]
-  · intro h
-    have : ¬ (4294967296 - A.toNat + x.toNat) % 4294967296 < 4 := by omega
-    simp [this]
-
-theorem zeroed_trans {lo mid hi : Nat} {m0 m1 m2 : Word → Byte} (h1 : Zeroed lo mid m0 m1)
-    (h2 : Zeroed mid hi m1 m2) (hlm : lo ≤ mid) (hmh : mid ≤ hi) : Zeroed lo hi m0 m2 := by
-  intro x
-  obtain ⟨a1, b1⟩ := h1 x
-  obtain ⟨a2, b2⟩ := h2 x
-  constructor
-  · intro h
-    by_cases hx : x.toNat < mid
-    · rw [b2 (by omega)]; exact a1 ⟨h.1, hx⟩
-    · exact a2 ⟨by omega, h.2⟩
-  · intro h
-    rw [b2 (by omega)]
-    exact b1 (by omega)
-
-/-- A four-byte read away from the zeroed bytes is what it was. -/
-theorem readLE_zeroed {lo hi : Nat} {m m' : Word → Byte} (h : Zeroed lo hi m m') (a : Word)
-    (ha : a.toNat + 4 ≤ lo ∨ hi ≤ a.toNat) (hw : a.toNat + 4 ≤ 4294967296) :
-    readLE m' a 4 = readLE m a 4 := by
-  apply readLE_four_congr
-  intro d hd
-  apply (h _).2
-  simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
-  have := a.isLt
-  omega
 
 /-- The payload's box and the rest of memory outside the monitor's stack words and report words: the
     monitor's earlier steps wrote nothing there. -/
