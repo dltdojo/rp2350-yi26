@@ -265,6 +265,13 @@ zregs = lambda a, b: ", ".join(f"({i}, {Z})" for i in range(a, b + 1))
 CSRZ = f"csrsH ms e c m cy {FROZEN} (0#32)"
 CSR0 = "csrsH ms e c m cy {} (0x80008000#32)"
 
+# what each chunk writes to the ports, as `IoEvent`s (Rv32.Priv)
+PRINT, EXIT = "0xc0000004#32", "0xc0000008#32"
+ev = lambda a, v: f"⟨{a}, {v}⟩"
+evs = lambda *xs: "[" + ", ".join(xs) + "]"
+FAULT_REPORT = [ev(PRINT, "0x4641554c#32"), ev(PRINT, "c"), ev(PRINT, "e"), ev(PRINT, "0#32"), ev(PRINT, "m")]
+HALT_REPORT = [ev(PRINT, "0x48414c54#32"), ev(PRINT, "s.core.reg 10#5"), ev(PRINT, "m"), ev(PRINT, "cy")]
+
 # trap entry
 CHUNKS += [
     Chunk("entry_1", "Trap entry, first three words: freeze the counters, swap in the M-mode stack, save `t0`.",
@@ -277,11 +284,12 @@ CHUNKS += [
 
 # the fault report
 CHUNKS += [
-    Chunk("fault_1", "Report FAULT: address and tag.", 5, h(FAULT), h(0x144), regs="(6, 0xc0000004#32), (5, 0x4641554c#32)", store=True),
-    Chunk("fault_2", "Report `mcause`.", 2, h(0x144), h(0x14c), hyps=HT1P, regs="(5, c)", extra=", ht1", store=True),
-    Chunk("fault_3", "Report `mepc`.", 2, h(0x14c), h(0x154), hyps=HT1P, regs="(5, e)", extra=", ht1", store=True),
-    Chunk("fault_4", "Report `mtval`.", 2, h(0x154), h(0x15c), hyps=HT1P, regs="(5, 0#32)", extra=", ht1", store=True),
-    Chunk("fault_5", "Report `minstret`.", 2, h(0x15c), h(0x164), hyps=HT1P, regs="(5, m)", extra=", ht1", store=True),
+    Chunk("fault_1", "Report FAULT: address and tag.", 5, h(FAULT), h(0x144), regs="(6, 0xc0000004#32), (5, 0x4641554c#32)", store=True,
+          io=evs(FAULT_REPORT[0])),
+    Chunk("fault_2", "Report `mcause`.", 2, h(0x144), h(0x14c), hyps=HT1P, regs="(5, c)", extra=", ht1", store=True, io=evs(FAULT_REPORT[1])),
+    Chunk("fault_3", "Report `mepc`.", 2, h(0x14c), h(0x154), hyps=HT1P, regs="(5, e)", extra=", ht1", store=True, io=evs(FAULT_REPORT[2])),
+    Chunk("fault_4", "Report `mtval`.", 2, h(0x154), h(0x15c), hyps=HT1P, regs="(5, 0#32)", extra=", ht1", store=True, io=evs(FAULT_REPORT[3])),
+    Chunk("fault_5", "Report `minstret`.", 2, h(0x15c), h(0x164), hyps=HT1P, regs="(5, m)", extra=", ht1", store=True, io=evs(FAULT_REPORT[4])),
     Chunk("fault_6", "Exit code 1, and on to the scrub.", 2, h(0x164), h(SCRUB), regs="(10, 1#32)"),
 ]
 
@@ -296,10 +304,11 @@ CHUNKS += [
 
 # the HALT report
 CHUNKS += [
-    Chunk("halt_1", "Report HALT: address and tag.", 5, h(HALTR), h(0x18c), regs="(6, 0xc0000004#32), (5, 0x48414c54#32)", store=True),
-    Chunk("halt_2", "Report the exit code.", 1, h(0x18c), h(0x190), hyps=HT1P, extra=", ht1", store=True),
-    Chunk("halt_3", "Report `minstret`.", 2, h(0x190), h(0x198), hyps=HT1P, extra=", ht1", regs="(5, m)", store=True),
-    Chunk("halt_4", "Report `mcycle`.", 2, h(0x198), h(SCRUB), hyps=HT1P, extra=", ht1", regs="(5, cy)", store=True),
+    Chunk("halt_1", "Report HALT: address and tag.", 5, h(HALTR), h(0x18c), regs="(6, 0xc0000004#32), (5, 0x48414c54#32)", store=True,
+          io=evs(HALT_REPORT[0])),
+    Chunk("halt_2", "Report the exit code.", 1, h(0x18c), h(0x190), hyps=HT1P, extra=", ht1", store=True, io=evs(HALT_REPORT[1])),
+    Chunk("halt_3", "Report `minstret`.", 2, h(0x190), h(0x198), hyps=HT1P, extra=", ht1", regs="(5, m)", store=True, io=evs(HALT_REPORT[2])),
+    Chunk("halt_4", "Report `mcycle`.", 2, h(0x198), h(SCRUB), hyps=HT1P, extra=", ht1", regs="(5, cy)", store=True, io=evs(HALT_REPORT[3])),
 ]
 
 # the scrub: the saved words and mscratch, then the registers
@@ -311,7 +320,8 @@ CHUNKS += [
     Chunk("regs_a", "Zero `x1..x9`.", 9, h(REGS), h(0x1d0), regs=zregs(1, 9), **P2),
     Chunk("regs_b", "Zero `x11..x22`.", 12, h(0x1d0), h(0x200), regs=zregs(11, 22), **P2),
     Chunk("regs_c", "Zero `x23..x31`.", 9, h(0x200), h(0x224), regs=zregs(23, 31), **P2),
-    Chunk("regs_port", "Exit code to the exit word.", 3, h(0x224), h(0x230), regs="(6, 0xc0000008#32)", store=True, **P2),
+    Chunk("regs_port", "Exit code to the exit word.", 3, h(0x224), h(0x230), regs="(6, 0xc0000008#32)", store=True,
+          io=evs(ev(EXIT, "s.core.reg 10#5")), **P2),
     Chunk("regs_last", "Last register, and the park loop.", 1, h(0x230), h(PARK), regs="(6, 0#32)", **P2),
 ]
 
@@ -341,21 +351,21 @@ phase(Chunk("monitor_enter", "Trap entry: the counters frozen, the M-mode stack 
             csr_out=f"csrsH ms e c m cy {FROZEN} (s.core.reg 2#5)", words=SAVED, regs="(2, 0x80008000#32), (5, c), (6, 8#32)",
             steps=[S("entry_1"), S("entry_2a"), S("entry_mcause", last=True)]))
 phase(Chunk("monitor_fault_exit", "The fault report, then the saved words and `mscratch` zeroed: `a0 = 1`.",
-            0, h(FAULT), h(REGS), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, m), (10, 1#32)",
+            0, h(FAULT), h(REGS), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, m), (10, 1#32)", io=evs(*FAULT_REPORT),
             steps=[S("fault_1", p="p"), S("fault_2", p="p"), S("fault_3", p="p"), S("fault_4", p="p"), S("fault_5", p="p"),
                    S("fault_6", p="p"), S("scrub_1a", p="p"), S("scrub_1b", p="p"), S("scrub_ms", p="p", last=True)]))
 phase(Chunk("monitor_halt_exit", "The HALT report, then the saved words and `mscratch` zeroed: `a0` is the payload's.",
-            0, h(HALTR), h(REGS), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, cy)",
+            0, h(HALTR), h(REGS), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, cy)", io=evs(*HALT_REPORT),
             steps=[S("halt_1", p="p"), S("halt_2", p="p"), S("halt_3", p="p"), S("halt_4", p="p"), S("scrub_1a", p="p"),
                    S("scrub_1b", p="p"), S("scrub_ms", p="p", last=True)]))
 phase(Chunk("monitor_regs", "The last of the scrub: every register but `a0` zero, the exit code written, the machine at the park loop.",
-            0, h(REGS), h(PARK), csr_in=CSRZ, pbind="", csr_out=CSRZ, regs=ZALL,
+            0, h(REGS), h(PARK), csr_in=CSRZ, pbind="", csr_out=CSRZ, regs=ZALL, io=evs(ev(EXIT, "s.core.reg 10#5")),
             steps=[S("regs_a"), S("regs_b"), S("regs_c"), S("regs_port"), S("regs_last", last=True)]))
 
 
-def scenario(name, doc, hyps, steps_, *, regs):
+def scenario(name, doc, hyps, steps_, *, regs, io):
     c = Chunk(name, doc, 0, h(0x114), h(PARK), pbind="", hyps=hyps, csr_in=CSR0, csr_out=CSRZ,
-              words=ZW2, regs=regs, steps=steps_)
+              words=ZW2, regs=regs, steps=steps_, io=io)
     return phase(c)
 
 
@@ -365,19 +375,19 @@ scenario("monitor_halt",
          [S("monitor_enter", resolve="hc"),
           S("call_is_halt", args=[KARG], hyps={"hk": "w1_0"}, resolve="ofNat_toNat_mod, ht0"),
           S("monitor_halt_exit"), S("monitor_regs", last=True)],
-         regs=ZALL)
+         regs=ZALL, io=evs(*HALT_REPORT, ev(EXIT, "s.core.reg 10#5")))
 scenario("monitor_fault_cause",
          "A trap that is not an `ecall`: the fault reported, `a0 = 1`, every other register zero, the park loop.",
          HCN,
          [S("monitor_enter", resolve="hc"), S("monitor_fault_exit"), S("monitor_regs", last=True)],
-         regs=ZALL + ", (10, 1#32)")
+         regs=ZALL + ", (10, 1#32)", io=evs(*FAULT_REPORT, ev(EXIT, "1#32")))
 scenario("monitor_fault_syscall",
          "An `ecall` whose `t0` is not 1: the fault reported, `a0 = 1`, every other register zero, the park loop.",
          HC + IS_HALT(False),
          [S("monitor_enter", resolve="hc"),
           S("call_is_halt", args=[KARG], hyps={"hk": "w1_0"}, resolve="ofNat_toNat_mod, ht0"),
           S("monitor_fault_exit"), S("monitor_regs", last=True)],
-         regs=ZALL + ", (10, 1#32)")
+         regs=ZALL + ", (10, 1#32)", io=evs(*FAULT_REPORT, ev(EXIT, "1#32")))
 
 
 REG_LEMMAS = f"""
@@ -408,18 +418,20 @@ def trap_glue() -> str:
     """`monitor_traps`: from the trap vector, the three ways in."""
     def case(name, args, a0, steps):
         fix = "regs_scrubbed" if name == "monitor_halt" else "regs_scrubbed_fault"
-        return f"""      obtain ⟨p, a, h, m', cc, w0, w1, w2, w3, sv, fr, r⟩ := {name} env M0 u hS ms e c m cy hpc hcs{args}
+        return f"""      obtain ⟨p, a, h, m', cc, ho, io, w0, w1, w2, w3, sv, fr, r⟩ := {name} env M0 u hS ms e c m cy hpc hcs{args}
       obtain ⟨k1, k2⟩ := {fix} r
       have hn : trapSteps u = {steps} := by simp [trapSteps, hcu, hc{", ht0" if "ht0" in args else ""}]
       rw [hn]
-      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv, by rw [cc]; rfl⟩
-      rw [k1]
+      refine ⟨⟨p, h, m', by rw [cc]; rfl, w0, w1, ?_, k2⟩, a, frameSP_of fr sv, by rw [cc]; rfl, ho, ?_⟩
+      · rw [k1]
 {a0}
+      · rw [io]
+        simp [trapIo, faultIo, haltIo, exitCode, hcs, csrsH, hcu, hc{", ht0" if "ht0" in args else ""}]
 """
 
-    halt = case("monitor_halt", " hc ht0", "      simp [exitCode, hcu, hc, ht0]", CH["monitor_halt"].n)
-    cause = case("monitor_fault_cause", " hc", "      simp [exitCode, hcu, hc]", CH["monitor_fault_cause"].n)
-    sysc = case("monitor_fault_syscall", " hc ht0", "      simp [exitCode, hcu, hc, ht0]", CH["monitor_fault_syscall"].n)
+    halt = case("monitor_halt", " hc ht0", "        simp [exitCode, hcu, hc, ht0]", CH["monitor_halt"].n)
+    cause = case("monitor_fault_cause", " hc", "        simp [exitCode, hcu, hc]", CH["monitor_fault_cause"].n)
+    sysc = case("monitor_fault_syscall", " hc ht0", "        simp [exitCode, hcu, hc, ht0]", CH["monitor_fault_syscall"].n)
     return f"""
 /-! ## However the payload leaves, the monitor parks -/
 
@@ -427,14 +439,17 @@ def trap_glue() -> str:
     and memory, and whatever it was that trapped -- an `ecall` for HALT, an `ecall` for anything else, or a fault --
     the monitor parks with the exit code `exitCode u` (the payload's own `a0` for a HALT, 1 for the rest), every other
     register zero, `mscratch` and the saved words zero, its own words in place, and **every byte of memory but its stack
-    words and its report words as the payload left it**: the code, the data, the stack, the rest; and the PMP as boot set it. -/
+    words and its report words as the payload left it**: the code, the data, the stack, the rest; the PMP as boot set it;
+    and the host has heard `trapIo u`, the report for the way it trapped and then the exit code. -/
 theorem monitor_traps (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
     (hS : HState env M0 u) (ms : MStatus) (e c m cy : Word)
     (hpc : u.core.pc = {h(0x114)}#32) (hcs : u.csrs = csrsH ms e c m cy {{}} 0x80008000#32) :
     Parked (PrivMachine.run env (trapSteps u) u) (exitCode u) ∧
       Agree M0 (PrivMachine.run env (trapSteps u) u).core.mem 0x80000000 {BYTES} ∧
       FrameSP u.core.mem (PrivMachine.run env (trapSteps u) u).core.mem ∧
-      (PrivMachine.run env (trapSteps u) u).csrs.pmpcfg0 = {CFG} := by
+      (PrivMachine.run env (trapSteps u) u).csrs.pmpcfg0 = {CFG} ∧
+      (PrivMachine.run env (trapSteps u) u).host = u.host ∧
+      (PrivMachine.run env (trapSteps u) u).io = u.io ++ trapIo u := by
   have hcu : u.csrs.mcause = c := by rw [hcs]; rfl
   by_cases hc : c = 8#32
   · by_cases ht0 : u.core.reg 5#5 = 1#32

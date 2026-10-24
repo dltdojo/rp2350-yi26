@@ -62,12 +62,12 @@ All on Lean's own axioms. They are about `PrivMachine` fetching and executing `m
 | `monitor_boot` | exp236's, for these words: 53 steps from reset give `UBoxed 0x80010000 0x80020000` at `0x80010000`, every register zero but `sp` |
 | `zloop_conf`, `zloop_dig` | **the loop lemma.** From the store, with `t0 = A` and `t1 = E` four-aligned, `A + 4(k + 1) = E` and `[A, E)` in the box: after `3(k + 1)` steps the machine is at the instruction after the branch, every byte of `[A, E)` is 0, no other byte of memory has changed, and `t0 = E`. Induction on `k`; each trip is three one-instruction theorems (`zstore`, `zadd`, `zbne`) and `zloop_iter`. The two loops are one template at two addresses |
 | `monitor_scrub` | from the word after `mscratch` is zero, whatever `a0` is: the machine parks (`pc` at the `wfi`) with `a0` as it was and every other register zero, the monitor's words in place, and `Scrubbed a0`: the scratch zero; the digest window zero if `a0 ≠ 0` and **the payload's own 32 bytes** if `a0 = 0`; every other byte, bar the monitor's stack and report words, as it was. 5,798 steps for `a0 = 0` (`monitor_scrub_pass`), 5,825 otherwise (`monitor_scrub_fail`) |
-| `monitor_halt_pre`, `monitor_fault_cause_pre`, `monitor_fault_syscall_pre` | the three ways in, from the trap vector to the word before the scrub of memory: 23, 25 and 28 steps, the report made, the saved words and `mscratch` zero, the box untouched |
-| `monitor_scrubs` | **whatever trapped** — an `ecall` for HALT, an `ecall` for anything else, a fault — the machine parks with `exitCode u` (the payload's `a0` for a HALT, 1 for the rest), every other register zero, and `Scrubbed (exitCode u)` of the memory the payload left |
+| `monitor_halt_pre`, `monitor_fault_cause_pre`, `monitor_fault_syscall_pre` | the three ways in, from the trap vector to the word before the scrub of memory: 23, 25 and 28 steps, the report made — the words the host heard, in order —, the saved words and `mscratch` zero, the box untouched |
+| `monitor_scrubs` | **whatever trapped** — an `ecall` for HALT, an `ecall` for anything else, a fault — the machine parks with `exitCode u` (the payload's `a0` for a HALT, 1 for the rest), every other register zero, and `Scrubbed (exitCode u)` of the memory the payload left; the host has heard `trapIo u`, the report for the way it trapped and then the exit code |
 | `monitor_fail_closed_scrub` | **a failed run leaves no digest.** Unless the trap is an `ecall` with `t0 = 1` and `a0 = 0`: the scratch and the digest window are both zero, and every other byte, bar the monitor's stack and report words, is the payload's |
 | `monitor_pass_digest_kept` | **only a clean HALT keeps its digest.** An `ecall` with `t0 = 1` and `a0 = 0`: the scratch is zero, the 32 bytes of the digest window are exactly the payload's, everything else is the payload's but for the monitor's stack and report words |
 | `exitCode_zero_iff` | the exit code is 0 only for a HALT with `a0 = 0` |
-| `monitor_end_to_end` | from reset, boot (53 steps), then up to `n` payload steps: it is still running, boxed, in U-mode with the monitor's words in place — or it trapped, and the machine parks with `Scrubbed` of the memory at the trap |
+| `monitor_end_to_end` | from reset, boot (53 steps), then up to `n` payload steps: it is still running, boxed, in U-mode with the monitor's words in place — or it trapped, and the machine parks with `Scrubbed` of the memory at the trap, the host having heard `trapIo u` |
 
 Each short run is one theorem — a chunk, a few instructions — with one statement and one proof, written by
 `tools/monitor/chunks.py` from the table in `proof/gen.py`, which exp238's generator also uses now (its
@@ -92,6 +92,10 @@ the generator writes.
 - **The model is not the chip.** As exp236: `Priv.lean` is a reading of the Hazard3 documentation; nothing here
   ran on the RTL or on an RP2350. There is no chip build of this monitor: exp237's `monitor_chip.S` is derived
   from exp236's and unproved, and a port is a later experiment.
+- **The reports are proved as words, not as what they mean.** In `Priv.lean` an M-mode word store to a port
+  (`0xc0000000..0xc000001f`) is recorded, in order, in `io`, and the theorems say which words the host heard:
+  `trapIo u`, the report and then the exit code. The `mtval` a fault reports is 0, because the model's traps
+  do not write `mtval`; the emulator's do ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems assume it is
   `monRegion = [0x80000000, 0xC0000100)`, which holds the box. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.
@@ -108,11 +112,12 @@ the generator writes.
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches,
    156 ≤ 200 words, and `monitorCode` in the proof is the binary's words in order.
 2. `Scrub.lean` checks, with no errors and no warnings, on Lean's own axioms.
-3. **Thirty mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or lemma it breaks.
-   Twenty-five change one word of `monitorCode`: the scratch loop's end, start, stride, stored value and
-   branch; the digest test removed, inverted, or turned into an unconditional skip; the digest window's length,
-   start, store and stride; a fault that jumps past the scrub of memory; a fault that exits with 2; a saved word
-   or `mscratch` left behind; a register the scrub forgets, and `a0` zeroed where `x9` should be; and boot and
+3. **Thirty-seven mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or lemma it breaks.
+   Thirty-two change `monitorCode` -- one word, or the scratch loop's three turned into `nop`s: the scratch
+   loop's end, start (late or early), stride, stored value and branch, or the whole loop gone; the digest test removed, inverted, or turned into an unconditional skip; the digest window's length
+   (short or long), start, store and stride, and a digest loop that keeps the scratch loop's end; a fault that jumps past the scrub of memory; a fault that exits with 2; a saved word
+   or `mscratch` left behind; a register the scrub forgets, and `a0` zeroed where `x9` should be; the HALT or
+   FAULT tag, or the exit code sent to the print word, which no theorem refused until 2026-10-23; and boot and
    handler words, as exp236's. Five change a claim: the digest "survives every exit", the scratch or the window
    one word longer, every trap that is not a HALT "exits with 0", the park loop one word on.
 4. `proof/Scrub.lean` is what `proof/gen.py` writes.
@@ -141,7 +146,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp239 — the scratch the monitor scrubs ===
-recorded at 2026-10-17T08:30:27Z from commit 127a13e
+recorded at 2026-10-23T09:52:13Z from commit 244878d
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (624 bytes, 156 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Scrub.lean's monitorCode
@@ -159,36 +164,43 @@ PASS  monitor.bin (624 bytes, 156 words) is monitor.S assembled, matches monitor
 exit 0
 
 >>> wrong monitors and wrong claims: each must be refused
-scratch_ends_early           the scratch loop's end is +0x3000, not +0x4000                     refused in mem_setup
-scratch_starts_late          the scratch loop starts at +0x2204                                 refused in mem_setup
-scratch_steps_by_eight       the scratch loop steps eight bytes                                 refused in zadd_conf
-scratch_stores_the_pointer   the scratch loop stores its pointer, not zero                      refused in zstore_conf
-scratch_loop_never_ends      the scratch loop branches on equal, not on not equal               refused in zbne_conf
-digest_kept_on_failure       the digest window is never zeroed                                  refused in conf_beq
-digest_always_zeroed         the digest window is zeroed on a HALT with 0 too                   refused in conf_beq
-digest_test_inverted         the digest window is zeroed only on a HALT with 0                  refused in conf_beq
-digest_window_28_bytes       the digest window is 28 bytes                                      refused in dig_setup
-digest_starts_late           the digest window starts at +0x2144                                refused in dig_setup
-digest_stores_nothing        the digest loop's store is a no-op                                 refused in zstore_dig
-digest_steps_by_eight        the digest loop steps eight bytes                                  refused in zadd_dig
-fault_skips_the_scrub        a fault jumps past the scrub of memory                             refused in fault_6
-fault_exit_code_two          a fault exits with 2                                               refused in fault_6
-saved_t0_stays               the scrub leaves the saved t0 on the M-mode stack                  refused in scrub_1a
-mscratch_stays               the scrub leaves mscratch holding the payload's sp                 refused in scrub_ms
-scrub_leaves_x17             the register scrub loads 1 into x17                                refused in regs_b
-scrub_zeroes_a0              the register scrub zeroes a0 where it should zero x9               refused in regs_a
-no_stack_swap                the handler keeps the payload's sp                                 refused in entry_1
-cause_check_dropped          the handler never looks at mcause                                  refused in entry_mcause
-syscall_check_dropped        the handler takes every ecall for HALT                             refused in call_is_halt
-pmp_window_small             boot writes a PMP address that fences off 32 bytes, not 64 KiB     refused in monitor_boot_config
-pmp_no_execute               boot makes the payload region read-write but not executable        refused in monitor_boot_config
-mret_to_m_mode               boot sets MPP to M-mode instead of clearing it                     refused in monitor_boot_config
-payload_sp_wrong             boot gives the payload an sp at the bottom of its region           refused in monitor_launch_1
-claim_digest_always_kept     the proof claims the digest window survives every exit             refused in scrubbed_pass
-claim_scratch_one_word_more  the proof claims the word at +0x4000 is zeroed too                 refused in scrubbed_pass
-claim_digest_window_longer   the proof claims the 36 bytes from +0x2140 are the digest window   refused in scrubbed_fail
-claim_other_exit_is_0        the proof claims every trap that is not a HALT exits with 0        refused in monitor_scrubs
-claim_park_one_word_on       the proof parks the machine one word past the park loop            refused in monitor_scrub_pass
+scratch_ends_early               the scratch loop's end is +0x3000, not +0x4000                                          refused in mem_setup
+scratch_starts_late              the scratch loop starts at +0x2204                                                      refused in mem_setup
+scratch_starts_early             the scratch loop starts at +0x21fc                                                      refused in mem_setup
+scratch_steps_by_eight           the scratch loop steps eight bytes                                                      refused in zadd_conf
+scratch_stores_the_pointer       the scratch loop stores its pointer, not zero                                           refused in zstore_conf
+scratch_loop_never_ends          the scratch loop branches on equal, not on not equal                                    refused in zbne_conf
+scratch_not_scrubbed             there is no scratch loop: its three words are nops                                      refused in zstore_conf
+digest_kept_on_failure           the digest window is never zeroed                                                       refused in conf_beq
+digest_always_zeroed             the digest window is zeroed on a HALT with 0 too                                        refused in conf_beq
+digest_test_inverted             the digest window is zeroed only on a HALT with 0                                       refused in conf_beq
+digest_window_28_bytes           the digest window is 28 bytes                                                           refused in dig_setup
+digest_window_one_word_long      the digest window is 36 bytes                                                           refused in dig_setup
+digest_starts_late               the digest window starts at +0x2144                                                     refused in dig_setup
+digest_stores_nothing            the digest loop's store is a no-op                                                      refused in zstore_dig
+digest_steps_by_eight            the digest loop steps eight bytes                                                       refused in zadd_dig
+digest_loop_runs_to_scratch_end  the digest loop keeps the scratch loop's end                                            refused in dig_setup
+fault_skips_the_scrub            a fault jumps past the scrub of memory                                                  refused in fault_6
+fault_exit_code_two              a fault exits with 2                                                                    refused in fault_6
+halt_tag_wrong                   the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT   refused in halt_1
+fault_tag_wrong                  the FAULT report's tag is "FAUM", not "FAUL"                                            refused in fault_1
+exit_code_to_print_word          the exit code goes to the print word, not the exit word                                 refused in regs_port
+saved_t0_stays                   the scrub leaves the saved t0 on the M-mode stack                                       refused in scrub_1a
+mscratch_stays                   the scrub leaves mscratch holding the payload's sp                                      refused in scrub_ms
+scrub_leaves_x17                 the register scrub loads 1 into x17                                                     refused in regs_b
+scrub_zeroes_a0                  the register scrub zeroes a0 where it should zero x9                                    refused in regs_a
+no_stack_swap                    the handler keeps the payload's sp                                                      refused in entry_1
+cause_check_dropped              the handler never looks at mcause                                                       refused in entry_mcause
+syscall_check_dropped            the handler takes every ecall for HALT                                                  refused in call_is_halt
+pmp_window_small                 boot writes a PMP address that fences off 32 bytes, not 64 KiB                          refused in monitor_boot_config
+pmp_no_execute                   boot makes the payload region read-write but not executable                             refused in monitor_boot_config
+mret_to_m_mode                   boot sets MPP to M-mode instead of clearing it                                          refused in monitor_boot_config
+payload_sp_wrong                 boot gives the payload an sp at the bottom of its region                                refused in monitor_launch_1
+claim_digest_always_kept         the proof claims the digest window survives every exit                                  refused in scrubbed_pass
+claim_scratch_one_word_more      the proof claims the word at +0x4000 is zeroed too                                      refused in scrubbed_pass
+claim_digest_window_longer       the proof claims the 36 bytes from +0x2140 are the digest window                        refused in scrubbed_fail
+claim_other_exit_is_0            the proof claims every trap that is not a HALT exits with 0                             refused in monitor_scrubs
+claim_park_one_word_on           the proof parks the machine one word past the park loop                                 refused in monitor_scrub_pass
 
 >>> exp223's kernel on fourteen sample streams, alone and under the monitor
 PASS  14 streams, exp223's kernel under the monitor and alone: 8 healthy (HALT 0 after 334284, digest kept, scratch zero), 6 withheld (HALT 1 after 17425, digest window and scratch zero); everything else as the kernel left it
@@ -259,18 +271,25 @@ PASS  Scrub.lean checks, with no errors and no warnings
 PASS  all 9 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  scratch_ends_early: the proof refuses a version where the scratch loop's end is +0x3000, not +0x4000
 PASS  scratch_starts_late: the proof refuses a version where the scratch loop starts at +0x2204
+PASS  scratch_starts_early: the proof refuses a version where the scratch loop starts at +0x21fc
 PASS  scratch_steps_by_eight: the proof refuses a version where the scratch loop steps eight bytes
 PASS  scratch_stores_the_pointer: the proof refuses a version where the scratch loop stores its pointer, not zero
 PASS  scratch_loop_never_ends: the proof refuses a version where the scratch loop branches on equal, not on not equal
+PASS  scratch_not_scrubbed: the proof refuses a version where there is no scratch loop: its three words are nops
 PASS  digest_kept_on_failure: the proof refuses a version where the digest window is never zeroed
 PASS  digest_always_zeroed: the proof refuses a version where the digest window is zeroed on a HALT with 0 too
 PASS  digest_test_inverted: the proof refuses a version where the digest window is zeroed only on a HALT with 0
 PASS  digest_window_28_bytes: the proof refuses a version where the digest window is 28 bytes
+PASS  digest_window_one_word_long: the proof refuses a version where the digest window is 36 bytes
 PASS  digest_starts_late: the proof refuses a version where the digest window starts at +0x2144
 PASS  digest_stores_nothing: the proof refuses a version where the digest loop's store is a no-op
 PASS  digest_steps_by_eight: the proof refuses a version where the digest loop steps eight bytes
+PASS  digest_loop_runs_to_scratch_end: the proof refuses a version where the digest loop keeps the scratch loop's end
 PASS  fault_skips_the_scrub: the proof refuses a version where a fault jumps past the scrub of memory
 PASS  fault_exit_code_two: the proof refuses a version where a fault exits with 2
+PASS  halt_tag_wrong: the proof refuses a version where the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT
+PASS  fault_tag_wrong: the proof refuses a version where the FAULT report's tag is "FAUM", not "FAUL"
+PASS  exit_code_to_print_word: the proof refuses a version where the exit code goes to the print word, not the exit word
 PASS  saved_t0_stays: the proof refuses a version where the scrub leaves the saved t0 on the M-mode stack
 PASS  mscratch_stays: the proof refuses a version where the scrub leaves mscratch holding the payload's sp
 PASS  scrub_leaves_x17: the proof refuses a version where the register scrub loads 1 into x17

@@ -115,10 +115,10 @@ def monitorCode : List Word := [
   0xb02022f3#32,
   0x00532023#32,
   0x00100513#32,
-  0x10c0006f#32,
+  0x1140006f#32,
   0x00012283#32,
   0x00100313#32,
-  0x0c628c63#32,
+  0x0e628063#32,
   0x00200313#32,
   0x00628863#32,
   0x00300313#32,
@@ -142,7 +142,7 @@ def monitorCode : List Word := [
   0x00ce2423#32,
   0x00200293#32,
   0x005e2623#32,
-  0x0500006f#32,
+  0x0580006f#32,
   0x80010337#32,
   0x800203b7#32,
   0xf46568e3#32,
@@ -162,6 +162,8 @@ def monitorCode : List Word := [
   0x00300293#32,
   0x005e2623#32,
   0x00ce2503#32,
+  0x00100313#32,
+  0xf0a364e3#32,
   0x341022f3#32,
   0x00428293#32,
   0x34129073#32,
@@ -228,14 +230,14 @@ def monitorCode : List Word := [
 
 
 set_option maxRecDepth 100000 in
-theorem monitorCode_length : monitorCode.length = 200 := by decide
+theorem monitorCode_length : monitorCode.length = 202 := by decide
 
 
 /-- Run from here, one step at a time, on the words of the monitor. `M0` is the memory the
     words were loaded into; `Agree M0 m` says `m` still has them. -/
 theorem step_mon {env : Rv32.Env} {M0 : Word → Byte} {t : PrivMachine}
     (hW : WordsAt M0 0x80000000#32 monitorCode)
-    (hA : Agree M0 t.core.mem 0x80000000 800)
+    (hA : Agree M0 t.core.mem 0x80000000 808)
     (hlt : (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length)
     (hal : (t.core.pc - 0x80000000#32).toNat % 4 = 0) :
     PrivMachine.step env t =
@@ -313,7 +315,7 @@ theorem pmpCheck_mon (csrs : PrivCSRs) (addr : Word) (width : Nat) (acc : Access
 /-- The common hypotheses of a handler step: loaded words, the region, not halted, M-mode. -/
 structure HState (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine) : Prop where
   words : WordsAt M0 0x80000000#32 monitorCode
-  agree : Agree M0 s.core.mem 0x80000000 800
+  agree : Agree M0 s.core.mem 0x80000000 808
   region : env.region = monRegion
   notHalted : s.halted = false
   mMode : s.mode = .M
@@ -598,7 +600,7 @@ theorem reg_set {cur prev : Reg → Word} {l : List (Nat × Word)} {k : Reg} {v 
 
 /-- The state after a chunk is a handler state again. -/
 theorem HState.next {env : Rv32.Env} {M0 : Word → Byte} {s t : PrivMachine} (hS : HState env M0 s)
-    (ha : Agree M0 t.core.mem 0x80000000 800) (hh : t.halted = false) (hm : t.mode = .M) :
+    (ha : Agree M0 t.core.mem 0x80000000 808) (hh : t.halted = false) (hm : t.mode = .M) :
     HState env M0 t := ⟨hS.words, ha, hS.region, hh, hm⟩
 
 
@@ -616,10 +618,12 @@ theorem entry_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
     (PrivMachine.run env 3 s).core.pc = 0x80000120#32 ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (s.core.reg 2#5) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -629,8 +633,8 @@ theorem entry_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(2, 0x80008000#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -640,7 +644,7 @@ theorem entry_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -663,10 +667,12 @@ theorem entry_2a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000120#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
     (PrivMachine.run env 1 s).core.pc = 0x80000124#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -676,8 +682,8 @@ theorem entry_2a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -687,7 +693,7 @@ theorem entry_2a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -710,10 +716,12 @@ theorem entry_2b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000124#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
     (PrivMachine.run env 1 s).core.pc = 0x80000128#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
@@ -723,8 +731,8 @@ theorem entry_2b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -734,7 +742,7 @@ theorem entry_2b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -757,10 +765,12 @@ theorem entry_2c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000128#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
     (PrivMachine.run env 1 s).core.pc = 0x8000012c#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -770,8 +780,8 @@ theorem entry_2c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -781,7 +791,7 @@ theorem entry_2c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -804,10 +814,12 @@ theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000012c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 3 s).core.pc = (if c = 8#32 then 0x80000174#32 else 0x80000138#32) ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -817,8 +829,8 @@ theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(5, c), (6, 8#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -829,7 +841,7 @@ theorem entry_mcause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : c = 8#32
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -852,10 +864,12 @@ theorem fault_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000138#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 5 s).core.pc = 0x8000014c#32 ∧
-    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 5 s).halted = false ∧
     (PrivMachine.run env 5 s).mode = .M ∧
     (PrivMachine.run env 5 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 5 s).host = s.host ∧
+    (PrivMachine.run env 5 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩] ∧
     readLE (PrivMachine.run env 5 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 5 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 5 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -865,8 +879,8 @@ theorem fault_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 5 s).core.reg r = regsUpd s.core.reg [(6, 0xc0000004#32), (5, 0x4641554c#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -876,7 +890,7 @@ theorem fault_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -899,10 +913,12 @@ theorem fault_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000014c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
     (PrivMachine.run env 2 s).core.pc = 0x80000154#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc0000004#32, c⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -912,8 +928,8 @@ theorem fault_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, c)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -923,7 +939,7 @@ theorem fault_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -946,10 +962,12 @@ theorem fault_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000154#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
     (PrivMachine.run env 2 s).core.pc = 0x8000015c#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc0000004#32, e⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -959,8 +977,8 @@ theorem fault_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, e)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -970,7 +988,7 @@ theorem fault_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -993,10 +1011,12 @@ theorem fault_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000015c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
     (PrivMachine.run env 2 s).core.pc = 0x80000164#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc0000004#32, 0#32⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1006,8 +1026,8 @@ theorem fault_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1017,7 +1037,7 @@ theorem fault_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1040,10 +1060,12 @@ theorem fault_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000164#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
     (PrivMachine.run env 2 s).core.pc = 0x8000016c#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc0000004#32, m⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1053,8 +1075,8 @@ theorem fault_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, m)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1064,7 +1086,7 @@ theorem fault_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1086,11 +1108,13 @@ set_option maxRecDepth 100000 in
 theorem fault_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000016c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 2 s).core.pc = 0x8000027c#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 2 s).core.pc = 0x80000284#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1100,8 +1124,8 @@ theorem fault_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(10, 1#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1111,7 +1135,7 @@ theorem fault_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1133,11 +1157,13 @@ set_option maxRecDepth 100000 in
 theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word) (k : Nat)
     (hpc : s.core.pc = 0x80000174#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) (hk : readLE s.core.mem 0x80008000#32 4 = k) :
-    (PrivMachine.run env 3 s).core.pc = (if BitVec.ofNat 32 k = 1#32 then 0x80000254#32 else 0x80000180#32) ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 3 s).core.pc = (if BitVec.ofNat 32 k = 1#32 then 0x8000025c#32 else 0x80000180#32) ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1147,8 +1173,8 @@ theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(5, BitVec.ofNat 32 k), (6, 1#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1160,7 +1186,7 @@ theorem call_is_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ofNat 32 k = 1#32
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp, hk, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp, hk, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1183,10 +1209,12 @@ theorem call_is_hashb (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000180#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 2 s).core.pc = (if s.core.reg 5#5 = 2#32 then 0x80000194#32 else 0x80000188#32) ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1196,8 +1224,8 @@ theorem call_is_hashb (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(6, 2#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1208,7 +1236,7 @@ theorem call_is_hashb (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : s.core.reg 5#5 = 2#32
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1231,10 +1259,12 @@ theorem call_is_checksig (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000188#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 2 s).core.pc = (if s.core.reg 5#5 = 3#32 then 0x800001e0#32 else 0x80000190#32) ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1244,8 +1274,8 @@ theorem call_is_checksig (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(6, 3#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1256,7 +1286,7 @@ theorem call_is_checksig (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : s.core.reg 5#5 = 3#32
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1279,10 +1309,12 @@ theorem call_unknown (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000190#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 1 s).core.pc = 0x80000138#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1292,8 +1324,8 @@ theorem call_unknown (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1303,7 +1335,7 @@ theorem call_unknown (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1326,10 +1358,12 @@ theorem hashb_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000194#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 2 s).core.pc = 0x8000019c#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1339,8 +1373,8 @@ theorem hashb_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(6, 0x80010000#32), (7, 0x80020000#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1350,7 +1384,7 @@ theorem hashb_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1373,10 +1407,12 @@ theorem hashb_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000019c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001a0#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1386,8 +1422,8 @@ theorem hashb_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1398,7 +1434,7 @@ theorem hashb_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1421,10 +1457,12 @@ theorem hashb_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001a0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true then 0x80000138#32 else 0x800001a4#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1434,8 +1472,8 @@ theorem hashb_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1446,7 +1484,7 @@ theorem hashb_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1469,10 +1507,12 @@ theorem hashb_s3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001a4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 1 s).core.pc = 0x800001a8#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1482,8 +1522,8 @@ theorem hashb_s3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [(28, 0x80020000#32 - s.core.reg 10#5)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1493,7 +1533,7 @@ theorem hashb_s3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1516,10 +1556,12 @@ theorem hashb_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001a8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 28#5) (s.core.reg 11#5) = true then 0x80000138#32 else 0x800001ac#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1529,8 +1571,8 @@ theorem hashb_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1541,7 +1583,7 @@ theorem hashb_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 28#5) (s.core.reg 11#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1564,10 +1606,12 @@ theorem hashb_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001ac#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001b0#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1577,8 +1621,8 @@ theorem hashb_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1589,7 +1633,7 @@ theorem hashb_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1612,10 +1656,12 @@ theorem hashb_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001b0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true then 0x80000138#32 else 0x800001b4#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1625,8 +1671,8 @@ theorem hashb_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1637,7 +1683,7 @@ theorem hashb_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1660,10 +1706,12 @@ theorem hashb_s6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001b4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 2 s).core.pc = 0x800001bc#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1673,8 +1721,8 @@ theorem hashb_s6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(28, 0x80020000#32 - s.core.reg 12#5), (5, 32#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1684,7 +1732,7 @@ theorem hashb_s6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1707,10 +1755,12 @@ theorem hashb_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001bc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 28#5) (s.core.reg 5#5) = true then 0x80000138#32 else 0x800001c0#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1720,8 +1770,8 @@ theorem hashb_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1732,7 +1782,7 @@ theorem hashb_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 28#5) (s.core.reg 5#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1755,10 +1805,12 @@ theorem hashb_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001c0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 3 s).core.pc = 0x800001cc#32 ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩] ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1771,8 +1823,8 @@ theorem hashb_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(28, 0xc0000010#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1782,7 +1834,7 @@ theorem hashb_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1805,10 +1857,12 @@ theorem hashb_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001cc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht3 : s.core.reg 28#5 = 0xc0000010#32) :
     (PrivMachine.run env 1 s).core.pc = 0x800001d0#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ++ [⟨0xc0000014#32, s.core.reg 11#5⟩] ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1821,8 +1875,8 @@ theorem hashb_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1832,7 +1886,7 @@ theorem hashb_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1855,10 +1909,12 @@ theorem hashb_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001d0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht3 : s.core.reg 28#5 = 0xc0000010#32) :
     (PrivMachine.run env 1 s).core.pc = 0x800001d4#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ++ [⟨0xc0000018#32, s.core.reg 12#5⟩] ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1871,8 +1927,8 @@ theorem hashb_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1882,7 +1938,7 @@ theorem hashb_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1905,10 +1961,12 @@ theorem hashb_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001d4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht3 : s.core.reg 28#5 = 0xc0000010#32) :
     (PrivMachine.run env 2 s).core.pc = 0x800001dc#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc000001c#32, 2#32⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1921,8 +1979,8 @@ theorem hashb_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, 2#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1932,7 +1990,7 @@ theorem hashb_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -1954,11 +2012,13 @@ set_option maxRecDepth 100000 in
 theorem hashb_fwd_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001dc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 1 s).core.pc = 0x8000022c#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 1 s).core.pc = 0x80000234#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -1968,8 +2028,8 @@ theorem hashb_fwd_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -1979,7 +2039,7 @@ theorem hashb_fwd_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2002,10 +2062,12 @@ theorem checksig_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001e0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 2 s).core.pc = 0x800001e8#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2015,8 +2077,8 @@ theorem checksig_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(6, 0x80010000#32), (7, 0x80020000#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2026,7 +2088,7 @@ theorem checksig_load (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2049,10 +2111,12 @@ theorem checksig_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001e8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true then 0x80000138#32 else 0x800001ec#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2062,8 +2126,8 @@ theorem checksig_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2074,7 +2138,7 @@ theorem checksig_b1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2097,10 +2161,12 @@ theorem checksig_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001ec#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true then 0x80000138#32 else 0x800001f0#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2110,8 +2176,8 @@ theorem checksig_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2122,7 +2188,7 @@ theorem checksig_b2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2145,10 +2211,12 @@ theorem checksig_s3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001f0#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 2 s).core.pc = 0x800001f8#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2158,8 +2226,8 @@ theorem checksig_s3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(28, 0x80020000#32 - s.core.reg 10#5), (5, 32#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2169,7 +2237,7 @@ theorem checksig_s3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2192,10 +2260,12 @@ theorem checksig_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001f8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 28#5) (s.core.reg 5#5) = true then 0x80000138#32 else 0x800001fc#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2205,8 +2275,8 @@ theorem checksig_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2217,7 +2287,7 @@ theorem checksig_b3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 28#5) (s.core.reg 5#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2240,10 +2310,12 @@ theorem checksig_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x800001fc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0x80010000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true then 0x80000138#32 else 0x80000200#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2253,8 +2325,8 @@ theorem checksig_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2265,7 +2337,7 @@ theorem checksig_b4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2288,10 +2360,12 @@ theorem checksig_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000200#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true then 0x80000138#32 else 0x80000204#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2301,8 +2375,8 @@ theorem checksig_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2313,7 +2387,7 @@ theorem checksig_b5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2336,10 +2410,12 @@ theorem checksig_s6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000204#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht2 : s.core.reg 7#5 = 0x80020000#32) :
     (PrivMachine.run env 2 s).core.pc = 0x8000020c#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2349,8 +2425,8 @@ theorem checksig_s6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(28, 0x80020000#32 - s.core.reg 11#5), (5, 64#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2360,7 +2436,7 @@ theorem checksig_s6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht2] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht2]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2383,10 +2459,12 @@ theorem checksig_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000020c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 1 s).core.pc = (if BitVec.ult (s.core.reg 28#5) (s.core.reg 5#5) = true then 0x80000138#32 else 0x80000210#32) ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2396,8 +2474,8 @@ theorem checksig_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2408,7 +2486,7 @@ theorem checksig_b6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   by_cases hq : BitVec.ult (s.core.reg 28#5) (s.core.reg 5#5) = true
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2431,10 +2509,12 @@ theorem checksig_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000210#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
     (PrivMachine.run env 3 s).core.pc = 0x8000021c#32 ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩] ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2447,8 +2527,8 @@ theorem checksig_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(28, 0xc0000010#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2458,7 +2538,7 @@ theorem checksig_fwd_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2481,10 +2561,12 @@ theorem checksig_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x8000021c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht3 : s.core.reg 28#5 = 0xc0000010#32) :
     (PrivMachine.run env 1 s).core.pc = 0x80000220#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ++ [⟨0xc0000014#32, s.core.reg 11#5⟩] ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2497,8 +2579,8 @@ theorem checksig_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2508,7 +2590,7 @@ theorem checksig_fwd_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2531,10 +2613,12 @@ theorem checksig_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000220#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht3 : s.core.reg 28#5 = 0xc0000010#32) :
     (PrivMachine.run env 2 s).core.pc = 0x80000228#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc000001c#32, 3#32⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2547,8 +2631,8 @@ theorem checksig_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, 3#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2558,7 +2642,7 @@ theorem checksig_fwd_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2581,21 +2665,23 @@ theorem checksig_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000228#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht3 : s.core.reg 28#5 = 0xc0000010#32) :
     (PrivMachine.run env 1 s).core.pc = 0x8000022c#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x8000800c#32 4 = readLE s.core.mem 0x8000800c#32 4 ∧
     SvcSame s.core.mem (PrivMachine.run env 1 s).core.mem ∧
     Frame s.core.mem (PrivMachine.run env 1 s).core.mem ∧
-    (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [(10, BitVec.ofNat 32 (readLE s.core.mem 0xc000001c#32 4))] r) := by
+    (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [(10, s.host s.io 0xc000001c#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2605,7 +2691,7 @@ theorem checksig_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht3] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht3]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2623,15 +2709,67 @@ theorem checksig_fwd_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
+/-- Is the answer more than 1 (`li t1, 1`; `bltu t1, a0`): if so, to the fault report; if not, on. -/
+theorem checksig_answer (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
+    (hpc : s.core.pc = 0x8000022c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 2 s).core.pc = (if BitVec.ult 1#32 (s.core.reg 10#5) = true then 0x80000138#32 else 0x80000234#32) ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
+    (PrivMachine.run env 2 s).halted = false ∧
+    (PrivMachine.run env 2 s).mode = .M ∧
+    (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ∧
+    readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
+    readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
+    readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
+    readLE (PrivMachine.run env 2 s).core.mem 0x8000800c#32 4 = readLE s.core.mem 0x8000800c#32 4 ∧
+    SvcSame s.core.mem (PrivMachine.run env 2 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 2 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(6, 1#32)] r) := by
+  obtain ⟨hW, hA, henv, hh, hm⟩ := hS
+  obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
+      (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
+      (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
+      PrivMachine.step env t =
+        PrivMachine.stepW env t (monitorCode.getD ((t.core.pc - 0x80000000#32).toNat / 4) 0) :=
+    fun t ht h1 h2 => step_mon hW ht h1 h2
+  obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 2 s = F := ⟨_, rfl⟩
+  rw [hF]
+  by_cases hq : BitVec.ult 1#32 (s.core.reg 10#5) = true
+  all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
+  all_goals subst hF
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hq]
+  all_goals try (unfold Frame
+                 intro x h1 h2 h3
+                 simp only [writeLE4_apply, InStack, InPorts, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 h2 h3 ⊢
+                 repeat' split
+                 all_goals first | rfl | omega)
+  all_goals try (unfold SvcSame
+                 intro x h1
+                 simp only [writeLE4_apply, InSvc, BitVec.toNat_sub, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at h1 ⊢
+                 repeat' split
+                 all_goals first | rfl | omega)
+  all_goals try (intro r
+                 have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+                 rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> psimpH [pmpCheck_mon, regsUpd])
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
 /-- Past the `ecall`: `mepc <- mepc + 4`. -/
 theorem return_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000022c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 3 s).core.pc = 0x80000238#32 ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000234#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 3 s).core.pc = 0x80000240#32 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms (e + 4#32) c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2641,8 +2779,8 @@ theorem return_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(5, e + 4#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2652,7 +2790,7 @@ theorem return_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2673,12 +2811,14 @@ set_option maxRecDepth 100000 in
 /-- The payload's `t0..t3` back from the stack. -/
 theorem return_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000238#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 4 s).core.pc = 0x80000248#32 ∧
-    Agree M0 (PrivMachine.run env 4 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000240#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 4 s).core.pc = 0x80000250#32 ∧
+    Agree M0 (PrivMachine.run env 4 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 4 s).halted = false ∧
     (PrivMachine.run env 4 s).mode = .M ∧
     (PrivMachine.run env 4 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 4 s).host = s.host ∧
+    (PrivMachine.run env 4 s).io = s.io ∧
     readLE (PrivMachine.run env 4 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 4 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 4 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2688,8 +2828,8 @@ theorem return_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 4 s).core.reg r = regsUpd s.core.reg [(5, BitVec.ofNat 32 (readLE s.core.mem 0x80008000#32 4)), (6, BitVec.ofNat 32 (readLE s.core.mem 0x80008004#32 4)), (7, BitVec.ofNat 32 (readLE s.core.mem 0x80008008#32 4)), (28, BitVec.ofNat 32 (readLE s.core.mem 0x8000800c#32 4))] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2699,7 +2839,7 @@ theorem return_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2720,12 +2860,14 @@ set_option maxRecDepth 100000 in
 /-- The payload's `sp` back, the counters released, `mret`. -/
 theorem return_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000248#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) (hmpp : ms.mpp = .U) :
+    (hpc : s.core.pc = 0x80000250#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) (hmpp : ms.mpp = .U) :
     (PrivMachine.run env 3 s).core.pc = e ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .U ∧
     (PrivMachine.run env 3 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } e c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2735,8 +2877,8 @@ theorem return_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(2, p)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2746,7 +2888,7 @@ theorem return_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp, hmpp, BitVec.add_assoc] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp, hmpp, BitVec.add_assoc]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2767,12 +2909,14 @@ set_option maxRecDepth 100000 in
 /-- Report HALT: address and tag. -/
 theorem halt_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000254#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 5 s).core.pc = 0x80000268#32 ∧
-    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x8000025c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 5 s).core.pc = 0x80000270#32 ∧
+    Agree M0 (PrivMachine.run env 5 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 5 s).halted = false ∧
     (PrivMachine.run env 5 s).mode = .M ∧
     (PrivMachine.run env 5 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 5 s).host = s.host ∧
+    (PrivMachine.run env 5 s).io = s.io ++ [⟨0xc0000004#32, 0x48414c54#32⟩] ∧
     readLE (PrivMachine.run env 5 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 5 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 5 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2782,8 +2926,8 @@ theorem halt_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 5 s).core.reg r = regsUpd s.core.reg [(6, 0xc0000004#32), (5, 0x48414c54#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2793,7 +2937,7 @@ theorem halt_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2814,12 +2958,14 @@ set_option maxRecDepth 100000 in
 /-- Report the exit code. -/
 theorem halt_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000268#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x8000026c#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000270#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x80000274#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ++ [⟨0xc0000004#32, s.core.reg 10#5⟩] ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2829,8 +2975,8 @@ theorem halt_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2840,7 +2986,7 @@ theorem halt_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2861,12 +3007,14 @@ set_option maxRecDepth 100000 in
 /-- Report `minstret`. -/
 theorem halt_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000026c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x80000274#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000274#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x8000027c#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc0000004#32, m⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2876,8 +3024,8 @@ theorem halt_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, m)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2887,7 +3035,7 @@ theorem halt_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2908,12 +3056,14 @@ set_option maxRecDepth 100000 in
 /-- Report `mcycle`. -/
 theorem halt_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000274#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
-    (PrivMachine.run env 2 s).core.pc = 0x8000027c#32 ∧
-    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x8000027c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (ht1 : s.core.reg 6#5 = 0xc0000004#32) :
+    (PrivMachine.run env 2 s).core.pc = 0x80000284#32 ∧
+    Agree M0 (PrivMachine.run env 2 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 2 s).halted = false ∧
     (PrivMachine.run env 2 s).mode = .M ∧
     (PrivMachine.run env 2 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 2 s).host = s.host ∧
+    (PrivMachine.run env 2 s).io = s.io ++ [⟨0xc0000004#32, cy⟩] ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 2 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2923,8 +3073,8 @@ theorem halt_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 2 s).core.reg r = regsUpd s.core.reg [(5, cy)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2934,7 +3084,7 @@ theorem halt_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, ht1] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, ht1]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -2955,12 +3105,14 @@ set_option maxRecDepth 100000 in
 /-- Zero the saved `t0`. -/
 theorem scrub_1a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000027c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x80000280#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000284#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x80000288#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -2970,8 +3122,8 @@ theorem scrub_1a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -2981,7 +3133,7 @@ theorem scrub_1a (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3002,12 +3154,14 @@ set_option maxRecDepth 100000 in
 /-- Zero the saved `t1`. -/
 theorem scrub_1b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000280#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x80000284#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000288#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x8000028c#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -3017,8 +3171,8 @@ theorem scrub_1b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3028,7 +3182,7 @@ theorem scrub_1b (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3049,12 +3203,14 @@ set_option maxRecDepth 100000 in
 /-- Zero the saved `t2`. -/
 theorem scrub_1c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000284#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x80000288#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x8000028c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x80000290#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -3064,8 +3220,8 @@ theorem scrub_1c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3075,7 +3231,7 @@ theorem scrub_1c (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3096,12 +3252,14 @@ set_option maxRecDepth 100000 in
 /-- Zero the saved `t3`. -/
 theorem scrub_1d (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000288#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 1 s).core.pc = 0x8000028c#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000290#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x80000294#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -3111,8 +3269,8 @@ theorem scrub_1d (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3122,7 +3280,7 @@ theorem scrub_1d (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hsp] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd, hsp]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3143,12 +3301,14 @@ set_option maxRecDepth 100000 in
 /-- Zero `mscratch`, and `x1..x9`. -/
 theorem scrub_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000028c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
-    (PrivMachine.run env 10 s).core.pc = 0x800002b4#32 ∧
-    Agree M0 (PrivMachine.run env 10 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000294#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) :
+    (PrivMachine.run env 10 s).core.pc = 0x800002bc#32 ∧
+    Agree M0 (PrivMachine.run env 10 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 10 s).halted = false ∧
     (PrivMachine.run env 10 s).mode = .M ∧
     (PrivMachine.run env 10 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 10 s).host = s.host ∧
+    (PrivMachine.run env 10 s).io = s.io ∧
     readLE (PrivMachine.run env 10 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 10 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 10 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -3158,8 +3318,8 @@ theorem scrub_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 10 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3169,7 +3329,7 @@ theorem scrub_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3190,12 +3350,14 @@ set_option maxRecDepth 100000 in
 /-- Zero `x11..x22`. -/
 theorem scrub_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x800002b4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 12 s).core.pc = 0x800002e4#32 ∧
-    Agree M0 (PrivMachine.run env 12 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x800002bc#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 12 s).core.pc = 0x800002ec#32 ∧
+    Agree M0 (PrivMachine.run env 12 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 12 s).halted = false ∧
     (PrivMachine.run env 12 s).mode = .M ∧
     (PrivMachine.run env 12 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 12 s).host = s.host ∧
+    (PrivMachine.run env 12 s).io = s.io ∧
     readLE (PrivMachine.run env 12 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 12 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 12 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -3205,8 +3367,8 @@ theorem scrub_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 12 s).core.reg r = regsUpd s.core.reg [(11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3216,7 +3378,7 @@ theorem scrub_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3237,12 +3399,14 @@ set_option maxRecDepth 100000 in
 /-- Zero `x23..x31`. -/
 theorem scrub_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x800002e4#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 9 s).core.pc = 0x80000308#32 ∧
-    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x800002ec#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 9 s).core.pc = 0x80000310#32 ∧
+    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 9 s).halted = false ∧
     (PrivMachine.run env 9 s).mode = .M ∧
     (PrivMachine.run env 9 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 9 s).host = s.host ∧
+    (PrivMachine.run env 9 s).io = s.io ∧
     readLE (PrivMachine.run env 9 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 9 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 9 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -3252,8 +3416,8 @@ theorem scrub_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 9 s).core.reg r = regsUpd s.core.reg [(23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3263,7 +3427,7 @@ theorem scrub_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3284,12 +3448,14 @@ set_option maxRecDepth 100000 in
 /-- Exit code to the exit word. -/
 theorem scrub_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000308#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 3 s).core.pc = 0x80000314#32 ∧
-    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000310#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 3 s).core.pc = 0x8000031c#32 ∧
+    Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ++ [⟨0xc0000008#32, s.core.reg 10#5⟩] ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -3299,8 +3465,8 @@ theorem scrub_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(6, 0xc0000008#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3310,7 +3476,7 @@ theorem scrub_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3331,12 +3497,14 @@ set_option maxRecDepth 100000 in
 /-- Last register, and the park loop. -/
 theorem scrub_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000314#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
-    (PrivMachine.run env 1 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x8000031c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32)) :
+    (PrivMachine.run env 1 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 1 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008004#32 4 = readLE s.core.mem 0x80008004#32 4 ∧
     readLE (PrivMachine.run env 1 s).core.mem 0x80008008#32 4 = readLE s.core.mem 0x80008008#32 4 ∧
@@ -3346,8 +3514,8 @@ theorem scrub_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [(6, 0#32)] r) := by
   obtain ⟨hW, hA, henv, hh, hm⟩ := hS
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
-  have hA' : Agree M0 Mc 0x80000000 800 := hmem ▸ hA
-  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 800 →
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
       (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
       (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
       PrivMachine.step env t =
@@ -3357,7 +3525,7 @@ theorem scrub_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   rw [hF]
   all_goals psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hA', agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, readLE_writeLE_self, readLE_writeLE_far, regsUpd]
   all_goals try (unfold Frame
                  intro x h1 h2 h3
@@ -3378,12 +3546,14 @@ set_option maxRecDepth 100000 in
 /-- The scrub, all of it: every register but `a0` zero, `mscratch` zero, the four saved words zero, the machine at the park loop. -/
 theorem monitor_scrub (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x8000027c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 39 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 39 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x80000284#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 39 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 39 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 39 s).halted = false ∧
     (PrivMachine.run env 39 s).mode = .M ∧
     (PrivMachine.run env 39 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 39 s).host = s.host ∧
+    (PrivMachine.run env 39 s).io = s.io ++ [⟨0xc0000008#32, s.core.reg 10#5⟩] ∧
     readLE (PrivMachine.run env 39 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 39 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 39 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -3395,79 +3565,81 @@ theorem monitor_scrub (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 1 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := scrub_1a env M0 s hS0 ms e c m cy p p0 c0 (by simp [regsUpd, hsp])
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := scrub_1a env M0 s hS0 ms e c m cy p p0 c0 (by simp [regsUpd, hsp])
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := scrub_1b env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := scrub_1b env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 1 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := scrub_1c env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := scrub_1c env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 1 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := scrub_1d env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := scrub_1d env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 10 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := scrub_2 env M0 s4 hS4 ms e c m cy p p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := scrub_2 env M0 s4 hS4 ms e c m cy p p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 12 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := scrub_3 env M0 s5 hS5 ms e c m cy p5 c5
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := scrub_3 env M0 s5 hS5 ms e c m cy p5 c5
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 9 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := scrub_4 env M0 s6 hS6 ms e c m cy p6 c6
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := scrub_4 env M0 s6 hS6 ms e c m cy p6 c6
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 3 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := scrub_5 env M0 s7 hS7 ms e c m cy p7 c7
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := scrub_5 env M0 s7 hS7 ms e c m cy p7 c7
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := scrub_6 env M0 s8 hS8 ms e c m cy p8 c8
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := scrub_6 env M0 s8 hS8 ms e c m cy p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
   have hall : PrivMachine.run env 39 s = s9 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (hs9))))))))
   rw [hall]
-  refine ⟨p9, a9, h9, m9, c9, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p9, a9, h9, m9, c9, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))))
+  case io => simp [io9, io8, io7, io6, io5, io4, io3, io2, io1, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w0 => simp [w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w1 => simp [w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w2 => simp [w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
@@ -3485,11 +3657,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_fault_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
     (hpc : s.core.pc = 0x80000138#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 54 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 54 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 54 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 54 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 54 s).halted = false ∧
     (PrivMachine.run env 54 s).mode = .M ∧
     (PrivMachine.run env 54 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 54 s).host = s.host ∧
+    (PrivMachine.run env 54 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 54 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 54 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 54 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -3501,63 +3675,65 @@ theorem monitor_fault_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 5 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := fault_1 env M0 s hS0 ms e c m cy p p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := fault_1 env M0 s hS0 ms e c m cy p p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 2 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := fault_2 env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := fault_2 env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := fault_3 env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := fault_3 env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := fault_4 env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := fault_4 env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := fault_5 env M0 s4 hS4 ms e c m cy p p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hsp])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := fault_5 env M0 s4 hS4 ms e c m cy p p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hsp])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 2 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := fault_6 env M0 s5 hS5 ms e c m cy p p5 c5
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := fault_6 env M0 s5 hS5 ms e c m cy p p5 c5
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 39 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_scrub env M0 s6 hS6 ms e c m cy p p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hsp])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_scrub env M0 s6 hS6 ms e c m cy p p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hsp])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hall : PrivMachine.run env 54 s = s7 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (hs7))))))
   rw [hall]
-  refine ⟨p7, a7, h7, m7, c7, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p7, a7, h7, m7, c7, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))
+  case io => simp [io7, io6, io5, io4, io3, io2, io1, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w0 => simp [w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w1 => simp [w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w2 => simp [w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r7, r6, r5, r4, r3, r2, r1, regsUpd, hsp]
@@ -3574,12 +3750,14 @@ set_option maxRecDepth 100000 in
 /-- The HALT report, then the scrub: `a0` is the payload's exit code, every other register zero. -/
 theorem monitor_halt_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
-    (hpc : s.core.pc = 0x80000254#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
-    (PrivMachine.run env 49 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 49 s).core.mem 0x80000000 800 ∧
+    (hpc : s.core.pc = 0x8000025c#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p)) (hsp : s.core.reg 2#5 = 0x80008000#32) :
+    (PrivMachine.run env 49 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 49 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 49 s).halted = false ∧
     (PrivMachine.run env 49 s).mode = .M ∧
     (PrivMachine.run env 49 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 49 s).host = s.host ∧
+    (PrivMachine.run env 49 s).io = s.io ++ [⟨0xc0000004#32, 0x48414c54#32⟩, ⟨0xc0000004#32, s.core.reg 10#5⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000004#32, cy⟩, ⟨0xc0000008#32, s.core.reg 10#5⟩] ∧
     readLE (PrivMachine.run env 49 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 49 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 49 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -3591,47 +3769,49 @@ theorem monitor_halt_exit (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 5 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := halt_1 env M0 s hS0 ms e c m cy p p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := halt_1 env M0 s hS0 ms e c m cy p p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := halt_2 env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := halt_2 env M0 s1 hS1 ms e c m cy p p1 c1 (by simp [r1, regsUpd, hsp])
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := halt_3 env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := halt_3 env M0 s2 hS2 ms e c m cy p p2 c2 (by simp [r2, r1, regsUpd, hsp])
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := halt_4 env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := halt_4 env M0 s3 hS3 ms e c m cy p p3 c3 (by simp [r3, r2, r1, regsUpd, hsp])
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 39 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := monitor_scrub env M0 s4 hS4 ms e c m cy p p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hsp])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := monitor_scrub env M0 s4 hS4 ms e c m cy p p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hsp])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hall : PrivMachine.run env 49 s = s5 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (hs5))))
   rw [hall]
-  refine ⟨p5, a5, h5, m5, c5, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p5, a5, h5, m5, c5, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))
+  case io => simp [io5, io4, io3, io2, io1, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w0 => simp [w5_0, w4_0, w3_0, w2_0, w1_0, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w1 => simp [w5_1, w4_1, w3_1, w2_1, w1_1, r5, r4, r3, r2, r1, regsUpd, hsp]
   case w2 => simp [w5_2, w4_2, w3_2, w2_2, w1_2, r5, r4, r3, r2, r1, regsUpd, hsp]
@@ -3650,10 +3830,12 @@ theorem monitor_enter (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) :
     (PrivMachine.run env 9 s).core.pc = (if c = 8#32 then 0x80000174#32 else 0x80000138#32) ∧
-    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 9 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 9 s).halted = false ∧
     (PrivMachine.run env 9 s).mode = .M ∧
     (PrivMachine.run env 9 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (s.core.reg 2#5) ∧
+    (PrivMachine.run env 9 s).host = s.host ∧
+    (PrivMachine.run env 9 s).io = s.io ∧
     readLE (PrivMachine.run env 9 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
     readLE (PrivMachine.run env 9 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
     readLE (PrivMachine.run env 9 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
@@ -3665,47 +3847,49 @@ theorem monitor_enter (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 3 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := entry_1 env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := entry_1 env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := entry_2a env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) p1 c1 (by simp [r1, regsUpd])
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := entry_2a env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) p1 c1 (by simp [r1, regsUpd])
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 1 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := entry_2b env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2 (by simp [r2, r1, regsUpd])
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := entry_2b env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2 (by simp [r2, r1, regsUpd])
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 1 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := entry_2c env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3 (by simp [r3, r2, r1, regsUpd])
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := entry_2c env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3 (by simp [r3, r2, r1, regsUpd])
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 3 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := entry_mcause env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := entry_mcause env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hall : PrivMachine.run env 9 s = s5 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (hs5))))
   rw [hall]
-  refine ⟨p5, a5, h5, m5, c5, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p5, a5, h5, m5, c5, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))
+  case io => simp [io5, io4, io3, io2, io1, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r5, r4, r3, r2, r1, regsUpd]
   case w0 => simp [w5_0, w4_0, w3_0, w2_0, w1_0, r5, r4, r3, r2, r1, regsUpd]
   case w1 => simp [w5_1, w4_1, w3_1, w2_1, w1_1, r5, r4, r3, r2, r1, regsUpd]
   case w2 => simp [w5_2, w4_2, w3_2, w2_2, w1_2, r5, r4, r3, r2, r1, regsUpd]
@@ -3723,11 +3907,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 1#32) :
-    (PrivMachine.run env 61 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 61 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 61 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 61 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 61 s).halted = false ∧
     (PrivMachine.run env 61 s).mode = .M ∧
     (PrivMachine.run env 61 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 61 s).host = s.host ∧
+    (PrivMachine.run env 61 s).io = s.io ++ [⟨0xc0000004#32, 0x48414c54#32⟩, ⟨0xc0000004#32, s.core.reg 10#5⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000004#32, cy⟩, ⟨0xc0000008#32, s.core.reg 10#5⟩] ∧
     readLE (PrivMachine.run env 61 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 61 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 61 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -3739,8 +3925,8 @@ theorem monitor_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -3748,8 +3934,8 @@ theorem monitor_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -3757,15 +3943,17 @@ theorem monitor_halt (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 49 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := monitor_halt_exit env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2 (by simp [r2, r1, regsUpd, hc, ht0])
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := monitor_halt_exit env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2 (by simp [r2, r1, regsUpd, hc, ht0])
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
   have hall : PrivMachine.run env 61 s = s3 := run_two hs1 (run_two hs2 (hs3))
   rw [hall]
-  refine ⟨p3, a3, h3, m3, c3, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p3, a3, h3, m3, c3, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho3.trans (ho2.trans ho1))
+  case io => simp [io3, io2, io1, ho3, ho2, ho1, List.append_assoc, r3, r2, r1, regsUpd, hc, ht0]
   case w0 => simp [w3_0, w2_0, w1_0, r3, r2, r1, regsUpd, hc, ht0]
   case w1 => simp [w3_1, w2_1, w1_1, r3, r2, r1, regsUpd, hc, ht0]
   case w2 => simp [w3_2, w2_2, w1_2, r3, r2, r1, regsUpd, hc, ht0]
@@ -3783,11 +3971,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_fault_cause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c ≠ 8#32) :
-    (PrivMachine.run env 63 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 63 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 63 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 63 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 63 s).halted = false ∧
     (PrivMachine.run env 63 s).mode = .M ∧
     (PrivMachine.run env 63 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 63 s).host = s.host ∧
+    (PrivMachine.run env 63 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 63 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 63 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 63 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -3799,8 +3989,8 @@ theorem monitor_fault_cause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -3808,15 +3998,17 @@ theorem monitor_fault_cause (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 54 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := monitor_fault_exit env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) p1 c1 (by simp [r1, regsUpd, hc])
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := monitor_fault_exit env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) p1 c1 (by simp [r1, regsUpd, hc])
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
   have hall : PrivMachine.run env 63 s = s2 := run_two hs1 (hs2)
   rw [hall]
-  refine ⟨p2, a2, h2, m2, c2, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p2, a2, h2, m2, c2, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho2.trans ho1)
+  case io => simp [io2, io1, ho2, ho1, List.append_assoc, r2, r1, regsUpd, hc]
   case w0 => simp [w2_0, w1_0, r2, r1, regsUpd, hc]
   case w1 => simp [w2_1, w1_1, r2, r1, regsUpd, hc]
   case w2 => simp [w2_2, w1_2, r2, r1, regsUpd, hc]
@@ -3834,11 +4026,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 ≠ 1#32) (ht2 : s.core.reg 5#5 ≠ 2#32) (ht3 : s.core.reg 5#5 ≠ 3#32) :
-    (PrivMachine.run env 71 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 71 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 71 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 71 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 71 s).halted = false ∧
     (PrivMachine.run env 71 s).mode = .M ∧
     (PrivMachine.run env 71 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 71 s).host = s.host ∧
+    (PrivMachine.run env 71 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 71 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 71 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 71 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -3850,8 +4044,8 @@ theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMac
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -3859,8 +4053,8 @@ theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMac
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, ht2, ht3]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, ht2, ht3]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -3868,8 +4062,8 @@ theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMac
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -3877,8 +4071,8 @@ theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMac
   simp [ofNat_toNat_mod, r2, r1, ht2, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -3886,23 +4080,25 @@ theorem monitor_fault_syscall (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMac
   simp [ofNat_toNat_mod, r3, r2, r1, ht3, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := call_unknown env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := call_unknown env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 54 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := monitor_fault_exit env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := monitor_fault_exit env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
   have hall : PrivMachine.run env 71 s = s6 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (hs6)))))
   rw [hall]
-  refine ⟨p6, a6, h6, m6, c6, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p6, a6, h6, m6, c6, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))
+  case io => simp [io6, io5, io4, io3, io2, io1, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
   case w0 => simp [w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
   case w1 => simp [w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
   case w2 => simp [w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, ht2, ht3]
@@ -3921,10 +4117,12 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hin : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + (s.core.reg 11#5).toNat ≤ 0x80020000) (hout : 0x80010000 ≤ (s.core.reg 12#5).toNat ∧ (s.core.reg 12#5).toNat + 32 ≤ 0x80020000) (hmpp : ms.mpp = .U) :
     (PrivMachine.run env 43 s).core.pc = e + 4#32 ∧
-    Agree M0 (PrivMachine.run env 43 s).core.mem 0x80000000 800 ∧
+    Agree M0 (PrivMachine.run env 43 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 43 s).halted = false ∧
     (PrivMachine.run env 43 s).mode = .U ∧
     (PrivMachine.run env 43 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 43 s).host = s.host ∧
+    (PrivMachine.run env 43 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩, ⟨0xc0000018#32, s.core.reg 12#5⟩, ⟨0xc000001c#32, 2#32⟩] ∧
     readLE (PrivMachine.run env 43 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
     readLE (PrivMachine.run env 43 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
     readLE (PrivMachine.run env 43 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
@@ -3941,8 +4139,8 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   obtain ⟨hb1, hb2, hb3⟩ := (bounds_ok_iff _ _).mpr hin
   obtain ⟨hb4, hb5, hb6⟩ := (bounds_len_iff _ 32 (by decide)).mpr hout
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -3950,8 +4148,8 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hin, hout, hmpp]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hin, hout, hmpp]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -3959,8 +4157,8 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -3968,16 +4166,16 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
@@ -3985,8 +4183,8 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [r4, r3, r2, r1, hb1, regsUpd] at p5
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -3994,16 +4192,16 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
@@ -4011,8 +4209,8 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -4020,8 +4218,8 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
@@ -4029,16 +4227,16 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p10
   have hS10 := hS9.next a10 h10 m10
   obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 2 s10 = t := ⟨_, rfl⟩
-  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := hashb_s6 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := hashb_s6 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
   have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
   have hS11 := hS10.next a11 h11 m11
   obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 1 s11 = t := ⟨_, rfl⟩
-  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := hashb_b6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11
-  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
+  obtain ⟨p12, a12, h12, m12, c12, ho12, io12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := hashb_b6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11
+  rw [hs12] at p12 a12 h12 m12 c12 ho12 io12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
   have sv12_0 : readLE s12.core.mem 0xc0000010#32 4 = readLE s11.core.mem 0xc0000010#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_1 : readLE s12.core.mem 0xc0000014#32 4 = readLE s11.core.mem 0xc0000014#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_2 : readLE s12.core.mem 0xc0000018#32 4 = readLE s11.core.mem 0xc0000018#32 4 := SvcSame.read sv12 _ (by decide)
@@ -4046,55 +4244,57 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p12
   have hS12 := hS11.next a12 h12 m12
   obtain ⟨s13, hs13⟩ : ∃ t, PrivMachine.run env 3 s12 = t := ⟨_, rfl⟩
-  obtain ⟨p13, a13, h13, m13, c13, w13_0, w13_1, w13_2, w13_3, sv13_0, sv13_1, sv13_2, sv13_3, fr13, r13⟩ := hashb_fwd_1 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12
-  rw [hs13] at p13 a13 h13 m13 c13 w13_0 w13_1 w13_2 w13_3 sv13_0 sv13_1 sv13_2 sv13_3 fr13 r13
+  obtain ⟨p13, a13, h13, m13, c13, ho13, io13, w13_0, w13_1, w13_2, w13_3, sv13_0, sv13_1, sv13_2, sv13_3, fr13, r13⟩ := hashb_fwd_1 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12
+  rw [hs13] at p13 a13 h13 m13 c13 ho13 io13 w13_0 w13_1 w13_2 w13_3 sv13_0 sv13_1 sv13_2 sv13_3 fr13 r13
   have hS13 := hS12.next a13 h13 m13
   obtain ⟨s14, hs14⟩ : ∃ t, PrivMachine.run env 1 s13 = t := ⟨_, rfl⟩
-  obtain ⟨p14, a14, h14, m14, c14, w14_0, w14_1, w14_2, w14_3, sv14_0, sv14_1, sv14_2, sv14_3, fr14, r14⟩ := hashb_fwd_2 env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13 (by simp [r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs14] at p14 a14 h14 m14 c14 w14_0 w14_1 w14_2 w14_3 sv14_0 sv14_1 sv14_2 sv14_3 fr14 r14
+  obtain ⟨p14, a14, h14, m14, c14, ho14, io14, w14_0, w14_1, w14_2, w14_3, sv14_0, sv14_1, sv14_2, sv14_3, fr14, r14⟩ := hashb_fwd_2 env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13 (by simp [r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs14] at p14 a14 h14 m14 c14 ho14 io14 w14_0 w14_1 w14_2 w14_3 sv14_0 sv14_1 sv14_2 sv14_3 fr14 r14
   have hS14 := hS13.next a14 h14 m14
   obtain ⟨s15, hs15⟩ : ∃ t, PrivMachine.run env 1 s14 = t := ⟨_, rfl⟩
-  obtain ⟨p15, a15, h15, m15, c15, w15_0, w15_1, w15_2, w15_3, sv15_0, sv15_1, sv15_2, sv15_3, fr15, r15⟩ := hashb_fwd_3 env M0 s14 hS14 ms e c m cy (s.core.reg 2#5) p14 c14 (by simp [r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs15] at p15 a15 h15 m15 c15 w15_0 w15_1 w15_2 w15_3 sv15_0 sv15_1 sv15_2 sv15_3 fr15 r15
+  obtain ⟨p15, a15, h15, m15, c15, ho15, io15, w15_0, w15_1, w15_2, w15_3, sv15_0, sv15_1, sv15_2, sv15_3, fr15, r15⟩ := hashb_fwd_3 env M0 s14 hS14 ms e c m cy (s.core.reg 2#5) p14 c14 (by simp [r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs15] at p15 a15 h15 m15 c15 ho15 io15 w15_0 w15_1 w15_2 w15_3 sv15_0 sv15_1 sv15_2 sv15_3 fr15 r15
   have hS15 := hS14.next a15 h15 m15
   obtain ⟨s16, hs16⟩ : ∃ t, PrivMachine.run env 2 s15 = t := ⟨_, rfl⟩
-  obtain ⟨p16, a16, h16, m16, c16, w16_0, w16_1, w16_2, w16_3, sv16_0, sv16_1, sv16_2, sv16_3, fr16, r16⟩ := hashb_fwd_4 env M0 s15 hS15 ms e c m cy (s.core.reg 2#5) p15 c15 (by simp [r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs16] at p16 a16 h16 m16 c16 w16_0 w16_1 w16_2 w16_3 sv16_0 sv16_1 sv16_2 sv16_3 fr16 r16
+  obtain ⟨p16, a16, h16, m16, c16, ho16, io16, w16_0, w16_1, w16_2, w16_3, sv16_0, sv16_1, sv16_2, sv16_3, fr16, r16⟩ := hashb_fwd_4 env M0 s15 hS15 ms e c m cy (s.core.reg 2#5) p15 c15 (by simp [r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs16] at p16 a16 h16 m16 c16 ho16 io16 w16_0 w16_1 w16_2 w16_3 sv16_0 sv16_1 sv16_2 sv16_3 fr16 r16
   have hS16 := hS15.next a16 h16 m16
   obtain ⟨s17, hs17⟩ : ∃ t, PrivMachine.run env 1 s16 = t := ⟨_, rfl⟩
-  obtain ⟨p17, a17, h17, m17, c17, w17_0, w17_1, w17_2, w17_3, sv17, fr17, r17⟩ := hashb_fwd_5 env M0 s16 hS16 ms e c m cy (s.core.reg 2#5) p16 c16
-  rw [hs17] at p17 a17 h17 m17 c17 w17_0 w17_1 w17_2 w17_3 sv17 fr17 r17
+  obtain ⟨p17, a17, h17, m17, c17, ho17, io17, w17_0, w17_1, w17_2, w17_3, sv17, fr17, r17⟩ := hashb_fwd_5 env M0 s16 hS16 ms e c m cy (s.core.reg 2#5) p16 c16
+  rw [hs17] at p17 a17 h17 m17 c17 ho17 io17 w17_0 w17_1 w17_2 w17_3 sv17 fr17 r17
   have sv17_0 : readLE s17.core.mem 0xc0000010#32 4 = readLE s16.core.mem 0xc0000010#32 4 := SvcSame.read sv17 _ (by decide)
   have sv17_1 : readLE s17.core.mem 0xc0000014#32 4 = readLE s16.core.mem 0xc0000014#32 4 := SvcSame.read sv17 _ (by decide)
   have sv17_2 : readLE s17.core.mem 0xc0000018#32 4 = readLE s16.core.mem 0xc0000018#32 4 := SvcSame.read sv17 _ (by decide)
   have sv17_3 : readLE s17.core.mem 0xc000001c#32 4 = readLE s16.core.mem 0xc000001c#32 4 := SvcSame.read sv17 _ (by decide)
   have hS17 := hS16.next a17 h17 m17
   obtain ⟨s18, hs18⟩ : ∃ t, PrivMachine.run env 3 s17 = t := ⟨_, rfl⟩
-  obtain ⟨p18, a18, h18, m18, c18, w18_0, w18_1, w18_2, w18_3, sv18, fr18, r18⟩ := return_1 env M0 s17 hS17 ms e c m cy (s.core.reg 2#5) p17 c17
-  rw [hs18] at p18 a18 h18 m18 c18 w18_0 w18_1 w18_2 w18_3 sv18 fr18 r18
+  obtain ⟨p18, a18, h18, m18, c18, ho18, io18, w18_0, w18_1, w18_2, w18_3, sv18, fr18, r18⟩ := return_1 env M0 s17 hS17 ms e c m cy (s.core.reg 2#5) p17 c17
+  rw [hs18] at p18 a18 h18 m18 c18 ho18 io18 w18_0 w18_1 w18_2 w18_3 sv18 fr18 r18
   have sv18_0 : readLE s18.core.mem 0xc0000010#32 4 = readLE s17.core.mem 0xc0000010#32 4 := SvcSame.read sv18 _ (by decide)
   have sv18_1 : readLE s18.core.mem 0xc0000014#32 4 = readLE s17.core.mem 0xc0000014#32 4 := SvcSame.read sv18 _ (by decide)
   have sv18_2 : readLE s18.core.mem 0xc0000018#32 4 = readLE s17.core.mem 0xc0000018#32 4 := SvcSame.read sv18 _ (by decide)
   have sv18_3 : readLE s18.core.mem 0xc000001c#32 4 = readLE s17.core.mem 0xc000001c#32 4 := SvcSame.read sv18 _ (by decide)
   have hS18 := hS17.next a18 h18 m18
   obtain ⟨s19, hs19⟩ : ∃ t, PrivMachine.run env 4 s18 = t := ⟨_, rfl⟩
-  obtain ⟨p19, a19, h19, m19, c19, w19_0, w19_1, w19_2, w19_3, sv19, fr19, r19⟩ := return_2 env M0 s18 hS18 ms (e + 4#32) c m cy (s.core.reg 2#5) p18 c18 (by simp [r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
-  rw [hs19] at p19 a19 h19 m19 c19 w19_0 w19_1 w19_2 w19_3 sv19 fr19 r19
+  obtain ⟨p19, a19, h19, m19, c19, ho19, io19, w19_0, w19_1, w19_2, w19_3, sv19, fr19, r19⟩ := return_2 env M0 s18 hS18 ms (e + 4#32) c m cy (s.core.reg 2#5) p18 c18 (by simp [r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp])
+  rw [hs19] at p19 a19 h19 m19 c19 ho19 io19 w19_0 w19_1 w19_2 w19_3 sv19 fr19 r19
   have sv19_0 : readLE s19.core.mem 0xc0000010#32 4 = readLE s18.core.mem 0xc0000010#32 4 := SvcSame.read sv19 _ (by decide)
   have sv19_1 : readLE s19.core.mem 0xc0000014#32 4 = readLE s18.core.mem 0xc0000014#32 4 := SvcSame.read sv19 _ (by decide)
   have sv19_2 : readLE s19.core.mem 0xc0000018#32 4 = readLE s18.core.mem 0xc0000018#32 4 := SvcSame.read sv19 _ (by decide)
   have sv19_3 : readLE s19.core.mem 0xc000001c#32 4 = readLE s18.core.mem 0xc000001c#32 4 := SvcSame.read sv19 _ (by decide)
   have hS19 := hS18.next a19 h19 m19
   obtain ⟨s20, hs20⟩ : ∃ t, PrivMachine.run env 3 s19 = t := ⟨_, rfl⟩
-  obtain ⟨p20, a20, h20, m20, c20, w20_0, w20_1, w20_2, w20_3, sv20, fr20, r20⟩ := return_3 env M0 s19 hS19 ms (e + 4#32) c m cy (s.core.reg 2#5) p19 c19 (by simp [r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]) hmpp
-  rw [hs20] at p20 a20 h20 m20 c20 w20_0 w20_1 w20_2 w20_3 sv20 fr20 r20
+  obtain ⟨p20, a20, h20, m20, c20, ho20, io20, w20_0, w20_1, w20_2, w20_3, sv20, fr20, r20⟩ := return_3 env M0 s19 hS19 ms (e + 4#32) c m cy (s.core.reg 2#5) p19 c19 (by simp [r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]) hmpp
+  rw [hs20] at p20 a20 h20 m20 c20 ho20 io20 w20_0 w20_1 w20_2 w20_3 sv20 fr20 r20
   have sv20_0 : readLE s20.core.mem 0xc0000010#32 4 = readLE s19.core.mem 0xc0000010#32 4 := SvcSame.read sv20 _ (by decide)
   have sv20_1 : readLE s20.core.mem 0xc0000014#32 4 = readLE s19.core.mem 0xc0000014#32 4 := SvcSame.read sv20 _ (by decide)
   have sv20_2 : readLE s20.core.mem 0xc0000018#32 4 = readLE s19.core.mem 0xc0000018#32 4 := SvcSame.read sv20 _ (by decide)
   have sv20_3 : readLE s20.core.mem 0xc000001c#32 4 = readLE s19.core.mem 0xc000001c#32 4 := SvcSame.read sv20 _ (by decide)
   have hall : PrivMachine.run env 43 s = s20 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (run_two hs13 (run_two hs14 (run_two hs15 (run_two hs16 (run_two hs17 (run_two hs18 (run_two hs19 (hs20)))))))))))))))))))
   rw [hall]
-  refine ⟨p20, a20, h20, m20, c20, ?w0, ?w1, ?w2, ?w3, ?sv0, ?sv1, ?sv2, ?sv3, ?fr, ?r⟩
+  refine ⟨p20, a20, h20, m20, c20, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv0, ?sv1, ?sv2, ?sv3, ?fr, ?r⟩
+  case ho => exact (ho20.trans (ho19.trans (ho18.trans (ho17.trans (ho16.trans (ho15.trans (ho14.trans (ho13.trans (ho12.trans (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))))))))))))))))
+  case io => simp [io20, io19, io18, io17, io16, io15, io14, io13, io12, io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho20, ho19, ho18, ho17, ho16, ho15, ho14, ho13, ho12, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
   case w0 => simp [w20_0, w19_0, w18_0, w17_0, w16_0, w15_0, w14_0, w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
   case w1 => simp [w20_1, w19_1, w18_1, w17_1, w16_1, w15_1, w14_1, w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
   case w2 => simp [w20_2, w19_2, w18_2, w17_2, w16_2, w15_2, w14_2, w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hin, hout, hmpp]
@@ -4115,11 +4315,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true) :
-    (PrivMachine.run env 71 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 71 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 71 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 71 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 71 s).halted = false ∧
     (PrivMachine.run env 71 s).mode = .M ∧
     (PrivMachine.run env 71 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 71 s).host = s.host ∧
+    (PrivMachine.run env 71 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 71 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 71 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 71 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -4131,8 +4333,8 @@ theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -4140,8 +4342,8 @@ theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -4149,8 +4351,8 @@ theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -4158,16 +4360,16 @@ theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
@@ -4175,15 +4377,17 @@ theorem monitor_hashb_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r4, r3, r2, r1, hb1, regsUpd] at p5
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 54 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := monitor_fault_exit env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := monitor_fault_exit env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
   have hall : PrivMachine.run env 71 s = s6 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (hs6)))))
   rw [hall]
-  refine ⟨p6, a6, h6, m6, c6, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p6, a6, h6, m6, c6, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))
+  case io => simp [io6, io5, io4, io3, io2, io1, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
   case w0 => simp [w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
   case w1 => simp [w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
   case w2 => simp [w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
@@ -4201,11 +4405,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true) :
-    (PrivMachine.run env 72 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 72 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 72 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 72 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 72 s).halted = false ∧
     (PrivMachine.run env 72 s).mode = .M ∧
     (PrivMachine.run env 72 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 72 s).host = s.host ∧
+    (PrivMachine.run env 72 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 72 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 72 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 72 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -4217,8 +4423,8 @@ theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -4226,8 +4432,8 @@ theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -4235,8 +4441,8 @@ theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -4244,16 +4450,16 @@ theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
@@ -4261,8 +4467,8 @@ theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r4, r3, r2, r1, hb1, regsUpd] at p5
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -4270,15 +4476,17 @@ theorem monitor_hashb_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 54 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_fault_exit env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_fault_exit env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hall : PrivMachine.run env 72 s = s7 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (hs7))))))
   rw [hall]
-  refine ⟨p7, a7, h7, m7, c7, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p7, a7, h7, m7, c7, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))
+  case io => simp [io7, io6, io5, io4, io3, io2, io1, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
   case w0 => simp [w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
   case w1 => simp [w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
   case w2 => simp [w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
@@ -4296,11 +4504,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = true) :
-    (PrivMachine.run env 74 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 74 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 74 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 74 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 74 s).halted = false ∧
     (PrivMachine.run env 74 s).mode = .M ∧
     (PrivMachine.run env 74 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 74 s).host = s.host ∧
+    (PrivMachine.run env 74 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 74 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 74 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 74 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -4312,8 +4522,8 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -4321,8 +4531,8 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -4330,8 +4540,8 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -4339,16 +4549,16 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
@@ -4356,8 +4566,8 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r4, r3, r2, r1, hb1, regsUpd] at p5
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -4365,16 +4575,16 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
@@ -4382,15 +4592,17 @@ theorem monitor_hashb_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 54 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := monitor_fault_exit env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := monitor_fault_exit env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
   have hall : PrivMachine.run env 74 s = s9 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (hs9))))))))
   rw [hall]
-  refine ⟨p9, a9, h9, m9, c9, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p9, a9, h9, m9, c9, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))))
+  case io => simp [io9, io8, io7, io6, io5, io4, io3, io2, io1, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
   case w0 => simp [w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
   case w1 => simp [w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
   case w2 => simp [w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
@@ -4408,11 +4620,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = false) (hb4 : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = true) :
-    (PrivMachine.run env 75 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 75 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 75 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 75 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 75 s).halted = false ∧
     (PrivMachine.run env 75 s).mode = .M ∧
     (PrivMachine.run env 75 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 75 s).host = s.host ∧
+    (PrivMachine.run env 75 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 75 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 75 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 75 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -4424,8 +4638,8 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -4433,8 +4647,8 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -4442,8 +4656,8 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -4451,16 +4665,16 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
@@ -4468,8 +4682,8 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r4, r3, r2, r1, hb1, regsUpd] at p5
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -4477,16 +4691,16 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
@@ -4494,8 +4708,8 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -4503,15 +4717,17 @@ theorem monitor_hashb_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 54 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := monitor_fault_exit env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := monitor_fault_exit env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
   have hall : PrivMachine.run env 75 s = s10 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (hs10)))))))))
   rw [hall]
-  refine ⟨p10, a10, h10, m10, c10, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p10, a10, h10, m10, c10, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))))))
+  case io => simp [io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
   case w0 => simp [w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
   case w1 => simp [w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
   case w2 => simp [w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
@@ -4529,11 +4745,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = false) (hb4 : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = true) :
-    (PrivMachine.run env 76 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 76 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 76 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 76 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 76 s).halted = false ∧
     (PrivMachine.run env 76 s).mode = .M ∧
     (PrivMachine.run env 76 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 76 s).host = s.host ∧
+    (PrivMachine.run env 76 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 76 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 76 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 76 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -4545,8 +4763,8 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -4554,8 +4772,8 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -4563,8 +4781,8 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -4572,16 +4790,16 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
@@ -4589,8 +4807,8 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r4, r3, r2, r1, hb1, regsUpd] at p5
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -4598,16 +4816,16 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
@@ -4615,8 +4833,8 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -4624,8 +4842,8 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
@@ -4633,15 +4851,17 @@ theorem monitor_hashb_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p10
   have hS10 := hS9.next a10 h10 m10
   obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 54 s10 = t := ⟨_, rfl⟩
-  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := monitor_fault_exit env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := monitor_fault_exit env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
   have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
   have hall : PrivMachine.run env 76 s = s11 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (hs11))))))))))
   rw [hall]
-  refine ⟨p11, a11, h11, m11, c11, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p11, a11, h11, m11, c11, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))))))
+  case io => simp [io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
   case w0 => simp [w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
   case w1 => simp [w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
   case w2 => simp [w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
@@ -4659,11 +4879,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) (s.core.reg 11#5) = false) (hb4 : BitVec.ult (s.core.reg 12#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 12#5) = false) (hb6 : BitVec.ult (0x80020000#32 - s.core.reg 12#5) 32#32 = true) :
-    (PrivMachine.run env 79 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 79 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 79 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 79 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 79 s).halted = false ∧
     (PrivMachine.run env 79 s).mode = .M ∧
     (PrivMachine.run env 79 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 79 s).host = s.host ∧
+    (PrivMachine.run env 79 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 79 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 79 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 79 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -4675,8 +4897,8 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -4684,8 +4906,8 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -4693,8 +4915,8 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -4702,16 +4924,16 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := hashb_load env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 1 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := hashb_b1 env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4 (by simp [r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
@@ -4719,8 +4941,8 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r4, r3, r2, r1, hb1, regsUpd] at p5
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := hashb_b2 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -4728,16 +4950,16 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r5, r4, r3, r2, r1, hb2, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := hashb_s3 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 1 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := hashb_b3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
@@ -4745,8 +4967,8 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p8
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := hashb_b4 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8 (by simp [r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -4754,8 +4976,8 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := hashb_b5 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
@@ -4763,16 +4985,16 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p10
   have hS10 := hS9.next a10 h10 m10
   obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 2 s10 = t := ⟨_, rfl⟩
-  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := hashb_s6 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := hashb_s6 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
   have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
   have hS11 := hS10.next a11 h11 m11
   obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 1 s11 = t := ⟨_, rfl⟩
-  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := hashb_b6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11
-  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
+  obtain ⟨p12, a12, h12, m12, c12, ho12, io12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := hashb_b6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11
+  rw [hs12] at p12 a12 h12 m12 c12 ho12 io12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
   have sv12_0 : readLE s12.core.mem 0xc0000010#32 4 = readLE s11.core.mem 0xc0000010#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_1 : readLE s12.core.mem 0xc0000014#32 4 = readLE s11.core.mem 0xc0000014#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_2 : readLE s12.core.mem 0xc0000018#32 4 = readLE s11.core.mem 0xc0000018#32 4 := SvcSame.read sv12 _ (by decide)
@@ -4780,15 +5002,17 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p12
   have hS12 := hS11.next a12 h12 m12
   obtain ⟨s13, hs13⟩ : ∃ t, PrivMachine.run env 54 s12 = t := ⟨_, rfl⟩
-  obtain ⟨p13, a13, h13, m13, c13, w13_0, w13_1, w13_2, w13_3, sv13, fr13, r13⟩ := monitor_fault_exit env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12 (by simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs13] at p13 a13 h13 m13 c13 w13_0 w13_1 w13_2 w13_3 sv13 fr13 r13
+  obtain ⟨p13, a13, h13, m13, c13, ho13, io13, w13_0, w13_1, w13_2, w13_3, sv13, fr13, r13⟩ := monitor_fault_exit env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12 (by simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs13] at p13 a13 h13 m13 c13 ho13 io13 w13_0 w13_1 w13_2 w13_3 sv13 fr13 r13
   have sv13_0 : readLE s13.core.mem 0xc0000010#32 4 = readLE s12.core.mem 0xc0000010#32 4 := SvcSame.read sv13 _ (by decide)
   have sv13_1 : readLE s13.core.mem 0xc0000014#32 4 = readLE s12.core.mem 0xc0000014#32 4 := SvcSame.read sv13 _ (by decide)
   have sv13_2 : readLE s13.core.mem 0xc0000018#32 4 = readLE s12.core.mem 0xc0000018#32 4 := SvcSame.read sv13 _ (by decide)
   have sv13_3 : readLE s13.core.mem 0xc000001c#32 4 = readLE s12.core.mem 0xc000001c#32 4 := SvcSame.read sv13 _ (by decide)
   have hall : PrivMachine.run env 79 s = s13 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (hs13))))))))))))
   rw [hall]
-  refine ⟨p13, a13, h13, m13, c13, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p13, a13, h13, m13, c13, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho13.trans (ho12.trans (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))))))))
+  case io => simp [io13, io12, io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho13, ho12, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
   case w0 => simp [w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
   case w1 => simp [w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
   case w2 => simp [w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
@@ -4802,33 +5026,35 @@ theorem monitor_hashb_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
-/-- A `CHECKSIG` whose ranges lie in the box: from the trap vector the call is forwarded exactly as the payload gave it, and the machine is back in the payload at the word after the `ecall` — the payload's registers as they were but `a0`, which holds the service port word the request read, the counters released and moved on by two. -/
-theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+/-- A `CHECKSIG` whose ranges lie in the box and whose answer is neither 0 nor 1: the request went out, and the machine parks with `a0 = 1`, every other register zero, the host having heard the call and then the fault report. -/
+theorem monitor_checksig_bad_answer (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
-    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hkey : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000) (hsig : 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000) (hmpp : ms.mpp = .U) :
-    (PrivMachine.run env 45 s).core.pc = e + 4#32 ∧
-    Agree M0 (PrivMachine.run env 45 s).core.mem 0x80000000 800 ∧
-    (PrivMachine.run env 45 s).halted = false ∧
-    (PrivMachine.run env 45 s).mode = .U ∧
-    (PrivMachine.run env 45 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 ∧
-    readLE (PrivMachine.run env 45 s).core.mem 0xc000001c#32 4 = 3 ∧
-    Frame s.core.mem (PrivMachine.run env 45 s).core.mem ∧
-    (∀ r, (PrivMachine.run env 45 s).core.reg r = regsUpd s.core.reg [(10, BitVec.ofNat 32 (readLE (PrivMachine.run env 45 s).core.mem 0xc000001c#32 4))] r) := by
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hkey : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000) (hsig : 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000) (hans : BitVec.ult 1#32 (s.host (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩, ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32) = true) :
+    (PrivMachine.run env 91 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 91 s).core.mem 0x80000000 808 ∧
+    (PrivMachine.run env 91 s).halted = false ∧
+    (PrivMachine.run env 91 s).mode = .M ∧
+    (PrivMachine.run env 91 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 91 s).host = s.host ∧
+    (PrivMachine.run env 91 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩, ⟨0xc000001c#32, 3#32⟩, ⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x8000800c#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc000001c#32 4 = 3 ∧
+    Frame s.core.mem (PrivMachine.run env 91 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 91 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
   have p0 := hpc
   have c0 := hcs
   have hS0 := hS
   obtain ⟨hb1, hb2, hb3⟩ := (bounds_len_iff _ 32 (by decide)).mpr hkey
   obtain ⟨hb4, hb5, hb6⟩ := (bounds_len_iff _ 64 (by decide)).mpr hsig
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -4836,8 +5062,8 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hkey, hsig, hmpp]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hkey, hsig, hans]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -4845,8 +5071,8 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -4854,8 +5080,8 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -4863,16 +5089,16 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -4880,8 +5106,8 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
@@ -4889,16 +5115,16 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 2 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -4906,8 +5132,8 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
@@ -4915,8 +5141,8 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p10
   have hS10 := hS9.next a10 h10 m10
   obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 1 s10 = t := ⟨_, rfl⟩
-  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b5 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b5 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
   have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
@@ -4924,16 +5150,16 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p11
   have hS11 := hS10.next a11 h11 m11
   obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 2 s11 = t := ⟨_, rfl⟩
-  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := checksig_s6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
+  obtain ⟨p12, a12, h12, m12, c12, ho12, io12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := checksig_s6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs12] at p12 a12 h12 m12 c12 ho12 io12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
   have sv12_0 : readLE s12.core.mem 0xc0000010#32 4 = readLE s11.core.mem 0xc0000010#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_1 : readLE s12.core.mem 0xc0000014#32 4 = readLE s11.core.mem 0xc0000014#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_2 : readLE s12.core.mem 0xc0000018#32 4 = readLE s11.core.mem 0xc0000018#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_3 : readLE s12.core.mem 0xc000001c#32 4 = readLE s11.core.mem 0xc000001c#32 4 := SvcSame.read sv12 _ (by decide)
   have hS12 := hS11.next a12 h12 m12
   obtain ⟨s13, hs13⟩ : ∃ t, PrivMachine.run env 1 s12 = t := ⟨_, rfl⟩
-  obtain ⟨p13, a13, h13, m13, c13, w13_0, w13_1, w13_2, w13_3, sv13, fr13, r13⟩ := checksig_b6 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12
-  rw [hs13] at p13 a13 h13 m13 c13 w13_0 w13_1 w13_2 w13_3 sv13 fr13 r13
+  obtain ⟨p13, a13, h13, m13, c13, ho13, io13, w13_0, w13_1, w13_2, w13_3, sv13, fr13, r13⟩ := checksig_b6 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12
+  rw [hs13] at p13 a13 h13 m13 c13 ho13 io13 w13_0 w13_1 w13_2 w13_3 sv13 fr13 r13
   have sv13_0 : readLE s13.core.mem 0xc0000010#32 4 = readLE s12.core.mem 0xc0000010#32 4 := SvcSame.read sv13 _ (by decide)
   have sv13_1 : readLE s13.core.mem 0xc0000014#32 4 = readLE s12.core.mem 0xc0000014#32 4 := SvcSame.read sv13 _ (by decide)
   have sv13_2 : readLE s13.core.mem 0xc0000018#32 4 = readLE s12.core.mem 0xc0000018#32 4 := SvcSame.read sv13 _ (by decide)
@@ -4941,64 +5167,272 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
   simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p13
   have hS13 := hS12.next a13 h13 m13
   obtain ⟨s14, hs14⟩ : ∃ t, PrivMachine.run env 3 s13 = t := ⟨_, rfl⟩
-  obtain ⟨p14, a14, h14, m14, c14, w14_0, w14_1, w14_2, w14_3, sv14_0, sv14_1, sv14_2, sv14_3, fr14, r14⟩ := checksig_fwd_1 env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13
-  rw [hs14] at p14 a14 h14 m14 c14 w14_0 w14_1 w14_2 w14_3 sv14_0 sv14_1 sv14_2 sv14_3 fr14 r14
+  obtain ⟨p14, a14, h14, m14, c14, ho14, io14, w14_0, w14_1, w14_2, w14_3, sv14_0, sv14_1, sv14_2, sv14_3, fr14, r14⟩ := checksig_fwd_1 env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13
+  rw [hs14] at p14 a14 h14 m14 c14 ho14 io14 w14_0 w14_1 w14_2 w14_3 sv14_0 sv14_1 sv14_2 sv14_3 fr14 r14
   have hS14 := hS13.next a14 h14 m14
   obtain ⟨s15, hs15⟩ : ∃ t, PrivMachine.run env 1 s14 = t := ⟨_, rfl⟩
-  obtain ⟨p15, a15, h15, m15, c15, w15_0, w15_1, w15_2, w15_3, sv15_0, sv15_1, sv15_2, sv15_3, fr15, r15⟩ := checksig_fwd_2 env M0 s14 hS14 ms e c m cy (s.core.reg 2#5) p14 c14 (by simp [r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs15] at p15 a15 h15 m15 c15 w15_0 w15_1 w15_2 w15_3 sv15_0 sv15_1 sv15_2 sv15_3 fr15 r15
+  obtain ⟨p15, a15, h15, m15, c15, ho15, io15, w15_0, w15_1, w15_2, w15_3, sv15_0, sv15_1, sv15_2, sv15_3, fr15, r15⟩ := checksig_fwd_2 env M0 s14 hS14 ms e c m cy (s.core.reg 2#5) p14 c14 (by simp [r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs15] at p15 a15 h15 m15 c15 ho15 io15 w15_0 w15_1 w15_2 w15_3 sv15_0 sv15_1 sv15_2 sv15_3 fr15 r15
   have hS15 := hS14.next a15 h15 m15
   obtain ⟨s16, hs16⟩ : ∃ t, PrivMachine.run env 2 s15 = t := ⟨_, rfl⟩
-  obtain ⟨p16, a16, h16, m16, c16, w16_0, w16_1, w16_2, w16_3, sv16_0, sv16_1, sv16_2, sv16_3, fr16, r16⟩ := checksig_fwd_3 env M0 s15 hS15 ms e c m cy (s.core.reg 2#5) p15 c15 (by simp [r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs16] at p16 a16 h16 m16 c16 w16_0 w16_1 w16_2 w16_3 sv16_0 sv16_1 sv16_2 sv16_3 fr16 r16
+  obtain ⟨p16, a16, h16, m16, c16, ho16, io16, w16_0, w16_1, w16_2, w16_3, sv16_0, sv16_1, sv16_2, sv16_3, fr16, r16⟩ := checksig_fwd_3 env M0 s15 hS15 ms e c m cy (s.core.reg 2#5) p15 c15 (by simp [r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs16] at p16 a16 h16 m16 c16 ho16 io16 w16_0 w16_1 w16_2 w16_3 sv16_0 sv16_1 sv16_2 sv16_3 fr16 r16
   have hS16 := hS15.next a16 h16 m16
   obtain ⟨s17, hs17⟩ : ∃ t, PrivMachine.run env 1 s16 = t := ⟨_, rfl⟩
-  obtain ⟨p17, a17, h17, m17, c17, w17_0, w17_1, w17_2, w17_3, sv17, fr17, r17⟩ := checksig_fwd_4 env M0 s16 hS16 ms e c m cy (s.core.reg 2#5) p16 c16 (by simp [r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs17] at p17 a17 h17 m17 c17 w17_0 w17_1 w17_2 w17_3 sv17 fr17 r17
+  obtain ⟨p17, a17, h17, m17, c17, ho17, io17, w17_0, w17_1, w17_2, w17_3, sv17, fr17, r17⟩ := checksig_fwd_4 env M0 s16 hS16 ms e c m cy (s.core.reg 2#5) p16 c16 (by simp [r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs17] at p17 a17 h17 m17 c17 ho17 io17 w17_0 w17_1 w17_2 w17_3 sv17 fr17 r17
   have sv17_0 : readLE s17.core.mem 0xc0000010#32 4 = readLE s16.core.mem 0xc0000010#32 4 := SvcSame.read sv17 _ (by decide)
   have sv17_1 : readLE s17.core.mem 0xc0000014#32 4 = readLE s16.core.mem 0xc0000014#32 4 := SvcSame.read sv17 _ (by decide)
   have sv17_2 : readLE s17.core.mem 0xc0000018#32 4 = readLE s16.core.mem 0xc0000018#32 4 := SvcSame.read sv17 _ (by decide)
   have sv17_3 : readLE s17.core.mem 0xc000001c#32 4 = readLE s16.core.mem 0xc000001c#32 4 := SvcSame.read sv17 _ (by decide)
   have hS17 := hS16.next a17 h17 m17
-  obtain ⟨s18, hs18⟩ : ∃ t, PrivMachine.run env 3 s17 = t := ⟨_, rfl⟩
-  obtain ⟨p18, a18, h18, m18, c18, w18_0, w18_1, w18_2, w18_3, sv18, fr18, r18⟩ := return_1 env M0 s17 hS17 ms e c m cy (s.core.reg 2#5) p17 c17
-  rw [hs18] at p18 a18 h18 m18 c18 w18_0 w18_1 w18_2 w18_3 sv18 fr18 r18
+  obtain ⟨s18, hs18⟩ : ∃ t, PrivMachine.run env 2 s17 = t := ⟨_, rfl⟩
+  obtain ⟨p18, a18, h18, m18, c18, ho18, io18, w18_0, w18_1, w18_2, w18_3, sv18, fr18, r18⟩ := checksig_answer env M0 s17 hS17 ms e c m cy (s.core.reg 2#5) p17 c17
+  rw [hs18] at p18 a18 h18 m18 c18 ho18 io18 w18_0 w18_1 w18_2 w18_3 sv18 fr18 r18
   have sv18_0 : readLE s18.core.mem 0xc0000010#32 4 = readLE s17.core.mem 0xc0000010#32 4 := SvcSame.read sv18 _ (by decide)
   have sv18_1 : readLE s18.core.mem 0xc0000014#32 4 = readLE s17.core.mem 0xc0000014#32 4 := SvcSame.read sv18 _ (by decide)
   have sv18_2 : readLE s18.core.mem 0xc0000018#32 4 = readLE s17.core.mem 0xc0000018#32 4 := SvcSame.read sv18 _ (by decide)
   have sv18_3 : readLE s18.core.mem 0xc000001c#32 4 = readLE s17.core.mem 0xc000001c#32 4 := SvcSame.read sv18 _ (by decide)
+  simp [r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, io17, ho17, io16, ho16, io15, ho15, io14, ho14, io13, ho13, io12, ho12, io11, ho11, io10, ho10, io9, ho9, io8, ho8, io7, ho7, io6, ho6, io5, ho5, io4, ho4, io3, ho3, io2, ho2, io1, ho1, List.append_assoc, hans, regsUpd] at p18
   have hS18 := hS17.next a18 h18 m18
-  obtain ⟨s19, hs19⟩ : ∃ t, PrivMachine.run env 4 s18 = t := ⟨_, rfl⟩
-  obtain ⟨p19, a19, h19, m19, c19, w19_0, w19_1, w19_2, w19_3, sv19, fr19, r19⟩ := return_2 env M0 s18 hS18 ms (e + 4#32) c m cy (s.core.reg 2#5) p18 c18 (by simp [r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp])
-  rw [hs19] at p19 a19 h19 m19 c19 w19_0 w19_1 w19_2 w19_3 sv19 fr19 r19
+  obtain ⟨s19, hs19⟩ : ∃ t, PrivMachine.run env 54 s18 = t := ⟨_, rfl⟩
+  obtain ⟨p19, a19, h19, m19, c19, ho19, io19, w19_0, w19_1, w19_2, w19_3, sv19, fr19, r19⟩ := monitor_fault_exit env M0 s18 hS18 ms e c m cy (s.core.reg 2#5) p18 c18 (by simp [r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans])
+  rw [hs19] at p19 a19 h19 m19 c19 ho19 io19 w19_0 w19_1 w19_2 w19_3 sv19 fr19 r19
+  have sv19_0 : readLE s19.core.mem 0xc0000010#32 4 = readLE s18.core.mem 0xc0000010#32 4 := SvcSame.read sv19 _ (by decide)
+  have sv19_1 : readLE s19.core.mem 0xc0000014#32 4 = readLE s18.core.mem 0xc0000014#32 4 := SvcSame.read sv19 _ (by decide)
+  have sv19_2 : readLE s19.core.mem 0xc0000018#32 4 = readLE s18.core.mem 0xc0000018#32 4 := SvcSame.read sv19 _ (by decide)
+  have sv19_3 : readLE s19.core.mem 0xc000001c#32 4 = readLE s18.core.mem 0xc000001c#32 4 := SvcSame.read sv19 _ (by decide)
+  have hall : PrivMachine.run env 91 s = s19 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (run_two hs13 (run_two hs14 (run_two hs15 (run_two hs16 (run_two hs17 (run_two hs18 (hs19))))))))))))))))))
+  rw [hall]
+  refine ⟨p19, a19, h19, m19, c19, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv0, ?sv1, ?sv2, ?sv3, ?fr, ?r⟩
+  case ho => exact (ho19.trans (ho18.trans (ho17.trans (ho16.trans (ho15.trans (ho14.trans (ho13.trans (ho12.trans (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))))))))))))))
+  case io => simp [io19, io18, io17, io16, io15, io14, io13, io12, io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho19, ho18, ho17, ho16, ho15, ho14, ho13, ho12, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case w0 => simp [w19_0, w18_0, w17_0, w16_0, w15_0, w14_0, w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case w1 => simp [w19_1, w18_1, w17_1, w16_1, w15_1, w14_1, w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case w2 => simp [w19_2, w18_2, w17_2, w16_2, w15_2, w14_2, w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case w3 => simp [w19_3, w18_3, w17_3, w16_3, w15_3, w14_3, w13_3, w12_3, w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case sv0 => simp [sv19_0, sv18_0, sv17_0, sv16_0, sv15_0, sv14_0, sv13_0, sv12_0, sv11_0, sv10_0, sv9_0, sv8_0, sv7_0, sv6_0, sv5_0, sv4_0, sv3_0, sv2_0, sv1_0, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case sv1 => simp [sv19_1, sv18_1, sv17_1, sv16_1, sv15_1, sv14_1, sv13_1, sv12_1, sv11_1, sv10_1, sv9_1, sv8_1, sv7_1, sv6_1, sv5_1, sv4_1, sv3_1, sv2_1, sv1_1, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case sv2 => simp [sv19_2, sv18_2, sv17_2, sv16_2, sv15_2, sv14_2, sv13_2, sv12_2, sv11_2, sv10_2, sv9_2, sv8_2, sv7_2, sv6_2, sv5_2, sv4_2, sv3_2, sv2_2, sv1_2, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case sv3 => simp [sv19_3, sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans (fr11.trans (fr12.trans (fr13.trans (fr14.trans (fr15.trans (fr16.trans (fr17.trans (fr18.trans fr19))))))))))))))))))
+  case r =>
+    intro r
+    have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w19_0, w19_1, w19_2, w19_3, w18_0, w18_1, w18_2, w18_3, w17_0, w17_1, w17_2, w17_3, w16_0, w16_1, w16_2, w16_3, w15_0, w15_1, w15_2, w15_3, w14_0, w14_1, w14_2, w14_3, w13_0, w13_1, w13_2, w13_3, w12_0, w12_1, w12_2, w12_3, w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hans]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- A `CHECKSIG` whose ranges lie in the box: from the trap vector the call is forwarded exactly as the payload gave it, and the machine is back in the payload at the word after the `ecall` — the payload's registers as they were but `a0`, which holds what the host answered, 0 or 1, the counters released and moved on by two. -/
+theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hkey : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000) (hsig : 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000) (hmpp : ms.mpp = .U) (hans : BitVec.ult 1#32 (s.host (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩, ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32) = false) :
+    (PrivMachine.run env 47 s).core.pc = e + 4#32 ∧
+    Agree M0 (PrivMachine.run env 47 s).core.mem 0x80000000 808 ∧
+    (PrivMachine.run env 47 s).halted = false ∧
+    (PrivMachine.run env 47 s).mode = .U ∧
+    (PrivMachine.run env 47 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 47 s).host = s.host ∧
+    (PrivMachine.run env 47 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩, ⟨0xc000001c#32, 3#32⟩] ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc000001c#32 4 = 3 ∧
+    Frame s.core.mem (PrivMachine.run env 47 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 47 s).core.reg r = regsUpd s.core.reg [(10, s.host (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩, ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32)] r) := by
+  have p0 := hpc
+  have c0 := hcs
+  have hS0 := hS
+  obtain ⟨hb1, hb2, hb3⟩ := (bounds_len_iff _ 32 (by decide)).mpr hkey
+  obtain ⟨hb4, hb5, hb6⟩ := (bounds_len_iff _ 64 (by decide)).mpr hsig
+  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
+  have sv1_3 : readLE s1.core.mem 0xc000001c#32 4 = readLE s.core.mem 0xc000001c#32 4 := SvcSame.read sv1 _ (by decide)
+  simp [hc, regsUpd] at p1
+  have hS1 := hS0.next a1 h1 m1
+  obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
+  have sv2_3 : readLE s2.core.mem 0xc000001c#32 4 = readLE s1.core.mem 0xc000001c#32 4 := SvcSame.read sv2 _ (by decide)
+  simp [ofNat_toNat_mod, ht0, regsUpd] at p2
+  have hS2 := hS1.next a2 h2 m2
+  obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
+  have sv3_3 : readLE s3.core.mem 0xc000001c#32 4 = readLE s2.core.mem 0xc000001c#32 4 := SvcSame.read sv3 _ (by decide)
+  simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
+  have hS3 := hS2.next a3 h3 m3
+  obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
+  have sv4_3 : readLE s4.core.mem 0xc000001c#32 4 = readLE s3.core.mem 0xc000001c#32 4 := SvcSame.read sv4 _ (by decide)
+  simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
+  have hS4 := hS3.next a4 h4 m4
+  obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
+  have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
+  have hS5 := hS4.next a5 h5 m5
+  obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
+  have sv6_3 : readLE s6.core.mem 0xc000001c#32 4 = readLE s5.core.mem 0xc000001c#32 4 := SvcSame.read sv6 _ (by decide)
+  simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
+  have hS6 := hS5.next a6 h6 m6
+  obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
+  have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
+  simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
+  have hS7 := hS6.next a7 h7 m7
+  obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 2 s7 = t := ⟨_, rfl⟩
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
+  have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
+  have hS8 := hS7.next a8 h8 m8
+  obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
+  have sv9_3 : readLE s9.core.mem 0xc000001c#32 4 = readLE s8.core.mem 0xc000001c#32 4 := SvcSame.read sv9 _ (by decide)
+  simp [r8, r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p9
+  have hS9 := hS8.next a9 h9 m9
+  obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
+  have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
+  simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p10
+  have hS10 := hS9.next a10 h10 m10
+  obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 1 s10 = t := ⟨_, rfl⟩
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b5 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
+  have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
+  simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p11
+  have hS11 := hS10.next a11 h11 m11
+  obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 2 s11 = t := ⟨_, rfl⟩
+  obtain ⟨p12, a12, h12, m12, c12, ho12, io12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := checksig_s6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs12] at p12 a12 h12 m12 c12 ho12 io12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
+  have sv12_0 : readLE s12.core.mem 0xc0000010#32 4 = readLE s11.core.mem 0xc0000010#32 4 := SvcSame.read sv12 _ (by decide)
+  have sv12_1 : readLE s12.core.mem 0xc0000014#32 4 = readLE s11.core.mem 0xc0000014#32 4 := SvcSame.read sv12 _ (by decide)
+  have sv12_2 : readLE s12.core.mem 0xc0000018#32 4 = readLE s11.core.mem 0xc0000018#32 4 := SvcSame.read sv12 _ (by decide)
+  have sv12_3 : readLE s12.core.mem 0xc000001c#32 4 = readLE s11.core.mem 0xc000001c#32 4 := SvcSame.read sv12 _ (by decide)
+  have hS12 := hS11.next a12 h12 m12
+  obtain ⟨s13, hs13⟩ : ∃ t, PrivMachine.run env 1 s12 = t := ⟨_, rfl⟩
+  obtain ⟨p13, a13, h13, m13, c13, ho13, io13, w13_0, w13_1, w13_2, w13_3, sv13, fr13, r13⟩ := checksig_b6 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12
+  rw [hs13] at p13 a13 h13 m13 c13 ho13 io13 w13_0 w13_1 w13_2 w13_3 sv13 fr13 r13
+  have sv13_0 : readLE s13.core.mem 0xc0000010#32 4 = readLE s12.core.mem 0xc0000010#32 4 := SvcSame.read sv13 _ (by decide)
+  have sv13_1 : readLE s13.core.mem 0xc0000014#32 4 = readLE s12.core.mem 0xc0000014#32 4 := SvcSame.read sv13 _ (by decide)
+  have sv13_2 : readLE s13.core.mem 0xc0000018#32 4 = readLE s12.core.mem 0xc0000018#32 4 := SvcSame.read sv13 _ (by decide)
+  have sv13_3 : readLE s13.core.mem 0xc000001c#32 4 = readLE s12.core.mem 0xc000001c#32 4 := SvcSame.read sv13 _ (by decide)
+  simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p13
+  have hS13 := hS12.next a13 h13 m13
+  obtain ⟨s14, hs14⟩ : ∃ t, PrivMachine.run env 3 s13 = t := ⟨_, rfl⟩
+  obtain ⟨p14, a14, h14, m14, c14, ho14, io14, w14_0, w14_1, w14_2, w14_3, sv14_0, sv14_1, sv14_2, sv14_3, fr14, r14⟩ := checksig_fwd_1 env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13
+  rw [hs14] at p14 a14 h14 m14 c14 ho14 io14 w14_0 w14_1 w14_2 w14_3 sv14_0 sv14_1 sv14_2 sv14_3 fr14 r14
+  have hS14 := hS13.next a14 h14 m14
+  obtain ⟨s15, hs15⟩ : ∃ t, PrivMachine.run env 1 s14 = t := ⟨_, rfl⟩
+  obtain ⟨p15, a15, h15, m15, c15, ho15, io15, w15_0, w15_1, w15_2, w15_3, sv15_0, sv15_1, sv15_2, sv15_3, fr15, r15⟩ := checksig_fwd_2 env M0 s14 hS14 ms e c m cy (s.core.reg 2#5) p14 c14 (by simp [r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs15] at p15 a15 h15 m15 c15 ho15 io15 w15_0 w15_1 w15_2 w15_3 sv15_0 sv15_1 sv15_2 sv15_3 fr15 r15
+  have hS15 := hS14.next a15 h15 m15
+  obtain ⟨s16, hs16⟩ : ∃ t, PrivMachine.run env 2 s15 = t := ⟨_, rfl⟩
+  obtain ⟨p16, a16, h16, m16, c16, ho16, io16, w16_0, w16_1, w16_2, w16_3, sv16_0, sv16_1, sv16_2, sv16_3, fr16, r16⟩ := checksig_fwd_3 env M0 s15 hS15 ms e c m cy (s.core.reg 2#5) p15 c15 (by simp [r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs16] at p16 a16 h16 m16 c16 ho16 io16 w16_0 w16_1 w16_2 w16_3 sv16_0 sv16_1 sv16_2 sv16_3 fr16 r16
+  have hS16 := hS15.next a16 h16 m16
+  obtain ⟨s17, hs17⟩ : ∃ t, PrivMachine.run env 1 s16 = t := ⟨_, rfl⟩
+  obtain ⟨p17, a17, h17, m17, c17, ho17, io17, w17_0, w17_1, w17_2, w17_3, sv17, fr17, r17⟩ := checksig_fwd_4 env M0 s16 hS16 ms e c m cy (s.core.reg 2#5) p16 c16 (by simp [r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs17] at p17 a17 h17 m17 c17 ho17 io17 w17_0 w17_1 w17_2 w17_3 sv17 fr17 r17
+  have sv17_0 : readLE s17.core.mem 0xc0000010#32 4 = readLE s16.core.mem 0xc0000010#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_1 : readLE s17.core.mem 0xc0000014#32 4 = readLE s16.core.mem 0xc0000014#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_2 : readLE s17.core.mem 0xc0000018#32 4 = readLE s16.core.mem 0xc0000018#32 4 := SvcSame.read sv17 _ (by decide)
+  have sv17_3 : readLE s17.core.mem 0xc000001c#32 4 = readLE s16.core.mem 0xc000001c#32 4 := SvcSame.read sv17 _ (by decide)
+  have hS17 := hS16.next a17 h17 m17
+  obtain ⟨s18, hs18⟩ : ∃ t, PrivMachine.run env 2 s17 = t := ⟨_, rfl⟩
+  obtain ⟨p18, a18, h18, m18, c18, ho18, io18, w18_0, w18_1, w18_2, w18_3, sv18, fr18, r18⟩ := checksig_answer env M0 s17 hS17 ms e c m cy (s.core.reg 2#5) p17 c17
+  rw [hs18] at p18 a18 h18 m18 c18 ho18 io18 w18_0 w18_1 w18_2 w18_3 sv18 fr18 r18
+  have sv18_0 : readLE s18.core.mem 0xc0000010#32 4 = readLE s17.core.mem 0xc0000010#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_1 : readLE s18.core.mem 0xc0000014#32 4 = readLE s17.core.mem 0xc0000014#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_2 : readLE s18.core.mem 0xc0000018#32 4 = readLE s17.core.mem 0xc0000018#32 4 := SvcSame.read sv18 _ (by decide)
+  have sv18_3 : readLE s18.core.mem 0xc000001c#32 4 = readLE s17.core.mem 0xc000001c#32 4 := SvcSame.read sv18 _ (by decide)
+  simp [r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, io17, ho17, io16, ho16, io15, ho15, io14, ho14, io13, ho13, io12, ho12, io11, ho11, io10, ho10, io9, ho9, io8, ho8, io7, ho7, io6, ho6, io5, ho5, io4, ho4, io3, ho3, io2, ho2, io1, ho1, List.append_assoc, hans, regsUpd] at p18
+  have hS18 := hS17.next a18 h18 m18
+  obtain ⟨s19, hs19⟩ : ∃ t, PrivMachine.run env 3 s18 = t := ⟨_, rfl⟩
+  obtain ⟨p19, a19, h19, m19, c19, ho19, io19, w19_0, w19_1, w19_2, w19_3, sv19, fr19, r19⟩ := return_1 env M0 s18 hS18 ms e c m cy (s.core.reg 2#5) p18 c18
+  rw [hs19] at p19 a19 h19 m19 c19 ho19 io19 w19_0 w19_1 w19_2 w19_3 sv19 fr19 r19
   have sv19_0 : readLE s19.core.mem 0xc0000010#32 4 = readLE s18.core.mem 0xc0000010#32 4 := SvcSame.read sv19 _ (by decide)
   have sv19_1 : readLE s19.core.mem 0xc0000014#32 4 = readLE s18.core.mem 0xc0000014#32 4 := SvcSame.read sv19 _ (by decide)
   have sv19_2 : readLE s19.core.mem 0xc0000018#32 4 = readLE s18.core.mem 0xc0000018#32 4 := SvcSame.read sv19 _ (by decide)
   have sv19_3 : readLE s19.core.mem 0xc000001c#32 4 = readLE s18.core.mem 0xc000001c#32 4 := SvcSame.read sv19 _ (by decide)
   have hS19 := hS18.next a19 h19 m19
-  obtain ⟨s20, hs20⟩ : ∃ t, PrivMachine.run env 3 s19 = t := ⟨_, rfl⟩
-  obtain ⟨p20, a20, h20, m20, c20, w20_0, w20_1, w20_2, w20_3, sv20, fr20, r20⟩ := return_3 env M0 s19 hS19 ms (e + 4#32) c m cy (s.core.reg 2#5) p19 c19 (by simp [r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]) hmpp
-  rw [hs20] at p20 a20 h20 m20 c20 w20_0 w20_1 w20_2 w20_3 sv20 fr20 r20
+  obtain ⟨s20, hs20⟩ : ∃ t, PrivMachine.run env 4 s19 = t := ⟨_, rfl⟩
+  obtain ⟨p20, a20, h20, m20, c20, ho20, io20, w20_0, w20_1, w20_2, w20_3, sv20, fr20, r20⟩ := return_2 env M0 s19 hS19 ms (e + 4#32) c m cy (s.core.reg 2#5) p19 c19 (by simp [r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans])
+  rw [hs20] at p20 a20 h20 m20 c20 ho20 io20 w20_0 w20_1 w20_2 w20_3 sv20 fr20 r20
   have sv20_0 : readLE s20.core.mem 0xc0000010#32 4 = readLE s19.core.mem 0xc0000010#32 4 := SvcSame.read sv20 _ (by decide)
   have sv20_1 : readLE s20.core.mem 0xc0000014#32 4 = readLE s19.core.mem 0xc0000014#32 4 := SvcSame.read sv20 _ (by decide)
   have sv20_2 : readLE s20.core.mem 0xc0000018#32 4 = readLE s19.core.mem 0xc0000018#32 4 := SvcSame.read sv20 _ (by decide)
   have sv20_3 : readLE s20.core.mem 0xc000001c#32 4 = readLE s19.core.mem 0xc000001c#32 4 := SvcSame.read sv20 _ (by decide)
-  have hall : PrivMachine.run env 45 s = s20 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (run_two hs13 (run_two hs14 (run_two hs15 (run_two hs16 (run_two hs17 (run_two hs18 (run_two hs19 (hs20)))))))))))))))))))
+  have hS20 := hS19.next a20 h20 m20
+  obtain ⟨s21, hs21⟩ : ∃ t, PrivMachine.run env 3 s20 = t := ⟨_, rfl⟩
+  obtain ⟨p21, a21, h21, m21, c21, ho21, io21, w21_0, w21_1, w21_2, w21_3, sv21, fr21, r21⟩ := return_3 env M0 s20 hS20 ms (e + 4#32) c m cy (s.core.reg 2#5) p20 c20 (by simp [r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]) hmpp
+  rw [hs21] at p21 a21 h21 m21 c21 ho21 io21 w21_0 w21_1 w21_2 w21_3 sv21 fr21 r21
+  have sv21_0 : readLE s21.core.mem 0xc0000010#32 4 = readLE s20.core.mem 0xc0000010#32 4 := SvcSame.read sv21 _ (by decide)
+  have sv21_1 : readLE s21.core.mem 0xc0000014#32 4 = readLE s20.core.mem 0xc0000014#32 4 := SvcSame.read sv21 _ (by decide)
+  have sv21_2 : readLE s21.core.mem 0xc0000018#32 4 = readLE s20.core.mem 0xc0000018#32 4 := SvcSame.read sv21 _ (by decide)
+  have sv21_3 : readLE s21.core.mem 0xc000001c#32 4 = readLE s20.core.mem 0xc000001c#32 4 := SvcSame.read sv21 _ (by decide)
+  have hall : PrivMachine.run env 47 s = s21 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (run_two hs13 (run_two hs14 (run_two hs15 (run_two hs16 (run_two hs17 (run_two hs18 (run_two hs19 (run_two hs20 (hs21))))))))))))))))))))
   rw [hall]
-  refine ⟨p20, a20, h20, m20, c20, ?w0, ?w1, ?w2, ?w3, ?sv0, ?sv1, ?sv2, ?sv3, ?fr, ?r⟩
-  case w0 => simp [w20_0, w19_0, w18_0, w17_0, w16_0, w15_0, w14_0, w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case w1 => simp [w20_1, w19_1, w18_1, w17_1, w16_1, w15_1, w14_1, w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case w2 => simp [w20_2, w19_2, w18_2, w17_2, w16_2, w15_2, w14_2, w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case w3 => simp [w20_3, w19_3, w18_3, w17_3, w16_3, w15_3, w14_3, w13_3, w12_3, w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case sv0 => simp [sv20_0, sv19_0, sv18_0, sv17_0, sv16_0, sv15_0, sv14_0, sv13_0, sv12_0, sv11_0, sv10_0, sv9_0, sv8_0, sv7_0, sv6_0, sv5_0, sv4_0, sv3_0, sv2_0, sv1_0, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case sv1 => simp [sv20_1, sv19_1, sv18_1, sv17_1, sv16_1, sv15_1, sv14_1, sv13_1, sv12_1, sv11_1, sv10_1, sv9_1, sv8_1, sv7_1, sv6_1, sv5_1, sv4_1, sv3_1, sv2_1, sv1_1, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case sv2 => simp [sv20_2, sv19_2, sv18_2, sv17_2, sv16_2, sv15_2, sv14_2, sv13_2, sv12_2, sv11_2, sv10_2, sv9_2, sv8_2, sv7_2, sv6_2, sv5_2, sv4_2, sv3_2, sv2_2, sv1_2, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case sv3 => simp [sv20_3, sv19_3, sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
-  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans (fr11.trans (fr12.trans (fr13.trans (fr14.trans (fr15.trans (fr16.trans (fr17.trans (fr18.trans (fr19.trans fr20)))))))))))))))))))
+  refine ⟨p21, a21, h21, m21, c21, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv0, ?sv1, ?sv2, ?sv3, ?fr, ?r⟩
+  case ho => exact (ho21.trans (ho20.trans (ho19.trans (ho18.trans (ho17.trans (ho16.trans (ho15.trans (ho14.trans (ho13.trans (ho12.trans (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))))))))))))))))
+  case io => simp [io21, io20, io19, io18, io17, io16, io15, io14, io13, io12, io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho21, ho20, ho19, ho18, ho17, ho16, ho15, ho14, ho13, ho12, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case w0 => simp [w21_0, w20_0, w19_0, w18_0, w17_0, w16_0, w15_0, w14_0, w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case w1 => simp [w21_1, w20_1, w19_1, w18_1, w17_1, w16_1, w15_1, w14_1, w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case w2 => simp [w21_2, w20_2, w19_2, w18_2, w17_2, w16_2, w15_2, w14_2, w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case w3 => simp [w21_3, w20_3, w19_3, w18_3, w17_3, w16_3, w15_3, w14_3, w13_3, w12_3, w11_3, w10_3, w9_3, w8_3, w7_3, w6_3, w5_3, w4_3, w3_3, w2_3, w1_3, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case sv0 => simp [sv21_0, sv20_0, sv19_0, sv18_0, sv17_0, sv16_0, sv15_0, sv14_0, sv13_0, sv12_0, sv11_0, sv10_0, sv9_0, sv8_0, sv7_0, sv6_0, sv5_0, sv4_0, sv3_0, sv2_0, sv1_0, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case sv1 => simp [sv21_1, sv20_1, sv19_1, sv18_1, sv17_1, sv16_1, sv15_1, sv14_1, sv13_1, sv12_1, sv11_1, sv10_1, sv9_1, sv8_1, sv7_1, sv6_1, sv5_1, sv4_1, sv3_1, sv2_1, sv1_1, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case sv2 => simp [sv21_2, sv20_2, sv19_2, sv18_2, sv17_2, sv16_2, sv15_2, sv14_2, sv13_2, sv12_2, sv11_2, sv10_2, sv9_2, sv8_2, sv7_2, sv6_2, sv5_2, sv4_2, sv3_2, sv2_2, sv1_2, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case sv3 => simp [sv21_3, sv20_3, sv19_3, sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
+  case fr => exact (fr1.trans (fr2.trans (fr3.trans (fr4.trans (fr5.trans (fr6.trans (fr7.trans (fr8.trans (fr9.trans (fr10.trans (fr11.trans (fr12.trans (fr13.trans (fr14.trans (fr15.trans (fr16.trans (fr17.trans (fr18.trans (fr19.trans (fr20.trans fr21))))))))))))))))))))
   case r =>
     intro r
     have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
-    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w20_0, w20_1, w20_2, w20_3, w19_0, w19_1, w19_2, w19_3, w18_0, w18_1, w18_2, w18_3, w17_0, w17_1, w17_2, w17_3, w16_0, w16_1, w16_2, w16_3, w15_0, w15_1, w15_2, w15_3, w14_0, w14_1, w14_2, w14_3, w13_0, w13_1, w13_2, w13_3, w12_0, w12_1, w12_2, w12_3, w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, sv20_3, sv19_3, sv18_3, sv17_3, sv16_3, sv15_3, sv14_3, sv13_3, sv12_3, sv11_3, sv10_3, sv9_3, sv8_3, sv7_3, sv6_3, sv5_3, sv4_3, sv3_3, sv2_3, sv1_3, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp]
+    rcases hr32 with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [w21_0, w21_1, w21_2, w21_3, w20_0, w20_1, w20_2, w20_3, w19_0, w19_1, w19_2, w19_3, w18_0, w18_1, w18_2, w18_3, w17_0, w17_1, w17_2, w17_3, w16_0, w16_1, w16_2, w16_3, w15_0, w15_1, w15_2, w15_3, w14_0, w14_1, w14_2, w14_3, w13_0, w13_1, w13_2, w13_3, w12_0, w12_1, w12_2, w12_3, w11_0, w11_1, w11_2, w11_3, w10_0, w10_1, w10_2, w10_3, w9_0, w9_1, w9_2, w9_3, w8_0, w8_1, w8_2, w8_3, w7_0, w7_1, w7_2, w7_3, w6_0, w6_1, w6_2, w6_3, w5_0, w5_1, w5_2, w5_3, w4_0, w4_1, w4_2, w4_3, w3_0, w3_1, w3_2, w3_3, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, io21, ho21, io20, ho20, io19, ho19, io18, ho18, io17, ho17, io16, ho16, io15, ho15, io14, ho14, io13, ho13, io12, ho12, io11, ho11, io10, ho10, io9, ho9, io8, ho8, io7, ho7, io6, ho6, io5, ho5, io4, ho4, io3, ho3, io2, ho2, io1, ho1, List.append_assoc, r21, r20, r19, r18, r17, r16, r15, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hkey, hsig, hmpp, hans]
 
 set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 100000 in
@@ -5006,11 +5440,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = true) :
-    (PrivMachine.run env 73 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 73 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 73 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 73 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 73 s).halted = false ∧
     (PrivMachine.run env 73 s).mode = .M ∧
     (PrivMachine.run env 73 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 73 s).host = s.host ∧
+    (PrivMachine.run env 73 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 73 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 73 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 73 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5022,8 +5458,8 @@ theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -5031,8 +5467,8 @@ theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -5040,8 +5476,8 @@ theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -5049,8 +5485,8 @@ theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -5058,16 +5494,16 @@ theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -5075,15 +5511,17 @@ theorem monitor_checksig_oob_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 54 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_fault_exit env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := monitor_fault_exit env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_3 : readLE s7.core.mem 0xc000001c#32 4 = readLE s6.core.mem 0xc000001c#32 4 := SvcSame.read sv7 _ (by decide)
   have hall : PrivMachine.run env 73 s = s7 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (hs7))))))
   rw [hall]
-  refine ⟨p7, a7, h7, m7, c7, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p7, a7, h7, m7, c7, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))
+  case io => simp [io7, io6, io5, io4, io3, io2, io1, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
   case w0 => simp [w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
   case w1 => simp [w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
   case w2 => simp [w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1]
@@ -5101,11 +5539,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = true) :
-    (PrivMachine.run env 74 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 74 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 74 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 74 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 74 s).halted = false ∧
     (PrivMachine.run env 74 s).mode = .M ∧
     (PrivMachine.run env 74 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 74 s).host = s.host ∧
+    (PrivMachine.run env 74 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 74 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 74 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 74 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5117,8 +5557,8 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -5126,8 +5566,8 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -5135,8 +5575,8 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -5144,8 +5584,8 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -5153,16 +5593,16 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -5170,8 +5610,8 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
@@ -5179,15 +5619,17 @@ theorem monitor_checksig_oob_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 54 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := monitor_fault_exit env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := monitor_fault_exit env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2])
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
   have hall : PrivMachine.run env 74 s = s8 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (hs8)))))))
   rw [hall]
-  refine ⟨p8, a8, h8, m8, c8, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p8, a8, h8, m8, c8, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))))
+  case io => simp [io8, io7, io6, io5, io4, io3, io2, io1, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
   case w0 => simp [w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
   case w1 => simp [w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
   case w2 => simp [w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2]
@@ -5205,11 +5647,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = true) :
-    (PrivMachine.run env 77 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 77 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 77 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 77 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 77 s).halted = false ∧
     (PrivMachine.run env 77 s).mode = .M ∧
     (PrivMachine.run env 77 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 77 s).host = s.host ∧
+    (PrivMachine.run env 77 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 77 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 77 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 77 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5221,8 +5665,8 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -5230,8 +5674,8 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -5239,8 +5683,8 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -5248,8 +5692,8 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -5257,16 +5701,16 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -5274,8 +5718,8 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
@@ -5283,16 +5727,16 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 2 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -5300,15 +5744,17 @@ theorem monitor_checksig_oob_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 54 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := monitor_fault_exit env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := monitor_fault_exit env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_3 : readLE s10.core.mem 0xc000001c#32 4 = readLE s9.core.mem 0xc000001c#32 4 := SvcSame.read sv10 _ (by decide)
   have hall : PrivMachine.run env 77 s = s10 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (hs10)))))))))
   rw [hall]
-  refine ⟨p10, a10, h10, m10, c10, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p10, a10, h10, m10, c10, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))))))
+  case io => simp [io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
   case w0 => simp [w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
   case w1 => simp [w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
   case w2 => simp [w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3]
@@ -5326,11 +5772,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = false) (hb4 : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = true) :
-    (PrivMachine.run env 78 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 78 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 78 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 78 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 78 s).halted = false ∧
     (PrivMachine.run env 78 s).mode = .M ∧
     (PrivMachine.run env 78 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 78 s).host = s.host ∧
+    (PrivMachine.run env 78 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 78 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 78 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 78 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5342,8 +5790,8 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -5351,8 +5799,8 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -5360,8 +5808,8 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -5369,8 +5817,8 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -5378,16 +5826,16 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -5395,8 +5843,8 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
@@ -5404,16 +5852,16 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 2 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -5421,8 +5869,8 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
@@ -5430,15 +5878,17 @@ theorem monitor_checksig_oob_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p10
   have hS10 := hS9.next a10 h10 m10
   obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 54 s10 = t := ⟨_, rfl⟩
-  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := monitor_fault_exit env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
-  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := monitor_fault_exit env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
   have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_3 : readLE s11.core.mem 0xc000001c#32 4 = readLE s10.core.mem 0xc000001c#32 4 := SvcSame.read sv11 _ (by decide)
   have hall : PrivMachine.run env 78 s = s11 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (hs11))))))))))
   rw [hall]
-  refine ⟨p11, a11, h11, m11, c11, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p11, a11, h11, m11, c11, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1))))))))))
+  case io => simp [io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
   case w0 => simp [w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
   case w1 => simp [w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
   case w2 => simp [w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4]
@@ -5456,11 +5906,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = false) (hb4 : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = true) :
-    (PrivMachine.run env 79 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 79 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 79 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 79 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 79 s).halted = false ∧
     (PrivMachine.run env 79 s).mode = .M ∧
     (PrivMachine.run env 79 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 79 s).host = s.host ∧
+    (PrivMachine.run env 79 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 79 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 79 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 79 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5472,8 +5924,8 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -5481,8 +5933,8 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -5490,8 +5942,8 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -5499,8 +5951,8 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -5508,16 +5960,16 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -5525,8 +5977,8 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
@@ -5534,16 +5986,16 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 2 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -5551,8 +6003,8 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
@@ -5560,8 +6012,8 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p10
   have hS10 := hS9.next a10 h10 m10
   obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 1 s10 = t := ⟨_, rfl⟩
-  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b5 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b5 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
   have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
@@ -5569,15 +6021,17 @@ theorem monitor_checksig_oob_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p11
   have hS11 := hS10.next a11 h11 m11
   obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 54 s11 = t := ⟨_, rfl⟩
-  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := monitor_fault_exit env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
-  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
+  obtain ⟨p12, a12, h12, m12, c12, ho12, io12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := monitor_fault_exit env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5])
+  rw [hs12] at p12 a12 h12 m12 c12 ho12 io12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
   have sv12_0 : readLE s12.core.mem 0xc0000010#32 4 = readLE s11.core.mem 0xc0000010#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_1 : readLE s12.core.mem 0xc0000014#32 4 = readLE s11.core.mem 0xc0000014#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_2 : readLE s12.core.mem 0xc0000018#32 4 = readLE s11.core.mem 0xc0000018#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_3 : readLE s12.core.mem 0xc000001c#32 4 = readLE s11.core.mem 0xc000001c#32 4 := SvcSame.read sv12 _ (by decide)
   have hall : PrivMachine.run env 79 s = s12 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (hs12)))))))))))
   rw [hall]
-  refine ⟨p12, a12, h12, m12, c12, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p12, a12, h12, m12, c12, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho12.trans (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))))))))
+  case io => simp [io12, io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho12, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
   case w0 => simp [w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
   case w1 => simp [w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
   case w2 => simp [w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5]
@@ -5595,11 +6049,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hb1 : BitVec.ult (s.core.reg 10#5) 0x80010000#32 = false) (hb2 : BitVec.ult 0x80020000#32 (s.core.reg 10#5) = false) (hb3 : BitVec.ult (0x80020000#32 - s.core.reg 10#5) 32#32 = false) (hb4 : BitVec.ult (s.core.reg 11#5) 0x80010000#32 = false) (hb5 : BitVec.ult 0x80020000#32 (s.core.reg 11#5) = false) (hb6 : BitVec.ult (0x80020000#32 - s.core.reg 11#5) 64#32 = true) :
-    (PrivMachine.run env 82 s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env 82 s).core.mem 0x80000000 800 ∧
+    (PrivMachine.run env 82 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 82 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 82 s).halted = false ∧
     (PrivMachine.run env 82 s).mode = .M ∧
     (PrivMachine.run env 82 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 82 s).host = s.host ∧
+    (PrivMachine.run env 82 s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env 82 s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env 82 s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env 82 s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5611,8 +6067,8 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   have c0 := hcs
   have hS0 := hS
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 9 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
-  rw [hs1] at p1 a1 h1 m1 c1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1, fr1, r1⟩ := monitor_enter env M0 s hS0 ms e c m cy p0 c0
+  rw [hs1] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1 fr1 r1
   have sv1_0 : readLE s1.core.mem 0xc0000010#32 4 = readLE s.core.mem 0xc0000010#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_1 : readLE s1.core.mem 0xc0000014#32 4 = readLE s.core.mem 0xc0000014#32 4 := SvcSame.read sv1 _ (by decide)
   have sv1_2 : readLE s1.core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 := SvcSame.read sv1 _ (by decide)
@@ -5620,8 +6076,8 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [hc, regsUpd] at p1
   have hS1 := hS0.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 3 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]) w1_0
-  rw [hs2] at p2 a2 h2 m2 c2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ := call_is_halt env M0 s1 hS1 ms e c m cy (s.core.reg 2#5) ((s.core.reg 5#5).toNat % 4294967296) p1 c1 (by simp [r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]) w1_0
+  rw [hs2] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
   have sv2_0 : readLE s2.core.mem 0xc0000010#32 4 = readLE s1.core.mem 0xc0000010#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_1 : readLE s2.core.mem 0xc0000014#32 4 = readLE s1.core.mem 0xc0000014#32 4 := SvcSame.read sv2 _ (by decide)
   have sv2_2 : readLE s2.core.mem 0xc0000018#32 4 = readLE s1.core.mem 0xc0000018#32 4 := SvcSame.read sv2 _ (by decide)
@@ -5629,8 +6085,8 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, ht0, regsUpd] at p2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 2 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ := call_is_hashb env M0 s2 hS2 ms e c m cy (s.core.reg 2#5) p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
   have sv3_0 : readLE s3.core.mem 0xc0000010#32 4 = readLE s2.core.mem 0xc0000010#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_1 : readLE s3.core.mem 0xc0000014#32 4 = readLE s2.core.mem 0xc0000014#32 4 := SvcSame.read sv3 _ (by decide)
   have sv3_2 : readLE s3.core.mem 0xc0000018#32 4 = readLE s2.core.mem 0xc0000018#32 4 := SvcSame.read sv3 _ (by decide)
@@ -5638,8 +6094,8 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r2, r1, ht0, regsUpd] at p3
   have hS3 := hS2.next a3 h3 m3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 2 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, ho4, io4, w4_0, w4_1, w4_2, w4_3, sv4, fr4, r4⟩ := call_is_checksig env M0 s3 hS3 ms e c m cy (s.core.reg 2#5) p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 ho4 io4 w4_0 w4_1 w4_2 w4_3 sv4 fr4 r4
   have sv4_0 : readLE s4.core.mem 0xc0000010#32 4 = readLE s3.core.mem 0xc0000010#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_1 : readLE s4.core.mem 0xc0000014#32 4 = readLE s3.core.mem 0xc0000014#32 4 := SvcSame.read sv4 _ (by decide)
   have sv4_2 : readLE s4.core.mem 0xc0000018#32 4 = readLE s3.core.mem 0xc0000018#32 4 := SvcSame.read sv4 _ (by decide)
@@ -5647,16 +6103,16 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [ofNat_toNat_mod, r3, r2, r1, ht0, regsUpd] at p4
   have hS4 := hS3.next a4 h4 m4
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env 2 s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
-  rw [hs5] at p5 a5 h5 m5 c5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
+  obtain ⟨p5, a5, h5, m5, c5, ho5, io5, w5_0, w5_1, w5_2, w5_3, sv5, fr5, r5⟩ := checksig_load env M0 s4 hS4 ms e c m cy (s.core.reg 2#5) p4 c4
+  rw [hs5] at p5 a5 h5 m5 c5 ho5 io5 w5_0 w5_1 w5_2 w5_3 sv5 fr5 r5
   have sv5_0 : readLE s5.core.mem 0xc0000010#32 4 = readLE s4.core.mem 0xc0000010#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_1 : readLE s5.core.mem 0xc0000014#32 4 = readLE s4.core.mem 0xc0000014#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_2 : readLE s5.core.mem 0xc0000018#32 4 = readLE s4.core.mem 0xc0000018#32 4 := SvcSame.read sv5 _ (by decide)
   have sv5_3 : readLE s5.core.mem 0xc000001c#32 4 = readLE s4.core.mem 0xc000001c#32 4 := SvcSame.read sv5 _ (by decide)
   have hS5 := hS4.next a5 h5 m5
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 1 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs6] at p6 a6 h6 m6 c6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, ho6, io6, w6_0, w6_1, w6_2, w6_3, sv6, fr6, r6⟩ := checksig_b1 env M0 s5 hS5 ms e c m cy (s.core.reg 2#5) p5 c5 (by simp [r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs6] at p6 a6 h6 m6 c6 ho6 io6 w6_0 w6_1 w6_2 w6_3 sv6 fr6 r6
   have sv6_0 : readLE s6.core.mem 0xc0000010#32 4 = readLE s5.core.mem 0xc0000010#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_1 : readLE s6.core.mem 0xc0000014#32 4 = readLE s5.core.mem 0xc0000014#32 4 := SvcSame.read sv6 _ (by decide)
   have sv6_2 : readLE s6.core.mem 0xc0000018#32 4 = readLE s5.core.mem 0xc0000018#32 4 := SvcSame.read sv6 _ (by decide)
@@ -5664,8 +6120,8 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r5, r4, r3, r2, r1, hb1, regsUpd] at p6
   have hS6 := hS5.next a6 h6 m6
   obtain ⟨s7, hs7⟩ : ∃ t, PrivMachine.run env 1 s6 = t := ⟨_, rfl⟩
-  obtain ⟨p7, a7, h7, m7, c7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs7] at p7 a7 h7 m7 c7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
+  obtain ⟨p7, a7, h7, m7, c7, ho7, io7, w7_0, w7_1, w7_2, w7_3, sv7, fr7, r7⟩ := checksig_b2 env M0 s6 hS6 ms e c m cy (s.core.reg 2#5) p6 c6 (by simp [r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs7] at p7 a7 h7 m7 c7 ho7 io7 w7_0 w7_1 w7_2 w7_3 sv7 fr7 r7
   have sv7_0 : readLE s7.core.mem 0xc0000010#32 4 = readLE s6.core.mem 0xc0000010#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_1 : readLE s7.core.mem 0xc0000014#32 4 = readLE s6.core.mem 0xc0000014#32 4 := SvcSame.read sv7 _ (by decide)
   have sv7_2 : readLE s7.core.mem 0xc0000018#32 4 = readLE s6.core.mem 0xc0000018#32 4 := SvcSame.read sv7 _ (by decide)
@@ -5673,16 +6129,16 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r6, r5, r4, r3, r2, r1, hb2, regsUpd] at p7
   have hS7 := hS6.next a7 h7 m7
   obtain ⟨s8, hs8⟩ : ∃ t, PrivMachine.run env 2 s7 = t := ⟨_, rfl⟩
-  obtain ⟨p8, a8, h8, m8, c8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs8] at p8 a8 h8 m8 c8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
+  obtain ⟨p8, a8, h8, m8, c8, ho8, io8, w8_0, w8_1, w8_2, w8_3, sv8, fr8, r8⟩ := checksig_s3 env M0 s7 hS7 ms e c m cy (s.core.reg 2#5) p7 c7 (by simp [r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs8] at p8 a8 h8 m8 c8 ho8 io8 w8_0 w8_1 w8_2 w8_3 sv8 fr8 r8
   have sv8_0 : readLE s8.core.mem 0xc0000010#32 4 = readLE s7.core.mem 0xc0000010#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_1 : readLE s8.core.mem 0xc0000014#32 4 = readLE s7.core.mem 0xc0000014#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_2 : readLE s8.core.mem 0xc0000018#32 4 = readLE s7.core.mem 0xc0000018#32 4 := SvcSame.read sv8 _ (by decide)
   have sv8_3 : readLE s8.core.mem 0xc000001c#32 4 = readLE s7.core.mem 0xc000001c#32 4 := SvcSame.read sv8 _ (by decide)
   have hS8 := hS7.next a8 h8 m8
   obtain ⟨s9, hs9⟩ : ∃ t, PrivMachine.run env 1 s8 = t := ⟨_, rfl⟩
-  obtain ⟨p9, a9, h9, m9, c9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
-  rw [hs9] at p9 a9 h9 m9 c9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
+  obtain ⟨p9, a9, h9, m9, c9, ho9, io9, w9_0, w9_1, w9_2, w9_3, sv9, fr9, r9⟩ := checksig_b3 env M0 s8 hS8 ms e c m cy (s.core.reg 2#5) p8 c8
+  rw [hs9] at p9 a9 h9 m9 c9 ho9 io9 w9_0 w9_1 w9_2 w9_3 sv9 fr9 r9
   have sv9_0 : readLE s9.core.mem 0xc0000010#32 4 = readLE s8.core.mem 0xc0000010#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_1 : readLE s9.core.mem 0xc0000014#32 4 = readLE s8.core.mem 0xc0000014#32 4 := SvcSame.read sv9 _ (by decide)
   have sv9_2 : readLE s9.core.mem 0xc0000018#32 4 = readLE s8.core.mem 0xc0000018#32 4 := SvcSame.read sv9 _ (by decide)
@@ -5690,8 +6146,8 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r8, r7, r6, r5, r4, r3, r2, r1, hb3, regsUpd] at p9
   have hS9 := hS8.next a9 h9 m9
   obtain ⟨s10, hs10⟩ : ∃ t, PrivMachine.run env 1 s9 = t := ⟨_, rfl⟩
-  obtain ⟨p10, a10, h10, m10, c10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs10] at p10 a10 h10 m10 c10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
+  obtain ⟨p10, a10, h10, m10, c10, ho10, io10, w10_0, w10_1, w10_2, w10_3, sv10, fr10, r10⟩ := checksig_b4 env M0 s9 hS9 ms e c m cy (s.core.reg 2#5) p9 c9 (by simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs10] at p10 a10 h10 m10 c10 ho10 io10 w10_0 w10_1 w10_2 w10_3 sv10 fr10 r10
   have sv10_0 : readLE s10.core.mem 0xc0000010#32 4 = readLE s9.core.mem 0xc0000010#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_1 : readLE s10.core.mem 0xc0000014#32 4 = readLE s9.core.mem 0xc0000014#32 4 := SvcSame.read sv10 _ (by decide)
   have sv10_2 : readLE s10.core.mem 0xc0000018#32 4 = readLE s9.core.mem 0xc0000018#32 4 := SvcSame.read sv10 _ (by decide)
@@ -5699,8 +6155,8 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r9, r8, r7, r6, r5, r4, r3, r2, r1, hb4, regsUpd] at p10
   have hS10 := hS9.next a10 h10 m10
   obtain ⟨s11, hs11⟩ : ∃ t, PrivMachine.run env 1 s10 = t := ⟨_, rfl⟩
-  obtain ⟨p11, a11, h11, m11, c11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b5 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs11] at p11 a11 h11 m11 c11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
+  obtain ⟨p11, a11, h11, m11, c11, ho11, io11, w11_0, w11_1, w11_2, w11_3, sv11, fr11, r11⟩ := checksig_b5 env M0 s10 hS10 ms e c m cy (s.core.reg 2#5) p10 c10 (by simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs11] at p11 a11 h11 m11 c11 ho11 io11 w11_0 w11_1 w11_2 w11_3 sv11 fr11 r11
   have sv11_0 : readLE s11.core.mem 0xc0000010#32 4 = readLE s10.core.mem 0xc0000010#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_1 : readLE s11.core.mem 0xc0000014#32 4 = readLE s10.core.mem 0xc0000014#32 4 := SvcSame.read sv11 _ (by decide)
   have sv11_2 : readLE s11.core.mem 0xc0000018#32 4 = readLE s10.core.mem 0xc0000018#32 4 := SvcSame.read sv11 _ (by decide)
@@ -5708,16 +6164,16 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb5, regsUpd] at p11
   have hS11 := hS10.next a11 h11 m11
   obtain ⟨s12, hs12⟩ : ∃ t, PrivMachine.run env 2 s11 = t := ⟨_, rfl⟩
-  obtain ⟨p12, a12, h12, m12, c12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := checksig_s6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs12] at p12 a12 h12 m12 c12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
+  obtain ⟨p12, a12, h12, m12, c12, ho12, io12, w12_0, w12_1, w12_2, w12_3, sv12, fr12, r12⟩ := checksig_s6 env M0 s11 hS11 ms e c m cy (s.core.reg 2#5) p11 c11 (by simp [r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs12] at p12 a12 h12 m12 c12 ho12 io12 w12_0 w12_1 w12_2 w12_3 sv12 fr12 r12
   have sv12_0 : readLE s12.core.mem 0xc0000010#32 4 = readLE s11.core.mem 0xc0000010#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_1 : readLE s12.core.mem 0xc0000014#32 4 = readLE s11.core.mem 0xc0000014#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_2 : readLE s12.core.mem 0xc0000018#32 4 = readLE s11.core.mem 0xc0000018#32 4 := SvcSame.read sv12 _ (by decide)
   have sv12_3 : readLE s12.core.mem 0xc000001c#32 4 = readLE s11.core.mem 0xc000001c#32 4 := SvcSame.read sv12 _ (by decide)
   have hS12 := hS11.next a12 h12 m12
   obtain ⟨s13, hs13⟩ : ∃ t, PrivMachine.run env 1 s12 = t := ⟨_, rfl⟩
-  obtain ⟨p13, a13, h13, m13, c13, w13_0, w13_1, w13_2, w13_3, sv13, fr13, r13⟩ := checksig_b6 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12
-  rw [hs13] at p13 a13 h13 m13 c13 w13_0 w13_1 w13_2 w13_3 sv13 fr13 r13
+  obtain ⟨p13, a13, h13, m13, c13, ho13, io13, w13_0, w13_1, w13_2, w13_3, sv13, fr13, r13⟩ := checksig_b6 env M0 s12 hS12 ms e c m cy (s.core.reg 2#5) p12 c12
+  rw [hs13] at p13 a13 h13 m13 c13 ho13 io13 w13_0 w13_1 w13_2 w13_3 sv13 fr13 r13
   have sv13_0 : readLE s13.core.mem 0xc0000010#32 4 = readLE s12.core.mem 0xc0000010#32 4 := SvcSame.read sv13 _ (by decide)
   have sv13_1 : readLE s13.core.mem 0xc0000014#32 4 = readLE s12.core.mem 0xc0000014#32 4 := SvcSame.read sv13 _ (by decide)
   have sv13_2 : readLE s13.core.mem 0xc0000018#32 4 = readLE s12.core.mem 0xc0000018#32 4 := SvcSame.read sv13 _ (by decide)
@@ -5725,15 +6181,17 @@ theorem monitor_checksig_oob_6 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMa
   simp [r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, hb6, regsUpd] at p13
   have hS13 := hS12.next a13 h13 m13
   obtain ⟨s14, hs14⟩ : ∃ t, PrivMachine.run env 54 s13 = t := ⟨_, rfl⟩
-  obtain ⟨p14, a14, h14, m14, c14, w14_0, w14_1, w14_2, w14_3, sv14, fr14, r14⟩ := monitor_fault_exit env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13 (by simp [r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
-  rw [hs14] at p14 a14 h14 m14 c14 w14_0 w14_1 w14_2 w14_3 sv14 fr14 r14
+  obtain ⟨p14, a14, h14, m14, c14, ho14, io14, w14_0, w14_1, w14_2, w14_3, sv14, fr14, r14⟩ := monitor_fault_exit env M0 s13 hS13 ms e c m cy (s.core.reg 2#5) p13 c13 (by simp [r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6])
+  rw [hs14] at p14 a14 h14 m14 c14 ho14 io14 w14_0 w14_1 w14_2 w14_3 sv14 fr14 r14
   have sv14_0 : readLE s14.core.mem 0xc0000010#32 4 = readLE s13.core.mem 0xc0000010#32 4 := SvcSame.read sv14 _ (by decide)
   have sv14_1 : readLE s14.core.mem 0xc0000014#32 4 = readLE s13.core.mem 0xc0000014#32 4 := SvcSame.read sv14 _ (by decide)
   have sv14_2 : readLE s14.core.mem 0xc0000018#32 4 = readLE s13.core.mem 0xc0000018#32 4 := SvcSame.read sv14 _ (by decide)
   have sv14_3 : readLE s14.core.mem 0xc000001c#32 4 = readLE s13.core.mem 0xc000001c#32 4 := SvcSame.read sv14 _ (by decide)
   have hall : PrivMachine.run env 82 s = s14 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 (run_two hs6 (run_two hs7 (run_two hs8 (run_two hs9 (run_two hs10 (run_two hs11 (run_two hs12 (run_two hs13 (hs14)))))))))))))
   rw [hall]
-  refine ⟨p14, a14, h14, m14, c14, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  refine ⟨p14, a14, h14, m14, c14, ?ho, ?io, ?w0, ?w1, ?w2, ?w3, ?sv, ?fr, ?r⟩
+  case ho => exact (ho14.trans (ho13.trans (ho12.trans (ho11.trans (ho10.trans (ho9.trans (ho8.trans (ho7.trans (ho6.trans (ho5.trans (ho4.trans (ho3.trans (ho2.trans ho1)))))))))))))
+  case io => simp [io14, io13, io12, io11, io10, io9, io8, io7, io6, io5, io4, io3, io2, io1, ho14, ho13, ho12, ho11, ho10, ho9, ho8, ho7, ho6, ho5, ho4, ho3, ho2, ho1, List.append_assoc, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
   case w0 => simp [w14_0, w13_0, w12_0, w11_0, w10_0, w9_0, w8_0, w7_0, w6_0, w5_0, w4_0, w3_0, w2_0, w1_0, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
   case w1 => simp [w14_1, w13_1, w12_1, w11_1, w10_1, w9_1, w8_1, w7_1, w6_1, w5_1, w4_1, w3_1, w2_1, w1_1, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
   case w2 => simp [w14_2, w13_2, w12_2, w11_2, w10_2, w9_2, w8_2, w7_2, w6_2, w5_2, w4_2, w3_2, w2_2, w1_2, r14, r13, r12, r11, r10, r9, r8, r7, r6, r5, r4, r3, r2, r1, regsUpd, hc, ht0, hb1, hb2, hb3, hb4, hb5, hb6]
@@ -5751,11 +6209,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_hashb_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 2#32) (hbad : ¬ ((0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + (s.core.reg 11#5).toNat ≤ 0x80020000) ∧ (0x80010000 ≤ (s.core.reg 12#5).toNat ∧ (s.core.reg 12#5).toNat + 32 ≤ 0x80020000))) :
-    ∃ N, (PrivMachine.run env N s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 800 ∧
+    ∃ N, (PrivMachine.run env N s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env N s).halted = false ∧
     (PrivMachine.run env N s).mode = .M ∧
     (PrivMachine.run env N s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env N s).host = s.host ∧
+    (PrivMachine.run env N s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env N s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env N s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env N s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5789,11 +6249,13 @@ set_option maxRecDepth 100000 in
 theorem monitor_checksig_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32) (ht0 : s.core.reg 5#5 = 3#32) (hbad : ¬ ((0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000) ∧ (0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000))) :
-    ∃ N, (PrivMachine.run env N s).core.pc = 0x80000318#32 ∧
-    Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 800 ∧
+    ∃ N, (PrivMachine.run env N s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env N s).halted = false ∧
     (PrivMachine.run env N s).mode = .M ∧
     (PrivMachine.run env N s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env N s).host = s.host ∧
+    (PrivMachine.run env N s).io = s.io ++ [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩, ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
     readLE (PrivMachine.run env N s).core.mem 0x80008000#32 4 = 0 ∧
     readLE (PrivMachine.run env N s).core.mem 0x80008004#32 4 = 0 ∧
     readLE (PrivMachine.run env N s).core.mem 0x80008008#32 4 = 0 ∧
@@ -5825,12 +6287,12 @@ theorem monitor_checksig_oob_fault (env : Rv32.Env) (M0 : Word → Byte) (s : Pr
 
 /-- While a payload runs: in U-mode, boxed, the monitor's words where they were, the CSRs boot set. -/
 def Running (M0 : Word → Byte) (s : PrivMachine) : Prop :=
-  UBoxed s 0x80010000 0x80020000 ∧ Agree M0 s.core.mem 0x80000000 800 ∧
+  UBoxed s 0x80010000 0x80020000 ∧ Agree M0 s.core.mem 0x80000000 808 ∧
   ∃ ms e c m cy, s.csrs = csrsH ms e c m cy {} 0x80008000#32
 
 /-- The park loop, reached: every register but `a0` zero, `mscratch` zero, the saved words zero. -/
 def Parked (t : PrivMachine) (a0 : Word) : Prop :=
-  t.core.pc = 0x80000318#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
+  t.core.pc = 0x80000320#32 ∧ t.halted = false ∧ t.mode = .M ∧ t.csrs.mscratch = 0#32 ∧
   readLE t.core.mem 0x80008000#32 4 = 0 ∧ readLE t.core.mem 0x80008004#32 4 = 0 ∧
   readLE t.core.mem 0x80008008#32 4 = 0 ∧ readLE t.core.mem 0x8000800c#32 4 = 0 ∧
   t.core.reg 10#5 = a0 ∧ ∀ r, r ≠ 10#5 → t.core.reg r = 0#32
@@ -5841,7 +6303,7 @@ def Parked (t : PrivMachine) (a0 : Word) : Prop :=
 theorem reg32 (r : Reg) : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
 
 theorem parked_halt {u t : PrivMachine} {ms : MStatus} {e c m cy : Word}
-    (q1 : t.core.pc = 0x80000318#32) (q3 : t.halted = false) (q4 : t.mode = .M)
+    (q1 : t.core.pc = 0x80000320#32) (q3 : t.halted = false) (q4 : t.mode = .M)
     (q5 : t.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32))
     (w0 : readLE t.core.mem 0x80008000#32 4 = 0) (w1 : readLE t.core.mem 0x80008004#32 4 = 0)
     (w2 : readLE t.core.mem 0x80008008#32 4 = 0) (w3 : readLE t.core.mem 0x8000800c#32 4 = 0)
@@ -5853,7 +6315,7 @@ theorem parked_halt {u t : PrivMachine} {ms : MStatus} {e c m cy : Word}
     rcases reg32 r with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> first | (exfalso; exact hr rfl) | simp [regsUpd]
 
 theorem parked_fault {u t : PrivMachine} {ms : MStatus} {e c m cy : Word}
-    (q1 : t.core.pc = 0x80000318#32) (q3 : t.halted = false) (q4 : t.mode = .M)
+    (q1 : t.core.pc = 0x80000320#32) (q3 : t.halted = false) (q4 : t.mode = .M)
     (q5 : t.csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32))
     (w0 : readLE t.core.mem 0x80008000#32 4 = 0) (w1 : readLE t.core.mem 0x80008004#32 4 = 0)
     (w2 : readLE t.core.mem 0x80008008#32 4 = 0) (w3 : readLE t.core.mem 0x8000800c#32 4 = 0)
@@ -5972,7 +6434,7 @@ theorem trap_state (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   refine ⟨k, hkn, ?_⟩
   obtain ⟨u, hu⟩ : ∃ t, PrivMachine.run env k s = t := ⟨_, rfl⟩
   rw [hu] at hkept hhalt hframe hres ⊢
-  have hag : Agree M0 u.core.mem 0x80000000 800 := by
+  have hag : Agree M0 u.core.mem 0x80000000 808 := by
     intro x h1 h2
     rw [hframe x (by omega)]
     exact hagree x h1 h2
@@ -6004,9 +6466,31 @@ def OutOfBox (u : PrivMachine) : Prop :=
   ((u.core.reg 5#5 = 2#32 ∧ ¬ (InBox (u.core.reg 10#5) (u.core.reg 11#5).toNat ∧ InBox (u.core.reg 12#5) 32)) ∨
    (u.core.reg 5#5 = 3#32 ∧ ¬ (InBox (u.core.reg 10#5) 32 ∧ InBox (u.core.reg 11#5) 64)))
 
+/-! ## What the monitor tells the host -/
+
+/-- A fault, as the host hears it: the report to the print word — the tag, `mcause`, `mepc`, `mtval` and
+    `minstret` — then exit code 1. `mtval` is 0: the model's traps do not write it. -/
+def faultIo (u : PrivMachine) : List IoEvent :=
+  [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, u.csrs.mcause⟩, ⟨0xc0000004#32, u.csrs.mepc⟩,
+   ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, u.csrs.minstret⟩, ⟨0xc0000008#32, 1#32⟩]
+
+/-- A HALT, as the host hears it: the tag, the payload's `a0`, `minstret` and `mcycle`, then `a0` as the exit code. -/
+def haltIo (u : PrivMachine) : List IoEvent :=
+  [⟨0xc0000004#32, 0x48414c54#32⟩, ⟨0xc0000004#32, u.core.reg 10#5⟩, ⟨0xc0000004#32, u.csrs.minstret⟩,
+   ⟨0xc0000004#32, u.csrs.mcycle⟩, ⟨0xc0000008#32, u.core.reg 10#5⟩]
+
+/-- A call, as the host hears it: the arguments, then the call number, whose write is the request. -/
+def callIo (u : PrivMachine) : List IoEvent :=
+  if u.core.reg 5#5 = 2#32 then
+    [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩, ⟨0xc0000018#32, u.core.reg 12#5⟩,
+     ⟨0xc000001c#32, 2#32⟩]
+  else
+    [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩, ⟨0xc000001c#32, 3#32⟩]
+
 /-- What the monitor did with a call it served, seen from the payload: the call's ranges were in the box,
     the host was asked exactly the payload's arguments and call number, and the payload has its registers
-    as they were (but `a0` for a `CHECKSIG`), the word after its `ecall`, two instructions on the counter. -/
+    as they were (but `a0` for a `CHECKSIG`, which is what the host answered the writes so far, and 0 or 1), the word
+    after its `ecall`, two instructions on the counter; and the host heard the call and nothing else. -/
 def Served (u t : PrivMachine) : Prop :=
   u.csrs.mcause = 8#32 ∧ (u.core.reg 5#5 = 2#32 ∨ u.core.reg 5#5 = 3#32) ∧ CallBoxed u ∧
   readLE t.core.mem 0xc0000010#32 4 = (u.core.reg 10#5).toNat % 4294967296 ∧
@@ -6015,26 +6499,38 @@ def Served (u t : PrivMachine) : Prop :=
   t.core.pc = u.csrs.mepc + 4#32 ∧ t.csrs.minstret = u.csrs.minstret + 2#32 ∧
   (∀ r, r ≠ 10#5 → t.core.reg r = u.core.reg r) ∧
   (u.core.reg 5#5 = 2#32 → t.core.reg 10#5 = u.core.reg 10#5) ∧
-  Frame u.core.mem t.core.mem
+  Frame u.core.mem t.core.mem ∧
+  t.io = u.io ++ callIo u ∧
+  (u.core.reg 5#5 = 3#32 → t.core.reg 10#5 = u.host t.io 0xc000001c#32 ∧ (t.core.reg 10#5 = 0#32 ∨ t.core.reg 10#5 = 1#32))
 
-/-- The three ways a trap can end: a fault (parked, `a0 = 1`, the service port as it was), the payload's
-    own HALT (parked, `a0` its exit code), or a served call (the payload running again). -/
+/-- What a host answers a `CHECKSIG` that `u` asks for, the call having gone out. -/
+def answer (u : PrivMachine) : Word := u.host (u.io ++ callIo u) 0xc000001c#32
+
+/-- The four ways a trap can end: a fault (parked, `a0 = 1`, the service port as it was, the fault
+    reported), the payload's own HALT (parked, `a0` its exit code, the HALT reported), a served call
+    (the payload running again), or a `CHECKSIG` whose answer was neither 0 nor 1 (parked, `a0 = 1`,
+    the call and then the fault reported). -/
 def Ends (M0 : Word → Byte) (u t : PrivMachine) : Prop :=
-  (Parked t 1#32 ∧ SvcSame u.core.mem t.core.mem) ∨
-  (Parked t (u.core.reg 10#5) ∧ u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32) ∨
-  (Running M0 t ∧ Served u t)
+  (Parked t 1#32 ∧ SvcSame u.core.mem t.core.mem ∧ t.io = u.io ++ faultIo u) ∨
+  (Parked t (u.core.reg 10#5) ∧ u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32 ∧ t.io = u.io ++ haltIo u) ∨
+  (Running M0 t ∧ Served u t) ∨
+  (Parked t 1#32 ∧ u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 3#32 ∧ CallBoxed u ∧ BitVec.ult 1#32 (answer u) = true ∧
+    t.io = u.io ++ callIo u ++ faultIo u)
 
 /-- A call with a range out of the box can only have ended the first way. -/
 theorem ends_refuses {M0 : Word → Byte} {u t : PrivMachine} (h : Ends M0 u t) (ho : OutOfBox u) :
     Parked t 1#32 ∧ SvcSame u.core.mem t.core.mem := by
   obtain ⟨hc8, hcall⟩ := ho
-  rcases h with hf | ⟨_, _, ht1⟩ | ⟨_, _, _, hboxed, _⟩
-  · exact hf
+  rcases h with hf | ⟨_, _, ht1, _⟩ | ⟨_, _, _, hboxed, _⟩ | ⟨_, _, ht3, hboxed, _⟩
+  · exact ⟨hf.1, hf.2.1⟩
   · rcases hcall with ⟨h2, _⟩ | ⟨h3, _⟩
     · rw [ht1] at h2; exact absurd h2 (by decide)
     · rw [ht1] at h3; exact absurd h3 (by decide)
   · rcases hcall with ⟨h2, hn⟩ | ⟨h3, hn⟩
     · exact absurd (hboxed.1 h2) hn
+    · exact absurd (hboxed.2 h3) hn
+  · rcases hcall with ⟨h2, _⟩ | ⟨h3, hn⟩
+    · rw [ht3] at h2; exact absurd h2 (by decide)
     · exact absurd (hboxed.2 h3) hn
 
 /-- How a trap ends, and — said outright — that a call with a range out of the box is refused: the
@@ -6047,9 +6543,10 @@ theorem outcome_of_ends {M0 : Word → Byte} {u t : PrivMachine} (h : Ends M0 u 
 
 set_option maxHeartbeats 4000000 in
 /-- **One trap.** A running payload runs for `n` steps or traps; at the trap the monitor, in the end,
-    either parks (a fault: `a0 = 1`, the service port untouched; a HALT: `a0` the payload's own exit code)
-    or has served a call whose ranges were in the box and stands the payload up again, running, at the
-    word after its `ecall`. A call with a range out of the box is the first of these. -/
+    either parks (a fault: `a0 = 1`, the service port untouched; a HALT: `a0` the payload's own exit code;
+    a `CHECKSIG` the host answered with neither 0 nor 1: `a0 = 1`) or has served a call whose ranges were in
+    the box and stands the payload up again, running, at the word after its `ecall`. A call with a range
+    out of the box is the first of these. -/
 theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hW : WordsAt M0 0x80000000#32 monitorCode) (henv : env.region = monRegion)
     (hR : Running M0 s) (n : Nat) :
@@ -6069,50 +6566,72 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     exact ⟨j, outcome_of_ends hj⟩
   by_cases hc : u.csrs.mcause = 8#32
   · by_cases ht1 : u.core.reg 5#5 = 1#32
-    · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
+    · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
         monitor_halt env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle hpc hcs hc ht1
-      exact ⟨_, Or.inr (Or.inl ⟨parked_halt q1 q3 q4 q5 q6 q7 q8 q9 q12, hc, ht1⟩)⟩
+      exact ⟨_, Or.inr (Or.inl ⟨parked_halt q1 q3 q4 q5 q6 q7 q8 q9 q12, hc, ht1, qi⟩)⟩
     · by_cases ht2 : u.core.reg 5#5 = 2#32
       · by_cases hbox : (0x80010000 ≤ (u.core.reg 10#5).toNat ∧ (u.core.reg 10#5).toNat + (u.core.reg 11#5).toNat ≤ 0x80020000) ∧
             (0x80010000 ≤ (u.core.reg 12#5).toNat ∧ (u.core.reg 12#5).toNat + 32 ≤ 0x80020000)
-        · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
+        · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
             monitor_hashb_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht2 hbox.1 hbox.2 hmpp
-          refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inl ht2,
-            ⟨fun _ => hbox, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14⟩)⟩
+          refine ⟨_, Or.inr (Or.inr (Or.inl ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inl ht2,
+            ⟨fun _ => hbox, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩))⟩
           · rw [q13, ht2]; rfl
           · rw [q5]; rfl
           · intro r hr; rw [q15 r]; simp [regsUpd]
           · intro _; rw [q15 10#5]; simp [regsUpd]
-        · obtain ⟨N, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
+          · rw [qi]; simp [callIo, ht2]
+          · intro h; rw [ht2] at h; exact absurd h (by decide)
+        · obtain ⟨N, q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
             monitor_hashb_oob_fault env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht2 hbox
-          exact ⟨N, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
+          exact ⟨N, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10, qi⟩⟩
       · by_cases ht3 : u.core.reg 5#5 = 3#32
         · by_cases hbox : (0x80010000 ≤ (u.core.reg 10#5).toNat ∧ (u.core.reg 10#5).toNat + 32 ≤ 0x80020000) ∧
               (0x80010000 ≤ (u.core.reg 11#5).toNat ∧ (u.core.reg 11#5).toNat + 64 ≤ 0x80020000)
-          · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
+          · have hn2 : u.core.reg 5#5 ≠ 2#32 := by rw [ht3]; decide
+            have hca : answer u = u.host (u.io ++ [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩,
+                ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32 := by simp [answer, callIo, hn2]
+            by_cases hans : BitVec.ult 1#32 (answer u) = true
+            · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
+                monitor_checksig_bad_answer env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
+                  hpc hcs hc ht3 hbox.1 hbox.2 (by rw [← hca]; exact hans)
+              refine ⟨_, Or.inr (Or.inr (Or.inr ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q15, hc, ht3,
+                ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, hans, ?_⟩))⟩
+              rw [qi]; simp [callIo, faultIo, hn2]
+            have hans' : BitVec.ult 1#32 (u.host (u.io ++ [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩,
+                ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32) = false := by rw [← hca]; simpa using hans
+            obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
               monitor_checksig_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
-                hpc hcs hc ht3 hbox.1 hbox.2 hmpp
-            refine ⟨_, Or.inr (Or.inr ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inr ht3,
-              ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14⟩)⟩
+                hpc hcs hc ht3 hbox.1 hbox.2 hmpp hans'
+            refine ⟨_, Or.inr (Or.inr (Or.inl ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inr ht3,
+              ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩))⟩
             · rw [q13, ht3]; rfl
             · rw [q5]; rfl
             · intro r hr
               have hr' : ¬ (10 = r.toNat) := fun h => hr (BitVec.eq_of_toNat_eq (by simpa using h.symm))
               rw [q15 r]; simp [regsUpd, hr']
             · intro h; rw [ht3] at h; exact absurd h (by decide)
-          · obtain ⟨N, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
+            · rw [qi]; simp [callIo, hn2]
+            · intro _
+              have ha : (PrivMachine.run env 47 u).core.reg 10#5 = answer u := by rw [q15 10#5, hca]; simp [regsUpd]
+              refine ⟨by rw [ha, qi]; simp [answer, callIo, hn2], ?_⟩
+              rw [ha]
+              have : ¬ BitVec.ult 1#32 (answer u) = true := hans
+              simp only [BitVec.ult, decide_eq_true_eq] at this
+              bv_omega
+          · obtain ⟨N, q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
               monitor_checksig_oob_fault env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
                 hpc hcs hc ht3 hbox
-            exact ⟨N, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
-        · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
+            exact ⟨N, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10, qi⟩⟩
+        · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
             monitor_fault_syscall env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht1 ht2 ht3
-          exact ⟨_, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
-  · obtain ⟨q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12⟩ :=
+          exact ⟨_, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10, qi⟩⟩
+  · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
       monitor_fault_cause env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle hpc hcs hc
-    exact ⟨_, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10⟩⟩
+    exact ⟨_, Or.inl ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q12, q10, qi⟩⟩
 
 /-! ## However many calls the payload makes -/
 
@@ -6169,6 +6688,7 @@ end Exp238
 #print axioms Exp238.monitor_hashb_ok
 #print axioms Exp238.monitor_hashb_oob_fault
 #print axioms Exp238.monitor_checksig_ok
+#print axioms Exp238.monitor_checksig_bad_answer
 #print axioms Exp238.monitor_checksig_oob_fault
 #print axioms Exp238.ends_refuses
 #print axioms Exp238.monitor_cycle

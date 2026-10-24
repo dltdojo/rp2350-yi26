@@ -164,6 +164,29 @@ FAULTING = [
 ]
 
 
+# A host that answers CHECKSIG with neither 0 nor 1 -- or leaves the request word where it is, as no host at all
+# would -- must be refused: FAULT with mcause 8, parked with a0 = 1, the host asked the once. exp228's kernel reads
+# any answer that is not 0 as a good signature, so an answer let through here would be one.
+BAD_ANSWERS = [
+    ("no answer: the request word, 3, left where it is", 3),
+    ("an answer of 2", 2),
+    ("an answer of 0xffffffff", 0xFFFFFFFF),
+    ("an answer of 2^31", 0x80000000),
+]
+
+
+def bad_answer_run(monitor: bytes, answer: int):
+    emu = host.ServiceEmulator(host.image(monitor, harness.payload(checksig(OK, OK + 0x40))))
+    served = emu.host.serve
+
+    def serve(call, a0, a1, a2):
+        served(call, a0, a1, a2)
+        return answer
+    emu.host.serve = serve
+    emu.run(host.MAX_STEPS)
+    return emu
+
+
 def expect_served(emu, monitor, pay, requests, exit_code=7) -> list:
     bad = host.check_parked(emu, monitor, exit_code)
     if host.TAG_HALT not in emu.prints:
@@ -218,6 +241,10 @@ def run_all(monitor: bytes) -> list:
         bad = host.check_refused(emu, monitor, cause, asked)
         if bad:
             out.append((name, bad))
+    for name, answer in BAD_ANSWERS:
+        bad = host.check_refused(bad_answer_run(monitor, answer), monitor, 8, 1)
+        if bad:
+            out.append((f"checksig, {name}", bad))
     return out
 
 
@@ -229,15 +256,18 @@ def main():
         print(f"FAIL  {name}: {'; '.join(bad)}")
     if failed:
         sys.exit(1)
-    n = len(REFUSED) + len(SERVED) + 2 + 1 + len(FAULTING)
+    n = len(REFUSED) + len(SERVED) + 2 + 1 + len(FAULTING) + len(BAD_ANSWERS)
     print(f"PASS  {n} payloads that lean on the calls: {len(REFUSED)} refused with the host never asked, "
           f"{len(SERVED)} served to the last byte as the run with no monitor serves them,")
     print(f"      the registers a call must leave alone (both calls), {LOOPS} calls in a row at an exact "
-          f"minstret, {len(FAULTING)} that fault with the hardware's cause:")
+          f"minstret, {len(FAULTING)} that fault with the hardware's cause,")
+    print(f"      and {len(BAD_ANSWERS)} CHECKSIGs whose host answers neither 0 nor 1, refused after the one request:")
     for name, _ in REFUSED:
         print(f"      refused  {name}")
     for name, _src, _r in SERVED:
         print(f"      served   {name}")
+    for name, _ in BAD_ANSWERS:
+        print(f"      refused  checksig, {name}")
 
 
 if __name__ == "__main__":

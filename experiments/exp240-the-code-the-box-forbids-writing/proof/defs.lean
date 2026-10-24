@@ -25,6 +25,21 @@ def Parked (t : PrivMachine) (a0 : Word) : Prop :=
 def exitCode (u : PrivMachine) : Word :=
   if u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32 then u.core.reg 10#5 else 1#32
 
+/-- A fault's report to the print word: the tag, `mcause`, `mepc`, `mtval` (0: the model's traps do not write it)
+    and `minstret`. -/
+def faultIo (u : PrivMachine) : List IoEvent :=
+  [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, u.csrs.mcause⟩, ⟨0xc0000004#32, u.csrs.mepc⟩,
+   ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, u.csrs.minstret⟩]
+
+/-- A HALT's report to the print word: the tag, the payload's `a0`, `minstret` and `mcycle`. -/
+def haltIo (u : PrivMachine) : List IoEvent :=
+  [⟨0xc0000004#32, 0x48414c54#32⟩, ⟨0xc0000004#32, u.core.reg 10#5⟩, ⟨0xc0000004#32, u.csrs.minstret⟩,
+   ⟨0xc0000004#32, u.csrs.mcycle⟩]
+
+/-- What the host hears of a trap, in order: the report for the way it trapped, then the exit code to the exit word. -/
+def trapIo (u : PrivMachine) : List IoEvent :=
+  (if u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32 then haltIo u else faultIo u) ++ [⟨0xc0000008#32, exitCode u⟩]
+
 /-- How many steps the monitor takes from the trap vector to the park loop: an `ecall` for HALT, 57; an `ecall` for
     anything else, 62; any other trap, 59. -/
 def trapSteps (u : PrivMachine) : Nat :=

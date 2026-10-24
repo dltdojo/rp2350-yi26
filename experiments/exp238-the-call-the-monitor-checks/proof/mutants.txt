@@ -4,14 +4,38 @@
 #
 # Each edits `monitorCode`, the words of monitor.bin, one instruction each: the proofs are about what
 # those words do, so a word that does something else must stop a theorem. Each is refused in
-# the chunk or the phase it breaks. Fourteen were run once, each refused; these eight stay in the check because
-# a mutant is a whole run of the proof (about two minutes) and the eight cover the bounds check, the way back,
-# the dispatch and the scrub.
+# the chunk or the phase it breaks. Fourteen were run once, each refused; these stay in the check because a mutant
+# is a whole run of the proof (about two minutes for the 200-word monitor, five for the 202-word one), and they cover
+# the bounds check, the way back, the dispatch, the scrub, CHECKSIG's answer check and the model of the ports.
 hashb_input_floor_dropped|HASHB lets an input start below the box|s/0xf8656ee3#32/0x00000013#32/
 hashb_length_by_addition|HASHB tests ptr + len, which wraps, instead of what is left of the box|0,/0x40a38e33#32/s//0x00b50e33#32/
 hashb_output_room_16|HASHB checks room for 16 bytes of output, not 32|0,/0x02000293#32/s//0x01000293#32/
 checksig_signature_32|CHECKSIG checks room for 32 bytes of signature, not 64|s/0x04000293#32/0x02000293#32/
 return_repeats_the_ecall|the return does not step past the ecall|s/0x00428293#32/0x00028293#32/
 counters_not_released|the return never releases the counters|/0x00c12e03#32/{n;n;s/0x32005073#32/0x00000013#32/}
-unknown_call_succeeds|a call the monitor does not offer returns to the payload|s/0xfa9ff06f#32/0x09c0006f#32/
+unknown_call_succeeds|a call the monitor does not offer returns to the payload|s/0xfa9ff06f#32/0x0a40006f#32/
 scrub_keeps_saved_t2|the scrub leaves the saved t2 on the M-mode stack|s/0x00012423#32/0x00000013#32/
+answer_check_dropped|CHECKSIG returns whatever the host answered, 0 and 1 or not|s/0xf0a364e3#32/0x00000013#32/
+answer_check_allows_two|CHECKSIG takes an answer of 2 too|/0x00ce2503#32,/{n;s/0x00100313#32/0x00200313#32/}
+port_read_is_memory|model: an M-mode load from a port reads back the bytes, not the host's answer|s/then core'.setReg rd (s.host s.io a) else core'/then core' else core'/|lean/Rv32/Priv.lean
+#
+# Fifteen more, one for each broken monitor of suite/broken_monitors.py that had no mutant here, were run once on
+# 2026-10-23 and each was refused, and again on the 202-word monitor with the theorems that say what the host heard:
+# each refused, two at a time, about five minutes each. They stay out of the check for the reason above, written out
+# so that they can be put back: a deleted instruction is a nop, so each keeps monitorCode's length.
+# counters_released_one_early stands for counters_released_early and extra_instruction_counted, whose own edits add a word.
+# hashb_input_ceiling_dropped|HASHB lets an input start past the box|s/0xf8a3ece3#32/0x00000013#32/
+# hashb_length_dropped|HASHB never checks the length against what is left of the box|/0xf8a3ece3#32,/{n;s/0x40a38e33#32/0x00000013#32/;n;s/0xf8be68e3#32/0x00000013#32/}
+# hashb_output_floor_dropped|HASHB lets the output start below the box|s/0xf86666e3#32/0x00000013#32/
+# hashb_output_ceiling_dropped|HASHB lets the output start past the box|s/0xf8c3e4e3#32/0x00000013#32/
+# checksig_key_floor_dropped|CHECKSIG lets the key start below the box|s/0xf46568e3#32/0x00000013#32/
+# checksig_key_room_dropped|CHECKSIG lets the 32-byte key run off the end of the box|/0xf4a3e6e3#32,/{n;s/0x40a38e33#32/0x00000013#32/;n;s/0x02000293#32/0x00000013#32/;n;s/0xf45e60e3#32/0x00000013#32/}
+# checksig_signature_floor_dropped|CHECKSIG lets the signature start below the box|s/0xf265eee3#32/0x00000013#32/
+# checksig_is_hashb|call 3 is taken for call 2|s/0x00300313#32/0x00200313#32/
+# return_skips_two_words|the return steps over the word after the ecall too|s/0x00428293#32/0x00828293#32/
+# return_leaves_t1|the return does not put the payload's t1 back|s/0x00412303#32/0x00000013#32/
+# return_leaves_t3|the return does not put the payload's t3 back|s/0x00c12e03#32/0x00000013#32/
+# return_keeps_monitor_sp|the return leaves the monitor's sp in the payload|/0x00c12e03#32,/{n;s/0x34011173#32/0x00000013#32/}
+# counters_released_one_early|the return releases the counters one instruction sooner, and counts one more|/0x00c12e03#32,/{n;s/0x34011173#32/0x32005073#32/;n;s/0x32005073#32/0x34011173#32/}
+# scrub_keeps_saved_t3|the scrub leaves the saved t3 on the M-mode stack|s/0x00012623#32/0x00000013#32/
+# fault_does_not_scrub|a fault parks without scrubbing|s/0x1140006f#32/0x1b00006f#32/

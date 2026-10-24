@@ -6,6 +6,8 @@
 # the proofs are about what those words do, so a word that does something else must stop
 # a theorem. The last group edits the model the proofs run on.
 pmp_window_small|boot writes a PMP address that fences off 32 bytes, not 64 KiB|s/0xfff28293#32/0xff028293#32/
+pmp_window_4gib|boot writes a PMP address that fences off the whole address space|s/0x200062b7#32/0x400002b7#32/
+pmp_window_covers_monitor|boot writes a PMP address that fences off 128 KiB from the monitor's base|s/0x200062b7#32/0x200102b7#32/
 pmp_no_execute|boot makes the payload region read-write but not executable|s/0x01f00293#32/0x01b00293#32/
 mret_to_m_mode|boot sets MPP to M-mode instead of clearing it|s/0x3002b073#32/0x3002a073#32/
 payload_entry_wrong|boot sends the payload to 0x80020000, past its region|s/0x800102b7#32/0x800202b7#32/
@@ -20,6 +22,12 @@ fault_exit_code_two|a fault exits with 2|s/0x00100513#32/0x00200513#32/
 fault_skips_scrub|a fault jumps to the park loop, not the scrub|s/0x0380006f#32/0x0000006f#32/
 saved_t0_stays|the scrub leaves the saved t0 on the M-mode stack|s/0x00012023#32/0x00000013#32/
 scrub_leaves_sp|the scrub loads 1 into x2|s/0x00000113#32/0x00100113#32/
+scrub_skips_ra|the scrub leaves x1|/0x34001073#32,/{n;s/0x00000093#32/0x00000013#32/}
+mscratch_stays|the scrub leaves mscratch holding the payload's sp|s/0x34001073#32/0x00000013#32/
 mmio_address_wrong|the reports go to a word in the payload's region|s/0xc0000337#32/0x80010337#32/
+halt_tag_wrong|the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT|s/0xc5428293#32/0xc5528293#32/
+fault_tag_wrong|the FAULT report's tag is "FAUM", not "FAUL"|s/0x54c28293#32/0x54d28293#32/
+exit_code_to_print_word|the exit code goes to the print word, not the exit word|s/0x00830313#32/0x00430313#32/
 sandbox_store_unchecked|U-mode stores skip the PMP check|s/if ¬ pmpCheck s.csrs s.mode a op.size .Store then some CAUSE_STORE_ACCESS_FAULT/if False then some CAUSE_STORE_ACCESS_FAULT/|lean/Rv32/Priv.lean
 sandbox_ecall_passes|U-mode ecall is executed instead of trapped|s/else if isEcall w then/else if False then/|lean/Rv32/Priv.lean
+port_writes_unrecorded|model: an M-mode store to a port is not recorded|s/then \[⟨a, s\.core\.reg rs2⟩\] else \[\]/then [] else []/|lean/Rv32/Priv.lean

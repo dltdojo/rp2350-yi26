@@ -104,6 +104,13 @@ zregs = lambda a, b: ", ".join(f"({i}, {Z})" for i in range(a, b + 1))
 CSRZ = f"csrsH ms e c m cy {FROZEN} (0#32)"
 CSR0 = "csrsH ms e c m cy {} (0x80008000#32)"
 
+# what each chunk writes to the ports, as `IoEvent`s (Rv32.Priv)
+PRINT, EXIT = "0xc0000004#32", "0xc0000008#32"
+ev = lambda a, v: f"⟨{a}, {v}⟩"
+evs = lambda *xs: "[" + ", ".join(xs) + "]"
+FAULT_REPORT = [ev(PRINT, "0x4641554c#32"), ev(PRINT, "c"), ev(PRINT, "e"), ev(PRINT, "0#32"), ev(PRINT, "m")]
+HALT_REPORT = [ev(PRINT, "0x48414c54#32"), ev(PRINT, "s.core.reg 10#5"), ev(PRINT, "m"), ev(PRINT, "cy")]
+
 # trap entry
 CHUNKS += [
     Chunk("entry_1", "Trap entry, first three words: freeze the counters, swap in the M-mode stack, save `t0`.",
@@ -116,11 +123,12 @@ CHUNKS += [
 
 # the fault report
 CHUNKS += [
-    Chunk("fault_1", "Report FAULT: address and tag.", 5, h(FAULT), h(0x144), regs="(6, 0xc0000004#32), (5, 0x4641554c#32)", store=True),
-    Chunk("fault_2", "Report `mcause`.", 2, h(0x144), h(0x14c), hyps=HT1P, regs="(5, c)", extra=", ht1", store=True),
-    Chunk("fault_3", "Report `mepc`.", 2, h(0x14c), h(0x154), hyps=HT1P, regs="(5, e)", extra=", ht1", store=True),
-    Chunk("fault_4", "Report `mtval`.", 2, h(0x154), h(0x15c), hyps=HT1P, regs="(5, 0#32)", extra=", ht1", store=True),
-    Chunk("fault_5", "Report `minstret`.", 2, h(0x15c), h(0x164), hyps=HT1P, regs="(5, m)", extra=", ht1", store=True),
+    Chunk("fault_1", "Report FAULT: address and tag.", 5, h(FAULT), h(0x144), regs="(6, 0xc0000004#32), (5, 0x4641554c#32)", store=True,
+          io=evs(FAULT_REPORT[0])),
+    Chunk("fault_2", "Report `mcause`.", 2, h(0x144), h(0x14c), hyps=HT1P, regs="(5, c)", extra=", ht1", store=True, io=evs(FAULT_REPORT[1])),
+    Chunk("fault_3", "Report `mepc`.", 2, h(0x14c), h(0x154), hyps=HT1P, regs="(5, e)", extra=", ht1", store=True, io=evs(FAULT_REPORT[2])),
+    Chunk("fault_4", "Report `mtval`.", 2, h(0x154), h(0x15c), hyps=HT1P, regs="(5, 0#32)", extra=", ht1", store=True, io=evs(FAULT_REPORT[3])),
+    Chunk("fault_5", "Report `minstret`.", 2, h(0x15c), h(0x164), hyps=HT1P, regs="(5, m)", extra=", ht1", store=True, io=evs(FAULT_REPORT[4])),
     Chunk("fault_6", "Exit code 1, and on to the scrub.", 2, h(0x164), h(SCRUB), regs="(10, 1#32)"),
 ]
 
@@ -135,10 +143,11 @@ CHUNKS += [
 
 # the HALT report
 CHUNKS += [
-    Chunk("halt_1", "Report HALT: address and tag.", 5, h(0x178), h(0x18c), regs="(6, 0xc0000004#32), (5, 0x48414c54#32)", store=True),
-    Chunk("halt_2", "Report the exit code.", 1, h(0x18c), h(0x190), hyps=HT1P, extra=", ht1", store=True),
-    Chunk("halt_3", "Report `minstret`.", 2, h(0x190), h(0x198), hyps=HT1P, extra=", ht1", regs="(5, m)", store=True),
-    Chunk("halt_4", "Report `mcycle`.", 2, h(0x198), h(SCRUB), hyps=HT1P, extra=", ht1", regs="(5, cy)", store=True),
+    Chunk("halt_1", "Report HALT: address and tag.", 5, h(0x178), h(0x18c), regs="(6, 0xc0000004#32), (5, 0x48414c54#32)", store=True,
+          io=evs(HALT_REPORT[0])),
+    Chunk("halt_2", "Report the exit code.", 1, h(0x18c), h(0x190), hyps=HT1P, extra=", ht1", store=True, io=evs(HALT_REPORT[1])),
+    Chunk("halt_3", "Report `minstret`.", 2, h(0x190), h(0x198), hyps=HT1P, extra=", ht1", regs="(5, m)", store=True, io=evs(HALT_REPORT[2])),
+    Chunk("halt_4", "Report `mcycle`.", 2, h(0x198), h(SCRUB), hyps=HT1P, extra=", ht1", regs="(5, cy)", store=True, io=evs(HALT_REPORT[3])),
 ]
 
 # the scrub, first part: the saved words and mscratch, as exp236's does
@@ -160,7 +169,8 @@ CHUNKS += [
     Chunk("regs_a", "Zero `x1..x9`.", 9, h(REGS), h(0x204), regs=zregs(1, 9), **P2),
     Chunk("regs_b", "Zero `x11..x22`.", 12, h(0x204), h(0x234), regs=zregs(11, 22), **P2),
     Chunk("regs_c", "Zero `x23..x31`.", 9, h(0x234), h(0x258), regs=zregs(23, 31), **P2),
-    Chunk("regs_port", "Exit code to the exit word.", 3, h(0x258), h(0x264), regs="(6, 0xc0000008#32)", store=True, **P2),
+    Chunk("regs_port", "Exit code to the exit word.", 3, h(0x258), h(0x264), regs="(6, 0xc0000008#32)", store=True,
+          io=evs(ev(EXIT, "s.core.reg 10#5")), **P2),
     Chunk("regs_last", "Last register, and the park loop.", 1, h(0x264), h(PARK), regs="(6, 0#32)", **P2),
 ]
 
@@ -191,21 +201,21 @@ phase(Chunk("monitor_enter", "Trap entry: the counters frozen, the M-mode stack 
             csr_out=f"csrsH ms e c m cy {FROZEN} (s.core.reg 2#5)", words=SAVED, regs="(2, 0x80008000#32), (5, c), (6, 8#32)",
             steps=[S("entry_1"), S("entry_2a"), S("entry_mcause", last=True)]))
 phase(Chunk("monitor_fault_exit", "The fault report, then the first part of the scrub: `a0 = 1`, the saved words and `mscratch` zero.",
-            0, h(FAULT), h(SETUP), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, m), (10, 1#32)",
+            0, h(FAULT), h(SETUP), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, m), (10, 1#32)", io=evs(*FAULT_REPORT),
             steps=[S("fault_1", p="p"), S("fault_2", p="p"), S("fault_3", p="p"), S("fault_4", p="p"), S("fault_5", p="p"),
                    S("fault_6", p="p"), S("scrub_1a", p="p"), S("scrub_1b", p="p"), S("scrub_ms", p="p", last=True)]))
 phase(Chunk("monitor_halt_exit", "The HALT report, then the first part of the scrub: `a0` is the payload's, the saved words and `mscratch` zero.",
-            0, h(0x178), h(SETUP), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, cy)",
+            0, h(0x178), h(SETUP), hyps=HSP, csr_out=CSRZ, words=ZW2, regs="(6, 0xc0000004#32), (5, cy)", io=evs(*HALT_REPORT),
             steps=[S("halt_1", p="p"), S("halt_2", p="p"), S("halt_3", p="p"), S("halt_4", p="p"), S("scrub_1a", p="p"),
                    S("scrub_1b", p="p"), S("scrub_ms", p="p", last=True)]))
 phase(Chunk("monitor_regs", "The last part of the scrub: every register but `a0` zero, the exit code written, the machine at the park loop.",
-            0, h(REGS), h(PARK), csr_in=CSRZ, pbind="", csr_out=CSRZ, regs=ZALL,
+            0, h(REGS), h(PARK), csr_in=CSRZ, pbind="", csr_out=CSRZ, regs=ZALL, io=evs(ev(EXIT, "s.core.reg 10#5")),
             steps=[S("regs_a"), S("regs_b"), S("regs_c"), S("regs_port"), S("regs_last", last=True)]))
 
 
-def scenario(name, doc, hyps, steps_, *, regs):
+def scenario(name, doc, hyps, steps_, *, regs, io):
     c = Chunk(name, doc, 0, h(0x114), h(SETUP), pbind="", hyps=hyps, csr_in=CSR0, csr_out=CSRZ,
-              words=ZW2, regs=regs, steps=steps_)
+              words=ZW2, regs=regs, steps=steps_, io=io)
     return phase(c)
 
 
@@ -215,19 +225,19 @@ scenario("monitor_halt_pre",
          [S("monitor_enter", resolve="hc"),
           S("call_is_halt", args=[KARG], hyps={"hk": "w1_0"}, resolve="ofNat_toNat_mod, ht0"),
           S("monitor_halt_exit", last=True)],
-         regs="(2, 0x80008000#32), (5, cy), (6, 0xc0000004#32)")
+         regs="(2, 0x80008000#32), (5, cy), (6, 0xc0000004#32)", io=evs(*HALT_REPORT))
 scenario("monitor_fault_cause_pre",
          "A trap that is not an `ecall`, from the trap vector to the scrub of memory: the fault reported, `a0 = 1`.",
          HCN,
          [S("monitor_enter", resolve="hc"), S("monitor_fault_exit", last=True)],
-         regs="(2, 0x80008000#32), (5, m), (6, 0xc0000004#32), (10, 1#32)")
+         regs="(2, 0x80008000#32), (5, m), (6, 0xc0000004#32), (10, 1#32)", io=evs(*FAULT_REPORT))
 scenario("monitor_fault_syscall_pre",
          "An `ecall` whose `t0` is not 1, from the trap vector to the scrub of memory: the fault reported, `a0 = 1`.",
          HC + IS_HALT(False),
          [S("monitor_enter", resolve="hc"),
           S("call_is_halt", args=[KARG], hyps={"hk": "w1_0"}, resolve="ofNat_toNat_mod, ht0"),
           S("monitor_fault_exit", last=True)],
-         regs="(2, 0x80008000#32), (5, m), (6, 0xc0000004#32), (10, 1#32)")
+         regs="(2, 0x80008000#32), (5, m), (6, 0xc0000004#32), (10, 1#32)", io=evs(*FAULT_REPORT))
 
 
 # ---- the zeroing loops: one template, twice
@@ -254,13 +264,15 @@ def loop_lean(tag: str, store: int, exit_: int) -> str:
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy {FRAMED} (0#32) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).io = s.io ∧
     (PrivMachine.run env 1 s).core.mem = {mem_out} ∧
     (∀ r, (PrivMachine.run env 1 s).core.reg r = regsUpd s.core.reg [{regs}] r)"""
     head = lambda name, pc, extra="": f"""theorem {name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word){extra}
     (hpc : s.core.pc = {pc}#32)
     (hcs : s.csrs = csrsH ms e c m cy {FRAMED} (0#32))"""
-    tail = f"""  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    tail = f"""  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hAg, agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, regsUpd]
   all_goals try ({R32} <;> psimpH [pmpCheck_mon, regsUpd])
 """
@@ -275,12 +287,13 @@ def loop_lean(tag: str, store: int, exit_: int) -> str:
 {sm}  have hd1 : {0x80000000 + B} ≤ A.toNat := by omega
   have hw32 : A.toNat + 4 ≤ 4294967296 := by omega
   have hnr : ¬ (2147483648 ≤ A.toNat → 3221225724 < A.toNat) := by omega
+  have hnp : ¬ (3221225472 ≤ A.toNat) := by omega
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
-  psimpH [hnr, hal, hlo, hhi, hd1, hw32, pmpCheck_mon, pmpCheck_mon_in, sm, hmem, hAg, henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hA] at hF
+  psimpH [hnr, hnp, hal, hlo, hhi, hd1, hw32, pmpCheck_mon, pmpCheck_mon_in, sm, hmem, hAg, henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hA] at hF
   subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  all_goals try psimpH [hAg, hd1, hw32, hmem, hpc, csrsH, csrsFixed, csrsConfigured, agree_writeLE_iff, hlo, hhi, regsUpd]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [hnp, hAg, hd1, hw32, hmem, hpc, csrsH, csrsFixed, csrsConfigured, agree_writeLE_iff, hlo, hhi, regsUpd]
   all_goals try ({R32} <;> psimpH [regsUpd])
 
 {guard}/-- The add: `addi t0, t0, 4`. -/
@@ -299,7 +312,7 @@ def loop_lean(tag: str, store: int, exit_: int) -> str:
   by_cases hq : s.core.reg 5#5 = s.core.reg 6#5
   all_goals psimpH [pmpCheck_mon, sm, hmem, hAg, henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH, csrsFixed, csrsConfigured, hq] at hF
   all_goals subst hF
-  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimpH [pmpCheck_mon, hpc, hmem, hAg, agree_writeLE_iff, csrsH, csrsFixed, csrsConfigured, regsUpd, hq]
   all_goals try ({R32} <;> psimpH [pmpCheck_mon, regsUpd, hq])
 
@@ -316,25 +329,27 @@ theorem zloop_iter_{tag} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
     (PrivMachine.run env 3 s).csrs = csrsH ms e c m cy {FRAMED} (0#32) ∧
+    (PrivMachine.run env 3 s).host = s.host ∧
+    (PrivMachine.run env 3 s).io = s.io ∧
     (PrivMachine.run env 3 s).core.mem = writeLE s.core.mem A 0 4 ∧
     (∀ r, (PrivMachine.run env 3 s).core.reg r = regsUpd s.core.reg [(5, A + 4#32)] r) := by
   obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 1 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, x1, r1⟩ := zstore_{tag} env M0 s hS ms e c m cy A hpc hcs hA hal hlo hhi
-  rw [hs1] at p1 a1 h1 m1 c1 x1 r1
+  obtain ⟨p1, a1, h1, m1, c1, o1, i1, x1, r1⟩ := zstore_{tag} env M0 s hS ms e c m cy A hpc hcs hA hal hlo hhi
+  rw [hs1] at p1 a1 h1 m1 c1 o1 i1 x1 r1
   have hS1 := hS.next a1 h1 m1
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env 1 s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, x2, r2⟩ := zadd_{tag} env M0 s1 hS1 ms e c m cy p1 c1
-  rw [hs2] at p2 a2 h2 m2 c2 x2 r2
+  obtain ⟨p2, a2, h2, m2, c2, o2, i2, x2, r2⟩ := zadd_{tag} env M0 s1 hS1 ms e c m cy p1 c1
+  rw [hs2] at p2 a2 h2 m2 c2 o2 i2 x2 r2
   have hS2 := hS1.next a2 h2 m2
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 1 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, x3, r3⟩ := zbne_{tag} env M0 s2 hS2 ms e c m cy p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 x3 r3
+  obtain ⟨p3, a3, h3, m3, c3, o3, i3, x3, r3⟩ := zbne_{tag} env M0 s2 hS2 ms e c m cy p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 o3 i3 x3 r3
   have hall : PrivMachine.run env 3 s = s3 := run_two hs1 (run_two hs2 hs3)
   have q1 : ∀ r, s1.core.reg r = s.core.reg r := fun r => by rw [r1 r]; simp [regsUpd]
   have t5 : s2.core.reg 5#5 = A + 4#32 := by rw [r2 5#5]; simp [regsUpd, q1, hA]
   have t6 : s2.core.reg 6#5 = E := by rw [r2 6#5]; simp [regsUpd, q1, hE]
   rw [hall]
-  refine ⟨?_, a3, h3, m3, c3, ?_, ?_⟩
+  refine ⟨?_, a3, h3, m3, c3, by rw [o3, o2, o1], by rw [i3, i2, i1], ?_, ?_⟩
   · rw [p3, t5, t6]
   · rw [x3, x2, x1]
   · intro r
@@ -357,6 +372,8 @@ theorem zloop_{tag} (env : Rv32.Env) (M0 : Word → Byte) :
       (PrivMachine.run env (3 * (k + 1)) s).halted = false ∧
       (PrivMachine.run env (3 * (k + 1)) s).mode = .M ∧
       (PrivMachine.run env (3 * (k + 1)) s).csrs = csrsH ms e c m cy {FRAMED} (0#32) ∧
+      (PrivMachine.run env (3 * (k + 1)) s).host = s.host ∧
+      (PrivMachine.run env (3 * (k + 1)) s).io = s.io ∧
       Zeroed A.toNat E.toNat s.core.mem (PrivMachine.run env (3 * (k + 1)) s).core.mem ∧
       (∀ r, (PrivMachine.run env (3 * (k + 1)) s).core.reg r = regsUpd s.core.reg [(5, E)] r) := by
   intro k
@@ -368,8 +385,8 @@ theorem zloop_{tag} (env : Rv32.Env) (M0 : Word → Byte) :
       have := A.isLt
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
       omega
-    obtain ⟨p, a, h, m', c', x, rr⟩ := zloop_iter_{tag} env M0 s hS ms e c m cy A E hpc hcs hA hE hal hlo (by omega)
-    refine ⟨?_, a, h, m', c', ?_, ?_⟩
+    obtain ⟨p, a, h, m', c', o, i, x, rr⟩ := zloop_iter_{tag} env M0 s hS ms e c m cy A E hpc hcs hA hE hal hlo (by omega)
+    refine ⟨?_, a, h, m', c', o, i, ?_, ?_⟩
     · rw [p]; simp [hAE]
     · rw [x]
       have := zeroed_write A s.core.mem (by omega)
@@ -389,17 +406,17 @@ theorem zloop_{tag} (env : Rv32.Env) (M0 : Word → Byte) :
       have := A.isLt
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]
       omega
-    obtain ⟨p, a, h, m', c', x, r⟩ := zloop_iter_{tag} env M0 s hS ms e c m cy A E hpc hcs hA hE hal hlo (by omega)
+    obtain ⟨p, a, h, m', c', o, i, x, r⟩ := zloop_iter_{tag} env M0 s hS ms e c m cy A E hpc hcs hA hE hal hlo (by omega)
     obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 3 s = t := ⟨_, rfl⟩
-    rw [hs1] at p a h m' c' x r
+    rw [hs1] at p a h m' c' o i x r
     simp only [hne, ↓reduceIte] at p
     have hS1 := hS.next a h m'
     have hA1 : s1.core.reg 5#5 = A + 4#32 := by rw [r 5#5]; simp [regsUpd]
     have hE1 : s1.core.reg 6#5 = E := by rw [r 6#5]; simp [regsUpd, hE]
-    obtain ⟨p2, a2, h2, m2, c2, z2, r2⟩ := ih s1 hS1 ms e c m cy (A + 4#32) E p c' hA1 hE1
+    obtain ⟨p2, a2, h2, m2, c2, o2, i2, z2, r2⟩ := ih s1 hS1 ms e c m cy (A + 4#32) E p c' hA1 hE1
       (by rw [hA4]; omega) (by rw [hA4]; omega) (by rw [hA4]; omega) hEhi
     rw [show 3 * (k + 1 + 1) = 3 + 3 * (k + 1) by omega, PrivMachine.run_add, hs1]
-    refine ⟨p2, a2, h2, m2, c2, ?_, ?_⟩
+    refine ⟨p2, a2, h2, m2, c2, o2.trans o, i2.trans i, ?_, ?_⟩
     · rw [x] at z2
       rw [hA4] at z2
       have := zeroed_write A s.core.mem (by omega)
@@ -441,7 +458,9 @@ def scrub_glue() -> str:
     guard = "set_option maxHeartbeats 4000000 in\nset_option maxRecDepth 100000 in\n"
     conc = lambda n: f"""    Parked (PrivMachine.run env {n} s) (s.core.reg 10#5) ∧
     Agree M0 (PrivMachine.run env {n} s).core.mem 0x80000000 {B} ∧
-    Scrubbed (s.core.reg 10#5) s.core.mem (PrivMachine.run env {n} s).core.mem"""
+    Scrubbed (s.core.reg 10#5) s.core.mem (PrivMachine.run env {n} s).core.mem ∧
+    (PrivMachine.run env {n} s).host = s.host ∧
+    (PrivMachine.run env {n} s).io = s.io ++ [⟨0xc0000008#32, s.core.reg 10#5⟩]"""
     head = lambda name, extra: f"""{guard}theorem {name} (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x800001ac#32)
@@ -451,14 +470,14 @@ def scrub_glue() -> str:
     n_pass = 3 + 3 * 1920 + 1 + 34
     n_fail = 3 + 3 * 1920 + 1 + 3 + 3 * 8 + 34
     first = f"""  obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env 3 s = t := ⟨_, rfl⟩
-  obtain ⟨p1, a1, h1, m1, c1, u0, u1, u2, u3, sv1, fr1, r1⟩ := mem_setup env M0 s hS ms e c m cy hpc hcs
-  rw [hs1] at p1 a1 h1 m1 c1 u0 u1 u2 u3 sv1 fr1 r1
+  obtain ⟨p1, a1, h1, m1, c1, o1, i1, u0, u1, u2, u3, sv1, fr1, r1⟩ := mem_setup env M0 s hS ms e c m cy hpc hcs
+  rw [hs1] at p1 a1 h1 m1 c1 o1 i1 u0 u1 u2 u3 sv1 fr1 r1
   have hS1 := hS.next a1 h1 m1
   have t5 : s1.core.reg 5#5 = 0x80012200#32 := by rw [r1 5#5]; simp [regsUpd]
   have t6 : s1.core.reg 6#5 = 0x80014000#32 := by rw [r1 6#5]; simp [regsUpd]
   obtain ⟨s2, hs2⟩ : ∃ t, PrivMachine.run env (3 * (1919 + 1)) s1 = t := ⟨_, rfl⟩
-  obtain ⟨p2, a2, h2, m2, c2, z2, r2⟩ := zloop_conf env M0 1919 s1 hS1 ms e c m cy 0x80012200#32 0x80014000#32 p1 c1 t5 t6 {CONF_OB}
-  rw [hs2] at p2 a2 h2 m2 c2 z2 r2
+  obtain ⟨p2, a2, h2, m2, c2, o2, i2, z2, r2⟩ := zloop_conf env M0 1919 s1 hS1 ms e c m cy 0x80012200#32 0x80014000#32 p1 c1 t5 t6 {CONF_OB}
+  rw [hs2] at p2 a2 h2 m2 c2 o2 i2 z2 r2
   have hS2 := hS1.next a2 h2 m2
   simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at z2
   have q10 : s2.core.reg 10#5 = s.core.reg 10#5 := by
@@ -469,8 +488,8 @@ def scrub_glue() -> str:
   have z2w1 : readLE s2.core.mem 0x80008004#32 4 = readLE s1.core.mem 0x80008004#32 4 :=
     readLE_zeroed z2 _ (Or.inl (by decide)) (by decide)
   obtain ⟨s3, hs3⟩ : ∃ t, PrivMachine.run env 1 s2 = t := ⟨_, rfl⟩
-  obtain ⟨p3, a3, h3, m3, c3, v0, v1, v2, v3, sv3, fr3, r3⟩ := conf_beq env M0 s2 hS2 ms e c m cy p2 c2
-  rw [hs3] at p3 a3 h3 m3 c3 v0 v1 v2 v3 sv3 fr3 r3
+  obtain ⟨p3, a3, h3, m3, c3, o3, i3, v0, v1, v2, v3, sv3, fr3, r3⟩ := conf_beq env M0 s2 hS2 ms e c m cy p2 c2
+  rw [hs3] at p3 a3 h3 m3 c3 o3 i3 v0 v1 v2 v3 sv3 fr3 r3
   have hS3 := hS2.next a3 h3 m3
   have s3a : s3.core.reg 10#5 = s.core.reg 10#5 := by
     have := r3 10#5
@@ -481,12 +500,12 @@ def scrub_glue() -> str:
 {first}  have e3 : s2.core.reg 10#5 = 0#32 := by rw [q10, ha0]
   simp only [e3, ↓reduceIte] at p3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 34 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, y0, y1, y2, y3, sv4, fr4, r4⟩ := monitor_regs env M0 s3 hS3 ms e c m cy p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 y0 y1 y2 y3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, o4, i4, y0, y1, y2, y3, sv4, fr4, r4⟩ := monitor_regs env M0 s3 hS3 ms e c m cy p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 o4 i4 y0 y1 y2 y3 sv4 fr4 r4
   have hall : PrivMachine.run env {n_pass} s = s4 := run_two hs1 (run_two hs2 (run_two hs3 hs4))
   rw [hall]
   obtain ⟨k1, k2⟩ := regs_scrubbed r4
-  refine ⟨⟨p4, h4, m4, by rw [c4]; rfl, ?_, ?_, ?_, k2⟩, a4, ?_⟩
+  refine ⟨⟨p4, h4, m4, by rw [c4]; rfl, ?_, ?_, ?_, k2⟩, a4, ?_, by rw [o4, o3, o2, o1], by rw [i4, i3, i2, i1, s3a]⟩
   · rw [y0, v0, z2w0, u0, hw0]
   · rw [y1, v1, z2w1, u1, hw1]
   · rw [k1, s3a]
@@ -496,14 +515,14 @@ def scrub_glue() -> str:
 {first}  have e3 : ¬ (s2.core.reg 10#5 = 0#32) := by rw [q10]; exact ha0
   simp only [e3, ↓reduceIte] at p3
   obtain ⟨s4, hs4⟩ : ∃ t, PrivMachine.run env 3 s3 = t := ⟨_, rfl⟩
-  obtain ⟨p4, a4, h4, m4, c4, y0, y1, y2, y3, sv4, fr4, r4⟩ := dig_setup env M0 s3 hS3 ms e c m cy p3 c3
-  rw [hs4] at p4 a4 h4 m4 c4 y0 y1 y2 y3 sv4 fr4 r4
+  obtain ⟨p4, a4, h4, m4, c4, o4, i4, y0, y1, y2, y3, sv4, fr4, r4⟩ := dig_setup env M0 s3 hS3 ms e c m cy p3 c3
+  rw [hs4] at p4 a4 h4 m4 c4 o4 i4 y0 y1 y2 y3 sv4 fr4 r4
   have hS4 := hS3.next a4 h4 m4
   have d5 : s4.core.reg 5#5 = 0x80012140#32 := by rw [r4 5#5]; simp [regsUpd]
   have d6 : s4.core.reg 6#5 = 0x80012160#32 := by rw [r4 6#5]; simp [regsUpd]
   obtain ⟨s5, hs5⟩ : ∃ t, PrivMachine.run env (3 * (7 + 1)) s4 = t := ⟨_, rfl⟩
-  obtain ⟨p5, a5, h5, m5, c5, zd, r5⟩ := zloop_dig env M0 7 s4 hS4 ms e c m cy 0x80012140#32 0x80012160#32 p4 c4 d5 d6 {CONF_OB}
-  rw [hs5] at p5 a5 h5 m5 c5 zd r5
+  obtain ⟨p5, a5, h5, m5, c5, o5, i5, zd, r5⟩ := zloop_dig env M0 7 s4 hS4 ms e c m cy 0x80012140#32 0x80012160#32 p4 c4 d5 d6 {CONF_OB}
+  rw [hs5] at p5 a5 h5 m5 c5 o5 i5 zd r5
   have hS5 := hS4.next a5 h5 m5
   simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod] at zd
   have zdw0 : readLE s5.core.mem 0x80008000#32 4 = readLE s4.core.mem 0x80008000#32 4 :=
@@ -511,8 +530,8 @@ def scrub_glue() -> str:
   have zdw1 : readLE s5.core.mem 0x80008004#32 4 = readLE s4.core.mem 0x80008004#32 4 :=
     readLE_zeroed zd _ (Or.inl (by decide)) (by decide)
   obtain ⟨s6, hs6⟩ : ∃ t, PrivMachine.run env 34 s5 = t := ⟨_, rfl⟩
-  obtain ⟨p6, a6, h6, m6, c6, x0, x1, x2, x3, sv6, fr6, r6⟩ := monitor_regs env M0 s5 hS5 ms e c m cy p5 c5
-  rw [hs6] at p6 a6 h6 m6 c6 x0 x1 x2 x3 sv6 fr6 r6
+  obtain ⟨p6, a6, h6, m6, c6, o6, i6, x0, x1, x2, x3, sv6, fr6, r6⟩ := monitor_regs env M0 s5 hS5 ms e c m cy p5 c5
+  rw [hs6] at p6 a6 h6 m6 c6 o6 i6 x0 x1 x2 x3 sv6 fr6 r6
   have hall : PrivMachine.run env {n_fail} s = s6 := run_two hs1 (run_two hs2 (run_two hs3 (run_two hs4 (run_two hs5 hs6))))
   rw [hall]
   obtain ⟨k1, k2⟩ := regs_scrubbed r6
@@ -524,7 +543,8 @@ def scrub_glue() -> str:
     have := r5 10#5
     simp [regsUpd] at this
     rw [this, s4a]
-  refine ⟨⟨p6, h6, m6, by rw [c6]; rfl, ?_, ?_, ?_, k2⟩, a6, ?_⟩
+  refine ⟨⟨p6, h6, m6, by rw [c6]; rfl, ?_, ?_, ?_, k2⟩, a6, ?_, by rw [o6, o5, o4, o3, o2, o1],
+    by rw [i6, i5, i4, i3, i2, i1, a5']⟩
   · rw [x0, zdw0, y0, v0, z2w0, u0, hw0]
   · rw [x1, zdw1, y1, v1, z2w1, u1, hw1]
   · rw [k1, a5']
@@ -533,7 +553,7 @@ def scrub_glue() -> str:
     wrap = f"""/-- **The scrub of memory and registers**, from the word after `mscratch` is zero: whatever the exit code,
     the machine parks with `a0` as it was and every other register zero, the monitor's words in place, and memory
     scrubbed: the confidential scratch zero, the digest window zero too unless `a0` is 0, nothing else changed
-    but the monitor's own stack and report words. -/
+    but the monitor's own stack and report words; and `a0` written to the exit word, the one port it writes. -/
 theorem monitor_scrub (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
     (hpc : s.core.pc = 0x800001ac#32)
@@ -541,7 +561,9 @@ theorem monitor_scrub (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (hw0 : readLE s.core.mem 0x80008000#32 4 = 0) (hw1 : readLE s.core.mem 0x80008004#32 4 = 0) :
     ∃ N, Parked (PrivMachine.run env N s) (s.core.reg 10#5) ∧
       Agree M0 (PrivMachine.run env N s).core.mem 0x80000000 {B} ∧
-      Scrubbed (s.core.reg 10#5) s.core.mem (PrivMachine.run env N s).core.mem := by
+      Scrubbed (s.core.reg 10#5) s.core.mem (PrivMachine.run env N s).core.mem ∧
+      (PrivMachine.run env N s).host = s.host ∧
+      (PrivMachine.run env N s).io = s.io ++ [⟨0xc0000008#32, s.core.reg 10#5⟩] := by
   by_cases ha0 : s.core.reg 10#5 = 0#32
   · exact ⟨_, monitor_scrub_pass env M0 s hS ms e c m cy hpc hcs hw0 hw1 ha0⟩
   · exact ⟨_, monitor_scrub_fail env M0 s hS ms e c m cy hpc hcs hw0 hw1 ha0⟩
@@ -555,24 +577,28 @@ def trap_glue() -> str:
     B = BYTES
     n = lambda name: CH[name].n
 
-    def case(name, hyp_args, a10_proof):
-        return f"""      obtain ⟨p, a, h, m', cc, w0, w1, w2, w3, sv, fr, r⟩ := {name} env M0 u hS ms e c m cy hpc hcs{hyp_args}
+    def case(name, hyp_args, a10_proof, io_hyps):
+        return f"""      obtain ⟨p, a, h, m', cc, ho, io, w0, w1, w2, w3, sv, fr, r⟩ := {name} env M0 u hS ms e c m cy hpc hcs{hyp_args}
       obtain ⟨s1, hs1⟩ : ∃ t, PrivMachine.run env {n(name)} u = t := ⟨_, rfl⟩
-      rw [hs1] at p a h m' cc w0 w1 w2 w3 sv fr r
+      rw [hs1] at p a h m' cc ho io w0 w1 w2 w3 sv fr r
       have hS1 := hS.next a h m'
-      obtain ⟨N, hP, hA, hSc⟩ := monitor_scrub env M0 s1 hS1 ms e c m cy p cc w0 w1
+      obtain ⟨N, hP, hA, hSc, hho, hio⟩ := monitor_scrub env M0 s1 hS1 ms e c m cy p cc w0 w1
       have a10 : s1.core.reg 10#5 = exitCode u := by
 {a10_proof}
-      rw [a10] at hP hSc
-      exact ⟨{n(name)} + N, by rw [PrivMachine.run_add, hs1]; exact ⟨hP, hA, scrubbed_of_frame (frameSP_of fr sv) hSc⟩⟩
+      rw [a10] at hP hSc hio
+      refine ⟨{n(name)} + N, ?_⟩
+      rw [PrivMachine.run_add, hs1]
+      refine ⟨hP, hA, scrubbed_of_frame (frameSP_of fr sv) hSc, hho.trans ho, ?_⟩
+      rw [hio, io]
+      simp [trapIo, faultIo, haltIo, exitCode, hcs, csrsH, hcu, hc{io_hyps}]
 """
 
     halt = case("monitor_halt_pre", " hc ht0", """        rw [r 10#5]
-        simp [regsUpd, exitCode, hcu, hc, ht0]""")
+        simp [regsUpd, exitCode, hcu, hc, ht0]""", ", ht0")
     cause = case("monitor_fault_cause_pre", " hc", """        rw [r 10#5]
-        simp [regsUpd, exitCode, hcu, hc]""")
+        simp [regsUpd, exitCode, hcu, hc]""", "")
     sysc = case("monitor_fault_syscall_pre", " hc ht0", """        rw [r 10#5]
-        simp [regsUpd, exitCode, hcu, hc, ht0]""")
+        simp [regsUpd, exitCode, hcu, hc, ht0]""", ", ht0")
     return f"""
 /-! ## However the payload leaves, the monitor scrubs -/
 
@@ -581,13 +607,15 @@ def trap_glue() -> str:
     a fault -- the monitor parks with the exit code `exitCode u` (the payload's own `a0` for a HALT, 1 for the
     rest), every other register zero, its own words in place, and the memory scrubbed: the confidential scratch
     zero, the digest window zero unless the exit code is 0, every byte beside them, bar the monitor's own stack
-    and report words, as the payload left it. -/
+    and report words, as the payload left it; and the host has heard `trapIo u`, the report and the exit code. -/
 theorem monitor_scrubs (env : Rv32.Env) (M0 : Word → Byte) (u : PrivMachine)
     (hS : HState env M0 u) (ms : MStatus) (e c m cy : Word)
     (hpc : u.core.pc = 0x80000114#32) (hcs : u.csrs = csrsH ms e c m cy {{}} 0x80008000#32) :
     ∃ N, Parked (PrivMachine.run env N u) (exitCode u) ∧
       Agree M0 (PrivMachine.run env N u).core.mem 0x80000000 {B} ∧
-      Scrubbed (exitCode u) u.core.mem (PrivMachine.run env N u).core.mem := by
+      Scrubbed (exitCode u) u.core.mem (PrivMachine.run env N u).core.mem ∧
+      (PrivMachine.run env N u).host = u.host ∧
+      (PrivMachine.run env N u).io = u.io ++ trapIo u := by
   have hcu : u.csrs.mcause = c := by rw [hcs]; rfl
   by_cases hc : c = 8#32
   · by_cases ht0 : u.core.reg 5#5 = 1#32

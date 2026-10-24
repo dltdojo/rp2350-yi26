@@ -12,12 +12,16 @@ data_entry_8_kib|pmpaddr1 fences 8 KiB of data, not 4|s/0x1ff28293#32/0x3ff28293
 data_entry_2_kib|pmpaddr1 fences 2 KiB of data, not 4|s/0x1ff28293#32/0x0ff28293#32/
 stack_entry_to_the_monitor|pmpaddr2 reaches down to 0x80000000|s/0xdff28293#32/0xfff28293#32/
 stack_entry_8_kib|pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short|s/0xdff28293#32/0xbff28293#32/
+stack_entry_32_kib|pmpaddr2 fences 32 KiB of stack: the guard region is 28 KiB short|/0x3b129073#32,/{n;s/0x200082b7#32/0x200072b7#32/;n;s/0xdff28293#32/0xfff28293#32/}
 code_entry_writable|the code entry is read, write and execute (0x1f)|s/0xb1d28293#32/0xb1f28293#32/
 data_entry_executable|the data entry is read, write and execute (0x1f)|s/0xb1d28293#32/0xf1d28293#32/
 stack_entry_executable|the stack entry is read, write and execute (0x1f)|s/0x001b22b7#32/0x001f22b7#32/
 code_entry_off|the code entry is off: the data entry alone, 4 KiB of read and write|s/0xb1d28293#32/0xb0028293#32/
+data_entry_off|the data entry is off|/0x3b229073#32,/{n;s/0x001b22b7#32/0x001b02b7#32/;n;s/0xb1d28293#32/0x01d28293#32/}
+stack_entry_off|the stack entry is off|s/0x001b22b7#32/0x000022b7#32/
 entry_three_on|entry 3 is on, NAPOT, read, write and execute|s/0x001b22b7#32/0x1f1b22b7#32/
 entries_swapped|the code and the data entries swap places: the data is tried first|s/0x00f28293#32/TMP#32/;s/0x1ff28293#32/0x00f28293#32/;s/TMP#32/0x1ff28293#32/
+data_tried_before_code|the entries swap places and permissions: the data entry is tried first, so it decides a store into the code|s/0x00f28293#32/TMP#32/;s/0x1ff28293#32/0x00f28293#32/;s/TMP#32/0x1ff28293#32/;s/0xb1d28293#32/0xd1b28293#32/
 mstatus_kept|boot ORs t0 into mstatus instead of writing it whole: MPP is whatever the last round left|s/0x30001073#32/0x3002a073#32/
 pmpaddr3_kept|boot does not write pmpaddr3: it is whatever the last round left|s/0x3b301073#32/0x00000013#32/
 mcause_kept|boot does not write mcause: it is whatever the last round left|s/0x34201073#32/0x00000013#32/
@@ -34,7 +38,12 @@ fault_exit_code_two|a fault exits with 2|s/0x00100513#32/0x00200513#32/
 fault_skips_scrub|a fault jumps to the park loop, not the scrub|s/0x0380006f#32/0x0000006f#32/
 saved_t0_stays|the scrub leaves the saved t0 on the M-mode stack|s/0x00012023#32/0x00000013#32/
 scrub_leaves_sp|the scrub loads 1 into x2|s/0x00000113#32/0x00100113#32/
+scrub_skips_ra|the scrub leaves x1|/0x34001073#32,/{n;s/0x00000093#32/0x00000013#32/}
+mscratch_stays|the scrub leaves mscratch holding the payload's sp|s/0x34001073#32/0x00000013#32/
 mmio_address_wrong|the reports go to a word in the payload's region|s/0xc0000337#32/0x80010337#32/
+halt_tag_wrong|the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT|s/0xc5428293#32/0xc5528293#32/
+fault_tag_wrong|the FAULT report's tag is "FAUM", not "FAUL"|s/0x54c28293#32/0x54d28293#32/
+exit_code_to_print_word|the exit code goes to the print word, not the exit word|s/0x00830313#32/0x00430313#32/
 counters_start_at_three|claim: boot leaves the counters at 3, not 2|s/0x80010000#32 0#32 2#32 2#32 {}/0x80010000#32 0#32 3#32 3#32 {}/
 halt_takes_56_steps|claim: a HALT takes the monitor 56 steps, not 57|s/then 57 else 62/then 56 else 62/
 code_one_word_longer|claim: the code is four bytes longer, [0x80010000, 0x80010084)|s/x.toNat < 0x80010080 → m x = C x/x.toNat < 0x80010084 → m x = C x/

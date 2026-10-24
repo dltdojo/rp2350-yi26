@@ -2,14 +2,16 @@
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**A 200-word, 800-byte RISC-V M-mode monitor (`monitor.bin`) that answers two calls which do not
+**A 202-word, 808-byte RISC-V M-mode monitor (`monitor.bin`) that answers two calls which do not
 stop the payload — `HASHB` and `CHECKSIG` — and a Lean 4 proof of what its own words do when the
 privileged model of exp235 runs them. It does not hash and does not verify: it owns the *pointers*. Before a
 call is forwarded to the host's service port, every range it names is checked to lie wholly inside the
 payload's 64 KiB box, by three comparisons that never add a pointer to a length, so a range whose end wraps
 past 2^32 is refused like any other. A call that passes returns to the payload at the word after its
 `ecall`, its registers as they were, and two counted instructions later; a call that does not is a fault —
-the machine parks with `a0 = 1`, every other register zero, and the service port as it was. exp228's
+the machine parks with `a0 = 1`, every other register zero, and the service port as it was. `CHECKSIG`'s answer
+must be 0 or 1, and anything else is a fault too: a host that never answers leaves the request word, 3, where
+the answer is read, and exp228's kernel takes any answer but 0 for a good signature. exp228's
 881-instruction Tapscript kernel runs its 34 scripts, and 120 more, under it on an emulator, and every
 verdict, every byte of the box and every request the host saw match the kernel run with no monitor at all.
 Nothing here ran on silicon or on the Hazard3 RTL.**
@@ -35,12 +37,13 @@ exp236's, word for word; from word 73 on it is a new program, and none of exp236
 0x80000194  call_hashb                [a0, a0 + a1) and [a2, a2 + 32) inside the box, else handle_fault;
                                       write a0, a1, a2, then the call number, to 0xc0000010..0xc000001c
 0x800001e0  call_checksig             [a0, a0 + 32) and [a1, a1 + 64) inside the box, else handle_fault;
-                                      write a0, a1, then the call number; a0 <- the word at 0xc000001c
-0x8000022c  trap_return               mepc <- mepc + 4, t0..t3 back from the stack, sp swapped back,
+                                      write a0, a1, then the call number; a0 <- the word at 0xc000001c,
+                                      which must be 0 or 1, else handle_fault
+0x80000234  trap_return               mepc <- mepc + 4, t0..t3 back from the stack, sp swapped back,
                                       csrwi mcountinhibit, 0; mret
 0x80000138  handle_fault              report FAULT, a0 <- 1, scrub_exit
-0x8000027c  scrub_exit                zero the four saved words and mscratch, every register but a0
-0x80000318  halt_loop                 wfi; j halt_loop
+0x80000284  scrub_exit                zero the four saved words and mscratch, every register but a0
+0x80000320  halt_loop                 wfi; j halt_loop
 ```
 
 The bounds check on one range `[ptr, ptr + len)` is three comparisons, none of which adds:
@@ -53,7 +56,9 @@ len <= BOX_HI - ptr        bltu (hi - ptr), len  -> fault
 
 The service port, `0xc0000010..0xc000001c`, is the host's: the testbench here, a C caller on the chip. Three
 argument words, then the call number — whose write is the request — and a read of the same word is the
-answer. The host is trusted with nothing: it only ever sees ranges the monitor has already confined. The
+answer. The host is trusted with nothing: it only ever sees ranges the monitor has already confined, and
+`CHECKSIG` returns its answer to the payload only if it is 0 or 1 — the two words after the read, which put
+the monitor two words over the 200 of the design (`docs/micro-monitor/`, section 6) on 2026-10-23. The
 monitor spends `t0..t3` and no other register, so the trap entry saves exactly those four. (The design note
 asked for all of `x1..x31` saved; a monitor that touches four registers does not need to.)
 
@@ -71,10 +76,11 @@ All on Lean's own axioms. They are about `PrivMachine` fetching and executing `m
 | `bounds_ok_iff` | the three comparisons pass **exactly** when `0x80010000 ≤ ptr` and `ptr + len ≤ 0x80020000`, the sum taken in the naturals: a range that wraps past 2^32 does not pass |
 | `monitor_boot` | exp236's, for these words: 53 steps from reset give `UBoxed 0x80010000 0x80020000` at `0x80010000`, every register zero but `sp` |
 | `monitor_hashb_ok` | at the trap vector, `mcause = 8`, saved `t0 = 2`, both ranges in the box: 43 steps, back in U-mode at `mepc + 4`, **every** register as it was, `minstret + 2`, the service port holding `a0`, `a1`, `a2` and `2`, memory outside the monitor's stack words, the report words and the port untouched — the payload's box included |
-| `monitor_checksig_ok` | the same for `t0 = 3`: 45 steps, every register but `a0` as it was, the port holding the key, the signature and `3`; `a0` is the word the monitor read back from the port |
+| `monitor_checksig_ok` | the same for `t0 = 3`, given that the host answers 0 or 1: 47 steps, every register but `a0` as it was, the port holding the key, the signature and `3`; `a0` is the host's answer — `host` applied to the words written so far — not the request read back |
+| `monitor_checksig_bad_answer` | **an answer that is neither 0 nor 1 is refused**: 91 steps, the machine parks with `a0 = 1`, every other register zero, and the host has heard the call and then the fault report |
 | `monitor_hashb_oob_fault`, `monitor_checksig_oob_fault` | **a call that is not wholly in the box is refused**: whichever range is out — below the box, past it, straddling an end, or one whose end wraps — the machine parks with `a0 = 1`, every other register zero, and the service port as it was: the host is never asked. Twelve theorems, one per check, behind each |
-| `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | as exp236's, for these words: 61, 63, 71 steps |
-| `monitor_cycle` | a running payload runs `n` steps or traps, and the trap has an `Outcome`: parked after a fault (`a0 = 1`, the service port as it was), parked after a HALT (`a0` the payload's own exit code), or `Served` — the call's ranges were in the box, the host was asked exactly the payload's arguments and call number, and the payload is running again at the word after its `ecall` with its registers and two instructions on the counter |
+| `monitor_halt`, `monitor_fault_cause`, `monitor_fault_syscall` | as exp236's, for these words: 61, 63, 71 steps, and the words the host heard: the report, then the exit code |
+| `monitor_cycle` | a running payload runs `n` steps or traps, and the trap has an `Outcome`: parked after a fault (`a0 = 1`, the service port as it was, the host having heard `faultIo`), parked after a HALT (`a0` the payload's own exit code, the host having heard `haltIo`), parked after a `CHECKSIG` whose answer was neither 0 nor 1 (`a0 = 1`, the host having heard the call and then `faultIo`), or `Served` — the call's ranges were in the box, the host heard exactly the payload's arguments and call number (`callIo`), and the payload is running again at the word after its `ecall` with its registers, `a0` the host's answer and 0 or 1 for a `CHECKSIG`, and two instructions on the counter |
 | `ends_refuses` | **a call with a range out of the box can only end the first way**: `OutOfBox` (an `ecall` for `HASHB` or `CHECKSIG` whose ranges are not wholly in the box) gives the park loop with `a0 = 1` and the service port as it was. `Outcome` carries this as a conjunct, so every trap the end-to-end theorem reaches states it |
 | `safe_for`, `monitor_end_to_end` | however many calls the payload makes, and whatever their arguments: from reset, boot, then every trap has an `Outcome` — the machine parks, or a call whose ranges were in the box is served and the payload is running again, boxed, with the monitor's words in place — and **a call with a range out of the box parks the machine with `a0 = 1` and the host never asked** |
 
@@ -88,10 +94,14 @@ checked again here on these words.
 
 - **The model is not the chip.** As exp236: `Priv.lean` is a reading of the Hazard3 documentation; nothing
   here ran on the RTL or on an RP2350.
-- **The service port is memory.** The proof treats `0xc0000010..0xc000001c` as memory, as exp236 treats its
-  report words. So it proves *what the monitor writes there and what it reads back*, not what a host does. In
-  particular nothing is proved about `a0` after `CHECKSIG` except that it is the word read from the port: the
-  model reads back the request it just wrote.
+- **The host is bounded, not modelled.** In `Priv.lean` an M-mode word store to a port (`0xc0000000..0xc000001f`)
+  is recorded in order in `io`, and an M-mode word load from one returns `host io a`, a function that is part of
+  the state and that no theorem constrains: every theorem holds for every host. So the proof says *what the host
+  hears* and *what the monitor does with any answer*, not what a host does. A byte or a halfword at a port, or a
+  U-mode access to one, is memory in the model; the PMP refuses U-mode the ports before that matters.
+- **The reports are proved as words, not as what they mean.** `faultIo`, `haltIo` and `callIo` are the words, in
+  order. The `mtval` a fault reports is 0, because the model's traps do not write `mtval`; the emulator's do
+  ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **The monitor does not hash and does not verify.** That `HASHB` writes the SHA-256 of the input and that
   `CHECKSIG` answers 1 for a good BIP340 signature is the host's job (here `suite/host.py`, with hashlib and
   exp228's verifier), proved nowhere in this experiment.
@@ -112,12 +122,15 @@ checked again here on these words.
 ## The checks
 
 1. `monitor.py --check`: `monitor.S` assembles to `monitor.bin` byte for byte, the SHA-256 matches,
-   200 ≤ 200 words, and `monitorCode` in the proof is the binary's words in order.
+   202 ≤ 202 words, and `monitorCode` in the proof is the binary's words in order.
 2. `Calls.lean` checks, with no errors and no warnings, on Lean's own axioms.
-3. **Eight mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or phase it breaks: an input
+3. **Eleven mutants** (`proof/mutants.txt`), each refused by Lean in the chunk or phase it breaks: an input
    floor dropped, a length tested by adding, 16 bytes of output room, 32 bytes of signature room, a return
    that does not step past the `ecall`, counters never released, an unoffered call that returns, a saved word
-   left on the stack.
+   left on the stack, `CHECKSIG`'s answer check dropped or letting 2 through, and the model reading a port's
+   answer back from memory, as it did before the ports were modelled. Fifteen more, one for each broken monitor of check 7 that had no mutant, were run once on
+   2026-10-23 and each was refused, and again on the 202-word monitor; they are in `mutants.txt` commented out,
+   because each is a whole run of the proof (about five minutes) and the check would take more than an hour longer.
 4. `proof/Calls.lean` is what `proof/gen.py` writes.
 5. **exp228's kernel under the monitor** (`suite/kernel_cases.py`): each of its 34 scripts, and 120 drawn by
    exp228's fuzzer, runs three ways — alone with no monitor, under the monitor, and in the specification
@@ -126,10 +139,13 @@ checked again here on these words.
 6. **Payloads that lean on the calls** (`suite/attack_cases.py`): 43 refused with the host never asked
    (below the box, past it, straddling either end, a length of 2^32 − 1, wrapping lengths, wrapping pointers,
    the monitor's own words and stack, unoffered call numbers), 8 served to the last byte, the registers a call
-   must leave alone, a hundred calls in a row at an exact `minstret`, and 10 that fault with the hardware's cause.
-7. **Twenty-five broken monitors** (`suite/broken_monitors.py`): `monitor.S` with one change — a check
+   must leave alone, a hundred calls in a row at an exact `minstret`, 10 that fault with the hardware's cause,
+   and 4 `CHECKSIG`s whose host answers neither 0 nor 1 — no answer at all (the request word left there), 2,
+   `0xffffffff`, `2^31` — each refused after the one request.
+7. **Twenty-seven broken monitors** (`suite/broken_monitors.py`): `monitor.S` with one change — a check
    dropped, a length checked by adding, a register the return forgets, a counter released too late or too
-   soon, a saved word left behind — each must fail the attack or the kernel suite.
+   soon, a saved word left behind, the answer check dropped or letting 2 through — each must fail the attack or
+   the kernel suite.
 
 The test host is deliberately credulous: it does what the arguments say, with M-mode's authority, at any
 address. A monitor that fails to check is caught by what the host was made to do.
@@ -140,10 +156,10 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp238 — the call the monitor checks ===
-recorded at 2026-10-17T03:57:08Z from commit 5d17005
+recorded at 2026-10-23T11:15:03Z from commit 3ac5977
 
 >>> the micro-monitor binary and size budget
-PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
+PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor.sha256, is within 202 words, and is proof/Calls.lean's monitorCode
 
 >>> the formal theorems, and what they rest on
 'Exp238.monitorCode_length' does not depend on any axioms
@@ -155,6 +171,7 @@ PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor
 'Exp238.monitor_hashb_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_hashb_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.monitor_checksig_bad_answer' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.ends_refuses' depends on axioms: [propext, Quot.sound]
 'Exp238.monitor_cycle' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -162,14 +179,17 @@ PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor
 exit 0
 
 >>> wrong monitors: each must be refused
-hashb_input_floor_dropped  HASHB lets an input start below the box                                  refused in hashb_b1
-hashb_length_by_addition   HASHB tests ptr + len, which wraps, instead of what is left of the box   refused in hashb_s3
-hashb_output_room_16       HASHB checks room for 16 bytes of output, not 32                         refused in hashb_s6
-checksig_signature_32      CHECKSIG checks room for 32 bytes of signature, not 64                   refused in checksig_s6
-return_repeats_the_ecall   the return does not step past the ecall                                  refused in return_1
-counters_not_released      the return never releases the counters                                   refused in return_3
-unknown_call_succeeds      a call the monitor does not offer returns to the payload                 refused in call_unknown
-scrub_keeps_saved_t2       the scrub leaves the saved t2 on the M-mode stack                        refused in scrub_1c
+hashb_input_floor_dropped  HASHB lets an input start below the box                                         refused in hashb_b1
+hashb_length_by_addition   HASHB tests ptr + len, which wraps, instead of what is left of the box          refused in hashb_s3
+hashb_output_room_16       HASHB checks room for 16 bytes of output, not 32                                refused in hashb_s6
+checksig_signature_32      CHECKSIG checks room for 32 bytes of signature, not 64                          refused in checksig_s6
+return_repeats_the_ecall   the return does not step past the ecall                                         refused in return_1
+counters_not_released      the return never releases the counters                                          refused in return_3
+unknown_call_succeeds      a call the monitor does not offer returns to the payload                        refused in call_unknown
+scrub_keeps_saved_t2       the scrub leaves the saved t2 on the M-mode stack                               refused in scrub_1c
+answer_check_dropped       CHECKSIG returns whatever the host answered, 0 and 1 or not                     refused in checksig_answer
+answer_check_allows_two    CHECKSIG takes an answer of 2 too                                               refused in checksig_answer
+port_read_is_memory        model: an M-mode load from a port reads back the bytes, not the host's answer   refused in checksig_fwd_4
 
 >>> exp228's kernel and its scripts, under the monitor
 PASS  34 scripts run by exp228's kernel under the monitor: verdict, box and request log as run alone, minstret = alone + 2 + 2*calls, 7 calls served, each wholly inside the box
@@ -212,8 +232,9 @@ PASS  120 fuzzed scripts, the same: 10 calls served
       2+2=5, as in 1984                  367      0
 
 >>> payloads that lean on the calls
-PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
-      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause:
+PASS  68 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
+      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause,
+      and 4 CHECKSIGs whose host answers neither 0 nor 1, refused after the one request:
       refused  hashb: input in the monitor's code
       refused  hashb: input is the M-mode stack
       refused  hashb: input one byte below the box
@@ -265,9 +286,13 @@ PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 
       served   checksig: key and signature at the very end
       served   checksig: key and signature at the very start
       served   checksig: signature at the very end
+      refused  checksig, no answer: the request word, 3, left where it is
+      refused  checksig, an answer of 2
+      refused  checksig, an answer of 0xffffffff
+      refused  checksig, an answer of 2^31
 
 >>> monitors with one thing wrong: each must be caught
-PASS  25 broken monitors, each caught by the attack and kernel suites:
+PASS  27 broken monitors, each caught by the attack and kernel suites:
       hashb_input_floor_dropped          HASHB lets an input start below the box
       hashb_input_ceiling_dropped        HASHB lets an input start past the box
       hashb_length_dropped               HASHB never checks the length against what is left of the box
@@ -281,6 +306,8 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
       checksig_signature_floor_dropped   CHECKSIG lets the signature start below the box
       checksig_signature_32_bytes        CHECKSIG checks room for 32 bytes of signature, not 64
       checksig_is_hashb                  call 3 is taken for call 2
+      answer_check_dropped               CHECKSIG returns whatever the host answered, 0 and 1 or not
+      answer_check_allows_two            CHECKSIG takes an answer of 2 too
       unknown_call_succeeds              a call the monitor does not offer returns to the payload
       return_repeats_the_ecall           the return does not step past the ecall
       return_skips_two_words             the return steps over the word after the ecall too
@@ -296,9 +323,9 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
 
 >>> the checks
 PASS  no lifeline, and it says why: no firmware of its own
-PASS  monitor.bin (800 bytes, 200 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Calls.lean's monitorCode
+PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor.sha256, is within 202 words, and is proof/Calls.lean's monitorCode
 PASS  Calls.lean checks, with no errors and no warnings
-PASS  all 13 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 14 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  hashb_input_floor_dropped: the proof refuses a version where HASHB lets an input start below the box
 PASS  hashb_length_by_addition: the proof refuses a version where HASHB tests ptr + len, which wraps, instead of what is left of the box
 PASS  hashb_output_room_16: the proof refuses a version where HASHB checks room for 16 bytes of output, not 32
@@ -307,6 +334,9 @@ PASS  return_repeats_the_ecall: the proof refuses a version where the return doe
 PASS  counters_not_released: the proof refuses a version where the return never releases the counters
 PASS  unknown_call_succeeds: the proof refuses a version where a call the monitor does not offer returns to the payload
 PASS  scrub_keeps_saved_t2: the proof refuses a version where the scrub leaves the saved t2 on the M-mode stack
+PASS  answer_check_dropped: the proof refuses a version where CHECKSIG returns whatever the host answered, 0 and 1 or not
+PASS  answer_check_allows_two: the proof refuses a version where CHECKSIG takes an answer of 2 too
+PASS  port_read_is_memory: the proof refuses a version where model: an M-mode load from a port reads back the bytes, not the host's answer
 PASS  proof/Calls.lean is what proof/gen.py writes
 PASS  34 scripts run by exp228's kernel under the monitor: verdict, box and request log as run alone, minstret = alone + 2 + 2*calls, 7 calls served, each wholly inside the box
 PASS  the run alone counted what the Pico 2 counted (34 cases, + 4 + 4*calls)
@@ -346,8 +376,9 @@ PASS  120 fuzzed scripts, the same: 10 calls served
       equalverify unequal                195      0
       the whole stack, all 32            476      0
       2+2=5, as in 1984                  367      0
-PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
-      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause:
+PASS  68 payloads that lean on the calls: 43 refused with the host never asked, 8 served to the last byte as the run with no monitor serves them,
+      the registers a call must leave alone (both calls), 100 calls in a row at an exact minstret, 10 that fault with the hardware's cause,
+      and 4 CHECKSIGs whose host answers neither 0 nor 1, refused after the one request:
       refused  hashb: input in the monitor's code
       refused  hashb: input is the M-mode stack
       refused  hashb: input one byte below the box
@@ -399,7 +430,11 @@ PASS  64 payloads that lean on the calls: 43 refused with the host never asked, 
       served   checksig: key and signature at the very end
       served   checksig: key and signature at the very start
       served   checksig: signature at the very end
-PASS  25 broken monitors, each caught by the attack and kernel suites:
+      refused  checksig, no answer: the request word, 3, left where it is
+      refused  checksig, an answer of 2
+      refused  checksig, an answer of 0xffffffff
+      refused  checksig, an answer of 2^31
+PASS  27 broken monitors, each caught by the attack and kernel suites:
       hashb_input_floor_dropped          HASHB lets an input start below the box
       hashb_input_ceiling_dropped        HASHB lets an input start past the box
       hashb_length_dropped               HASHB never checks the length against what is left of the box
@@ -413,6 +448,8 @@ PASS  25 broken monitors, each caught by the attack and kernel suites:
       checksig_signature_floor_dropped   CHECKSIG lets the signature start below the box
       checksig_signature_32_bytes        CHECKSIG checks room for 32 bytes of signature, not 64
       checksig_is_hashb                  call 3 is taken for call 2
+      answer_check_dropped               CHECKSIG returns whatever the host answered, 0 and 1 or not
+      answer_check_allows_two            CHECKSIG takes an answer of 2 too
       unknown_call_succeeds              a call the monitor does not offer returns to the payload
       return_repeats_the_ecall           the return does not step past the ecall
       return_skips_two_words             the return steps over the word after the ecall too

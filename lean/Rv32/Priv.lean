@@ -73,12 +73,24 @@ structure PrivCSRs where
   mcycle        : Word          := 0
   deriving DecidableEq, Repr, Inhabited
 
-/-- Complete Tier 2 Privileged Machine State. -/
+/-- One word an M-mode store wrote to a port: where, and what. -/
+structure IoEvent where
+  addr : Word
+  val  : Word
+  deriving DecidableEq, Repr
+
+/-- Complete Tier 2 Privileged Machine State.
+
+`io` and `host` are the ports (`isPort`): every word M-mode has stored to one, in order, and what a
+word loaded from one returns, given what has been stored so far. `host` is part of the state, so a
+theorem about any state is about any host: what the host answers is not the monitor's to prove. -/
 structure PrivMachine where
   core   : Rv32.Machine
   mode   : PrivMode := .M
   csrs   : PrivCSRs := {}
   halted : Bool     := false
+  io     : List IoEvent := []
+  host   : List IoEvent → Word → Word := fun _ _ => 0
 
 /-- Address-matching modes supported by RP2350 Hazard3 PMP hardware. -/
 inductive PmpAddrMode where
@@ -382,6 +394,41 @@ def uModeTrapCause (s : PrivMachine) (w : Word) : Option Word :=
       else none
     | some _ => none
 
+/-! ## The ports
+
+`[0xc0000000, 0xc0000020)` holds the testbench's print and exit words and the service port. On the chip
+they are not memory: a store goes to whoever is listening, and a load returns what that one answers.
+Here an M-mode `sw` to a port is also recorded in `io`, and an M-mode `lw` from one returns
+`host io a`, not the bytes. The store still writes its bytes, so a statement about memory reads as it
+did before the ports were modelled, and no load sees them. Only words, and only from M-mode: a byte
+or a halfword is memory, and U-mode is refused the ports by the PMP of every monitor here before
+an access reaches them -- a box that let it through would be reading memory, which this model
+does not catch. -/
+
+def isPort (a : Word) : Bool := decide (0xc0000000 ≤ a.toNat ∧ a.toNat < 0xc0000020)
+
+/-- The port write an instruction makes, if it makes one. -/
+def portWrites (s : PrivMachine) : Rv32.Instr → List IoEvent
+  | .st .sw rs1 rs2 imm =>
+    let a := s.core.reg rs1 + imm.signExtend 32
+    if s.mode = .M ∧ isPort a = true then [⟨a, s.core.reg rs2⟩] else []
+  | _ => []
+
+/-- The machine after an instruction, with a word loaded from a port replaced by the host's answer. -/
+def portRead (s : PrivMachine) (core' : Rv32.Machine) : Rv32.Instr → Rv32.Machine
+  | .ld .lw rd rs1 imm =>
+    let a := s.core.reg rs1 + imm.signExtend 32
+    if s.mode = .M ∧ isPort a = true then core'.setReg rd (s.host s.io a) else core'
+  | _ => core'
+
+/-- U-mode reaches no port: it makes no port write and reads no answer. -/
+theorem portWrites_U (s : PrivMachine) (h : s.mode = .U) (i : Rv32.Instr) : portWrites s i = [] := by
+  unfold portWrites; split <;> simp [h]
+
+theorem portRead_U (s : PrivMachine) (h : s.mode = .U) (c : Rv32.Machine) (i : Rv32.Instr) :
+    portRead s c i = c := by
+  unfold portRead; split <;> simp [h]
+
 /-- One step, given the word fetched at `pc`. `step` is this with the word read from memory;
     the split lets a proof about loaded code supply the word and evaluate it. -/
 def PrivMachine.stepW (env : Rv32.Env) (s : PrivMachine) (w : Word) : PrivMachine :=
@@ -398,7 +445,7 @@ def PrivMachine.stepW (env : Rv32.Env) (s : PrivMachine) (w : Word) : PrivMachin
           match Rv32.exec env s.core instr with
           | .running core' =>
             let csrs' := bumpCounters s.csrs
-            { s with core := core', csrs := csrs' }
+            { s with core := portRead s core' instr, csrs := csrs', io := s.io ++ portWrites s instr }
           | .halted _ core' =>
             let csrs' := bumpCounters s.csrs
             { s with core := core', csrs := csrs', halted := true }

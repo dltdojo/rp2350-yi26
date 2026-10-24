@@ -8,18 +8,25 @@
 # edits what the theorems claim: a claim that is not true of the monitor must stop in the lemma that joins its parts.
 scratch_ends_early|the scratch loop's end is +0x3000, not +0x4000|s/0x80014337#32/0x80013337#32/
 scratch_starts_late|the scratch loop starts at +0x2204|s/0x20028293#32/0x20428293#32/
+scratch_starts_early|the scratch loop starts at +0x21fc|s/0x20028293#32/0x1fc28293#32/
 scratch_steps_by_eight|the scratch loop steps eight bytes|0,/0x00428293#32/s//0x00828293#32/
 scratch_stores_the_pointer|the scratch loop stores its pointer, not zero|0,/0x0002a023#32/s//0x0052a023#32/
 scratch_loop_never_ends|the scratch loop branches on equal, not on not equal|0,/0xfe629ce3#32/s//0xfe628ce3#32/
+scratch_not_scrubbed|there is no scratch loop: its three words are nops|/0x80014337#32,/{n;s/0x0002a023#32/0x00000013#32/;n;s/0x00428293#32/0x00000013#32/;n;s/0xfe629ce3#32/0x00000013#32/}
 digest_kept_on_failure|the digest window is never zeroed|s/0x00050e63#32/0x01c0006f#32/
 digest_always_zeroed|the digest window is zeroed on a HALT with 0 too|s/0x00050e63#32/0x00000013#32/
 digest_test_inverted|the digest window is zeroed only on a HALT with 0|s/0x00050e63#32/0x00051e63#32/
 digest_window_28_bytes|the digest window is 28 bytes|s/0x02028313#32/0x01c28313#32/
+digest_window_one_word_long|the digest window is 36 bytes|s/0x02028313#32/0x02428313#32/
 digest_starts_late|the digest window starts at +0x2144|s/0x14028293#32/0x14428293#32/
 digest_stores_nothing|the digest loop's store is a no-op|/0x02028313#32,/{n;s/0x0002a023#32/0x00000013#32/}
 digest_steps_by_eight|the digest loop steps eight bytes|/0x02028313#32,/{n;n;s/0x00428293#32/0x00828293#32/}
+digest_loop_runs_to_scratch_end|the digest loop keeps the scratch loop's end|s/0x02028313#32/0x00000013#32/
 fault_skips_the_scrub|a fault jumps past the scrub of memory|s/0x0380006f#32/0x0780006f#32/
 fault_exit_code_two|a fault exits with 2|s/0x00100513#32/0x00200513#32/
+halt_tag_wrong|the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT|s/0xc5428293#32/0xc5528293#32/
+fault_tag_wrong|the FAULT report's tag is "FAUM", not "FAUL"|s/0x54c28293#32/0x54d28293#32/
+exit_code_to_print_word|the exit code goes to the print word, not the exit word|s/0x00830313#32/0x00430313#32/
 saved_t0_stays|the scrub leaves the saved t0 on the M-mode stack|s/0x00012023#32/0x00000013#32/
 mscratch_stays|the scrub leaves mscratch holding the payload's sp|s/0x34001073#32/0x00000013#32/
 scrub_leaves_x17|the register scrub loads 1 into x17|/0x02028313#32,/,${s/0x00000893#32/0x00100893#32/}
