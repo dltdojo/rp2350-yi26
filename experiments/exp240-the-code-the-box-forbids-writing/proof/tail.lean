@@ -30,10 +30,10 @@ theorem payload_runs (env : Rv32.Env) (M0 : Word → Byte) (s1 : PrivMachine)
   rcases hres with ⟨hk, hmode, hb⟩ | ⟨hpos, hmode, hpc2⟩
   · exact Or.inl ⟨hk, hmode, hb⟩
   · right
-    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := hkept
-    rw [hcs1] at k1 k2 k3 k4 k5 k6 k7 k8 k9 hpc2
+    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hkept
+    rw [hcs1] at k1 k2 k3 k4 k5 k6 k7 k8 hpc2
     have hcsu : u.csrs = csrsH u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle {} 0x80008000#32 :=
-      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8 k9
+      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8
     have hpcu : u.core.pc = 0x80000134#32 := by
       rw [hpc2]; show (0x80000134#32 &&& ~~~3#32) = 0x80000134#32; decide
     exact ⟨hpos, hmode, ⟨hW, hagree, henv, hhalt, hmode⟩, hpcu, _, _, _, _, _, hcsu⟩
@@ -130,7 +130,7 @@ theorem ready_of_host (env : Rv32.Env) (C : Word → Byte) (p q : PrivMachine) (
 /-- **Boot does not depend on what came before.** From any machine that is `Ready` -- whatever its registers, its
     CSRs but for a lock, its privilege, its `pc`, and whatever is in memory outside the monitor's words -- a reset and
     61 steps leave exactly the machine `monitor_boot` describes: boxed by the three entries, the CSR file `csrsBooted`
-    (counters at 2, `mstatus`, `mepc`, `mcause`, `mtval`, the trap vector, the PMP -- all constants), `sp` at the top
+    (counters at 2, `mstatus`, `mepc`, `mcause`, the trap vector, the PMP -- all constants), `sp` at the top
     of the stack entry, every other register zero, memory untouched. No register and no CSR a round leaves behind
     reaches the next; memory outside the monitor's words does, and the payload reads it. -/
 theorem monitor_reentry (env : Rv32.Env) (C : Word → Byte) (p : PrivMachine) (hR : Ready env C p) :

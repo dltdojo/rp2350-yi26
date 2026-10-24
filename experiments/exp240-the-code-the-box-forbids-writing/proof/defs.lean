@@ -25,7 +25,7 @@ def Parked (t : PrivMachine) (a0 : Word) : Prop :=
 def exitCode (u : PrivMachine) : Word :=
   if u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32 then u.core.reg 10#5 else 1#32
 
-/-- A fault's report to the print word: the tag, `mcause`, `mepc`, `mtval` (0: the model's traps do not write it)
+/-- A fault's report to the print word: the tag, `mcause`, `mepc`, `mtval` (0: Hazard3 hardwires it)
     and `minstret`. -/
 def faultIo (u : PrivMachine) : List IoEvent :=
   [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, u.csrs.mcause⟩, ⟨0xc0000004#32, u.csrs.mepc⟩,

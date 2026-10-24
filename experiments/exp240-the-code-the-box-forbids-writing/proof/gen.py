@@ -6,7 +6,7 @@ Writes proof/Wx.lean.
 The proof runs `monitorCode` on `PrivMachine` in short runs ("chunks"), as exp238's and exp239's do, with the machinery in
 tools/monitor/chunks.py. The monitor's words are exp236's but for the seven that boot adds to set three PMP entries
 instead of one, and the one more it spends on writing every CSR the model has (`mstatus` whole, where exp236 cleared
-`MPP` with three words, and `pmpaddr3`, `mcause`, `mtval`), so everything from the trap vector on is where exp236's was,
+`MPP` with three words, and `pmpaddr3`, `mcause`, and `mtval`, which Hazard3 hardwires to 0 and the model too), so everything from the trap vector on is where exp236's was,
 0x20 bytes further on: the definitions and the second half of boot are exp236's text with the PMP values changed and
 the addresses moved (`shift`); the first half of boot is written here, since it starts from any CSRs and exp236's
 starts from reset's; and the proof of the handler is a table of chunks, as exp239's is, from the trap vector to the
@@ -115,7 +115,7 @@ def definitions(t: str) -> str:
                 "    PMP fencing off the payload region, the `mret` target, counters frozen at zero. -/",
              "/-- What boot's first twenty-eight steps leave in the CSRs, whatever they held: trap vector, stack pointer\n"
              "    for traps, the three PMP entries (code, data, stack) and the fourth's address zero, the `mret` target,\n"
-             "    counters frozen at zero, `mstatus`, `mcause` and `mtval` zero. -/")
+             "    counters frozen at zero, `mstatus` and `mcause` zero. -/")
     t = swap(t, "    pmpcfg0 := 0x1f#32, pmpaddr0 := 0x20005fff#32,\n    mcountinhibit := { cy := true, ir := true } }",
              f"    pmpcfg0 := {CFG}, pmpaddr0 := {A0}, pmpaddr1 := {A1},\n    pmpaddr2 := {A2},\n"
              "    mcountinhibit := { cy := true, ir := true } }")
@@ -200,8 +200,8 @@ theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
              f"    (PrivMachine.run env 1 s).csrs.pmpaddr2 = {A2} ∧\n")
     k = t.index("theorem monitor_launch_5")
     a, b = t[:k], t[k:]
-    b = swap(b, "    (PrivMachine.run env 1 s).csrs.mtval = 0#32 ∧\n",
-             "    (PrivMachine.run env 1 s).csrs.mtval = 0#32 ∧\n    (PrivMachine.run env 1 s).csrs = csrsBooted ∧\n")
+    b = swap(b, "    (PrivMachine.run env 1 s).csrs.mcountinhibit = {} ∧\n",
+             "    (PrivMachine.run env 1 s).csrs.mcountinhibit = {} ∧\n    (PrivMachine.run env 1 s).csrs = csrsBooted ∧\n")
     b = swap(b, "  psimp [hpc, hmem, csrsConfigured, csrsReady]", "  psimp [hpc, hmem, csrsConfigured, csrsReady, csrsBooted, csrsH]")
     t = a + b
     i = t.index("/-- From reset (the image loaded")
@@ -228,7 +228,7 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   obtain ⟨b1, b2, b3, b4, b5, b6⟩ := monitor_launch_2 env M0 _ hW a2 a1 a3 a4 a5 a6
   obtain ⟨e1, e2, e3, e4, e5, e6⟩ := monitor_launch_3 env M0 _ hW b2 b1 b3 b4 b5 b6
   obtain ⟨g1, g2, g3, g4, g5, g6⟩ := monitor_launch_4 env M0 _ hW e2 e1 e3 e4 e5
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h12b, hb, h13⟩ :=
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hb, h13⟩ :=
     monitor_launch_5 env M0 _ hW g2 g1 g3 g4 g5
   rw [show {ALL_STEPS} = {BOOT_STEPS} + 12 + 12 + 7 + 1 + 1 from rfl, PrivMachine.run_add, PrivMachine.run_add,
     PrivMachine.run_add, PrivMachine.run_add, PrivMachine.run_add]

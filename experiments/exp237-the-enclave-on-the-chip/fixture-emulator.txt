@@ -3,7 +3,7 @@ OP add a0=0 minstret=333 model=331 again=333 cycles=333 status=OK
 OP sub a0=0 minstret=240 model=238 again=240 cycles=240 status=OK
 OP mul a0=0 minstret=1905 model=1903 again=1905 cycles=1905 status=OK
 TEST scrub exit=0x5a caller_saved_nonzero=0 callee_saved_bad=0 monitor_intact=yes status=OK
-TEST fault_read mcause=5 mtval=0x20040040 a0=1 caller_saved_nonzero=0 callee_saved_bad=0 monitor_intact=yes status=OK
-TEST fault_write mcause=7 mtval=0x20040040 a0=1 caller_saved_nonzero=0 callee_saved_bad=0 monitor_intact=yes status=OK
+TEST fault_read mcause=5 mtval=0x00000000 a0=1 caller_saved_nonzero=0 callee_saved_bad=0 monitor_intact=yes status=OK
+TEST fault_write mcause=7 mtval=0x00000000 a0=1 caller_saved_nonzero=0 callee_saved_bad=0 monitor_intact=yes status=OK
 TEST fault_badcall mcause=8 mtval=0x00000000 a0=1 caller_saved_nonzero=0 callee_saved_bad=0 monitor_intact=yes status=OK
 STATUS PASS

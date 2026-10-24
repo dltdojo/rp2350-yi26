@@ -90,15 +90,17 @@ def check_halt(emu: SandboxEmulator, monitor: bytes, a0: int) -> list:
 
 
 def check_fault(emu: SandboxEmulator, monitor: bytes, cause: int = None, tval: int = None) -> list:
-    """A fault, reported and parked. An access fault must be the PMP's: the bus's, at an address with nothing there,
-    has the same `mcause` and `mtval`, and means the PMP let the access through."""
+    """A fault, reported and parked, its last trap about the address `tval`. An access fault must be the PMP's: the
+    bus's, at an address with nothing there, has the same `mcause`, and means the PMP let the access through. `tval` is
+    the emulator's record of the trap: the chip's `mtval` is hardwired to 0, so the monitor cannot report it."""
     bad = check_parked(emu, monitor, 1)
     if TAG_FAULT not in emu.prints:
         bad.append("no FAULT report")
     if cause is not None and emu.mcause != cause:
         bad.append(f"mcause {emu.mcause}, wanted {cause}")
-    if tval is not None and emu.mtval != tval:
-        bad.append(f"mtval {emu.mtval:#x}, wanted {tval:#x}")
+    got = emu.traps[-1]["tval"] if emu.traps else None
+    if tval is not None and got != tval:
+        bad.append(f"the trap was about {got if got is None else hex(got)}, wanted {tval:#x}")
     if cause in (C_FETCH_ACCESS, C_LOAD_ACCESS, C_STORE_ACCESS):
         by = [t["by"] for t in emu.traps if t["cause"] == cause]
         if by != ["pmp"]:
@@ -188,7 +190,7 @@ def reenter(emu: SandboxEmulator, junk_csrs: bool = False) -> SandboxEmulator:
     (`SandboxEmulator` puts it there); nothing of the last run is carried but memory.
 
     With `junk_csrs`, a reset as weak as one can be, the one exp240's `monitor_reentry` is about: the CSRs are not reset
-    either, and hold junk -- `MPP` M-mode and both interrupt enables, a trap vector, a cause, a value, four PMP entries
+    either, and hold junk -- `MPP` M-mode and both interrupt enables, a trap vector, a cause, four PMP entries
     on and covering what they cover -- but for the PMP's lock bits, which a monitor that never sets them does not find
     set. A monitor that reads anything from a CSR it has not written finds this.
     """
@@ -196,7 +198,7 @@ def reenter(emu: SandboxEmulator, junk_csrs: bool = False) -> SandboxEmulator:
     if junk_csrs:
         new.mstatus = (3 << 11) | MIE | MPIE
         new.mtvec, new.mscratch, new.mepc = 0xA5A5A5A4, 0xA5A5A5A5, 0xA5A5A5A6
-        new.mcause, new.mtval = 0xA5A5A5A7, 0xA5A5A5A8
+        new.mcause = 0xA5A5A5A7
         new.pmpcfg0 = 0x1F1F1F1F                       # four entries NAPOT, read, write and execute; none locked
         new.pmpaddr = [0x2000403F, 0x200041FF, 0x20007FFF, 0x00000000]
         new.mcycle, new.minstret = 0xA5A5A5A9, 0xA5A5A5AA

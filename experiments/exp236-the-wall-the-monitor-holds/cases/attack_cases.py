@@ -24,7 +24,7 @@ import harness
 
 SECRETS = "\n".join(f"li x{r}, {0x11110000 + r}" for r in range(1, 32))
 
-# name, payload source, expectation: ("fault", cause, mtval) or ("halt", a0)
+# name, payload source, expectation: ("fault", cause, address the trap is about) or ("halt", a0)
 ATTACKS = [
     ("store into the monitor's code",
      "lui t0, 0x80000\n sw x0, 0(t0)", ("fault", 7, 0x80000000)),

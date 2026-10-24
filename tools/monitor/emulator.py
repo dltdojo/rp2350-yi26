@@ -12,10 +12,14 @@ It is a second, independent reading of the specification next to `lean/Rv32/Priv
 for testing rather than proof: a monitor and a payload agree with it, or they do not.
 
 Memory is flat RAM at `BASE`; two words of MMIO stand for the testbench's print and exit ports.
-An access the PMP allows to an address with no RAM there faults with the same `mcause` and `mtval`
-as one the PMP refuses, as a bus fault does on the chip; `Trap.by` and each entry of `traps` say
-which it was (`"pmp"` or `"bus"`), so that a test can tell a box that held from a box that let the
-access through to nothing.
+An access the PMP allows to an address with no RAM there faults with the same `mcause` as one the
+PMP refuses, as a bus fault does on the chip; `Trap.by` and each entry of `traps` say which it was
+(`"pmp"` or `"bus"`), so that a test can tell a box that held from a box that let the access through
+to nothing.
+
+`mtval` reads 0 and drops writes, as on Hazard3, which hardwires it to 0 (hdl/hazard3_csr.v,
+doc/sections/csr.adoc); `lean/Rv32/Priv.lean` says the same. The address a trap is about is kept
+where only a test can read it: `Trap.tval`, and `tval` in each entry of `traps`.
 Not modelled: interrupts, the C extension, `mcounteren`, `fence`, `ebreak` beyond its trap.
 """
 
@@ -76,7 +80,6 @@ class SandboxEmulator:
         self.mscratch = 0
         self.mepc = 0
         self.mcause = 0
-        self.mtval = 0
         self.mcountinhibit = 0
         self.pmpcfg0 = 0
         self.pmpaddr = [0, 0, 0, 0]
@@ -163,7 +166,7 @@ class SandboxEmulator:
         if n == MCAUSE:
             return self.mcause
         if n == MTVAL:
-            return self.mtval
+            return 0                              # hardwired to 0 on Hazard3
         if n == PMPCFG0:
             return self.pmpcfg0
         if PMPADDR0 <= n < PMPADDR0 + 4:
@@ -190,8 +193,6 @@ class SandboxEmulator:
             self.mepc = v
         elif n == MCAUSE:
             self.mcause = v
-        elif n == MTVAL:
-            self.mtval = v
         elif n == PMPCFG0:
             new = 0
             for i in range(4):
@@ -216,7 +217,7 @@ class SandboxEmulator:
         mpp = 3 if self.mode == "M" else 0
         mie = bool(self.mstatus & MIE)
         self.mstatus = (mpp << 11) | (MPIE if mie else 0)
-        self.mepc, self.mcause, self.mtval = self.pc, cause, tval
+        self.mepc, self.mcause = self.pc, cause
         self.mode = "M"
         self.pc = self.mtvec
         self.count()

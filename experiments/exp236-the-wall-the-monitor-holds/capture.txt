@@ -1,5 +1,5 @@
 === exp236 — the wall the monitor holds ===
-recorded at 2026-10-23T09:34:18Z from commit 6a32561
+recorded at 2026-10-24T05:17:26Z from commit 3f32732
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (572 bytes, 143 insts) matches monitor.S, monitor.sha256 and monitorCode

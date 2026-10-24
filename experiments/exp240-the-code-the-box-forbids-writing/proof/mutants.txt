@@ -25,7 +25,8 @@ data_tried_before_code|the entries swap places and permissions: the data entry i
 mstatus_kept|boot ORs t0 into mstatus instead of writing it whole: MPP is whatever the last round left|s/0x30001073#32/0x3002a073#32/
 pmpaddr3_kept|boot does not write pmpaddr3: it is whatever the last round left|s/0x3b301073#32/0x00000013#32/
 mcause_kept|boot does not write mcause: it is whatever the last round left|s/0x34201073#32/0x00000013#32/
-mtval_kept|boot does not write mtval: the next fault reports the last round's|s/0x34301073#32/0x00000013#32/
+# mtval_kept (boot does not write mtval) is not here: Hazard3 hardwires mtval to 0 and so does the model, so
+# `csrw mtval, zero` changes nothing and a nop in its place is the same machine. Lean accepts it, rightly.
 payload_entry_wrong|boot sends the payload to 0x80020000, past its region|s/0x800102b7#32/0x800202b7#32/
 payload_sp_wrong|boot gives the payload an sp at the bottom of its region|s/0x80020137#32/0x80010137#32/
 boot_leaves_x31|boot loads 1 into x31 instead of zero|0,/0x00000f93#32/s//0x00100f93#32/

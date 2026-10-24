@@ -55,14 +55,14 @@ structure MCountInhibit where
   ir : Bool := false  -- Bit 2: Inhibit minstret
   deriving DecidableEq, Repr, Inhabited
 
-/-- Privileged CSR bank for RP2350 Hazard3 micro-model. -/
+/-- Privileged CSR bank for RP2350 Hazard3 micro-model. There is no `mtval`: Hazard3 hardwires it to 0
+    (`doc/sections/csr.adoc`, and `hazard3_csr.v` at the commit `tools/hazard3/setup.sh` pins). -/
 structure PrivCSRs where
   mstatus       : MStatus       := {}
   mtvec         : Word          := 0
   mscratch      : Word          := 0
   mepc          : Word          := 0
   mcause        : Word          := 0
-  mtval         : Word          := 0
   pmpcfg0       : Word          := 0
   pmpaddr0      : Word          := 0
   pmpaddr1      : Word          := 0
@@ -262,7 +262,7 @@ def readCSR (csrs : PrivCSRs) (csrNum : Word) : Word :=
   else if csrNum = 0x340 then csrs.mscratch
   else if csrNum = 0x341 then csrs.mepc
   else if csrNum = 0x342 then csrs.mcause
-  else if csrNum = 0x343 then csrs.mtval
+  else if csrNum = 0x343 then 0#32           -- mtval: hardwired to 0 on Hazard3
   else if csrNum = 0x3A0 then csrs.pmpcfg0
   else if csrNum = 0x3B0 then readPmpAddr csrs ⟨0, by decide⟩
   else if csrNum = 0x3B1 then readPmpAddr csrs ⟨1, by decide⟩
@@ -287,7 +287,6 @@ def writeCSR (csrs : PrivCSRs) (csrNum : Word) (val : Word) : PrivCSRs :=
   else if csrNum = 0x340 then { csrs with mscratch := val }
   else if csrNum = 0x341 then { csrs with mepc := val }
   else if csrNum = 0x342 then { csrs with mcause := val }
-  else if csrNum = 0x343 then { csrs with mtval := val }
   else if csrNum = 0xB00 then { csrs with mcycle := val }
   else if csrNum = 0xB02 then { csrs with minstret := val }
   else if csrNum = 0x3A0 then
@@ -318,7 +317,7 @@ def isZicsr (w : Word) : Bool :=
 
 /-- The CSRs the model has. Any other number is not modelled and an access traps.
     `mcycleh`/`minstreth` (0xB80/0xB82) read 0 and drop writes: the counters are 32 bits here.
-    `mtval` is a plain register: a trap does not write it. -/
+    `mtval` reads 0 and drops writes: Hazard3 hardwires it to 0, so a trap cannot leave a value there either. -/
 def csrImplemented (n : Word) : Bool :=
   [0x300#32, 0x305, 0x320, 0x340, 0x341, 0x342, 0x343, 0x3A0, 0x3B0, 0x3B1, 0x3B2, 0x3B3,
    0xB00, 0xB02, 0xB80, 0xB82, 0xC00, 0xC02].contains n

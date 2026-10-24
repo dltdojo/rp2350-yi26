@@ -94,8 +94,8 @@ the generator writes.
   from exp236's and unproved, and a port is a later experiment.
 - **The reports are proved as words, not as what they mean.** In `Priv.lean` an M-mode word store to a port
   (`0xc0000000..0xc000001f`) is recorded, in order, in `io`, and the theorems say which words the host heard:
-  `trapIo u`, the report and then the exit code. The `mtval` a fault reports is 0, because the model's traps
-  do not write `mtval`; the emulator's do ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
+  `trapIo u`, the report and then the exit code. The `mtval` a fault reports is 0: Hazard3
+  hardwires `mtval` to 0, and the model and the emulator do the same ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems assume it is
   `monRegion = [0x80000000, 0xC0000100)`, which holds the box. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.
@@ -146,7 +146,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp239 — the scratch the monitor scrubs ===
-recorded at 2026-10-23T09:52:13Z from commit 244878d
+recorded at 2026-10-24T06:39:59Z from commit 4d242dd
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (624 bytes, 156 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Scrub.lean's monitorCode

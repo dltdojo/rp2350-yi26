@@ -72,8 +72,8 @@ the kernel cannot check, and a store changes the memory the next fetch reads. Bo
   nothing wires the monitor to it) or on an RP2350.
 - **The reports are proved as words, not as what they mean.** In `Priv.lean` an M-mode word store to a port
   (`0xc0000000..0xc000001f`) is recorded, in order, in `io`, and the theorems say which words the host heard:
-  `faultIo` or `haltIo`, the report and then the exit code. The `mtval` a fault reports is 0, because the model's traps
-  do not write `mtval`; the emulator's do ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
+  `faultIo` or `haltIo`, the report and then the exit code. The `mtval` a fault reports is 0: Hazard3
+  hardwires `mtval` to 0, and the model and the emulator do the same ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **`env.region`.** Tier 1 checks its own region on every load and store; the handler theorems
   assume it is `monRegion = [0x80000000, 0xC0000100)`. The sandbox theorems hold for any `env`.
 - **No interrupts.** The model has none. The monitor never writes `mie`, and relies on it being 0 at reset.
@@ -120,7 +120,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp236 — the wall the monitor holds ===
-recorded at 2026-10-23T09:34:18Z from commit 6a32561
+recorded at 2026-10-24T05:17:26Z from commit 3f32732
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (572 bytes, 143 insts) matches monitor.S, monitor.sha256 and monitorCode
