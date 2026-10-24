@@ -236,7 +236,7 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   · rw [h5]; decide
   · rw [h5]; decide
   · rw [h5]; decide
-  · rw [h5]; decide
+  · exact Or.inl (by rw [h5]; decide)
   · simp [h6, decodeNapotRange, countTrailingOnes32, countTrailingOnes32.loop]
   · simp [h7, decodeNapotRange, countTrailingOnes32, countTrailingOnes32.loop]
   · simp [h8, decodeNapotRange, countTrailingOnes32, countTrailingOnes32.loop]
