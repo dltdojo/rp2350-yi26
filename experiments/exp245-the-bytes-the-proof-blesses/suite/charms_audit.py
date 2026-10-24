@@ -15,11 +15,16 @@ Every act reports two things: that the charm's own theorem holds in this run, an
   Act 3   the ceremonial scrub: in round 1 a payload leaves a 32-byte key on its stack and HALTs; between the
           rounds the host writes one word in the data; in round 2 the same payload copies what is on the stack
           to its output. The slot is zero at both parks, and round 2's output is round 1's key.
+  Act 3b  the slot itself, round to round: in round 1 a payload stores a word in the slot and HALTs; in round 2
+          the same payload HALTs with what the slot holds. Under exp240 it is the word; under exp245, 0. The scrub
+          does do something a payload can see -- to the slot, and only to it. So the two monitors are not the same
+          over rounds, and exp246 proves when they are: when every exit leaves the slot zero anyway.
   Act 4   the ablation: monitor.S with the three charms taken away is exp240's monitor.bin (monitor.py checks
           that); and here, exp240, exp245 and exp245 with each charm taken away alone run exp240's hostile
-          payloads, exp225's Rule 30 kernel for rounds, and Acts 1a, 2 and 3. Everything the payload can see or
-          the host hears is the same for all five. What differs is a list: the monitor's own words, the trap
-          vector, and the bytes and CSRs that the charms present write -- the shrine, the slot, entry 3.
+          payloads, exp225's Rule 30 kernel for rounds, and Acts 1a, 2 and 3. For these payloads, none of which
+          reads in a round what an earlier round left in the slot, everything the payload can see or the host hears is the same for all five;
+          Act 3b is one that does. What differs is a list: the monitor's own words, the trap vector, and the bytes
+          and CSRs that the charms present write -- the shrine, the slot, entry 3.
 
 `run_all()` returns the failures and the lines to print.
 """
@@ -146,6 +151,22 @@ ACT3 = """
 """
 KEYWORDS = [0x6B657930 + i for i in range(8)]
 
+ACT3B = """
+    lui   t3, 0x80010
+    lw    t4, 0x700(t3)        // the host's word: 0 in round 1, 1 in round 2
+    addi  t5, t3, 0x700
+    addi  t5, t5, 0x700        // 0x80010e00, the slot
+    bnez  t4, 1f
+    li    t1, 0x51075107       // round 1: a word in the slot
+    sw    t1, 0(t5)
+    li    a0, 0
+    j     2f
+1:  lw    a0, 0(t5)            // round 2: HALT with what the slot holds
+2:  li    t0, 1
+    ecall
+"""
+SLOTWORD = 0x51075107
+
 
 def run_act1a(mon):
     return harness.run(mon, wx_attacks.assembled(ACT1A))
@@ -170,13 +191,17 @@ def run_act2(mon):
     return harness.run(mon, wx_attacks.assembled(ACT2))
 
 
-def run_act3(mon):
-    """(round 1, round 2): the same payload twice, the host's one write between."""
-    one = harness.run(mon, wx_attacks.assembled(ACT3))
+def rounds_two(mon, src):
+    """(round 1, round 2): the same payload twice, the host's one write between: 1 at MODE_AT."""
+    one = harness.run(mon, wx_attacks.assembled(src))
     host = harness.reenter(one)
     host.mem[MODE_AT - BASE:MODE_AT + 4 - BASE] = struct.pack("<I", 1)
     host.run(400000)
     return one, host
+
+
+def run_act3(mon):
+    return rounds_two(mon, ACT3)
 
 
 # ---- Act 4: what a payload can see and the host hears, and what differs
@@ -311,14 +336,26 @@ def run_all():
     lines.append(f"      conclusion -- and round 2's output is round 1's key: {KEYWORDS[0]:#x} .. {KEYWORDS[-1]:#x}")
 
     mons = monitors()
+    b = []
+    for k, m in mons.items():
+        one, two = rounds_two(m, ACT3B)
+        want = 0 if 3 in charms_of(k) else SLOTWORD
+        b += [f"{k}, round 1: {x}" for x in harness.check_halt(one, m, 0)]
+        b += [f"{k}, round 2: {x}" for x in harness.check_halt(two, m, want)]
+    bad += [f"Act 3b: {x}" for x in b]
+    lines.append("PASS  Act 3b, the slot itself, round to round: round 1 stores 0x51075107 in the slot and HALTs 0; round 2,")
+    lines.append("      the same payload, HALTs with what the slot holds. exp240 and exp245 without charm 3: HALT 0x51075107;")
+    lines.append("      exp245, and exp245 without charm 1 or 2: HALT 0. The scrub is seen by a payload that keeps something in")
+    lines.append("      the slot, and by no other: the two monitors are not the same over rounds (exp246 proves when they are)")
+
     b = act4(mons)
     bad += [f"Act 4: {x}" for x in b]
     lines.append(f"PASS  Act 4, the ablation: exp240, exp245, and exp245 with each charm taken away alone, under "
                  f"{len(wx_attacks.ATTACKS)} hostile")
-    lines.append("      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel: the registers, the reports and")
-    lines.append("      the exit codes, the traps, the counters and every CSR the payload's box is made of are the same for")
-    lines.append("      all five; memory differs only in the monitor's words, the shrine if charm 1 is there and the slot if")
-    lines.append("      charm 3 is; entry 3 differs only if charm 2 is")
+    lines.append("      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel -- none of which reads what an earlier")
+    lines.append("      round left in the slot -- the registers, the reports and the exit codes, the traps, the counters and")
+    lines.append("      every CSR the payload's box is made of are the same for all five; memory differs only in the monitor's")
+    lines.append("      words, the shrine if charm 1 is there and the slot if charm 3 is; entry 3 differs only if charm 2 is")
     return bad, lines
 
 

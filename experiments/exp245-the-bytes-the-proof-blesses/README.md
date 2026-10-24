@@ -13,8 +13,13 @@ top of the machines so the light stays green. Both are tokens of comfort against
 
 A proof becomes the same kind of token when it is read as a badge rather than as a conditional statement. This
 experiment builds bytes that are fetched and executed, backed by Lean 4 theorems on Lean's own axioms, and guarded by
-mutants that Lean refuses. They do nothing for what the payload can do, and **that is proved in Lean too**: next to each
-charm's own theorem sits an *exposure theorem*, stated from reset, which says the charm changes nothing.
+mutants that Lean refuses. They do nothing for what they are named after, and **that is proved in Lean too**: next to
+each charm's own theorem sits an *exposure theorem*, stated from reset, which says what the charm does not protect.
+
+Two of the three change nothing a payload can see at all. The third does, in one place: its scrub zeroes the slot, so
+a payload that leaves something in the slot does not find it there in the next round, under exp245, and does under
+exp240 (Act 3b). [exp246](../exp246-the-run-the-charms-do-not-change/) proves the rest: one round under the two
+monitors is the same, and so are any number of rounds in which every exit leaves the slot zero anyway.
 
 The monitor is [exp240](../exp240-the-code-the-box-forbids-writing/)'s, 151 words, with three charms added, 27 words, so
 178 words, 712 bytes:
@@ -141,8 +146,11 @@ Everything exp240's README says, for the same reasons; and:
    - **Act 1b**: the seal written from outside the model mid-run; exp245 FAULTs, exp240 HALTs.
    - **Act 2**: a store into the seed window goes in.
    - **Act 3**: a key left on the stack in round 1 is round 2's output, the slot zero at both parks.
+   - **Act 3b**: a word left in the slot in round 1 is round 2's exit code under exp240 and under exp245 without charm
+     3, and 0 under the other three: the one thing a charm does that a payload can see.
    - **Act 4**: exp240, exp245 and exp245 with each charm taken away alone, under exp240's hostile payloads, Acts 1a,
-     2 and 3, and 20 rounds of exp225's Rule 30 kernel: the same registers, reports, exit codes, traps and counters;
+     2 and 3, and 20 rounds of exp225's Rule 30 kernel -- none of which reads what an earlier round left in the slot:
+     the same registers, reports, exit codes, traps and counters;
      memory different only in the monitor's words, the shrine and the slot, and entry 3 only where charm 2 is.
 
 ## Expected output
