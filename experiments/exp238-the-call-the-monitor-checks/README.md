@@ -100,8 +100,8 @@ checked again here on these words.
   hears* and *what the monitor does with any answer*, not what a host does. A byte or a halfword at a port, or a
   U-mode access to one, is memory in the model; the PMP refuses U-mode the ports before that matters.
 - **The reports are proved as words, not as what they mean.** `faultIo`, `haltIo` and `callIo` are the words, in
-  order. The `mtval` a fault reports is 0, because the model's traps do not write `mtval`; the emulator's do
-  ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
+  order. The `mtval` a fault reports is 0: Hazard3 hardwires `mtval` to 0, and the model and the emulator do
+  the same ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **The monitor does not hash and does not verify.** That `HASHB` writes the SHA-256 of the input and that
   `CHECKSIG` answers 1 for a good BIP340 signature is the host's job (here `suite/host.py`, with hashlib and
   exp228's verifier), proved nowhere in this experiment.

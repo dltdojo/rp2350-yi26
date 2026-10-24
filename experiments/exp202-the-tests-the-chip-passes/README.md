@@ -96,8 +96,10 @@ in any binary above:
   kernel the theorems are about contains none.
 - **A jump to an address that is 2 mod 4** — legal on Hazard3, which has the C
   extension; a misaligned fetch in the model.
-- **`mtval`** — Hazard3 writes zero on every fault here. The model has no
-  `mtval`; the comparison uses `mepc`.
+- **`mtval`** — Hazard3 hardwires it to zero (`hdl/hazard3_csr.v`), so it is
+  zero on every fault here. The model this experiment checks has no `mtval`;
+  the comparison uses `mepc`. (`lean/Rv32/Priv.lean`, the privileged model,
+  reads it as 0 since 2026-10-24.)
 
 ## What it does not prove
 
