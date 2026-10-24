@@ -7,9 +7,9 @@ A payload is loaded at the start of the code entry and runs in U-mode. The box i
 guard (suite/oracle.py), and each place is tried from both sides: the first byte that is inside and the first byte that
 is not. A payload that does what the box forbids must end the way every payload ends under these monitors -- the monitor
 reports, and parks, every register but `a0` zero -- with the cause the PMP rule gives and the address that caused it
-(`mtval`), refused by the PMP and not by the bus (an address with no memory faults the same way), and the code entry's
-bytes as the payload was loaded: the store that was refused wrote nothing. A payload that
-does what the box allows must run on.
+(the emulator's record of the trap: Hazard3's `mtval` is hardwired to 0, so the monitor reports 0), refused by the PMP
+and not by the bus (an address with no memory faults the same way), and the code entry's bytes as the payload was
+loaded: the store that was refused wrote nothing. A payload that does what the box allows must run on.
 
 `CONTRASTS` are the payloads exp236's box -- one RWX entry over the same 64 KiB -- lets through: they patch their own
 code, or run what they wrote. exp240 stops them, exp236 does not, and that is the whole difference.
@@ -34,7 +34,7 @@ SECRET_REGS = [1, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 
 SECRETS = "\n".join(f"lui x{r}, {0x11110 + r}" for r in SECRET_REGS)
 START_REGS = "or x1, x1, x10\n" + "\n".join(f"or x1, x1, x{r}" for r in [*range(3, 10), *range(11, 32)])
 
-# name, payload source, expectation: ("fault", cause, mtval) or ("halt", a0)
+# name, payload source, expectation: ("fault", cause, address) or ("halt", a0)
 ATTACKS = [
     # ---- the code entry: read and execute, not write
     ("store into the code, first word",
@@ -223,12 +223,12 @@ def main():
         sys.exit(1)
     print(f"PASS  {len(ATTACKS)} payloads end parked and scrubbed, with the cause and the address the PMP rule gives:")
     for name, _src, want in ATTACKS:
-        what = f"mcause={want[1]}" + (f" mtval={want[2]:#x}" if want[2] is not None else "") if want[0] == "fault" \
+        what = f"mcause={want[1]}" + (f" addr={want[2]:#x}" if want[2] is not None else "") if want[0] == "fault" \
             else f"exit={want[1]:#x}"
         print(f"      {want[0]:5} {what:30} {name}")
     print(f"PASS  {len(CONTRASTS)} payloads that exp236's one RWX entry lets run are stopped by the three:")
     for name, _src, was, now in CONTRASTS:
-        print(f"      exp236 halt exit={was[1]:#x}; exp240 fault mcause={now[1]} mtval={now[2]:#x}  {name}")
+        print(f"      exp236 halt exit={was[1]:#x}; exp240 fault mcause={now[1]} addr={now[2]:#x}  {name}")
 
 
 if __name__ == "__main__":

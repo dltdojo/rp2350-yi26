@@ -130,7 +130,7 @@ theorem ready_of_host (env : Rv32.Env) (C : Word → Byte) (p q : PrivMachine) (
 /-- **Boot does not depend on what came before.** From any machine that is `Ready` -- whatever its registers, its
     CSRs but for a lock, its privilege, its `pc`, and whatever is in memory outside the monitor's words -- a reset and
     61 steps leave exactly the machine `monitor_boot` describes: boxed by the three entries, the CSR file `csrsBooted`
-    (counters at 2, `mstatus`, `mepc`, `mcause`, `mtval`, the trap vector, the PMP -- all constants), `sp` at the top
+    (counters at 2, `mstatus`, `mepc`, `mcause`, the trap vector, the PMP -- all constants), `sp` at the top
     of the stack entry, every other register zero, memory untouched. No register and no CSR a round leaves behind
     reaches the next; memory outside the monitor's words does, and the payload reads it. -/
 theorem monitor_reentry (env : Rv32.Env) (C : Word → Byte) (p : PrivMachine) (hR : Ready env C p) :

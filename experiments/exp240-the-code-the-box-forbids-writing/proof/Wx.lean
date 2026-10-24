@@ -211,7 +211,7 @@ theorem sm_mon (env : Rv32.Env) (M0 : Word → Byte) (hW : WordsAt M0 0x80000000
 
 /-- What boot's first twenty-eight steps leave in the CSRs, whatever they held: trap vector, stack pointer
     for traps, the three PMP entries (code, data, stack) and the fourth's address zero, the `mret` target,
-    counters frozen at zero, `mstatus`, `mcause` and `mtval` zero. -/
+    counters frozen at zero, `mstatus` and `mcause` zero. -/
 def csrsConfigured : PrivCSRs :=
   { mtvec := 0x80000134#32, mscratch := 0x80008000#32, mepc := 0x80010000#32,
     pmpcfg0 := 0x001b1b1d#32, pmpaddr0 := 0x2000400f#32, pmpaddr1 := 0x200041ff#32,
@@ -233,13 +233,13 @@ def csrsFixed : PrivCSRs := { csrsConfigured with mcountinhibit := {} }
 
 /-- The handler's CSRs: `csrsFixed` with the free fields, the inhibit and `mscratch` named. -/
 def csrsH (ms : MStatus) (e c m cy : Word) (inh : MCountInhibit) (sc : Word) : PrivCSRs :=
-  { mstatus := ms, mtvec := 0x80000134#32, mscratch := sc, mepc := e, mcause := c, mtval := 0#32,
+  { mstatus := ms, mtvec := 0x80000134#32, mscratch := sc, mepc := e, mcause := c,
     pmpcfg0 := 0x001b1b1d#32, pmpaddr0 := 0x2000400f#32, pmpaddr1 := 0x200041ff#32, pmpaddr2 := 0x20007dff#32,
     pmpaddr3 := 0#32, mcountinhibit := inh, minstret := m, mcycle := cy }
 
 /-- A CSR file whose fixed fields are the monitor's is `csrsH` of its free fields. -/
 theorem csrs_eq_csrsH (c : PrivCSRs) (h1 : c.mtvec = 0x80000134#32) (h2 : c.mscratch = 0x80008000#32)
-    (h3 : c.mtval = 0#32) (h4 : c.pmpcfg0 = 0x001b1b1d#32) (h5 : c.pmpaddr0 = 0x2000400f#32)
+    (h4 : c.pmpcfg0 = 0x001b1b1d#32) (h5 : c.pmpaddr0 = 0x2000400f#32)
     (h6 : c.pmpaddr1 = 0x200041ff#32) (h7 : c.pmpaddr2 = 0x20007dff#32) (h8 : c.pmpaddr3 = 0#32)
     (h9 : c.mcountinhibit = {}) :
     c = csrsH c.mstatus c.mepc c.mcause c.minstret c.mcycle {} 0x80008000#32 := by
@@ -469,7 +469,6 @@ theorem monitor_launch_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 1 s).csrs.mtvec = 0x80000134#32 ∧
     (PrivMachine.run env 1 s).csrs.mscratch = 0x80008000#32 ∧
     (PrivMachine.run env 1 s).csrs.mcountinhibit = {} ∧
-    (PrivMachine.run env 1 s).csrs.mtval = 0#32 ∧
     (PrivMachine.run env 1 s).csrs = csrsBooted ∧
     (∀ r, (PrivMachine.run env 1 s).core.reg r = s.core.reg r) := by
   have sm := sm_mon env M0 hW
@@ -576,7 +575,7 @@ def Parked (t : PrivMachine) (a0 : Word) : Prop :=
 def exitCode (u : PrivMachine) : Word :=
   if u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32 then u.core.reg 10#5 else 1#32
 
-/-- A fault's report to the print word: the tag, `mcause`, `mepc`, `mtval` (0: the model's traps do not write it)
+/-- A fault's report to the print word: the tag, `mcause`, `mepc`, `mtval` (0: Hazard3 hardwires it)
     and `minstret`. -/
 def faultIo (u : PrivMachine) : List IoEvent :=
   [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, u.csrs.mcause⟩, ⟨0xc0000004#32, u.csrs.mepc⟩,
@@ -2347,10 +2346,10 @@ theorem payload_runs (env : Rv32.Env) (M0 : Word → Byte) (s1 : PrivMachine)
   rcases hres with ⟨hk, hmode, hb⟩ | ⟨hpos, hmode, hpc2⟩
   · exact Or.inl ⟨hk, hmode, hb⟩
   · right
-    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := hkept
-    rw [hcs1] at k1 k2 k3 k4 k5 k6 k7 k8 k9 hpc2
+    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hkept
+    rw [hcs1] at k1 k2 k3 k4 k5 k6 k7 k8 hpc2
     have hcsu : u.csrs = csrsH u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle {} 0x80008000#32 :=
-      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8 k9
+      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8
     have hpcu : u.core.pc = 0x80000134#32 := by
       rw [hpc2]; show (0x80000134#32 &&& ~~~3#32) = 0x80000134#32; decide
     exact ⟨hpos, hmode, ⟨hW, hagree, henv, hhalt, hmode⟩, hpcu, _, _, _, _, _, hcsu⟩
@@ -2447,7 +2446,7 @@ theorem ready_of_host (env : Rv32.Env) (C : Word → Byte) (p q : PrivMachine) (
 /-- **Boot does not depend on what came before.** From any machine that is `Ready` -- whatever its registers, its
     CSRs but for a lock, its privilege, its `pc`, and whatever is in memory outside the monitor's words -- a reset and
     61 steps leave exactly the machine `monitor_boot` describes: boxed by the three entries, the CSR file `csrsBooted`
-    (counters at 2, `mstatus`, `mepc`, `mcause`, `mtval`, the trap vector, the PMP -- all constants), `sp` at the top
+    (counters at 2, `mstatus`, `mepc`, `mcause`, the trap vector, the PMP -- all constants), `sp` at the top
     of the stack entry, every other register zero, memory untouched. No register and no CSR a round leaves behind
     reaches the next; memory outside the monitor's words does, and the payload reads it. -/
 theorem monitor_reentry (env : Rv32.Env) (C : Word → Byte) (p : PrivMachine) (hR : Ready env C p) :

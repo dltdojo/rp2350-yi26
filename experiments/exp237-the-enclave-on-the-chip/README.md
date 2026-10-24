@@ -95,7 +95,8 @@ Every line of the report is a number read back from the machine:
 | `TEST fault_badcall` | a payload makes `ecall` 7: FAULT, `mcause = 8`, `a0 = 1` |
 | `STATUS` | `PASS` only if all of the above held; `FAIL first=N` names the first that did not |
 
-`mtval` is printed but not required: whether the core fills it for an access fault is the core's.
+`mtval` is printed but not required. Hazard3 hardwires it to 0 (`hdl/hazard3_csr.v`, `doc/sections/csr.adoc`), so
+on the chip it reads 0 for every fault, and the emulator now says the same (fixture-emulator.txt).
 
 `send()` drops a line whole unless a page holds the port open, so the report is **printed again and
 again** (the LED between), and the page starts a new one at each `ENCLAVE` line. A page opened mid-way

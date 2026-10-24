@@ -235,13 +235,13 @@ def csrsFixed : PrivCSRs := { csrsConfigured with mcountinhibit := {} }
 
 /-- The handler's CSRs: `csrsFixed` with the free fields, the inhibit and `mscratch` named. -/
 def csrsH (ms : MStatus) (e c m cy : Word) (inh : MCountInhibit) (sc : Word) : PrivCSRs :=
-  { mstatus := ms, mtvec := 0x80000114#32, mscratch := sc, mepc := e, mcause := c, mtval := 0#32,
+  { mstatus := ms, mtvec := 0x80000114#32, mscratch := sc, mepc := e, mcause := c,
     pmpcfg0 := 0x1f#32, pmpaddr0 := 0x20005fff#32, pmpaddr1 := 0#32, pmpaddr2 := 0#32,
     pmpaddr3 := 0#32, mcountinhibit := inh, minstret := m, mcycle := cy }
 
 /-- A CSR file whose fixed fields are the monitor's is `csrsH` of its free fields. -/
 theorem csrs_eq_csrsH (c : PrivCSRs) (h1 : c.mtvec = 0x80000114#32) (h2 : c.mscratch = 0x80008000#32)
-    (h3 : c.mtval = 0#32) (h4 : c.pmpcfg0 = 0x1f#32) (h5 : c.pmpaddr0 = 0x20005fff#32)
+    (h4 : c.pmpcfg0 = 0x1f#32) (h5 : c.pmpaddr0 = 0x20005fff#32)
     (h6 : c.pmpaddr1 = 0#32) (h7 : c.pmpaddr2 = 0#32) (h8 : c.pmpaddr3 = 0#32)
     (h9 : c.mcountinhibit = {}) :
     c = csrsH c.mstatus c.mepc c.mcause c.minstret c.mcycle {} 0x80008000#32 := by
@@ -448,7 +448,6 @@ theorem monitor_launch_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 1 s).csrs.mtvec = 0x80000114#32 ∧
     (PrivMachine.run env 1 s).csrs.mscratch = 0x80008000#32 ∧
     (PrivMachine.run env 1 s).csrs.mcountinhibit = {} ∧
-    (PrivMachine.run env 1 s).csrs.mtval = 0#32 ∧
     (∀ r, (PrivMachine.run env 1 s).core.reg r = s.core.reg r) := by
   have sm := sm_mon env M0 hW
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
@@ -479,11 +478,11 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   obtain ⟨b1, b2, b3, b4, b5, b6⟩ := monitor_launch_2 env M0 _ hW a2 a1 a3 a4 a5 a6
   obtain ⟨e1, e2, e3, e4, e5, e6⟩ := monitor_launch_3 env M0 _ hW b2 b1 b3 b4 b5 b6
   obtain ⟨g1, g2, g3, g4, g5, g6⟩ := monitor_launch_4 env M0 _ hW e2 e1 e3 e4 e5
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h12b, h13⟩ :=
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13⟩ :=
     monitor_launch_5 env M0 _ hW g2 g1 g3 g4 g5
   rw [show 53 = 20 + 12 + 12 + 7 + 1 + 1 from rfl, PrivMachine.run_add, PrivMachine.run_add,
     PrivMachine.run_add, PrivMachine.run_add, PrivMachine.run_add]
-  refine ⟨⟨h4, h3, ?_, ?_, ?_, ?_, ?_, ?_⟩, h1, ⟨_, _, _, _, _, csrs_eq_csrsH _ h10 h11 h12b h5 h6 h7 h8 h9 h12⟩, h2, ?_⟩
+  refine ⟨⟨h4, h3, ?_, ?_, ?_, ?_, ?_, ?_⟩, h1, ⟨_, _, _, _, _, csrs_eq_csrsH _ h10 h11 h5 h6 h7 h8 h9 h12⟩, h2, ?_⟩
   · simp [h5, decodePmpCfgByte]
   · simp [h5, decodePmpCfgByte]
   · simp [h5, decodePmpCfgByte]
@@ -695,7 +694,7 @@ def Parked (t : PrivMachine) (a0 : Word) : Prop :=
 def exitCode (u : PrivMachine) : Word :=
   if u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32 then u.core.reg 10#5 else 1#32
 
-/-- A fault's report to the print word: the tag, `mcause`, `mepc`, `mtval` (0: the model's traps do not write it)
+/-- A fault's report to the print word: the tag, `mcause`, `mepc`, `mtval` (0: Hazard3 hardwires it)
     and `minstret`. -/
 def faultIo (u : PrivMachine) : List IoEvent :=
   [⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, u.csrs.mcause⟩, ⟨0xc0000004#32, u.csrs.mepc⟩,
@@ -3255,10 +3254,10 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
   · exact Or.inl ⟨hk, hmode, hb, hagree⟩
   · right
     refine ⟨hpos, ?_⟩
-    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8, k9⟩ := hkept
-    rw [hcs1'] at k1 k2 k3 k4 k5 k6 k7 k8 k9 hpc2
+    obtain ⟨k1, k2, k3, k4, k5, k6, k7, k8⟩ := hkept
+    rw [hcs1'] at k1 k2 k3 k4 k5 k6 k7 k8 hpc2
     have hcsu : u.csrs = csrsH u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle {} 0x80008000#32 :=
-      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8 k9
+      csrs_eq_csrsH u.csrs k1 k2 k3 k4 k5 k6 k7 k8
     have hpcu : u.core.pc = 0x80000114#32 := by
       rw [hpc2]; show (0x80000114#32 &&& ~~~3#32) = 0x80000114#32; decide
     have hS : HState env M0 u := ⟨hW, hagree, henv, hhalt, hmode⟩

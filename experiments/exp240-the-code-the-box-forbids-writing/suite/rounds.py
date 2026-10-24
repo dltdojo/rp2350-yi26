@@ -69,7 +69,7 @@ def expected(before: bytes, seed: int) -> bytes:
 
 def fingerprint(emu: SandboxEmulator) -> tuple:
     """The machine at the park, memory aside: nothing a round leaves in it may depend on the round."""
-    return (tuple(emu.regs), emu.pc, emu.mode, emu.mstatus, emu.mtvec, emu.mscratch, emu.mepc, emu.mcause, emu.mtval,
+    return (tuple(emu.regs), emu.pc, emu.mode, emu.mstatus, emu.mtvec, emu.mscratch, emu.mepc, emu.mcause,
             emu.mcountinhibit, emu.pmpcfg0, tuple(emu.pmpaddr), emu.minstret, emu.mcycle, tuple(emu.prints[-4:]),
             emu.exit_code)
 
