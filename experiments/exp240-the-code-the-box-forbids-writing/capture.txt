@@ -1,5 +1,5 @@
 === exp240 — the code the box forbids writing ===
-recorded at 2026-10-24T04:25:46Z from commit 488408a
+recorded at 2026-10-24T14:18:12Z from commit c820180
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (604 bytes, 151 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Wx.lean's monitorCode
