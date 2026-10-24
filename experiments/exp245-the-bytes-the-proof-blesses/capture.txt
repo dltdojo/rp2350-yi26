@@ -1,0 +1,217 @@
+=== exp245 — the bytes the proof blesses ===
+recorded at 2026-10-24T15:36:09Z from commit 2756f54
+
+>>> the micro-monitor binary, its size budget, and the charms taken away
+PASS  monitor.bin (712 bytes, 178 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Bless.lean's monitorCode
+PASS  monitor.S with the three charms taken away is exp240's monitor.bin, byte for byte; each charm taken away alone changes the binary
+
+>>> the formal theorems, and what they rest on
+'Exp245.monitorCode_length' does not depend on any axioms
+'Exp245.monitor_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.monitor_traps' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.payload_runs' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.monitor_end_to_end' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.ready_of_host' depends on axioms: [propext, Quot.sound]
+'Exp245.monitor_reentry' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.monitor_round_ready' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.monitor_rounds' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.shrine_set_at_boot' depends on axioms: [propext, Quot.sound]
+'Exp245.halt_requires_shrine' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.shrine_always_intact' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.shrine_changes_nothing' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.seed_entry_configured' depends on axioms: [propext, Quot.sound]
+'Exp245.entry3_forbids_seed_store' depends on axioms: [propext, Quot.sound]
+'Exp245.seed_store_allowed' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.pmpCheck_shadowed' depends on axioms: [propext, Quot.sound]
+'Exp245.slot_zeroed_on_exit' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp245.stack_reaches_next_round' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_store_allowed_data' depends on axioms: [propext, Quot.sound]
+'Rv32.Priv.wx_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_code_immutable' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong monitors, wrong claims and wrong models: each must be refused
+shrine_word0_typo                  [Charm 1] boot writes 0x4d414d4e for the shrine's first word                                                  refused in monitor_boot_config
+shrine_kuai_yellow                 [Charm 1] the check compares the second word with 0x4941554c, not "KUAI"                                      refused in seal_2
+shrine_check_skipped               [Charm 1] the check of the first word is a nop                                                                refused in seal_1
+shrine_branch_inverted             [Charm 1] the check of the first word faults when it is right                                                 refused in seal_1
+entry3_writable                    [Charm 2] entry 3 is read and write: cfg 0x1b                                                                 refused in monitor_boot_config
+entry3_off                         [Charm 2] entry 3 is off: cfg 0x00, exp240's                                                                  refused in monitor_boot_config
+entry3_window_escapes              [Charm 2] entry 3 covers the guard at 0x80011000, outside the data: it decides there                          refused in monitor_boot_config
+slot_one_word_short                [Charm 3] the slot's end is 0x80010e1c: its last word is kept                                                 refused in slot_setup
+slot_stores_pointer                [Charm 3] the loop stores its pointer, not zero                                                               refused in zstore_slot
+slot_store_dropped                 [Charm 3] the loop runs and stores nothing: its sw is a nop                                                   refused in zstore_slot
+claim_stack_scrubbed               claim: an exit zeroes the payload's stack at [0x8001ffc0, 0x8001ffe0), not the slot                           refused in slot_zeroed_on_exit
+claim_entry3_decides               claim: from reset, the PMP refuses a U-mode store into the seed window                                        refused in seed_store_allowed
+claim_shrine_reachable             claim: a round reaches a trap with the seal broken                                                            refused in shrine_always_intact
+stack_entry_executable             the stack entry is read, write and execute (0x1f)                                                             refused in monitor_boot_config
+stack_entry_off                    the stack entry is off                                                                                        refused in monitor_boot_config
+entry_three_rwx                    entry 3 is read, write and execute                                                                            refused in monitor_boot_config
+pmpaddr3_kept                      boot does not write pmpaddr3: it is whatever the last round left                                              refused in monitor_boot_config
+trap_vector_wrong                  boot points mtvec four bytes past the handler                                                                 refused in monitor_boot_config
+fault_skips_scrub                  a fault jumps to itself, not the scrub                                                                        refused in fault_6
+scrub_skips_ra                     the scrub leaves x1                                                                                           refused in regs_a
+halt_takes_94_steps                claim: a HALT takes the monitor 94 steps, not 95                                                              refused in monitor_traps
+park_loop_one_word_on              claim: the park loop is one word on                                                                           refused in monitor_slot
+code_entry_256_bytes               pmpaddr0 fences 256 bytes of code, not 128                                                                    refused in monitor_boot_config
+code_entry_64_bytes                pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable                                       refused in monitor_boot_config
+data_entry_8_kib                   pmpaddr1 fences 8 KiB of data, not 4                                                                          refused in monitor_boot_config
+data_entry_2_kib                   pmpaddr1 fences 2 KiB of data, not 4                                                                          refused in monitor_boot_config
+stack_entry_to_the_monitor         pmpaddr2 reaches down to 0x80000000                                                                           refused in monitor_boot_config
+stack_entry_8_kib                  pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short                                               refused in monitor_boot_config
+stack_entry_32_kib                 pmpaddr2 fences 32 KiB of stack: the guard region is 28 KiB short                                             refused in monitor_boot_config
+code_entry_writable                the code entry is read, write and execute (0x1f)                                                              refused in monitor_boot_config
+data_entry_executable              the data entry is read, write and execute (0x1f)                                                              refused in monitor_boot_config
+code_entry_off                     the code entry is off: the data entry alone, 4 KiB of read and write                                          refused in monitor_boot_config
+data_entry_off                     the data entry is off                                                                                         refused in monitor_boot_config
+entries_swapped                    the code and the data entries swap places: the data is tried first                                            refused in monitor_boot_config
+data_tried_before_code             the entries swap places and permissions: the data entry is tried first, so it decides a store into the code   refused in monitor_boot_config
+mstatus_kept                       boot ORs t0 into mstatus instead of writing it whole: MPP is whatever the last round left                     refused in monitor_boot_config
+mcause_kept                        boot does not write mcause: it is whatever the last round left                                                refused in monitor_boot_config
+payload_entry_wrong                boot sends the payload to 0x80020000, past its region                                                         refused in monitor_boot_config
+payload_sp_wrong                   boot gives the payload an sp at the bottom of its region                                                      refused in monitor_launch_1
+boot_leaves_x31                    boot loads 1 into x31 instead of zero                                                                         refused in monitor_launch_3
+mscratch_wrong                     boot puts the M-mode stack in the payload's region                                                            refused in monitor_boot_config
+no_stack_swap                      the handler keeps the payload's sp                                                                            refused in entry_1
+cause_check_dropped                the handler never looks at mcause                                                                             refused in entry_mcause
+syscall_check_dropped              the handler takes every ecall for HALT                                                                        refused in call_is_halt
+fault_exit_code_two                a fault exits with 2                                                                                          refused in fault_6
+saved_t0_stays                     the scrub leaves the saved t0 on the M-mode stack                                                             refused in scrub_1a
+scrub_leaves_sp                    the scrub loads 1 into x2                                                                                     refused in regs_a
+mscratch_stays                     the scrub leaves mscratch holding the payload's sp                                                            refused in scrub_ms
+mmio_address_wrong                 the reports go to a word in the payload's region                                                              refused in fault_1
+halt_tag_wrong                     the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT                         refused in halt_1
+fault_tag_wrong                    the FAULT report's tag is "FAUM", not "FAUL"                                                                  refused in fault_1
+exit_code_to_print_word            the exit code goes to the print word, not the exit word                                                       refused in regs_port
+counters_start_at_three            claim: boot leaves the counters at 3, not 2                                                                   refused in monitor_launch_5
+code_one_word_longer               claim: the code is four bytes longer, [0x80010000, 0x80010084)                                                refused in monitor_end_to_end
+ready_allows_a_lock                claim: a round may start with a PMP entry locked                                                              refused in ready_of_host
+host_may_write_code                claim: the host may write the code between rounds                                                             refused in ready_of_host
+host_may_lock                      claim: the host may lock a PMP entry between rounds                                                           refused in ready_of_host
+sandbox_store_unchecked            U-mode stores skip the PMP check                                                                              refused in st_in_box
+sandbox_ecall_passes               U-mode ecall is executed instead of trapped                                                                   refused in trap_none_plain
+pmp_entries_tried_backwards        the entries are tried from 3 down to 0, so the lowest does not win                                            refused in umode_default_deny
+pmp_partial_match_passes           an access that straddles an entry's edge passes                                                               refused in pmpCheck_uboxed_iff
+pmp_store_needs_read_not_write     a store needs the entry's R bit, not its W bit                                                                refused in pmpCheck_uboxed_iff
+pmp_fetch_needs_read_not_execute   a fetch needs the entry's R bit, not its X bit                                                                refused in pmpCheck_uboxed_iff
+pmp_unmatched_user_passes          U-mode that matches no entry passes                                                                           refused in umode_default_deny
+lib_code_cfg_writable              the library's code entry has W set                                                                            refused in wx_store_ok
+lib_data_cfg_executable            the library's data entry has X set                                                                            refused in wx_fetch_iff
+lib_frozen_forgets_last_code_word  a byte in the last word of the code is not frozen                                                             refused in wx_code_immutable
+pmp_m_mode_held_to_entries         M-mode is held to the entries as U-mode is, locked or not                                                     refused in pmpCheck_M_unlocked
+
+>>> the charms on the emulator: what each theorem says, and what each charm does
+PASS  Act 1a, the shrine seal: a payload overwrites its whole output [0x80010200, 0x80010600) and HALTs 0;
+      the theorem's conclusion holds -- the seal reads "OMAMKUAI", the HALT is reported -- and that is all it
+      says: the 8 bytes it checks are the monitor's own, and the payload's output was never among them
+PASS  Act 1b, the shrine seal from outside the model: 200 steps into the payload the suite writes "YELL"
+      over "KUAI" at 0x80008014, standing for a DMA channel or the other core. exp245: FAULT, mcause 8
+      (the ecall), a0 = 1; exp240, the same write: HALT 0. Without the write, exp245 HALTs 0. The one place a
+      charm does anything, and the writer is not in the model the theorems are about
+PASS  Act 2, the shadowed entry: entry 3 as booted is NAPOT, read-only, over [0x80010100, 0x80010200) -- the
+      theorem's conclusion -- and a payload stores 0x5eed5eed at 0x80010100, reads it back and HALTs with it:
+      HALT 0x5eed5eed, one trap, the ecall. Entry 1, the data, is tried first and lets the store in
+PASS  Act 3, the ceremonial scrub: round 1 leaves a key of eight words at [0x8001ffc0, 0x8001ffe0) on its
+      stack and HALTs 0; the host writes one word in the data; round 2, the same payload, copies the stack to
+      0x80010900 and HALTs 0. The slot [0x80010e00, 0x80010e20) is zero at both parks -- the theorem's
+      conclusion -- and round 2's output is round 1's key: 0x6b657930 .. 0x6b657937
+PASS  Act 4, the ablation: exp240, exp245, and exp245 with each charm taken away alone, under 55 hostile
+      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel: the registers, the reports and
+      the exit codes, the traps, the counters and every CSR the payload's box is made of are the same for
+      all five; memory differs only in the monitor's words, the shrine if charm 1 is there and the slot if
+      charm 3 is; entry 3 differs only if charm 2 is
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  monitor.bin (712 bytes, 178 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Bless.lean's monitorCode
+PASS  monitor.S with the three charms taken away is exp240's monitor.bin, byte for byte; each charm taken away alone changes the binary
+PASS  Bless.lean checks, with no errors and no warnings
+PASS  all 22 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  shrine_word0_typo: the proof refuses a version where [Charm 1] boot writes 0x4d414d4e for the shrine's first word
+PASS  shrine_kuai_yellow: the proof refuses a version where [Charm 1] the check compares the second word with 0x4941554c, not "KUAI"
+PASS  shrine_check_skipped: the proof refuses a version where [Charm 1] the check of the first word is a nop
+PASS  shrine_branch_inverted: the proof refuses a version where [Charm 1] the check of the first word faults when it is right
+PASS  entry3_writable: the proof refuses a version where [Charm 2] entry 3 is read and write: cfg 0x1b
+PASS  entry3_off: the proof refuses a version where [Charm 2] entry 3 is off: cfg 0x00, exp240's
+PASS  entry3_window_escapes: the proof refuses a version where [Charm 2] entry 3 covers the guard at 0x80011000, outside the data: it decides there
+PASS  slot_one_word_short: the proof refuses a version where [Charm 3] the slot's end is 0x80010e1c: its last word is kept
+PASS  slot_stores_pointer: the proof refuses a version where [Charm 3] the loop stores its pointer, not zero
+PASS  slot_store_dropped: the proof refuses a version where [Charm 3] the loop runs and stores nothing: its sw is a nop
+PASS  claim_stack_scrubbed: the proof refuses a version where claim: an exit zeroes the payload's stack at [0x8001ffc0, 0x8001ffe0), not the slot
+PASS  claim_entry3_decides: the proof refuses a version where claim: from reset, the PMP refuses a U-mode store into the seed window
+PASS  claim_shrine_reachable: the proof refuses a version where claim: a round reaches a trap with the seal broken
+PASS  stack_entry_executable: the proof refuses a version where the stack entry is read, write and execute (0x1f)
+PASS  stack_entry_off: the proof refuses a version where the stack entry is off
+PASS  entry_three_rwx: the proof refuses a version where entry 3 is read, write and execute
+PASS  pmpaddr3_kept: the proof refuses a version where boot does not write pmpaddr3: it is whatever the last round left
+PASS  trap_vector_wrong: the proof refuses a version where boot points mtvec four bytes past the handler
+PASS  fault_skips_scrub: the proof refuses a version where a fault jumps to itself, not the scrub
+PASS  scrub_skips_ra: the proof refuses a version where the scrub leaves x1
+PASS  halt_takes_94_steps: the proof refuses a version where claim: a HALT takes the monitor 94 steps, not 95
+PASS  park_loop_one_word_on: the proof refuses a version where claim: the park loop is one word on
+PASS  code_entry_256_bytes: the proof refuses a version where pmpaddr0 fences 256 bytes of code, not 128
+PASS  code_entry_64_bytes: the proof refuses a version where pmpaddr0 fences 64 bytes: the last of the kernel's 76 is not executable
+PASS  data_entry_8_kib: the proof refuses a version where pmpaddr1 fences 8 KiB of data, not 4
+PASS  data_entry_2_kib: the proof refuses a version where pmpaddr1 fences 2 KiB of data, not 4
+PASS  stack_entry_to_the_monitor: the proof refuses a version where pmpaddr2 reaches down to 0x80000000
+PASS  stack_entry_8_kib: the proof refuses a version where pmpaddr2 fences 8 KiB of stack: the guard region is 4 KiB short
+PASS  stack_entry_32_kib: the proof refuses a version where pmpaddr2 fences 32 KiB of stack: the guard region is 28 KiB short
+PASS  code_entry_writable: the proof refuses a version where the code entry is read, write and execute (0x1f)
+PASS  data_entry_executable: the proof refuses a version where the data entry is read, write and execute (0x1f)
+PASS  code_entry_off: the proof refuses a version where the code entry is off: the data entry alone, 4 KiB of read and write
+PASS  data_entry_off: the proof refuses a version where the data entry is off
+PASS  entries_swapped: the proof refuses a version where the code and the data entries swap places: the data is tried first
+PASS  data_tried_before_code: the proof refuses a version where the entries swap places and permissions: the data entry is tried first, so it decides a store into the code
+PASS  mstatus_kept: the proof refuses a version where boot ORs t0 into mstatus instead of writing it whole: MPP is whatever the last round left
+PASS  mcause_kept: the proof refuses a version where boot does not write mcause: it is whatever the last round left
+PASS  payload_entry_wrong: the proof refuses a version where boot sends the payload to 0x80020000, past its region
+PASS  payload_sp_wrong: the proof refuses a version where boot gives the payload an sp at the bottom of its region
+PASS  boot_leaves_x31: the proof refuses a version where boot loads 1 into x31 instead of zero
+PASS  mscratch_wrong: the proof refuses a version where boot puts the M-mode stack in the payload's region
+PASS  no_stack_swap: the proof refuses a version where the handler keeps the payload's sp
+PASS  cause_check_dropped: the proof refuses a version where the handler never looks at mcause
+PASS  syscall_check_dropped: the proof refuses a version where the handler takes every ecall for HALT
+PASS  fault_exit_code_two: the proof refuses a version where a fault exits with 2
+PASS  saved_t0_stays: the proof refuses a version where the scrub leaves the saved t0 on the M-mode stack
+PASS  scrub_leaves_sp: the proof refuses a version where the scrub loads 1 into x2
+PASS  mscratch_stays: the proof refuses a version where the scrub leaves mscratch holding the payload's sp
+PASS  mmio_address_wrong: the proof refuses a version where the reports go to a word in the payload's region
+PASS  halt_tag_wrong: the proof refuses a version where the HALT report's tag is "HALU", not "HALT": the host hears a report that is not HALT
+PASS  fault_tag_wrong: the proof refuses a version where the FAULT report's tag is "FAUM", not "FAUL"
+PASS  exit_code_to_print_word: the proof refuses a version where the exit code goes to the print word, not the exit word
+PASS  counters_start_at_three: the proof refuses a version where claim: boot leaves the counters at 3, not 2
+PASS  code_one_word_longer: the proof refuses a version where claim: the code is four bytes longer, [0x80010000, 0x80010084)
+PASS  ready_allows_a_lock: the proof refuses a version where claim: a round may start with a PMP entry locked
+PASS  host_may_write_code: the proof refuses a version where claim: the host may write the code between rounds
+PASS  host_may_lock: the proof refuses a version where claim: the host may lock a PMP entry between rounds
+PASS  sandbox_store_unchecked: the proof refuses a version where U-mode stores skip the PMP check
+PASS  sandbox_ecall_passes: the proof refuses a version where U-mode ecall is executed instead of trapped
+PASS  pmp_entries_tried_backwards: the proof refuses a version where the entries are tried from 3 down to 0, so the lowest does not win
+PASS  pmp_partial_match_passes: the proof refuses a version where an access that straddles an entry's edge passes
+PASS  pmp_store_needs_read_not_write: the proof refuses a version where a store needs the entry's R bit, not its W bit
+PASS  pmp_fetch_needs_read_not_execute: the proof refuses a version where a fetch needs the entry's R bit, not its X bit
+PASS  pmp_unmatched_user_passes: the proof refuses a version where U-mode that matches no entry passes
+PASS  lib_code_cfg_writable: the proof refuses a version where the library's code entry has W set
+PASS  lib_data_cfg_executable: the proof refuses a version where the library's data entry has X set
+PASS  lib_frozen_forgets_last_code_word: the proof refuses a version where a byte in the last word of the code is not frozen
+PASS  pmp_m_mode_held_to_entries: the proof refuses a version where M-mode is held to the entries as U-mode is, locked or not
+PASS  proof/Bless.lean and proof/mutants.txt are what proof/gen.py writes
+PASS  Act 1a, the shrine seal: a payload overwrites its whole output [0x80010200, 0x80010600) and HALTs 0;
+      the theorem's conclusion holds -- the seal reads "OMAMKUAI", the HALT is reported -- and that is all it
+      says: the 8 bytes it checks are the monitor's own, and the payload's output was never among them
+PASS  Act 1b, the shrine seal from outside the model: 200 steps into the payload the suite writes "YELL"
+      over "KUAI" at 0x80008014, standing for a DMA channel or the other core. exp245: FAULT, mcause 8
+      (the ecall), a0 = 1; exp240, the same write: HALT 0. Without the write, exp245 HALTs 0. The one place a
+      charm does anything, and the writer is not in the model the theorems are about
+PASS  Act 2, the shadowed entry: entry 3 as booted is NAPOT, read-only, over [0x80010100, 0x80010200) -- the
+      theorem's conclusion -- and a payload stores 0x5eed5eed at 0x80010100, reads it back and HALTs with it:
+      HALT 0x5eed5eed, one trap, the ecall. Entry 1, the data, is tried first and lets the store in
+PASS  Act 3, the ceremonial scrub: round 1 leaves a key of eight words at [0x8001ffc0, 0x8001ffe0) on its
+      stack and HALTs 0; the host writes one word in the data; round 2, the same payload, copies the stack to
+      0x80010900 and HALTs 0. The slot [0x80010e00, 0x80010e20) is zero at both parks -- the theorem's
+      conclusion -- and round 2's output is round 1's key: 0x6b657930 .. 0x6b657937
+PASS  Act 4, the ablation: exp240, exp245, and exp245 with each charm taken away alone, under 55 hostile
+      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel: the registers, the reports and
+      the exit codes, the traps, the counters and every CSR the payload's box is made of are the same for
+      all five; memory differs only in the monitor's words, the shrine if charm 1 is there and the slot if
+      charm 3 is; entry 3 differs only if charm 2 is
