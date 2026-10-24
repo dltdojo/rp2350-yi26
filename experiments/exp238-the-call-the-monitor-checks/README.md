@@ -156,7 +156,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp238 — the call the monitor checks ===
-recorded at 2026-10-23T11:15:03Z from commit 3ac5977
+recorded at 2026-10-24T05:39:32Z from commit 5ff33be
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor.sha256, is within 202 words, and is proof/Calls.lean's monitorCode
