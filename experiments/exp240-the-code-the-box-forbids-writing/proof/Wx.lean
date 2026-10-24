@@ -501,7 +501,7 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
   obtain ⟨b1, b2, b3, b4, b5, b6⟩ := monitor_launch_2 env M0 _ hW a2 a1 a3 a4 a5 a6
   obtain ⟨e1, e2, e3, e4, e5, e6⟩ := monitor_launch_3 env M0 _ hW b2 b1 b3 b4 b5 b6
   obtain ⟨g1, g2, g3, g4, g5, g6⟩ := monitor_launch_4 env M0 _ hW e2 e1 e3 e4 e5
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h12b, hb, h13⟩ :=
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hb, h13⟩ :=
     monitor_launch_5 env M0 _ hW g2 g1 g3 g4 g5
   rw [show 61 = 28 + 12 + 12 + 7 + 1 + 1 from rfl, PrivMachine.run_add, PrivMachine.run_add,
     PrivMachine.run_add, PrivMachine.run_add, PrivMachine.run_add]
