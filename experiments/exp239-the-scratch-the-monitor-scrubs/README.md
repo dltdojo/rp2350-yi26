@@ -146,7 +146,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp239 — the scratch the monitor scrubs ===
-recorded at 2026-10-24T06:39:59Z from commit 4d242dd
+recorded at 2026-10-24T15:36:09Z from commit 2756f54
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (624 bytes, 156 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Scrub.lean's monitorCode

@@ -8,7 +8,9 @@ Three PMP entries, tried in order, fence a U-mode payload into a box that has no
   * entry 0, the **code**: `NAPOT`, read and execute, no write, `[cLo, cHi)`;
   * entry 1, the **data**: `NAPOT`, read and write, no execute, `[dLo, dHi)`;
   * entry 2, the **stack**: `NAPOT`, read and write, no execute, `[kLo, kHi)`;
-  * entry 3 off.
+  * entry 3 off, or **shadowed**: on, but wholly inside the data entry, which is tried first. Every access that
+    touches it touches the data entry, which decides, so entry 3 never does (`pmpCheck_shadowed`): whatever its
+    permissions say, the box is the box of the first three.
 
 The entries are not disjoint, and need not be: the lowest-numbered entry that touches an access decides it, so
 the code, listed first, carves its bytes out of a data entry that surrounds it. What lies between the data and the
@@ -55,6 +57,47 @@ theorem matchPmpEntry_napot (csrs : PrivCSRs) (idx : Fin 4) (addr : Word) (width
   have : cfg.mode ≠ .OFF := by rw [hm]; decide
   simp [this]
 
+/-- Entry 3 never decides an access in a box whose data entry is `[dLo, dHi)`: it is off, or its range lies wholly
+    inside the data entry's. -/
+def Entry3Silent (csrs : PrivCSRs) (dLo dHi : Nat) : Prop :=
+  (decodePmpCfgByte csrs.pmpcfg0 3).mode = .OFF ∨
+    (dLo ≤ (decodeNapotRange csrs.pmpaddr3).1 ∧ (decodeNapotRange csrs.pmpaddr3).2 ≤ dHi)
+
+/-- An access entry 1 does not touch, entry 3 does not touch either. -/
+theorem match3_noMatch_of_1 {csrs : PrivCSRs} {dLo dHi : Nat} {a : Word} {w : Nat}
+    (h1m : (decodePmpCfgByte csrs.pmpcfg0 1).mode = .NAPOT) (h1r : decodeNapotRange csrs.pmpaddr1 = (dLo, dHi))
+    (h3 : Entry3Silent csrs dLo dHi) (hn : matchPmpEntry csrs 1 a w = .NoMatch) :
+    matchPmpEntry csrs 3 a w = .NoMatch := by
+  rcases h3 with hoff | ⟨hlo, hhi⟩
+  · exact matchPmpEntry_off _ 3 a w hoff
+  · rw [matchPmpEntry_napot csrs 1 a w dLo dHi _ rfl h1m h1r] at hn
+    have hout : a.toNat + w ≤ dLo ∨ dHi ≤ a.toNat := by
+      by_cases hc : a.toNat + w ≤ dLo ∨ dHi ≤ a.toNat
+      · exact hc
+      · simp only [hc, ↓reduceIte] at hn
+        split at hn <;> simp at hn
+    obtain ⟨⟨lo3, hi3⟩, hr3⟩ : ∃ p, decodeNapotRange csrs.pmpaddr3 = p := ⟨_, rfl⟩
+    rw [hr3] at hlo hhi
+    simp only at hlo hhi
+    cases hm3 : (decodePmpCfgByte csrs.pmpcfg0 3).mode
+    · exact matchPmpEntry_off _ 3 a w hm3
+    · rw [matchPmpEntry_napot csrs 3 a w lo3 hi3 _ rfl hm3 hr3]
+      have : a.toNat + w ≤ lo3 ∨ hi3 ≤ a.toNat := by omega
+      simp [this]
+
+/-- **An entry that never decides.** Entry 3, if it is on, lying wholly inside entry 1: every access that touches it
+    touches entry 1, which is tried first and decides, so the PMP is what it would be with entry 3 off -- the first
+    three entries alone -- for every privilege, address, width and access, whatever entry 3's permissions say. -/
+theorem pmpCheck_shadowed (csrs : PrivCSRs) (mode : PrivMode) (a : Word) (w : Nat) (acc : AccessType)
+    (dLo dHi : Nat) (h1m : (decodePmpCfgByte csrs.pmpcfg0 1).mode = .NAPOT)
+    (h1r : decodeNapotRange csrs.pmpaddr1 = (dLo, dHi)) (h3 : Entry3Silent csrs dLo dHi) :
+    pmpCheck csrs mode a w acc = pmpCheckEntries csrs mode a w acc [0, 1, 2] := by
+  unfold pmpCheck PMP_INDICES
+  simp only [pmpCheckEntries]
+  cases h0 : matchPmpEntry csrs 0 a w <;> cases h1 : matchPmpEntry csrs 1 a w <;>
+    cases h2 : matchPmpEntry csrs 2 a w <;>
+    first | simp [match3_noMatch_of_1 h1m h1r h3 h1] | simp
+
 def wxCodeCfg : PmpCfgEntry := { r := true, w := false, x := true, mode := .NAPOT, lock := false }
 def wxDataCfg : PmpCfgEntry := { r := true, w := true, x := false, mode := .NAPOT, lock := false }
 
@@ -64,7 +107,7 @@ structure WXBoxed (s : PrivMachine) (cLo cHi dLo dHi kLo kHi : Nat) : Prop where
   cfg0      : decodePmpCfgByte s.csrs.pmpcfg0 0 = wxCodeCfg
   cfg1      : decodePmpCfgByte s.csrs.pmpcfg0 1 = wxDataCfg
   cfg2      : decodePmpCfgByte s.csrs.pmpcfg0 2 = wxDataCfg
-  cfg3      : (decodePmpCfgByte s.csrs.pmpcfg0 3).mode = .OFF
+  cfg3      : Entry3Silent s.csrs dLo dHi
   addr0     : decodeNapotRange s.csrs.pmpaddr0 = (cLo, cHi)
   addr1     : decodeNapotRange s.csrs.pmpaddr1 = (dLo, dHi)
   addr2     : decodeNapotRange s.csrs.pmpaddr2 = (kLo, kHi)
@@ -90,9 +133,10 @@ theorem WXBoxed.e2 (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (a : Word) (w : Nat)
       else if kLo ≤ a.toNat ∧ a.toNat + w ≤ kHi then .FullMatch wxDataCfg else .PartialMatch :=
   matchPmpEntry_napot _ 2 a w kLo kHi _ hB.cfg2 (by decide) hB.addr2
 
-theorem WXBoxed.e3 (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (a : Word) (w : Nat) :
-    matchPmpEntry s.csrs 3 a w = .NoMatch :=
-  matchPmpEntry_off _ 3 a w hB.cfg3
+/-- Entry 3 decides nothing: the PMP is the first three entries'. -/
+theorem WXBoxed.only3 (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (a : Word) (w : Nat) (acc : AccessType) :
+    pmpCheck s.csrs s.mode a w acc = pmpCheckEntries s.csrs s.mode a w acc [0, 1, 2] :=
+  pmpCheck_shadowed _ _ a w acc dLo dHi (by rw [hB.cfg1]; rfl) hB.addr1 hB.cfg3
 
 /-- What the three entries make of an access, in the order the hardware tries them: the first that touches the
     access decides, a partial overlap refuses, and U-mode that touches none is refused. -/
@@ -104,8 +148,8 @@ theorem wx_check (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (a : Word) (w : Nat) (
            else if kLo ≤ a.toNat ∧ a.toNat + w ≤ kHi then hasPermission wxDataCfg .U acc else false)
          else if dLo ≤ a.toNat ∧ a.toNat + w ≤ dHi then hasPermission wxDataCfg .U acc else false)
        else if cLo ≤ a.toNat ∧ a.toNat + w ≤ cHi then hasPermission wxCodeCfg .U acc else false) := by
-  unfold pmpCheck PMP_INDICES
-  simp only [pmpCheckEntries, hB.e0, hB.e1, hB.e2, hB.e3, hB.isUMode]
+  rw [hB.only3]
+  simp only [pmpCheckEntries, hB.e0, hB.e1, hB.e2, hB.isUMode]
   by_cases h0 : a.toNat + w ≤ cLo ∨ cHi ≤ a.toNat <;>
   by_cases f0 : cLo ≤ a.toNat ∧ a.toNat + w ≤ cHi <;>
   by_cases h1 : a.toNat + w ≤ dLo ∨ dHi ≤ a.toNat <;>
@@ -183,7 +227,7 @@ theorem wxboxed_of_kept {s s' : PrivMachine} (hB : WXBoxed s cLo cHi dLo dHi kLo
   · rw [k4]; exact hB.cfg0
   · rw [k4]; exact hB.cfg1
   · rw [k4]; exact hB.cfg2
-  · rw [k4]; exact hB.cfg3
+  · unfold Entry3Silent; rw [k4, k8]; exact hB.cfg3
   · rw [k5]; exact hB.addr0
   · rw [k6]; exact hB.addr1
   · rw [k7]; exact hB.addr2

@@ -4,7 +4,7 @@
 
 * **文件日期**：2026-10-21，2026-10-22 依審查改以 exp240 為基底重寫
 * **實驗編號與名稱**：`exp245-the-bytes-the-proof-blesses`
-* **實驗狀態**：設計規劃（Scaffold / TODO，尚未實作程式碼與證明）
+* **實驗狀態**：已實作（2026-10-24），實作與本設計的差異見第七節
 * **Needs 等級**：`0 · none`（RISC-V 組譯器、Lean 4、`tools/monitor/emulator.py` 與 Python 測試套件）
 * **基底**：[`exp240-the-code-the-box-forbids-writing`](../exp240-the-code-the-box-forbids-writing/)——三個 PMP 條目的
   W^X 盒子、只服務 HALT、以及回合模型（`monitor_reentry`、`ready_of_host`、`monitor_rounds`）。
@@ -264,3 +264,29 @@ Act 1b 是本實驗唯一一個御守「贏」的地方，而它贏在模型之�
 4. `tools/lean/lean.sh check` 與 `tools/lean/lean.sh mutants`。
 5. `suite/charms_audit.py`：四幕。
 6. `check.sh`、`run.sh`、`capture.txt`；README 的定理表、步數與 Expected output 都從 capture 貼上。
+
+---
+
+## 七、實作紀錄（2026-10-24）
+
+做出來的東西大致照本文件，有六處不同。都不改變任何一組御守做的事：
+
+1. **Charm 1 的兩次寫入移到開機 CSR 設定的最後**（`li sp` 之前），不在設定 `mscratch` 之後。原因在證明：同一次
+   `simp` 裡「存入記憶體之後再走一步」需要多一層條件改寫，模型的 `psimpH` 一次做不到；把兩次寫入都放在一段執行的
+   最後一步，開機就拆成兩段（`monitor_boot_config` 35 步、`monitor_boot_shrine` 3 步）。
+2. **`pmpaddr3` 仍在 exp240 原本的位置寫入**，在 `pmpcfg0` 之後。M-mode 不受未上鎖條目限制
+   （`pmpCheck_M_unlocked`），先後對 monitor 沒有差別；留在原位，拔除檢查就是一行換一行。
+3. **`WXBoxed` 的 entry 3 欄位放寬成 `Entry3Silent`**（關閉，或範圍整個落在 data 條目內），採第三節 Charm 2 的
+   第一個選項。exp240 的開機證明改證第一種情況，exp240 的所有 `wx_*` 定理對兩種情況都成立。
+4. **`entry3_forbids_seed_store` 多一個前提 `0 < w`**：寬度 0 的存取不碰任何位元組，不是寫入，命題對它不成立。
+5. **突變共 68 個**，由 `proof/gen.py` 寫入 `proof/mutants.txt`：御守 13 個（第四節的表，但 `slot_skipped`
+   換成 `slot_store_dropped`：迴圈照跑、`sw` 換成 nop。把 slot 的第一個字換成跳過迴圈，Lean 在這個突變上記憶體
+   用盡，單獨跑也一樣，而崩潰不算拒絕），exp240 的 46 個照原樣，另外 9 個 exp240 的突變因為字組或步數在這裡不同
+   （設定字、跳躍位移、HALT 的步數），改寫成這份 monitor 的字組。
+6. **共用程式碼**：exp240 的證明產生器搬到 `tools/monitor/wx.py`（exp240 的 `Wx.lean` 逐位元組不變），
+   exp239 的清零迴圈模板搬到 `tools/monitor/chunks.py` 的 `zloop`，`Zeroed` 與相關引理搬進
+   `lean/Rv32/PrivRun.lean`。第四節說「沒有新的共用程式碼」，實際上第二份出現時就抽取了，依 AGENTS.md。
+
+步數是定理裡的數字（`monitor_boot`、`trapSteps`），Lean 已檢查：開機 71 步；從 trap vector 到 park loop，神龕完好的 HALT 95 步、神龕第一字錯 96 步、
+第二字錯 100 步、其他 `ecall` 90 步、其他陷阱 87 步。
+
