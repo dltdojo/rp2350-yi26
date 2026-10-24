@@ -15,10 +15,12 @@ entry3_off|[Charm 2] entry 3 is off: cfg 0x00, exp240's|s/0x191b22b7#32/0x001b22
 entry3_window_escapes|[Charm 2] entry 3 covers the guard at 0x80011000, outside the data: it decides there|s/0x05f28293#32/0x41f28293#32/
 slot_one_word_short|[Charm 3] the slot's end is 0x80010e1c: its last word is kept|s/0xe2030313#32/0xe1c30313#32/
 slot_stores_pointer|[Charm 3] the loop stores its pointer, not zero|s/0x0002a023#32/0x0052a023#32/
-slot_skipped|[Charm 3] the scrub jumps past the slot to the registers|s/0x800112b7#32/0x01c0006f#32/
+slot_store_dropped|[Charm 3] the loop runs and stores nothing: its sw is a nop|s/0x0002a023#32/0x00000013#32/
 claim_stack_scrubbed|claim: an exit zeroes the payload's stack at [0x8001ffc0, 0x8001ffe0), not the slot|s/^    (∀ x, InSlot x → (parkedAfter env u).core.mem x = 0) ∧$/    (∀ x : Word, 0x8001ffc0 ≤ x.toNat → x.toNat < 0x8001ffe0 → (parkedAfter env u).core.mem x = 0) ∧/
 claim_entry3_decides|claim: from reset, the PMP refuses a U-mode store into the seed window|/theorem seed_store_allowed/,/:= by/s/\.Store = true/.Store = false/
 claim_shrine_reachable|claim: a round reaches a trap with the seal broken|/theorem shrine_always_intact/,/:= by/s/^    Sealed (payloadAt/    ¬ Sealed (payloadAt/
+# Not slot_skipped (the scrub's first word a jump past the loop, s/0x800112b7#32/0x01c0006f#32/): Lean runs
+# out of memory on it, alone too, and a crash is not a refusal. slot_store_dropped is the same claim broken.
 
 # exp240's, ported: the same wrong monitor or claim, at this one's words
 stack_entry_executable|the stack entry is read, write and execute (0x1f)|s/0x191b22b7#32/0x191f22b7#32/

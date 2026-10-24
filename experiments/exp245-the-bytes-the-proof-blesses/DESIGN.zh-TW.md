@@ -279,8 +279,9 @@ Act 1b 是本實驗唯一一個御守「贏」的地方，而它贏在模型之�
 3. **`WXBoxed` 的 entry 3 欄位放寬成 `Entry3Silent`**（關閉，或範圍整個落在 data 條目內），採第三節 Charm 2 的
    第一個選項。exp240 的開機證明改證第一種情況，exp240 的所有 `wx_*` 定理對兩種情況都成立。
 4. **`entry3_forbids_seed_store` 多一個前提 `0 < w`**：寬度 0 的存取不碰任何位元組，不是寫入，命題對它不成立。
-5. **突變共 68 個**，由 `proof/gen.py` 寫入 `proof/mutants.txt`：御守 13 個（第四節的表；`slot_skipped` 是把
-   slot 的第一個字換成跳到暫存器清零），exp240 的 46 個照原樣，另外 9 個 exp240 的突變因為字組或步數在這裡不同
+5. **突變共 68 個**，由 `proof/gen.py` 寫入 `proof/mutants.txt`：御守 13 個（第四節的表，但 `slot_skipped`
+   換成 `slot_store_dropped`：迴圈照跑、`sw` 換成 nop。把 slot 的第一個字換成跳過迴圈，Lean 在這個突變上記憶體
+   用盡，單獨跑也一樣，而崩潰不算拒絕），exp240 的 46 個照原樣，另外 9 個 exp240 的突變因為字組或步數在這裡不同
    （設定字、跳躍位移、HALT 的步數），改寫成這份 monitor 的字組。
 6. **共用程式碼**：exp240 的證明產生器搬到 `tools/monitor/wx.py`（exp240 的 `Wx.lean` 逐位元組不變），
    exp239 的清零迴圈模板搬到 `tools/monitor/chunks.py` 的 `zloop`，`Zeroed` 與相關引理搬進

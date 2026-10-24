@@ -390,7 +390,7 @@ CHARM_MUTANTS = [
      "s/0x05f28293#32/0x41f28293#32/"),
     ("slot_one_word_short", "[Charm 3] the slot's end is 0x80010e1c: its last word is kept", "s/0xe2030313#32/0xe1c30313#32/"),
     ("slot_stores_pointer", "[Charm 3] the loop stores its pointer, not zero", "s/0x0002a023#32/0x0052a023#32/"),
-    ("slot_skipped", "[Charm 3] the scrub jumps past the slot to the registers", "s/0x800112b7#32/0x01c0006f#32/"),
+    ("slot_store_dropped", "[Charm 3] the loop runs and stores nothing: its sw is a nop", "s/0x0002a023#32/0x00000013#32/"),
     ("claim_stack_scrubbed", "claim: an exit zeroes the payload's stack at [0x8001ffc0, 0x8001ffe0), not the slot",
      "s/^    (∀ x, InSlot x → (parkedAfter env u).core.mem x = 0) ∧$/"
      "    (∀ x : Word, 0x8001ffc0 ≤ x.toNat → x.toNat < 0x8001ffe0 → (parkedAfter env u).core.mem x = 0) ∧/"),
@@ -433,6 +433,8 @@ def mutants(lean_text: str) -> str:
            "# the same, and the rules of the model and the library the proofs stand on.",
            ""]
     out += [f"{a}|{b}|{c}" for a, b, c in CHARM_MUTANTS]
+    out += ["# Not slot_skipped (the scrub's first word a jump past the loop, s/0x800112b7#32/0x01c0006f#32/): Lean runs",
+            "# out of memory on it, alone too, and a crash is not a refusal. slot_store_dropped is the same claim broken."]
     out += ["", "# exp240's, ported: the same wrong monitor or claim, at this one's words"]
     out += [f"{a}|{b}|{c}" for a, b, c in PORTED]
     out += ["", "# exp240's, as they are"]
