@@ -205,8 +205,8 @@ def reenter(emu: SandboxEmulator, junk_csrs: bool = False) -> SandboxEmulator:
     return new
 
 
-def differences(want: bytes, got: bytes, limit: int = 4) -> list:
-    """The ranges, as addresses, where `got` is not `want`: at most `limit` of them, then a count."""
+def difference_ranges(want: bytes, got: bytes) -> list:
+    """The ranges, as (lo, hi) addresses, where `got` is not `want`."""
     out, i, n = [], 0, len(want)
     while i < n:
         if want[i] != got[i]:
@@ -217,6 +217,12 @@ def differences(want: bytes, got: bytes, limit: int = 4) -> list:
             i = j
         else:
             i += 1
+    return out
+
+
+def differences(want: bytes, got: bytes, limit: int = 4) -> list:
+    """The ranges, as addresses, where `got` is not `want`: at most `limit` of them, then a count."""
+    out = difference_ranges(want, got)
     shown = [f"[{lo:#x}, {hi:#x})" for lo, hi in out[:limit]]
     return shown + ([f"and {len(out) - limit} more"] if len(out) > limit else [])
 
