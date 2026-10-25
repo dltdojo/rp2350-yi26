@@ -131,7 +131,8 @@ theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
     (PrivMachine.run env {CONFIG_STEPS} s).halted = false ∧
     (PrivMachine.run env {CONFIG_STEPS} s).mode = .M ∧
     (PrivMachine.run env {CONFIG_STEPS} s).csrs = csrsConfigured ∧
-    (PrivMachine.run env {CONFIG_STEPS} s).core.reg 5#5 = 0x80008010#32 := by
+    (PrivMachine.run env {CONFIG_STEPS} s).core.reg 5#5 = 0x80008010#32 ∧
+    (PrivMachine.run env {CONFIG_STEPS} s).io = s.io ∧ (PrivMachine.run env {CONFIG_STEPS} s).host = s.host := by
   have sm := sm_mon env M0 hW
   have l0 := hlock 0
   have l1 := hlock 1
@@ -159,7 +160,8 @@ theorem monitor_boot_shrine (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
     (PrivMachine.run env {SHRINE_STEPS} s).core.mem = writeLE s.core.mem 0x80008014#32 0x4941554b 4 ∧
     (PrivMachine.run env {SHRINE_STEPS} s).halted = false ∧
     (PrivMachine.run env {SHRINE_STEPS} s).mode = .M ∧
-    (PrivMachine.run env {SHRINE_STEPS} s).csrs = csrsConfigured := by
+    (PrivMachine.run env {SHRINE_STEPS} s).csrs = csrsConfigured ∧
+    (PrivMachine.run env {SHRINE_STEPS} s).io = s.io ∧ (PrivMachine.run env {SHRINE_STEPS} s).host = s.host := by
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
   have hA' : Agree M0 Mc 0x80000000 {BYTES} := hmem ▸ hA
 {SM}  have hcfg : PmpUnlocked {CFG} := by intro i; revert i; decide
@@ -173,11 +175,13 @@ theorem monitor_boot_shrine (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
 """
 
 
-BOOT_FRONT = f"""  obtain ⟨b1, b2, b3, b4, b5, b6⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock henv
+BOOT_FRONT = f"""  obtain ⟨b1, b2, b3, b4, b5, b6, bio, bho⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock henv
   have hA1 : Agree M0 (PrivMachine.run env {CONFIG_STEPS} s).core.mem 0x80000000 {BYTES} := by
     rw [b2, agree_writeLE_iff _ _ (by decide) (by decide)]; exact Agree.refl _ _ _
-  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_shrine env M0 _ hW hA1 b1 b3 b4 b5 b6 henv
+  obtain ⟨c1, c2, c3, c4, c5, sio, sho⟩ := monitor_boot_shrine env M0 _ hW hA1 b1 b3 b4 b5 b6 henv
   rw [b2] at c2
+  have cio := sio.trans bio
+  have cho := sho.trans bho
   have hW1 : WordsAt (shrined M0) 0x80000000#32 monitorCode :=
     WordsAt.of_agree (by rw [monitorCode_length]; decide) (by rw [monitorCode_length]; exact agree_shrined M0) hW
 """

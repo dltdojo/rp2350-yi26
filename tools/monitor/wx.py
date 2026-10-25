@@ -157,7 +157,8 @@ theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
     (PrivMachine.run env {BOOT_STEPS} s).core.mem = M0 ∧
     (PrivMachine.run env {BOOT_STEPS} s).halted = false ∧
     (PrivMachine.run env {BOOT_STEPS} s).mode = .M ∧
-    (PrivMachine.run env {BOOT_STEPS} s).csrs = csrsConfigured := by
+    (PrivMachine.run env {BOOT_STEPS} s).csrs = csrsConfigured ∧
+    (PrivMachine.run env {BOOT_STEPS} s).io = s.io ∧ (PrivMachine.run env {BOOT_STEPS} s).host = s.host := by
   have sm := sm_mon env M0 hW
   have l0 := hlock 0
   have l1 := hlock 1
@@ -176,11 +177,26 @@ theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
 """
 
 
+def launch_io(t: str) -> str:
+    """exp236's five launch theorems, each saying too that it wrote no port and left the host alone."""
+    for k in range(1, 6):
+        i = t.index(f"theorem monitor_launch_{k} ")
+        j = t.index(" := by\n", i)
+        n = re.search(r"\(PrivMachine\.run env (\d+) s\)\.core\.pc", t[i:j]).group(1)
+        run = f"(PrivMachine.run env {n} s)"
+        t = t[:j] + f" ∧\n    {run}.io = s.io ∧ {run}.host = s.host" + t[j:]
+        e = t.find("set_option", j)
+        body = t[j:e if e >= 0 else len(t)]
+        body = body.replace("refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩", "refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩")
+        t = t[:j] + body + (t[e:] if e >= 0 else "")
+    return t
+
+
 def boot_proof(t: str, config: str, *, binders="", front=None, m1="M0", hw1="hW", mem_out="M0", split=None,
                state0=None, cfg3="exact Or.inl (by rw [h5]; decide)", boot_doc="") -> str:
     """exp236's boot, changed to set the three entries, to start from any CSRs that lock no entry, and to say `WXBoxed`
     where it said `UBoxed`. `config` is the first part of boot (exp240's: `boot_config`); `front`, the lines of
-    `monitor_boot` that run it and leave `c1`..`c5` about the state after it, whose memory is `m1`, its words `hw1`;
+    `monitor_boot` that run it and leave `c1`..`c5`, `cio` and `cho` about the state after it, whose memory is `m1`, its words `hw1`;
     `mem_out`, the memory boot ends with; `split`, the run's steps as a sum; `state0`, the state after the first part,
     as `split` writes it; `cfg3`, why entry 3 decides nothing."""
     t = swap(t, "run env 20 ", f"run env {BOOT_STEPS} ", count=t.count("run env 20 "))
@@ -195,6 +211,7 @@ def boot_proof(t: str, config: str, *, binders="", front=None, m1="M0", hw1="hW"
              f"    (PrivMachine.run env 1 s).csrs.pmpaddr0 = {A0} ∧\n"
              f"    (PrivMachine.run env 1 s).csrs.pmpaddr1 = {A1} ∧\n"
              f"    (PrivMachine.run env 1 s).csrs.pmpaddr2 = {A2} ∧\n")
+    t = launch_io(t)
     k = t.index("theorem monitor_launch_5")
     a, b = t[:k], t[k:]
     if A3 != "0#32":
@@ -204,7 +221,7 @@ def boot_proof(t: str, config: str, *, binders="", front=None, m1="M0", hw1="hW"
     b = swap(b, "  psimp [hpc, hmem, csrsConfigured, csrsReady]", "  psimp [hpc, hmem, csrsConfigured, csrsReady, csrsBooted, csrsH]")
     t = a + b
     if front is None:
-        front = "  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock\n"
+        front = "  obtain ⟨c1, c2, c3, c4, c5, cio, cho⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock\n"
     if split is None:
         split = [BOOT_STEPS, 12, 12, 7, 1, 1]
     if state0 is None:
@@ -225,20 +242,22 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env {ALL_STEPS} s).core.pc = 0x80010000#32 ∧
     (PrivMachine.run env {ALL_STEPS} s).csrs = csrsBooted ∧
     (PrivMachine.run env {ALL_STEPS} s).core.mem = {mem_out} ∧
-    (∀ r, (PrivMachine.run env {ALL_STEPS} s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
+    (∀ r, (PrivMachine.run env {ALL_STEPS} s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) ∧
+    (PrivMachine.run env {ALL_STEPS} s).io = s.io ∧ (PrivMachine.run env {ALL_STEPS} s).host = s.host := by
 {front}  have hC0 : Cleared 0 ({state0}) := by
     intro r hr
     have : r = 0 := by bv_omega
     subst this
     simp
-  obtain ⟨a1, a2, a3, a4, a5, a6⟩ := monitor_launch_1 env {m1} _ {hw1} c2 c1 c3 c4 c5 hC0
-  obtain ⟨b1, b2, b3, b4, b5, b6⟩ := monitor_launch_2 env {m1} _ {hw1} a2 a1 a3 a4 a5 a6
-  obtain ⟨e1, e2, e3, e4, e5, e6⟩ := monitor_launch_3 env {m1} _ {hw1} b2 b1 b3 b4 b5 b6
-  obtain ⟨g1, g2, g3, g4, g5, g6⟩ := monitor_launch_4 env {m1} _ {hw1} e2 e1 e3 e4 e5
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hb, h13⟩ :=
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := monitor_launch_1 env {m1} _ {hw1} c2 c1 c3 c4 c5 hC0
+  obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ := monitor_launch_2 env {m1} _ {hw1} a2 a1 a3 a4 a5 a6
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8⟩ := monitor_launch_3 env {m1} _ {hw1} b2 b1 b3 b4 b5 b6
+  obtain ⟨g1, g2, g3, g4, g5, g6, g7, g8⟩ := monitor_launch_4 env {m1} _ {hw1} e2 e1 e3 e4 e5
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hb, h13, h14, h15⟩ :=
     monitor_launch_5 env {m1} _ {hw1} g2 g1 g3 g4 g5
   rw [show {ALL_STEPS} = {sums} from rfl, {adds}]
-  refine ⟨⟨h4, h3, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, h1, hb, h2, ?_⟩
+  refine ⟨⟨h4, h3, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, h1, hb, h2, ?_, by rw [h14, g7, e7, b7, a7, cio],
+    by rw [h15, g8, e8, b8, a8, cho]⟩
   · rw [h5]; decide
   · rw [h5]; decide
   · rw [h5]; decide
