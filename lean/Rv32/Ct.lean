@@ -503,26 +503,33 @@ def stateAt (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Nat → Op
       | some A, some i => (transfer prog.length P k A i).bind (·.fall)
       | _, _ => none
 
-/-- Each way out of an instruction lands in what is claimed there. -/
-def succOK (len : Nat) (H : Heads) (k : Nat) (post : Post) : Bool :=
+/-- Each way out of an instruction lands in what is claimed there: an
+instruction of the program, or one of the exits `X` -- an instruction index the
+run may leave the program for, outside it or in it, where what the program
+claims stops. -/
+def succOK (len : Nat) (H : Heads) (X : List Nat) (k : Nat) (post : Post) : Bool :=
   (match post.fall with
    | some F => decide (k + 1 < len) && (match head H (k + 1) with | some B => leS F B | none => true)
    | none => true) &&
   (match post.jump with
-   | some (t, T) => decide (t < len) && (match head H t with | some B => leS T B | none => false)
+   | some (t, T) => (decide (t < len) && (match head H t with | some B => leS T B | none => false)) || X.contains t
    | none => true)
 
 /-- **The checker.** Every instruction a run can reach is accepted, and every
-way out of it lands in what is claimed there. -/
-def check (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Bool :=
+way out of it lands in what is claimed there, or at one of the exits `X`. -/
+def checkX (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (X : List Nat) : Bool :=
   decide (4 * prog.length < 0x10000) &&
   (match head H 0 with | some B => leS entry B | none => true) &&
   (List.range prog.length).all fun k =>
     match stateAt prog P H k, prog[k]? with
     | some A, some i => match transfer prog.length P k A i with
-      | some post => succOK prog.length H k post
+      | some post => succOK prog.length H X k post
       | none => false
     | _, _ => true
+
+/-- The checker with no exits: every way out of every instruction is an
+instruction of the program. -/
+def check (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Bool := checkX prog P H []
 
 /-! ## Soundness: writing a register -/
 
@@ -893,27 +900,62 @@ theorem rel_refine {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A 
     · exact h
   · exact h
 
+/-! ## Where a program runs
+
+The checker's soundness asks three things of the world a run is in: `base`
+word-aligned, the 64 KiB above it addressed without wrapping, and the
+program's own words inside the region, so that fetching one does not fault.
+`Placed` gives all three. So does a program placed partway into a larger box,
+which `Placed` -- the region exactly the 64 KiB from `base` -- does not. -/
+
+structure Hosted (env : Env) (base : Word) (len : Nat) : Prop where
+  align : base.toNat % 4 = 0
+  fit : base.toNat + 0x10000 ≤ 2^32
+  code : env.region.lo ≤ base.toNat ∧ base.toNat + 4 * len ≤ env.region.hi
+
+theorem _root_.Rv32.Placed.hosted {env : Env} {base : Word} (hp : Placed env base) {len : Nat} (hlen : 4 * len ≤ 0x10000) :
+    Hosted env base len :=
+  ⟨hp.align, hp.fit, by rw [hp.region]; exact ⟨Nat.le_refl _, Nat.add_le_add_left hlen _⟩⟩
+
+theorem Hosted.fetch_ok {env : Env} {base : Word} {len : Nat} (hh : Hosted env base len) {k : Nat}
+    (hk : k < len) (hlen : 4 * len < 0x10000) : env.region.ok (base + BitVec.ofNat 32 (4 * k)) 4 := by
+  have := hh.code
+  simp only [Region.ok]
+  rw [toNat_off hh.fit _ (by omega)]
+  omega
+
 /-! ## Soundness: the checker's verdict, one instruction at a time -/
 
+/-- Two runs at one accepted instruction, related as the checker claims there. -/
+def AtIn (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (s1 s2 : Machine) : Prop :=
+  ∃ k A, k < prog.length ∧ stateAt prog P H k = some A ∧
+    s1.pc = base + BitVec.ofNat 32 (4 * k) ∧ s2.pc = base + BitVec.ofNat 32 (4 * k) ∧ Rel base prog P A s1 s2
+
+/-- Two runs at one of the exits, related as the jump there left them. -/
+def AtExit (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (X : List Nat) (s1 s2 : Machine) : Prop :=
+  ∃ t ∈ X, ∃ T, s1.pc = base + BitVec.ofNat 32 (4 * t) ∧ s2.pc = base + BitVec.ofNat 32 (4 * t) ∧
+    Rel base prog P T s1 s2
+
 /-- Two runs that step together: on to related states at the same
-instruction, or halted with the same code, or faulted the same way. -/
-def Lock (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Outcome → Outcome → Prop
-  | .running s1, .running s2 => ∃ k A, k < prog.length ∧ stateAt prog P H k = some A ∧
-      s1.pc = base + BitVec.ofNat 32 (4 * k) ∧ s2.pc = base + BitVec.ofNat 32 (4 * k) ∧ Rel base prog P A s1 s2
+instruction, or at the same exit, or halted with the same code, or faulted the
+same way. -/
+def Lock (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (X : List Nat) :
+    Outcome → Outcome → Prop
+  | .running s1, .running s2 => AtIn base prog P H s1 s2 ∨ AtExit base prog P X s1 s2
   | .halted c1 _, .halted c2 _ => c1 = c2
   | .fault f1 _, .fault f2 _ => f1 = f2
   | _, _ => False
 
-theorem check_len {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true) :
+theorem check_len {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) :
     4 * prog.length < 0x10000 := by
-  unfold check at hc
+  unfold checkX at hc
   simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
   exact hc.1.1
 
-theorem check_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true)
+theorem check_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true)
     {k : Nat} (hk : k < prog.length) {A : AState} (hA : stateAt prog P H k = some A) :
-    ∃ post, transfer prog.length P k A prog[k] = some post ∧ succOK prog.length H k post = true := by
-  unfold check at hc
+    ∃ post, transfer prog.length P k A prog[k] = some post ∧ succOK prog.length H X k post = true := by
+  unfold checkX at hc
   simp only [Bool.and_eq_true, List.all_eq_true, List.mem_range] at hc
   have := hc.2 k hk
   rw [hA, List.getElem?_eq_getElem hk] at this
@@ -922,9 +964,9 @@ theorem check_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} (hc : c
   · rename_i post hpost; exact ⟨post, hpost, this⟩
   · cases this
 
-theorem check_entry {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true) :
+theorem check_entry {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) :
     ∃ B, stateAt prog P H 0 = some B ∧ ∀ base s1 s2, Rel base prog P entry s1 s2 → Rel base prog P B s1 s2 := by
-  unfold check at hc
+  unfold checkX at hc
   simp only [Bool.and_eq_true] at hc
   have h0 := hc.1.2
   unfold stateAt
@@ -941,9 +983,9 @@ theorem stateAt_head {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {t 
 
 /-- Falling through: the next instruction exists, and what holds after this
 one holds of what is claimed there. -/
-theorem succ_fall {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {k : Nat} (hk : k < prog.length)
+theorem succ_fall {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} {k : Nat} (hk : k < prog.length)
     {A : AState} (hA : stateAt prog P H k = some A) {post : Post}
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {F : AState} (hF : post.fall = some F) :
     k + 1 < prog.length ∧ ∃ B, stateAt prog P H (k + 1) = some B ∧
       ∀ base s1 s2, Rel base prog P F s1 s2 → Rel base prog P B s1 s2 := by
@@ -962,20 +1004,23 @@ theorem succ_fall {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {k : N
 
 /-- Jumping: the target exists, is a head, and what holds after this
 instruction holds of what is claimed there. -/
-theorem succ_jump {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {k : Nat}
-    {post : Post} (hs : succOK prog.length H k post = true) {t : Nat} {T : AState} (hT : post.jump = some (t, T)) :
-    t < prog.length ∧ ∃ B, stateAt prog P H t = some B ∧
-      ∀ base s1 s2, Rel base prog P T s1 s2 → Rel base prog P B s1 s2 := by
+theorem succ_jump {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} {k : Nat}
+    {post : Post} (hs : succOK prog.length H X k post = true) {t : Nat} {T : AState} (hT : post.jump = some (t, T)) :
+    (t < prog.length ∧ ∃ B, stateAt prog P H t = some B ∧
+      ∀ base s1 s2, Rel base prog P T s1 s2 → Rel base prog P B s1 s2) ∨ t ∈ X := by
   unfold succOK at hs
   rw [hT] at hs
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at hs
-  refine ⟨hs.2.1, ?_⟩
-  have h2 := hs.2.2
-  cases hh : head H t with
-  | some B =>
-    rw [hh] at h2
-    exact ⟨B, stateAt_head hh, fun _ _ _ h => rel_mono h2 h⟩
-  | none => rw [hh] at h2; cases h2
+  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq] at hs
+  rcases hs.2 with ⟨h1, h2⟩ | hx
+  · left
+    refine ⟨h1, ?_⟩
+    cases hh : head H t with
+    | some B =>
+      rw [hh] at h2
+      exact ⟨B, stateAt_head hh, fun _ _ _ h => rel_mono h2 h⟩
+    | none => rw [hh] at h2; cases h2
+  · right
+    simpa using hx
 
 /-! ## Soundness: what each kind of instruction computes -/
 
@@ -1115,24 +1160,25 @@ theorem rel_mem {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A : A
   ⟨h.regs, hm, hc1, hc2⟩
 
 theorem lock_fall {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {prog : List Instr}
-    {P : List (Nat × Nat)} {H : Heads} (hlen : 4 * prog.length < 0x10000) {k : Nat} (hk : k < prog.length)
+    {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hlen : 4 * prog.length < 0x10000) {k : Nat} (hk : k < prog.length)
     {A : AState} (hA : stateAt prog P H k = some A) {post : Post}
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {F : AState} (hF : post.fall = some F) {s1 s2 : Machine} (hr : Rel base prog P F s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k) + 4) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k) + 4) :
-    Lock base prog P H (.running s1) (.running s2) := by
+    Lock base prog P H X (.running s1) (.running s2) := by
   obtain ⟨hk1, B, hB, hFB⟩ := succ_fall hk hA htr hs hF
-  refine ⟨k + 1, B, hk1, hB, ?_, ?_, hFB base s1 s2 hr⟩
+  refine Or.inl ⟨k + 1, B, hk1, hB, ?_, ?_, hFB base s1 s2 hr⟩
   · rw [hp1]; exact pc_next hfit k (by omega)
   · rw [hp2]; exact pc_next hfit k (by omega)
 
-theorem lock_jump {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {k : Nat}
-    {post : Post} (hs : succOK prog.length H k post = true) {t : Nat} {T : AState}
+theorem lock_jump {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} {k : Nat}
+    {post : Post} (hs : succOK prog.length H X k post = true) {t : Nat} {T : AState}
     (hT : post.jump = some (t, T)) {s1 s2 : Machine} (hr : Rel base prog P T s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * t)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * t)) :
-    Lock base prog P H (.running s1) (.running s2) := by
-  obtain ⟨ht, B, hB, hTB⟩ := succ_jump (P := P) hs hT
-  exact ⟨t, B, ht, hB, hp1, hp2, hTB base s1 s2 hr⟩
+    Lock base prog P H X (.running s1) (.running s2) := by
+  rcases succ_jump (P := P) hs hT with ⟨ht, B, hB, hTB⟩ | hx
+  · exact Or.inl ⟨t, B, ht, hB, hp1, hp2, hTB base s1 s2 hr⟩
+  · exact Or.inr ⟨t, hx, T, hp1, hp2, hr⟩
 
 /-- A branch's target, as an offset: four times the instruction it names. -/
 theorem br_target (base : Word) (k : Nat) (off : BitVec 12) (h0 : 0 ≤ 4 * (k : Int) + boff off)
@@ -1154,18 +1200,18 @@ Each lemma: the two runs at instruction `k` in a related state, the checker
 having accepted it; the two steps lock. -/
 
 section
-variable {env : Env} {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : Heads}
+variable {env : Env} {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat}
   {k : Nat} {A : AState} {s1 s2 : Machine} {post : Post}
 
 theorem lock_reg (hfit : base.toNat + 0x10000 ≤ 2^32) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     (rd : Reg) (v : AV) (st : Option Int) (hF : post.fall = some (write A rd.toNat v st)) (w1 w2 : Word)
     (hv : valOK base A s1 v w1 w2) (hself : ∀ k c, v ≠ .aff rd.toNat k c)
     (hst : ∀ d, st = some d → ∃ x x' : Nat, idxOf base (get A rd.toNat) (s1.reg rd) = some x ∧
         idxOf base v w1 = some x' ∧ (x' : Int) = x + d) :
-    Lock base prog P H (.running (s1.setReg rd w1).next) (.running (s2.setReg rd w2).next) :=
+    Lock base prog P H X (.running (s1.setReg rd w1).next) (.running (s2.setReg rd w2).next) :=
   lock_fall hfit hlen hk hA htr hs hF (rel_write h rd v st w1 w2 hv hself hst)
     (by simp [hp1]) (by simp [hp2])
 
@@ -1188,12 +1234,12 @@ theorem opAV_self (op : ROp) (v1 v2 : AV) (rd : Nat) : ∀ k c, opAV op v1 v2 �
   · split at e <;> cases e
   · split at e <;> cases e
 
-theorem lock_opi (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_opi (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {op : IOp} {rd r1 : Reg} {imm : BitVec 12} (hi : prog[k] = .opi op rd r1 imm) :
-    Lock base prog P H (exec env s1 (.opi op rd r1 imm)) (exec env s2 (.opi op rd r1 imm)) := by
+    Lock base prog P H X (exec env s1 (.opi op rd r1 imm)) (exec env s2 (.opi op rd r1 imm)) := by
   have ht := htr
   rw [hi] at ht
   simp only [exec]
@@ -1219,12 +1265,12 @@ theorem lock_opi (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
       (pub_ok (h.regs r1) (fun x => aluI _ x (BitVec.signExtend 32 imm)))
       (fun _ _ e => by split at e <;> cases e) (fun _ e => by cases e)
 
-theorem lock_sh (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_sh (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {op : ShOp} {rd r1 : Reg} {sa : BitVec 5} (hi : prog[k] = .sh op rd r1 sa) :
-    Lock base prog P H (exec env s1 (.sh op rd r1 sa)) (exec env s2 (.sh op rd r1 sa)) := by
+    Lock base prog P H X (exec env s1 (.sh op rd r1 sa)) (exec env s2 (.sh op rd r1 sa)) := by
   have ht := htr
   rw [hi] at ht
   simp only [transfer, Option.some.injEq] at ht
@@ -1233,12 +1279,12 @@ theorem lock_sh (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
     (pub_ok (h.regs r1) (fun x => shiftI op x sa.toNat))
     (fun _ _ e => by split at e <;> cases e) (fun _ e => by cases e)
 
-theorem lock_op (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_op (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {op : ROp} {rd r1 r2 : Reg} (hi : prog[k] = .op op rd r1 r2) :
-    Lock base prog P H (exec env s1 (.op op rd r1 r2)) (exec env s2 (.op op rd r1 r2)) := by
+    Lock base prog P H X (exec env s1 (.op op rd r1 r2)) (exec env s2 (.op op rd r1 r2)) := by
   have ht := htr
   rw [hi] at ht
   simp only [transfer, Option.some.injEq] at ht
@@ -1246,12 +1292,12 @@ theorem lock_op (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
   exact lock_reg hp.fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _ (op_ok op (h.regs r1) (h.regs r2))
     (opAV_self _ _ _ _) (fun _ e => by cases e)
 
-theorem lock_lui (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_lui (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {rd : Reg} {imm : BitVec 20} (hi : prog[k] = .lui rd imm) :
-    Lock base prog P H (exec env s1 (.lui rd imm)) (exec env s2 (.lui rd imm)) := by
+    Lock base prog P H X (exec env s1 (.lui rd imm)) (exec env s2 (.lui rd imm)) := by
   have ht := htr
   rw [hi] at ht
   simp only [transfer, Option.some.injEq] at ht
@@ -1259,12 +1305,12 @@ theorem lock_lui (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
   exact lock_reg hp.fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _ ⟨rfl, Nat.le_refl _, Nat.le_refl _⟩
     (fun _ _ e => by cases e) (fun _ e => by cases e)
 
-theorem lock_auipc (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_auipc (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {rd : Reg} {imm : BitVec 20} (hi : prog[k] = .auipc rd imm) :
-    Lock base prog P H (exec env s1 (.auipc rd imm)) (exec env s2 (.auipc rd imm)) := by
+    Lock base prog P H X (exec env s1 (.auipc rd imm)) (exec env s2 (.auipc rd imm)) := by
   have ht := htr
   rw [hi] at ht
   simp only [transfer, Option.some.injEq] at ht
@@ -1281,12 +1327,12 @@ theorem lock_auipc (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
   · show _ = _
     rw [hp1, hp2]
 
-theorem lock_br (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_br (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {op : BrOp} {r1 r2 : Reg} {off : BitVec 12} (hi : prog[k] = .br op r1 r2 off) :
-    Lock base prog P H (exec env s1 (.br op r1 r2 off)) (exec env s2 (.br op r1 r2 off)) := by
+    Lock base prog P H X (exec env s1 (.br op r1 r2 off)) (exec env s2 (.br op r1 r2 off)) := by
   have ht := htr
   rw [hi] at ht
   simp only [transfer] at ht
@@ -1344,12 +1390,12 @@ theorem pub_inP {len : Nat} {P : List (Nat × Nat)} {lo hi : Nat} (h : pubRange 
   · left; omega
   · right; exact ⟨ab, hab, by omega, by omega⟩
 
-theorem lock_ld (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_ld (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {op : LdOp} {rd r1 : Reg} {imm : BitVec 12} (hi : prog[k] = .ld op rd r1 imm) :
-    Lock base prog P H (exec env s1 (.ld op rd r1 imm)) (exec env s2 (.ld op rd r1 imm)) := by
+    Lock base prog P H X (exec env s1 (.ld op rd r1 imm)) (exec env s2 (.ld op rd r1 imm)) := by
   have fit := hp.fit
   have ht := htr
   rw [hi] at ht
@@ -1399,12 +1445,12 @@ theorem apart_out {len : Nat} {P : List (Nat × Nat)} {lo hi o n o' : Nat} (hap 
     simp only [Bool.or_eq_true, decide_eq_true_eq] at this
     omega
 
-theorem lock_st (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_st (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {op : StOp} {r1 r2 : Reg} {imm : BitVec 12} (hi : prog[k] = .st op r1 r2 imm) :
-    Lock base prog P H (exec env s1 (.st op r1 r2 imm)) (exec env s2 (.st op r1 r2 imm)) := by
+    Lock base prog P H X (exec env s1 (.st op r1 r2 imm)) (exec env s2 (.st op r1 r2 imm)) := by
   have fit := hp.fit
   have ht := htr
   rw [hi] at ht
@@ -1442,12 +1488,12 @@ theorem lock_st (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
       writeLE_out fit _ _ hsz.2 (by omega) (by omega) ho' hx]
     exact h.mem o' ho' hin
 
-theorem lock_ecall (hp : Placed env base) (hlen : 4 * prog.length < 0x10000)
+theorem lock_ecall (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
-    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H k post = true)
+    (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     (hi : prog[k] = .ecall) :
-    Lock base prog P H (exec env s1 .ecall) (exec env s2 .ecall) := by
+    Lock base prog P H X (exec env s1 .ecall) (exec env s2 .ecall) := by
   have fit := hp.fit
   have ht := htr
   rw [hi] at ht
@@ -1508,18 +1554,18 @@ end
 
 /-- **One step.** Two related runs at an instruction the checker accepted take
 it together. -/
-theorem step_lock {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr} {P : List (Nat × Nat)}
-    {H : Heads} (hc : check prog P H = true) {k : Nat} (hk : k < prog.length) {A : AState}
+theorem step_lock {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
+    {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) {k : Nat} (hk : k < prog.length) {A : AState}
     (hA : stateAt prog P H k = some A) {s1 s2 : Machine} (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k)) :
-    Lock base prog P H (step env s1) (step env s2) := by
+    Lock base prog P H X (step env s1) (step env s2) := by
   have fit := hp.fit
   have hlen := check_len hc
   obtain ⟨post, htr, hs⟩ := check_at hc hk hA
   rw [step_of_code hk h.code1 hp1 (by rw [hp1]; exact align_off hp.align fit _ (by omega) (by omega))
-      (by rw [hp1]; exact ok_off hp _ 4 (by omega) (by omega)),
+      (by rw [hp1]; exact hp.fetch_ok hk hlen),
     step_of_code hk h.code2 hp2 (by rw [hp2]; exact align_off hp.align fit _ (by omega) (by omega))
-      (by rw [hp2]; exact ok_off hp _ 4 (by omega) (by omega))]
+      (by rw [hp2]; exact hp.fetch_ok hk hlen)]
   cases hi : prog[k] with
   | lui rd imm => exact lock_lui hp hlen hk hA h hp1 hp2 htr hs hi
   | auipc rd imm => exact lock_auipc hp hlen hk hA h hp1 hp2 htr hs hi
@@ -1563,8 +1609,8 @@ def Same : Outcome → Outcome → Prop
   | _, _ => False
 
 /-- One step, observed the same in both runs. -/
-theorem obs_eq {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr} {P : List (Nat × Nat)}
-    {H : Heads} (hc : check prog P H = true) {k : Nat} (hk : k < prog.length) {A : AState}
+theorem obs_eq {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
+    {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) {k : Nat} (hk : k < prog.length) {A : AState}
     (hA : stateAt prog P H k = some A) {s1 s2 : Machine} (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k)) :
     obs env s1 = obs env s2 := by
@@ -1573,9 +1619,9 @@ theorem obs_eq {env : Env} {base : Word} (hp : Placed env base) {prog : List Ins
   obtain ⟨post, htr, -⟩ := check_at hc hk hA
   unfold obs
   rw [fetch_of_code hk h.code1 hp1 (by rw [hp1]; exact align_off hp.align fit _ (by omega) (by omega))
-      (by rw [hp1]; exact ok_off hp _ 4 (by omega) (by omega)),
+      (by rw [hp1]; exact hp.fetch_ok hk hlen),
     fetch_of_code hk h.code2 hp2 (by rw [hp2]; exact align_off hp.align fit _ (by omega) (by omega))
-      (by rw [hp2]; exact ok_off hp _ 4 (by omega) (by omega))]
+      (by rw [hp2]; exact hp.fetch_ok hk hlen)]
   simp only
   rw [hp1, hp2]
   congr 1
@@ -1620,7 +1666,7 @@ theorem obs_eq {env : Env} {base : Word} (hp : Placed env base) {prog : List Ins
 
 /-- **Every step.** From related states at an accepted instruction, `n` steps
 are observed the same in both runs and end the same way. -/
-theorem run_lock {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr} {P : List (Nat × Nat)}
+theorem run_lock {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
     {H : Heads} (hc : check prog P H = true) :
     ∀ n k A s1 s2, k < prog.length → stateAt prog P H k = some A → Rel base prog P A s1 s2 →
       s1.pc = base + BitVec.ofNat 32 (4 * k) → s2.pc = base + BitVec.ofNat 32 (4 * k) →
@@ -1635,9 +1681,10 @@ theorem run_lock {env : Env} {base : Word} (hp : Placed env base) {prog : List I
     simp only [trace, run]
     revert hl
     cases step env s1 <;> cases step env s2 <;> simp only [Lock] <;> intro hl
-    · obtain ⟨k', A', hk', hA', q1, q2, h'⟩ := hl
-      obtain ⟨t, r⟩ := ih k' A' _ _ hk' hA' h' q1 q2
-      exact ⟨by rw [ho, t], r⟩
+    · rcases hl with ⟨k', A', hk', hA', q1, q2, h'⟩ | ⟨t, ht, -⟩
+      · obtain ⟨t, r⟩ := ih k' A' _ _ hk' hA' h' q1 q2
+        exact ⟨by rw [ho, t], r⟩
+      · simp at ht
     all_goals first | exact hl.elim | exact ⟨by rw [ho], hl⟩
 
 /-! ## The theorem -/
@@ -1676,7 +1723,7 @@ theorem constant_time {env : Env} {base : Word} (hp : Placed env base) {prog : L
     · rw [get_entry r.toNat hr0 r.isLt]; exact hregs r
   obtain ⟨B, hB, hEB⟩ := check_entry hc
   intro n
-  exact run_lock hp hc n 0 B s1 s2 hne hB (hEB base s1 s2 h0) (by simp [hpc1]) (by simp [hpc2])
+  exact run_lock (hp.hosted (by omega)) hc n 0 B s1 s2 hne hB (hEB base s1 s2 h0) (by simp [hpc1]) (by simp [hpc2])
 
 /-- **From the state the shell builds**: two images whose bytes agree in the
 program and in `P`. -/
@@ -1708,22 +1755,23 @@ but HALT. -/
 /-- **Every step, still locked.** From related states at an accepted
 instruction, after any `n` steps the two runs are both running, related, at one
 accepted instruction; or they ended the same way. -/
-theorem lock_run {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr} {P : List (Nat × Nat)}
+theorem lock_run {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
     {H : Heads} (hc : check prog P H = true) :
     ∀ n k A s1 s2, k < prog.length → stateAt prog P H k = some A → Rel base prog P A s1 s2 →
       s1.pc = base + BitVec.ofNat 32 (4 * k) → s2.pc = base + BitVec.ofNat 32 (4 * k) →
-      Lock base prog P H (run env n s1) (run env n s2) := by
+      Lock base prog P H [] (run env n s1) (run env n s2) := by
   intro n
   induction n with
-  | zero => intro k A s1 s2 hk hA h hp1 hp2; exact ⟨k, A, hk, hA, hp1, hp2, h⟩
+  | zero => intro k A s1 s2 hk hA h hp1 hp2; exact Or.inl ⟨k, A, hk, hA, hp1, hp2, h⟩
   | succ n ih =>
     intro k A s1 s2 hk hA h hp1 hp2
     have hl := step_lock (env := env) hp hc hk hA h hp1 hp2
     simp only [run]
     revert hl
     cases step env s1 <;> cases step env s2 <;> simp only [Lock] <;> intro hl
-    · obtain ⟨k', A', hk', hA', q1, q2, h'⟩ := hl
-      exact ih k' A' _ _ hk' hA' h' q1 q2
+    · rcases hl with ⟨k', A', hk', hA', q1, q2, h'⟩ | ⟨t, ht, -⟩
+      · exact ih k' A' _ _ hk' hA' h' q1 q2
+      · simp at ht
     all_goals first | exact hl.elim | exact hl
 
 /-- Every `ecall` the checker reaches, it reaches knowing `t0` is 1. -/
@@ -1747,7 +1795,7 @@ theorem haltsOnly_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} (hq
 in memory: every state the run reaches while it is still running is at one of
 the program's instructions, the program is still in memory, and at an `ecall`
 `t0` is 1. -/
-theorem ecalls_halt {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr}
+theorem ecalls_halt {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length)
     {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true) (hq : haltsOnly prog P H = true)
     (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog) :
     ∀ n s', run env n s = .running s' → ∃ k, ∃ hk : k < prog.length,
@@ -1764,7 +1812,8 @@ theorem ecalls_halt {env : Env} {base : Word} (hp : Placed env base) {prog : Lis
   obtain ⟨B, hB, hEB⟩ := check_entry hc
   have hl := lock_run (env := env) hp hc n 0 B s s hne hB (hEB base s s h0) (by simp [hpc]) (by simp [hpc])
   rw [hr] at hl
-  obtain ⟨k, A, hk, hA, q1, -, h'⟩ := hl
+  rcases hl with ⟨k, A, hk, hA, q1, -, h'⟩ | ⟨t, ht, -⟩
+  case inr => simp at ht
   refine ⟨k, hk, q1, h'.code1, fun hi => ?_⟩
   have hT := h'.regs T0
   unfold regOK valOK at hT

@@ -1,0 +1,16 @@
+# exp248 — wrong claims and a wrong checker. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: a window a word short, a loop head that admits one sample too many, a way out somewhere
+# else or none at all, an exit that lands a word on. Then the checker itself made unsound -- a jump to any target
+# let through, a store at an unknown address let through, a store window that is not checked -- each of which the
+# soundness proof must catch.
+window_word_short|claim: the front reads only up to +0x3ffc, one word short of the samples' end|s/^def samples : Nat × Nat := (0x3000, 0x4000)$/def samples : Nat × Nat := (0x3000, 0x3ffc)/
+head_count_zero|claim: at the loop's head 0 to 1024 samples are left, so the pointer may be one past the last|s/(19, .num 1 1024)\])\]$/(19, .num 0 1024)])]/
+exit_elsewhere|claim: the way out is a word before SHA-256, at +0xffc|s/^def exits : List Nat := \[0x400\]$/def exits : List Nat := [0x3ff]/
+exit_undeclared|claim: the front has no way out: every jump lands in it|s/^def exits : List Nat := \[0x400\]$/def exits : List Nat := []/
+exit_word_on|claim: the run reaches SHA-256 at +0x1004|s/m.pc = base + BitVec.ofNat 32 0x1000 ∧ m.mem = s.mem ∧$/m.pc = base + BitVec.ofNat 32 0x1004 ∧ m.mem = s.mem ∧/
+jump_anywhere|the checker lets a jump to any target through, as if it were an exit|s/X\.contains t$/true/|lean/Rv32/Ct.lean
+store_unknown|the store window lets a store at an address it does not know through|/=> within ab.1 ab.2 sw$/{n;s/=> false/=> true/}|lean/Rv32/Reach.lean
+store_unchecked|the store window is not checked at all|s/=> within ab.1 ab.2 sw$/=> true/|lean/Rv32/Reach.lean
