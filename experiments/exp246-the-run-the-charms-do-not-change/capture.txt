@@ -1,0 +1,60 @@
+=== exp246 — the run the charms do not change ===
+recorded at 2026-10-25T01:19:19Z from commit a454745
+
+>>> the formal theorems, and what they rest on
+'Rv32.Priv.wx_twin_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Priv.wx_twin_run' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp246.boot_twins' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp246.trapped_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp246.payload_twins' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp246.round_same' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp246.round_exists' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp246.round_agree' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp246.both_agree' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims and wrong models: each must be refused
+slot_hypothesis_dropped    claim: any number of rounds stay the same, whether or not each exit leaves the slot zero                 refused in both_agree
+slot_claimed_same          claim: at the park the two slots hold the same bytes too                                                 refused in round_same
+trap_one_step_later        claim: under exp245's monitor the payload traps first one step later                                     refused in trapped_iff
+shrine_in_view             claim: the bytes the payload can reach include the shrine                                                refused in vis_not_shrine
+boot_heard                 claim: exp240's boot writes a word to the print port                                                     refused in monitor_boot
+pcs_same_after_trap        claim: twins' pcs are the same after every step, a trap's too, though each goes to its own trap vector   refused in wx_twin_step
+code_out_of_view           twins agree on the data and the stack, not the code: the payload fetches what they do not agree on       refused in wx_twin_step
+register_file_twins        twins share the register file, x0's slot too, which boot never writes                                    refused in wx_twin_step
+pmp_unmatched_user_passes  U-mode that matches no entry passes: the payload reaches outside the box                                 refused in umode_default_deny
+pmp_partial_match_passes   an access that straddles an entry's edge passes                                                          refused in pmpCheck_uboxed_iff
+
+>>> the two monitors on the emulator, round after round
+PASS  the slot kept: round 1 the same under the two monitors; round 2 HALTs 0x51075107 under exp240's and 0
+      under exp245's -- round 1 left the slot holding a word, and the theorem asks it not to
+PASS  the slot cleared: round 1 zeroes the slot before its HALT; both rounds the same under the two monitors,
+      round 2's box byte for byte
+PASS  200 random payloads from seed 246, two rounds each: every round 1 the same under the two monitors,
+      the slot aside; every round 2 the same when round 1 left the slot zero (180 of them); 20
+      left something in the slot, and round 2 told the monitors apart for 0 of those
+      round 1 ended: 136 HALT, 56 mcause 7, 8 mcause 5
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Equiv.lean checks, with no errors and no warnings
+PASS  all 9 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  slot_hypothesis_dropped: the proof refuses a version where claim: any number of rounds stay the same, whether or not each exit leaves the slot zero
+PASS  slot_claimed_same: the proof refuses a version where claim: at the park the two slots hold the same bytes too
+PASS  trap_one_step_later: the proof refuses a version where claim: under exp245's monitor the payload traps first one step later
+PASS  shrine_in_view: the proof refuses a version where claim: the bytes the payload can reach include the shrine
+PASS  boot_heard: the proof refuses a version where claim: exp240's boot writes a word to the print port
+PASS  pcs_same_after_trap: the proof refuses a version where claim: twins' pcs are the same after every step, a trap's too, though each goes to its own trap vector
+PASS  code_out_of_view: the proof refuses a version where twins agree on the data and the stack, not the code: the payload fetches what they do not agree on
+PASS  register_file_twins: the proof refuses a version where twins share the register file, x0's slot too, which boot never writes
+PASS  pmp_unmatched_user_passes: the proof refuses a version where U-mode that matches no entry passes: the payload reaches outside the box
+PASS  pmp_partial_match_passes: the proof refuses a version where an access that straddles an entry's edge passes
+PASS  proof/Equiv.lean is what proof/gen.py writes, from exp240's Wx.lean, exp245's Bless.lean and tail.lean
+PASS  the slot kept: round 1 the same under the two monitors; round 2 HALTs 0x51075107 under exp240's and 0
+      under exp245's -- round 1 left the slot holding a word, and the theorem asks it not to
+PASS  the slot cleared: round 1 zeroes the slot before its HALT; both rounds the same under the two monitors,
+      round 2's box byte for byte
+PASS  200 random payloads from seed 246, two rounds each: every round 1 the same under the two monitors,
+      the slot aside; every round 2 the same when round 1 left the slot zero (180 of them); 20
+      left something in the slot, and round 2 told the monitors apart for 0 of those
+      round 1 ended: 136 HALT, 56 mcause 7, 8 mcause 5

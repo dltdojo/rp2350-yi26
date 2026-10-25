@@ -378,7 +378,8 @@ theorem monitor_boot_config (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
     (PrivMachine.run env 35 s).halted = false ∧
     (PrivMachine.run env 35 s).mode = .M ∧
     (PrivMachine.run env 35 s).csrs = csrsConfigured ∧
-    (PrivMachine.run env 35 s).core.reg 5#5 = 0x80008010#32 := by
+    (PrivMachine.run env 35 s).core.reg 5#5 = 0x80008010#32 ∧
+    (PrivMachine.run env 35 s).io = s.io ∧ (PrivMachine.run env 35 s).host = s.host := by
   have sm := sm_mon env M0 hW
   have l0 := hlock 0
   have l1 := hlock 1
@@ -406,7 +407,8 @@ theorem monitor_boot_shrine (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
     (PrivMachine.run env 3 s).core.mem = writeLE s.core.mem 0x80008014#32 0x4941554b 4 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .M ∧
-    (PrivMachine.run env 3 s).csrs = csrsConfigured := by
+    (PrivMachine.run env 3 s).csrs = csrsConfigured ∧
+    (PrivMachine.run env 3 s).io = s.io ∧ (PrivMachine.run env 3 s).host = s.host := by
   obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
   have hA' : Agree M0 Mc 0x80000000 712 := hmem ▸ hA
   have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 712 →
@@ -436,14 +438,15 @@ theorem monitor_launch_1 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 12 s).halted = false ∧
     (PrivMachine.run env 12 s).mode = .M ∧
     (PrivMachine.run env 12 s).csrs = csrsConfigured ∧
-    Cleared 12 (PrivMachine.run env 12 s) := by
+    Cleared 12 (PrivMachine.run env 12 s) ∧
+    (PrivMachine.run env 12 s).io = s.io ∧ (PrivMachine.run env 12 s).host = s.host := by
   have sm := sm_mon env M0 hW
   unfold Cleared at hC
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 12 s = F := ⟨_, rfl⟩
   rw [hF]
   psimp [sm, hmem, hpc, monitorCode, hh, hm, hcs, csrsConfigured] at hF
   subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimp [hpc, hmem, csrsConfigured]
   all_goals try (intro r hr
                  have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
@@ -460,14 +463,15 @@ theorem monitor_launch_2 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 12 s).halted = false ∧
     (PrivMachine.run env 12 s).mode = .M ∧
     (PrivMachine.run env 12 s).csrs = csrsConfigured ∧
-    Cleared 24 (PrivMachine.run env 12 s) := by
+    Cleared 24 (PrivMachine.run env 12 s) ∧
+    (PrivMachine.run env 12 s).io = s.io ∧ (PrivMachine.run env 12 s).host = s.host := by
   have sm := sm_mon env M0 hW
   unfold Cleared at hC
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 12 s = F := ⟨_, rfl⟩
   rw [hF]
   psimp [sm, hmem, hpc, monitorCode, hh, hm, hcs, csrsConfigured] at hF
   subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimp [hpc, hmem, csrsConfigured]
   all_goals try (intro r hr
                  have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
@@ -484,14 +488,15 @@ theorem monitor_launch_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 7 s).halted = false ∧
     (PrivMachine.run env 7 s).mode = .M ∧
     (PrivMachine.run env 7 s).csrs = csrsConfigured ∧
-    Cleared 31 (PrivMachine.run env 7 s) := by
+    Cleared 31 (PrivMachine.run env 7 s) ∧
+    (PrivMachine.run env 7 s).io = s.io ∧ (PrivMachine.run env 7 s).host = s.host := by
   have sm := sm_mon env M0 hW
   unfold Cleared at hC
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 7 s = F := ⟨_, rfl⟩
   rw [hF]
   psimp [sm, hmem, hpc, monitorCode, hh, hm, hcs, csrsConfigured] at hF
   subst hF
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   all_goals try psimp [hpc, hmem, csrsConfigured]
   all_goals try (intro r hr
                  have hr32 : r = 0#5 ∨ r = 1#5 ∨ r = 2#5 ∨ r = 3#5 ∨ r = 4#5 ∨ r = 5#5 ∨ r = 6#5 ∨ r = 7#5 ∨ r = 8#5 ∨ r = 9#5 ∨ r = 10#5 ∨ r = 11#5 ∨ r = 12#5 ∨ r = 13#5 ∨ r = 14#5 ∨ r = 15#5 ∨ r = 16#5 ∨ r = 17#5 ∨ r = 18#5 ∨ r = 19#5 ∨ r = 20#5 ∨ r = 21#5 ∨ r = 22#5 ∨ r = 23#5 ∨ r = 24#5 ∨ r = 25#5 ∨ r = 26#5 ∨ r = 27#5 ∨ r = 28#5 ∨ r = 29#5 ∨ r = 30#5 ∨ r = 31#5 := by bv_omega
@@ -511,7 +516,8 @@ theorem monitor_launch_4 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 1 s).halted = false ∧
     (PrivMachine.run env 1 s).mode = .M ∧
     (PrivMachine.run env 1 s).csrs = csrsReady ∧
-    (∀ r, (PrivMachine.run env 1 s).core.reg r = s.core.reg r) := by
+    (∀ r, (PrivMachine.run env 1 s).core.reg r = s.core.reg r) ∧
+    (PrivMachine.run env 1 s).io = s.io ∧ (PrivMachine.run env 1 s).host = s.host := by
   have sm := sm_mon env M0 hW
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
@@ -538,7 +544,8 @@ theorem monitor_launch_5 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 1 s).csrs.mscratch = 0x80008000#32 ∧
     (PrivMachine.run env 1 s).csrs.mcountinhibit = {} ∧
     (PrivMachine.run env 1 s).csrs = csrsBooted ∧
-    (∀ r, (PrivMachine.run env 1 s).core.reg r = s.core.reg r) := by
+    (∀ r, (PrivMachine.run env 1 s).core.reg r = s.core.reg r) ∧
+    (PrivMachine.run env 1 s).io = s.io ∧ (PrivMachine.run env 1 s).host = s.host := by
   have sm := sm_mon env M0 hW
   obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
   rw [hF]
@@ -558,12 +565,15 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 71 s).core.pc = 0x80010000#32 ∧
     (PrivMachine.run env 71 s).csrs = csrsBooted ∧
     (PrivMachine.run env 71 s).core.mem = shrined M0 ∧
-    (∀ r, (PrivMachine.run env 71 s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
-  obtain ⟨b1, b2, b3, b4, b5, b6⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock henv
+    (∀ r, (PrivMachine.run env 71 s).core.reg r = if r = 2 then 0x80020000#32 else 0#32) ∧
+    (PrivMachine.run env 71 s).io = s.io ∧ (PrivMachine.run env 71 s).host = s.host := by
+  obtain ⟨b1, b2, b3, b4, b5, b6, bio, bho⟩ := monitor_boot_config env M0 s hW hmem hpc hh hm hlock henv
   have hA1 : Agree M0 (PrivMachine.run env 35 s).core.mem 0x80000000 712 := by
     rw [b2, agree_writeLE_iff _ _ (by decide) (by decide)]; exact Agree.refl _ _ _
-  obtain ⟨c1, c2, c3, c4, c5⟩ := monitor_boot_shrine env M0 _ hW hA1 b1 b3 b4 b5 b6 henv
+  obtain ⟨c1, c2, c3, c4, c5, sio, sho⟩ := monitor_boot_shrine env M0 _ hW hA1 b1 b3 b4 b5 b6 henv
   rw [b2] at c2
+  have cio := sio.trans bio
+  have cho := sho.trans bho
   have hW1 : WordsAt (shrined M0) 0x80000000#32 monitorCode :=
     WordsAt.of_agree (by rw [monitorCode_length]; decide) (by rw [monitorCode_length]; exact agree_shrined M0) hW
   have hC0 : Cleared 0 (PrivMachine.run env 3 (PrivMachine.run env 35 s)) := by
@@ -571,15 +581,16 @@ theorem monitor_boot (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     have : r = 0 := by bv_omega
     subst this
     simp
-  obtain ⟨a1, a2, a3, a4, a5, a6⟩ := monitor_launch_1 env (shrined M0) _ hW1 c2 c1 c3 c4 c5 hC0
-  obtain ⟨b1, b2, b3, b4, b5, b6⟩ := monitor_launch_2 env (shrined M0) _ hW1 a2 a1 a3 a4 a5 a6
-  obtain ⟨e1, e2, e3, e4, e5, e6⟩ := monitor_launch_3 env (shrined M0) _ hW1 b2 b1 b3 b4 b5 b6
-  obtain ⟨g1, g2, g3, g4, g5, g6⟩ := monitor_launch_4 env (shrined M0) _ hW1 e2 e1 e3 e4 e5
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hb, h13⟩ :=
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := monitor_launch_1 env (shrined M0) _ hW1 c2 c1 c3 c4 c5 hC0
+  obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ := monitor_launch_2 env (shrined M0) _ hW1 a2 a1 a3 a4 a5 a6
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8⟩ := monitor_launch_3 env (shrined M0) _ hW1 b2 b1 b3 b4 b5 b6
+  obtain ⟨g1, g2, g3, g4, g5, g6, g7, g8⟩ := monitor_launch_4 env (shrined M0) _ hW1 e2 e1 e3 e4 e5
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, hb, h13, h14, h15⟩ :=
     monitor_launch_5 env (shrined M0) _ hW1 g2 g1 g3 g4 g5
   rw [show 71 = 35 + 3 + 12 + 12 + 7 + 1 + 1 from rfl, PrivMachine.run_add, PrivMachine.run_add,
     PrivMachine.run_add, PrivMachine.run_add, PrivMachine.run_add, PrivMachine.run_add]
-  refine ⟨⟨h4, h3, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, h1, hb, h2, ?_⟩
+  refine ⟨⟨h4, h3, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, h1, hb, h2, ?_, by rw [h14, g7, e7, b7, a7, cio],
+    by rw [h15, g8, e8, b8, a8, cho]⟩
   · rw [h5]; decide
   · rw [h5]; decide
   · rw [h5]; decide
@@ -3178,7 +3189,7 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
         CodeSame M0 (parkedAfter env (payloadAt env s k)).core.mem ∧
         SlotFrame (payloadAt env s k).core.mem (parkedAfter env (payloadAt env s k)).core.mem ∧
         (parkedAfter env (payloadAt env s k)).io = (payloadAt env s k).io ++ trapIo (payloadAt env s k))) := by
-  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ := monitor_boot env M0 s hW hmem hpc hh hm hlock henv
+  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1, -, -⟩ := monitor_boot env M0 s hW hmem hpc hh hm hlock henv
   have hA1 := agree_shrined M0
   have hW1 : WordsAt (shrined M0) 0x80000000#32 monitorCode :=
     WordsAt.of_agree (by rw [monitorCode_length]; decide) (by rw [monitorCode_length]; exact hA1) hW
@@ -3262,7 +3273,7 @@ theorem monitor_reentry (env : Rv32.Env) (C : Word → Byte) (p : PrivMachine) (
     (PrivMachine.run env 71 (resetOf p)).core.pc = 0x80010000#32 ∧
     (PrivMachine.run env 71 (resetOf p)).core.mem = shrined p.core.mem ∧
     (∀ r, (PrivMachine.run env 71 (resetOf p)).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
-  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ :=
+  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1, -, -⟩ :=
     monitor_boot env p.core.mem (resetOf p) hR.words rfl rfl rfl rfl hR.unlocked hR.region
   exact ⟨hbox, hcsb, hpc1, hmem1, hreg1⟩
 

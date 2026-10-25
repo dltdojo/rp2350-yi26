@@ -742,14 +742,8 @@ theorem dist_offs {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {o o' : N
   omega
 
 theorem readLE_congr {m1 m2 : Word → Byte} {a : Word} :
-    ∀ n, (∀ d < n, m1 (a + BitVec.ofNat 32 d) = m2 (a + BitVec.ofNat 32 d)) → readLE m1 a n = readLE m2 a n
-  | 0, _ => rfl
-  | n + 1, h => by
-    simp only [readLE]
-    have h0 := h 0 (by omega)
-    simp only [show a + BitVec.ofNat 32 0 = a by simp] at h0
-    rw [h0, readLE_congr (m1 := m1) (m2 := m2) (a := a + 1) n
-      (fun d hd => by rw [add_one_ofNat]; exact h (d + 1) (by omega))]
+    ∀ n, (∀ d < n, m1 (a + BitVec.ofNat 32 d) = m2 (a + BitVec.ofNat 32 d)) → readLE m1 a n = readLE m2 a n :=
+  Rv32.readLE_congr
 
 /-- A store of `n` bytes at offset `o` leaves every other offset alone. -/
 theorem writeLE_out {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (m : Word → Byte) {o n o' : Nat}

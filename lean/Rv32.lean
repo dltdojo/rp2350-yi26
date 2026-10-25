@@ -27,3 +27,4 @@ import Rv32.Refinement
 import Rv32.PrivRun
 import Rv32.Sandbox
 import Rv32.WxBox
+import Rv32.WxTwin

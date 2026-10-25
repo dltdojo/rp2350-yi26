@@ -62,7 +62,7 @@ theorem monitor_end_to_end (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachin
         CodeSame M0 (parkedAfter env (payloadAt env s k)).core.mem ∧
         FrameSP (payloadAt env s k).core.mem (parkedAfter env (payloadAt env s k)).core.mem ∧
         (parkedAfter env (payloadAt env s k)).io = (payloadAt env s k).io ++ trapIo (payloadAt env s k))) := by
-  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ := monitor_boot env M0 s hW hmem hpc hh hm hlock
+  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1, -, -⟩ := monitor_boot env M0 s hW hmem hpc hh hm hlock
   obtain ⟨k, hkn, hfroz, hagree, hres⟩ := payload_runs env M0 _ hW hmem1 henv hcsb hbox n
   refine ⟨k, hkn, ?_⟩
   unfold payloadAt parkedAfter
@@ -139,7 +139,7 @@ theorem monitor_reentry (env : Rv32.Env) (C : Word → Byte) (p : PrivMachine) (
     (PrivMachine.run env 61 (resetOf p)).core.pc = 0x80010000#32 ∧
     (PrivMachine.run env 61 (resetOf p)).core.mem = p.core.mem ∧
     (∀ r, (PrivMachine.run env 61 (resetOf p)).core.reg r = if r = 2 then 0x80020000#32 else 0#32) := by
-  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1⟩ :=
+  obtain ⟨hbox, hpc1, hcsb, hmem1, hreg1, -, -⟩ :=
     monitor_boot env p.core.mem (resetOf p) hR.words rfl rfl rfl rfl hR.unlocked
   exact ⟨hbox, hcsb, hpc1, hmem1, hreg1⟩
 

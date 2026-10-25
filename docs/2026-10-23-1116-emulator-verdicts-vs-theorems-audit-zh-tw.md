@@ -28,7 +28,7 @@
 | G1、G2、G7 | **已關閉。** `lean/Rv32/Priv.lean` 把 M-mode 對埠的字組寫入依序記在 `io`；exp236、exp238、exp239、exp240 的定理都陳述 host 聽到的字組（`faultIo`、`haltIo`、`trapIo`、`callIo`），報告標籤、結束碼送錯埠的突變現在都被 Lean 拒絕 |
 | G6 | **已關閉。** 埠的讀取回傳 `host io a`，一個定理不加限制的函數；exp238 的 monitor 在讀回答案之後多兩個字，答案不是 0 或 1 就走 fault（`monitor_checksig_bad_answer`），monitor 因此成為 202 字。模擬器上有四種無效回答的攻擊情境與兩個對應的錯誤 monitor |
 | G3 | **已關閉，方向與原建議相反。** 查了 Hazard3 原始碼（固定的 commit `8af9929`）：`hdl/hazard3_csr.v` 的 `MTVAL` 分支註明「Hardwired to 0」，`doc/sections/csr.adoc` 也寫「Hardwired to 0.」；exp202 README 早已記下「Hazard3 writes zero on every fault here」。錯的是模擬器，不是模型。現在模型拿掉 `mtval` 欄位、讀出 0、寫入丟棄；模擬器也一樣，出錯位址只留在它自己的 `traps` 紀錄裡，`check_fault` 比對的是那份紀錄。exp240 開機的 `csrw mtval, zero` 因此是什麼都不做的一個字，`mtval_kept` 突變體被 Lean 接受是對的，已移除。exp237 的 fixture 裡兩個 fault 的 `mtval` 從位址變成 0，這才是晶片會印的值 |
-| G4、G5 | 未處理，不在第二步 |
+| G4、G5 | 未處理。第四步先做了兩個 monitor 之間的等價（exp246，exp240 與 exp245），G5（kernel 與 monitor 的接縫）是下一個實驗 |
 
 ## 一、範圍與方法
 
