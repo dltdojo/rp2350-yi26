@@ -27,10 +27,11 @@ open Rv32 Rv32.Refinement
 def WxVis (cLo cHi dLo dHi kLo kHi : Nat) (x : Word) : Prop :=
   (cLo ≤ x.toNat ∧ x.toNat < cHi) ∨ (dLo ≤ x.toNat ∧ x.toNat < dHi) ∨ (kLo ≤ x.toNat ∧ x.toNat < kHi)
 
-/-- What of two machines a payload's run reads or moves, the same in both, `pc` aside: the registers, the bytes of `V`,
+/-- What of two machines a payload's run reads or moves, the same in both, `pc` aside: the registers as they read --
+    `x0` reads 0 whatever its slot holds, which boot never writes -- the bytes of `V`,
     privilege, the CSRs a step or a trap reads or writes but the trap vector and the PMP, and the host and its events. -/
 structure Twin (V : Word → Prop) (s t : PrivMachine) : Prop where
-  regs     : s.core.regs = t.core.regs
+  regs     : ∀ r, s.core.reg r = t.core.reg r
   mem      : ∀ x, V x → s.core.mem x = t.core.mem x
   mode     : s.mode = t.mode
   halted   : s.halted = t.halted
@@ -57,100 +58,60 @@ theorem wx_pmp_same {s t : PrivMachine} (hs : WXBoxed s cLo cHi dLo dHi kLo kHi)
     is not an `ecall` the same way: both running, with the same `pc` and registers, every byte that agreed agreeing
     still; or both faulting. -/
 theorem exec_twin {env : Rv32.Env} {s t : Rv32.Machine} {i : Instr} (hi : i ≠ .ecall)
-    (hpc : s.pc = t.pc) (hreg : s.regs = t.regs)
+    (hpc : s.pc = t.pc) (hr : ∀ r, s.reg r = t.reg r)
     (hld : ∀ op rd rs1 imm, i = .ld op rd rs1 imm →
       readLE s.mem (s.reg rs1 + imm.signExtend 32) op.size = readLE t.mem (s.reg rs1 + imm.signExtend 32) op.size) :
-    (∃ c d, Rv32.exec env s i = .running c ∧ Rv32.exec env t i = .running d ∧ c.pc = d.pc ∧ c.regs = d.regs ∧
+    (∃ c d, Rv32.exec env s i = .running c ∧ Rv32.exec env t i = .running d ∧ c.pc = d.pc ∧ (∀ r, c.reg r = d.reg r) ∧
       ∀ x, s.mem x = t.mem x → c.mem x = d.mem x) ∨
     (∃ f g c d, Rv32.exec env s i = .fault f c ∧ Rv32.exec env t i = .fault g d) := by
-  obtain ⟨p, r, m1⟩ := s
-  obtain ⟨p', r', m2⟩ := t
-  simp only at hpc hreg
-  subst hpc hreg
-  -- the same `pc` and registers: what an instruction does to them is the same, and memory is carried
-  have run : ∀ (f : Rv32.Machine → Rv32.Machine), (∀ m, (f ⟨p, r, m⟩).mem = m) →
-      (∀ m m', (f ⟨p, r, m⟩).pc = (f ⟨p, r, m'⟩).pc ∧ (f ⟨p, r, m⟩).regs = (f ⟨p, r, m'⟩).regs) →
-      (∃ c d, Outcome.running (f ⟨p, r, m1⟩) = .running c ∧ Outcome.running (f ⟨p, r, m2⟩) = .running d ∧
-        c.pc = d.pc ∧ c.regs = d.regs ∧ ∀ x, m1 x = m2 x → c.mem x = d.mem x) := by
-    intro f hm hpr
-    exact ⟨_, _, rfl, rfl, (hpr m1 m2).1, (hpr m1 m2).2, fun x hx => by rw [hm, hm]; exact hx⟩
-  have sr : ∀ (rd : Reg) (v : Word) (m : Word → Byte), (Rv32.Machine.setReg ⟨p, r, m⟩ rd v).mem = m ∧
-      (∀ m', (Rv32.Machine.setReg ⟨p, r, m⟩ rd v).pc = (Rv32.Machine.setReg ⟨p, r, m'⟩ rd v).pc ∧
-        (Rv32.Machine.setReg ⟨p, r, m⟩ rd v).regs = (Rv32.Machine.setReg ⟨p, r, m'⟩ rd v).regs) := by
-    intro rd v m
-    unfold Machine.setReg
-    split <;> simp
   cases i with
   | ecall => exact absurd rfl hi
-  | lui rd imm =>
-    left; simp only [Rv32.exec]
-    exact run (fun s => (s.setReg rd (imm ++ 0#12)).next) (fun m => (sr _ _ m).1)
-      (fun m m' => by simp only [Machine.next, Machine.setPc]; rw [(sr rd _ m).2 m' |>.1, (sr rd _ m).2 m' |>.2]; simp)
-  | auipc rd imm =>
-    left; simp only [Rv32.exec]
-    exact run (fun s => (s.setReg rd (s.pc + (imm ++ 0#12))).next) (fun m => (sr _ _ m).1)
-      (fun m m' => by simp only [Machine.next, Machine.setPc]; rw [(sr rd _ m).2 m' |>.1, (sr rd _ m).2 m' |>.2]; simp)
-  | jal rd off =>
-    left; simp only [Rv32.exec]
-    exact run (fun s => (s.setReg rd (s.pc + 4)).setPc (s.pc + (off ++ 0#1).signExtend 32))
-      (fun m => (sr _ _ m).1) (fun m m' => by simp only [Machine.setPc]; rw [(sr rd _ m).2 m' |>.2]; simp)
-  | jalr rd rs1 imm =>
-    left; simp only [Rv32.exec]
-    exact run (fun s => (s.setReg rd (s.pc + 4)).setPc ((s.reg rs1 + imm.signExtend 32) &&& ~~~1#32))
-      (fun m => (sr _ _ m).1) (fun m m' => by simp only [Machine.setPc, Machine.reg]; rw [(sr rd _ m).2 m' |>.2]; simp)
-  | br op rs1 rs2 off =>
-    left; simp only [Rv32.exec]
-    have e1 : Machine.reg ⟨p, r, m2⟩ rs1 = Machine.reg ⟨p, r, m1⟩ rs1 := rfl
-    have e2 : Machine.reg ⟨p, r, m2⟩ rs2 = Machine.reg ⟨p, r, m1⟩ rs2 := rfl
-    rw [e1, e2]
-    generalize taken op (Machine.reg ⟨p, r, m1⟩ rs1) (Machine.reg ⟨p, r, m1⟩ rs2) = b
-    cases b <;> simp only [Bool.false_eq_true, ↓reduceIte]
-    all_goals refine ⟨_, _, rfl, rfl, ?_, ?_, ?_⟩
-    all_goals first | rfl | (intro x hx; exact hx)
-  | opi op rd rs1 imm =>
-    left; simp only [Rv32.exec]
-    exact run (fun s => (s.setReg rd (aluI op (s.reg rs1) (imm.signExtend 32))).next) (fun m => (sr _ _ m).1)
-      (fun m m' => by simp only [Machine.next, Machine.setPc, Machine.reg]; rw [(sr rd _ m).2 m' |>.1, (sr rd _ m).2 m' |>.2]; simp)
-  | sh op rd rs1 sa =>
-    left; simp only [Rv32.exec]
-    exact run (fun s => (s.setReg rd (shiftI op (s.reg rs1) sa.toNat)).next) (fun m => (sr _ _ m).1)
-      (fun m m' => by simp only [Machine.next, Machine.setPc, Machine.reg]; rw [(sr rd _ m).2 m' |>.1, (sr rd _ m).2 m' |>.2]; simp)
-  | op op rd rs1 rs2 =>
-    left; simp only [Rv32.exec]
-    exact run (fun s => (s.setReg rd (aluR op (s.reg rs1) (s.reg rs2))).next) (fun m => (sr _ _ m).1)
-      (fun m m' => by simp only [Machine.next, Machine.setPc, Machine.reg]; rw [(sr rd _ m).2 m' |>.1, (sr rd _ m).2 m' |>.2]; simp)
   | ld op rd rs1 imm =>
     have hv := hld op rd rs1 imm rfl
-    simp only [Rv32.exec, Machine.reg] at hv ⊢
-    generalize (if rs1 = 0 then 0 else r rs1) + imm.signExtend 32 = a at hv ⊢
+    simp only [Rv32.exec, hr] at hv ⊢
+    generalize t.reg rs1 + imm.signExtend 32 = a at hv ⊢
     by_cases h1 : a.toNat % op.size ≠ 0
-    · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h1), ite_eq_left_of_eq_true _ _ (eq_true h1)]; exact ⟨_, _, _, _, rfl, rfl⟩
+    · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h1), ite_eq_left_of_eq_true _ _ (eq_true h1)]
+      exact ⟨_, _, _, _, rfl, rfl⟩
     · rw [ite_eq_right_of_eq_false _ _ (eq_false h1), ite_eq_right_of_eq_false _ _ (eq_false h1)]
       by_cases h2 : env.region.ok a op.size
-      · rw [ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2)), ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2))]
+      · rw [ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2)),
+          ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2))]
         left
-        rw [hv]
-        exact run (fun s => (s.setReg rd (op.extend (readLE m2 a op.size))).next) (fun m => (sr _ _ m).1)
-          (fun m m' => by simp only [Machine.next, Machine.setPc]; rw [(sr rd _ m).2 m' |>.1, (sr rd _ m).2 m' |>.2]; simp)
-      · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h2), ite_eq_left_of_eq_true _ _ (eq_true h2)]; exact ⟨_, _, _, _, rfl, rfl⟩
+        refine ⟨_, _, rfl, rfl, by simp [hpc], fun x => by simp [reg_setReg, hr, hv], fun x hx => by simp [hx]⟩
+      · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h2), ite_eq_left_of_eq_true _ _ (eq_true h2)]
+        exact ⟨_, _, _, _, rfl, rfl⟩
   | st op rs1 rs2 imm =>
-    simp only [Rv32.exec, Machine.reg]
-    generalize (if rs1 = 0 then 0 else r rs1) + imm.signExtend 32 = a
+    simp only [Rv32.exec, hr]
+    generalize t.reg rs1 + imm.signExtend 32 = a
     by_cases h1 : a.toNat % op.size ≠ 0
-    · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h1), ite_eq_left_of_eq_true _ _ (eq_true h1)]; exact ⟨_, _, _, _, rfl, rfl⟩
+    · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h1), ite_eq_left_of_eq_true _ _ (eq_true h1)]
+      exact ⟨_, _, _, _, rfl, rfl⟩
     · rw [ite_eq_right_of_eq_false _ _ (eq_false h1), ite_eq_right_of_eq_false _ _ (eq_false h1)]
       by_cases h2 : env.region.ok a op.size
-      · rw [ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2)), ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2))]
+      · rw [ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2)),
+          ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2))]
         left
-        refine ⟨_, _, rfl, rfl, rfl, rfl, ?_⟩
+        refine ⟨_, _, rfl, rfl, by simp [hpc], fun x => by simp [Machine.next, Machine.setPc, Machine.reg] at hr ⊢; exact hr x, ?_⟩
         intro x hx
-        simp only [Machine.next, Machine.setPc]
+        simp only [next_mem]
         have hsz : op.size < 2^32 := by cases op <;> decide
         rw [writeLE_apply _ _ _ _ hsz x, writeLE_apply _ _ _ _ hsz x]
         split
         · rfl
         · exact hx
-      · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h2), ite_eq_left_of_eq_true _ _ (eq_true h2)]; exact ⟨_, _, _, _, rfl, rfl⟩
+      · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h2), ite_eq_left_of_eq_true _ _ (eq_true h2)]
+        exact ⟨_, _, _, _, rfl, rfl⟩
+  | br op rs1 rs2 off =>
+    left
+    simp only [Rv32.exec, hr]
+    by_cases hb : taken op (t.reg rs1) (t.reg rs2) = true <;> simp only [hb, ↓reduceIte, Bool.false_eq_true]
+    · exact ⟨_, _, rfl, rfl, by simp [hpc], fun x => by simp [hr], fun x hx => by simp [hx]⟩
+    · exact ⟨_, _, rfl, rfl, by simp [hpc], fun x => by simp [hr], fun x hx => by simp [hx]⟩
+  | _ =>
+    left
+    simp only [Rv32.exec, hr]
+    exact ⟨_, _, rfl, rfl, by simp [hpc], fun x => by simp [reg_setReg, hr, hpc], fun x hx => by simp [hx]⟩
 
 /-- A load the trap check let through lands wholly in the code, the data or the stack: bytes a payload can reach. -/
 theorem wx_ld_ok {s : PrivMachine} {w : Word} (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (h : uModeTrapCause s w = none)
@@ -179,8 +140,9 @@ theorem wx_ld_ok {s : PrivMachine} {w : Word} (hB : WXBoxed s cLo cHi dLo dHi kL
 theorem twin_trap {V : Word → Prop} {s t : PrivMachine} (hT : Twin V s t) (hpc : s.core.pc = t.core.pc)
     (cause : Word) : Twin V (raiseTrap s cause) (raiseTrap t cause) := by
   obtain ⟨r, m, mo, h, ms, e, c, mi, cy, inh, sc, io, ho⟩ := hT
-  refine ⟨r, m, rfl, h, ?_, ?_, rfl, ?_, ?_, inh, sc, io, ho⟩ <;>
+  refine ⟨fun x => ?_, m, rfl, h, ?_, ?_, rfl, ?_, ?_, inh, sc, io, ho⟩ <;>
     simp [raiseTrap, bumpCounters, mo, ms, hpc, mi, cy, inh]
+  exact r x
 
 /-- **One step of twins in a W^X box.** Two machines boxed by the same three entries, with the same `pc` and the
     same of everything `Twin` names over the bytes the payload can reach, step to twins again: and while they are in
@@ -194,7 +156,7 @@ theorem wx_twin_step (env : Rv32.Env) {s t : PrivMachine} (hs : WXBoxed s cLo cH
     intro a n acc
     have := wx_pmp_same hs ht a n acc
     rwa [hs.isUMode, ht.isUMode] at this
-  have hr : ∀ r, s.core.reg r = t.core.reg r := fun r => by simp [Machine.reg, hT.regs]
+  have hr := hT.regs
   have tr : ∀ c, Twin (WxVis cLo cHi dLo dHi kLo kHi) (raiseTrap s c) (raiseTrap t c) ∧
       ((raiseTrap s c).mode = .U → (raiseTrap s c).core.pc = (raiseTrap t c).core.pc) :=
     fun c => ⟨twin_trap hT hpc c, fun h => by simp [raiseTrap] at h⟩
