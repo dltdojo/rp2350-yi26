@@ -107,6 +107,17 @@ theorem writeBytes_apply (m : Word → Byte) (a : Word) (f : Fin 32 → Byte) (x
 theorem add_one_ofNat (a : Word) (d : Nat) : a + 1 + BitVec.ofNat 32 d = a + BitVec.ofNat 32 (d + 1) := by
   rw [BitVec.ofNat_add, BitVec.add_assoc, BitVec.add_comm (1 : Word)]; rfl
 
+/-- Two memories that agree on `n` bytes from `a` read the same number there. -/
+theorem readLE_congr {m1 m2 : Word → Byte} {a : Word} :
+    ∀ n, (∀ d < n, m1 (a + BitVec.ofNat 32 d) = m2 (a + BitVec.ofNat 32 d)) → readLE m1 a n = readLE m2 a n
+  | 0, _ => rfl
+  | n + 1, h => by
+    simp only [readLE]
+    have h0 := h 0 (by omega)
+    simp only [show a + BitVec.ofNat 32 0 = a by simp] at h0
+    rw [h0, readLE_congr (m1 := m1) (m2 := m2) (a := a + 1) n
+      (fun d hd => by rw [add_one_ofNat]; exact h (d + 1) (by omega))]
+
 /-- `n + k` bytes are `n` bytes, then `k` more. -/
 theorem readBytes_append (m : Word → Byte) (a : Word) (n k : Nat) :
     readBytes m a (n + k) = readBytes m a n ++ readBytes m (a + BitVec.ofNat 32 n) k := by
