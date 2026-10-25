@@ -1694,4 +1694,81 @@ theorem constant_time_boot {env : Env} {base : Word} (hp : Placed env base) {pro
   · rw [(hb img1).2, (hb img2).2]; exact hmem
   · rw [(hb img1).2]; exact hcode
 
+/-! ## Every state on the way
+
+`run_lock` is about what the two runs are seen to do and how they end. The
+relation it carries holds at every step as well, and with the two runs one and
+the same, that says what a single run of an accepted program can reach: one of
+the program's instructions, with the program still in memory and every
+register what the checker's state there says. That includes `t0` at an
+`ecall`. The checker lets an `ecall` through only as HASH (`t0 = 0`) or HALT
+(`t0 = 1`), so at an `ecall` where it knows `t0` is 1, the run makes no call
+but HALT. -/
+
+/-- **Every step, still locked.** From related states at an accepted
+instruction, after any `n` steps the two runs are both running, related, at one
+accepted instruction; or they ended the same way. -/
+theorem lock_run {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr} {P : List (Nat × Nat)}
+    {H : Heads} (hc : check prog P H = true) :
+    ∀ n k A s1 s2, k < prog.length → stateAt prog P H k = some A → Rel base prog P A s1 s2 →
+      s1.pc = base + BitVec.ofNat 32 (4 * k) → s2.pc = base + BitVec.ofNat 32 (4 * k) →
+      Lock base prog P H (run env n s1) (run env n s2) := by
+  intro n
+  induction n with
+  | zero => intro k A s1 s2 hk hA h hp1 hp2; exact ⟨k, A, hk, hA, hp1, hp2, h⟩
+  | succ n ih =>
+    intro k A s1 s2 hk hA h hp1 hp2
+    have hl := step_lock (env := env) hp hc hk hA h hp1 hp2
+    simp only [run]
+    revert hl
+    cases step env s1 <;> cases step env s2 <;> simp only [Lock] <;> intro hl
+    · obtain ⟨k', A', hk', hA', q1, q2, h'⟩ := hl
+      exact ih k' A' _ _ hk' hA' h' q1 q2
+    all_goals first | exact hl.elim | exact hl
+
+/-- Every `ecall` the checker reaches, it reaches knowing `t0` is 1. -/
+def haltsOnly (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Bool :=
+  (List.range prog.length).all fun k =>
+    match prog[k]?, stateAt prog P H k with
+    | some .ecall, some A => get A 5 == .num 1 1
+    | _, _ => true
+
+theorem haltsOnly_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} (hq : haltsOnly prog P H = true)
+    {k : Nat} (hk : k < prog.length) {A : AState} (hA : stateAt prog P H k = some A) (hi : prog[k] = .ecall) :
+    get A 5 = .num 1 1 := by
+  unfold haltsOnly at hq
+  simp only [List.all_eq_true, List.mem_range] at hq
+  have := hq k hk
+  rw [List.getElem?_eq_getElem hk, hi, hA] at this
+  simpa using this
+
+/-- **The run calls nothing but HALT.** A program the checker accepts, every
+`ecall` of which it reaches knowing `t0 = 1`, run from `base` with the program
+in memory: every state the run reaches while it is still running is at one of
+the program's instructions, the program is still in memory, and at an `ecall`
+`t0` is 1. -/
+theorem ecalls_halt {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr}
+    {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true) (hq : haltsOnly prog P H = true)
+    (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog) :
+    ∀ n s', run env n s = .running s' → ∃ k, ∃ hk : k < prog.length,
+      s'.pc = base + BitVec.ofNat 32 (4 * k) ∧ CodeAt s'.mem base prog ∧
+      (prog[k] = .ecall → s'.reg T0 = 1) := by
+  intro n s' hr
+  have h0 : Rel base prog P entry s s := by
+    refine ⟨fun r => ?_, fun _ _ _ => rfl, hcode, hcode⟩
+    unfold regOK
+    by_cases hr0 : r.toNat = 0
+    · have : r = 0 := BitVec.eq_of_toNat_eq hr0
+      subst this; exact regOK_zero
+    · rw [get_entry r.toNat hr0 r.isLt]; rfl
+  obtain ⟨B, hB, hEB⟩ := check_entry hc
+  have hl := lock_run (env := env) hp hc n 0 B s s hne hB (hEB base s s h0) (by simp [hpc]) (by simp [hpc])
+  rw [hr] at hl
+  obtain ⟨k, A, hk, hA, q1, -, h'⟩ := hl
+  refine ⟨k, hk, q1, h'.code1, fun hi => ?_⟩
+  have hT := h'.regs T0
+  unfold regOK valOK at hT
+  rw [show T0.toNat = 5 from rfl, haltsOnly_at hq hk hA hi] at hT
+  exact BitVec.eq_of_toNat_eq (by have := hT.2; simp; omega)
+
 end Rv32.Ct
