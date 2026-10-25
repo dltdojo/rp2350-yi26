@@ -314,7 +314,8 @@ theorem quiet_of_ct {env : Env} {base : Word} (hp : Placed env base) {prog : Lis
     (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog) :
     ∀ i m, run env i s = .running m → decode (fetched m) = some .ecall → m.reg T0 = 1 := by
   intro i m hm hd
-  obtain ⟨k, hk, hpc', hcode', hT⟩ := Ct.ecalls_halt hp hc hq hne hpc hcode i m hm
+  obtain ⟨k, hk, hpc', hcode', hT⟩ :=
+    Ct.ecalls_halt (hp.hosted (by have := Ct.check_len hc; omega)) hc hq hne hpc hcode i m hm
   apply hT
   have : decode (fetched m) = some prog[k] := by
     simp only [fetched]
