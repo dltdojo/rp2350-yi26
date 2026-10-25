@@ -45,6 +45,10 @@ structure Twin (V : Word → Prop) (s t : PrivMachine) : Prop where
   io       : s.io = t.io
   host     : s.host = t.host
 
+theorem Twin.symm {V : Word → Prop} {s t : PrivMachine} (h : Twin V s t) : Twin V t s :=
+  ⟨fun r => (h.regs r).symm, fun x hx => (h.mem x hx).symm, h.mode.symm, h.halted.symm, h.mstatus.symm, h.mepc.symm,
+    h.mcause.symm, h.minstret.symm, h.mcycle.symm, h.inhibit.symm, h.mscratch.symm, h.io.symm, h.host.symm⟩
+
 section
 variable {cLo cHi dLo dHi kLo kHi : Nat}
 
