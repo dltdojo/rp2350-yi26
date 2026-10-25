@@ -135,5 +135,53 @@ then `proof/tail.lean`. `check.sh` fails if the file is not what `gen.py` writes
 From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
-(captured by ./run.sh)
+=== exp248 — the samples the front reads ===
+recorded at 2026-10-25T13:12:58Z from commit 63375ef
+
+>>> the formal theorems, and what they rest on
+'Exp248.accepted' depends on axioms: [propext, Quot.sound]
+'Exp248.windows' depends on axioms: [propext, Quot.sound]
+'Exp248.halts_only' depends on axioms: [propext, Quot.sound]
+'Rv32.Reach.reach_until' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Reach.frame' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp248.front_reach' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims and a wrong checker: each must be refused
+window_word_short  claim: the front reads only up to +0x3ffc, one word short of the samples' end                   refused in windows
+head_count_zero    claim: at the loop's head 0 to 1024 samples are left, so the pointer may be one past the last   refused in accepted
+exit_elsewhere     claim: the way out is a word before SHA-256, at +0xffc                                          refused in accepted
+exit_undeclared    claim: the front has no way out: every jump lands in it                                         refused in accepted
+exit_word_on       claim: the run reaches SHA-256 at +0x1004                                                       refused in front_reach
+jump_anywhere      the checker lets a jump to any target through, as if it were an exit                            refused in succ_jump
+store_unknown      the store window lets a store at an address it does not know through                            refused in windowed_st
+store_unchecked    the store window is not checked at all                                                          refused in windowed_st
+
+>>> exp223 alone on the emulator, every access recorded
+PASS  exp222's 14 streams, exp223's kernel alone, every access recorded; up to SHA-256's first word:
+      every pc one of the front's 34 instructions, every load inside [+0x3000, +0x4000) and both ends
+      of it read (1025 loads), no store, no call but HALT with t0 = 1
+PASS  the way out: 8 healthy streams at +0x1000 at step 17422, memory as it was; 6 unhealthy,
+      never there, each HALTing with 1 from +0x84, its only call
+      SHA-256, ahead and not claimed: loads [0x2000, 0x4000), stores [0x2140, 0x2440), calls [('0x13ec', 1)]
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Front.lean checks, with no errors and no warnings
+PASS  all 6 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  window_word_short: the proof refuses a version where claim: the front reads only up to +0x3ffc, one word short of the samples' end
+PASS  head_count_zero: the proof refuses a version where claim: at the loop's head 0 to 1024 samples are left, so the pointer may be one past the last
+PASS  exit_elsewhere: the proof refuses a version where claim: the way out is a word before SHA-256, at +0xffc
+PASS  exit_undeclared: the proof refuses a version where claim: the front has no way out: every jump lands in it
+PASS  exit_word_on: the proof refuses a version where claim: the run reaches SHA-256 at +0x1004
+PASS  jump_anywhere: the proof refuses a version where the checker lets a jump to any target through, as if it were an exit
+PASS  store_unknown: the proof refuses a version where the store window lets a store at an address it does not know through
+PASS  store_unchecked: the proof refuses a version where the store window is not checked at all
+PASS  proof/Front.lean is what proof/gen.py writes, from exp223's Condition.lean and tail.lean
+PASS  exp222's 14 streams, exp223's kernel alone, every access recorded; up to SHA-256's first word:
+      every pc one of the front's 34 instructions, every load inside [+0x3000, +0x4000) and both ends
+      of it read (1025 loads), no store, no call but HALT with t0 = 1
+PASS  the way out: 8 healthy streams at +0x1000 at step 17422, memory as it was; 6 unhealthy,
+      never there, each HALTing with 1 from +0x84, its only call
+      SHA-256, ahead and not claimed: loads [0x2000, 0x4000), stores [0x2140, 0x2440), calls [('0x13ec', 1)]
 ```
