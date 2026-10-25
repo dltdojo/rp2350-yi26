@@ -159,7 +159,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp245 — the bytes the proof blesses ===
-recorded at 2026-10-24T15:36:09Z from commit 2756f54
+recorded at 2026-10-25T00:28:57Z from commit 1927916
 
 >>> the micro-monitor binary, its size budget, and the charms taken away
 PASS  monitor.bin (712 bytes, 178 words) is monitor.S assembled, matches monitor.sha256, is within 200 words, and is proof/Bless.lean's monitorCode
@@ -275,11 +275,15 @@ PASS  Act 3, the ceremonial scrub: round 1 leaves a key of eight words at [0x800
       stack and HALTs 0; the host writes one word in the data; round 2, the same payload, copies the stack to
       0x80010900 and HALTs 0. The slot [0x80010e00, 0x80010e20) is zero at both parks -- the theorem's
       conclusion -- and round 2's output is round 1's key: 0x6b657930 .. 0x6b657937
+PASS  Act 3b, the slot itself, round to round: round 1 stores 0x51075107 in the slot and HALTs 0; round 2,
+      the same payload, HALTs with what the slot holds. exp240 and exp245 without charm 3: HALT 0x51075107;
+      exp245, and exp245 without charm 1 or 2: HALT 0. The scrub is seen by a payload that keeps something in
+      the slot, and by no other: the two monitors are not the same over rounds (exp246 proves when they are)
 PASS  Act 4, the ablation: exp240, exp245, and exp245 with each charm taken away alone, under 55 hostile
-      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel: the registers, the reports and
-      the exit codes, the traps, the counters and every CSR the payload's box is made of are the same for
-      all five; memory differs only in the monitor's words, the shrine if charm 1 is there and the slot if
-      charm 3 is; entry 3 differs only if charm 2 is
+      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel -- none of which reads what an earlier
+      round left in the slot -- the registers, the reports and the exit codes, the traps, the counters and
+      every CSR the payload's box is made of are the same for all five; memory differs only in the monitor's
+      words, the shrine if charm 1 is there and the slot if charm 3 is; entry 3 differs only if charm 2 is
 
 >>> the checks
 PASS  no lifeline, and it says why: no firmware of its own
@@ -370,9 +374,13 @@ PASS  Act 3, the ceremonial scrub: round 1 leaves a key of eight words at [0x800
       stack and HALTs 0; the host writes one word in the data; round 2, the same payload, copies the stack to
       0x80010900 and HALTs 0. The slot [0x80010e00, 0x80010e20) is zero at both parks -- the theorem's
       conclusion -- and round 2's output is round 1's key: 0x6b657930 .. 0x6b657937
+PASS  Act 3b, the slot itself, round to round: round 1 stores 0x51075107 in the slot and HALTs 0; round 2,
+      the same payload, HALTs with what the slot holds. exp240 and exp245 without charm 3: HALT 0x51075107;
+      exp245, and exp245 without charm 1 or 2: HALT 0. The scrub is seen by a payload that keeps something in
+      the slot, and by no other: the two monitors are not the same over rounds (exp246 proves when they are)
 PASS  Act 4, the ablation: exp240, exp245, and exp245 with each charm taken away alone, under 55 hostile
-      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel: the registers, the reports and
-      the exit codes, the traps, the counters and every CSR the payload's box is made of are the same for
-      all five; memory differs only in the monitor's words, the shrine if charm 1 is there and the slot if
-      charm 3 is; entry 3 differs only if charm 2 is
+      payloads, Acts 1a, 2 and 3, and 20 rounds of exp225's Rule 30 kernel -- none of which reads what an earlier
+      round left in the slot -- the registers, the reports and the exit codes, the traps, the counters and
+      every CSR the payload's box is made of are the same for all five; memory differs only in the monitor's
+      words, the shrine if charm 1 is there and the slot if charm 3 is; entry 3 differs only if charm 2 is
 ```
