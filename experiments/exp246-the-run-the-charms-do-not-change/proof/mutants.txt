@@ -1,0 +1,16 @@
+# exp246 — wrong claims and wrong models. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: each says more than the two monitors do. Then the library's twin, made to agree on less, and a
+# rule of the model loosened: each must break the proof somewhere.
+slot_hypothesis_dropped|claim: any number of rounds stay the same, whether or not each exit leaves the slot zero|s/^      (∀ x, Exp245.InSlot x → q.core.mem x = 0) → Both env C C' q q'$/      Both env C C' q q'/
+slot_claimed_same|claim: at the park the two slots hold the same bytes too|s/^    (∀ x, Vis x → ¬ Exp245.InSlot x → q.core.mem x = q'.core.mem x) ∧$/    (∀ x, Vis x → q.core.mem x = q'.core.mem x) ∧/
+trap_one_step_later|claim: under exp245's monitor the payload traps first one step later|s/^    Exp240.Trapped env s k ↔ Exp245.Trapped env t k := by$/    Exp240.Trapped env s k ↔ Exp245.Trapped env t (k + 1) := by/
+shrine_in_view|claim: the bytes the payload can reach include the shrine|s/^abbrev Vis : Word → Prop := WxVis 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000$/abbrev Vis : Word → Prop := fun x => WxVis 0x80010000 0x80010080 0x80010000 0x80011000 0x8001f000 0x80020000 x ∨ (0x80008010 ≤ x.toNat ∧ x.toNat < 0x80008018)/
+boot_heard|claim: exp240's boot writes a word to the print port|s/(PrivMachine.run env 61 s).io = s.io ∧ (PrivMachine.run env 61 s).host = s.host := by/(PrivMachine.run env 61 s).io = s.io ++ [⟨0xc0000004#32, 0#32⟩] ∧ (PrivMachine.run env 61 s).host = s.host := by/
+pcs_same_after_trap|claim: twins' pcs are the same after every step, a trap's too, though each goes to its own trap vector|s/^    ((PrivMachine.step env s).mode = .U → (PrivMachine.step env s).core.pc = (PrivMachine.step env t).core.pc) := by$/    ((PrivMachine.step env s).core.pc = (PrivMachine.step env t).core.pc) := by/|lean/Rv32/WxTwin.lean
+code_out_of_view|twins agree on the data and the stack, not the code: the payload fetches what they do not agree on|s/^  (cLo ≤ x.toNat ∧ x.toNat < cHi) ∨ (dLo ≤ x.toNat ∧ x.toNat < dHi) ∨ (kLo ≤ x.toNat ∧ x.toNat < kHi)$/  (dLo ≤ x.toNat ∧ x.toNat < dHi) ∨ (kLo ≤ x.toNat ∧ x.toNat < kHi)/|lean/Rv32/WxTwin.lean
+register_file_twins|twins share the register file, x0's slot too, which boot never writes|s/^  regs     : ∀ r, s.core.reg r = t.core.reg r$/  regs     : ∀ r, s.core.regs r = t.core.regs r/|lean/Rv32/WxTwin.lean
+pmp_unmatched_user_passes|U-mode that matches no entry passes: the payload reaches outside the box|s/\[\] => mode = \.M/[] => true/|lean/Rv32/Priv.lean
+pmp_partial_match_passes|an access that straddles an entry's edge passes|s/ \.PartialMatch  => false/ .PartialMatch  => true/|lean/Rv32/Priv.lean
