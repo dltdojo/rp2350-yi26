@@ -1,0 +1,20 @@
+# exp247 — wrong claims and wrong models. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: each says more than, or other than, the kernel behind the wall does -- a word the host does not
+# hear, a step the run does not take, a place the result is not. Then the two things the join rests on, taken away
+# in the library: the checker's knowledge that every ecall is a HALT, and a bridge step that may be an ecall. Last, a
+# rule of the model loosened: a U-mode ecall that does not trap.
+heard_instret_short|claim: the host hears minstret as 1 + count op, not 2 + count op|s/⟨0xc0000004#32, BitVec.ofNat 32 (2 + Exp229.count op)⟩, ⟨0xc0000004#32, BitVec/⟨0xc0000004#32, BitVec.ofNat 32 (1 + Exp229.count op)⟩, ⟨0xc0000004#32, BitVec/
+heard_exit_one|claim: the exit word the host hears is 1|s/⟨0xc0000008#32, 0#32⟩\]/⟨0xc0000008#32, 1#32⟩]/
+boot_heard|claim: boot's first part writes a word to the print port|s/(PrivMachine.run env 20 s).io = s.io ∧ (PrivMachine.run env 20 s).host = s.host := by/(PrivMachine.run env 20 s).io = s.io ++ [⟨0xc0000004#32, 0#32⟩] ∧ (PrivMachine.run env 20 s).host = s.host := by/
+counters_one|claim: boot leaves minstret at 1|s/csrs.minstret = 2#32 ∧ (PrivMachine.run env 1 s).csrs.mcycle/csrs.minstret = 1#32 ∧ (PrivMachine.run env 1 s).csrs.mcycle/
+trap_one_step_early|claim: the kernel has trapped one step sooner|s/PrivMachine.run env (53 + Exp229.count op) s$/PrivMachine.run env (52 + Exp229.count op) s/
+park_one_step_early|claim: the monitor parks one step sooner|s/PrivMachine.run env 57 (atTrap env s op)/PrivMachine.run env 56 (atTrap env s op)/
+result_in_b|claim: the remainder is at B, not at R|s/numAt (atTrap env s op).core.mem 0x80010000#32 0x944 8/numAt (atTrap env s op).core.mem 0x80010000#32 0x924 8/
+trap_cause_m|claim: the trap's cause is an ecall from M-mode|s/(atTrap env s op).csrs.mcause = 8#32 ∧/(atTrap env s op).csrs.mcause = 11#32 ∧/
+box_128k|claim: the kernel's world is 128 KiB, past the PMP entry|s/Placed (boxEnv env 0x80010000 0x80020000) 0x80010000#32 :=/Placed (boxEnv env 0x80010000 0x80030000) 0x80010000#32 :=/
+ct_lets_hash|the checker's haltsOnly lets a HASH through as well as a HALT|s/some .ecall, some A => get A 5 == .num 1 1$/some .ecall, some A => (get A 5 == .num 1 1) ^^ (get A 5 == .num 0 0)/|lean/Rv32/Ct.lean
+bridge_any_word|the bridge takes any step Tier 1 took inside the box, an ecall too|s/(he : decode (fetched s.core) ≠ some .ecall) : SafeUInstr s lo hi/(he : True) : SafeUInstr s lo hi/|lean/Rv32/Join.lean
+umode_ecall_untrapped|a U-mode ecall does not trap: Tier 2 runs it as Tier 1 does|s/^  else if isEcall w then$/  else if isEcall w ∧ s.mode = .M then/|lean/Rv32/Priv.lean

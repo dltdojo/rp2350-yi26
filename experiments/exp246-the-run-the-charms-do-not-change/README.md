@@ -89,7 +89,8 @@ namespaces, as their own generators write them, and `proof/tail.lean`; `check.sh
 - **The model.** Everything exp240's and exp245's READMEs say: one hart, interrupts not modelled, the model's reading
   of Hazard3. A writer outside the model -- exp245's Act 1b -- tells the monitors apart in round 1.
 - **Not G5.** The proved kernels run on these monitors only on the emulator; joining Tier 1's kernel theorems to Tier
-  2's monitor theorems is the next experiment.
+  2's monitor theorems is the next experiment, [exp247](../exp247-the-remainder-behind-the-wall/), for exp229's
+  kernel on exp236's monitor.
 
 ## The checks
 

@@ -28,7 +28,8 @@
 | G1、G2、G7 | **已關閉。** `lean/Rv32/Priv.lean` 把 M-mode 對埠的字組寫入依序記在 `io`；exp236、exp238、exp239、exp240 的定理都陳述 host 聽到的字組（`faultIo`、`haltIo`、`trapIo`、`callIo`），報告標籤、結束碼送錯埠的突變現在都被 Lean 拒絕 |
 | G6 | **已關閉。** 埠的讀取回傳 `host io a`，一個定理不加限制的函數；exp238 的 monitor 在讀回答案之後多兩個字，答案不是 0 或 1 就走 fault（`monitor_checksig_bad_answer`），monitor 因此成為 202 字。模擬器上有四種無效回答的攻擊情境與兩個對應的錯誤 monitor |
 | G3 | **已關閉，方向與原建議相反。** 查了 Hazard3 原始碼（固定的 commit `8af9929`）：`hdl/hazard3_csr.v` 的 `MTVAL` 分支註明「Hardwired to 0」，`doc/sections/csr.adoc` 也寫「Hardwired to 0.」；exp202 README 早已記下「Hazard3 writes zero on every fault here」。錯的是模擬器，不是模型。現在模型拿掉 `mtval` 欄位、讀出 0、寫入丟棄；模擬器也一樣，出錯位址只留在它自己的 `traps` 紀錄裡，`check_fault` 比對的是那份紀錄。exp240 開機的 `csrw mtval, zero` 因此是什麼都不做的一個字，`mtval_kept` 突變體被 Lean 接受是對的，已移除。exp237 的 fixture 裡兩個 fault 的 `mtval` 從位址變成 0，這才是晶片會印的值 |
-| G4、G5 | 未處理。第四步先做了兩個 monitor 之間的等價（exp246，exp240 與 exp245），G5（kernel 與 monitor 的接縫）是下一個實驗 |
+| G5 | **對一組 kernel 與 monitor 關閉。** [exp247](../experiments/exp247-the-remainder-behind-the-wall/)：exp229 的有限體 kernel 當作 exp236 的 payload，從 reset 到停機迴圈證明完畢——kernel 在第 53 + count op 步陷入時 R 是 `(a op b) mod p`，57 步後 monitor 停機，所有暫存器為零，host 聽到的字組恰好是 HALT 報告與結束碼 0。接縫在 `lean/Rv32/Join.lean`：盒子裡的 Tier 1 執行就是 Tier 2 執行，它的 HALT 就是 monitor 定理的起點。「`ecall` 在 Tier 1 是殼層服務、在 Tier 2 是陷阱」這個缺口，由 exp229 本來就通過的常數時間檢查器補上（`Ct.ecalls_halt`：檢查器在每個 `ecall` 都知道 `t0 = 1`），exp229 的證明沒有改動。仍未涵蓋：停機時的 R（定理只到陷入的那一刻）、會呼叫 HASH 或 CHECKSIG 的 kernel（exp238、exp239），以及 exp240 的回合 |
+| G4 | 未處理。第四步先做了兩個 monitor 之間的等價（exp246，exp240 與 exp245） |
 
 ## 一、範圍與方法
 
