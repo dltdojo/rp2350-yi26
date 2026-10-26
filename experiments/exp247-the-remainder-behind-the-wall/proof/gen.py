@@ -6,7 +6,8 @@ Writes proof/Wall.lean.
 The theorem here is about two proofs at once, exp229's kernel and exp236's monitor, so the file holds both:
 exp229's proof/Field.lean, in namespace Exp229, and exp236's proof/Monitor.lean, in namespace Exp236, as their own
 check.sh holds them -- read here, not written again -- with their `#print` lines and exp229's `main` dropped; then
-tail.lean, the theorems that join them, in namespace Exp247, on lean/Rv32/Join.lean.
+tail.lean, the theorems that join them, in namespace Exp247, on lean/Rv32/Join.lean, with
+tools/monitor/boot_ports.lean spliced in where it says so.
 
   gen.py            write Wall.lean
   gen.py --check    exit 0 if Wall.lean is what this writes
@@ -65,8 +66,18 @@ def monitor() -> str:
     return opts + t[i:j]
 
 
+PORTS = os.path.join(REPO, "tools", "monitor", "boot_ports.lean")
+
+
+def ports() -> str:
+    """tools/monitor/boot_ports.lean without its header: boot is silent, for a monitor whose boot is exp236's."""
+    t = read(PORTS)
+    return t[t.index("-/\n") + 3:].lstrip("\n")
+
+
 def build() -> str:
-    return "\n".join([HEAD, field(), monitor(), read(os.path.join(HERE, "tail.lean"))])
+    tail = read(os.path.join(HERE, "tail.lean")).replace("-- SPLICE: tools/monitor/boot_ports.lean\n\n", ports())
+    return "\n".join([HEAD, field(), monitor(), tail])
 
 
 def main():

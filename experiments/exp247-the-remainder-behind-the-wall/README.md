@@ -106,8 +106,9 @@ what `gen.py` writes.
   match.
 - **One kernel, one monitor.** The library half is general, but `Ct.ecalls_halt` covers only kernels that call
   nothing but HALT. A kernel that calls HASH or CHECKSIG needs a monitor that serves the call, and a proof that the
-  served answer is Tier 1's. exp238's and exp239's kernels are of that kind. The emulator's G5 verdicts for them, and
-  for exp240's rounds, are still verdicts and not theorems.
+  served answer is Tier 1's. exp238's kernel is of that kind; the emulator's G5 verdicts for it, and for exp240's
+  rounds, are still verdicts and not theorems. An earlier version of this note counted exp239's among them: its
+  monitor serves only HALT, and [exp250](../exp250-the-digest-the-wall-keeps/) proves exp223's kernel behind it.
 - **The model.** Everything exp236's README says: one hart, interrupts not modelled, the model's reading of Hazard3,
   the MMIO words as memory.
 

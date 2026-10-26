@@ -29,6 +29,7 @@ import Rv32.Refinement
 import Rv32.Sandbox
 import Rv32.Within
 import Rv32.Ct
+import Rv32.Reach
 
 namespace Rv32.Join
 open Rv32 Rv32.Priv Rv32.Refinement
@@ -324,8 +325,22 @@ theorem quiet_of_ct {env : Env} {base : Word} (hp : Placed env base) {prog : Lis
   rw [this] at hd
   exact Option.some.inj hd
 
+/-- **What `Reach` gives this file.** A `Good` state's fetched `ecall` is at `t0 = 1`: the hypothesis
+`run_in_box` and `halt_in_box` ask for, from a state the reach checker has vouched for. -/
+theorem quiet_of_good {env : Env} {base : Word} {prog : List Instr} {lw sw : Nat × Nat} {m : Machine}
+    (hg : Reach.Good env base prog lw sw m) : decode (fetched m) = some .ecall → m.reg T0 = 1 := by
+  intro hd
+  obtain ⟨k, hk, hpc, hcode, -, -, hT⟩ := hg
+  apply hT
+  have : decode (fetched m) = some prog[k] := by
+    simp only [fetched]
+    rw [hpc, hcode k hk, BitVec.ofNat_toNat, BitVec.setWidth_eq, decode_encode]
+  rw [this] at hd
+  exact Option.some.inj hd
+
 end Rv32.Join
 
 #print axioms Rv32.Join.run_in_box
 #print axioms Rv32.Join.halt_in_box
 #print axioms Rv32.Join.quiet_of_ct
+#print axioms Rv32.Join.quiet_of_good

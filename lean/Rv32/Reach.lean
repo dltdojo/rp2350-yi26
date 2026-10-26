@@ -26,6 +26,7 @@ is about.
 -/
 import Rv32.Ct
 import Rv32.Sandbox
+import Rv32.Within
 
 namespace Rv32.Reach
 open Rv32 Rv32.Ct
@@ -279,9 +280,105 @@ theorem frame {env : Env} {base : Word} {prog : List Instr} {lw sw : Nat × Nat}
       | _ =>
         rw [Rv32.Priv.exec_mem_of_not_st (fun _ _ _ _ h => by cases h) (by simp) hs]
 
+/-! ## The same run in a wider region
+
+A kernel's own theorem may be about a world larger than the box it will run in
+-- exp223's is 128 KiB, the box 64. A run whose every state is `Good` in the box,
+its windows inside the box, takes the same steps in any region holding the box:
+the region only ever says no, and nothing it would say no to is asked. -/
+
+/-- The window `[base + w.1, base + w.2)` lies in region `r`. -/
+def WinIn (base : Word) (w : Nat × Nat) (r : Region) : Prop :=
+  r.lo ≤ base.toNat + w.1 ∧ base.toNat + w.2 ≤ r.hi
+
+/-- **A `Good` step is the same step in a wider region.** -/
+theorem step_same {env env' : Env} (hh : env.hash = env'.hash ∧ env.sig = env'.sig)
+    (hr : env.region.within env'.region) {base : Word} {prog : List Instr} (hp : Hosted env base prog.length)
+    (hlen : 4 * prog.length < 0x10000) {lw sw : Nat × Nat} (hlw : WinIn base lw env.region)
+    (hsw : WinIn base sw env.region) (hl : lw.2 ≤ 0x10000) (hs : sw.2 ≤ 0x10000)
+    {m : Machine} (hg : Good env base prog lw sw m) : step env' m = step env m := by
+  obtain ⟨k, hk, hpc, hcode, hstep, htouch, hecall⟩ := hg
+  have fit := hp.fit
+  have hal : m.pc.toNat % 4 = 0 := by rw [hpc]; exact align_off hp.align fit _ (by omega) (by omega)
+  have hok : env.region.ok m.pc 4 := by rw [hpc]; exact hp.fetch_ok hk hlen
+  rw [hstep, step_of_code hk hcode hpc hal (Region.ok_within hr hok)]
+  obtain ⟨hh1, hh2⟩ := hh
+  have okw : ∀ {w : Nat × Nat}, WinIn base w env.region → w.2 ≤ 0x10000 → ∀ {o n : Nat}, 0 < n → w.1 ≤ o →
+      o + n ≤ w.2 → env.region.ok (base + BitVec.ofNat 32 o) n ∧ env'.region.ok (base + BitVec.ofNat 32 o) n := by
+    intro w hw hw2 o n hn h1 h2
+    have e : env.region.ok (base + BitVec.ofNat 32 o) n := by
+      simp only [Region.ok, WinIn] at hw ⊢
+      rw [toNat_off fit o (by omega)]
+      omega
+    exact ⟨e, Region.ok_within hr e⟩
+  generalize hI : prog[k] = I at htouch hecall
+  cases I with
+  | ld op rd r1 imm =>
+    obtain ⟨o, o1, o2, e⟩ := htouch
+    obtain ⟨k1, k2⟩ := okw hlw hl (by cases op <;> decide) o1 o2
+    simp only [exec, e, k1, k2, not_true_eq_false, ↓reduceIte]
+  | st op r1 r2 imm =>
+    obtain ⟨o, o1, o2, e⟩ := htouch
+    obtain ⟨k1, k2⟩ := okw hsw hs (by cases op <;> decide) o1 o2
+    simp only [exec, e, k1, k2, not_true_eq_false, ↓reduceIte]
+  | ecall =>
+    have h1 := hecall rfl
+    simp only [exec, syscall, h1]
+    simp
+  | _ => rfl
+
+/-- **A run that is `Good` in one region is the same run in another**, as long
+as every state before the `n`-th is one whose step the two agree on. -/
+theorem run_same {env env' : Env} (G : Machine → Prop) (hG : ∀ m, G m → step env' m = step env m) :
+    ∀ n s, (∀ i < n, ∀ m, run env i s = .running m → G m) → run env' n s = run env n s := by
+  intro n
+  induction n with
+  | zero => intros; rfl
+  | succ n ih =>
+    intro s hs
+    have h0 := hG s (hs 0 (by omega) s rfl)
+    show (match step env' s with | .running s1 => run env' n s1 | o => o) =
+      (match step env s with | .running s1 => run env n s1 | o => o)
+    rw [h0]
+    cases he : step env s with
+    | running s1 =>
+      exact ih s1 (fun i hi m hm => hs (i + 1) (by omega) m (by
+        show (match step env s with | .running s1 => run env i s1 | o => o) = _
+        rw [he]; exact hm))
+    | _ => rfl
+
+/-- **A halted run halted at one step.** -/
+theorem run_halt_step {env : Env} : ∀ (N : Nat) (s : Machine) {c : Word} {s' : Machine},
+    run env N s = .halted c s' → ∃ j, j < N ∧ ∃ m, run env j s = .running m ∧ run env (j + 1) s = .halted c s' := by
+  intro N
+  induction N with
+  | zero => intro s c s' h; cases h
+  | succ N ih =>
+    intro s c s' h
+    have e : run env (N + 1) s = (match step env s with | .running s1 => run env N s1 | o => o) := rfl
+    rw [e] at h
+    cases hs : step env s with
+    | running s1 =>
+      rw [hs] at h
+      obtain ⟨j, hj, m, hm, hh⟩ := ih s1 h
+      refine ⟨j + 1, by omega, m, ?_, ?_⟩
+      · show (match step env s with | .running s1 => run env j s1 | o => o) = _
+        rw [hs]; exact hm
+      · show (match step env s with | .running s1 => run env (j + 1) s1 | o => o) = _
+        rw [hs]; exact hh
+    | halted c1 m1 =>
+      rw [hs] at h
+      refine ⟨0, by omega, s, rfl, ?_⟩
+      show (match step env s with | .running s1 => run env 0 s1 | o => o) = _
+      rw [hs]; exact h
+    | fault f m1 => rw [hs] at h; cases h
+
 end Rv32.Reach
 
 #print axioms Rv32.Reach.good_of_at
 #print axioms Rv32.Reach.reach_until
 #print axioms Rv32.Reach.reach
 #print axioms Rv32.Reach.frame
+#print axioms Rv32.Reach.step_same
+#print axioms Rv32.Reach.run_same
+#print axioms Rv32.Reach.run_halt_step
