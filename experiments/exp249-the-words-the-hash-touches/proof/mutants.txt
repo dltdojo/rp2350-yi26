@@ -1,0 +1,18 @@
+# exp249 — wrong claims and a wrong checker. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: a store window that leaves the padding block out, a load window that leaves the message out,
+# the length not known, known at the wrong word, or a constant where the digest is written. Then the checker's new
+# rules made unsound -- each must break the soundness proof that rule rests on.
+stores_short|claim: the stores stay below +0x1400, the padding block left out|s/^def stores : Nat × Nat := (0x1140, 0x1440)$/def stores : Nat × Nat := (0x1140, 0x1400)/
+loads_short|claim: the loads stay below +0x2000, the message left out|s/^def loads : Nat × Nat := (0x400, 0x3040)$/def loads : Nat × Nat := (0x400, 0x2000)/
+length_unknown|the length word is not known to be a constant: the block count is not known|s/, consts := \[(0x1120, 4096)\] }$/ }/
+length_elsewhere|the constant is declared a word on, at +0x1124, not where the kernel reads the length|s/consts := \[(0x1120, 4096)\]/consts := [(0x1124, 4096)]/
+constant_digest|claim: the digest's first word is a constant too, though the kernel writes it|s/consts := \[(0x1120, 4096)\]/consts := [(0x1120, 4096), (0x1140, 0)]/
+cap_signed_any|an ordered comparison narrows a range whatever its size, where signed and unsigned disagree|s/if ha < 2 ^ 31 ∧ hb < 2 ^ 31 then A.set a.toNat/if True then A.set a.toNat/|lean/Rv32/Ct.lean
+const_any_size|a load of any size that starts at a constant's offset reads the constant|s/if size = 4 ∧ hi = lo + 4 ∧ c.2 < 2 ^ 32 then .num c.2 c.2/if hi = lo + size ∧ c.2 < 2 ^ 32 then .num c.2 c.2/|lean/Rv32/Ct.lean
+store_over_constant|a store need not miss the constants|s/hi ≤ 0x10000 ∧ apartK P lo hi = true ∧ (isPub/hi ≤ 0x10000 ∧ (isPub/|lean/Rv32/Ct.lean
+srai_as_srli|an arithmetic shift right of a number is taken for a logical one|s/^  \(.\) .srli, .num lo hi => .num (lo >>> s) (hi >>> s)$/  \1 _, .num lo hi => .num (lo >>> s) (hi >>> s)/|lean/Rv32/Ct.lean
+pinned_range|a counter is taken as pinned to its lowest value whatever its range|s/^  \(.\) .num x y => if x = y then some x else none$/  \1 .num x _ => some x/|lean/Rv32/Ct.lean
+second_counter_still|stepping a value's second counter does not move the value|s/(if c2 = n then k2 \* d else 0)))$/0))/|lean/Rv32/Ct.lean

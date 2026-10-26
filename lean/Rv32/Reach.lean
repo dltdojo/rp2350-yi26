@@ -34,7 +34,7 @@ open Rv32 Rv32.Ct
 
 /-- Every load a run can reach is known to read inside `lw`, and every store to
 write inside `sw`: offsets from `base`, `[lo, hi)`. -/
-def windowed (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (lw sw : Nat × Nat) : Bool :=
+def windowed (prog : List Instr) (P : Pub) (H : Heads) (lw sw : Nat × Nat) : Bool :=
   (List.range prog.length).all fun k =>
     match stateAt prog P H k, prog[k]? with
     | some A, some (.ld op _ r1 imm) =>
@@ -54,7 +54,7 @@ def Touches (base : Word) (lw sw : Nat × Nat) (m : Machine) : Instr → Prop
   | .st op r1 _ imm => ∃ o, sw.1 ≤ o ∧ o + op.size ≤ sw.2 ∧ m.reg r1 + imm.signExtend 32 = base + BitVec.ofNat 32 o
   | _ => True
 
-theorem windowed_ld {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {lw sw : Nat × Nat}
+theorem windowed_ld {prog : List Instr} {P : Pub} {H : Heads} {lw sw : Nat × Nat}
     (hw : windowed prog P H lw sw = true) {k : Nat} (hk : k < prog.length) {A : AState}
     (hA : stateAt prog P H k = some A) {op : LdOp} {rd r1 : Reg} {imm : BitVec 12}
     (hi : prog[k] = .ld op rd r1 imm) :
@@ -70,7 +70,7 @@ theorem windowed_ld {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {lw 
     exact ⟨ab.1, ab.2, hab, this.1, this.2⟩
   · cases this
 
-theorem windowed_st {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {lw sw : Nat × Nat}
+theorem windowed_st {prog : List Instr} {P : Pub} {H : Heads} {lw sw : Nat × Nat}
     (hw : windowed prog P H lw sw = true) {k : Nat} (hk : k < prog.length) {A : AState}
     (hA : stateAt prog P H k = some A) {op : StOp} {r1 r2 : Reg} {imm : BitVec 12}
     (hi : prog[k] = .st op r1 r2 imm) :
@@ -96,7 +96,7 @@ def Good (env : Env) (base : Word) (prog : List Instr) (lw sw : Nat × Nat) (m :
     step env m = exec env m prog[k] ∧ Touches base lw sw m prog[k] ∧ (prog[k] = .ecall → m.reg T0 = 1)
 
 theorem good_of_at {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length)
-    {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true)
+    {P : Pub} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true)
     {lw sw : Nat × Nat} (hw : windowed prog P H lw sw = true) (hq : haltsOnly prog P H = true)
     {m : Machine} (h : AtIn base prog P H m m) : Good env base prog lw sw m := by
   obtain ⟨k, A, hk, hA, hp1, -, hr⟩ := h
@@ -127,7 +127,7 @@ instruction, related to itself: either every state of the first `n` steps is
 `Good`, or the run is at one of the exits after some `j ≤ n` steps -- related as
 the jump there left it -- and every state before that is `Good`. -/
 theorem reach_until {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length)
-    {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true)
+    {P : Pub} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true)
     {lw sw : Nat × Nat} (hw : windowed prog P H lw sw = true) (hq : haltsOnly prog P H = true) :
     ∀ n m, AtIn base prog P H m m →
       (∀ i ≤ n, ∀ m', run env i m = .running m' → Good env base prog lw sw m') ∨
@@ -194,11 +194,13 @@ theorem reach_until {env : Env} {base : Word} {prog : List Instr} (hp : Hosted e
         cases hm
 
 /-- A run from `base`, with the program in memory, is at the checker's entry. -/
-theorem at_entry {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat}
+theorem at_entry {base : Word} {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat}
     (hc : checkX prog P H X = true) (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base)
-    (hcode : CodeAt s.mem base prog) : AtIn base prog P H s s := by
+    (hcode : CodeAt s.mem base prog)
+    (hkc : ∀ c ∈ P.consts, readLE s.mem (base + BitVec.ofNat 32 c.1) 4 = c.2 := by intro c hc; cases hc) :
+    AtIn base prog P H s s := by
   have h0 : Rel base prog P entry s s := by
-    refine ⟨fun r => ?_, fun _ _ _ => rfl, hcode, hcode⟩
+    refine ⟨fun r => ?_, fun _ _ _ => rfl, hcode, hcode, hkc, hkc⟩
     unfold regOK
     by_cases hr0 : r.toNat = 0
     · have : r = 0 := BitVec.eq_of_toNat_eq hr0
@@ -209,12 +211,13 @@ theorem at_entry {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : 
 
 /-- **A program with no exits: every state of its run is `Good`.** -/
 theorem reach {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length)
-    {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true)
+    {P : Pub} {H : Heads} (hc : check prog P H = true)
     {lw sw : Nat × Nat} (hw : windowed prog P H lw sw = true) (hq : haltsOnly prog P H = true)
-    (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog) :
+    (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog)
+    (hkc : ∀ c ∈ P.consts, readLE s.mem (base + BitVec.ofNat 32 c.1) 4 = c.2 := by intro c hc; cases hc) :
     ∀ n m, run env n s = .running m → Good env base prog lw sw m := by
   intro n m hm
-  rcases reach_until hp hc hw hq n s (at_entry hc hne hpc hcode) with hall | ⟨j, -, m', -, ⟨t, ht, -⟩, -⟩
+  rcases reach_until hp hc hw hq n s (at_entry hc hne hpc hcode hkc) with hall | ⟨j, -, m', -, ⟨t, ht, -⟩, -⟩
   · exact hall n (Nat.le_refl _) m hm
   · simp at ht
 
