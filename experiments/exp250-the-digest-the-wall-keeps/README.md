@@ -126,4 +126,66 @@ fails if the file is not what `gen.py` writes.
 From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
+=== exp250 — the digest the wall keeps ===
+recorded at 2026-10-26T13:51:38Z from commit 4d5eb9e
+
+>>> the formal theorems, and what they rest on
+'Rv32.Reach.step_same' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Reach.run_same' depends on axioms: [propext, Quot.sound]
+'Rv32.Reach.run_halt_step' depends on axioms: [propext, Quot.sound]
+'Rv32.Join.quiet_of_good' depends on axioms: [propext, Quot.sound]
+'Rv32.Join.halt_in_box' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp223.conditions' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp248.front_reach' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp249.sha_reach' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp239.monitor_scrubs' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp250.boot_ports' depends on axioms: [propext, Quot.sound]
+'Exp250.kernel_reach' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp250.kernel_same' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp250.behind' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp250.digest_behind_the_wall' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp250.no_digest_behind_the_wall' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims and wrong models: each must be refused
+heard_instret_short    claim: the host hears minstret as 2 + j, not 3 + j                                      refused in behind
+heard_exit_zero        claim: the exit word the host hears is 0, whatever the kernel's code                    refused in behind
+trap_one_step_early    claim: the kernel has trapped one step sooner                                           refused in behind
+healthy_sooner         claim: a healthy run traps before exp223's 334284th step                                refused in digest_behind_the_wall
+unhealthy_sooner       claim: an unhealthy run traps before exp223's 17425th step                              refused in no_digest_behind_the_wall
+healthy_digest_zeroed  claim: a healthy run's digest window is zeroed too                                      refused in digest_behind_the_wall
+stack_as_at_reset      claim: an unhealthy run leaves the monitor's stack as it was at reset                   refused in no_digest_behind_the_wall
+wide_is_box            claim: exp223's world is the 64 KiB box, not 128 KiB                                    refused in wide
+window_start_only      a window need only start inside the region for the box's step to be the wider world's   refused in step_same
+ct_lets_hash           the checker's haltsOnly lets a HASH through as well as a HALT                           refused in haltsOnly_at
+umode_ecall_untrapped  a U-mode ecall does not trap: Tier 2 runs it as Tier 1 does                             refused in trap_none_plain
+
+>>> exp223 behind exp239 on the emulator, from reset to the park
+PASS  exp222's 14 streams, exp223's kernel as exp239's payload, from reset to the park:
+      healthy: one trap, at step 334337 = 53 + 334284, to 0x80000114 with mcause 8; heard HALT 0 334286 334286,
+      exit 0; SHA-256 of the samples at +0x2140 at the trap and at the park; the scratch zero
+      unhealthy: one trap, at step 17478 = 53 + 17425, to 0x80000114 with mcause 8; heard HALT 1 17427 17427,
+      exit 1; the scratch and the digest window zero, every other byte but the stack as at reset
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Wall.lean checks, with no errors and no warnings
+PASS  all 15 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  heard_instret_short: the proof refuses a version where claim: the host hears minstret as 2 + j, not 3 + j
+PASS  heard_exit_zero: the proof refuses a version where claim: the exit word the host hears is 0, whatever the kernel's code
+PASS  trap_one_step_early: the proof refuses a version where claim: the kernel has trapped one step sooner
+PASS  healthy_sooner: the proof refuses a version where claim: a healthy run traps before exp223's 334284th step
+PASS  unhealthy_sooner: the proof refuses a version where claim: an unhealthy run traps before exp223's 17425th step
+PASS  healthy_digest_zeroed: the proof refuses a version where claim: a healthy run's digest window is zeroed too
+PASS  stack_as_at_reset: the proof refuses a version where claim: an unhealthy run leaves the monitor's stack as it was at reset
+PASS  wide_is_box: the proof refuses a version where claim: exp223's world is the 64 KiB box, not 128 KiB
+PASS  window_start_only: the proof refuses a version where a window need only start inside the region for the box's step to be the wider world's
+PASS  ct_lets_hash: the proof refuses a version where the checker's haltsOnly lets a HASH through as well as a HALT
+PASS  umode_ecall_untrapped: the proof refuses a version where a U-mode ecall does not trap: Tier 2 runs it as Tier 1 does
+PASS  proof/Wall.lean is what proof/gen.py writes, from exp223's, exp248's, exp249's and exp239's proofs and tail.lean
+PASS  exp222's 14 streams, exp223's kernel as exp239's payload, from reset to the park:
+      healthy: one trap, at step 334337 = 53 + 334284, to 0x80000114 with mcause 8; heard HALT 0 334286 334286,
+      exit 0; SHA-256 of the samples at +0x2140 at the trap and at the park; the scratch zero
+      unhealthy: one trap, at step 17478 = 53 + 17425, to 0x80000114 with mcause 8; heard HALT 1 17427 17427,
+      exit 1; the scratch and the digest window zero, every other byte but the stack as at reset
 ```
