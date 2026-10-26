@@ -88,7 +88,9 @@ the generator writes.
   (exp208's SHA-256 starts at `0x1000` and its own proof extends to `0x11000`); the monitor's box is 64 KiB.
   The kernel touches nothing above `+0x4000`, so it runs in the box, but its theorems do not apply there. The
   monitor's behaviour is proved here; the kernel's result under it is compared on the emulator, byte for byte,
-  with the kernel run with no monitor.
+  with the kernel run with no monitor. Since then, [exp250](../exp250-the-digest-the-wall-keeps/) has joined
+  them: exp248 and exp249 proved what every step of the kernel touches, which narrows exp223's theorem to the
+  box, and from reset to the park the digest is kept or withheld as this monitor promises.
 - **The model is not the chip.** As exp236: `Priv.lean` is a reading of the Hazard3 documentation; nothing here
   ran on the RTL or on an RP2350. There is no chip build of this monitor: exp237's `monitor_chip.S` is derived
   from exp236's and unproved, and a port is a later experiment.

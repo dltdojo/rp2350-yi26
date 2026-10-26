@@ -1,0 +1,19 @@
+# exp250 — wrong claims and wrong models. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: each says more than, or other than, exp223's kernel behind exp239's wall does -- a word the host
+# does not hear, a step the run does not take, a byte the monitor does not zero or does. Then what the join rests on,
+# loosened in the library: exp223's world taken for the box, a window that need only start inside the region, the
+# checker's knowledge that every ecall is a HALT, and a U-mode ecall that does not trap.
+heard_instret_short|claim: the host hears minstret as 2 + j, not 3 + j|s/BitVec.ofNat 32 (3 + j)⟩,$/BitVec.ofNat 32 (2 + j)⟩,/
+heard_exit_zero|claim: the exit word the host hears is 0, whatever the kernel's code|s/⟨0xc0000008#32, a0⟩\]/⟨0xc0000008#32, 0#32⟩]/
+trap_one_step_early|claim: the kernel has trapped one step sooner|s/PrivMachine.run env (53 + (j + 1)) s$/PrivMachine.run env (53 + j) s/
+healthy_sooner|claim: a healthy run traps before exp223's 334284th step|s/∃ j, j < 334284 ∧/∃ j, j < 334283 ∧/
+unhealthy_sooner|claim: an unhealthy run traps before exp223's 17425th step|s/∃ j, j < 17425 ∧/∃ j, j < 17424 ∧/
+healthy_digest_zeroed|claim: a healthy run's digest window is zeroed too|s/(∀ x, InConf x → (PrivMachine.run env N (trapAt env s j)).core.mem x = 0) ∧/(∀ x, InConf x ∨ InDigest x → (PrivMachine.run env N (trapAt env s j)).core.mem x = 0) ∧/
+stack_as_at_reset|claim: an unhealthy run leaves the monitor's stack as it was at reset|s/^        (∀ x, ¬ InConf x → ¬ InDigest x → ¬ InStack x → ¬ InPorts x →$/        (∀ x, ¬ InConf x → ¬ InDigest x → ¬ InPorts x →/
+wide_is_box|claim: exp223's world is the 64 KiB box, not 128 KiB|s/region := ⟨0x80010000, 0x80030000⟩ }/region := ⟨0x80010000, 0x80020000⟩ }/
+window_start_only|a window need only start inside the region for the box's step to be the wider world's|s/^  r.lo ≤ base.toNat + w.1 ∧ base.toNat + w.2 ≤ r.hi$/  r.lo ≤ base.toNat + w.1/|lean/Rv32/Reach.lean
+ct_lets_hash|the checker's haltsOnly lets a HASH through as well as a HALT|s/some .ecall, some A => get A 5 == .num 1 1$/some .ecall, some A => (get A 5 == .num 1 1) ^^ (get A 5 == .num 0 0)/|lean/Rv32/Ct.lean
+umode_ecall_untrapped|a U-mode ecall does not trap: Tier 2 runs it as Tier 1 does|s/^  else if isEcall w then$/  else if isEcall w ∧ s.mode = .M then/|lean/Rv32/Priv.lean
