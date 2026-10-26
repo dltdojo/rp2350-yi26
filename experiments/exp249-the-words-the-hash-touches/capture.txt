@@ -1,0 +1,57 @@
+=== exp249 — the words the hash touches ===
+recorded at 2026-10-26T12:10:21Z from commit bc397ca
+
+>>> the formal theorems, and what they rest on
+'Exp249.accepted' depends on axioms: [propext, Quot.sound]
+'Exp249.windows' depends on axioms: [propext, Quot.sound]
+'Exp249.halts_only' depends on axioms: [propext, Quot.sound]
+'Rv32.Reach.reach' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Reach.frame' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp249.sha_reach' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp249.sha_whole' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims and a wrong checker: each must be refused
+stores_short          claim: the stores stay below +0x1400, the padding block left out                              refused in windows
+loads_short           claim: the loads stay below +0x2000, the message left out                                     refused in windows
+length_unknown        the length word is not known to be a constant: the block count is not known                   refused in accepted
+length_elsewhere      the constant is declared a word on, at +0x1124, not where the kernel reads the length         refused in accepted
+constant_digest       claim: the digest's first word is a constant too, though the kernel writes it                 refused in accepted
+cap_signed_any        an ordered comparison narrows a range whatever its size, where signed and unsigned disagree   refused in rel_cap
+const_any_size        a load of any size that starts at a constant's offset reads the constant                      refused in lock_ld
+store_over_constant   a store need not miss the constants                                                           refused in lock_st
+srai_as_srli          an arithmetic shift right of a number is taken for a logical one                              refused in sh_ok
+pinned_range          a counter is taken as pinned to its lowest value whatever its range                           refused in exactIdx_val
+second_counter_still  stepping a value's second counter does not move the value                                     refused in regs_write
+
+>>> SHA-256 inside exp223, on the emulator, every access recorded
+PASS  SHA-256 inside exp223's kernel, on the 8 healthy streams of exp222, every access recorded,
+      offsets from SHA-256's base: every load inside [+0x400, +0x3040), every store inside
+      [+0x1140, +0x1440), every pc one of its 252 instructions, its one call the HALT with t0 = 1
+      what the run touches: loads [0x1000, 0x3000) (26017 of them), stores [0x1140, 0x1440) (4741):
+      the store window exactly; the loads inside the checker's wider bound
+PASS  the frame: when SHA-256 halts, every byte of the box outside its store window is as it was when
+      it began; and the digest at +0x1140 is SHA-256 of the 4096 sample bytes
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Hash.lean checks, with no errors and no warnings
+PASS  all 7 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  stores_short: the proof refuses a version where claim: the stores stay below +0x1400, the padding block left out
+PASS  loads_short: the proof refuses a version where claim: the loads stay below +0x2000, the message left out
+PASS  length_unknown: the proof refuses a version where the length word is not known to be a constant: the block count is not known
+PASS  length_elsewhere: the proof refuses a version where the constant is declared a word on, at +0x1124, not where the kernel reads the length
+PASS  constant_digest: the proof refuses a version where claim: the digest's first word is a constant too, though the kernel writes it
+PASS  cap_signed_any: the proof refuses a version where an ordered comparison narrows a range whatever its size, where signed and unsigned disagree
+PASS  const_any_size: the proof refuses a version where a load of any size that starts at a constant's offset reads the constant
+PASS  store_over_constant: the proof refuses a version where a store need not miss the constants
+PASS  srai_as_srli: the proof refuses a version where an arithmetic shift right of a number is taken for a logical one
+PASS  pinned_range: the proof refuses a version where a counter is taken as pinned to its lowest value whatever its range
+PASS  second_counter_still: the proof refuses a version where stepping a value's second counter does not move the value
+PASS  SHA-256 inside exp223's kernel, on the 8 healthy streams of exp222, every access recorded,
+      offsets from SHA-256's base: every load inside [+0x400, +0x3040), every store inside
+      [+0x1140, +0x1440), every pc one of its 252 instructions, its one call the HALT with t0 = 1
+      what the run touches: loads [0x1000, 0x3000) (26017 of them), stores [0x1140, 0x1440) (4741):
+      the store window exactly; the loads inside the checker's wider bound
+PASS  the frame: when SHA-256 halts, every byte of the box outside its store window is as it was when
+      it began; and the digest at +0x1140 is SHA-256 of the 4096 sample bytes
