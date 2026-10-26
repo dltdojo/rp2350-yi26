@@ -81,16 +81,19 @@ structure IoEvent where
 
 /-- Complete Tier 2 Privileged Machine State.
 
-`io` and `host` are the ports (`isPort`): every word M-mode has stored to one, in order, and what a
-word loaded from one returns, given what has been stored so far. `host` is part of the state, so a
-theorem about any state is about any host: what the host answers is not the monitor's to prove. -/
+`io`, `host` and `digest` are the ports (`isPort`) and whoever listens on them: every word M-mode has
+stored to one, in order; what a word loaded from one returns, given what has been stored so far and
+memory; and the 32 bytes the host writes back when it is asked for a hash. Both are part of the
+state, so a theorem about any state is about any host: what the host answers, and what it writes back,
+is not the monitor's to prove. -/
 structure PrivMachine where
   core   : Rv32.Machine
   mode   : PrivMode := .M
   csrs   : PrivCSRs := {}
   halted : Bool     := false
   io     : List IoEvent := []
-  host   : List IoEvent → Word → Word := fun _ _ => 0
+  host   : List IoEvent → (Word → Byte) → Word → Word := fun _ _ _ => 0
+  digest : List IoEvent → (Word → Byte) → Fin 32 → Byte := fun _ _ _ => 0
 
 /-- Address-matching modes supported by RP2350 Hazard3 PMP hardware. -/
 inductive PmpAddrMode where
@@ -398,8 +401,13 @@ def uModeTrapCause (s : PrivMachine) (w : Word) : Option Word :=
 `[0xc0000000, 0xc0000020)` holds the testbench's print and exit words and the service port. On the chip
 they are not memory: a store goes to whoever is listening, and a load returns what that one answers.
 Here an M-mode `sw` to a port is also recorded in `io`, and an M-mode `lw` from one returns
-`host io a`, not the bytes. The store still writes its bytes, so a statement about memory reads as it
-did before the ports were modelled, and no load sees them. Only words, and only from M-mode: a byte
+`host io m a`, not the bytes. The store still writes its bytes, so a statement about memory reads as it
+did before the ports were modelled, and no load sees them. One store does more: the word 2 to the request
+word, `0xc000001c`, a hash asked for. The host then writes 32 bytes of its own, `digest io m`, at the address
+in the output word, `0xc0000018`, as a host on the chip writes into the caller's memory. What it writes is the
+host's, as its answers are; that it is written where the output word says, and nowhere else, is the model's.
+The host sees memory as it was when the request was made: before the request word itself, which it does
+not need to read. Only words, and only from M-mode: a byte
 or a halfword is memory, and U-mode is refused the ports by the PMP of every monitor here before
 an access reaches them -- a box that let it through would be reading memory, which this model
 does not catch. -/
@@ -413,11 +421,18 @@ def portWrites (s : PrivMachine) : Rv32.Instr → List IoEvent
     if s.mode = .M ∧ isPort a = true then [⟨a, s.core.reg rs2⟩] else []
   | _ => []
 
-/-- The machine after an instruction, with a word loaded from a port replaced by the host's answer. -/
+/-- The machine after an instruction, with a word loaded from a port replaced by the host's answer, and
+a hash asked for written back by the host. -/
 def portRead (s : PrivMachine) (core' : Rv32.Machine) : Rv32.Instr → Rv32.Machine
   | .ld .lw rd rs1 imm =>
     let a := s.core.reg rs1 + imm.signExtend 32
-    if s.mode = .M ∧ isPort a = true then core'.setReg rd (s.host s.io a) else core'
+    if s.mode = .M ∧ isPort a = true then core'.setReg rd (s.host s.io s.core.mem a) else core'
+  | .st .sw rs1 rs2 imm =>
+    let a := s.core.reg rs1 + imm.signExtend 32
+    if s.mode = .M ∧ isPort a = true ∧ a = 0xc000001c#32 ∧ s.core.reg rs2 = 2#32 then
+      let out := BitVec.ofNat 32 (Rv32.readLE s.core.mem 0xc0000018#32 4)
+      { core' with mem := Rv32.writeBytes core'.mem out (s.digest (s.io ++ [⟨a, 2#32⟩]) s.core.mem) }
+    else core'
   | _ => core'
 
 /-- U-mode reaches no port: it makes no port write and reads no answer. -/

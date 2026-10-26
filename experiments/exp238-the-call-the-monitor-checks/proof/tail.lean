@@ -137,6 +137,318 @@ def OutOfBox (u : PrivMachine) : Prop :=
   ((u.core.reg 5#5 = 2#32 ∧ ¬ (InBox (u.core.reg 10#5) (u.core.reg 11#5).toNat ∧ InBox (u.core.reg 12#5) 32)) ∨
    (u.core.reg 5#5 = 3#32 ∧ ¬ (InBox (u.core.reg 10#5) 32 ∧ InBox (u.core.reg 11#5) 64)))
 
+/-! ## The calls served: the request, and what the host does with it
+
+A `HASHB`'s request is the one store after which the host writes: 32 bytes of its own, `digest`, at the
+output word's address. The theorems before this point cover the monitor's own words; this one step, and
+the runs it joins, carry what the host wrote. -/
+
+/-- A byte outside the box is not one a write of 32 bytes inside it reaches. -/
+theorem writeBytes_box_far {m : Word → Byte} {a : Word} {f : Fin 32 → Byte} {x : Word}
+    (ha : InBox a 32) (hx : x.toNat < 0x80010000 ∨ 0x80020000 ≤ x.toNat) : writeBytes m a f x = m x := by
+  have h1 := x.isLt
+  have h2 := a.isLt
+  have : ¬ (x - a).toNat < 32 := by
+    rw [BitVec.toNat_sub]; unfold InBox at ha; omega
+  simp only [writeBytes, this, dite_false]
+
+/-- Two memories the same but for the monitor's stack and the ports stay so under one write of 32 bytes. -/
+theorem Frame.writeBytes {m m' : Word → Byte} (a : Word) (f : Fin 32 → Byte) (h : Frame m m') :
+    Frame (Rv32.writeBytes m a f) (Rv32.writeBytes m' a f) := by
+  intro x i p v
+  simp only [Rv32.writeBytes]
+  split
+  · rfl
+  · exact h x i p v
+
+/-- The request word written, and nothing else. -/
+theorem frame_req {m : Word → Byte} (a : Word) (f : Fin 32 → Byte) (v : Nat) :
+    Frame (Rv32.writeBytes m a f) (Rv32.writeBytes (writeLE m 0xc000001c#32 v 4) a f) := by
+  intro x i p sv
+  simp only [Rv32.writeBytes]
+  split
+  · rfl
+  · have : ¬ (x - 0xc000001c#32).toNat < 4 := by
+      have := x.isLt
+      rw [BitVec.toNat_sub]; simp only [InSvc, BitVec.toNat_ofNat] at sv ⊢; omega
+    rw [writeLE4_apply]; simp only [this, ↓reduceIte]
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 100000 in
+/-- **The request.** `sw t0, 12(t3)` with `t0 = 2` and `t3` the service port: the request word holds 2, the
+    host has heard it, and the 32 bytes at the output word's address are the host's `digest` of what it
+    was told and of memory as it was. -/
+theorem hashb_req (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word) (p : Word)
+    (hpc : s.core.pc = 0x800001d8#32) (hcs : s.csrs = csrsH ms e c m cy { cy := true, ir := true } (p))
+    (ht3 : s.core.reg 28#5 = 0xc0000010#32) (ht0 : s.core.reg 5#5 = 2#32) :
+    (PrivMachine.run env 1 s).core.pc = 0x800001dc#32 ∧
+    (PrivMachine.run env 1 s).halted = false ∧
+    (PrivMachine.run env 1 s).mode = .M ∧
+    (PrivMachine.run env 1 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (p) ∧
+    (PrivMachine.run env 1 s).host = s.host ∧
+    (PrivMachine.run env 1 s).digest = s.digest ∧
+    (PrivMachine.run env 1 s).io = s.io ++ [⟨0xc000001c#32, 2#32⟩] ∧
+    (PrivMachine.run env 1 s).core.mem = Rv32.writeBytes (writeLE s.core.mem 0xc000001c#32 2 4)
+      (BitVec.ofNat 32 (readLE s.core.mem 0xc0000018#32 4)) (s.digest (s.io ++ [⟨0xc000001c#32, 2#32⟩]) s.core.mem) ∧
+    (∀ r, (PrivMachine.run env 1 s).core.reg r = s.core.reg r) := by
+  obtain ⟨hW, hA, henv, hh, hm⟩ := hS
+  obtain ⟨Mc, hmem⟩ : ∃ Mc, s.core.mem = Mc := ⟨_, rfl⟩
+  have hA' : Agree M0 Mc 0x80000000 808 := hmem ▸ hA
+  have sm : ∀ t : PrivMachine, Agree M0 t.core.mem 0x80000000 808 →
+      (t.core.pc - 0x80000000#32).toNat / 4 < monitorCode.length →
+      (t.core.pc - 0x80000000#32).toNat % 4 = 0 →
+      PrivMachine.step env t =
+        PrivMachine.stepW env t (monitorCode.getD ((t.core.pc - 0x80000000#32).toNat / 4) 0) :=
+    fun t ht h1 h2 => step_mon hW ht h1 h2
+  obtain ⟨F, hF⟩ : ∃ F, PrivMachine.run env 1 s = F := ⟨_, rfl⟩
+  rw [hF]
+  psimpH [pmpCheck_mon, sm, hmem, hA', henv, monRegion, agree_writeLE_iff, hpc, monitorCode, hh, hm, hcs, csrsH,
+    csrsFixed, csrsConfigured, ht3, ht0] at hF
+  subst hF
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals try psimpH [pmpCheck_mon, hpc, hmem, csrsH, csrsFixed, csrsConfigured, regsUpd, ht3, ht0]
+
+/-- A word outside the box is not one a write of 32 bytes inside it reaches. -/
+theorem readLE_box_far {m : Word → Byte} {a : Word} {f : Fin 32 → Byte} {b : Word} (ha : InBox a 32)
+    (hb : b.toNat + 4 ≤ 0x80010000 ∨ (0x80020000 ≤ b.toNat ∧ b.toNat + 4 ≤ 4294967296)) :
+    readLE (Rv32.writeBytes m a f) b 4 = readLE m b 4 := by
+  apply readLE_four_congr
+  intro d hd
+  apply writeBytes_box_far ha
+  have : (b + BitVec.ofNat 32 d).toNat = b.toNat + d := by
+    have := b.isLt
+    simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow]; omega
+  omega
+
+/-- The request word's neighbours, and words below the box, are not the request word. -/
+theorem readLE_req_far (m : Word → Byte) (v : Nat) {b : Word} (hb : b.toNat + 4 ≤ 0xc000001c) :
+    readLE (writeLE m 0xc000001c#32 v 4) b 4 = readLE m b 4 :=
+  readLE_writeLE_far _ _ _ _ (Or.inl (by simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]; omega))
+    (by omega) (by decide)
+
+set_option maxHeartbeats 4000000 in
+/-- **A `HASHB` whose ranges lie in the box.** From the trap vector the call is forwarded exactly as the
+    payload gave it, and the machine is back in the payload at the word after the `ecall`: the payload's
+    registers as they were, the counters released and moved on by two. Memory is what the payload left,
+    with the host's 32 bytes at the output pointer: its `digest` of the four words it heard and of memory as
+    it was at the request -- which, outside the monitor's stack and the ports, is the payload's. -/
+theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32)
+    (ht0 : s.core.reg 5#5 = 2#32)
+    (hin : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + (s.core.reg 11#5).toNat ≤ 0x80020000)
+    (hout : 0x80010000 ≤ (s.core.reg 12#5).toNat ∧ (s.core.reg 12#5).toNat + 32 ≤ 0x80020000) (hmpp : ms.mpp = .U) :
+    (PrivMachine.run env 43 s).core.pc = e + 4#32 ∧
+    Agree M0 (PrivMachine.run env 43 s).core.mem 0x80000000 808 ∧
+    (PrivMachine.run env 43 s).halted = false ∧
+    (PrivMachine.run env 43 s).mode = .U ∧
+    (PrivMachine.run env 43 s).csrs =
+      csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 43 s).host = s.host ∧
+    (PrivMachine.run env 43 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+      ⟨0xc0000018#32, s.core.reg 12#5⟩, ⟨0xc000001c#32, 2#32⟩] ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc0000018#32 4 = (s.core.reg 12#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 43 s).core.mem 0xc000001c#32 4 = 2 ∧
+    Frame s.core.mem (PrivMachine.run env 31 s).core.mem ∧
+    Frame (Rv32.writeBytes s.core.mem (s.core.reg 12#5)
+        (s.digest (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+          ⟨0xc0000018#32, s.core.reg 12#5⟩, ⟨0xc000001c#32, 2#32⟩]) (PrivMachine.run env 31 s).core.mem))
+      (PrivMachine.run env 43 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 43 s).core.reg r = regsUpd s.core.reg [] r) := by
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1_0, sv1_1, sv1_2, sv1_3, fr1, r1⟩ :=
+    monitor_hashb_ask env M0 s hS ms e c m cy hpc hcs hc ht0 hin hout
+  have dg1 := (run_host_digest env 31 s).2
+  obtain ⟨v, hv⟩ : ∃ t, PrivMachine.run env 31 s = t := ⟨_, rfl⟩
+  rw [hv] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1_0 sv1_1 sv1_2 sv1_3 fr1 r1 dg1 ⊢
+  have v28 : v.core.reg 28#5 = 0xc0000010#32 := by rw [r1]; simp [regsUpd]
+  have v5 : v.core.reg 5#5 = 2#32 := by rw [r1]; simp [regsUpd]
+  have v2 : v.core.reg 2#5 = 0x80008000#32 := by rw [r1]; simp [regsUpd]
+  have hS1 := hS.next a1 h1 m1
+  obtain ⟨p2, h2, m2, c2, ho2, -, io2, mem2, r2⟩ := hashb_req env M0 v hS1 ms e c m cy (s.core.reg 2#5) p1 c1 v28 v5
+  obtain ⟨w, hw⟩ : ∃ t, PrivMachine.run env 1 v = t := ⟨_, rfl⟩
+  rw [hw] at p2 h2 m2 c2 ho2 io2 mem2 r2
+  have hdst : BitVec.ofNat 32 (readLE v.core.mem 0xc0000018#32 4) = s.core.reg 12#5 := by
+    rw [sv1_2]; exact ofNat_toNat_mod _
+  rw [hdst, dg1, io1] at mem2
+  simp only [List.append_assoc, List.cons_append, List.nil_append] at mem2
+  generalize hD : s.digest (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+    ⟨0xc0000018#32, s.core.reg 12#5⟩, ⟨0xc000001c#32, 2#32⟩]) v.core.mem = D at mem2 ⊢
+  have aw : Agree M0 w.core.mem 0x80000000 808 := by
+    intro x hx1 hx2
+    have : ¬ (x - 0xc000001c#32).toNat < 4 := by
+      have := x.isLt
+      rw [BitVec.toNat_sub]; simp only [BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod]; omega
+    rw [mem2, writeBytes_box_far hout (by omega), writeLE4_apply]; simp only [this, ↓reduceIte]
+    exact a1 x hx1 hx2
+  have ws : ∀ b : Word, b.toNat + 4 ≤ 0x80010000 → readLE w.core.mem b 4 = readLE v.core.mem b 4 := by
+    intro b hb
+    rw [mem2, readLE_box_far hout (Or.inl hb), readLE_req_far _ _ (by omega)]
+  have wsv : ∀ b : Word, 0x80020000 ≤ b.toNat → b.toNat + 4 ≤ 0xc000001c →
+      readLE w.core.mem b 4 = readLE v.core.mem b 4 := by
+    intro b hb1 hb2
+    rw [mem2, readLE_box_far hout (Or.inr ⟨hb1, by omega⟩), readLE_req_far _ _ hb2]
+  have wreq : readLE w.core.mem 0xc000001c#32 4 = 2 := by
+    rw [mem2, readLE_box_far hout (Or.inr ⟨by decide, by decide⟩), readLE_writeLE_self]
+  have ww0 : readLE w.core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 := by
+    rw [ws _ (by decide), w1_0]
+  have ww1 : readLE w.core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 := by
+    rw [ws _ (by decide), w1_1]
+  have ww2 : readLE w.core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 := by
+    rw [ws _ (by decide), w1_2]
+  have ww3 : readLE w.core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 := by
+    rw [ws _ (by decide), w1_3]
+  have w2 : w.core.reg 2#5 = 0x80008000#32 := by rw [r2]; exact v2
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ :=
+    hashb_back env M0 w (hS1.next aw h2 m2) ms e c m cy (s.core.reg 2#5) p2 c2 w2 hmpp
+  obtain ⟨t, ht⟩ : ∃ t, PrivMachine.run env 11 w = t := ⟨_, rfl⟩
+  rw [ht] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have hall : PrivMachine.run env 43 s = t := run_two hv (run_two hw ht)
+  rw [hall]
+  have fw : Frame (Rv32.writeBytes v.core.mem (s.core.reg 12#5) D) w.core.mem := by
+    rw [mem2]; exact frame_req _ _ 2
+  refine ⟨p3, a3, h3, m3, c3, ho3.trans (ho2.trans ho1), ?_, by rw [w3_0, ww0], by rw [w3_1, ww1], by rw [w3_2, ww2],
+    by rw [w3_3, ww3], ?_, ?_, ?_, ?_, fr1, ((Frame.writeBytes _ _ fr1).trans fw).trans fr3, ?_⟩
+  · rw [io3, io2, io1]; simp
+  · rw [SvcSame.read sv3 _ (by decide), wsv _ (by decide) (by decide), sv1_0]
+  · rw [SvcSame.read sv3 _ (by decide), wsv _ (by decide) (by decide), sv1_1]
+  · rw [SvcSame.read sv3 _ (by decide), wsv _ (by decide) (by decide), sv1_2]
+  · rw [SvcSame.read sv3 _ (by decide), wreq]
+  · intro r
+    rw [r3 r]
+    rcases reg32 r with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [regsUpd, r2, r1, ww0, ww1, ww2, ww3, ofNat_toNat_mod]
+
+set_option maxHeartbeats 4000000 in
+/-- **A `CHECKSIG` whose ranges lie in the box, answered 0 or 1.** From the trap vector the call is forwarded
+    exactly as the payload gave it, and the machine is back in the payload at the word after the `ecall`: the
+    payload's registers as they were but `a0`, which holds what the host answered -- given the three words it
+    heard and memory as it was when it was asked -- the counters released and moved on by two. -/
+theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32)
+    (ht0 : s.core.reg 5#5 = 3#32)
+    (hkey : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000)
+    (hsig : 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000) (hmpp : ms.mpp = .U)
+    (hans : BitVec.ult 1#32 (s.host (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+      ⟨0xc000001c#32, 3#32⟩]) (PrivMachine.run env 34 s).core.mem 0xc000001c#32) = false) :
+    (PrivMachine.run env 47 s).core.pc = e + 4#32 ∧
+    Agree M0 (PrivMachine.run env 47 s).core.mem 0x80000000 808 ∧
+    (PrivMachine.run env 47 s).halted = false ∧
+    (PrivMachine.run env 47 s).mode = .U ∧
+    (PrivMachine.run env 47 s).csrs =
+      csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 47 s).host = s.host ∧
+    (PrivMachine.run env 47 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+      ⟨0xc000001c#32, 3#32⟩] ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x80008000#32 4 = (s.core.reg 5#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x80008004#32 4 = (s.core.reg 6#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x80008008#32 4 = (s.core.reg 7#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0x8000800c#32 4 = (s.core.reg 28#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 ∧
+    readLE (PrivMachine.run env 47 s).core.mem 0xc000001c#32 4 = 3 ∧
+    Frame s.core.mem (PrivMachine.run env 34 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 47 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 47 s).core.reg r = regsUpd s.core.reg [(10, s.host (s.io ++
+      [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩, ⟨0xc000001c#32, 3#32⟩])
+      (PrivMachine.run env 34 s).core.mem 0xc000001c#32)] r) := by
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1_0, sv1_1, sv1_2, sv1_3, fr1, r1⟩ :=
+    monitor_checksig_ask env M0 s hS ms e c m cy hpc hcs hc ht0 hkey hsig
+  obtain ⟨v, hv⟩ : ∃ t, PrivMachine.run env 34 s = t := ⟨_, rfl⟩
+  rw [hv] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1_0 sv1_1 sv1_2 sv1_3 fr1 r1 hans ⊢
+  have v28 : v.core.reg 28#5 = 0xc0000010#32 := by rw [r1]; simp [regsUpd]
+  have hS1 := hS.next a1 h1 m1
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ :=
+    checksig_fwd_4 env M0 v hS1 ms e c m cy (s.core.reg 2#5) p1 c1 v28
+  obtain ⟨w, hw⟩ : ∃ t, PrivMachine.run env 1 v = t := ⟨_, rfl⟩
+  rw [hw] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have w10 : w.core.reg 10#5 = s.host (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+      ⟨0xc000001c#32, 3#32⟩]) v.core.mem 0xc000001c#32 := by
+    rw [r2]; simp [regsUpd, ho1, io1]
+  have w2 : w.core.reg 2#5 = 0x80008000#32 := by rw [r2]; simp [regsUpd, r1]
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ :=
+    checksig_back_ok env M0 w (hS1.next a2 h2 m2) ms e c m cy (s.core.reg 2#5) p2 c2 w2 hmpp (by rw [w10]; exact hans)
+  obtain ⟨t, ht⟩ : ∃ t, PrivMachine.run env 12 w = t := ⟨_, rfl⟩
+  rw [ht] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have hall : PrivMachine.run env 47 s = t := run_two hv (run_two hw ht)
+  rw [hall]
+  refine ⟨p3, a3, h3, m3, c3, ho3.trans (ho2.trans ho1), by rw [io3, io2, io1], by rw [w3_0, w2_0, w1_0],
+    by rw [w3_1, w2_1, w1_1], by rw [w3_2, w2_2, w1_2], by rw [w3_3, w2_3, w1_3],
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_0],
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_1],
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_2],
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_3], fr1, fr1.trans (fr2.trans fr3), ?_⟩
+  intro r
+  rw [r3 r]
+  rcases reg32 r with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [regsUpd, r2, r1, w2_0, w2_1, w2_2, w2_3, w1_0, w1_1, w1_2, w1_3, ofNat_toNat_mod, ho1, io1]
+
+set_option maxHeartbeats 4000000 in
+/-- **A `CHECKSIG` answered neither 0 nor 1 is refused.** The request went out; then the machine parks with
+    `a0 = 1`, every other register zero, the host having heard the call and then the fault report. -/
+theorem monitor_checksig_bad_answer (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
+    (hS : HState env M0 s) (ms : MStatus) (e c m cy : Word)
+    (hpc : s.core.pc = 0x80000114#32) (hcs : s.csrs = csrsH ms e c m cy {} (0x80008000#32)) (hc : c = 8#32)
+    (ht0 : s.core.reg 5#5 = 3#32)
+    (hkey : 0x80010000 ≤ (s.core.reg 10#5).toNat ∧ (s.core.reg 10#5).toNat + 32 ≤ 0x80020000)
+    (hsig : 0x80010000 ≤ (s.core.reg 11#5).toNat ∧ (s.core.reg 11#5).toNat + 64 ≤ 0x80020000)
+    (hans : BitVec.ult 1#32 (s.host (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+      ⟨0xc000001c#32, 3#32⟩]) (PrivMachine.run env 34 s).core.mem 0xc000001c#32) = true) :
+    (PrivMachine.run env 91 s).core.pc = 0x80000320#32 ∧
+    Agree M0 (PrivMachine.run env 91 s).core.mem 0x80000000 808 ∧
+    (PrivMachine.run env 91 s).halted = false ∧
+    (PrivMachine.run env 91 s).mode = .M ∧
+    (PrivMachine.run env 91 s).csrs = csrsH ms e c m cy { cy := true, ir := true } (0#32) ∧
+    (PrivMachine.run env 91 s).host = s.host ∧
+    (PrivMachine.run env 91 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+      ⟨0xc000001c#32, 3#32⟩, ⟨0xc0000004#32, 0x4641554c#32⟩, ⟨0xc0000004#32, c⟩, ⟨0xc0000004#32, e⟩,
+      ⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, m⟩, ⟨0xc0000008#32, 1#32⟩] ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x80008000#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x80008004#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x80008008#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0x8000800c#32 4 = 0 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc0000010#32 4 = (s.core.reg 10#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc0000014#32 4 = (s.core.reg 11#5).toNat % 4294967296 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc0000018#32 4 = readLE s.core.mem 0xc0000018#32 4 ∧
+    readLE (PrivMachine.run env 91 s).core.mem 0xc000001c#32 4 = 3 ∧
+    Frame s.core.mem (PrivMachine.run env 34 s).core.mem ∧
+    Frame s.core.mem (PrivMachine.run env 91 s).core.mem ∧
+    (∀ r, (PrivMachine.run env 91 s).core.reg r = regsUpd s.core.reg [(1, 0#32), (2, 0#32), (3, 0#32), (4, 0#32), (5, 0#32), (6, 0#32), (7, 0#32), (8, 0#32), (9, 0#32), (11, 0#32), (12, 0#32), (13, 0#32), (14, 0#32), (15, 0#32), (16, 0#32), (17, 0#32), (18, 0#32), (19, 0#32), (20, 0#32), (21, 0#32), (22, 0#32), (23, 0#32), (24, 0#32), (25, 0#32), (26, 0#32), (27, 0#32), (28, 0#32), (29, 0#32), (30, 0#32), (31, 0#32), (10, 1#32)] r) := by
+  obtain ⟨p1, a1, h1, m1, c1, ho1, io1, w1_0, w1_1, w1_2, w1_3, sv1_0, sv1_1, sv1_2, sv1_3, fr1, r1⟩ :=
+    monitor_checksig_ask env M0 s hS ms e c m cy hpc hcs hc ht0 hkey hsig
+  obtain ⟨v, hv⟩ : ∃ t, PrivMachine.run env 34 s = t := ⟨_, rfl⟩
+  rw [hv] at p1 a1 h1 m1 c1 ho1 io1 w1_0 w1_1 w1_2 w1_3 sv1_0 sv1_1 sv1_2 sv1_3 fr1 r1 hans ⊢
+  have v28 : v.core.reg 28#5 = 0xc0000010#32 := by rw [r1]; simp [regsUpd]
+  have hS1 := hS.next a1 h1 m1
+  obtain ⟨p2, a2, h2, m2, c2, ho2, io2, w2_0, w2_1, w2_2, w2_3, sv2, fr2, r2⟩ :=
+    checksig_fwd_4 env M0 v hS1 ms e c m cy (s.core.reg 2#5) p1 c1 v28
+  obtain ⟨w, hw⟩ : ∃ t, PrivMachine.run env 1 v = t := ⟨_, rfl⟩
+  rw [hw] at p2 a2 h2 m2 c2 ho2 io2 w2_0 w2_1 w2_2 w2_3 sv2 fr2 r2
+  have w10 : w.core.reg 10#5 = s.host (s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
+      ⟨0xc000001c#32, 3#32⟩]) v.core.mem 0xc000001c#32 := by
+    rw [r2]; simp [regsUpd, ho1, io1]
+  have w2 : w.core.reg 2#5 = 0x80008000#32 := by rw [r2]; simp [regsUpd, r1]
+  obtain ⟨p3, a3, h3, m3, c3, ho3, io3, w3_0, w3_1, w3_2, w3_3, sv3, fr3, r3⟩ :=
+    checksig_back_bad env M0 w (hS1.next a2 h2 m2) ms e c m cy (s.core.reg 2#5) p2 c2 w2 (by rw [w10]; exact hans)
+  obtain ⟨t, ht⟩ : ∃ t, PrivMachine.run env 56 w = t := ⟨_, rfl⟩
+  rw [ht] at p3 a3 h3 m3 c3 ho3 io3 w3_0 w3_1 w3_2 w3_3 sv3 fr3 r3
+  have hall : PrivMachine.run env 91 s = t := run_two hv (run_two hw ht)
+  rw [hall]
+  refine ⟨p3, a3, h3, m3, c3, ho3.trans (ho2.trans ho1), by rw [io3, io2, io1]; simp, w3_0, w3_1, w3_2, w3_3,
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_0],
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_1],
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_2],
+    by rw [SvcSame.read sv3 _ (by decide), SvcSame.read sv2 _ (by decide), sv1_3], fr1, fr1.trans (fr2.trans fr3), ?_⟩
+  intro r
+  rw [r3 r]
+  rcases reg32 r with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [regsUpd]
+
 /-! ## What the monitor tells the host -/
 
 /-- A fault, as the host hears it: the report to the print word — the tag, `mcause`, `mepc`, `mtval` and
@@ -160,8 +472,11 @@ def callIo (u : PrivMachine) : List IoEvent :=
 
 /-- What the monitor did with a call it served, seen from the payload: the call's ranges were in the box,
     the host was asked exactly the payload's arguments and call number, and the payload has its registers
-    as they were (but `a0` for a `CHECKSIG`, which is what the host answered the writes so far, and 0 or 1), the word
-    after its `ecall`, two instructions on the counter; and the host heard the call and nothing else. -/
+    as they were (but `a0` for a `CHECKSIG`, which is what the host answered, and 0 or 1), the word after its
+    `ecall`, two instructions on the counter; the host heard the call and nothing else. And memory: `M` is
+    memory as the host saw it when it was asked, the payload's but for the monitor's stack and the ports;
+    after a `HASHB` the payload's memory holds the host's 32 bytes at the output pointer, its `digest` of what
+    it heard and of `M`, and nothing else has changed; after a `CHECKSIG` nothing has. -/
 def Served (u t : PrivMachine) : Prop :=
   u.csrs.mcause = 8#32 ∧ (u.core.reg 5#5 = 2#32 ∨ u.core.reg 5#5 = 3#32) ∧ CallBoxed u ∧
   readLE t.core.mem 0xc0000010#32 4 = (u.core.reg 10#5).toNat % 4294967296 ∧
@@ -170,12 +485,15 @@ def Served (u t : PrivMachine) : Prop :=
   t.core.pc = u.csrs.mepc + 4#32 ∧ t.csrs.minstret = u.csrs.minstret + 2#32 ∧
   (∀ r, r ≠ 10#5 → t.core.reg r = u.core.reg r) ∧
   (u.core.reg 5#5 = 2#32 → t.core.reg 10#5 = u.core.reg 10#5) ∧
-  Frame u.core.mem t.core.mem ∧
   t.io = u.io ++ callIo u ∧
-  (u.core.reg 5#5 = 3#32 → t.core.reg 10#5 = u.host t.io 0xc000001c#32 ∧ (t.core.reg 10#5 = 0#32 ∨ t.core.reg 10#5 = 1#32))
+  ∃ M, Frame u.core.mem M ∧
+    (u.core.reg 5#5 = 2#32 →
+      Frame (Rv32.writeBytes u.core.mem (u.core.reg 12#5) (u.digest (u.io ++ callIo u) M)) t.core.mem) ∧
+    (u.core.reg 5#5 = 3#32 → Frame u.core.mem t.core.mem ∧ t.core.reg 10#5 = u.host t.io M 0xc000001c#32 ∧
+      (t.core.reg 10#5 = 0#32 ∨ t.core.reg 10#5 = 1#32))
 
-/-- What a host answers a `CHECKSIG` that `u` asks for, the call having gone out. -/
-def answer (u : PrivMachine) : Word := u.host (u.io ++ callIo u) 0xc000001c#32
+/-- What a host answers a `CHECKSIG` that `u` asks for, the call having gone out, seeing memory `M`. -/
+def answer (u : PrivMachine) (M : Word → Byte) : Word := u.host (u.io ++ callIo u) M 0xc000001c#32
 
 /-- The four ways a trap can end: a fault (parked, `a0 = 1`, the service port as it was, the fault
     reported), the payload's own HALT (parked, `a0` its exit code, the HALT reported), a served call
@@ -185,8 +503,8 @@ def Ends (M0 : Word → Byte) (u t : PrivMachine) : Prop :=
   (Parked t 1#32 ∧ SvcSame u.core.mem t.core.mem ∧ t.io = u.io ++ faultIo u) ∨
   (Parked t (u.core.reg 10#5) ∧ u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 1#32 ∧ t.io = u.io ++ haltIo u) ∨
   (Running M0 t ∧ Served u t) ∨
-  (Parked t 1#32 ∧ u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 3#32 ∧ CallBoxed u ∧ BitVec.ult 1#32 (answer u) = true ∧
-    t.io = u.io ++ callIo u ++ faultIo u)
+  (Parked t 1#32 ∧ u.csrs.mcause = 8#32 ∧ u.core.reg 5#5 = 3#32 ∧ CallBoxed u ∧
+    (∃ M, Frame u.core.mem M ∧ BitVec.ult 1#32 (answer u M) = true) ∧ t.io = u.io ++ callIo u ++ faultIo u)
 
 /-- A call with a range out of the box can only have ended the first way. -/
 theorem ends_refuses {M0 : Word → Byte} {u t : PrivMachine} (h : Ends M0 u t) (ho : OutOfBox u) :
@@ -243,17 +561,18 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     · by_cases ht2 : u.core.reg 5#5 = 2#32
       · by_cases hbox : (0x80010000 ≤ (u.core.reg 10#5).toNat ∧ (u.core.reg 10#5).toNat + (u.core.reg 11#5).toNat ≤ 0x80020000) ∧
             (0x80010000 ≤ (u.core.reg 12#5).toNat ∧ (u.core.reg 12#5).toNat + 32 ≤ 0x80020000)
-        · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
+        · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, qA, q14, q15⟩ :=
             monitor_hashb_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht2 hbox.1 hbox.2 hmpp
+          have hci : callIo u = [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩,
+              ⟨0xc0000018#32, u.core.reg 12#5⟩, ⟨0xc000001c#32, 2#32⟩] := by simp [callIo, ht2]
           refine ⟨_, Or.inr (Or.inr (Or.inl ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inl ht2,
-            ⟨fun _ => hbox, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩))⟩
+            ⟨fun _ => hbox, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩, q10, q11, ?_, q1, ?_, ?_, ?_,
+            by rw [qi, hci], _, qA, fun _ => by rw [hci]; exact q14, fun h => by rw [ht2] at h; exact absurd h (by decide)⟩))⟩
           · rw [q13, ht2]; rfl
           · rw [q5]; rfl
           · intro r hr; rw [q15 r]; simp [regsUpd]
           · intro _; rw [q15 10#5]; simp [regsUpd]
-          · rw [qi]; simp [callIo, ht2]
-          · intro h; rw [ht2] at h; exact absurd h (by decide)
         · obtain ⟨N, q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
             monitor_hashb_oob_fault env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
               hpc hcs hc ht2 hbox
@@ -262,34 +581,34 @@ theorem monitor_cycle (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
         · by_cases hbox : (0x80010000 ≤ (u.core.reg 10#5).toNat ∧ (u.core.reg 10#5).toNat + 32 ≤ 0x80020000) ∧
               (0x80010000 ≤ (u.core.reg 11#5).toNat ∧ (u.core.reg 11#5).toNat + 64 ≤ 0x80020000)
           · have hn2 : u.core.reg 5#5 ≠ 2#32 := by rw [ht3]; decide
-            have hca : answer u = u.host (u.io ++ [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩,
-                ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32 := by simp [answer, callIo, hn2]
-            by_cases hans : BitVec.ult 1#32 (answer u) = true
-            · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
+            have hci : callIo u = [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩,
+                ⟨0xc000001c#32, 3#32⟩] := by simp [callIo, hn2]
+            by_cases hans : BitVec.ult 1#32 (answer u (PrivMachine.run env 34 u).core.mem) = true
+            · obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, qA, q14, q15⟩ :=
                 monitor_checksig_bad_answer env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
-                  hpc hcs hc ht3 hbox.1 hbox.2 (by rw [← hca]; exact hans)
+                  hpc hcs hc ht3 hbox.1 hbox.2 (by rw [← hci]; exact hans)
               refine ⟨_, Or.inr (Or.inr (Or.inr ⟨parked_fault q1 q3 q4 q5 q6 q7 q8 q9 q15, hc, ht3,
-                ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, hans, ?_⟩))⟩
-              rw [qi]; simp [callIo, faultIo, hn2]
+                ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, ⟨_, qA, hans⟩, ?_⟩))⟩
+              rw [qi, hci]; simp [faultIo]
             have hans' : BitVec.ult 1#32 (u.host (u.io ++ [⟨0xc0000010#32, u.core.reg 10#5⟩, ⟨0xc0000014#32, u.core.reg 11#5⟩,
-                ⟨0xc000001c#32, 3#32⟩]) 0xc000001c#32) = false := by rw [← hca]; simpa using hans
-            obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15⟩ :=
+                ⟨0xc000001c#32, 3#32⟩]) (PrivMachine.run env 34 u).core.mem 0xc000001c#32) = false := by
+              rw [← hci]; simpa [answer] using hans
+            obtain ⟨q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12, q13, qA, q14, q15⟩ :=
               monitor_checksig_ok env M0 u hS u.csrs.mstatus u.csrs.mepc u.csrs.mcause u.csrs.minstret u.csrs.mcycle
                 hpc hcs hc ht3 hbox.1 hbox.2 hmpp hans'
+            have ha : (PrivMachine.run env 47 u).core.reg 10#5 = answer u (PrivMachine.run env 34 u).core.mem := by
+              rw [q15 10#5]; simp [regsUpd, answer, hci]
             refine ⟨_, Or.inr (Or.inr (Or.inl ⟨⟨uboxed_of_csrsH q5 q4 q3, q2, _, _, _, _, _, q5⟩, hc, Or.inr ht3,
-              ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, q10, q11, ?_, q1, ?_, ?_, ?_, q14, ?_, ?_⟩))⟩
+              ⟨fun h => by rw [ht3] at h; exact absurd h (by decide), fun _ => hbox⟩, q10, q11, ?_, q1, ?_, ?_,
+              fun h => absurd h hn2, by rw [qi, hci], _, qA, fun h => absurd h hn2, fun _ => ⟨q14, ?_, ?_⟩⟩))⟩
             · rw [q13, ht3]; rfl
             · rw [q5]; rfl
             · intro r hr
               have hr' : ¬ (10 = r.toNat) := fun h => hr (BitVec.eq_of_toNat_eq (by simpa using h.symm))
               rw [q15 r]; simp [regsUpd, hr']
-            · intro h; rw [ht3] at h; exact absurd h (by decide)
-            · rw [qi]; simp [callIo, hn2]
-            · intro _
-              have ha : (PrivMachine.run env 47 u).core.reg 10#5 = answer u := by rw [q15 10#5, hca]; simp [regsUpd]
-              refine ⟨by rw [ha, qi]; simp [answer, callIo, hn2], ?_⟩
-              rw [ha]
-              have : ¬ BitVec.ult 1#32 (answer u) = true := hans
+            · rw [ha, qi, ← hci]; rfl
+            · rw [ha]
+              have : ¬ BitVec.ult 1#32 (answer u (PrivMachine.run env 34 u).core.mem) = true := hans
               simp only [BitVec.ult, decide_eq_true_eq] at this
               bv_omega
           · obtain ⟨N, q1, q2, q3, q4, q5, _, qi, q6, q7, q8, q9, q10, q11, q12⟩ :=
@@ -356,6 +675,7 @@ end Exp238
 #print axioms Exp238.monitor_halt
 #print axioms Exp238.monitor_fault_cause
 #print axioms Exp238.monitor_fault_syscall
+#print axioms Exp238.hashb_req
 #print axioms Exp238.monitor_hashb_ok
 #print axioms Exp238.monitor_hashb_oob_fault
 #print axioms Exp238.monitor_checksig_ok
