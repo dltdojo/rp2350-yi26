@@ -11,8 +11,8 @@ heard_exit_zero|claim: the exit word the host hears is 0, whatever the kernel's 
 trap_one_step_early|claim: the kernel has trapped one step sooner|s/PrivMachine.run env (53 + (j + 1)) s$/PrivMachine.run env (53 + j) s/
 healthy_sooner|claim: a healthy run traps before exp223's 334284th step|s/∃ j, j < 334284 ∧/∃ j, j < 334283 ∧/
 unhealthy_sooner|claim: an unhealthy run traps before exp223's 17425th step|s/∃ j, j < 17425 ∧/∃ j, j < 17424 ∧/
-healthy_digest_zeroed|claim: a healthy run's digest window is zeroed too|s/(∀ x, InConf x → (PrivMachine.run env N/(∀ x, InConf x ∨ InDigest x → (PrivMachine.run env N/
-stack_as_at_reset|claim: an unhealthy run leaves the monitor's stack as it was at reset|s/¬ InDigest x → ¬ InStack x → ¬ InPorts x →/¬ InDigest x → ¬ InPorts x →/
+healthy_digest_zeroed|claim: a healthy run's digest window is zeroed too|s/(∀ x, InConf x → (PrivMachine.run env N (trapAt env s j)).core.mem x = 0) ∧/(∀ x, InConf x ∨ InDigest x → (PrivMachine.run env N (trapAt env s j)).core.mem x = 0) ∧/
+stack_as_at_reset|claim: an unhealthy run leaves the monitor's stack as it was at reset|s/^        (∀ x, ¬ InConf x → ¬ InDigest x → ¬ InStack x → ¬ InPorts x →$/        (∀ x, ¬ InConf x → ¬ InDigest x → ¬ InPorts x →/
 wide_is_box|claim: exp223's world is the 64 KiB box, not 128 KiB|s/region := ⟨0x80010000, 0x80030000⟩ }/region := ⟨0x80010000, 0x80020000⟩ }/
 window_start_only|a window need only start inside the region for the box's step to be the wider world's|s/^  r.lo ≤ base.toNat + w.1 ∧ base.toNat + w.2 ≤ r.hi$/  r.lo ≤ base.toNat + w.1/|lean/Rv32/Reach.lean
 ct_lets_hash|the checker's haltsOnly lets a HASH through as well as a HALT|s/some .ecall, some A => get A 5 == .num 1 1$/some .ecall, some A => (get A 5 == .num 1 1) ^^ (get A 5 == .num 0 0)/|lean/Rv32/Ct.lean
