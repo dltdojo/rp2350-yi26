@@ -14,8 +14,10 @@ same time, which the RTL is held to separately.
 The proof is not per kernel. `check` is an abstract interpretation a kernel
 is run through by `decide`: every register is `sec` (may differ between the
 runs), `pub` (equal in both), or public with what is known of its value — a
-number in a range, an offset from `base` in a range, or an offset affine in a
-counter register. It refuses a branch on a `sec` register, a load or store
+number in a range, an offset from `base` in a range, or an offset affine in
+up to two counter registers, with a ranged constant part. Words of memory may be
+declared constants (`Pub.consts`), which no store may meet and a load reads as
+their number. It refuses a branch on a `sec` register, a load or store
 whose address is `sec`, a store or a HASH whose place is not known to lie
 above the code, and a secret value stored into a public place. `sound` is
 proved once: whatever `check` accepts runs in lock step with itself.
@@ -41,10 +43,14 @@ inductive AV where
   | num (lo hi : Nat)
   /-- the same in both, `base` plus an offset in `[lo, hi]` -/
   | ptr (lo hi : Nat)
-  /-- the same in both, `base + c + k · x`, where `x` is counter register `r`'s
-  number, or its offset from `base` -/
-  | aff (r : Nat) (k c : Int)
+  /-- the same in both, `base + d + k₁ · x₁ + k₂ · x₂` for some `d` in
+  `[lo, hi]`, where `xᵢ` is counter register `rᵢ`'s number, or its offset from
+  `base`. `x0` reads as the counter 0, so a value in one counter has `r₂ = 0` -/
+  | lin (r1 : Nat) (k1 : Int) (r2 : Nat) (k2 : Int) (lo hi : Int)
   deriving DecidableEq, Repr
+
+/-- the same in both, `base + c + k · x`: affine in one counter, exactly. -/
+@[match_pattern] abbrev AV.aff (r : Nat) (k c : Int) : AV := .lin r k 0 0 c c
 
 /-- One per register, by number. -/
 abbrev AState := List AV
@@ -68,29 +74,40 @@ def valOK (base : Word) (A : AState) (s1 : Machine) (v : AV) (w1 w2 : Word) : Pr
   | .pub => w1 = w2
   | .num lo hi => w1 = w2 ∧ lo ≤ w1.toNat ∧ w1.toNat ≤ hi
   | .ptr lo hi => w1 = w2 ∧ lo ≤ (w1 - base).toNat ∧ (w1 - base).toNat ≤ hi ∧ hi < 0x10000
-  | .aff c k d => w1 = w2 ∧
-      match idxOf base (get A c) (s1.reg (BitVec.ofNat 5 c)) with
-      | some x => w1 = base + BitVec.ofInt 32 (d + k * x)
-      | none => True
+  | .lin c1 k1 c2 k2 lo hi => w1 = w2 ∧
+      match idxOf base (get A c1) (s1.reg (BitVec.ofNat 5 c1)), idxOf base (get A c2) (s1.reg (BitVec.ofNat 5 c2)) with
+      | some x1, some x2 => ∃ d : Int, lo ≤ d ∧ d ≤ hi ∧ w1 = base + BitVec.ofInt 32 (d + k1 * x1 + k2 * x2)
+      | _, _ => True
 
 /-- What the abstract value of register `r` claims of the two runs. -/
 def regOK (base : Word) (A : AState) (s1 s2 : Machine) (r : Reg) : Prop :=
   valOK base A s1 (get A r.toNat) (s1.reg r) (s2.reg r)
 
+/-- What is public, as offsets from `base`: places `[a, b)`, and constants --
+words known to hold one value, which no store may touch. A list of places is
+one with no constants. -/
+structure Pub where
+  places : List (Nat × Nat)
+  consts : List (Nat × Nat) := []
+
+instance : Coe (List (Nat × Nat)) Pub := ⟨fun l => { places := l }⟩
+
 /-- An offset from `base` that is public: the program's own bytes, or one of
 the places `P` names, `[a, b)` each. -/
-def InP (len : Nat) (P : List (Nat × Nat)) (o : Nat) : Prop :=
-  o < 4 * len ∨ ∃ ab ∈ P, ab.1 ≤ o ∧ o < ab.2
+def InP (len : Nat) (P : Pub) (o : Nat) : Prop :=
+  o < 4 * len ∨ ∃ ab ∈ P.places, ab.1 ≤ o ∧ o < ab.2
 
 /-- **Two runs, related by `A`.** Every register as `A` says; every public
 byte the same; the program loaded in both. -/
-structure Rel (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (A : AState) (s1 s2 : Machine) :
+structure Rel (base : Word) (prog : List Instr) (P : Pub) (A : AState) (s1 s2 : Machine) :
     Prop where
   regs : ∀ r : Reg, regOK base A s1 s2 r
   mem : ∀ o, o < 0x10000 → InP prog.length P o →
     s1.mem (base + BitVec.ofNat 32 o) = s2.mem (base + BitVec.ofNat 32 o)
   code1 : CodeAt s1.mem base prog
   code2 : CodeAt s2.mem base prog
+  consts1 : ∀ c ∈ P.consts, readLE s1.mem (base + BitVec.ofNat 32 c.1) 4 = c.2
+  consts2 : ∀ c ∈ P.consts, readLE s2.mem (base + BitVec.ofNat 32 c.1) 4 = c.2
 
 /-! ## Reading registers back -/
 
@@ -118,17 +135,6 @@ theorem regOK_eq {base : Word} {A : AState} {s1 s2 : Machine} {r : Reg} (h : reg
 
 /-! ## One state implies another -/
 
-/-- `v` names exactly one offset from `base`, given what `A` says of counters. -/
-def exactOff (A : AState) (v : AV) : Option Nat :=
-  match v with
-  | .ptr a b => if a = b then some a else none
-  | .aff c k d =>
-    match get A c with
-    | .num x y => if x = y ∧ 0 ≤ d + k * x then some (d + k * x).toNat else none
-    | .ptr x y => if x = y ∧ 0 ≤ d + k * x then some (d + k * x).toNat else none
-    | _ => none
-  | _ => none
-
 /-- The same kind of counter: numbers both, or offsets both. -/
 def sameKind (v w : AV) : Bool :=
   match v, w with
@@ -143,6 +149,34 @@ def isCounter (v : AV) : Bool :=
   | .ptr _ _ => true
   | _ => false
 
+/-- A counter that names one value: that value. -/
+def exactIdx (A : AState) (c : Nat) : Option Nat :=
+  match get A c with
+  | .num x y => if x = y then some x else none
+  | .ptr x y => if x = y then some x else none
+  | _ => none
+
+/-- One term `k · x` of a value: the counter left and its coefficient, and the
+shift folded into the offset -- all of it, and no counter (`x0`), when the
+counter names one value. `none` when the register is not a counter. -/
+def foldT (A : AState) (c : Nat) (k : Int) : Option (Nat × Int × Int) :=
+  if isCounter (get A c) then
+    match exactIdx A c with
+    | some x => some (0, 0, k * x)
+    | none => some (c, k, 0)
+  else none
+
+/-- A value as `base + d + k₁ · x₁ + k₂ · x₂` with `d` in `[a, b]`, every
+counter that names one value folded into the range. -/
+def fold (A : AState) (v : AV) : Option (Nat × Int × Nat × Int × Int × Int) :=
+  match v with
+  | .ptr a b => some (0, 0, 0, 0, a, b)
+  | .lin c1 k1 c2 k2 lo hi =>
+    match foldT A c1 k1, foldT A c2 k2 with
+    | some (e1, j1, s1), some (e2, j2, s2) => some (e1, j1, e2, j2, lo + s1 + s2, hi + s1 + s2)
+    | _, _ => none
+  | _ => none
+
 /-- What `w` claims of a register follows from what `v` claims, `A` and `B`
 being the states they belong to. -/
 def leAV (A B : AState) (v w : AV) : Bool :=
@@ -155,11 +189,13 @@ def leAV (A B : AState) (v w : AV) : Bool :=
   | .ptr lo hi => hi < 0x10000 && match v with
     | .ptr a b => lo ≤ a && b ≤ hi
     | _ => false
-  | .aff c k d => isPub v &&
-    (!isCounter (get B c) || (sameKind (get A c) (get B c) && (v == .aff c k d ||
-      match exactOff A v, exactOff A (.aff c k d) with
-      | some e, some e' => e == e' && e < 0x10000
-      | _, _ => false)))
+  | .lin c1 k1 c2 k2 lo hi => isPub v &&
+    (!isCounter (get B c1) || !isCounter (get B c2) ||
+      (sameKind (get A c1) (get B c1) && sameKind (get A c2) (get B c2) &&
+        match fold A v, fold A (.lin c1 k1 c2 k2 lo hi) with
+        | some (e1, j1, e2, j2, a, b), some (e1', j1', e2', j2', a', b') =>
+          e1 == e1' && j1 == j1' && e2 == e2' && j2 == j2' && decide (a' ≤ a) && decide (b ≤ b')
+        | _, _ => false))
 
 /-- Every register, as `leAV` says. -/
 def leS (A B : AState) : Bool := (List.range 32).all fun n => leAV A B (get A n) (get B n)
@@ -188,59 +224,116 @@ theorem idx_exact {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg,
   rw [get_reg hc] at hr
   rcases hx with hx | hx <;> rw [hx] at hr ⊢ <;> simp only [idxOf, Option.some.injEq] at hr ⊢ <;> omega
 
-/-- A value that names one offset is `base` plus it. -/
-theorem exactOff_val {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg, regOK base A s1 s2 r)
-    {r : Reg} {e : Nat} (he : exactOff A (get A r.toNat) = some e) : s1.reg r = base + BitVec.ofNat 32 e := by
-  have hr := h r
-  unfold regOK valOK at hr
-  cases hv : get A r.toNat with
-  | ptr a b =>
-    rw [hv] at hr he
-    simp only [exactOff] at he
-    split at he
-    · rename_i hab; cases he
-      rw [← base_off (s1.reg r) base]; congr 2; omega
-    · cases he
-  | aff c k d =>
-    rw [hv] at hr he
-    obtain ⟨-, hval⟩ := hr
-    simp only [exactOff] at he
-    have key : ∀ x, (get A c = .num x x ∨ get A c = .ptr x x) → 0 ≤ d + k * x → e = (d + k * x).toNat →
-        s1.reg r = base + BitVec.ofNat 32 e := by
-      intro x hx hnn hex
-      rw [idx_exact h hx] at hval
-      rw [hval, hex]
-      congr 1
-      rw [← BitVec.ofInt_natCast, Int.toNat_of_nonneg hnn]
-    cases hc : get A c with
-    | num x y =>
-      simp only [hc] at he
-      split at he
-      · rename_i hxy; cases he
-        exact key x (Or.inl (by rw [hc, hxy.1])) hxy.2 rfl
-      · cases he
-    | ptr x y =>
-      simp only [hc] at he
-      split at he
-      · rename_i hxy; cases he
-        exact key x (Or.inr (by rw [hc, hxy.1])) hxy.2 rfl
-      · cases he
-    | _ => simp only [hc] at he; cases he
-  | _ => rw [hv] at he; cases he
+/-- `x0` reads as the counter 0. -/
+theorem idx_zero {base : Word} {A : AState} {s : Machine} :
+    idxOf base (get A 0) (s.reg (BitVec.ofNat 5 0)) = some 0 := by
+  simp [get, idxOf]
 
-theorem exactOff_aff {A : AState} {c : Nat} {k d : Int} {e : Nat} (he : exactOff A (.aff c k d) = some e) :
-    ∃ x, (get A c = .num x x ∨ get A c = .ptr x x) ∧ 0 ≤ d + k * x ∧ e = (d + k * x).toNat := by
-  simp only [exactOff] at he
-  cases hc : get A c with
-  | num x y =>
-    simp only [hc] at he; split at he
-    · rename_i hxy; cases he; exact ⟨x, Or.inl (by rw [hxy.1]), hxy.2, rfl⟩
-    · cases he
-  | ptr x y =>
-    simp only [hc] at he; split at he
-    · rename_i hxy; cases he; exact ⟨x, Or.inr (by rw [hxy.1]), hxy.2, rfl⟩
-    · cases he
-  | _ => simp only [hc] at he; cases he
+/-- A counter has a reading. -/
+theorem idxOf_counter {base : Word} {v : AV} (h : isCounter v = true) (w : Word) :
+    ∃ x, idxOf base v w = some x := by
+  cases v <;> simp_all [isCounter, idxOf]
+
+/-- A counter that names one value reads as that value. -/
+theorem exactIdx_val {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg, regOK base A s1 s2 r)
+    {c x : Nat} (hx : exactIdx A c = some x) : idxOf base (get A c) (s1.reg (BitVec.ofNat 5 c)) = some x := by
+  unfold exactIdx at hx
+  cases hg : get A c with
+  | num a b =>
+    rw [hg] at hx; simp only at hx
+    split at hx
+    · rename_i hab; cases hx; rw [← hg]; exact idx_exact h (Or.inl (by rw [hg, hab]))
+    · cases hx
+  | ptr a b =>
+    rw [hg] at hx; simp only at hx
+    split at hx
+    · rename_i hab; cases hx; rw [← hg]; exact idx_exact h (Or.inr (by rw [hg, hab]))
+    · cases hx
+  | _ => rw [hg] at hx; cases hx
+
+theorem foldT_ok {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg, regOK base A s1 s2 r)
+    {c : Nat} {k : Int} {e : Nat} {j sh : Int} (hf : foldT A c k = some (e, j, sh)) :
+    ∃ x y : Nat, idxOf base (get A c) (s1.reg (BitVec.ofNat 5 c)) = some x ∧
+      idxOf base (get A e) (s1.reg (BitVec.ofNat 5 e)) = some y ∧ k * (x : Int) = j * y + sh := by
+  unfold foldT at hf
+  split at hf
+  · rename_i hc
+    cases he : exactIdx A c with
+    | some x =>
+      rw [he] at hf; simp only [Option.some.injEq, Prod.mk.injEq] at hf
+      obtain ⟨rfl, rfl, rfl⟩ := hf
+      exact ⟨x, 0, exactIdx_val h he, idx_zero, by simp⟩
+    | none =>
+      rw [he] at hf; simp only [Option.some.injEq, Prod.mk.injEq] at hf
+      obtain ⟨rfl, rfl, rfl⟩ := hf
+      obtain ⟨x, hx⟩ := idxOf_counter (base := base) hc (s1.reg (BitVec.ofNat 5 c))
+      exact ⟨x, x, hx, hx, by simp⟩
+  · cases hf
+
+/-- **What a folded value says**: `base + d + j₁ · y₁ + j₂ · y₂`, with `d` in the
+folded range and `yᵢ` the folded counters' readings. -/
+theorem fold_val {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg, regOK base A s1 s2 r)
+    {v : AV} {w1 w2 : Word} (hv : valOK base A s1 v w1 w2) {e1 e2 : Nat} {j1 j2 a b : Int}
+    (hf : fold A v = some (e1, j1, e2, j2, a, b)) :
+    ∃ y1 y2 : Nat, idxOf base (get A e1) (s1.reg (BitVec.ofNat 5 e1)) = some y1 ∧
+      idxOf base (get A e2) (s1.reg (BitVec.ofNat 5 e2)) = some y2 ∧
+      ∃ d : Int, a ≤ d ∧ d ≤ b ∧ w1 = base + BitVec.ofInt 32 (d + j1 * y1 + j2 * y2) := by
+  cases v with
+  | ptr lo hi =>
+    simp only [fold, Option.some.injEq, Prod.mk.injEq] at hf
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := hf
+    unfold valOK at hv
+    refine ⟨0, 0, idx_zero, idx_zero, ((w1 - base).toNat : Int), by omega, by omega, ?_⟩
+    simp only [Int.zero_mul, Int.add_zero, BitVec.ofInt_natCast, base_off]
+  | lin c1 k1 c2 k2 lo hi =>
+    simp only [fold] at hf
+    cases hf1 : foldT A c1 k1 with
+    | none => rw [hf1] at hf; cases hf
+    | some t1 =>
+      cases hf2 : foldT A c2 k2 with
+      | none => rw [hf1, hf2] at hf; cases hf
+      | some t2 =>
+        obtain ⟨e1', j1', s1'⟩ := t1
+        obtain ⟨e2', j2', s2'⟩ := t2
+        rw [hf1, hf2] at hf
+        simp only [Option.some.injEq, Prod.mk.injEq] at hf
+        obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := hf
+        obtain ⟨x1, y1, hx1, hy1, ek1⟩ := foldT_ok h hf1
+        obtain ⟨x2, y2, hx2, hy2, ek2⟩ := foldT_ok h hf2
+        simp only [valOK] at hv
+        rw [hx1, hx2] at hv
+        obtain ⟨d, hd1, hd2, hw⟩ := hv.2
+        refine ⟨y1, y2, hy1, hy2, d + s1' + s2', by omega, by omega, ?_⟩
+        rw [hw]; congr 2; omega
+  | _ => simp [fold] at hf
+
+/-- **What a folded claim asks**: a value of the folded form is one of the claim's. -/
+theorem fold_lin {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg, regOK base A s1 s2 r)
+    {c1 c2 : Nat} {k1 k2 lo hi : Int} {e1 e2 : Nat} {j1 j2 a b : Int}
+    (hf : fold A (.lin c1 k1 c2 k2 lo hi) = some (e1, j1, e2, j2, a, b))
+    {x1 x2 y1 y2 : Nat} (hx1 : idxOf base (get A c1) (s1.reg (BitVec.ofNat 5 c1)) = some x1)
+    (hx2 : idxOf base (get A c2) (s1.reg (BitVec.ofNat 5 c2)) = some x2)
+    (hy1 : idxOf base (get A e1) (s1.reg (BitVec.ofNat 5 e1)) = some y1)
+    (hy2 : idxOf base (get A e2) (s1.reg (BitVec.ofNat 5 e2)) = some y2)
+    {d' : Int} (h1 : a ≤ d') (h2 : d' ≤ b) :
+    ∃ d : Int, lo ≤ d ∧ d ≤ hi ∧ d + k1 * x1 + k2 * x2 = d' + j1 * y1 + j2 * y2 := by
+  simp only [fold] at hf
+  cases hf1 : foldT A c1 k1 with
+  | none => rw [hf1] at hf; cases hf
+  | some t1 =>
+    cases hf2 : foldT A c2 k2 with
+    | none => rw [hf1, hf2] at hf; cases hf
+    | some t2 =>
+      obtain ⟨e1', j1', s1'⟩ := t1
+      obtain ⟨e2', j2', s2'⟩ := t2
+      rw [hf1, hf2] at hf
+      simp only [Option.some.injEq, Prod.mk.injEq] at hf
+      obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := hf
+      obtain ⟨x1', y1', hx1', hy1', ek1⟩ := foldT_ok h hf1
+      obtain ⟨x2', y2', hx2', hy2', ek2⟩ := foldT_ok h hf2
+      rw [hx1] at hx1'; rw [hx2] at hx2'; rw [hy1] at hy1'; rw [hy2] at hy2'
+      cases hx1'; cases hx2'; cases hy1'; cases hy2'
+      exact ⟨d' - s1' - s2', by omega, by omega, by omega⟩
 
 theorem idxOf_same {base : Word} {v w : AV} (h : sameKind v w = true) (x : Word) :
     idxOf base w x = idxOf base v x := by
@@ -256,9 +349,9 @@ theorem leS_at {A B : AState} (h : leS A B = true) (n : Nat) (hn : n < 32) :
   exact h n (List.mem_range.mpr hn)
 
 /-- **A state implies any state above it.** -/
-theorem rel_mono {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A B : AState} {s1 s2 : Machine}
+theorem rel_mono {base : Word} {prog : List Instr} {P : Pub} {A B : AState} {s1 s2 : Machine}
     (hle : leS A B = true) (h : Rel base prog P A s1 s2) : Rel base prog P B s1 s2 := by
-  refine ⟨fun r => ?_, h.mem, h.code1, h.code2⟩
+  refine ⟨fun r => ?_, h.mem, h.code1, h.code2, h.consts1, h.consts2⟩
   have hl := leS_at hle r.toNat r.isLt
   have hA := h.regs r
   unfold regOK valOK at hA ⊢
@@ -283,34 +376,37 @@ theorem rel_mono {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A B 
       rw [hv] at hl hA; simp only [leAV, Bool.and_eq_true, decide_eq_true_eq] at hl
       exact ⟨hA.1, by omega, by omega, hl.1⟩
     | _ => rw [hv] at hl; simp [leAV] at hl
-  | aff c k d =>
+  | lin c1 k1 c2 k2 lo hi =>
     intro hl _
     simp only [leAV, Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true'] at hl
     obtain ⟨hp, hl⟩ := hl
+    dsimp only
     refine ⟨regOK_eq (h.regs r) hp, ?_⟩
-    rcases hl with hnc | ⟨hsk, hl⟩
+    rcases hl with (hnc | hnc) | ⟨⟨hk1, hk2⟩, hl⟩
     · rw [idxOf_none hnc]; trivial
-    · rw [idxOf_same hsk]
-      rcases hl with heq | hex
-      · have hA := h.regs r
-        unfold regOK valOK at hA
-        simp only [beq_iff_eq] at heq
-        rw [heq] at hA
-        exact hA.2
-      · revert hex
-        cases h1 : exactOff A (get A r.toNat) with
-        | none => simp
-        | some e =>
-          cases h2 : exactOff A (.aff c k d) with
+    · rw [idxOf_none hnc]; split <;> trivial
+    · rw [idxOf_same hk1, idxOf_same hk2]
+      cases hx1 : idxOf base (get A c1) (s1.reg (BitVec.ofNat 5 c1)) with
+      | none => trivial
+      | some x1 =>
+        cases hx2 : idxOf base (get A c2) (s1.reg (BitVec.ofNat 5 c2)) with
+        | none => trivial
+        | some x2 =>
+          simp only
+          revert hl
+          cases hfv : fold A (get A r.toNat) with
           | none => simp
-          | some e' =>
-            simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq]
-            intro ⟨hee, _⟩
-            obtain ⟨x, hx, hnn, he'⟩ := exactOff_aff h2
-            rw [idx_exact h.regs hx, exactOff_val h.regs h1, hee, he']
-            simp only
-            congr 1
-            rw [← BitVec.ofInt_natCast, Int.toNat_of_nonneg hnn]
+          | some F =>
+            obtain ⟨e1, j1, e2, j2, a, b⟩ := F
+            cases hfw : fold A (.lin c1 k1 c2 k2 lo hi) with
+            | none => simp
+            | some G =>
+              obtain ⟨e1', j1', e2', j2', a', b'⟩ := G
+              simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq]
+              rintro ⟨⟨⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩, ha⟩, hb⟩
+              obtain ⟨y1, y2, hy1, hy2, d', hd1, hd2, hw⟩ := fold_val h.regs (h.regs r) hfv
+              obtain ⟨d, hd3, hd4, he⟩ := fold_lin h.regs hfw hx1 hx2 hy1 hy2 (show a' ≤ d' by omega) (show d' ≤ b' by omega)
+              exact ⟨d, hd3, hd4, by rw [hw, he]⟩
 
 /-! ## One instruction, abstractly -/
 
@@ -324,8 +420,21 @@ def boff (off : BitVec 12) : Int := if off.toNat < 2048 then 2 * off.toNat else 
 when `n` was stepped by `d` in place, and otherwise only kept equal. -/
 def bump (n : Nat) (step : Option Int) (w : AV) : AV :=
   match w with
-  | .aff r k c => if r = n then (match step with | some d => .aff r k (c - k * d) | none => .pub) else w
+  | .lin c1 k1 c2 k2 lo hi =>
+    if c1 = n ∨ c2 = n then
+      (match step with
+       | some d =>
+         .lin c1 k1 c2 k2 (lo - ((if c1 = n then k1 * d else 0) + (if c2 = n then k2 * d else 0)))
+           (hi - ((if c1 = n then k1 * d else 0) + (if c2 = n then k2 * d else 0)))
+       | none => .pub)
+    else w
   | w => w
+
+/-- Whether `v` reads register `n` as one of its counters. -/
+def dep (n : Nat) (v : AV) : Bool :=
+  match v with
+  | .lin c1 _ c2 _ _ _ => c1 == n || c2 == n
+  | _ => false
 
 theorem se_sext (imm : BitVec 12) : imm.signExtend 32 = BitVec.ofInt 32 (sext imm) := by
   apply BitVec.eq_of_toNat_eq
@@ -366,32 +475,53 @@ def addiAV (rd : Nat) (v : AV) (d : Int) : AV :=
       else .pub
   | .ptr lo hi => if 0 ≤ (lo : Int) + d ∧ (hi : Int) + d < 0x10000 then .ptr ((lo : Int) + d).toNat ((hi : Int) + d).toNat
       else .pub
-  | .aff r k c => if r = rd then .pub else .aff r k (c + d)
+  | .lin c1 k1 c2 k2 lo hi => if c1 = rd ∨ c2 = rd then .pub else .lin c1 k1 c2 k2 (lo + d) (hi + d)
   | .pub => .pub
   | .sec => .sec
+
+/-- A shift on what is known of the register shifted: a logical shift right of
+a number in a range is a number in the range shifted. -/
+def shAV (op : ShOp) (v : AV) (s : Nat) : AV :=
+  match op, v with
+  | .srli, .num lo hi => .num (lo >>> s) (hi >>> s)
+  | _, v => if isPub v then .pub else .sec
+
+/-- A counter's range. -/
+def rng (A : AState) (c : Nat) : Option (Nat × Nat) :=
+  match get A c with
+  | .num a b | .ptr a b => some (a, b)
+  | _ => none
+
+/-- The least and the most `k · x` can be, `x` in `[a, b]`. -/
+def tlo (k : Int) (ab : Nat × Nat) : Int := if 0 ≤ k then k * ab.1 else k * ab.2
+def thi (k : Int) (ab : Nat × Nat) : Int := if 0 ≤ k then k * ab.2 else k * ab.1
 
 /-- The offsets from `base` an access of `size` bytes at `v + i` may touch,
 `[lo, hi)`, when they are known. -/
 def rangeOf (A : AState) (v : AV) (i : Int) (size : Nat) : Option (Nat × Nat) :=
   match v with
   | .ptr lo hi => if 0 ≤ (lo : Int) + i then some (((lo : Int) + i).toNat, ((hi : Int) + i).toNat + size) else none
-  | .aff r k c =>
-    match get A r with
-    | .num a b | .ptr a b =>
-      let lo := if 0 ≤ k then c + k * a else c + k * b
-      let hi := if 0 ≤ k then c + k * b else c + k * a
-      if 0 ≤ lo + i then some ((lo + i).toNat, (hi + i).toNat + size) else none
-    | _ => none
+  | .lin c1 k1 c2 k2 lo hi =>
+    match rng A c1, rng A c2 with
+    | some r1, some r2 =>
+      if 0 ≤ lo + tlo k1 r1 + tlo k2 r2 + i then
+        some ((lo + tlo k1 r1 + tlo k2 r2 + i).toNat, (hi + thi k1 r1 + thi k2 r2 + i).toNat + size)
+      else none
+    | _, _ => none
   | _ => none
 
 def within (lo hi : Nat) (ab : Nat × Nat) : Bool := ab.1 ≤ lo && hi ≤ ab.2
 
 /-- `[lo, hi)` lies inside the program or inside one public place. -/
-def pubRange (len : Nat) (P : List (Nat × Nat)) (lo hi : Nat) : Bool :=
-  within lo hi (0, 4 * len) || P.any (within lo hi)
+def pubRange (len : Nat) (P : Pub) (lo hi : Nat) : Bool :=
+  within lo hi (0, 4 * len) || P.places.any (within lo hi)
 
 /-- `[lo, hi)` meets no public place. -/
-def apart (P : List (Nat × Nat)) (lo hi : Nat) : Bool := P.all fun ab => hi ≤ ab.1 || ab.2 ≤ lo
+def apart (Q : List (Nat × Nat)) (lo hi : Nat) : Bool := Q.all fun ab => hi ≤ ab.1 || ab.2 ≤ lo
+
+/-- `[lo, hi)` meets no constant's word. -/
+def apartK (P : Pub) (lo hi : Nat) : Bool :=
+  P.consts.all fun c => decide (c.1 + 4 ≤ 0x10000) && (decide (hi ≤ c.1) || decide (c.1 + 4 ≤ lo))
 
 /-- After a comparison of `r1` with `r2`, what `r1` is known to be: equal to
 `r2`'s one value, or not it — which narrows a range only at an end. -/
@@ -410,16 +540,51 @@ def refine (A : AState) (r1 r2 : Reg) (eq : Bool) : AState :=
     else A
   | _, _ => A
 
+/-- A value with counter `n`'s one value `x` folded into its range. -/
+def normAV (n x : Nat) (w : AV) : AV :=
+  match w with
+  | .lin c1 k1 c2 k2 lo hi =>
+    .lin (if c1 = n then 0 else c1) (if c1 = n then 0 else k1) (if c2 = n then 0 else c2) (if c2 = n then 0 else k2)
+      (lo + (if c1 = n then k1 * x else 0) + (if c2 = n then k2 * x else 0))
+      (hi + (if c1 = n then k1 * x else 0) + (if c2 = n then k2 * x else 0))
+  | w => w
+
+/-- Every value that reads counter `n`, with `n`'s value folded in, when it has
+one: so a counter a comparison pinned down can be written again without
+losing what was affine in it. -/
+def norm (A : AState) (n : Nat) : AState :=
+  match exactIdx A n with
+  | some x => A.map (normAV n x)
+  | none => A
+
+/-- After learning that `a`'s number is at most `b`'s less `sub`: `a`'s range
+capped by `b`'s top. Only for numbers below 2³¹, where the signed and the
+unsigned orders agree. -/
+def capLe (A : AState) (a b : Reg) (sub : Nat) : AState :=
+  if a.toNat = 0 then A else
+  match get A a.toNat, get A b.toNat with
+  | .num la ha, .num _ hb =>
+    if ha < 2 ^ 31 ∧ hb < 2 ^ 31 then A.set a.toNat (.num la (min ha (hb - sub))) else A
+  | _, _ => A
+
+/-- After a comparison: `refine`, and what it pinned down folded in. -/
+def refineN (A : AState) (r1 r2 : Reg) (eq : Bool) : AState := norm (refine A r1 r2 eq) r1.toNat
+
 /-- Where an instruction may go: on to the next, and to a branch's target. -/
 structure Post where
   fall : Option AState
   jump : Option (Nat × AState)
 
-/-- What a load brings: equal in both runs when every byte it may read is
-public. -/
-def ldAV (len : Nat) (P : List (Nat × Nat)) (A : AState) (v : AV) (i : Int) (size : Nat) : AV :=
+/-- What a load brings: a constant's number when it reads exactly a constant's
+word; equal in both runs when every byte it may read is public. -/
+def ldAV (len : Nat) (P : Pub) (A : AState) (v : AV) (i : Int) (size : Nat) : AV :=
   match rangeOf A v i size with
-  | some (lo, hi) => if hi ≤ 0x10000 ∧ pubRange len P lo hi = true then .pub else .sec
+  | some (lo, hi) =>
+    match P.consts.find? (fun c => c.1 == lo) with
+    | some c =>
+      if size = 4 ∧ hi = lo + 4 ∧ c.2 < 2 ^ 32 then .num c.2 c.2
+      else if hi ≤ 0x10000 ∧ pubRange len P lo hi = true then .pub else .sec
+    | none => if hi ≤ 0x10000 ∧ pubRange len P lo hi = true then .pub else .sec
   | none => .sec
 
 /-- A register-register operation: `add` of an offset and a number is an
@@ -430,14 +595,14 @@ def opAV (op : ROp) (v1 v2 : AV) : AV :=
   | _, v1, v2 => if isPub v1 ∧ isPub v2 then .pub else .sec
 
 /-- HASH's 32 bytes go above the program and in no public place. -/
-def hashDst (len : Nat) (P : List (Nat × Nat)) (A : AState) : Bool :=
+def hashDst (len : Nat) (P : Pub) (A : AState) : Bool :=
   match rangeOf A (get A 12) 0 32 with
-  | some (lo, hi) => decide (4 * len ≤ lo) && decide (hi ≤ 0x10000) && apart P lo hi
+  | some (lo, hi) => decide (4 * len ≤ lo) && decide (hi ≤ 0x10000) && apart P.places lo hi && apartK P lo hi
   | none => false
 
 /-- **One instruction**, at index `k` of a program `len` long, from `A`. `none`
 is a refusal. -/
-def transfer (len : Nat) (P : List (Nat × Nat)) (k : Nat) (A : AState) : Instr → Option Post
+def transfer (len : Nat) (P : Pub) (k : Nat) (A : AState) : Instr → Option Post
   | .lui rd imm => some ⟨some (write A rd.toNat (.num (imm ++ 0#12).toNat (imm ++ 0#12).toNat) none), none⟩
   | .auipc rd imm =>
     some ⟨some (write A rd.toNat (if imm = 0 ∧ 4 * k < 0x10000 then .ptr (4 * k) (4 * k) else .pub) none), none⟩
@@ -448,9 +613,10 @@ def transfer (len : Nat) (P : List (Nat × Nat)) (k : Nat) (A : AState) : Instr 
         ∧ (4 * (k : Int) + boff off) % 4 = 0 then
       let t := ((4 * (k : Int) + boff off) / 4).toNat
       match op with
-      | .bne => some ⟨some (refine A r1 r2 true), some (t, refine A r1 r2 false)⟩
-      | .beq => some ⟨some (refine A r1 r2 false), some (t, refine A r1 r2 true)⟩
-      | _ => some ⟨some A, some (t, A)⟩
+      | .bne => some ⟨some (refineN A r1 r2 true), some (t, refineN A r1 r2 false)⟩
+      | .beq => some ⟨some (refineN A r1 r2 false), some (t, refineN A r1 r2 true)⟩
+      | .blt | .bltu => some ⟨some (capLe A r2 r1 0), some (t, capLe A r1 r2 1)⟩
+      | .bge | .bgeu => some ⟨some (capLe A r1 r2 1), some (t, capLe A r2 r1 0)⟩
     else none
   | .ld op rd r1 imm =>
     if isPub (get A r1.toNat) then
@@ -459,7 +625,8 @@ def transfer (len : Nat) (P : List (Nat × Nat)) (k : Nat) (A : AState) : Instr 
   | .st op r1 r2 imm =>
     match rangeOf A (get A r1.toNat) (sext imm) op.size with
     | some (lo, hi) =>
-      if 4 * len ≤ lo ∧ hi ≤ 0x10000 ∧ (isPub (get A r2.toNat) ∨ apart P lo hi) then some ⟨some A, none⟩
+      if 4 * len ≤ lo ∧ hi ≤ 0x10000 ∧ apartK P lo hi = true ∧ (isPub (get A r2.toNat) ∨ apart P.places lo hi) then
+        some ⟨some A, none⟩
       else none
     | none => none
   | .opi op rd r1 imm =>
@@ -470,7 +637,7 @@ def transfer (len : Nat) (P : List (Nat × Nat)) (k : Nat) (A : AState) : Instr 
       some ⟨some (write A rd.toNat v
         (if r1 = rd ∧ isCounter src ∧ isCounter v then some (sext imm) else none)), none⟩
     | _ => some ⟨some (write A rd.toNat (if isPub src then .pub else .sec) none), none⟩
-  | .sh _ rd r1 _ => some ⟨some (write A rd.toNat (if isPub (get A r1.toNat) then .pub else .sec) none), none⟩
+  | .sh op rd r1 sa => some ⟨some (write A rd.toNat (shAV op (get A r1.toNat) sa.toNat) none), none⟩
   | .op op rd r1 r2 => some ⟨some (write A rd.toNat (opAV op (get A r1.toNat) (get A r2.toNat)) none), none⟩
   | .ecall =>
     match get A 5 with
@@ -493,7 +660,7 @@ def entry : AState := List.replicate 32 .pub
 
 /-- The abstract state at instruction `k`: a head's, or what the instruction
 before leaves; `none` where nothing falls through to it. -/
-def stateAt (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Nat → Option AState
+def stateAt (prog : List Instr) (P : Pub) (H : Heads) : Nat → Option AState
   | 0 => match head H 0 with
     | some B => some B
     | none => some entry
@@ -517,7 +684,7 @@ def succOK (len : Nat) (H : Heads) (X : List Nat) (k : Nat) (post : Post) : Bool
 
 /-- **The checker.** Every instruction a run can reach is accepted, and every
 way out of it lands in what is claimed there, or at one of the exits `X`. -/
-def checkX (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (X : List Nat) : Bool :=
+def checkX (prog : List Instr) (P : Pub) (H : Heads) (X : List Nat) : Bool :=
   decide (4 * prog.length < 0x10000) &&
   (match head H 0 with | some B => leS entry B | none => true) &&
   (List.range prog.length).all fun k =>
@@ -529,7 +696,7 @@ def checkX (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (X : List Nat
 
 /-- The checker with no exits: every way out of every instruction is an
 instruction of the program. -/
-def check (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Bool := checkX prog P H []
+def check (prog : List Instr) (P : Pub) (H : Heads) : Bool := checkX prog P H []
 
 /-! ## Soundness: writing a register -/
 
@@ -556,39 +723,49 @@ theorem get_write {A : AState} {n : Nat} (hn0 : n ≠ 0) (hn : n < 32) (v : AV) 
 theorem idxOf_bump (base : Word) (n : Nat) (st : Option Int) (w : AV) (x : Word) :
     idxOf base (bump n st w) x = idxOf base w x := by
   cases w with
-  | aff r k c =>
+  | lin c1 k1 c2 k2 lo hi =>
     simp only [bump]; split
     · cases st <;> rfl
     · rfl
   | _ => rfl
 
-theorem bump_self {n : Nat} {st : Option Int} {v : AV} (hv : ∀ k c, v ≠ .aff n k c) : bump n st v = v := by
+theorem dep_false {n c1 c2 : Nat} {k1 k2 lo hi : Int} :
+    dep n (.lin c1 k1 c2 k2 lo hi) = false ↔ c1 ≠ n ∧ c2 ≠ n := by
+  simp [dep]
+
+theorem bump_self {n : Nat} {st : Option Int} {v : AV} (hv : dep n v = false) : bump n st v = v := by
   cases v with
-  | aff r k c =>
+  | lin c1 k1 c2 k2 lo hi =>
+    rw [dep_false] at hv
     simp only [bump]
-    rw [ifF (fun h => hv k c (by rw [h]))]
+    rw [ifF (fun h => h.elim hv.1 hv.2)]
   | _ => rfl
 
 theorem reg_ofNat_ne {rd : Reg} {c : Nat} (hc : c < 32) (hne : c ≠ rd.toNat) : BitVec.ofNat 5 c ≠ rd := by
   intro e; apply hne; rw [← e, get_reg hc]
 
+/-- A counter other than the one written reads the same afterwards. -/
+theorem read_after {base : Word} {A : AState} {s1 : Machine} {rd : Reg} (hrd0 : rd.toNat ≠ 0)
+    (st : Option Int) (v' : AV) (w : Word) {c : Nat} (hc : c ≠ rd.toNat) :
+    idxOf base (get (write A rd.toNat v' st) c) ((s1.setReg rd w).reg (BitVec.ofNat 5 c)) =
+      idxOf base (get A c) (s1.reg (BitVec.ofNat 5 c)) := by
+  rcases Nat.lt_or_ge c 32 with hc32 | hc32
+  · rw [get_write hrd0 rd.isLt, ifF (fun x => hc x.1), idxOf_bump, reg_setReg,
+      ifF (fun x => reg_ofNat_ne hc32 hc x.1)]
+  · simp [get_big (show ¬ c < 32 by omega), idxOf]
+
 /-- What a value claims, read against the state after a write to another
 register: unchanged. -/
 theorem valOK_after {base : Word} {A : AState} {s1 : Machine} {rd : Reg} (hrd0 : rd.toNat ≠ 0)
-    {v : AV} (st : Option Int) (v' : AV) (w : Word) (hv : ∀ k c, v ≠ .aff rd.toNat k c) {w1 w2 : Word}
+    {v : AV} (st : Option Int) (v' : AV) (w : Word) (hv : dep rd.toNat v = false) {w1 w2 : Word}
     (h : valOK base A s1 v w1 w2) :
     valOK base (write A rd.toNat v' st) (s1.setReg rd w) v w1 w2 := by
   cases v with
-  | aff c k d =>
-    have hcn : c ≠ rd.toNat := fun e => hv k d (by rw [e])
-    unfold valOK at h ⊢
-    refine ⟨h.1, ?_⟩
-    have h2 := h.2
-    rcases Nat.lt_or_ge c 32 with hc | hc
-    · rw [get_write hrd0 rd.isLt, ifF (fun x => hcn x.1), idxOf_bump, reg_setReg,
-        ifF (fun x => reg_ofNat_ne hc hcn x.1)]
-      exact h2
-    · rw [get_big (by omega)]; simp [idxOf]
+  | lin c1 k1 c2 k2 lo hi =>
+    rw [dep_false] at hv
+    simp only [valOK] at h ⊢
+    rw [read_after hrd0 st v' w hv.1, read_after hrd0 st v' w hv.2]
+    exact h
   | _ => exact h
 
 /-- **Writing a register.** With what `v` claims of the two new values, every
@@ -596,7 +773,7 @@ register's claim holds afterwards — a counter stepped in place moves the
 values affine in it with it. -/
 theorem regs_write {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg, regOK base A s1 s2 r)
     (rd : Reg) (v : AV) (st : Option Int) (w1 w2 : Word)
-    (hv : valOK base A s1 v w1 w2) (hself : ∀ k c, v ≠ .aff rd.toNat k c)
+    (hv : valOK base A s1 v w1 w2) (hself : dep rd.toNat v = false)
     (hst : ∀ d, st = some d → ∃ x x' : Nat, idxOf base (get A rd.toNat) (s1.reg rd) = some x ∧
         idxOf base v w1 = some x' ∧ (x' : Int) = x + d) :
     ∀ r : Reg, regOK base (write A rd.toNat v st) (s1.setReg rd w1) (s2.setReg rd w2) r := by
@@ -627,18 +804,16 @@ theorem regs_write {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg
     have hold := h r
     unfold regOK at hold
     cases hg : get A r.toNat with
-    | aff c k d =>
+    | lin c1 k1 c2 k2 lo hi =>
       rw [hg] at hold
-      by_cases hc : c = rd.toNat
-      · subst hc
-        simp only [bump, ↓reduceIte]
+      by_cases hd : c1 = rd.toNat ∨ c2 = rd.toNat
+      · simp only [bump, ifT hd]
         cases st with
         | none => exact hold.1
         | some dd =>
           obtain ⟨x, x', hx, hx', hxx⟩ := hst dd rfl
           refine ⟨hold.1, ?_⟩
           have h2 := hold.2
-          rw [ofNat_toNat5, hx] at h2
           have hlen : rd.toNat < A.length := by
             rcases Nat.lt_or_ge rd.toNat A.length with hl | hl
             · exact hl
@@ -647,16 +822,48 @@ theorem regs_write {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg
                 unfold get
                 simp [hn0, rd.isLt, List.getD_eq_getElem?_getD, List.getElem?_eq_none (l := A) (i := rd.toNat) hl]
               rw [this] at hx; simp [idxOf] at hx
-          rw [get_write hn0 rd.isLt, ifT (And.intro rfl hlen), bump_self hself, ofNat_toNat5, reg_setReg,
-            ifT (And.intro rfl hrd0), hx']
-          simp only
-          rw [h2]; congr 2
-          rw [hxx, Int.mul_add]; omega
-      · simp only [bump, hc, ↓reduceIte]
-        exact valOK_after hn0 st v w1 (fun k' c' e => by cases e; exact hc rfl) hold
+          have rdnew : idxOf base (get (write A rd.toNat v (some dd)) rd.toNat)
+              ((s1.setReg rd w1).reg (BitVec.ofNat 5 rd.toNat)) = some x' := by
+            rw [get_write hn0 rd.isLt, ifT (And.intro rfl hlen), bump_self hself, ofNat_toNat5, reg_setReg,
+              ifT (And.intro rfl hrd0)]
+            exact hx'
+          have rdold : idxOf base (get A rd.toNat) (s1.reg (BitVec.ofNat 5 rd.toNat)) = some x := by
+            rw [ofNat_toNat5]; exact hx
+          by_cases e1 : c1 = rd.toNat <;> by_cases e2 : c2 = rd.toNat
+          · subst e1; subst e2
+            rw [rdnew]; rw [rdold] at h2
+            obtain ⟨d, hd1, hd2, hw⟩ := h2
+            simp only [↓reduceIte]
+            refine ⟨d - (k1 * dd + k2 * dd), by omega, by omega, ?_⟩
+            rw [hw]; congr 2; rw [hxx, Int.mul_add, Int.mul_add]; omega
+          · subst e1
+            rw [rdnew, read_after hn0 (some dd) v w1 e2]; rw [rdold] at h2
+            simp only [↓reduceIte, ifF e2]
+            revert h2
+            cases idxOf base (get A c2) (s1.reg (BitVec.ofNat 5 c2)) with
+            | none => intro; trivial
+            | some x2 =>
+              intro h2
+              obtain ⟨d, hd1, hd2, hw⟩ := h2
+              refine ⟨d - (k1 * dd + 0), by omega, by omega, ?_⟩
+              rw [hw]; congr 2; rw [hxx, Int.mul_add]; omega
+          · subst e2
+            rw [rdnew, read_after hn0 (some dd) v w1 e1]; rw [rdold] at h2
+            simp only [↓reduceIte, ifF e1]
+            revert h2
+            cases idxOf base (get A c1) (s1.reg (BitVec.ofNat 5 c1)) with
+            | none => intro; trivial
+            | some x1 =>
+              intro h2
+              obtain ⟨d, hd1, hd2, hw⟩ := h2
+              refine ⟨d - (0 + k2 * dd), by omega, by omega, ?_⟩
+              rw [hw]; congr 2; rw [hxx, Int.mul_add]; omega
+          · exact (hd.elim e1 e2).elim
+      · simp only [bump, ifF hd]
+        exact valOK_after hn0 st v w1 (dep_false.mpr (not_or.mp hd)) hold
     | _ =>
       rw [hg] at hold
-      exact valOK_after hn0 st v w1 (fun k c e => by cases e) hold
+      exact valOK_after hn0 st v w1 rfl hold
 
 /-! ## Soundness: addresses and memory -/
 
@@ -708,37 +915,40 @@ theorem range_addr {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg
       refine ⟨((w1 - base).toNat + i).toNat, by omega, by omega, ?_⟩
       rw [← off_int base _ i (by omega), base_off]
     · cases hr
-  | aff r k c =>
+  | lin c1 k1 c2 k2 lo hi =>
     simp only [rangeOf] at hr
     unfold valOK at hv
     obtain ⟨-, hv⟩ := hv
-    have key : ∀ a b, (get A r = .num a b ∨ get A r = .ptr a b) →
-        (if 0 ≤ ((if 0 ≤ k then c + k * a else c + k * b) + i) then
-          some (((if 0 ≤ k then c + k * a else c + k * b) + i).toNat,
-            ((if 0 ≤ k then c + k * b else c + k * a) + i).toNat + size) else none) = some (lo, hi) →
-        ∃ o, lo ≤ o ∧ o + size ≤ hi ∧ w1 + BitVec.ofInt 32 i = base + BitVec.ofNat 32 o := by
-      intro a b hab hr
-      obtain ⟨x, hx, hax, hxb⟩ := counter_range h hab
-      rw [hx] at hv
-      have hm := mul_between (k := k) (Int.ofNat_le.mpr hax) (Int.ofNat_le.mpr hxb)
-      have e1 : (if 0 ≤ k then c + k * a else c + k * b) = c + (if 0 ≤ k then k * a else k * b) := by
-        split <;> rfl
-      have e2 : (if 0 ≤ k then c + k * b else c + k * a) = c + (if 0 ≤ k then k * b else k * a) := by
-        split <;> rfl
-      rw [e1, e2] at hr
-      generalize (if 0 ≤ k then k * (a : Int) else k * b) = L at hr hm
-      generalize (if 0 ≤ k then k * (b : Int) else k * a) = U at hr hm
-      by_cases hnn : 0 ≤ c + L + i
-      · simp only [ifT hnn, Option.some.injEq, Prod.mk.injEq] at hr
-        obtain ⟨h1, h2⟩ := hr
-        subst h1 h2
-        refine ⟨(c + k * x + i).toNat, by omega, by omega, ?_⟩
-        rw [hv, BitVec.add_assoc, ← BitVec.ofInt_add, int_off base _ (by omega)]
-      · simp only [ifF hnn] at hr; cases hr
-    cases hg : get A r with
-    | num a b => rw [hg] at hr; exact key a b (Or.inl hg) hr
-    | ptr a b => rw [hg] at hr; exact key a b (Or.inr hg) hr
-    | _ => rw [hg] at hr; cases hr
+    have cr : ∀ c, ∀ ab : Nat × Nat, rng A c = some ab →
+        ∃ x, idxOf base (get A c) (s1.reg (BitVec.ofNat 5 c)) = some x ∧ ab.1 ≤ x ∧ x ≤ ab.2 := by
+      intro c ab hab
+      unfold rng at hab
+      cases hg : get A c with
+      | num a b => rw [hg] at hab; cases hab; rw [← hg]; exact counter_range h (Or.inl hg)
+      | ptr a b => rw [hg] at hab; cases hab; rw [← hg]; exact counter_range h (Or.inr hg)
+      | _ => rw [hg] at hab; cases hab
+    cases hr1 : rng A c1 with
+    | none => rw [hr1] at hr; cases hr
+    | some ab1 =>
+      cases hr2 : rng A c2 with
+      | none => rw [hr1, hr2] at hr; cases hr
+      | some ab2 =>
+        rw [hr1, hr2] at hr
+        obtain ⟨x1, hx1, ha1, hb1⟩ := cr c1 ab1 hr1
+        obtain ⟨x2, hx2, ha2, hb2⟩ := cr c2 ab2 hr2
+        rw [hx1, hx2] at hv
+        obtain ⟨d, hd1, hd2, hw⟩ := hv
+        have m1 : tlo k1 ab1 ≤ k1 * x1 ∧ k1 * x1 ≤ thi k1 ab1 :=
+          mul_between (k := k1) (Int.ofNat_le.mpr ha1) (Int.ofNat_le.mpr hb1)
+        have m2 : tlo k2 ab2 ≤ k2 * x2 ∧ k2 * x2 ≤ thi k2 ab2 :=
+          mul_between (k := k2) (Int.ofNat_le.mpr ha2) (Int.ofNat_le.mpr hb2)
+        by_cases hnn : 0 ≤ lo + tlo k1 ab1 + tlo k2 ab2 + i
+        · simp only [ifT hnn, Option.some.injEq, Prod.mk.injEq] at hr
+          obtain ⟨h1, h2⟩ := hr
+          subst h1 h2
+          refine ⟨(d + k1 * x1 + k2 * x2 + i).toNat, by omega, by omega, ?_⟩
+          rw [hw, BitVec.add_assoc, ← BitVec.ofInt_add, int_off base _ (by omega)]
+        · simp only [ifF hnn] at hr; cases hr
   | _ => simp [rangeOf] at hr
 
 /-- How far an offset is past another, in the region: no wrap. -/
@@ -817,11 +1027,11 @@ theorem get_set {A : AState} {n : Nat} (hn0 : n ≠ 0) (hn : n < 32) (v : AV) (m
 
 /-- A counter narrowed to a smaller range of the same kind: every claim that
 held still holds. -/
-theorem rel_narrow {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A : AState} {s1 s2 : Machine}
+theorem rel_narrow {base : Word} {prog : List Instr} {P : Pub} {A : AState} {s1 s2 : Machine}
     (h : Rel base prog P A s1 s2) {r : Reg} (hr0 : r.toNat ≠ 0) {v : AV}
     (hk : sameKind v (get A r.toNat) = true) (hv : valOK base A s1 v (s1.reg r) (s2.reg r)) :
     Rel base prog P (A.set r.toNat v) s1 s2 := by
-  refine ⟨fun q => ?_, h.mem, h.code1, h.code2⟩
+  refine ⟨fun q => ?_, h.mem, h.code1, h.code2, h.consts1, h.consts2⟩
   have hidx : ∀ c, idxOf base (get (A.set r.toNat v) c) (s1.reg (BitVec.ofNat 5 c))
       = idxOf base (get A c) (s1.reg (BitVec.ofNat 5 c)) := by
     intro c
@@ -832,7 +1042,7 @@ theorem rel_narrow {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A 
   have hval : ∀ w w1 w2, valOK base A s1 w w1 w2 → valOK base (A.set r.toNat v) s1 w w1 w2 := by
     intro w w1 w2 hw
     cases w with
-    | aff c k d => exact ⟨hw.1, by rw [hidx]; exact hw.2⟩
+    | lin c1 k1 c2 k2 lo hi => exact ⟨hw.1, by rw [hidx, hidx]; exact hw.2⟩
     | _ => exact hw
   unfold regOK
   rw [get_set hr0 r.isLt]
@@ -850,7 +1060,7 @@ theorem off_ne {a b base : Word} (h : a ≠ b) : (a - base).toNat ≠ (b - base)
   rw [← base_off a base, ← base_off b base, this]
 
 /-- **After a comparison**, what `refine` narrows to holds. -/
-theorem rel_refine {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A : AState} {s1 s2 : Machine}
+theorem rel_refine {base : Word} {prog : List Instr} {P : Pub} {A : AState} {s1 s2 : Machine}
     (h : Rel base prog P A s1 s2) (r1 r2 : Reg) (eq : Bool)
     (hcmp : if eq then s1.reg r1 = s1.reg r2 else s1.reg r1 ≠ s1.reg r2) :
     Rel base prog P (refine A r1 r2 eq) s1 s2 := by
@@ -900,6 +1110,113 @@ theorem rel_refine {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A 
     · exact h
   · exact h
 
+theorem get_map {A : AState} {f : AV → AV} (h0 : f (.num 0 0) = .num 0 0) (hs : f .sec = .sec) (m : Nat) :
+    get (A.map f) m = f (get A m) := by
+  unfold get
+  by_cases hm0 : m = 0
+  · simp [hm0, h0]
+  · by_cases hm : m < 32
+    · simp only [hm0, hm, ↓reduceIte]
+      rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_map]
+      cases A[m]? <;> simp [hs]
+    · simp [hm0, hm, hs]
+
+theorem idxOf_normAV {base : Word} (n x : Nat) (w : AV) (y : Word) :
+    idxOf base (normAV n x w) y = idxOf base w y := by
+  cases w <;> rfl
+
+/-- **Folding a pinned counter in** keeps every claim. -/
+theorem rel_norm {base : Word} {prog : List Instr} {P : Pub} {A : AState} {s1 s2 : Machine}
+    (h : Rel base prog P A s1 s2) (n : Nat) : Rel base prog P (norm A n) s1 s2 := by
+  unfold norm
+  cases hx : exactIdx A n with
+  | none => exact h
+  | some x =>
+    simp only
+    have gm : ∀ m, get (A.map (normAV n x)) m = normAV n x (get A m) := get_map rfl rfl
+    have rd : ∀ c, idxOf base (get (A.map (normAV n x)) c) (s1.reg (BitVec.ofNat 5 c)) =
+        idxOf base (get A c) (s1.reg (BitVec.ofNat 5 c)) := fun c => by rw [gm, idxOf_normAV]
+    have hxn := exactIdx_val h.regs hx
+    refine ⟨fun r => ?_, h.mem, h.code1, h.code2, h.consts1, h.consts2⟩
+    have hr := h.regs r
+    unfold regOK at hr ⊢
+    rw [gm]
+    cases hg : get A r.toNat with
+    | lin c1 k1 c2 k2 lo hi =>
+      rw [hg] at hr
+      simp only [normAV, valOK] at hr ⊢
+      refine ⟨hr.1, ?_⟩
+      have h2 := hr.2
+      rw [rd, rd]
+      by_cases e1 : c1 = n <;> by_cases e2 : c2 = n
+      · subst e1; subst e2
+        rw [hxn] at h2
+        simp only [↓reduceIte, idx_zero]
+        obtain ⟨d, hd1, hd2, hw⟩ := h2
+        exact ⟨d + k1 * x + k2 * x, by omega, by omega, by rw [hw]; congr 2; omega⟩
+      · subst e1
+        rw [hxn] at h2
+        simp only [↓reduceIte, ifF e2, idx_zero]
+        revert h2
+        cases idxOf base (get A c2) (s1.reg (BitVec.ofNat 5 c2)) with
+        | none => intro; trivial
+        | some x2 =>
+          intro ⟨d, hd1, hd2, hw⟩
+          exact ⟨d + k1 * x, by omega, by omega, by rw [hw]; congr 2; omega⟩
+      · subst e2
+        rw [hxn] at h2
+        simp only [↓reduceIte, ifF e1, idx_zero]
+        revert h2
+        cases idxOf base (get A c1) (s1.reg (BitVec.ofNat 5 c1)) with
+        | none => intro h2; simp only at h2 ⊢
+        | some x1 =>
+          intro ⟨d, hd1, hd2, hw⟩
+          exact ⟨d + k2 * x, by omega, by omega, by rw [hw]; congr 2; omega⟩
+      · simp only [ifF e1, ifF e2, Int.add_zero]
+        exact h2
+    | _ => rw [hg] at hr; exact hr
+
+theorem slt_small {x y : Word} (hx : x.toNat < 2 ^ 31) (hy : y.toNat < 2 ^ 31) :
+    x.slt y = decide (x.toNat < y.toNat) := by
+  rw [BitVec.slt, BitVec.toInt_eq_toNat_cond, BitVec.toInt_eq_toNat_cond]
+  simp only [show 2 * x.toNat < 2 ^ 32 by omega, show 2 * y.toNat < 2 ^ 32 by omega, ↓reduceIte]
+  simp
+
+theorem ult_nat {x y : Word} : x.ult y = decide (x.toNat < y.toNat) := by
+  simp [BitVec.ult]
+
+/-- A register whose claim is a number below `ha` holds a number below it. -/
+theorem num_small {base : Word} {A : AState} {s1 s2 : Machine} (h : ∀ r : Reg, regOK base A s1 s2 r)
+    {a : Reg} {la ha : Nat} (g : get A a.toNat = .num la ha) : la ≤ (s1.reg a).toNat ∧ (s1.reg a).toNat ≤ ha := by
+  have := h a
+  unfold regOK at this
+  rw [g] at this
+  exact ⟨this.2.1, this.2.2⟩
+
+/-- **After an ordered comparison**, what `capLe` narrows to holds. -/
+theorem rel_cap {base : Word} {prog : List Instr} {P : Pub} {A : AState} {s1 s2 : Machine}
+    (h : Rel base prog P A s1 s2) (a b : Reg) (sub : Nat)
+    (hc : ∀ la ha lb hb, get A a.toNat = .num la ha → get A b.toNat = .num lb hb → ha < 2 ^ 31 → hb < 2 ^ 31 →
+      (s1.reg a).toNat + sub ≤ (s1.reg b).toNat) :
+    Rel base prog P (capLe A a b sub) s1 s2 := by
+  unfold capLe
+  split
+  · exact h
+  rename_i hr0
+  split
+  · rename_i la ha lb hb g1 g2
+    split
+    · rename_i hs
+      have ha' := num_small h.regs g1
+      have hb' := num_small h.regs g2
+      have hab := hc la ha lb hb g1 g2 hs.1 hs.2
+      have h1 := h.regs a
+      unfold regOK at h1
+      rw [g1] at h1
+      exact rel_narrow h hr0 (by rw [g1]; rfl) ⟨h1.1, ha'.1, by omega⟩
+    · exact h
+  · exact h
+
 /-! ## Where a program runs
 
 The checker's soundness asks three things of the world a run is in: `base`
@@ -927,32 +1244,32 @@ theorem Hosted.fetch_ok {env : Env} {base : Word} {len : Nat} (hh : Hosted env b
 /-! ## Soundness: the checker's verdict, one instruction at a time -/
 
 /-- Two runs at one accepted instruction, related as the checker claims there. -/
-def AtIn (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (s1 s2 : Machine) : Prop :=
+def AtIn (base : Word) (prog : List Instr) (P : Pub) (H : Heads) (s1 s2 : Machine) : Prop :=
   ∃ k A, k < prog.length ∧ stateAt prog P H k = some A ∧
     s1.pc = base + BitVec.ofNat 32 (4 * k) ∧ s2.pc = base + BitVec.ofNat 32 (4 * k) ∧ Rel base prog P A s1 s2
 
 /-- Two runs at one of the exits, related as the jump there left them. -/
-def AtExit (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (X : List Nat) (s1 s2 : Machine) : Prop :=
+def AtExit (base : Word) (prog : List Instr) (P : Pub) (X : List Nat) (s1 s2 : Machine) : Prop :=
   ∃ t ∈ X, ∃ T, s1.pc = base + BitVec.ofNat 32 (4 * t) ∧ s2.pc = base + BitVec.ofNat 32 (4 * t) ∧
     Rel base prog P T s1 s2
 
 /-- Two runs that step together: on to related states at the same
 instruction, or at the same exit, or halted with the same code, or faulted the
 same way. -/
-def Lock (base : Word) (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) (X : List Nat) :
+def Lock (base : Word) (prog : List Instr) (P : Pub) (H : Heads) (X : List Nat) :
     Outcome → Outcome → Prop
   | .running s1, .running s2 => AtIn base prog P H s1 s2 ∨ AtExit base prog P X s1 s2
   | .halted c1 _, .halted c2 _ => c1 = c2
   | .fault f1 _, .fault f2 _ => f1 = f2
   | _, _ => False
 
-theorem check_len {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) :
+theorem check_len {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) :
     4 * prog.length < 0x10000 := by
   unfold checkX at hc
   simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
   exact hc.1.1
 
-theorem check_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true)
+theorem check_at {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true)
     {k : Nat} (hk : k < prog.length) {A : AState} (hA : stateAt prog P H k = some A) :
     ∃ post, transfer prog.length P k A prog[k] = some post ∧ succOK prog.length H X k post = true := by
   unfold checkX at hc
@@ -964,7 +1281,7 @@ theorem check_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : Li
   · rename_i post hpost; exact ⟨post, hpost, this⟩
   · cases this
 
-theorem check_entry {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) :
+theorem check_entry {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) :
     ∃ B, stateAt prog P H 0 = some B ∧ ∀ base s1 s2, Rel base prog P entry s1 s2 → Rel base prog P B s1 s2 := by
   unfold checkX at hc
   simp only [Bool.and_eq_true] at hc
@@ -975,7 +1292,7 @@ theorem check_entry {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X :
   | none => intro; exact ⟨entry, rfl, fun _ _ _ h => h⟩
   | some B => intro h0; exact ⟨B, rfl, fun _ _ _ h => rel_mono h0 h⟩
 
-theorem stateAt_head {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {t : Nat} {B : AState}
+theorem stateAt_head {prog : List Instr} {P : Pub} {H : Heads} {t : Nat} {B : AState}
     (h : head H t = some B) : stateAt prog P H t = some B := by
   cases t with
   | zero => simp only [stateAt, h]
@@ -983,7 +1300,7 @@ theorem stateAt_head {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {t 
 
 /-- Falling through: the next instruction exists, and what holds after this
 one holds of what is claimed there. -/
-theorem succ_fall {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} {k : Nat} (hk : k < prog.length)
+theorem succ_fall {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat} {k : Nat} (hk : k < prog.length)
     {A : AState} (hA : stateAt prog P H k = some A) {post : Post}
     (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {F : AState} (hF : post.fall = some F) :
@@ -1004,7 +1321,7 @@ theorem succ_fall {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : L
 
 /-- Jumping: the target exists, is a head, and what holds after this
 instruction holds of what is claimed there. -/
-theorem succ_jump {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} {k : Nat}
+theorem succ_jump {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat} {k : Nat}
     {post : Post} (hs : succOK prog.length H X k post = true) {t : Nat} {T : AState} (hT : post.jump = some (t, T)) :
     (t < prog.length ∧ ∃ B, stateAt prog P H t = some B ∧
       ∀ base s1 s2, Rel base prog P T s1 s2 → Rel base prog P B s1 s2) ∨ t ∈ X := by
@@ -1060,21 +1377,22 @@ theorem addi_ok {base : Word} {A : AState} {s1 : Machine} (rd : Nat) {src : AV} 
     · rename_i hc
       refine ⟨by rw [h.1], ?_, ?_, by omega⟩ <;> rw [off_step _ _ _ (by omega) (by omega)] <;> omega
     · exact (show x1 + _ = x2 + _ by rw [h.1])
-  | aff r k c =>
+  | lin c1 k1 c2 k2 lo hi =>
     unfold valOK at h
     simp only [addiAV]
     split
     · exact (show x1 + _ = x2 + _ by rw [h.1])
-    · refine ⟨by rw [h.1], ?_⟩
+    · simp only [valOK]
+      refine ⟨by rw [h.1], ?_⟩
       have h2 := h.2
       revert h2
-      cases idxOf base (get A r) (s1.reg (BitVec.ofNat 5 r)) with
-      | none => intro; trivial
-      | some x =>
-        intro h2
-        simp only at h2 ⊢
-        rw [h2, BitVec.add_assoc, ← BitVec.ofInt_add]
-        congr 2; omega
+      cases idxOf base (get A c1) (s1.reg (BitVec.ofNat 5 c1)) <;>
+        cases idxOf base (get A c2) (s1.reg (BitVec.ofNat 5 c2))
+      all_goals try (intro; trivial)
+      intro ⟨d0, hd1, hd2, hw⟩
+      refine ⟨d0 + d, by omega, by omega, ?_⟩
+      rw [hw, BitVec.add_assoc, ← BitVec.ofInt_add]
+      congr 2; omega
 
 /-- A counter stepped in place by `addi`: its new value is the old one plus `d`. -/
 theorem addi_idx {base : Word} {A : AState} {s1 : Machine} (rd : Nat) {src : AV} {x1 x2 : Word}
@@ -1135,32 +1453,49 @@ theorem pub_ok {base : Word} {A : AState} {s1 : Machine} {v : AV} {x1 x2 : Word}
     rw [e]
   · trivial
 
+/-- A shift, as `shAV` says. -/
+theorem sh_ok {base : Word} {A : AState} {s1 : Machine} {v : AV} {x1 x2 : Word} (h : valOK base A s1 v x1 x2)
+    (op : ShOp) (s : Nat) : valOK base A s1 (shAV op v s) (shiftI op x1 s) (shiftI op x2 s) := by
+  cases op <;> cases v
+  case srli.num lo hi =>
+    unfold valOK at h
+    simp only [shAV, valOK, shiftI, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+    exact ⟨by rw [h.1], Nat.div_le_div_right h.2.1, Nat.div_le_div_right h.2.2⟩
+  all_goals exact pub_ok h (fun x => shiftI _ x s)
+
+theorem shAV_self (op : ShOp) (v : AV) (s rd : Nat) : dep rd (shAV op v s) = false := by
+  unfold shAV; split <;> (try split) <;> rfl
+
 /-! ## Soundness: states after a step -/
 
-theorem rel_write {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A : AState} {s1 s2 : Machine}
+theorem rel_write {base : Word} {prog : List Instr} {P : Pub} {A : AState} {s1 s2 : Machine}
     (h : Rel base prog P A s1 s2) (rd : Reg) (v : AV) (st : Option Int) (w1 w2 : Word)
-    (hv : valOK base A s1 v w1 w2) (hself : ∀ k c, v ≠ .aff rd.toNat k c)
+    (hv : valOK base A s1 v w1 w2) (hself : dep rd.toNat v = false)
     (hst : ∀ d, st = some d → ∃ x x' : Nat, idxOf base (get A rd.toNat) (s1.reg rd) = some x ∧
         idxOf base v w1 = some x' ∧ (x' : Int) = x + d) :
     Rel base prog P (write A rd.toNat v st) (s1.setReg rd w1).next (s2.setReg rd w2).next :=
   ⟨regs_write h.regs rd v st w1 w2 hv hself hst,
    fun o h1 h2 => by simp only [next_mem, setReg_mem]; exact h.mem o h1 h2,
    by simp only [next_mem, setReg_mem]; exact h.code1,
-   by simp only [next_mem, setReg_mem]; exact h.code2⟩
+   by simp only [next_mem, setReg_mem]; exact h.code2,
+   by simp only [next_mem, setReg_mem]; exact h.consts1,
+   by simp only [next_mem, setReg_mem]; exact h.consts2⟩
 
-theorem rel_pc {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A : AState} {s1 s2 : Machine}
+theorem rel_pc {base : Word} {prog : List Instr} {P : Pub} {A : AState} {s1 s2 : Machine}
     (h : Rel base prog P A s1 s2) (p1 p2 : Word) : Rel base prog P A (s1.setPc p1) (s2.setPc p2) :=
-  ⟨h.regs, h.mem, h.code1, h.code2⟩
+  ⟨h.regs, h.mem, h.code1, h.code2, h.consts1, h.consts2⟩
 
-theorem rel_mem {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {A : AState} {s1 s2 : Machine}
+theorem rel_mem {base : Word} {prog : List Instr} {P : Pub} {A : AState} {s1 s2 : Machine}
     (h : Rel base prog P A s1 s2) (m1 m2 : Word → Byte)
     (hm : ∀ o, o < 0x10000 → InP prog.length P o → m1 (base + BitVec.ofNat 32 o) = m2 (base + BitVec.ofNat 32 o))
-    (hc1 : CodeAt m1 base prog) (hc2 : CodeAt m2 base prog) :
+    (hc1 : CodeAt m1 base prog) (hc2 : CodeAt m2 base prog)
+    (hk1 : ∀ c ∈ P.consts, readLE m1 (base + BitVec.ofNat 32 c.1) 4 = c.2)
+    (hk2 : ∀ c ∈ P.consts, readLE m2 (base + BitVec.ofNat 32 c.1) 4 = c.2) :
     Rel base prog P A ({ s1 with mem := m1 } : Machine).next ({ s2 with mem := m2 } : Machine).next :=
-  ⟨h.regs, hm, hc1, hc2⟩
+  ⟨h.regs, hm, hc1, hc2, hk1, hk2⟩
 
 theorem lock_fall {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {prog : List Instr}
-    {P : List (Nat × Nat)} {H : Heads} {X : List Nat} (hlen : 4 * prog.length < 0x10000) {k : Nat} (hk : k < prog.length)
+    {P : Pub} {H : Heads} {X : List Nat} (hlen : 4 * prog.length < 0x10000) {k : Nat} (hk : k < prog.length)
     {A : AState} (hA : stateAt prog P H k = some A) {post : Post}
     (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     {F : AState} (hF : post.fall = some F) {s1 s2 : Machine} (hr : Rel base prog P F s1 s2)
@@ -1171,7 +1506,7 @@ theorem lock_fall {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {prog : L
   · rw [hp1]; exact pc_next hfit k (by omega)
   · rw [hp2]; exact pc_next hfit k (by omega)
 
-theorem lock_jump {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat} {k : Nat}
+theorem lock_jump {base : Word} {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat} {k : Nat}
     {post : Post} (hs : succOK prog.length H X k post = true) {t : Nat} {T : AState}
     (hT : post.jump = some (t, T)) {s1 s2 : Machine} (hr : Rel base prog P T s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * t)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * t)) :
@@ -1200,7 +1535,7 @@ Each lemma: the two runs at instruction `k` in a related state, the checker
 having accepted it; the two steps lock. -/
 
 section
-variable {env : Env} {base : Word} {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} {X : List Nat}
+variable {env : Env} {base : Word} {prog : List Instr} {P : Pub} {H : Heads} {X : List Nat}
   {k : Nat} {A : AState} {s1 s2 : Machine} {post : Post}
 
 theorem lock_reg (hfit : base.toNat + 0x10000 ≤ 2^32) (hlen : 4 * prog.length < 0x10000)
@@ -1208,31 +1543,29 @@ theorem lock_reg (hfit : base.toNat + 0x10000 ≤ 2^32) (hlen : 4 * prog.length 
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k))
     (htr : transfer prog.length P k A prog[k] = some post) (hs : succOK prog.length H X k post = true)
     (rd : Reg) (v : AV) (st : Option Int) (hF : post.fall = some (write A rd.toNat v st)) (w1 w2 : Word)
-    (hv : valOK base A s1 v w1 w2) (hself : ∀ k c, v ≠ .aff rd.toNat k c)
+    (hv : valOK base A s1 v w1 w2) (hself : dep rd.toNat v = false)
     (hst : ∀ d, st = some d → ∃ x x' : Nat, idxOf base (get A rd.toNat) (s1.reg rd) = some x ∧
         idxOf base v w1 = some x' ∧ (x' : Int) = x + d) :
     Lock base prog P H X (.running (s1.setReg rd w1).next) (.running (s2.setReg rd w2).next) :=
   lock_fall hfit hlen hk hA htr hs hF (rel_write h rd v st w1 w2 hv hself hst)
     (by simp [hp1]) (by simp [hp2])
 
-theorem addiAV_self (rd : Nat) (src : AV) (d : Int) : ∀ k c, addiAV rd src d ≠ .aff rd k c := by
-  intro k c e
+theorem addiAV_self (rd : Nat) (src : AV) (d : Int) : dep rd (addiAV rd src d) = false := by
   cases src with
-  | aff r k' c' =>
-    simp only [addiAV] at e
-    split at e
-    · cases e
-    · rename_i hr; cases e; exact hr rfl
-  | num lo hi => simp only [addiAV] at e; split at e <;> cases e
-  | ptr lo hi => simp only [addiAV] at e; split at e <;> cases e
-  | _ => cases e
+  | lin c1 k1 c2 k2 lo hi =>
+    simp only [addiAV]
+    split
+    · rfl
+    · rename_i hr; exact dep_false.mpr (not_or.mp hr)
+  | num lo hi => simp only [addiAV]; split <;> rfl
+  | ptr lo hi => simp only [addiAV]; split <;> rfl
+  | _ => rfl
 
-theorem opAV_self (op : ROp) (v1 v2 : AV) (rd : Nat) : ∀ k c, opAV op v1 v2 ≠ .aff rd k c := by
-  intro k c e
-  unfold opAV at e
-  split at e
-  · split at e <;> cases e
-  · split at e <;> cases e
+theorem opAV_self (op : ROp) (v1 v2 : AV) (rd : Nat) : dep rd (opAV op v1 v2) = false := by
+  unfold opAV
+  split
+  · split <;> rfl
+  · split <;> rfl
 
 theorem lock_opi (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
@@ -1263,7 +1596,7 @@ theorem lock_opi (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x
     subst ht
     exact lock_reg hp.fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _
       (pub_ok (h.regs r1) (fun x => aluI _ x (BitVec.signExtend 32 imm)))
-      (fun _ _ e => by split at e <;> cases e) (fun _ e => by cases e)
+      (by split <;> rfl) (fun _ e => by cases e)
 
 theorem lock_sh (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
@@ -1276,8 +1609,7 @@ theorem lock_sh (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x1
   simp only [transfer, Option.some.injEq] at ht
   subst ht
   exact lock_reg hp.fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _
-    (pub_ok (h.regs r1) (fun x => shiftI op x sa.toNat))
-    (fun _ _ e => by split at e <;> cases e) (fun _ e => by cases e)
+    (sh_ok (h.regs r1) op sa.toNat) (shAV_self _ _ _ _) (fun _ e => by cases e)
 
 theorem lock_op (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
@@ -1303,7 +1635,7 @@ theorem lock_lui (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x
   simp only [transfer, Option.some.injEq] at ht
   subst ht
   exact lock_reg hp.fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _ ⟨rfl, Nat.le_refl _, Nat.le_refl _⟩
-    (fun _ _ e => by cases e) (fun _ e => by cases e)
+    rfl (fun _ e => by cases e)
 
 theorem lock_auipc (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x10000)
     (hk : k < prog.length) (hA : stateAt prog P H k = some A) (h : Rel base prog P A s1 s2)
@@ -1316,7 +1648,7 @@ theorem lock_auipc (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 
   simp only [transfer, Option.some.injEq] at ht
   subst ht
   simp only [exec]
-  refine lock_reg hp.fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _ ?_ (fun _ _ e => by split at e <;> cases e)
+  refine lock_reg hp.fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _ ?_ (by split <;> rfl)
     (fun _ e => by cases e)
   split
   · rename_i hc
@@ -1358,10 +1690,10 @@ theorem lock_br (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x1
     by_cases hT : taken .bne (s1.reg r1) (s1.reg r2) = true
     · rw [ifT hT, ifT hT]
       have hcmp : s1.reg r1 ≠ s1.reg r2 := by simpa [taken] using hT
-      exact lock_jump hs rfl (rel_pc (rel_refine h r1 r2 false (by simpa using hcmp)) _ _) (tgt s1 hp1) (tgt s2 hp2)
+      exact lock_jump hs rfl (rel_pc (rel_norm (rel_refine h r1 r2 false (by simpa using hcmp)) _) _ _) (tgt s1 hp1) (tgt s2 hp2)
     · rw [ifF hT, ifF hT]
       have hcmp : s1.reg r1 = s1.reg r2 := by simpa [taken] using hT
-      exact lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_refine h r1 r2 true (by simpa using hcmp)) _ _)
+      exact lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_norm (rel_refine h r1 r2 true (by simpa using hcmp)) _) _ _)
         (nxt s1 hp1) (nxt s2 hp2)
   | beq =>
     simp only [Option.some.injEq] at ht
@@ -1369,20 +1701,86 @@ theorem lock_br (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x1
     by_cases hT : taken .beq (s1.reg r1) (s1.reg r2) = true
     · rw [ifT hT, ifT hT]
       have hcmp : s1.reg r1 = s1.reg r2 := by simpa [taken] using hT
-      exact lock_jump hs rfl (rel_pc (rel_refine h r1 r2 true (by simpa using hcmp)) _ _) (tgt s1 hp1) (tgt s2 hp2)
+      exact lock_jump hs rfl (rel_pc (rel_norm (rel_refine h r1 r2 true (by simpa using hcmp)) _) _ _) (tgt s1 hp1) (tgt s2 hp2)
     · rw [ifF hT, ifF hT]
       have hcmp : s1.reg r1 ≠ s1.reg r2 := by simpa [taken] using hT
-      exact lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_refine h r1 r2 false (by simpa using hcmp)) _ _)
+      exact lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_norm (rel_refine h r1 r2 false (by simpa using hcmp)) _) _ _)
         (nxt s1 hp1) (nxt s2 hp2)
-  | _ =>
+  | blt =>
     simp only [Option.some.injEq] at ht
     subst ht
-    split
-    · exact lock_jump hs rfl (rel_pc h _ _) (tgt s1 hp1) (tgt s2 hp2)
-    · exact lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc h _ _) (nxt s1 hp1) (nxt s2 hp2)
+    by_cases hT : taken .blt (s1.reg r1) (s1.reg r2) = true
+    · rw [ifT hT, ifT hT]
+      refine lock_jump hs rfl (rel_pc (rel_cap h r1 r2 1 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (tgt s1 hp1) (tgt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
+    · rw [ifF hT, ifF hT]
+      refine lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_cap h r2 r1 0 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (nxt s1 hp1) (nxt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
+  | bltu =>
+    simp only [Option.some.injEq] at ht
+    subst ht
+    by_cases hT : taken .bltu (s1.reg r1) (s1.reg r2) = true
+    · rw [ifT hT, ifT hT]
+      refine lock_jump hs rfl (rel_pc (rel_cap h r1 r2 1 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (tgt s1 hp1) (tgt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
+    · rw [ifF hT, ifF hT]
+      refine lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_cap h r2 r1 0 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (nxt s1 hp1) (nxt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
+  | bge =>
+    simp only [Option.some.injEq] at ht
+    subst ht
+    by_cases hT : taken .bge (s1.reg r1) (s1.reg r2) = true
+    · rw [ifT hT, ifT hT]
+      refine lock_jump hs rfl (rel_pc (rel_cap h r2 r1 0 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (tgt s1 hp1) (tgt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
+    · rw [ifF hT, ifF hT]
+      refine lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_cap h r1 r2 1 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (nxt s1 hp1) (nxt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
+  | bgeu =>
+    simp only [Option.some.injEq] at ht
+    subst ht
+    by_cases hT : taken .bgeu (s1.reg r1) (s1.reg r2) = true
+    · rw [ifT hT, ifT hT]
+      refine lock_jump hs rfl (rel_pc (rel_cap h r2 r1 0 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (tgt s1 hp1) (tgt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
+    · rw [ifF hT, ifF hT]
+      refine lock_fall hp.fit hlen hk hA htr hs rfl (rel_pc (rel_cap h r1 r2 1 fun la ha lb hb g1 g2 b1 b2 => ?_) _ _) (nxt s1 hp1) (nxt s2 hp2)
+      have := num_small h.regs g1; have := num_small h.regs g2
+      simp only [taken] at hT
+      first
+        | (rw [slt_small (by omega) (by omega)] at hT; simp at hT; omega)
+        | (rw [ult_nat] at hT; simp at hT; omega)
 
 /-- Every byte of a public range is public. -/
-theorem pub_inP {len : Nat} {P : List (Nat × Nat)} {lo hi : Nat} (h : pubRange len P lo hi = true)
+theorem pub_inP {len : Nat} {P : Pub} {lo hi : Nat} (h : pubRange len P lo hi = true)
     {o : Nat} (h1 : lo ≤ o) (h2 : o < hi) : InP len P o := by
   unfold pubRange within at h
   simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq, List.any_eq_true] at h
@@ -1413,10 +1811,12 @@ theorem lock_ld (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x1
   split
   · rfl
   refine lock_reg fit hlen hk hA h hp1 hp2 htr hs rd _ none rfl _ _ ?_
-    (fun _ _ e => by unfold ldAV at e; split at e <;> (try split at e) <;> cases e) (fun _ e => by cases e)
-  unfold ldAV
-  split
-  · rename_i lo hi' hr
+    (by unfold ldAV; split <;> (try split) <;> (try split) <;> (try split) <;> rfl) (fun _ e => by cases e)
+  have pubcase : ∀ lo hi', rangeOf A (get A r1.toNat) (sext imm) op.size = some (lo, hi') →
+      valOK base A s1 (if hi' ≤ 0x10000 ∧ pubRange prog.length P lo hi' = true then .pub else .sec)
+        (op.extend (readLE s1.mem (s1.reg r1 + imm.signExtend 32) op.size))
+        (op.extend (readLE s2.mem (s1.reg r1 + imm.signExtend 32) op.size)) := by
+    intro lo hi' hr
     split
     · rename_i hc
       show op.extend (readLE s1.mem _ op.size) = op.extend (readLE s2.mem _ op.size)
@@ -1428,14 +1828,53 @@ theorem lock_ld (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x1
       rw [off_add fit o d (by omega)]
       exact h.mem _ (by omega) (pub_inP hc.2 (by omega) (by omega))
     · trivial
+  unfold ldAV
+  split
+  · rename_i lo hi' hr
+    split
+    · rename_i c hfind
+      split
+      · rename_i hc
+        obtain ⟨h4, hhi, hc2⟩ := hc
+        have hcm : c ∈ P.consts := List.mem_of_find?_eq_some hfind
+        have hcl : c.1 = lo := by simpa using List.find?_some hfind
+        have hop : op = .lw := by cases op <;> simp_all [LdOp.size]
+        subst hop
+        obtain ⟨o, hlo, hhi', ha⟩ := range_addr h.regs (h.regs r1) hr
+        have ho : o = c.1 := by simp [LdOp.size] at hhi'; omega
+        have e1 : readLE s1.mem (s1.reg r1 + imm.signExtend 32) 4 = c.2 := by
+          rw [se_sext, ha, ho]; exact h.consts1 c hcm
+        have e2 : readLE s2.mem (s1.reg r1 + imm.signExtend 32) 4 = c.2 := by
+          rw [se_sext, ha, ho]; exact h.consts2 c hcm
+        simp only [LdOp.size, LdOp.extend, valOK, e1, e2, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hc2]
+        exact ⟨trivial, Nat.le_refl _, Nat.le_refl _⟩
+      · exact pubcase lo hi' hr
+    · exact pubcase lo hi' hr
   · trivial
+
+theorem apartK_out {P : Pub} {lo hi : Nat} (hk : apartK P lo hi = true) {c : Nat × Nat} (hc : c ∈ P.consts) :
+    c.1 + 4 ≤ 0x10000 ∧ (hi ≤ c.1 ∨ c.1 + 4 ≤ lo) := by
+  unfold apartK at hk
+  have := List.all_eq_true.mp hk c hc
+  simp only [Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq] at this
+  exact this
+
+/-- A write that misses every byte of a word leaves what the word reads. -/
+theorem readLE_kept {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) {m m' : Word → Byte} {c : Nat}
+    (hc : c + 4 ≤ 0x10000)
+    (h : ∀ d < 4, m' (base + BitVec.ofNat 32 (c + d)) = m (base + BitVec.ofNat 32 (c + d))) :
+    readLE m' (base + BitVec.ofNat 32 c) 4 = readLE m (base + BitVec.ofNat 32 c) 4 := by
+  apply readLE_congr
+  intro d hd
+  rw [off_add hfit c d (by omega)]
+  exact h d hd
 
 theorem rangeOf_pub {A : AState} {v : AV} {i : Int} {n : Nat} {r : Nat × Nat} (h : rangeOf A v i n = some r) :
     isPub v = true := by
   cases v <;> simp_all [rangeOf, isPub]
 
 /-- What a range that meets no public place leaves out of a public offset. -/
-theorem apart_out {len : Nat} {P : List (Nat × Nat)} {lo hi o n o' : Nat} (hap : apart P lo hi = true)
+theorem apart_out {len : Nat} {P : Pub} {lo hi o n o' : Nat} (hap : apart P.places lo hi = true)
     (hlo : 4 * len ≤ lo) (h1 : lo ≤ o) (h2 : o + n ≤ hi) (hin : InP len P o') : o' < o ∨ o + n ≤ o' := by
   unfold apart at hap
   rw [List.all_eq_true] at hap
@@ -1463,7 +1902,7 @@ theorem lock_st (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x1
   rename_i hc
   simp only [Option.some.injEq] at ht
   subst ht
-  obtain ⟨hlo, hhi, hdata⟩ := hc
+  obtain ⟨hlo, hhi, hkk, hdata⟩ := hc
   have e1 := regOK_eq (h.regs r1) (rangeOf_pub hr)
   have hsz : 1 ≤ op.size ∧ op.size ≤ 4 := by cases op <;> decide
   obtain ⟨o, h1, h2, ha⟩ := range_addr h.regs (h.regs r1) hr
@@ -1477,8 +1916,14 @@ theorem lock_st (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 0x1
   have hout : ∀ (m : Word → Byte) (v : Nat) o', o' < 4 * prog.length →
       writeLE m (base + BitVec.ofNat 32 o) v op.size (base + BitVec.ofNat 32 o') = m (base + BitVec.ofNat 32 o') :=
     fun m v o' ho' => writeLE_out fit m v hsz.2 (by omega) (by omega) (by omega) (Or.inl (by omega))
+  have kept : ∀ (m : Word → Byte) (v : Nat), (∀ c ∈ P.consts, readLE m (base + BitVec.ofNat 32 c.1) 4 = c.2) →
+      ∀ c ∈ P.consts, readLE (writeLE m (base + BitVec.ofNat 32 o) v op.size) (base + BitVec.ofNat 32 c.1) 4 = c.2 := by
+    intro m v hm c hc
+    obtain ⟨hc4, hap⟩ := apartK_out hkk hc
+    rw [readLE_kept fit hc4 (fun d hd => writeLE_out fit m v hsz.2 (by omega) (by omega) (by omega) (by omega))]
+    exact hm c hc
   refine lock_fall fit hlen hk hA htr hs rfl (rel_mem h _ _ ?_ (code_keep fit hlen (hout _ _) h.code1)
-    (code_keep fit hlen (hout _ _) h.code2)) (by simp [hp1]) (by simp [hp2])
+    (code_keep fit hlen (hout _ _) h.code2) (kept _ _ h.consts1) (kept _ _ h.consts2)) (by simp [hp1]) (by simp [hp2])
   intro o' ho' hin
   rcases hdata with hpub | hap
   · rw [regOK_eq (h.regs r2) hpub]
@@ -1520,7 +1965,7 @@ theorem lock_ecall (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 
     case h_2 => cases hdst
     rename_i lo hi' hr
     simp only [Bool.and_eq_true, decide_eq_true_eq] at hdst
-    obtain ⟨⟨hlo, hhi⟩, hap⟩ := hdst
+    obtain ⟨⟨⟨hlo, hhi⟩, hap⟩, hkk⟩ := hdst
     have e2 := regOK_eq (h.regs A2) (rangeOf_pub hr)
     rw [← e2]
     obtain ⟨o, h1, h2, ha⟩ := range_addr h.regs (h.regs A2) hr
@@ -1530,8 +1975,15 @@ theorem lock_ecall (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 
       have hout : ∀ (m : Word → Byte) (f : Fin 32 → Byte) o', o' < 4 * prog.length →
           writeBytes m (base + BitVec.ofNat 32 o) f (base + BitVec.ofNat 32 o') = m (base + BitVec.ofNat 32 o') :=
         fun m f o' ho' => writeBytes_out fit m f (by omega) (by omega) (Or.inl (by omega))
+      have kept : ∀ (m : Word → Byte) (f : Fin 32 → Byte),
+          (∀ c ∈ P.consts, readLE m (base + BitVec.ofNat 32 c.1) 4 = c.2) →
+          ∀ c ∈ P.consts, readLE (writeBytes m (base + BitVec.ofNat 32 o) f) (base + BitVec.ofNat 32 c.1) 4 = c.2 := by
+        intro m f hm c hc
+        obtain ⟨hc4, hapk⟩ := apartK_out hkk hc
+        rw [readLE_kept fit hc4 (fun d hd => writeBytes_out fit m f (by omega) (by omega) (by omega))]
+        exact hm c hc
       refine lock_fall fit hlen hk hA htr hs rfl (rel_mem h _ _ ?_ (code_keep fit hlen (hout _ _) h.code1)
-        (code_keep fit hlen (hout _ _) h.code2)) (by simp [hp1]) (by simp [hp2])
+        (code_keep fit hlen (hout _ _) h.code2) (kept _ _ h.consts1) (kept _ _ h.consts2)) (by simp [hp1]) (by simp [hp2])
       intro o' ho' hin
       have hx := apart_out hap hlo h1 h2 hin
       rw [writeBytes_out fit _ _ (by omega) ho' hx, writeBytes_out fit _ _ (by omega) ho' hx]
@@ -1554,7 +2006,7 @@ end
 
 /-- **One step.** Two related runs at an instruction the checker accepted take
 it together. -/
-theorem step_lock {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
+theorem step_lock {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : Pub}
     {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) {k : Nat} (hk : k < prog.length) {A : AState}
     (hA : stateAt prog P H k = some A) {s1 s2 : Machine} (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k)) :
@@ -1609,7 +2061,7 @@ def Same : Outcome → Outcome → Prop
   | _, _ => False
 
 /-- One step, observed the same in both runs. -/
-theorem obs_eq {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
+theorem obs_eq {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : Pub}
     {H : Heads} {X : List Nat} (hc : checkX prog P H X = true) {k : Nat} (hk : k < prog.length) {A : AState}
     (hA : stateAt prog P H k = some A) {s1 s2 : Machine} (h : Rel base prog P A s1 s2)
     (hp1 : s1.pc = base + BitVec.ofNat 32 (4 * k)) (hp2 : s2.pc = base + BitVec.ofNat 32 (4 * k)) :
@@ -1666,7 +2118,7 @@ theorem obs_eq {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env ba
 
 /-- **Every step.** From related states at an accepted instruction, `n` steps
 are observed the same in both runs and end the same way. -/
-theorem run_lock {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
+theorem run_lock {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : Pub}
     {H : Heads} (hc : check prog P H = true) :
     ∀ n k A s1 s2, k < prog.length → stateAt prog P H k = some A → Rel base prog P A s1 s2 →
       s1.pc = base + BitVec.ofNat 32 (4 * k) → s2.pc = base + BitVec.ofNat 32 (4 * k) →
@@ -1702,11 +2154,13 @@ bytes in the program and in `P` — and anything at all elsewhere — are observ
 the same at every step: the same `pc`, the same address loaded or stored, the
 same HASH arguments, the same halt code. -/
 theorem constant_time {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr}
-    {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true) (hne : 0 < prog.length)
+    {P : Pub} {H : Heads} (hc : check prog P H = true) (hne : 0 < prog.length)
     (s1 s2 : Machine) (hpc1 : s1.pc = base) (hpc2 : s2.pc = base) (hregs : ∀ r, s1.reg r = s2.reg r)
     (hmem : ∀ o, o < 0x10000 → InP prog.length P o →
       s1.mem (base + BitVec.ofNat 32 o) = s2.mem (base + BitVec.ofNat 32 o))
-    (hcode : CodeAt s1.mem base prog) :
+    (hcode : CodeAt s1.mem base prog)
+    (hk1 : ∀ c ∈ P.consts, readLE s1.mem (base + BitVec.ofNat 32 c.1) 4 = c.2 := by intro c hc; cases hc)
+    (hk2 : ∀ c ∈ P.consts, readLE s2.mem (base + BitVec.ofNat 32 c.1) 4 = c.2 := by intro c hc; cases hc) :
     ∀ n, trace env n s1 = trace env n s2 ∧ Same (run env n s1) (run env n s2) := by
   have fit := hp.fit
   have hlen := check_len hc
@@ -1715,7 +2169,7 @@ theorem constant_time {env : Env} {base : Word} (hp : Placed env base) {prog : L
     obtain ⟨hx, -⟩ := in_region fit h1 (by omega)
     rw [hx]; exact hmem _ (by omega) (Or.inl (by omega))
   have h0 : Rel base prog P entry s1 s2 := by
-    refine ⟨fun r => ?_, hmem, hcode, hcode2⟩
+    refine ⟨fun r => ?_, hmem, hcode, hcode2, hk1, hk2⟩
     unfold regOK
     by_cases hr0 : r.toNat = 0
     · have : r = 0 := BitVec.eq_of_toNat_eq hr0
@@ -1728,18 +2182,22 @@ theorem constant_time {env : Env} {base : Word} (hp : Placed env base) {prog : L
 /-- **From the state the shell builds**: two images whose bytes agree in the
 program and in `P`. -/
 theorem constant_time_boot {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr}
-    {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true) (hne : 0 < prog.length)
+    {P : Pub} {H : Heads} (hc : check prog P H = true) (hne : 0 < prog.length)
     (img1 img2 : ByteArray)
     (hmem : ∀ o, o < 0x10000 → InP prog.length P o →
       memOfImage base img1 (base + BitVec.ofNat 32 o) = memOfImage base img2 (base + BitVec.ofNat 32 o))
-    (hcode : CodeAt (memOfImage base img1) base prog) :
+    (hcode : CodeAt (memOfImage base img1) base prog)
+    (hk1 : ∀ c ∈ P.consts, readLE (memOfImage base img1) (base + BitVec.ofNat 32 c.1) 4 = c.2 := by
+      intro c hc; cases hc)
+    (hk2 : ∀ c ∈ P.consts, readLE (memOfImage base img2) (base + BitVec.ofNat 32 c.1) 4 = c.2 := by
+      intro c hc; cases hc) :
     ∀ n, trace env n (boot env.region img1) = trace env n (boot env.region img2)
       ∧ Same (run env n (boot env.region img1)) (run env n (boot env.region img2)) := by
   have hb : ∀ img, (boot env.region img).pc = base ∧ (boot env.region img).mem = memOfImage base img := by
     intro img; simp [boot, hp.region]
-  apply constant_time hp hc hne _ _ (hb img1).1 (hb img2).1 (fun r => rfl)
-  · rw [(hb img1).2, (hb img2).2]; exact hmem
-  · rw [(hb img1).2]; exact hcode
+  exact constant_time hp hc hne _ _ (hb img1).1 (hb img2).1 (fun r => rfl)
+    (by rw [(hb img1).2, (hb img2).2]; exact hmem) (by rw [(hb img1).2]; exact hcode)
+    (by rw [(hb img1).2]; exact hk1) (by rw [(hb img2).2]; exact hk2)
 
 /-! ## Every state on the way
 
@@ -1755,7 +2213,7 @@ but HALT. -/
 /-- **Every step, still locked.** From related states at an accepted
 instruction, after any `n` steps the two runs are both running, related, at one
 accepted instruction; or they ended the same way. -/
-theorem lock_run {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : List (Nat × Nat)}
+theorem lock_run {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length) {P : Pub}
     {H : Heads} (hc : check prog P H = true) :
     ∀ n k A s1 s2, k < prog.length → stateAt prog P H k = some A → Rel base prog P A s1 s2 →
       s1.pc = base + BitVec.ofNat 32 (4 * k) → s2.pc = base + BitVec.ofNat 32 (4 * k) →
@@ -1775,13 +2233,13 @@ theorem lock_run {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env 
     all_goals first | exact hl.elim | exact hl
 
 /-- Every `ecall` the checker reaches, it reaches knowing `t0` is 1. -/
-def haltsOnly (prog : List Instr) (P : List (Nat × Nat)) (H : Heads) : Bool :=
+def haltsOnly (prog : List Instr) (P : Pub) (H : Heads) : Bool :=
   (List.range prog.length).all fun k =>
     match prog[k]?, stateAt prog P H k with
     | some .ecall, some A => get A 5 == .num 1 1
     | _, _ => true
 
-theorem haltsOnly_at {prog : List Instr} {P : List (Nat × Nat)} {H : Heads} (hq : haltsOnly prog P H = true)
+theorem haltsOnly_at {prog : List Instr} {P : Pub} {H : Heads} (hq : haltsOnly prog P H = true)
     {k : Nat} (hk : k < prog.length) {A : AState} (hA : stateAt prog P H k = some A) (hi : prog[k] = .ecall) :
     get A 5 = .num 1 1 := by
   unfold haltsOnly at hq
@@ -1796,14 +2254,15 @@ in memory: every state the run reaches while it is still running is at one of
 the program's instructions, the program is still in memory, and at an `ecall`
 `t0` is 1. -/
 theorem ecalls_halt {env : Env} {base : Word} {prog : List Instr} (hp : Hosted env base prog.length)
-    {P : List (Nat × Nat)} {H : Heads} (hc : check prog P H = true) (hq : haltsOnly prog P H = true)
-    (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog) :
+    {P : Pub} {H : Heads} (hc : check prog P H = true) (hq : haltsOnly prog P H = true)
+    (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog)
+    (hkc : ∀ c ∈ P.consts, readLE s.mem (base + BitVec.ofNat 32 c.1) 4 = c.2 := by intro c hc; cases hc) :
     ∀ n s', run env n s = .running s' → ∃ k, ∃ hk : k < prog.length,
       s'.pc = base + BitVec.ofNat 32 (4 * k) ∧ CodeAt s'.mem base prog ∧
       (prog[k] = .ecall → s'.reg T0 = 1) := by
   intro n s' hr
   have h0 : Rel base prog P entry s s := by
-    refine ⟨fun r => ?_, fun _ _ _ => rfl, hcode, hcode⟩
+    refine ⟨fun r => ?_, fun _ _ _ => rfl, hcode, hcode, hkc, hkc⟩
     unfold regOK
     by_cases hr0 : r.toNat = 0
     · have : r = 0 := BitVec.eq_of_toNat_eq hr0

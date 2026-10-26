@@ -310,12 +310,13 @@ theorem halt_in_box (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩
 at every state the run reaches, a fetched `ecall` is at `t0 = 1` -- the hypothesis
 `run_in_box` and `halt_in_box` ask for, in the form they ask for it. -/
 theorem quiet_of_ct {env : Env} {base : Word} (hp : Placed env base) {prog : List Instr}
-    {P : List (Nat × Nat)} {H : Ct.Heads} (hc : Ct.check prog P H = true) (hq : Ct.haltsOnly prog P H = true)
-    (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog) :
+    {P : Ct.Pub} {H : Ct.Heads} (hc : Ct.check prog P H = true) (hq : Ct.haltsOnly prog P H = true)
+    (hne : 0 < prog.length) {s : Machine} (hpc : s.pc = base) (hcode : CodeAt s.mem base prog)
+    (hkc : ∀ c ∈ P.consts, readLE s.mem (base + BitVec.ofNat 32 c.1) 4 = c.2 := by intro c hc; cases hc) :
     ∀ i m, run env i s = .running m → decode (fetched m) = some .ecall → m.reg T0 = 1 := by
   intro i m hm hd
   obtain ⟨k, hk, hpc', hcode', hT⟩ :=
-    Ct.ecalls_halt (hp.hosted (by have := Ct.check_len hc; omega)) hc hq hne hpc hcode i m hm
+    Ct.ecalls_halt (hp.hosted (by have := Ct.check_len hc; omega)) hc hq hne hpc hcode hkc i m hm
   apply hT
   have : decode (fetched m) = some prog[k] := by
     simp only [fetched]
