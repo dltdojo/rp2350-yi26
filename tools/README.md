@@ -613,6 +613,28 @@ the commits that commit names, and builds the Verilator testbench with
 `clang++`: Ubuntu's verilator with `g++` trips a precompiled-header bug and
 writes a log of several gigabytes while failing. The result is 10 MB.
 
+It builds two testbenches. `tb` is Hazard3's own default configuration, the one every kernel since exp202 ran on.
+`tb-rp2350` is the configuration the RP2350 datasheet gives in its Table 387:
+- 8 dynamic PMP regions and 3 hardwired ones;
+- a 32-byte grain;
+- NAPOT only.
+
+[`config_rp2350.vh`](./hazard3/config_rp2350.vh) says which of its lines are the datasheet's, which the
+testbench's, and why. Neither is the chip's RTL: the RP2350's Hazard3 predates the pinned commit, and erratum
+RP2350-E6 (PMPCFG's R and X transposed) is fixed in both. [exp256](../experiments/exp256-the-readings-the-rtl-settles/)
+holds the monitors and the model to `tb-rp2350`.
+
+## `monitor/privdiff.py`
+
+The Tier 2 model, `lean/Rv32/Priv.lean`'s `PrivMachine.step` compiled as `privrun`, against the emulator: every
+emulator run a suite makes, replayed on the model and compared after every step, and, from reset, on `tb-rp2350`.
+
+```sh
+tools/monitor/privdiff.py SUITE.py          # one JSON line of what differs; exit 1 if anything does
+tools/monitor/privdiff.py --rtl SUITE.py    # the same runs on the RTL, compared at the end
+tools/monitor/privdiff.py --runs SUITE.py   # only count them
+```
+
 `harness/` is the shell, written small: PMP gives User mode one 64 KiB region at
 `0x80010000` and nothing else, every register is zeroed, `mret` enters the
 payload, `ecall` with `t0 = 1` ends it with `a0` as the result, and `ecall`

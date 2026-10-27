@@ -120,7 +120,11 @@ fails if `Wx.lean` is not what the generator writes.
   an RP2350. In particular the **order of the entries** is the RISC-V rule -- the lowest-numbered entry that matches
   decides -- which the carve-out depends on, and it is not measured on Hazard3 here. A core that tried the entries in
   another order would let a payload write its code (`pmp_entries_tried_backwards` shows Lean refusing exactly that
-  model). There is no chip build of this monitor.
+  model). There is no chip build of this monitor. [exp256](../exp256-the-readings-the-rtl-settles/) records what the
+  RP2350 datasheet says the chip does differently:
+  - erratum RP2350-E6 transposes PMPCFG's R and X, so the data and stack entries' `0x1b` is W+X with no R there;
+  - three hardwired regions give U-mode the peripherals;
+  - a U-mode `wfi` sleeps instead of trapping.
 - **The payload has to fit in 128 bytes** to run, and to be a position-independent one that keeps its data past its code.
   That is the price of the carve-out; a payload that wants a bigger code entry needs a bigger power of two.
 - **The reports are proved as words, not as what they mean.** In `Priv.lean` an M-mode word store to a port

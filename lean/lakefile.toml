@@ -16,3 +16,8 @@ name = "Sha256"
 [[lean_exe]]
 name = "rv32run"
 root = "Run"
+
+# The Tier 2 model, compiled, for holding it against the emulator and the RTL (tools/monitor/privdiff.py).
+[[lean_exe]]
+name = "privrun"
+root = "PrivExec"

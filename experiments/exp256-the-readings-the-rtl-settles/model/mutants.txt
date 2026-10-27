@@ -1,0 +1,24 @@
+# exp256 — wrong versions of lean/Rv32/Priv.lean, each a mistake a reading of the privileged specification could
+# make. privrun builds every one: nothing in a type says what a PMP entry's bits mean. What refuses them is the
+# emulator, run against them on the suites model/mutants.py names, and the probes.
+#
+# Three of them break a theorem Priv.lean itself proves of the rule they change (`umode_default_deny`,
+# `pmp_readback_napot_low_bits`); the copy drops that theorem, so that what is built is the wrong model and only that.
+#
+# An access that straddles an entry's edge is not here: NAPOT entries are multiples of 32 bytes and a misaligned
+# load or store traps before the PMP is asked, so no access the model makes can straddle one (the RP2350 datasheet,
+# section 3.8.3.3, says the same of the chip). A model that let it through could not be told from this one.
+#
+# <label>|<what is wrong>|<sed>|lean/<file>.lean
+r_x_transposed|PMPCFG's R and X bits are transposed -- erratum RP2350-E6, what the chip does|s/^  { r    := (byte \&\&\& 1#32) ≠ 0$/  { r    := (byte \&\&\& 4#32) ≠ 0/; s/^    x    := (byte \&\&\& 4#32) ≠ 0$/    x    := (byte \&\&\& 1#32) ≠ 0/|lean/Rv32/Priv.lean
+last_entry_first|the PMP tries its entries from the last|s/^def PMP_INDICES : List (Fin 4) := \[0, 1, 2, 3\]$/def PMP_INDICES : List (Fin 4) := [3, 2, 1, 0]/; /^theorem umode_default_deny/,/^  rfl$/d|lean/Rv32/Priv.lean
+unmatched_user|U-mode that matches no entry is let through|s/^  | \[\] => mode = .M$/  | [] => true/; /^theorem umode_default_deny/,/^  rfl$/d|lean/Rv32/Priv.lean
+napot_double|a NAPOT entry covers twice the bytes it says|s/^  let size : Nat := 1 <<< (t + 3)$/  let size : Nat := 1 <<< (t + 4)/|lean/Rv32/Priv.lean
+lock_ignored|a locked entry does not bind M-mode|s/^  if mode = .M ∧ ¬ cfg.lock then$/  if mode = .M then/|lean/Rv32/Priv.lean
+trap_uncounted|a trap is not counted in minstret|s/^  let csrs' := bumpCounters$/  let csrs' := id/|lean/Rv32/Priv.lean
+trap_keeps_mie|a trap leaves mstatus.MIE as it was|s/^      mpie := s.csrs.mstatus.mie$/      mpie := s.csrs.mstatus.mie, mie := s.csrs.mstatus.mie/; s/^      mie  := false }$/      }/|lean/Rv32/Priv.lean
+mret_mpie_clear|mret leaves mstatus.MPIE clear|s/^        mpie := true$/        mpie := false/|lean/Rv32/Priv.lean
+mret_keeps_mpp|mret leaves mstatus.MPP as it was|s/^        mpp  := .U }$/        mpp  := s.csrs.mstatus.mpp }/|lean/Rv32/Priv.lean
+mtvec_unmasked|mtvec keeps the two low bits written to it|s/^    { csrs with mtvec := val \&\&\& ~~~3#32 }$/    { csrs with mtvec := val }/|lean/Rv32/Priv.lean
+readback_raw|pmpaddr reads back as written in NAPOT, its low bits not forced|s/^    raw ||| 3#32     -- Bits \[1:0\] read as 11 when NAPOT (G=3)$/    raw/; /^theorem pmp_readback_napot_low_bits/,/^  exact Or.inr h3$/d|lean/Rv32/Priv.lean
+ecall_causes_swapped|an ecall from U-mode reports M-mode's cause, and the other way round|s/some (if s.mode = .U then CAUSE_ECALL_UMODE else CAUSE_ECALL_MMODE)/some (if s.mode = .U then CAUSE_ECALL_MMODE else CAUSE_ECALL_UMODE)/|lean/Rv32/Priv.lean
