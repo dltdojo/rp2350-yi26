@@ -1,0 +1,46 @@
+=== exp255 — the lives, round after round ===
+recorded at 2026-10-27T08:29:19Z from commit 10919f7
+
+>>> the formal theorems, and what they rest on
+'Exp254.life_traps' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp254.life_behind_the_box' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_rounds' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp255.life_round' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp255.life_rounds' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp255.history_word' depends on axioms: [propext, Quot.sound]
+'Exp255.life_forever' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims and a wrong host: each must be refused
+trap_one_sooner  claim: a round ends where the monitor takes a trap at the kernel's 3078th step                refused in life_round
+first_seed       claim: every round's history is Rule 30 of the first round's seed, not of the seed it found   refused in life_rounds
+seed_behind      claim: after n rounds the seed is generation 255 n of the first, not 256 n                    refused in life_forever
+word_behind      claim: history word i of round n + 1 is generation 256 n + i, not 256 n + i + 1               refused in life_forever
+host_copies_255  the host copies the history's second-to-last word into the seed, not its last                 refused in life_forever
+seed_into_code   the host writes the seed into the code entry                                                  refused in nextSeed_host
+
+>>> exp225 behind exp240 on the emulator, round after round
+PASS  100 rounds of rounds.py's host, the kernel loaded once, every other reset with junk in the CSRs:
+      each first at the park word at step 61 + 3079 + 57, parked with every register zero, exit 0, the report
+      HALT, 0, 3081, 3081, memory exp225's lived of what it found; round n + 1's seed generation 256 n of the
+      first and its history generations 256 n + 1 to 256 n + 256, 25600 in all
+PASS  20 rounds after a host that writes junk over every byte but the monitor's words and the code entry,
+      each from a reset with junk in the CSRs: each the same, its history Rule 30 of the seed the junk left
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Rounds.lean checks, with no errors and no warnings
+PASS  all 7 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  trap_one_sooner: the proof refuses a version where claim: a round ends where the monitor takes a trap at the kernel's 3078th step
+PASS  first_seed: the proof refuses a version where claim: every round's history is Rule 30 of the first round's seed, not of the seed it found
+PASS  seed_behind: the proof refuses a version where claim: after n rounds the seed is generation 255 n of the first, not 256 n
+PASS  word_behind: the proof refuses a version where claim: history word i of round n + 1 is generation 256 n + i, not 256 n + i + 1
+PASS  host_copies_255: the proof refuses a version where the host copies the history's second-to-last word into the seed, not its last
+PASS  seed_into_code: the proof refuses a version where the host writes the seed into the code entry
+PASS  proof/Rounds.lean is what proof/gen.py writes, from exp254's gen.py, exp254's tail and tail.lean
+PASS  100 rounds of rounds.py's host, the kernel loaded once, every other reset with junk in the CSRs:
+      each first at the park word at step 61 + 3079 + 57, parked with every register zero, exit 0, the report
+      HALT, 0, 3081, 3081, memory exp225's lived of what it found; round n + 1's seed generation 256 n of the
+      first and its history generations 256 n + 1 to 256 n + 256, 25600 in all
+PASS  20 rounds after a host that writes junk over every byte but the monitor's words and the code entry,
+      each from a reset with junk in the CSRs: each the same, its history Rule 30 of the seed the junk left

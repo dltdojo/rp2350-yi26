@@ -1,0 +1,13 @@
+# exp255 — wrong claims and a wrong host. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: a round whose trap is a step sooner; every round's history Rule 30 of the first seed rather than
+# the one it found; after n rounds the seed a generation per round behind; each history word a generation behind.
+# Then the host made something else: copying the second-to-last generation, and writing the seed into the code.
+trap_one_sooner|claim: a round ends where the monitor takes a trap at the kernel's 3078th step|s/^def lifeRound (env : Rv32.Env) (p : PrivMachine) : PrivMachine := parkedAfter env (payloadAt env (resetOf p) 3079)$/def lifeRound (env : Rv32.Env) (p : PrivMachine) : PrivMachine := parkedAfter env (payloadAt env (resetOf p) 3078)/
+first_seed|claim: every round's history is Rule 30 of the first round's seed, not of the seed it found|s/(lifeRound env q).core.mem x = Exp225.lived q.core.mem/(lifeRound env q).core.mem x = Exp225.lived p.core.mem/
+seed_behind|claim: after n rounds the seed is generation 255 n of the first, not 256 n|s/^    Exp225.seedOf (chain env p n).core.mem base = Exp225.gen (Exp225.seedOf p.core.mem base) (256 \* n) ∧$/    Exp225.seedOf (chain env p n).core.mem base = Exp225.gen (Exp225.seedOf p.core.mem base) (255 * n) ∧/
+word_behind|claim: history word i of round n + 1 is generation 256 n + i, not 256 n + i + 1|s/(256 \* n + i + 1)).toNat) := by$/(256 * n + i)).toNat) := by/
+host_copies_255|the host copies the history's second-to-last word into the seed, not its last|s/^abbrev lastAt : Word := 0x800105fc#32$/abbrev lastAt : Word := 0x800105f8#32/
+seed_into_code|the host writes the seed into the code entry|s/^abbrev seedAt : Word := 0x80010100#32$/abbrev seedAt : Word := 0x8001007c#32/
