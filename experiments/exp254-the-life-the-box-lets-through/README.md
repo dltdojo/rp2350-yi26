@@ -131,5 +131,54 @@ And about this kernel and this monitor, in `proof/Box.lean`:
 From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
-(not yet recorded)
+=== exp254 — the life the box lets through ===
+recorded at 2026-10-27T07:55:16Z from commit 8a0c6e8
+
+>>> the formal theorems, and what they rest on
+'Exp240.monitor_boot' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp240.monitor_traps' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp225.to_the_ecall' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp253.life_whole' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Join.wx_plain' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Join.wx_run_in_box' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Join.wx_halt_in_box' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Join.wxOk_of_good' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp254.wx_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp254.life_traps' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp254.life_behind_the_box' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims and a wrong bridge: each must be refused
+park_one_sooner  claim: the monitor parks one step sooner, after 61 + 3079 + 56             refused in life_behind_the_box
+trap_one_sooner  claim: the kernel's run traps after 3078 Tier 2 steps, not 3079            refused in life_traps
+user_at_trap     claim: the machine is still in U-mode after the trap                       refused in life_traps
+no_history       claim: memory at the park is what it was at reset, with no history in it   refused in life_behind_the_box
+heard_3080       claim: the host hears 3080 instructions, not 3081                          refused in life_behind_the_box
+store_into_code  a store into the code is taken as one the box lets through                 refused in wx_store_allowed
+fetch_anywhere   a fetch from anywhere is taken as one the box lets through                 refused in wx_plain
+
+>>> exp225 behind exp240 on the emulator, from reset to the park
+PASS  104 seeds -- 0, 1, one live cell, all ones, and 100 from seed 254 -- exp225's kernel as exp240's
+      payload in 256 KiB of junk, from reset, every other one from a reset that leaves junk in the CSRs:
+      each first at the park word at step 61 + 3079 + 57, in U-mode from step 61 to the trap, one trap,
+      the ecall; parked in M-mode, every register zero, exit 0; the print words HALT, 0, 3081, 3081;
+      memory rule30.py's history at +0x200 and every other byte as it was, but the monitor's 16 stack bytes
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Box.lean checks, with no errors and no warnings
+PASS  all 11 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  park_one_sooner: the proof refuses a version where claim: the monitor parks one step sooner, after 61 + 3079 + 56
+PASS  trap_one_sooner: the proof refuses a version where claim: the kernel's run traps after 3078 Tier 2 steps, not 3079
+PASS  user_at_trap: the proof refuses a version where claim: the machine is still in U-mode after the trap
+PASS  no_history: the proof refuses a version where claim: memory at the park is what it was at reset, with no history in it
+PASS  heard_3080: the proof refuses a version where claim: the host hears 3080 instructions, not 3081
+PASS  store_into_code: the proof refuses a version where a store into the code is taken as one the box lets through
+PASS  fetch_anywhere: the proof refuses a version where a fetch from anywhere is taken as one the box lets through
+PASS  proof/Box.lean is what proof/gen.py writes, from exp240's Wx.lean, exp225's Life.lean, exp253's tail and tail.lean
+PASS  104 seeds -- 0, 1, one live cell, all ones, and 100 from seed 254 -- exp225's kernel as exp240's
+      payload in 256 KiB of junk, from reset, every other one from a reset that leaves junk in the CSRs:
+      each first at the park word at step 61 + 3079 + 57, in U-mode from step 61 to the trap, one trap,
+      the ecall; parked in M-mode, every register zero, exit 0; the print words HALT, 0, 3081, 3081;
+      memory rule30.py's history at +0x200 and every other byte as it was, but the monitor's 16 stack bytes
 ```
