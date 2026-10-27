@@ -11,10 +11,10 @@ claim|the message is claimed secret: the signer's walks would leak it|s/^def P :
 claim|the leaf index is claimed secret: the signer's path reads would leak it|s/^def P : List (Nat × Nat) := \[(MSG, IDX + 1), (SCR + 64, SCR + 131)\]$/def P : List (Nat × Nat) := [(MSG, IDX), (SCR + 64, SCR + 131)]/
 checker|a branch on a secret register is let through|s/^    if isPub (get A r1.toNat) ∧ isPub (get A r2.toNat) ∧ 0 ≤ 4 \* (k : Int) + boff off$/    if isPub (get A r2.toNat) ∧ 0 ≤ 4 * (k : Int) + boff off/|lean/Rv32/Ct.lean
 checker|a load from a secret address is let through|s/^    if isPub (get A r1.toNat) then$/    if true then/|lean/Rv32/Ct.lean
-checker|a secret may be stored into a public place|s/(isPub (get A r2.toNat) ∨ apart P lo hi) then some/(true ∨ apart P lo hi) then some/|lean/Rv32/Ct.lean
+checker|a secret may be stored into a public place|s/(isPub (get A r2.toNat) ∨ apart P.places lo hi) then$/(true ∨ apart P.places lo hi) then/|lean/Rv32/Ct.lean
 checker|a store may land in the program itself|s/^      if 4 \* len ≤ lo ∧ hi ≤ 0x10000 ∧/      if 0 ≤ lo ∧ hi ≤ 0x10000 ∧/|lean/Rv32/Ct.lean
 checker|a load is public even when it may read a secret byte|s/^  | none => \.sec$/  | none => .pub/|lean/Rv32/Ct.lean
-checker|a value stays affine in a counter that was written over|s/| none => \.pub) else w$/| none => .aff r k c) else w/|lean/Rv32/Ct.lean
+checker|a value stays affine in a counter that was written over|s/^       | none => \.pub)$/       | none => .lin c1 k1 c2 k2 lo hi)/|lean/Rv32/Ct.lean
 checker|a not-equal comparison narrows the top of a range whatever the other value is|s/       else A.set r1.toNat (.num (if e = lo then lo + 1 else lo) (if e = hi then hi - 1 else hi)))/       else A.set r1.toNat (.num (if e = lo then lo + 1 else lo) (hi - 1)))/|lean/Rv32/Ct.lean
 claim|the observer is claimed to see the value a store writes, not only where|s/^  | \.st _ r1 _ imm => \[s.reg r1 + imm.signExtend 32\]$/  | .st _ r1 r2 imm => [s.reg r1 + imm.signExtend 32, s.reg r2]/|lean/Rv32/Ct.lean
 claim|the two runs are claimed to start from any registers at all|s/(hpc2 : s2.pc = base) (hregs : ∀ r, s1.reg r = s2.reg r)$/(hpc2 : s2.pc = base) (hregs : True)/|lean/Rv32/Ct.lean

@@ -70,12 +70,12 @@ theorem exec_lbu {env : Env} {s : Machine} {rd rs1 : Reg} {imm : BitVec 12}
 
 /-- `ecall` with `t0 = 0`, its arguments in order: the 32 bytes of
 `env.hash` of the input are written at `a2`, and the run goes on. -/
-theorem exec_hash {env : Env} {s : Machine} (h0 : s.reg T0 = 0)
+theorem exec_hash {env : Env} [hs : Serves env] {s : Machine} (h0 : s.reg T0 = 0)
     (hlen : (s.reg A1).toNat % 64 = 0) (hsrc : (s.reg A0).toNat % 4 = 0)
     (hdst : (s.reg A2).toNat % 4 = 0) (hin : env.region.ok (s.reg A0) (s.reg A1).toNat)
     (hout : env.region.ok (s.reg A2) 32) :
     exec env s .ecall = .running ({ s with mem := writeBytes s.mem (s.reg A2) (env.hash (readBytes s.mem (s.reg A0) (s.reg A1).toNat)) } : Machine).next := by
-  simp only [exec, syscall, h0, ↓reduceIte, hlen, hsrc, hdst, hin, hout, and_self]
+  simp only [exec, syscall, h0, hs.hash, ↓reduceIte, hlen, hsrc, hdst, hin, hout, and_self]
 
 /-- `ecall` with `t0 = 2`, HASHB: `HASH` of an input of any length starting
 anywhere, written at `a2` (exp228). -/
@@ -84,7 +84,7 @@ theorem exec_hashb {env : Env} {s : Machine} (h2 : s.reg T0 = 2)
     exec env s .ecall = .running ({ s with mem := writeBytes s.mem (s.reg A2) (env.hash (readBytes s.mem (s.reg A0) (s.reg A1).toNat)) } : Machine).next := by
   have h0 : ¬ s.reg T0 = 0 := by rw [h2]; decide
   have h1 : ¬ s.reg T0 = 1 := by rw [h2]; decide
-  simp only [exec, syscall, h0, h1, ↓reduceIte]
+  simp only [exec, syscall, h0, h1, false_and, ↓reduceIte]
   simp only [h2, ↓reduceIte, hin, hout, and_self]
 
 /-- `ecall` with `t0 = 3`, CHECKSIG: `a0` becomes `env.sig`'s answer for the
@@ -96,7 +96,7 @@ theorem exec_checksig {env : Env} {s : Machine} (h3 : s.reg T0 = 3)
   have h0 : ¬ s.reg T0 = 0 := by rw [h3]; decide
   have h1 : ¬ s.reg T0 = 1 := by rw [h3]; decide
   have h2 : ¬ s.reg T0 = 2 := by rw [h3]; decide
-  simp only [exec, syscall, h0, h1, h2, ↓reduceIte]
+  simp only [exec, syscall, h0, h1, h2, false_and, ↓reduceIte]
   simp only [h3, ↓reduceIte, hpk, hsg, and_self]
 
 /-- What a byte holds after HASH wrote its 32. -/

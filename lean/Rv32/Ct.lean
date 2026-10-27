@@ -1952,7 +1952,9 @@ theorem lock_ecall (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 
     rw [hg] at hT
     have t1 : s1.reg T0 = 0 := BitVec.eq_of_toNat_eq (by have := hT.2; simp; omega)
     rw [← hT.1, t1]
-    simp only [↓reduceIte]
+    by_cases hsv : env.servesHash = true
+    case neg => simp [hsv, Lock]
+    simp only [hsv, and_true, ↓reduceIte]
     split at ht
     case isFalse => cases ht
     rename_i hc
@@ -1993,7 +1995,7 @@ theorem lock_ecall (hp : Hosted env base prog.length) (hlen : 4 * prog.length < 
     rw [hg] at hT
     have t1 : s1.reg T0 = 1 := BitVec.eq_of_toNat_eq (by have := hT.2; simp; omega)
     rw [← hT.1, t1]
-    simp only [show (1 : Word) ≠ 0 by decide, ↓reduceIte]
+    simp only [show (1 : Word) ≠ 0 by decide, false_and, ↓reduceIte]
     split at ht
     case isFalse => cases ht
     rename_i hp0

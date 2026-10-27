@@ -240,7 +240,7 @@ theorem exec_br {env : Env} {s : Machine} {op : BrOp} {rs1 rs2 : Reg} {off : Bit
 theorem exec_halt {env : Env} {s : Machine} (h : s.reg T0 = 1) :
     exec env s .ecall = .halted (s.reg A0) s := by
   have h0 : ¬ s.reg T0 = 0 := by rw [h]; decide
-  simp only [exec, syscall, h0, ↓reduceIte]
+  simp only [exec, syscall, h0, false_and, ↓reduceIte]
   simp only [h, ↓reduceIte]
 
 theorem run_code_halt {env : Env} {s s' : Machine} {base : Word} {prog : List Instr} {k : Nat}

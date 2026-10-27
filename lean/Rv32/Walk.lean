@@ -80,7 +80,7 @@ theorem back8 (k : Nat) (hk : 4 * k + 8 < 2 ^ 32) :
 instruction `k0`, `n` more steps along the chain in the buffer at `B`, in
 exactly `3n` instructions; only the buffer's first 32 bytes change, and only
 `t3` among the registers. -/
-theorem hash_walk (hp : Placed env base) (hlen : 4 * prog.length < 0x10000) {k0 B : Nat}
+theorem hash_walk (hp : Placed env base) [Serves env] (hlen : 4 * prog.length < 0x10000) {k0 B : Nat}
     (h0 : prog.getD k0 .ecall = .ecall) (h1 : prog.getD (k0 + 1) .ecall = .opi .addi T3 T3 0xfff)
     (h2 : prog.getD (k0 + 2) .ecall = .br .bne T3 0 0xffc) (hk : k0 + 3 ≤ prog.length)
     (hB : B + 64 ≤ 0x10000) (hB4 : B % 4 = 0) (hcB : 4 * prog.length ≤ B)
@@ -155,7 +155,7 @@ theorem hash_walk (hp : Placed env base) (hlen : 4 * prog.length < 0x10000) {k0 
 `t3 = n`, nothing is hashed when `n` is 0 and the branch jumps past the walk;
 otherwise `n` rounds. Either way `1 + 3n` instructions, and the buffer is `n`
 steps along. -/
-theorem skip_or_walk_at (hp : Placed env base) (hlen : 4 * prog.length < 0x10000) {k0 B : Nat}
+theorem skip_or_walk_at (hp : Placed env base) [Serves env] (hlen : 4 * prog.length < 0x10000) {k0 B : Nat}
     (hb : prog.getD k0 .ecall = .br .beq T3 0 8) (h0 : prog.getD (k0 + 1) .ecall = .ecall)
     (h1 : prog.getD (k0 + 2) .ecall = .opi .addi T3 T3 0xfff) (h2 : prog.getD (k0 + 3) .ecall = .br .bne T3 0 0xffc)
     (hk : k0 + 4 ≤ prog.length) (hB : B + 64 ≤ 0x10000) (hB4 : B % 4 = 0) (hcB : 4 * prog.length ≤ B)

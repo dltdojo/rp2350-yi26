@@ -314,7 +314,7 @@ theorem to_chains {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
 
 /-- **One chain**: `26 + 3 dᵢ` instructions — the secret, `dᵢ` steps along its
 chain, the value into the signature. -/
-theorem chain_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem chain_iter {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {i : Nat} (hi : i < 67) {s : Machine} (h : SInv env.hash base m0 i s) :
     ∃ s', run env (26 + 3 * digit m0 base i) s = .running s' ∧ SInv env.hash base m0 (i + 1) s' := by
   have fit := hp.fit
@@ -510,7 +510,7 @@ theorem loopCount_eq (m : Word → Byte) (base : Word) :
       rw [ih]; omega
   exact this 67
 
-theorem chain_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem chain_loop {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {s : Machine} (h : SInv env.hash base m0 0 s) :
     ∀ j ≤ 67, ∃ s', run env (loopCount m0 base j) s = .running s' ∧ SInv env.hash base m0 j s' := by
   intro j hj
@@ -762,7 +762,7 @@ theorem level_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word �
 
 /-- Everything up to the `ecall` that halts: `2283 + 3 Σ dᵢ` instructions,
 then HALT with 0 — the signature, the path and the root written. -/
-theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s1 s2, run env (2283 + 3 * dsum s.mem base) s = .running s1 ∧ run env 1 s1 = .halted 0 s2
       ∧ Out base s.mem s2.mem
@@ -830,7 +830,7 @@ computes. It has written, where the verifier reads them: chain `i` of key `l`
 from the tree, and the tree's root. Nothing outside the PRF input to the root
 (`0x1080` to `0x4100`) and the 131 bytes of scratch changes, so the message,
 the index, the seed and the tree are still the input's. -/
-theorem signs {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem signs {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     (∃ s1, run env (2283 + 3 * dsum s.mem base) s = .running s1) ∧
     ∃ s', run env (2284 + 3 * dsum s.mem base) s = .halted 0 s' ∧ Out base s.mem s'.mem

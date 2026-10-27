@@ -826,7 +826,7 @@ theorem fetch {env : Env} {base : Word} (hp : Placed env base) {M m0 : Word → 
 
 /-- The walk, `n` rounds of `ecall; addi t3, t3, -1; bne t3, x0`: `n` more
 steps along the chain, in exactly `3n` instructions. -/
-theorem walk_chain {env : Env} {base : Word} (hp : Placed env base) {M m0 : Word → Byte}
+theorem walk_chain {env : Env} {base : Word} (hp : Placed env base) [Serves env] {M m0 : Word → Byte}
     (hc0 : CodeAt M base prog) {x : List Byte} :
     ∀ n, 0 < n → n < 16 → ∀ (j : Nat) (s : Machine), s.pc = base + BitVec.ofNat 32 (4 * 66) →
       s.reg T3 = BitVec.ofNat 32 n → s.reg T0 = 0 → s.reg A0 = base + BitVec.ofNat 32 SCR →
@@ -901,7 +901,7 @@ theorem walk_chain {env : Env} {base : Word} (hp : Placed env base) {M m0 : Word
 /-- `beq t3, x0` and the walk: when the digit is 15 nothing is hashed and
 the branch goes straight to the compare; otherwise `15 - d` rounds. Either
 way, `1 + 3n` instructions. -/
-theorem skip_or_walk {env : Env} {base : Word} (hp : Placed env base) {M m0 : Word → Byte}
+theorem skip_or_walk {env : Env} {base : Word} (hp : Placed env base) [Serves env] {M m0 : Word → Byte}
     (hc0 : CodeAt M base prog) {x : List Byte} (n : Nat) (hn : n < 16) {s : Machine}
     (hpc : s.pc = base + BitVec.ofNat 32 (4 * 65)) (h3 : s.reg T3 = BitVec.ofNat 32 n) (h0 : s.reg T0 = 0)
     (ha0 : s.reg A0 = base + BitVec.ofNat 32 SCR) (ha1 : s.reg A1 = BitVec.ofNat 32 64)

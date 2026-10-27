@@ -267,7 +267,7 @@ def hashed (env : Env) (s : Machine) : Machine :=
 /-- Four instructions that set the call's arguments, and the `ecall`: the
 output, 32 bytes of `env.hash` of the 64 at scratch, is written right after
 them. -/
-theorem hash_block {env : Env} {base : Word} (hp : Placed env base) {s : Machine}
+theorem hash_block {env : Env} {base : Word} (hp : Placed env base) [Serves env] {s : Machine}
     (hpc : s.pc = base + BitVec.ofNat 32 144) (hcode : CodeAt s.mem base kernel)
     (h5 : s.reg S5 = base + BitVec.ofNat 32 SCR) :
     ∃ s', run env 5 s = .running s' ∧ s'.pc = base + BitVec.ofNat 32 164
@@ -546,7 +546,7 @@ structure Inv (env : Env) (base : Word) (m0 : Word → Byte) (i : Nat) (s : Mach
   out : Outside base m0 s.mem
   tail : ∀ d < 32, s.mem (base + BitVec.ofNat 32 (SCR + 32 + d)) = 0
 
-theorem iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem iter {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {i : Nat} (hi : i < 256) {s : Machine} (h : Inv env base m0 i s) :
     ∃ s', run env 65 s = .running s' ∧ Inv env base m0 (i + 1) s' := by
   have fit := hp.fit
@@ -708,7 +708,7 @@ theorem start {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
     simp only [show d < 4 * 8 by omega, ↓reduceIte]
 
 /-- 256 iterations, by induction: after `j` of them, the invariant holds for `j`. -/
-theorem loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem loop {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {s : Machine} (h : Inv env base m0 0 s) :
     ∀ j ≤ 256, ∃ s', run env (65 * j) s = .running s' ∧ Inv env base m0 j s' := by
   intro j hj
@@ -766,7 +766,7 @@ theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (img 
     (fun d h => himg d (by rw [kernel_length] at h; exact h))
 
 /-- Setup, 256 iterations, and the two instructions before the `ecall`. -/
-theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s1 s2, run env 16662 s = .running s1
       ∧ run env 1 s1 = .halted (if Verifies env.hash s.mem base then 0 else 1) s2
@@ -782,7 +782,7 @@ theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) (s : Machi
 public key their message bit selects, and with 1 if any one does not — for
 every message, signature, key and `HASH`; and it writes nothing outside its
 96 bytes of scratch. -/
-theorem verifies {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem verifies {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s', run env 16663 s = .halted (if Verifies env.hash s.mem base then 0 else 1) s'
       ∧ Outside base s.mem s'.mem := by
@@ -792,7 +792,7 @@ theorem verifies {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
 /-- **And in exactly 16663 instructions, whatever the verdict.** It has not
 stopped after 16662: there is no early exit on the first bad preimage, and no
 input the count depends on. -/
-theorem exactly_16663 {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem exactly_16663 {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s1, run env 16662 s = .running s1 := by
   obtain ⟨s1, -, e, -, -⟩ := to_the_ecall hp s hpc hcode
@@ -800,7 +800,7 @@ theorem exactly_16663 {env : Env} {base : Word} (hp : Placed env base) (s : Mach
 
 /-- **From the state the shell builds**: any image that begins with the
 kernel's 352 bytes. -/
-theorem from_boot {env : Env} {base : Word} (hp : Placed env base) (img : ByteArray)
+theorem from_boot {env : Env} {base : Word} (hp : Placed env base) [Serves env] (img : ByteArray)
     (hsize : 352 ≤ img.size) (himg : ∀ d (h : d < 352), img.get d (by omega) = bytes.getD d 0) :
     (∃ s1, run env 16662 (boot env.region img) = .running s1) ∧
     ∃ s', run env 16663 (boot env.region img)
