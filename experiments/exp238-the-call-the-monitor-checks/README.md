@@ -163,7 +163,7 @@ From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
 === exp238 — the call the monitor checks ===
-recorded at 2026-10-24T05:39:32Z from commit 5ff33be
+recorded at 2026-10-26T23:57:05Z from commit 29a9223
 
 >>> the micro-monitor binary and size budget
 PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor.sha256, is within 202 words, and is proof/Calls.lean's monitorCode
@@ -175,6 +175,7 @@ PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor
 'Exp238.monitor_halt' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_fault_cause' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_fault_syscall' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.hashb_req' depends on axioms: [propext, Quot.sound]
 'Exp238.monitor_hashb_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_hashb_oob_fault' depends on axioms: [propext, Classical.choice, Quot.sound]
 'Exp238.monitor_checksig_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -186,17 +187,20 @@ PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor
 exit 0
 
 >>> wrong monitors: each must be refused
-hashb_input_floor_dropped  HASHB lets an input start below the box                                         refused in hashb_b1
-hashb_length_by_addition   HASHB tests ptr + len, which wraps, instead of what is left of the box          refused in hashb_s3
-hashb_output_room_16       HASHB checks room for 16 bytes of output, not 32                                refused in hashb_s6
-checksig_signature_32      CHECKSIG checks room for 32 bytes of signature, not 64                          refused in checksig_s6
-return_repeats_the_ecall   the return does not step past the ecall                                         refused in return_1
-counters_not_released      the return never releases the counters                                          refused in return_3
-unknown_call_succeeds      a call the monitor does not offer returns to the payload                        refused in call_unknown
-scrub_keeps_saved_t2       the scrub leaves the saved t2 on the M-mode stack                               refused in scrub_1c
-answer_check_dropped       CHECKSIG returns whatever the host answered, 0 and 1 or not                     refused in checksig_answer
-answer_check_allows_two    CHECKSIG takes an answer of 2 too                                               refused in checksig_answer
-port_read_is_memory        model: an M-mode load from a port reads back the bytes, not the host's answer   refused in checksig_fwd_4
+hashb_input_floor_dropped  HASHB lets an input start below the box                                            refused in hashb_b1
+hashb_length_by_addition   HASHB tests ptr + len, which wraps, instead of what is left of the box             refused in hashb_s3
+hashb_output_room_16       HASHB checks room for 16 bytes of output, not 32                                   refused in hashb_s6
+checksig_signature_32      CHECKSIG checks room for 32 bytes of signature, not 64                             refused in checksig_s6
+return_repeats_the_ecall   the return does not step past the ecall                                            refused in return_1
+counters_not_released      the return never releases the counters                                             refused in return_3
+unknown_call_succeeds      a call the monitor does not offer returns to the payload                           refused in call_unknown
+scrub_keeps_saved_t2       the scrub leaves the saved t2 on the M-mode stack                                  refused in scrub_1c
+answer_check_dropped       CHECKSIG returns whatever the host answered, 0 and 1 or not                        refused in checksig_answer
+answer_check_allows_two    CHECKSIG takes an answer of 2 too                                                  refused in checksig_answer
+port_read_is_memory        model: an M-mode load from a port reads back the bytes, not the host's answer      refused in checksig_fwd_4
+digest_at_input            model: the host writes its 32 bytes at the input pointer, not the output pointer   refused in hashb_req
+digest_on_any_request      model: the host writes its 32 bytes for any request, CHECKSIG's too                refused in checksig_fwd_3
+digest_claimed_at_input    claim: after HASHB the host's bytes are at the input pointer                       refused in monitor_hashb_ok
 
 >>> exp228's kernel and its scripts, under the monitor
 PASS  34 scripts run by exp228's kernel under the monitor: verdict, box and request log as run alone, minstret = alone + 2 + 2*calls, 7 calls served, each wholly inside the box
@@ -332,7 +336,7 @@ PASS  27 broken monitors, each caught by the attack and kernel suites:
 PASS  no lifeline, and it says why: no firmware of its own
 PASS  monitor.bin (808 bytes, 202 words) is monitor.S assembled, matches monitor.sha256, is within 202 words, and is proof/Calls.lean's monitorCode
 PASS  Calls.lean checks, with no errors and no warnings
-PASS  all 14 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  all 15 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
 PASS  hashb_input_floor_dropped: the proof refuses a version where HASHB lets an input start below the box
 PASS  hashb_length_by_addition: the proof refuses a version where HASHB tests ptr + len, which wraps, instead of what is left of the box
 PASS  hashb_output_room_16: the proof refuses a version where HASHB checks room for 16 bytes of output, not 32
@@ -344,6 +348,9 @@ PASS  scrub_keeps_saved_t2: the proof refuses a version where the scrub leaves t
 PASS  answer_check_dropped: the proof refuses a version where CHECKSIG returns whatever the host answered, 0 and 1 or not
 PASS  answer_check_allows_two: the proof refuses a version where CHECKSIG takes an answer of 2 too
 PASS  port_read_is_memory: the proof refuses a version where model: an M-mode load from a port reads back the bytes, not the host's answer
+PASS  digest_at_input: the proof refuses a version where model: the host writes its 32 bytes at the input pointer, not the output pointer
+PASS  digest_on_any_request: the proof refuses a version where model: the host writes its 32 bytes for any request, CHECKSIG's too
+PASS  digest_claimed_at_input: the proof refuses a version where claim: after HASHB the host's bytes are at the input pointer
 PASS  proof/Calls.lean is what proof/gen.py writes
 PASS  34 scripts run by exp228's kernel under the monitor: verdict, box and request log as run alone, minstret = alone + 2 + 2*calls, 7 calls served, each wholly inside the box
 PASS  the run alone counted what the Pico 2 counted (34 cases, + 4 + 4*calls)
