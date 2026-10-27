@@ -95,8 +95,10 @@ And about exp228's kernel, in `proof/Calls.lean`:
 2. **Six mutants** (`proof/mutants.txt`), each refused by Lean:
    - **Four claims more than the run's**: no `HASHB` at all; a 64-byte output range; a 64-byte key; the verdict
      plus one.
-   - **Two supports loosened in the library**: a world that serves `HASH` taken for one that does not; a shell that
-     serves the first call whatever its world says.
+   - **Two supports loosened in the library**:
+     - a world that serves `HASH` taken for one that does not, refused in `calls_of_halted`;
+     - a shell that serves the first call whatever its world says, refused first in `step_within`, which leans on
+       the field before `calls_of_halted` is reached.
 3. `proof/Calls.lean` is what `proof/gen.py` writes.
 4. `suite/calls.py`, on the emulator, a separate program from the model. exp228's kernel runs alone in its box, as
    exp238's suite runs it, on exp228's 34 scripts and 120 from its fuzzer. Every `ecall` is recorded: its `t0` and
@@ -107,4 +109,42 @@ And about exp228's kernel, in `proof/Calls.lean`:
 From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
+=== exp251 — the calls the script makes ===
+recorded at 2026-10-27T01:30:32Z from commit 33c62d9
+
+>>> the formal theorems, and what they rest on
+'Exp228.kernel_verdict' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Join.calls_of_halted' depends on axioms: [propext, Quot.sound]
+'Exp251.calls_the_script_makes' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims and a wrong model: each must be refused
+no_hashb                claim: the kernel never calls HASHB                                 refused in calls_the_script_makes
+output_64               claim: HASHB's output range is 64 bytes in the box, not 32          refused in calls_the_script_makes
+key_64                  claim: CHECKSIG's key range is 64 bytes in the box, not 32          refused in calls_the_script_makes
+verdict_off_by_one      claim: the run halts with the verdict plus one                      refused in calls_the_script_makes
+serving_world_taken     a world that serves HASH is taken for one that does not             refused in calls_of_halted
+hash_served_regardless  the shell serves the first call whatever the world says it serves   refused in step_within
+
+>>> exp228 alone on the emulator, every call recorded
+PASS  154 scripts -- exp228's 34 by hand and 120 from its fuzzer -- run by exp228's kernel alone in its box,
+      every ecall recorded: 154 HALT, 13 HASHB, 4 CHECKSIG, none with t0 = 0 or above 3;
+      each HASHB's input and output and each CHECKSIG's key and signature wholly in the box;
+      each run ends in its one HALT, with script.py's verdict
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Calls.lean checks, with no errors and no warnings
+PASS  all 3 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  no_hashb: the proof refuses a version where claim: the kernel never calls HASHB
+PASS  output_64: the proof refuses a version where claim: HASHB's output range is 64 bytes in the box, not 32
+PASS  key_64: the proof refuses a version where claim: CHECKSIG's key range is 64 bytes in the box, not 32
+PASS  verdict_off_by_one: the proof refuses a version where claim: the run halts with the verdict plus one
+PASS  serving_world_taken: the proof refuses a version where a world that serves HASH is taken for one that does not
+PASS  hash_served_regardless: the proof refuses a version where the shell serves the first call whatever the world says it serves
+PASS  proof/Calls.lean is what proof/gen.py writes, from exp228's Script.lean and tail.lean
+PASS  154 scripts -- exp228's 34 by hand and 120 from its fuzzer -- run by exp228's kernel alone in its box,
+      every ecall recorded: 154 HALT, 13 HASHB, 4 CHECKSIG, none with t0 = 0 or above 3;
+      each HASHB's input and output and each CHECKSIG's key and signature wholly in the box;
+      each run ends in its one HALT, with script.py's verdict
 ```
