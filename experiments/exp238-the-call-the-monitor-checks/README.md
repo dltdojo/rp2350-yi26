@@ -110,7 +110,9 @@ checked again here on these words.
   the same ([the audit](../../docs/2026-10-23-1116-emulator-verdicts-vs-theorems-audit-zh-tw.md), G3).
 - **The monitor does not hash and does not verify.** That `HASHB` writes the SHA-256 of the input and that
   `CHECKSIG` answers 1 for a good BIP340 signature is the host's job (here `suite/host.py`, with hashlib and
-  exp228's verifier), proved nowhere in this experiment.
+  exp228's verifier), proved nowhere in this experiment. Given a host that does compute some `env.hash` and `env.sig`,
+  [exp252](../exp252-the-verdict-the-wall-reports/) proves exp228's kernel behind this monitor parks with the
+  specification's verdict for them.
 - **The box is not read-protected from the host.** The host runs with M-mode's authority; what the monitor
   guarantees is that every range it is *asked* about is inside the box. What the host then does with a good
   range is the host's.

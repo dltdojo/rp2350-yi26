@@ -1,0 +1,13 @@
+# exp252 — wrong claims and a wrong bridge. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: a verdict other than the specification's, a served call one step shorter, the last word at the
+# print port. Then the host asked to be something else -- hashing from the output pointer, checking the key and the
+# signature the wrong way round -- and the bridge loosened: two cores taken as alike whatever their bytes.
+verdict_plus_one|claim: the monitor parks with the verdict plus one|s/∃ N, Parked (PrivMachine.run env N s) (BitVec.ofNat 32 (Exp228.verdict (kenv env) scr st0)) ∧/∃ N, Parked (PrivMachine.run env N s) (BitVec.ofNat 32 (Exp228.verdict (kenv env) scr st0 + 1)) ∧/
+hashb_one_short|claim: a served HASHB takes 43 steps, not 44|s/Sim M0 (PrivMachine.run env 44 t) m' := by/Sim M0 (PrivMachine.run env 43 t) m' := by/
+exit_at_print|claim: the last word the host hears is at the print port, not the exit word|s/(PrivMachine.run env 62 t).io.getLast? = some ⟨0xc0000008#32, m.reg A0⟩ := by/(PrivMachine.run env 62 t).io.getLast? = some ⟨0xc0000004#32, m.reg A0⟩ := by/
+host_hashes_output|the host is asked to hash from the output pointer, not the input|s/⟨0xc000001c#32, 2#32⟩\]) M = env.hash (readBytes M a0 a1.toNat)/⟨0xc000001c#32, 2#32⟩]) M = env.hash (readBytes M a2 a1.toNat)/
+host_checks_swapped|the host is asked to check the key and the signature the wrong way round|s/if env.sig (readBytes M a0 32) (readBytes M a1 64) then 1#32 else 0#32/if env.sig (readBytes M a1 32) (readBytes M a0 64) then 1#32 else 0#32/
+alike_without_bytes|two cores are taken as alike in the box whatever bytes the box holds|s/^  mem : ∀ x : Word, r.lo ≤ x.toNat → x.toNat < r.hi → m.mem x = c.mem x$/  mem : True/|lean/Rv32/Join.lean
