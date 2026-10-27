@@ -30,10 +30,14 @@ HAZARD3_COMMIT="8af992930f71a69b0e06c38734c1094f41a05ca0"
 SCRIPTS_COMMIT="1e768865928782ec6b0c34e7a30c06857a02155c"
 RISCV_TESTS_COMMIT="49a24d7f41e7b422cebeffdc3ba31c8daaf5aa5c"
 TB=Hazard3/test/sim/tb_verilator/tb
+TB_RP2350=Hazard3/test/sim/tb_verilator/tb-rp2350
 STAMP=Hazard3/.built
+# Two testbenches: `tb`, Hazard3's own default configuration, which exp202 and every kernel since ran on; and
+# `tb-rp2350`, the configuration the RP2350 datasheet gives (config_rp2350.vh), which the monitors are held to.
+WANT="$HAZARD3_COMMIT $(sha256sum config_rp2350.vh | cut -c1-16)"
 
-if [[ -x "$TB" && "$(cat "$STAMP" 2>/dev/null)" == "$HAZARD3_COMMIT" ]]; then
-    echo "already have the Hazard3 testbench at $HAZARD3_COMMIT"
+if [[ -x "$TB" && -x "$TB_RP2350" && "$(cat "$STAMP" 2>/dev/null)" == "$WANT" ]]; then
+    echo "already have the Hazard3 testbenches at $HAZARD3_COMMIT"
     exit 0
 fi
 
@@ -54,13 +58,18 @@ git -C Hazard3 submodule update -q --init --depth 1 scripts test/sim/riscv-tests
     && [[ "$(git -C Hazard3/test/sim/riscv-tests/riscv-tests rev-parse HEAD)" == "$RISCV_TESTS_COMMIT" ]] \
     || { echo "a submodule is not at the commit this was verified with" >&2; exit 1; }
 
+cp config_rp2350.vh Hazard3/test/sim/tb_common/hdl/config_rp2350.vh
 cd Hazard3/test/sim/tb_verilator
-make vcc > /dev/null
-make -C build-tb/obj_dir -f Vtb.mk CXX=clang++ OPT_FAST=-O2 -j"$(nproc)" > /dev/null
-clang++ -O3 -std=c++14 -I build-tb/obj_dir -I "$(verilator --getenv VERILATOR_ROOT)/include" \
-    -I ../tb_common/include build-tb/obj_dir/*.o tb.cpp ../tb_common/*.cpp -o tb -latomic -lpthread
-# The objects are only for linking; the testbench is all that is used.
-rm -rf build-tb
+build() { # CONFIG OUT
+    make CONFIG="$1" vcc > /dev/null
+    make -C build-tb/obj_dir -f Vtb.mk CXX=clang++ OPT_FAST=-O2 -j"$(nproc)" > /dev/null
+    clang++ -O3 -std=c++14 -I build-tb/obj_dir -I "$(verilator --getenv VERILATOR_ROOT)/include" \
+        -I ../tb_common/include build-tb/obj_dir/*.o tb.cpp ../tb_common/*.cpp -o "$2" -latomic -lpthread
+    # The objects are only for linking; the testbench is all that is used.
+    rm -rf build-tb
+}
+build default tb
+build rp2350 tb-rp2350
 cd - > /dev/null
-echo "$HAZARD3_COMMIT" > "$STAMP"
-echo "built the Hazard3 testbench at $HAZARD3_COMMIT"
+echo "$WANT" > "$STAMP"
+echo "built the Hazard3 testbenches at $HAZARD3_COMMIT"

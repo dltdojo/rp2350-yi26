@@ -56,4 +56,20 @@ def hex8 (n : Nat) : String :=
   let s := String.ofList (Nat.toDigits 16 n)
   "".pushn '0' (8 - s.length) ++ s
 
+/-- A number written in hex, `0x` or not; a character that is not a hex digit counts as 0. -/
+def parseHex (s : String) : Nat :=
+  (s.toList.drop (if s.startsWith "0x" then 2 else 0)).foldl (fun n c =>
+    n * 16 + (if c.isDigit then c.toNat - '0'.toNat
+      else if 'a' ≤ c ∧ c ≤ 'f' then c.toNat - 'a'.toNat + 10
+      else if 'A' ≤ c ∧ c ≤ 'F' then c.toNat - 'A'.toNat + 10 else 0)) 0
+
+/-- Bytes written as hex, two digits each. -/
+def hexBytes (s : String) : List (BitVec 8) :=
+  let cs := s.toList
+  (List.range (cs.length / 2)).map fun i =>
+    let d (c : Char) : Nat := if c.isDigit then c.toNat - '0'.toNat
+      else if 'a' ≤ c ∧ c ≤ 'f' then c.toNat - 'a'.toNat + 10
+      else if 'A' ≤ c ∧ c ≤ 'F' then c.toNat - 'A'.toNat + 10 else 0
+    BitVec.ofNat 8 (16 * d (cs.getD (2 * i) '0') + d (cs.getD (2 * i + 1) '0'))
+
 end Rv32

@@ -109,14 +109,6 @@ partial def loop (env : Env) (outside : Word → Byte) (fuel : Nat) (s : Machine
     | .halted code s' => (s!"halt code={hexWord code.toNat} count={k + 1}", s')
     | .fault f s' => (s!"fault {faultName f} pc={hexWord s'.pc.toNat} count={k + 1}", s')
 
-def hexBytes (s : String) : List Byte :=
-  let cs := s.toList
-  (List.range (cs.length / 2)).map fun i =>
-    let d (c : Char) : Nat := if c.isDigit then c.toNat - '0'.toNat
-      else if 'a' ≤ c ∧ c ≤ 'f' then c.toNat - 'a'.toNat + 10
-      else if 'A' ≤ c ∧ c ≤ 'F' then c.toNat - 'A'.toNat + 10 else 0
-    BitVec.ofNat 8 (16 * d (cs.getD (2 * i) '0') + d (cs.getD (2 * i + 1) '0'))
-
 /-- The pairs `RV32RUN_SIGS` names as valid; none without it. -/
 def sigsFromEnv : IO (List (List Byte × List Byte)) := do
   match ← IO.getEnv "RV32RUN_SIGS" with
@@ -127,12 +119,6 @@ def sigsFromEnv : IO (List (List Byte × List Byte)) := do
       match (l.trim.splitOn " ").filter (· ≠ "") with
       | [pk, sg] => some (hexBytes pk, hexBytes sg)
       | _ => none
-
-def parseHex (s : String) : Nat :=
-  (s.toList.drop (if s.startsWith "0x" then 2 else 0)).foldl (fun n c =>
-    n * 16 + (if c.isDigit then c.toNat - '0'.toNat
-      else if 'a' ≤ c ∧ c ≤ 'f' then c.toNat - 'a'.toNat + 10
-      else if 'A' ≤ c ∧ c ≤ 'F' then c.toNat - 'A'.toNat + 10 else 0)) 0
 
 def main (args : List String) : IO UInt32 := do
   match args with

@@ -1,0 +1,93 @@
+probe                reader     words printed
+mstatus_reset        emulator   00000000   <- not the RTL's
+                     model      00000000   <- not the RTL's
+                     tb-rp2350  00001800
+                     tb         00001800
+mcountinhibit_reset  emulator   00000000   <- not the RTL's
+                     model      00000000   <- not the RTL's
+                     tb-rp2350  00000005
+                     tb         00000005
+ebreak_u             emulator   54524150 00000003 00000060
+                     model      54524150 00000002 00000060   <- not the RTL's
+                     tb-rp2350  54524150 00000003 00000060
+                     tb         54524150 00000003 00000060
+fence_m              emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000001
+                     tb         00000001
+misa_m               emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  40901107
+                     tb         40901107
+mhartid_m            emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+mtvec_bit0           emulator   800000a4   <- not the RTL's
+                     model      800000a4   <- not the RTL's
+                     tb-rp2350  800000a5
+                     tb         800000a5
+mtvec_bit1           emulator   800000a4
+                     model      800000a4
+                     tb-rp2350  800000a4
+                     tb         800000a4
+mpp_01               emulator   00000800   <- not the RTL's
+                     model      00000000
+                     tb-rp2350  00000000
+                     tb         00000000
+mstatus_ones         emulator   00001888   <- not the RTL's
+                     model      00001888   <- not the RTL's
+                     tb-rp2350  00221888
+                     tb         00221888
+mcountinhibit_ones   emulator   00000005
+                     model      00000005
+                     tb-rp2350  00000005
+                     tb         00000005
+pmpaddr_napot        emulator   20004003 20004000
+                     model      20004003 20004000
+                     tb-rp2350  20004003 20004000
+                     tb         20004000 20004000
+pmpcfg_tor           emulator   00000f1f   <- not the RTL's
+                     model      00000f1f   <- not the RTL's
+                     tb-rp2350  0000071f
+                     tb         00000f1f
+pmpcfg_na4           emulator   0000171f   <- not the RTL's
+                     model      0000171f   <- not the RTL's
+                     tb-rp2350  0000071f
+                     tb         0000171f
+pmpcfg1              emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+pmpaddr4             emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+pmpcfgm0             emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+counted_mret         emulator   54524150 00000008 00000060 00000013   <- not the RTL's
+                     model      54524150 00000008 00000060 00000013   <- not the RTL's
+                     tb-rp2350  54524150 00000008 00000060 00000015
+                     tb         54524150 00000008 00000060 00000015
+lock_m               emulator   54524150 00000007 0000005c
+                     model      54524150 00000007 0000005c
+                     tb-rp2350  54524150 00000007 0000005c
+                     tb         54524150 00000007 0000005c
+x_only               emulator   54524150 00000005 00000084
+                     model      54524150 00000005 00000084
+                     tb-rp2350  54524150 00000005 00000084
+                     tb         54524150 00000005 00000084
+u_peripheral         emulator   54524150 00000005 00000064
+                     model      54524150 00000005 00000064
+                     tb-rp2350  54524150 00000005 00000064
+                     tb         54524150 00000005 00000064
+wfi_u_tw             emulator   54524150 00000002 00000060
+                     model      54524150 00000002 00000060
+                     tb-rp2350  54524150 00000002 00000060
+                     tb         54524150 00000002 00000060
+wfi_u                emulator   54524150 00000002 00000060   <- not the RTL's
+                     model      54524150 00000002 00000060   <- not the RTL's
+                     tb-rp2350   hangs
+                     tb          hangs

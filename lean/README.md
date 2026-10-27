@@ -36,10 +36,12 @@ that kernel is asking about.
 | [`Pio/Asm.lean`](./Pio/Asm.lean) | PIO instructions as text, the way `pioasm` reads them | used by exp215's differential |
 | [`Pio/Machine.lean`](./Pio/Machine.lean) | one PIO state machine, an instruction at a time, from the datasheet: X, Y, ISR and OSR with their counts and thresholds, both FIFOs, the pins it drives and the pads it reads, the IRQ flags, EXEC, and the delay counted but not timed; `none` for `prev`/`next` and the RX FIFO's `mov` | rp2040js and rp2040-pio-emulator, step by step on 700 cases, in [exp217](../experiments/exp217-the-words-the-model-inverts/) |
 | [`Run.lean`](./Run.lean) | `rv32run`: the model, compiled, for running a binary; memory held in an array, so 6000 stores take a fraction of a second | exp202 to exp213 run it beside the RTL |
+| [`PrivExec.lean`](./PrivExec.lean) | `privrun`: the Tier 2 model, `PrivMachine.step`, compiled, run from a machine a scenario file describes, printing what software can read after every step | the emulator, step by step, and the Hazard3 RTL, in [exp256](../experiments/exp256-the-readings-the-rtl-settles/) |
 | [`Sha256.lean`](./Sha256.lean) | SHA-256, for `rv32run`'s HASH only — no theorem mentions it, so it can make a run disagree but never a proof wrong; the one theorems are about is `Rv32/Sha.lean`'s | `hashlib` at ten lengths, and the harness's C, in [exp204](../experiments/exp204-the-signature-the-kernel-checks/) |
 
 ```sh
 tools/lean/lean.sh exe rv32run     # builds the library and the runner; prints the runner's path
+tools/lean/lean.sh exe privrun     # the same for the Tier 2 runner
 ```
 
 Nothing here imports Mathlib, and nothing is proved by `native_decide` or
