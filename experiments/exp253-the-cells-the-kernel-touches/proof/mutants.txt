@@ -1,0 +1,12 @@
+# exp253 — wrong claims and a wrong checker. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: a history a word short, no load at all, a loop head that admits one generation too many, a
+# pointer a word on. Then the checker made unsound -- a load window that is not checked -- which the soundness proof
+# must catch. exp248's mutants already loosen the store window and the jumps; the load window is this kernel's.
+history_short|claim: the kernel stores only up to +0x5fc, one word short of the history|s/^def history : Nat × Nat := (0x200, 0x600)$/def history : Nat × Nat := (0x200, 0x5fc)/
+no_load|claim: the kernel loads nothing, not even the seed|s/^def seed : Nat × Nat := (0x100, 0x104)$/def seed : Nat × Nat := (0x100, 0x100)/
+head_count_257|claim: at the loop's head 1 to 257 generations are left, so the pointer may be one word below the history|s/(7, .num 1 256)\])\]$/(7, .num 1 257)])]/
+head_pointer_word_on|claim: at the loop's head the pointer is a word further on|s/(6, .aff 7 (-4) 0x600), (7/(6, .aff 7 (-4) 0x604), (7/
+load_unchecked|the load window is not checked at all|s/=> within ab.1 ab.2 lw$/=> true/|lean/Rv32/Reach.lean
