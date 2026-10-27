@@ -30,6 +30,7 @@ import Rv32.Sandbox
 import Rv32.Within
 import Rv32.Ct
 import Rv32.Reach
+import Rv32.WxTwin
 
 namespace Rv32.Join
 open Rv32 Rv32.Priv Rv32.Refinement
@@ -394,10 +395,143 @@ theorem calls_of_halted {env : Env} (hs : env.servesHash = false) {n : Nat} {s s
       ite_eq_right_of_eq_false _ _ (eq_false h2), ite_eq_right_of_eq_false _ _ (eq_false h3)]
     simp
 
+
+/-! ## Two cores that agree on the box
+
+A monitor that serves a call writes its own stack and the ports, outside the box. After it, the Tier 2 core
+and the Tier 1 core the kernel's proof is about differ there, and only there. A Tier 1 step in the box's
+region reads nothing outside it, so the two go on alike. -/
+
+/-- Two cores alike to a run in region `r`: the same `pc`, the same registers, the same bytes in `r`. -/
+structure BoxEq (r : Region) (m c : Machine) : Prop where
+  pc : m.pc = c.pc
+  regs : ∀ x, m.reg x = c.reg x
+  mem : ∀ x : Word, r.lo ≤ x.toNat → x.toNat < r.hi → m.mem x = c.mem x
+
+theorem BoxEq.refl (r : Region) (m : Machine) : BoxEq r m m := ⟨rfl, fun _ => rfl, fun _ _ _ => rfl⟩
+
+/-- Two cores alike in `r` read the same word anywhere in `r`. -/
+theorem readLE_boxEq {r : Region} (hhi : r.hi ≤ 2^32) {m c : Machine} (h : BoxEq r m c) :
+    ∀ (n : Nat) (a : Word), r.ok a n → readLE m.mem a n = readLE c.mem a n := by
+  intro n
+  induction n with
+  | zero => intro a _; rfl
+  | succ n ih =>
+    intro a ha
+    simp only [Region.ok] at ha
+    simp only [readLE]
+    rw [h.mem a (by omega) (by omega)]
+    cases n with
+    | zero => rfl
+    | succ n =>
+      have e : (a + 1).toNat = a.toNat + 1 := by
+        rw [BitVec.toNat_add, show (1 : Word).toNat = 1 from rfl]; omega
+      rw [ih (a + 1) (by simp only [Region.ok]; omega)]
+
+/-- **Two cores alike in the region step alike.** A Tier 1 step that went on from one, not an `ecall`, goes on
+from the other, and the two are alike after it. -/
+theorem step_boxEq {env : Env} (hhi : env.region.hi ≤ 2^32) {m c m' : Machine} (h : BoxEq env.region m c)
+    (hs : step env m = .running m') (he : decode (fetched m) ≠ some .ecall) :
+    ∃ c', step env c = .running c' ∧ BoxEq env.region m' c' := by
+  unfold step fetch at hs ⊢
+  rw [← h.pc]
+  by_cases hal : m.pc.toNat % 4 ≠ 0
+  · simp [hal] at hs
+  by_cases hok : env.region.ok m.pc 4
+  case neg => simp [hal, hok] at hs
+  have hw : readLE c.mem m.pc 4 = readLE m.mem m.pc 4 := (readLE_boxEq hhi h 4 m.pc hok).symm
+  simp only [hal, hok, not_true_eq_false, ↓reduceIte, hw] at hs ⊢
+  cases hd : decode (BitVec.ofNat 32 (readLE m.mem m.pc 4)) with
+  | none => rw [hd] at hs; cases hs
+  | some i =>
+    rw [hd] at hs
+    simp only at hs ⊢
+    have hi : i ≠ .ecall := fun e => he (by simp only [fetched]; rw [hd, e])
+    have hld : ∀ op rd rs1 imm, i = .ld op rd rs1 imm →
+        readLE m.mem (m.reg rs1 + imm.signExtend 32) op.size = readLE c.mem (m.reg rs1 + imm.signExtend 32) op.size := by
+      intro op rd rs1 imm hi'
+      subst hi'
+      simp only [exec] at hs
+      split at hs
+      · cases hs
+      split at hs
+      · cases hs
+      rename_i _ h2
+      exact readLE_boxEq hhi h _ _ (Classical.not_not.mp h2)
+    rcases exec_twin (env := env) hi h.pc h.regs hld with ⟨c1, d, e1, e2, p, r, mm⟩ | ⟨f, g, c1, d, e1, -⟩
+    · rw [e1] at hs
+      cases hs
+      exact ⟨d, e2, p, r, fun x h1 h2 => mm x (h.mem x h1 h2)⟩
+    · rw [e1] at hs; cases hs
+
+/-- Two cores alike in the region fetch the same word at a `pc` in it. -/
+theorem fetched_boxEq {r : Region} (hhi : r.hi ≤ 2^32) {m c : Machine} (h : BoxEq r m c) (hok : r.ok m.pc 4) :
+    fetched m = fetched c := by
+  simp only [fetched]; rw [readLE_boxEq hhi h 4 m.pc hok, h.pc]
+
+/-- A Tier 1 step that went on fetched in the region. -/
+theorem fetch_ok_of_running {env : Env} {m m' : Machine} (hs : step env m = .running m') :
+    m.pc.toNat % 4 = 0 ∧ env.region.ok m.pc 4 := by
+  unfold step fetch at hs
+  by_cases hal : m.pc.toNat % 4 ≠ 0
+  · simp [hal] at hs
+  by_cases hok : env.region.ok m.pc 4
+  · exact ⟨by omega, hok⟩
+  · simp [hal, hok] at hs
+
+/-- **One step of a kernel's Tier 1 run is one Tier 2 step, from a core alike in the box.** Tier 1, in the box's
+region, went on from `m`, not at an `ecall`. Tier 2, from a boxed state whose core is alike to `m` in the box,
+counters running: one step, to a core alike to the Tier 1 one, still boxed, the monitor's CSRs kept, no port
+touched, memory outside the box as it was. -/
+theorem plain_in_box (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩ env.region) (hhi : hi ≤ 2^32)
+    (s : PrivMachine) {m m' : Machine} (hBox : UBoxed s lo hi) (hinh : s.csrs.mcountinhibit = {})
+    (h : BoxEq ⟨lo, hi⟩ m s.core) (hs : step (boxEnv env lo hi) m = .running m')
+    (he : decode (fetched m) ≠ some .ecall) :
+    BoxEq ⟨lo, hi⟩ m' (PrivMachine.run env 1 s).core ∧ UBoxed (PrivMachine.run env 1 s) lo hi ∧
+      KeptCsrs s.csrs (PrivMachine.run env 1 s).csrs ∧
+      (PrivMachine.run env 1 s).csrs.minstret = s.csrs.minstret + 1#32 ∧
+      (PrivMachine.run env 1 s).io = s.io ∧ (PrivMachine.run env 1 s).host = s.host ∧
+      (∀ x : Word, ¬ (lo ≤ x.toNat ∧ x.toNat < hi) → (PrivMachine.run env 1 s).core.mem x = s.core.mem x) := by
+  obtain ⟨c', hc, hEq⟩ := step_boxEq (env := boxEnv env lo hi) hhi h hs he
+  have hf : fetched m = fetched s.core := fetched_boxEq hhi h (fetch_ok_of_running hs).2
+  obtain ⟨r1, r2, r3, r4, -, r6, r7, r8⟩ := run_in_box env hReg hhi 1 s c' hBox hinh
+    (by simp only [run, hc]) (fun i hi m0 hm0 hd => by
+      have : i = 0 := by omega
+      subst this
+      simp only [run] at hm0
+      cases hm0
+      exact absurd (hf ▸ hd) he)
+  refine ⟨by rw [r1]; exact hEq, r2, r3, by rw [r4], r6, r7, fun x hx => by rw [r1]; exact r8 x hx⟩
+
+
+/-- A run still going after `i + d` steps was going after `i`. -/
+theorem run_running_prefix {env : Env} : ∀ (i d : Nat) (s : Machine) {m : Machine},
+    run env (i + d) s = .running m → ∃ m', run env i s = .running m' := by
+  intro i
+  induction i with
+  | zero => intro d s m _; exact ⟨s, rfl⟩
+  | succ i ih =>
+    intro d s m h
+    rw [Nat.succ_add] at h
+    simp only [run] at h ⊢
+    cases hs : step env s with
+    | running s1 => rw [hs] at h; exact ih d s1 h
+    | _ => rw [hs] at h; cases h
+
+/-- At a fetched `ecall`, a Tier 1 step is the call. -/
+theorem step_at_ecall {env : Env} {m : Machine} (hal : m.pc.toNat % 4 = 0) (hok : env.region.ok m.pc 4)
+    (hd : decode (fetched m) = some .ecall) : step env m = exec env m .ecall := by
+  unfold step fetch
+  simp only [fetched] at hd
+  have hal' : ¬ m.pc.toNat % 4 ≠ 0 := by omega
+  simp only [hal', hok, not_true_eq_false, ↓reduceIte, hd]
+
 end Rv32.Join
 
 #print axioms Rv32.Join.run_in_box
 #print axioms Rv32.Join.halt_in_box
 #print axioms Rv32.Join.quiet_of_ct
 #print axioms Rv32.Join.calls_of_halted
+#print axioms Rv32.Join.step_boxEq
+#print axioms Rv32.Join.plain_in_box
 #print axioms Rv32.Join.quiet_of_good
