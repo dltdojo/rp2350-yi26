@@ -1,0 +1,121 @@
+=== exp256 — the readings the RTL settles ===
+recorded at 2026-10-27T11:51:20Z from commit 27d72e6
+
+>>> twenty-three probes, four readers: what each prints
+probe                reader     words printed
+mstatus_reset        emulator   00000000   <- not the RTL's
+                     model      00000000   <- not the RTL's
+                     tb-rp2350  00001800
+                     tb         00001800
+mcountinhibit_reset  emulator   00000000   <- not the RTL's
+                     model      00000000   <- not the RTL's
+                     tb-rp2350  00000005
+                     tb         00000005
+ebreak_u             emulator   54524150 00000003 00000060
+                     model      54524150 00000002 00000060   <- not the RTL's
+                     tb-rp2350  54524150 00000003 00000060
+                     tb         54524150 00000003 00000060
+fence_m              emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000001
+                     tb         00000001
+misa_m               emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  40901107
+                     tb         40901107
+mhartid_m            emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+mtvec_bit0           emulator   800000a4   <- not the RTL's
+                     model      800000a4   <- not the RTL's
+                     tb-rp2350  800000a5
+                     tb         800000a5
+mtvec_bit1           emulator   800000a4
+                     model      800000a4
+                     tb-rp2350  800000a4
+                     tb         800000a4
+mpp_01               emulator   00000800   <- not the RTL's
+                     model      00000000
+                     tb-rp2350  00000000
+                     tb         00000000
+mstatus_ones         emulator   00001888   <- not the RTL's
+                     model      00001888   <- not the RTL's
+                     tb-rp2350  00221888
+                     tb         00221888
+mcountinhibit_ones   emulator   00000005
+                     model      00000005
+                     tb-rp2350  00000005
+                     tb         00000005
+pmpaddr_napot        emulator   20004003 20004000
+                     model      20004003 20004000
+                     tb-rp2350  20004003 20004000
+                     tb         20004000 20004000
+pmpcfg_tor           emulator   00000f1f   <- not the RTL's
+                     model      00000f1f   <- not the RTL's
+                     tb-rp2350  0000071f
+                     tb         00000f1f
+pmpcfg_na4           emulator   0000171f   <- not the RTL's
+                     model      0000171f   <- not the RTL's
+                     tb-rp2350  0000071f
+                     tb         0000171f
+pmpcfg1              emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+pmpaddr4             emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+pmpcfgm0             emulator   54524150 00000002 00000034   <- not the RTL's
+                     model      54524150 00000002 00000034   <- not the RTL's
+                     tb-rp2350  00000000
+                     tb         00000000
+counted_mret         emulator   54524150 00000008 00000060 00000013   <- not the RTL's
+                     model      54524150 00000008 00000060 00000013   <- not the RTL's
+                     tb-rp2350  54524150 00000008 00000060 00000015
+                     tb         54524150 00000008 00000060 00000015
+lock_m               emulator   54524150 00000007 0000005c
+                     model      54524150 00000007 0000005c
+                     tb-rp2350  54524150 00000007 0000005c
+                     tb         54524150 00000007 0000005c
+x_only               emulator   54524150 00000005 00000084
+                     model      54524150 00000005 00000084
+                     tb-rp2350  54524150 00000005 00000084
+                     tb         54524150 00000005 00000084
+u_peripheral         emulator   54524150 00000005 00000064
+                     model      54524150 00000005 00000064
+                     tb-rp2350  54524150 00000005 00000064
+                     tb         54524150 00000005 00000064
+wfi_u_tw             emulator   54524150 00000002 00000060
+                     model      54524150 00000002 00000060
+                     tb-rp2350  54524150 00000002 00000060
+                     tb         54524150 00000002 00000060
+wfi_u                emulator   54524150 00000002 00000060   <- not the RTL's
+                     model      54524150 00000002 00000060   <- not the RTL's
+                     tb-rp2350   hangs
+                     tb          hangs
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  privrun builds: PrivMachine.step, compiled, from lean/PrivExec.lean
+PASS  the model against the emulator: 20 suites, 7085 runs, 15355245 steps, every one
+      compared after every step; 7041 runs agree at every step, and the 44 that do not are 40 ebreak, 4 outside_region
+PASS  the RTL (tb-rp2350) against the emulator: 6770 runs from reset, 751 of them calling the
+      service port, which the testbench has no host for; of the 6019 compared, 934 end the same,
+      every word, exit code and byte of RAM; 5065 differ only in a report's counts and 19 are wfi_sleeps,
+      1 mpp_reset
+      minstret, RTL less emulator, in the reports that differ: +1 in 2067, +2 in 2992, +3 in 6
+PASS  23 probes on four readers print what probes/table.txt recorded: 30 readings that are not the RTL's
+PASS  r_x_transposed: the differential refuses a model where PMPCFG's R and X bits are transposed -- erratum RP2350-E6, what the chip does -- refused by probes.py, wx_attacks.py, rounds.py
+PASS  last_entry_first: the differential refuses a model where the PMP tries its entries from the last -- refused by probes.py, wx_attacks.py, rounds.py
+PASS  unmatched_user: the differential refuses a model where U-mode that matches no entry is let through -- refused by probes.py, attack_cases.py, wx_attacks.py
+PASS  napot_double: the differential refuses a model where a NAPOT entry covers twice the bytes it says -- refused by wx_attacks.py
+PASS  lock_ignored: the differential refuses a model where a locked entry does not bind M-mode -- refused by probes.py
+PASS  trap_uncounted: the differential refuses a model where a trap is not counted in minstret -- refused by probes.py, attack_cases.py, wx_attacks.py, rounds.py
+PASS  trap_keeps_mie: the differential refuses a model where a trap leaves mstatus.MIE as it was -- refused by rounds.py
+PASS  mret_mpie_clear: the differential refuses a model where mret leaves mstatus.MPIE clear -- refused by probes.py, attack_cases.py, wx_attacks.py, rounds.py
+PASS  mret_keeps_mpp: the differential refuses a model where mret leaves mstatus.MPP as it was -- refused by probes.py
+PASS  mtvec_unmasked: the differential refuses a model where mtvec keeps the two low bits written to it -- refused by probes.py
+PASS  readback_raw: the differential refuses a model where pmpaddr reads back as written in NAPOT, its low bits not forced -- refused by probes.py, rounds.py
+PASS  ecall_causes_swapped: the differential refuses a model where an ecall from U-mode reports M-mode's cause, and the other way round -- refused by probes.py, attack_cases.py, wx_attacks.py, rounds.py
