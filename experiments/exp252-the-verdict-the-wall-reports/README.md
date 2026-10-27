@@ -103,7 +103,7 @@ And about this kernel and this monitor, in `proof/Wall.lean`:
      print port.
    - **The host asked to be something else**: hashing from the output pointer; checking the key and the signature
      the wrong way round.
-   - **The bridge loosened**: two cores taken as alike whatever bytes the box holds.
+   - **The bridge loosened**: two cores taken as alike whatever bytes the box holds, refused at its first use, `BoxEq.refl`.
 3. `proof/Wall.lean` is what `proof/gen.py` writes.
 4. `suite/verdict.py`, on the emulator, a separate program from the model. exp228's 34 scripts and 120 from its
    fuzzer run under exp238's monitor with the emulator's host, and each is also run alone. Each must:
@@ -117,4 +117,47 @@ And about this kernel and this monitor, in `proof/Wall.lean`:
 From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
+=== exp252 — the verdict the wall reports ===
+recorded at 2026-10-27T06:28:14Z from commit 8860ba2
+
+>>> the formal theorems, and what they rest on
+'Exp251.calls_the_script_makes' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.monitor_hashb_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.monitor_checksig_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp238.monitor_halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Rv32.Join.plain_in_box' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp252.sim_plain' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp252.sim_hashb' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp252.sim_checksig' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp252.sim_halt' depends on axioms: [propext, Classical.choice, Quot.sound]
+'Exp252.verdict_behind_the_wall' depends on axioms: [propext, Classical.choice, Quot.sound]
+exit 0
+
+>>> wrong claims, a wrong host and a wrong bridge: each must be refused
+verdict_plus_one     claim: the monitor parks with the verdict plus one                            refused in verdict_behind_the_wall
+hashb_one_short      claim: a served HASHB takes 43 steps, not 44                                  refused in sim_hashb
+exit_at_print        claim: the last word the host hears is at the print port, not the exit word   refused in sim_halt
+host_hashes_output   the host is asked to hash from the output pointer, not the input              refused in sim_hashb
+host_checks_swapped  the host is asked to check the key and the signature the wrong way round      refused in sim_checksig
+alike_without_bytes  two cores are taken as alike in the box whatever bytes the box holds          refused in BoxEq.refl
+
+>>> exp228 behind exp238 on the emulator, from reset to the park
+PASS  154 scripts -- exp228's 34 by hand and 120 from its fuzzer -- as exp238's payload, from reset:
+      each parks with a0 = script.py's verdict, the verdict the last port write, at the exit word;
+      each first at step 53 + (n - 1 - h - c) + 44 h + 48 c + 62, the steps the proof composes (13 HASHB, 4 CHECKSIG)
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Wall.lean checks, with no errors and no warnings
+PASS  all 10 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  verdict_plus_one: the proof refuses a version where claim: the monitor parks with the verdict plus one
+PASS  hashb_one_short: the proof refuses a version where claim: a served HASHB takes 43 steps, not 44
+PASS  exit_at_print: the proof refuses a version where claim: the last word the host hears is at the print port, not the exit word
+PASS  host_hashes_output: the proof refuses a version where the host is asked to hash from the output pointer, not the input
+PASS  host_checks_swapped: the proof refuses a version where the host is asked to check the key and the signature the wrong way round
+PASS  alike_without_bytes: the proof refuses a version where two cores are taken as alike in the box whatever bytes the box holds
+PASS  proof/Wall.lean is what proof/gen.py writes, from exp238's Calls.lean, exp228's Script.lean, exp251's tail and tail.lean
+PASS  154 scripts -- exp228's 34 by hand and 120 from its fuzzer -- as exp238's payload, from reset:
+      each parks with a0 = script.py's verdict, the verdict the last port write, at the exit word;
+      each first at step 53 + (n - 1 - h - c) + 44 h + 48 c + 62, the steps the proof composes (13 HASHB, 4 CHECKSIG)
 ```
