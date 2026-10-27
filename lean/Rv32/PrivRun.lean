@@ -259,4 +259,36 @@ macro_rules
       aluR, taken, LdOp.size, StOp.size, LdOp.extend, raiseTrap, portRead, portWrites, isPort, PrivMode.ofBits, PrivMode.toBits,
       hasPermission, Rv32.Region.ok, $ls,*] $[$loc]?)
 
+/-- A step never changes who listens on the ports. -/
+theorem stepW_host_digest (env : Rv32.Env) (s : PrivMachine) (w : Word) :
+    (PrivMachine.stepW env s w).host = s.host ∧ (PrivMachine.stepW env s w).digest = s.digest := by
+  unfold PrivMachine.stepW
+  split
+  · exact ⟨rfl, rfl⟩
+  · split
+    · exact ⟨rfl, rfl⟩
+    · split
+      · unfold execMret; split <;> exact ⟨rfl, rfl⟩
+      · split
+        · unfold execZicsr; repeat' split
+          all_goals exact ⟨rfl, rfl⟩
+        · split
+          · split <;> exact ⟨rfl, rfl⟩
+          · exact ⟨rfl, rfl⟩
+
+/-- A run never changes who listens on the ports: the host's answers, and what it writes back. -/
+theorem run_host_digest (env : Rv32.Env) : ∀ (n : Nat) (s : PrivMachine),
+    (PrivMachine.run env n s).host = s.host ∧ (PrivMachine.run env n s).digest = s.digest := by
+  intro n
+  induction n with
+  | zero => intro s; exact ⟨rfl, rfl⟩
+  | succ n ih =>
+    intro s
+    simp only [PrivMachine.run]
+    split
+    · exact ⟨rfl, rfl⟩
+    · obtain ⟨h1, h2⟩ := ih (PrivMachine.step env s)
+      obtain ⟨h3, h4⟩ := stepW_host_digest env s (BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4))
+      exact ⟨h1.trans h3, h2.trans h4⟩
+
 end Rv32.Priv

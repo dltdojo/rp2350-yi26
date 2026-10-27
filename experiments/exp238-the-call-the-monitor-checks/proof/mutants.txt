@@ -2,9 +2,10 @@
 #
 # <label>|<what is wrong>|<sed>
 #
-# Each edits `monitorCode`, the words of monitor.bin, one instruction each: the proofs are about what
+# Most edit `monitorCode`, the words of monitor.bin, one instruction each: the proofs are about what
 # those words do, so a word that does something else must stop a theorem. Each is refused in
-# the chunk or the phase it breaks. Fourteen were run once, each refused; these stay in the check because a mutant
+# the chunk or the phase it breaks. The last four are about the host: the model's ports read differently, the
+# host's 32 bytes written somewhere else or for the other call, and a claim about where they land. Fourteen were run once, each refused; these stay in the check because a mutant
 # is a whole run of the proof (about two minutes for the 200-word monitor, five for the 202-word one), and they cover
 # the bounds check, the way back, the dispatch, the scrub, CHECKSIG's answer check and the model of the ports.
 hashb_input_floor_dropped|HASHB lets an input start below the box|s/0xf8656ee3#32/0x00000013#32/
@@ -17,7 +18,10 @@ unknown_call_succeeds|a call the monitor does not offer returns to the payload|s
 scrub_keeps_saved_t2|the scrub leaves the saved t2 on the M-mode stack|s/0x00012423#32/0x00000013#32/
 answer_check_dropped|CHECKSIG returns whatever the host answered, 0 and 1 or not|s/0xf0a364e3#32/0x00000013#32/
 answer_check_allows_two|CHECKSIG takes an answer of 2 too|/0x00ce2503#32,/{n;s/0x00100313#32/0x00200313#32/}
-port_read_is_memory|model: an M-mode load from a port reads back the bytes, not the host's answer|s/then core'.setReg rd (s.host s.io a) else core'/then core' else core'/|lean/Rv32/Priv.lean
+port_read_is_memory|model: an M-mode load from a port reads back the bytes, not the host's answer|s/then core'.setReg rd (s.host s.io s.core.mem a) else core'/then core' else core'/|lean/Rv32/Priv.lean
+digest_at_input|model: the host writes its 32 bytes at the input pointer, not the output pointer|s/(Rv32.readLE s.core.mem 0xc0000018#32 4)/(Rv32.readLE s.core.mem 0xc0000010#32 4)/|lean/Rv32/Priv.lean
+digest_on_any_request|model: the host writes its 32 bytes for any request, CHECKSIG's too|s/isPort a = true ∧ a = 0xc000001c#32 ∧ s.core.reg rs2 = 2#32 then/isPort a = true ∧ a = 0xc000001c#32 then/|lean/Rv32/Priv.lean
+digest_claimed_at_input|claim: after HASHB the host's bytes are at the input pointer|s/Frame (Rv32.writeBytes s.core.mem (s.core.reg 12#5)/Frame (Rv32.writeBytes s.core.mem (s.core.reg 10#5)/
 #
 # Fifteen more, one for each broken monitor of suite/broken_monitors.py that had no mutant here, were run once on
 # 2026-10-23 and each was refused, and again on the 202-word monitor with the theorems that say what the host heard:

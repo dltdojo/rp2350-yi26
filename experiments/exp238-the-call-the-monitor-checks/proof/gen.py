@@ -257,8 +257,8 @@ add(Chunk("hashb_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x194), h(0x19c), re
           svc=[None, num(11), None, None], store=True, io=evs(ev(SVCW[1], "s.core.reg 11#5"))),
     Chunk("hashb_fwd_3", "Forward: the output pointer.", 1, h(0x1d0), h(0x1d4), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
           svc=[None, None, num(12), None], store=True, io=evs(ev(SVCW[2], "s.core.reg 12#5"))),
-    Chunk("hashb_fwd_4", "Forward: the request.", 2, h(0x1d4), h(0x1dc), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
-          regs="(5, 2#32)", svc=[None, None, None, "2"], store=True, io=evs(ev(SVCW[3], "2#32"))),
+    Chunk("hashb_fwd_4", "The call number, 2. Its store, the request, is `hashb_req`: the one store after which the host writes.",
+          1, h(0x1d4), h(0x1d8), regs="(5, 2#32)"),
     Chunk("hashb_fwd_5", "On to the way back.", 1, h(0x1dc), h(0x234)))
 
 # ---- CHECKSIG
@@ -278,7 +278,7 @@ add(Chunk("checksig_load", "Load `BOX_LO` and `BOX_HI`.", 2, h(0x1e0), h(0x1e8),
     Chunk("checksig_fwd_3", "Forward: the request.", 2, h(0x220), h(0x228), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
           regs="(5, 3#32)", svc=[None, None, None, "3"], store=True, io=evs(ev(SVCW[3], "3#32"))),
     Chunk("checksig_fwd_4", "Read the answer, into `a0`.", 1, h(0x228), h(0x22c), hyps=" (ht3 : s.core.reg 28#5 = 0xc0000010#32)", extra=", ht3",
-          regs="(10, s.host s.io 0xc000001c#32)"),
+          regs="(10, s.host s.io s.core.mem 0xc000001c#32)"),
     branch("checksig_answer", "Is the answer more than 1 (`li t1, 1`; `bltu t1, a0`)", 0x22c, 2,
            "BitVec.ult 1#32 (s.core.reg 10#5)", 0x234, regs="(6, 1#32)"))
 
@@ -426,44 +426,38 @@ def call_steps(call, upto, ok):
     return st
 
 
+ASK_CSR = f"csrsH ms e c m cy {FROZEN} (s.core.reg 2#5)"
+ASK_REGS = f"(2, 0x80008000#32), (5, {{t0}}#32), (6, {LO}), (7, {HI}), (28, 0xc0000010#32)"
+RESTORE = ("(2, p), (5, BitVec.ofNat 32 (readLE s.core.mem 0x80008000#32 4)), (6, BitVec.ofNat 32 (readLE s.core.mem 0x80008004#32 4)), "
+           "(7, BitVec.ofNat 32 (readLE s.core.mem 0x80008008#32 4)), (28, BitVec.ofNat 32 (readLE s.core.mem 0x8000800c#32 4))")
+BACK_CSR = "csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32)"
+RETURN = [S("return_1", p="p"), S("return_2", e="(e + 4#32)", p="p"), S("return_3", e="(e + 4#32)", p="p", hyps={"hmpp": "hmpp"}, last=True)]
+ANS = " (hans : BitVec.ult 1#32 (s.core.reg 10#5) = {})"
+
 for call, conds in BOUND:
     t0 = 2 if call == "hashb" else 3
     HT = f" (ht0 : s.core.reg 5#5 = {t0}#32)"
-    # a served call
+    # a served call: from the trap vector to the request (hashb) or to the answer's read (checksig), all checks passed
     if call == "hashb":
-        hyps = HC + HT + f" (hin : {INBOX(10, '(s.core.reg 11#5).toNat')}) (hout : {INBOX(12, 32)})" + HMPP
+        hyps = HC + HT + f" (hin : {INBOX(10, '(s.core.reg 11#5).toNat')}) (hout : {INBOX(12, 32)})"
         prelude = ("  obtain ⟨hb1, hb2, hb3⟩ := (bounds_ok_iff _ _).mpr hin\n"
                    "  obtain ⟨hb4, hb5, hb6⟩ := (bounds_len_iff _ 32 (by decide)).mpr hout\n")
-        fwd = [S(f"hashb_fwd_{i}") for i in range(1, 6)]
-        svc = [num(10), num(11), num(12), "2"]
-        regs = ""
-        io = evs(ev(SVCW[0], A0), ev(SVCW[1], "s.core.reg 11#5"), ev(SVCW[2], "s.core.reg 12#5"), ev(SVCW[3], "2#32"))
+        fwd = [S(f"hashb_fwd_{i}") for i in range(1, 5)]
+        svc = [num(10), num(11), num(12), None]
+        io = evs(ev(SVCW[0], A0), ev(SVCW[1], "s.core.reg 11#5"), ev(SVCW[2], "s.core.reg 12#5"))
+        pc_ask, doc_ask = h(0x1d8), ("A `HASHB` whose ranges lie in the box, from the trap vector to its request: the arguments "
+                                     "forwarded exactly as the payload gave them, the call number in `t0`, the request not yet made.")
     else:
-        hyps = HC + HT + f" (hkey : {INBOX(10, 32)}) (hsig : {INBOX(11, 64)})" + HMPP
+        hyps = HC + HT + f" (hkey : {INBOX(10, 32)}) (hsig : {INBOX(11, 64)})"
         prelude = ("  obtain ⟨hb1, hb2, hb3⟩ := (bounds_len_iff _ 32 (by decide)).mpr hkey\n"
                    "  obtain ⟨hb4, hb5, hb6⟩ := (bounds_len_iff _ 64 (by decide)).mpr hsig\n")
-        fwd = [S(f"checksig_fwd_{i}") for i in range(1, 5)]
+        fwd = [S(f"checksig_fwd_{i}") for i in range(1, 4)]
         svc = [num(10), num(11), None, "3"]
         io = evs(ev(SVCW[0], A0), ev(SVCW[1], "s.core.reg 11#5"), ev(SVCW[3], "3#32"))
-        regs = f"(10, s.host (s.io ++ {io}) 0xc000001c#32)"
-        ans = f"BitVec.ult 1#32 (s.host (s.io ++ {io}) 0xc000001c#32)"
-        hyps += f" (hans : {ans} = false)"
-        fwd = fwd + [S("checksig_answer", resolve="{R}, {IO}, hans")]
-        bad = call_steps(call, 6, True) + fwd[:-1] + [S("checksig_answer", resolve="{R}, {IO}, hans"), S("monitor_fault_exit", last=True)]
-        scenario("monitor_checksig_bad_answer",
-                 "A `CHECKSIG` whose ranges lie in the box and whose answer is neither 0 nor 1: the request went out, and the "
-                 "machine parks with `a0 = 1`, every other register zero, the host having heard the call and then the fault report.",
-                 HC + HT + f" (hkey : {INBOX(10, 32)}) (hsig : {INBOX(11, 64)}) (hans : {ans} = true)", bad,
-                 pc_out=PARK, csr_out=CSRZ, words=ZW, regs=ZALL + ", (10, 1#32)", svc=svc, prelude=prelude,
-                 io=evs(ev(SVCW[0], A0), ev(SVCW[1], "s.core.reg 11#5"), ev(SVCW[3], "3#32"), *FAULT_REPORT, ev(EXIT, "1#32")))
-    steps = call_steps(call, 6, True) + fwd + [
-        S("return_1"), S("return_2", e="(e + 4#32)"), S("return_3", e="(e + 4#32)", hyps={"hmpp": "hmpp"}, last=True)]
-    scenario(f"monitor_{call}_ok",
-             f"A `{call.upper()}` whose ranges lie in the box: from the trap vector the call is forwarded exactly as the payload gave it, "
-             f"and the machine is back in the payload at the word after the `ecall` — the payload's registers "
-             f"{'as they were' if call == 'hashb' else 'as they were but `a0`, which holds what the host answered, 0 or 1'}, "
-             "the counters released and moved on by two.",
-             hyps, steps, pc_out="e + 4#32", csr_out=RET_CSR, words=SAVED, regs=regs, svc=svc, mode_out=".U", prelude=prelude, io=io)
+        pc_ask, doc_ask = h(0x228), ("A `CHECKSIG` whose ranges lie in the box, from the trap vector to the read of the host's "
+                                     "answer: the arguments forwarded exactly as the payload gave them, and the request made.")
+    scenario(f"monitor_{call}_ask", doc_ask, hyps, call_steps(call, 6, True) + fwd,
+             pc_out=pc_ask, csr_out=ASK_CSR, words=SAVED, regs=ASK_REGS.format(t0=t0), svc=svc, prelude=prelude, io=io)
     # a refused call: one scenario for each check
     for k in range(1, 7):
         hy = HC + HT
@@ -475,6 +469,19 @@ for call, conds in BOUND:
                  f"A `{call.upper()}` that fails check {k} of 6: from the trap vector the machine parks with `a0 = 1`, "
                  "every other register zero, and the service port as it was.",
                  hy, steps, pc_out=PARK, csr_out=CSRZ, words=ZW, regs=ZALL + ", (10, 1#32)", io=FAULT_IO)
+
+
+# ---- the ways back from a served call, from the word after the request (hashb) or the answer's read (checksig)
+phase(Chunk("hashb_back", "After `HASHB`'s request: back to the payload at the word after its `ecall`, its `t0..t3` and `sp` "
+            "back, the counters released.", 0, h(0x1dc), "e + 4#32", hyps=HSP + HMPP, csr_out=BACK_CSR, mode_out=".U",
+            regs=RESTORE, steps=[S("hashb_fwd_5", p="p")] + RETURN), None)
+phase(Chunk("checksig_back_ok", "After `CHECKSIG`'s answer, if it is 0 or 1: back to the payload at the word after its `ecall`, "
+            "its `t0..t3` and `sp` back, the answer in `a0`, the counters released.", 0, h(0x22c), "e + 4#32",
+            hyps=HSP + HMPP + ANS.format("false"), csr_out=BACK_CSR, mode_out=".U", regs=RESTORE,
+            steps=[S("checksig_answer", p="p", resolve="hans")] + RETURN), None)
+phase(Chunk("checksig_back_bad", "After `CHECKSIG`'s answer, if it is neither 0 nor 1: the fault report, then the scrub.",
+            0, h(0x22c), PARK, hyps=HSP + ANS.format("true"), csr_out=CSRZ, words=ZW, regs=ZALL + ", (10, 1#32)", io=FAULT_IO,
+            steps=[S("checksig_answer", p="p", resolve="hans"), S("monitor_fault_exit", p="p", last=True)]), None)
 
 
 # ---- the headline: a call that is not wholly in the box is refused, whichever check it fails
