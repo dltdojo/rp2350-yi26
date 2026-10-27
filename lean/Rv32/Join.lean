@@ -31,6 +31,7 @@ import Rv32.Within
 import Rv32.Ct
 import Rv32.Reach
 import Rv32.WxTwin
+import Rv32.WxBox
 
 namespace Rv32.Join
 open Rv32 Rv32.Priv Rv32.Refinement
@@ -526,6 +527,214 @@ theorem step_at_ecall {env : Env} {m : Machine} (hal : m.pc.toNat % 4 = 0) (hok 
   have hal' : ¬ m.pc.toNat % 4 ≠ 0 := by omega
   simp only [hal', hok, not_true_eq_false, ↓reduceIte, hd]
 
+/-! ## In a W^X box
+
+exp240's box has no byte both writable and runnable: a code entry, read and execute; a data entry, read and write,
+with the code carved out of it; a stack entry. A Tier 1 step in the kernel's region is the Tier 2 step only where it
+fetches in the code, loads where the box lets a load, and stores where it lets a store. `WxOk` says so of one core;
+from it, the step is Tier 1's. -/
+
+/-- What a W^X box asks of the step from core `m`: the fetch in the code; a load `WxReadable`; a store
+`WxWritable`. -/
+def WxOk (cLo cHi dLo dHi kLo kHi : Nat) (m : Machine) : Prop :=
+  (cLo ≤ m.pc.toNat ∧ m.pc.toNat + 4 ≤ cHi) ∧
+  match decode (fetched m) with
+  | some (.ld op _ rs1 imm) => WxReadable cLo cHi dLo dHi kLo kHi (m.reg rs1 + imm.signExtend 32).toNat op.size
+  | some (.st op rs1 _ imm) => WxWritable cLo cHi dLo dHi kLo kHi (m.reg rs1 + imm.signExtend 32).toNat op.size
+  | _ => True
+
+section
+variable {cLo cHi dLo dHi kLo kHi : Nat}
+
+/-- **One step of a kernel's Tier 1 run is one Tier 2 step in a W^X box.** Tier 1, in the box's region, went on
+from the core, not at an `ecall`, and the step is one the box lets through (`WxOk`). Tier 2, in `env`, whose region
+holds the box: the same core, the counters bumped, nothing else changed -- no port, no other CSR. -/
+theorem wx_plain (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩ env.region) (s : PrivMachine)
+    {c : Machine} (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (hs : step (boxEnv env lo hi) s.core = .running c)
+    (he : decode (fetched s.core) ≠ some .ecall) (hw : WxOk cLo cHi dLo dHi kLo kHi s.core) :
+    PrivMachine.step env s = { s with core := c, csrs := bumpCounters s.csrs } := by
+  have hSafe := safe_of_step hs he
+  have hReg' : env.region.lo ≤ lo ∧ hi ≤ env.region.hi := hReg
+  obtain ⟨i, hdec, hex⟩ := tier1_step_eq_exec env s lo hi hSafe hReg'
+  have hs' : step env s.core = .running c :=
+    (step_within (env := boxEnv env lo hi) (env' := env) ⟨rfl, rfl, rfl⟩ hReg).1 c hs
+  rw [hex] at hs'
+  obtain ⟨hw1, hw2⟩ := hw
+  have hf : pmpCheck s.csrs s.mode s.core.pc 4 .Fetch = true := (wx_fetch_iff hB _ 4 (by decide)).mpr hw1
+  have hmem := hSafe.memInBounds
+  simp only [fetched] at hw2
+  rw [hdec] at hw2 hmem
+  have htrap : uModeTrapCause s (BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4)) = none := by
+    unfold uModeTrapCause
+    simp only [hf, not_true_eq_false, ↓reduceIte, hSafe.notEcall, Bool.false_eq_true, hSafe.notPriv.1,
+      hSafe.notPriv.2, or_self, and_false, hdec]
+    cases i with
+    | ld op rd rs1 imm =>
+      obtain ⟨hal, -, -⟩ := hmem
+      have hl := wx_load_allowed hB _ op.size hw2 (by cases op <;> decide)
+      have hal' : (BitVec.toNat (s.core.reg rs1) + (BitVec.signExtend 32 imm).toNat) % 4294967296 % op.size = 0 := hal
+      simp [hal', hl]
+    | st op rs1 rs2 imm =>
+      obtain ⟨hal, -, -⟩ := hmem
+      have hl := wx_store_allowed hB _ op.size hw2 (by cases op <;> decide)
+      have hal' : (BitVec.toNat (s.core.reg rs1) + (BitVec.signExtend 32 imm).toNat) % 4294967296 % op.size = 0 := hal
+      simp [hal', hl]
+    | _ => rfl
+  unfold PrivMachine.step PrivMachine.stepW
+  rw [hB.notHalted, htrap]
+  simp only [Bool.false_eq_true, ↓reduceIte, hSafe.notPriv.1, hSafe.notPriv.2, hdec, hs',
+    portRead_U s hB.isUMode, portWrites_U s hB.isUMode, List.append_nil]
+
+/-- **A boxed `ecall` in the code traps.** -/
+theorem wx_ecall_trap (env : Env) (s : PrivMachine) (hB : WXBoxed s cLo cHi dLo dHi kLo kHi)
+    (hd : decode (fetched s.core) = some .ecall) (hin : cLo ≤ s.core.pc.toNat ∧ s.core.pc.toNat + 4 ≤ cHi) :
+    PrivMachine.step env s = raiseTrap s CAUSE_ECALL_UMODE := by
+  have hf : pmpCheck s.csrs s.mode s.core.pc 4 .Fetch = true := (wx_fetch_iff hB _ 4 (by decide)).mpr hin
+  have he : isEcall (fetched s.core) = true := decode_ecall hd
+  unfold PrivMachine.step PrivMachine.stepW uModeTrapCause
+  simp only [fetched] at he
+  rw [hB.isUMode] at hf
+  rw [hB.notHalted]
+  simp only [Bool.false_eq_true, ↓reduceIte, hB.isUMode, hf, not_true_eq_false, he]
+
+/-- **A Tier 1 run in a W^X box is the Tier 2 run.** Tier 1, in the box's region, is still going after `n` steps;
+at every state on the way an `ecall` is at `t0 = 1` and the step is one the box lets through. Tier 2, in `env`,
+whose region holds the box, from a W^X-boxed state with that core and its counters running: `n` steps reach the same
+core, still boxed, the CSRs the monitor set kept and both counters up by `n`; no port is written or read. -/
+theorem wx_run_in_box (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩ env.region) :
+    ∀ (n : Nat) (s : PrivMachine) (c : Machine), WXBoxed s cLo cHi dLo dHi kLo kHi → s.csrs.mcountinhibit = {} →
+      run (boxEnv env lo hi) n s.core = .running c →
+      (∀ i < n, ∀ m, run (boxEnv env lo hi) i s.core = .running m →
+        (decode (fetched m) = some .ecall → m.reg T0 = 1) ∧ WxOk cLo cHi dLo dHi kLo kHi m) →
+      (PrivMachine.run env n s).core = c ∧ WXBoxed (PrivMachine.run env n s) cLo cHi dLo dHi kLo kHi ∧
+      KeptCsrs s.csrs (PrivMachine.run env n s).csrs ∧
+      (PrivMachine.run env n s).csrs.minstret = s.csrs.minstret + BitVec.ofNat 32 n ∧
+      (PrivMachine.run env n s).csrs.mcycle = s.csrs.mcycle + BitVec.ofNat 32 n ∧
+      (PrivMachine.run env n s).io = s.io ∧ (PrivMachine.run env n s).host = s.host := by
+  intro n
+  induction n with
+  | zero =>
+    intro s c hB _ hr _
+    simp only [run] at hr
+    cases hr
+    exact ⟨rfl, hB, KeptCsrs.refl _, by simp [PrivMachine.run], by simp [PrivMachine.run], rfl, rfl⟩
+  | succ n ih =>
+    intro s c hB hinh hr hq
+    simp only [run] at hr
+    cases hs : step (boxEnv env lo hi) s.core with
+    | halted _ _ => rw [hs] at hr; cases hr
+    | fault _ _ => rw [hs] at hr; cases hr
+    | running c1 =>
+      rw [hs] at hr
+      obtain ⟨hq0, hw0⟩ := hq 0 (by omega) s.core rfl
+      have hne : decode (fetched s.core) ≠ some .ecall := fun hd => step_not_running hd (hq0 hd) hs
+      have hstep := wx_plain env hReg s hB hs hne hw0
+      have hk1 : KeptCsrs s.csrs (PrivMachine.step env s).csrs := by rw [hstep]; exact kept_bump _
+      have hB1 : WXBoxed (PrivMachine.step env s) cLo cHi dLo dHi kLo kHi :=
+        wxboxed_of_kept hB hk1 (by rw [hstep]; exact hB.isUMode) (by rw [hstep]; exact hB.notHalted)
+      have hinh1 : (PrivMachine.step env s).csrs.mcountinhibit = {} := by rw [hk1.2.2.2.2.2.2.2]; exact hinh
+      have hq1 : ∀ i < n, ∀ m, run (boxEnv env lo hi) i (PrivMachine.step env s).core = .running m →
+          (decode (fetched m) = some .ecall → m.reg T0 = 1) ∧ WxOk cLo cHi dLo dHi kLo kHi m := by
+        intro i hi m hm
+        refine hq (i + 1) (by omega) m ?_
+        simp only [run, hs]
+        rw [hstep] at hm; exact hm
+      obtain ⟨r1, r2, r3, r4, r5, r6, r7⟩ :=
+        ih (PrivMachine.step env s) c hB1 hinh1 (by rw [hstep]; exact hr) hq1
+      rw [run_succ_step env n s hB.notHalted]
+      refine ⟨r1, r2, hk1.trans r3, ?_, ?_, by rw [r6, hstep], by rw [r7, hstep]⟩
+      · rw [r4, hstep]
+        simp only [bumpCounters, hinh]
+        simp only [Bool.false_eq_true, ↓reduceIte, BitVec.ofNat_add]
+        bv_omega
+      · rw [r5, hstep]
+        simp only [bumpCounters, hinh]
+        simp only [Bool.false_eq_true, ↓reduceIte, BitVec.ofNat_add]
+        bv_omega
+
+/-- **A kernel's HALT in a W^X box is the trap the monitor is proved from.** As `wx_run_in_box`, and the next Tier 1
+step halts with `code`, its `ecall` in the code: `n + 1` Tier 2 steps reach the trap vector in M-mode, cause 8, `mepc`
+at the `ecall`, the registers and memory the kernel's HALT left, the CSRs the monitor set kept and both counters up
+by `n + 1`; no port touched. -/
+theorem wx_halt_in_box (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩ env.region)
+    (n : Nat) (s : PrivMachine) {c c' : Machine} {code : Word} (hB : WXBoxed s cLo cHi dLo dHi kLo kHi)
+    (hinh : s.csrs.mcountinhibit = {})
+    (hr : run (boxEnv env lo hi) n s.core = .running c)
+    (hh : run (boxEnv env lo hi) (n + 1) s.core = .halted code c')
+    (hq : ∀ i < n, ∀ m, run (boxEnv env lo hi) i s.core = .running m →
+      (decode (fetched m) = some .ecall → m.reg T0 = 1) ∧ WxOk cLo cHi dLo dHi kLo kHi m)
+    (hc : cLo ≤ c.pc.toNat ∧ c.pc.toNat + 4 ≤ cHi) :
+    (PrivMachine.run env (n + 1) s).mode = .M ∧ (PrivMachine.run env (n + 1) s).halted = false ∧
+    (PrivMachine.run env (n + 1) s).core.pc = s.csrs.mtvec &&& ~~~3#32 ∧
+    (∀ r, (PrivMachine.run env (n + 1) s).core.reg r = c.reg r) ∧
+    (PrivMachine.run env (n + 1) s).core.mem = c.mem ∧
+    c.reg T0 = 1 ∧ c.reg A0 = code ∧ c' = c ∧
+    (PrivMachine.run env (n + 1) s).csrs.mcause = CAUSE_ECALL_UMODE ∧
+    (PrivMachine.run env (n + 1) s).csrs.mepc = c.pc ∧
+    KeptCsrs s.csrs (PrivMachine.run env (n + 1) s).csrs ∧
+    (PrivMachine.run env (n + 1) s).csrs.minstret = s.csrs.minstret + BitVec.ofNat 32 (n + 1) ∧
+    (PrivMachine.run env (n + 1) s).csrs.mcycle = s.csrs.mcycle + BitVec.ofNat 32 (n + 1) ∧
+    (PrivMachine.run env (n + 1) s).io = s.io ∧ (PrivMachine.run env (n + 1) s).host = s.host := by
+  have hstep : step (boxEnv env lo hi) c = .halted code c' := by
+    rw [run_add_running hr] at hh
+    simp only [run] at hh
+    revert hh
+    cases step (boxEnv env lo hi) c <;> simp
+  obtain ⟨hd, h1, h0, hc', -, -⟩ := step_halted hstep
+  obtain ⟨r1, r2, r3, r4, r5, r6, r7⟩ := wx_run_in_box env hReg n s c hB hinh hr hq
+  rw [PrivMachine.run_add, show PrivMachine.run env 1 (PrivMachine.run env n s) =
+    PrivMachine.step env (PrivMachine.run env n s) from run_succ_step env 0 _ r2.notHalted]
+  have hd' : decode (fetched (PrivMachine.run env n s).core) = some .ecall := by rw [r1]; exact hd
+  rw [wx_ecall_trap env _ r2 hd' (by rw [r1]; exact hc)]
+  have hk : KeptCsrs (PrivMachine.run env n s).csrs (raiseTrap (PrivMachine.run env n s) CAUSE_ECALL_UMODE).csrs :=
+    kept_trap _ _
+  have hinhn : (PrivMachine.run env n s).csrs.mcountinhibit = {} := by rw [r3.2.2.2.2.2.2.2]; exact hinh
+  refine ⟨rfl, r2.notHalted, ?_, fun r => ?_, ?_, h1, h0, hc', rfl, by simp [raiseTrap, bumpCounters, r1],
+    r3.trans hk, ?_, ?_, by simp [raiseTrap, r6], by simp [raiseTrap, r7]⟩
+  · simp only [raiseTrap]; rw [r3.1]
+  · simp only [raiseTrap]; rw [r1]; rfl
+  · simp only [raiseTrap]; rw [r1]
+  · simp only [raiseTrap, bumpCounters, hinhn, Bool.false_eq_true, ↓reduceIte, r4, BitVec.ofNat_add]
+    bv_omega
+  · simp only [raiseTrap, bumpCounters, hinhn, Bool.false_eq_true, ↓reduceIte, r5, BitVec.ofNat_add]
+    bv_omega
+
+/-- **What `Reach` gives a W^X box.** A `Good` state of a kernel whose instructions lie in the code, whose load
+window is readable and whose store window is writable, takes a step the box lets through. -/
+theorem wxOk_of_good {env : Env} {base : Word} {prog : List Instr} {lw sw : Nat × Nat} {m : Machine}
+    (hfit : base.toNat + 0x10000 ≤ 2^32) (hg : Reach.Good env base prog lw sw m)
+    (hc : cLo ≤ base.toNat ∧ base.toNat + 4 * prog.length ≤ cHi) (hlen : 4 * prog.length < 0x10000)
+    (hl : lw.2 ≤ 0x10000 ∧ ∀ o w, lw.1 ≤ o → o + w ≤ lw.2 → 0 < w →
+      WxReadable cLo cHi dLo dHi kLo kHi (base.toNat + o) w)
+    (hs : sw.2 ≤ 0x10000 ∧ ∀ o w, sw.1 ≤ o → o + w ≤ sw.2 → 0 < w →
+      WxWritable cLo cHi dLo dHi kLo kHi (base.toNat + o) w) :
+    WxOk cLo cHi dLo dHi kLo kHi m := by
+  obtain ⟨k, hk, hpc, hcode, -, hT, -⟩ := hg
+  have hpcn : m.pc.toNat = base.toNat + 4 * k := by rw [hpc]; exact toNat_off hfit _ (by omega)
+  have hdec : decode (fetched m) = some prog[k] := by
+    simp only [fetched]
+    rw [hpc, hcode k hk, BitVec.ofNat_toNat, BitVec.setWidth_eq, decode_encode]
+  refine ⟨by omega, ?_⟩
+  rw [hdec]
+  cases hi : prog[k] with
+  | ld op rd r1 imm =>
+    rw [hi] at hT
+    obtain ⟨o, o1, o2, e⟩ := hT
+    have hsz : 0 < op.size := by cases op <;> decide
+    dsimp only
+    rw [e, toNat_off hfit o (by omega)]
+    exact hl.2 o op.size o1 o2 hsz
+  | st op r1 r2 imm =>
+    rw [hi] at hT
+    obtain ⟨o, o1, o2, e⟩ := hT
+    have hsz : 0 < op.size := by cases op <;> decide
+    dsimp only
+    rw [e, toNat_off hfit o (by omega)]
+    exact hs.2 o op.size o1 o2 hsz
+  | _ => trivial
+
+end
+
 end Rv32.Join
 
 #print axioms Rv32.Join.run_in_box
@@ -535,3 +744,7 @@ end Rv32.Join
 #print axioms Rv32.Join.step_boxEq
 #print axioms Rv32.Join.plain_in_box
 #print axioms Rv32.Join.quiet_of_good
+#print axioms Rv32.Join.wx_plain
+#print axioms Rv32.Join.wx_run_in_box
+#print axioms Rv32.Join.wx_halt_in_box
+#print axioms Rv32.Join.wxOk_of_good

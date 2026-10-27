@@ -200,6 +200,37 @@ theorem wx_store_allowed_stack (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (a : Wor
   have hnk : ¬ (a.toNat + w ≤ kLo ∨ kHi ≤ a.toNat) := by omega
   simp [hc, hd, hnk, hk]
 
+/-- `[a, a + w)` is one a store may touch: wholly outside the code, and wholly inside the data, or wholly outside the
+    data and inside the stack. -/
+def WxWritable (cLo cHi dLo dHi kLo kHi a w : Nat) : Prop :=
+  (a + w ≤ cLo ∨ cHi ≤ a) ∧ ((dLo ≤ a ∧ a + w ≤ dHi) ∨ ((a + w ≤ dLo ∨ dHi ≤ a) ∧ kLo ≤ a ∧ a + w ≤ kHi))
+
+/-- `[a, a + w)` is one a load may touch: wholly inside the code, or one a store may touch. -/
+def WxReadable (cLo cHi dLo dHi kLo kHi a w : Nat) : Prop :=
+  (cLo ≤ a ∧ a + w ≤ cHi) ∨ WxWritable cLo cHi dLo dHi kLo kHi a w
+
+/-- **Every store `WxWritable` names passes.** -/
+theorem wx_store_allowed (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (a : Word) (w : Nat)
+    (h : WxWritable cLo cHi dLo dHi kLo kHi a.toNat w) (hw : 0 < w) :
+    pmpCheck s.csrs s.mode a w .Store = true := by
+  obtain ⟨hc, hd | ⟨hd, hk⟩⟩ := h
+  · exact wx_store_allowed_data hB a w hc hd hw
+  · exact wx_store_allowed_stack hB a w hc hd hk hw
+
+/-- **Every load `WxReadable` names passes.** -/
+theorem wx_load_allowed (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (a : Word) (w : Nat)
+    (h : WxReadable cLo cHi dLo dHi kLo kHi a.toNat w) (hw : 0 < w) :
+    pmpCheck s.csrs s.mode a w .Load = true := by
+  rw [wx_check hB]
+  simp only [hasPermission, wxCodeCfg, wxDataCfg]
+  unfold WxReadable WxWritable at h
+  by_cases h0 : a.toNat + w ≤ cLo ∨ cHi ≤ a.toNat <;>
+  by_cases f0 : cLo ≤ a.toNat ∧ a.toNat + w ≤ cHi <;>
+  by_cases h1 : a.toNat + w ≤ dLo ∨ dHi ≤ a.toNat <;>
+  by_cases f1 : dLo ≤ a.toNat ∧ a.toNat + w ≤ dHi <;>
+  by_cases f2 : kLo ≤ a.toNat ∧ a.toNat + w ≤ kHi <;>
+  simp [h0, f0, h1, f1, f2] <;> omega
+
 /-- **No byte is both writable and executable.** A fetch and a store that pass the PMP touch disjoint bytes. -/
 theorem wx_disjoint (hB : WXBoxed s cLo cHi dLo dHi kLo kHi) (f g : Word) (nf ng : Nat) (hnf : 0 < nf)
     (hF : pmpCheck s.csrs s.mode f nf .Fetch = true) (hS : pmpCheck s.csrs s.mode g ng .Store = true) :
