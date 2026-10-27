@@ -331,7 +331,7 @@ local macro "bnd" : tactic => `(tactic| ((try simp only [PRF, BUF, ENDS, TREE, S
 
 /-- **One chain**: 71 instructions — the secret, HASH of the seed, `l` and
 `i`; 15 steps along its chain, in place; its end after the ones before. -/
-theorem chain_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem chain_iter {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {l i : Nat} (hl : l < 16) (hi : i < 67) {s : Machine}
     (h : CInv env.hash base m0 l i s) :
     ∃ s', run env 71 s = .running s' ∧ CInv env.hash base m0 l (i + 1) s' := by
@@ -515,7 +515,7 @@ theorem chain_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word �
     exact pc_next fit 85 (by decide)
 
 /-- 67 chains, by induction: after `j` of them, the invariant holds for `j`. -/
-theorem chain_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem chain_loop {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {l : Nat} (hl : l < 16) {s : Machine} (h : CInv env.hash base m0 l 0 s) :
     ∀ j ≤ 67, ∃ s', run env (71 * j) s = .running s' ∧ CInv env.hash base m0 l j s' := by
   intro j hj
@@ -581,7 +581,7 @@ theorem leaf_start {env : Env} {base : Word} (hp : Placed env base) {m0 : Word �
 
 /-- Ten instructions after the 67th chain: the leaf, HASH of the 2176 bytes of
 ends and zeros, into the tree; and on to the next. -/
-theorem leaf_end {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem leaf_end {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {l : Nat} (hl : l < 16) {s : Machine} (h : CInv env.hash base m0 l 67 s) :
     ∃ s', run env 10 s = .running s' ∧ LInv env.hash base m0 (l + 1) s' := by
   have fit := hp.fit
@@ -703,7 +703,7 @@ theorem leaf_end {env : Env} {base : Word} (hp : Placed env base) {m0 : Word →
     exact pc_next fit 95 (by decide)
 
 /-- **One leaf**: `3 + 67 · 71 + 10 = 4770` instructions. -/
-theorem leaf_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem leaf_iter {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {l : Nat} (hl : l < 16) {s : Machine} (h : LInv env.hash base m0 l s) :
     ∃ s', run env 4770 s = .running s' ∧ LInv env.hash base m0 (l + 1) s' := by
   obtain ⟨s1, e1, h1⟩ := leaf_start hp hc0 hl h
@@ -711,7 +711,7 @@ theorem leaf_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word �
   obtain ⟨s3, e3, h3⟩ := leaf_end hp hc0 hl h2
   exact ⟨s3, by rw [show 4770 = 3 + (71 * 67 + 10) by rfl, run_add_running e1, run_add_running e2, e3], h3⟩
 
-theorem leaf_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem leaf_loop {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {s : Machine} (h : LInv env.hash base m0 0 s) :
     ∀ j ≤ 16, ∃ s', run env (4770 * j) s = .running s' ∧ LInv env.hash base m0 j s' := by
   intro j hj
@@ -770,7 +770,7 @@ theorem to_tree {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → 
 
 /-- **One tree step**: five instructions, and node `16 + t` is HASH of nodes
 `2t` and `2t + 1`. -/
-theorem tree_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem tree_iter {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {t : Nat} (ht : t < 15) {s : Machine} (h : TInv env.hash base m0 t s) :
     ∃ s', run env 5 s = .running s' ∧ TInv env.hash base m0 (t + 1) s' := by
   have fit := hp.fit
@@ -862,7 +862,7 @@ theorem tree_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word �
     simp only [hl', ↓reduceIte, next_pc, q4]
     exact pc_next fit 104 (by decide)
 
-theorem tree_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem tree_loop {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {s : Machine} (h : TInv env.hash base m0 0 s) :
     ∀ j ≤ 15, ∃ s', run env (5 * j) s = .running s' ∧ TInv env.hash base m0 j s' := by
   intro j hj
@@ -878,7 +878,7 @@ theorem tree_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word �
 /-- Everything up to the `ecall` that halts: 76455 instructions, whatever the
 seed; then HALT with 0, the whole tree written, nothing outside the two
 places changed. -/
-theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s1 s2, run env 76455 s = .running s1 ∧ run env 1 s1 = .halted 0 s2
       ∧ Out base s.mem s2.mem
@@ -917,7 +917,7 @@ every seed — having written the tree of the seed at `0x3000`: node `n` the
 reference's `flat n`, for all 31. Nothing outside the PRF input and chain
 buffer (`0x1040`, 128 bytes) and the ends and tree (`0x2000` to `0x33e0`)
 changes; the seed is outside both. -/
-theorem generates {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem generates {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     (∃ s1, run env 76455 s = .running s1) ∧
     ∃ s', run env 76456 s = .halted 0 s' ∧ Out base s.mem s'.mem

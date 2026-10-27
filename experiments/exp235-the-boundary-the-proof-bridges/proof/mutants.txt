@@ -18,7 +18,7 @@ csr_umode_permitted|the model lets U-mode execute Zicsr instead of trapping|/^de
 mret_umode_permitted|the model lets U-mode execute MRET instead of trapping|/^def execMret/,/^  else/ s/if s.mode ≠ .M then/if False then/|lean/Rv32/Priv.lean
 off_entry_matches|the model lets a PMP entry that is OFF match every access|s/if cfg.mode = .OFF then .NoMatch/if cfg.mode = .OFF then .FullMatch cfg/|lean/Rv32/Priv.lean
 minstret_counted_twice|the model counts two instructions per step in minstret|s/csrs.minstret + 1 }/csrs.minstret + 2 }/|lean/Rv32/Priv.lean
-step_drops_core_update|a safe step leaves the Tier 1 core as it was|/^def PrivMachine.step/,/^def PrivMachine.run/ s/{ s with core := core', csrs := csrs' }/{ s with csrs := csrs' }/|lean/Rv32/Priv.lean
-step_escalates_to_mmode|a safe step leaves the machine in M-mode|/^def PrivMachine.step/,/^def PrivMachine.run/ s/{ s with core := core', csrs := csrs' }/{ s with mode := .M, core := core', csrs := csrs' }/|lean/Rv32/Priv.lean
+step_drops_core_update|a safe step leaves the Tier 1 core as it was|/^def PrivMachine.step/,/^def PrivMachine.run/ s/{ s with core := portRead s core' instr, csrs := csrs', io := s.io ++ portWrites s instr }/{ s with csrs := csrs', io := s.io ++ portWrites s instr }/|lean/Rv32/Priv.lean
+step_escalates_to_mmode|a safe step leaves the machine in M-mode|/^def PrivMachine.step/,/^def PrivMachine.run/ s/{ s with core := portRead s core' instr, csrs := csrs', io := s.io ++ portWrites s instr }/{ s with mode := .M, core := portRead s core' instr, csrs := csrs', io := s.io ++ portWrites s instr }/|lean/Rv32/Priv.lean
 unimplemented_csr_accepted|the model lets an M-mode access to a CSR it does not have go through|s/!csrImplemented (w >>> 20) ||/false ||/|lean/Rv32/Priv.lean
 readonly_csr_written|the model lets an M-mode write to a read-only CSR go through|s/(csrWrites w && csrReadOnly (w >>> 20))/false/|lean/Rv32/Priv.lean

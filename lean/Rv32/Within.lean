@@ -27,7 +27,7 @@ variable {env env' : Env}
 
 /-- One instruction: what a smaller region lets go on, or halt, a larger one
 lets go on or halt the same way. -/
-theorem step_within (hh : env.hash = env'.hash ∧ env.sig = env'.sig) (hr : env.region.within env'.region) {s : Machine} :
+theorem step_within (hh : env.hash = env'.hash ∧ env.sig = env'.sig ∧ env.servesHash = env'.servesHash) (hr : env.region.within env'.region) {s : Machine} :
     (∀ s', step env s = .running s' → step env' s = .running s') ∧
     (∀ c s', step env s = .halted c s' → step env' s = .halted c s') := by
   have fetch_eq : ∀ i, fetch env s = .ok i → fetch env' s = .ok i := by
@@ -67,7 +67,8 @@ theorem step_within (hh : env.hash = env'.hash ∧ env.sig = env'.sig) (hr : env
         · simp only [eq_false ha, eq_true hok, ↓reduceIte]; exact ⟨nofun, nofun⟩
     | ecall =>
       simp only [exec, syscall]
-      by_cases h0 : s.reg T0 = 0
+      rw [← hh.2.2]
+      by_cases h0 : s.reg T0 = 0 ∧ env.servesHash = true
       · by_cases hargs : (s.reg A1).toNat % 64 = 0 ∧ (s.reg A0).toNat % 4 = 0 ∧ (s.reg A2).toNat % 4 = 0
             ∧ env.region.ok (s.reg A0) (s.reg A1).toNat ∧ env.region.ok (s.reg A2) 32
         · have hargs' : (s.reg A1).toNat % 64 = 0 ∧ (s.reg A0).toNat % 4 = 0 ∧ (s.reg A2).toNat % 4 = 0
@@ -78,7 +79,8 @@ theorem step_within (hh : env.hash = env'.hash ∧ env.sig = env'.sig) (hr : env
           exact ⟨fun _ h => h, fun _ _ h => h⟩
         · simp only [h0, ↓reduceIte, hargs]
           exact ⟨nofun, nofun⟩
-      · by_cases h1 : s.reg T0 = 1
+      · simp only [h0, ↓reduceIte]
+        by_cases h1 : s.reg T0 = 1
         · simp only [h1, ↓reduceIte]
           exact ⟨fun _ h => h, fun _ _ h => h⟩
         · by_cases h2 : s.reg T0 = 2
@@ -93,18 +95,18 @@ theorem step_within (hh : env.hash = env'.hash ∧ env.sig = env'.sig) (hr : env
             · by_cases hargs : env.region.ok (s.reg A0) 32 ∧ env.region.ok (s.reg A1) 64
               · have hargs' : env'.region.ok (s.reg A0) 32 ∧ env'.region.ok (s.reg A1) 64 :=
                   ⟨Region.ok_within hr hargs.1, Region.ok_within hr hargs.2⟩
-                simp only [h3, ↓reduceIte, hargs, hargs', hh.2, and_self]
+                simp only [h3, ↓reduceIte, hargs, hargs', hh.2.1, and_self]
                 exact ⟨fun _ h => h, fun _ _ h => h⟩
               · simp only [h3, ↓reduceIte, hargs]
                 exact ⟨nofun, nofun⟩
-            · simp only [h0, h1, h2, h3, ↓reduceIte]
+            · simp only [h1, h2, h3, ↓reduceIte]
               exact ⟨nofun, nofun⟩
     | _ => simp [exec]
 
 /-- **A run inside a smaller region**: a run that is still going, or has
 halted, after `n` instructions with `env`'s region does the same, to the same
 machine, with any region holding it. -/
-theorem run_within (hh : env.hash = env'.hash ∧ env.sig = env'.sig) (hr : env.region.within env'.region) :
+theorem run_within (hh : env.hash = env'.hash ∧ env.sig = env'.sig ∧ env.servesHash = env'.servesHash) (hr : env.region.within env'.region) :
     ∀ (n : Nat) (s : Machine),
       (∀ s', run env n s = .running s' → run env' n s = .running s') ∧
       (∀ c s', run env n s = .halted c s' → run env' n s = .halted c s') := by
@@ -153,12 +155,12 @@ theorem within (hw : Wide env base) : (low env base).region.within env.region :=
 
 /-- A run in the first 64 KiB that is still going is the same run in the 128. -/
 theorem running (hw : Wide env base) {n : Nat} {s s' : Machine} (h : run (low env base) n s = .running s') :
-    run env n s = .running s' := (run_within (env := low env base) (env' := env) ⟨rfl, rfl⟩ hw.within n s).1 s' h
+    run env n s = .running s' := (run_within (env := low env base) (env' := env) ⟨rfl, rfl, rfl⟩ hw.within n s).1 s' h
 
 /-- And one that halted. -/
 theorem halted (hw : Wide env base) {n : Nat} {c : Word} {s s' : Machine}
     (h : run (low env base) n s = .halted c s') : run env n s = .halted c s' :=
-  (run_within (env := low env base) (env' := env) ⟨rfl, rfl⟩ hw.within n s).2 c s' h
+  (run_within (env := low env base) (env' := env) ⟨rfl, rfl, rfl⟩ hw.within n s).2 c s' h
 
 end Wide
 

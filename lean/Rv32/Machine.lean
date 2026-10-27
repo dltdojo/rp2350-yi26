@@ -61,11 +61,20 @@ instance (r : Region) (a : Word) (n : Nat) : Decidable (r.ok a n) := by
   unfold Region.ok; infer_instance
 
 /-- The world outside the kernel: its region, the function `HASH` stands for,
-and what `CHECKSIG` answers for a public key and a signature. -/
+what `CHECKSIG` answers for a public key and a signature, and whether its shell
+serves the first call, `HASH` of whole 64-byte blocks (`t0 = 0`). The shells of
+exp201 on do; exp238's monitor does not, and serves `HALT`, `HASHB` and
+`CHECKSIG` only. A world that does not serve a call faults on it. -/
 structure Env where
   region : Region
   hash   : List Byte → Fin 32 → Byte
   sig    : List Byte → List Byte → Bool := fun _ _ => false
+  servesHash : Bool := true
+
+/-- A world whose shell serves `HASH` (`t0 = 0`): what a proof that calls it asks
+of its world, as an instance, so that the proofs it stands on need not pass it on. -/
+class Serves (env : Env) : Prop where
+  hash : env.servesHash = true
 
 inductive Fault
   | fetchMisaligned | fetchAccess | illegal (w : Word)
@@ -206,7 +215,7 @@ def A2 : Reg := 12
 /-- The two system calls. -/
 def syscall (env : Env) (s : Machine) : Outcome :=
   let t0 := s.reg T0
-  if t0 = 0 then
+  if t0 = 0 ∧ env.servesHash = true then
     let src := s.reg A0
     let len := (s.reg A1).toNat
     let dst := s.reg A2

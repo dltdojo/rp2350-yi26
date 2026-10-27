@@ -292,7 +292,7 @@ def WinIn (base : Word) (w : Nat × Nat) (r : Region) : Prop :=
   r.lo ≤ base.toNat + w.1 ∧ base.toNat + w.2 ≤ r.hi
 
 /-- **A `Good` step is the same step in a wider region.** -/
-theorem step_same {env env' : Env} (hh : env.hash = env'.hash ∧ env.sig = env'.sig)
+theorem step_same {env env' : Env} (hh : env.hash = env'.hash ∧ env.sig = env'.sig ∧ env.servesHash = env'.servesHash)
     (hr : env.region.within env'.region) {base : Word} {prog : List Instr} (hp : Hosted env base prog.length)
     (hlen : 4 * prog.length < 0x10000) {lw sw : Nat × Nat} (hlw : WinIn base lw env.region)
     (hsw : WinIn base sw env.region) (hl : lw.2 ≤ 0x10000) (hs : sw.2 ≤ 0x10000)

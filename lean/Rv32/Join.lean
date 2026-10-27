@@ -135,14 +135,15 @@ theorem step_halted {env : Env} {m m' : Machine} {code : Word} (h : step env m =
     by_cases hi : i = .ecall
     · subst hi
       simp only [exec, syscall] at h
-      by_cases h0 : m.reg T0 = 0
-      · simp only [h0, ↓reduceIte] at h
+      by_cases h0 : m.reg T0 = 0 ∧ env.servesHash = true
+      · simp only [h0, and_self, ↓reduceIte] at h
         split at h <;> cases h
+      simp only [h0, ↓reduceIte] at h
       by_cases h1 : m.reg T0 = 1
       · simp only [h1, ↓reduceIte] at h
         injection h with e1 e2
         exact ⟨rfl, h1, e1, e2.symm, by omega, hok⟩
-      simp only [h0, h1, ↓reduceIte] at h
+      simp only [h1, ↓reduceIte] at h
       repeat' split at h
       all_goals cases h
     · exact absurd h (exec_no_halt hi)
@@ -214,7 +215,7 @@ theorem run_in_box (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩ 
         step_not_running hd (hq 0 (by omega) s.core rfl hd) hs
       have hSafe := safe_of_step hs hne
       have hs' : step env s.core = .running c1 :=
-        (step_within (env := boxEnv env lo hi) (env' := env) ⟨rfl, rfl⟩ hReg).1 c1 hs
+        (step_within (env := boxEnv env lo hi) (env' := env) ⟨rfl, rfl, rfl⟩ hReg).1 c1 hs
       obtain ⟨hcore1, hBox1, hcsrs1⟩ := step_simulates_running env s lo hi hBox hSafe hReg' hs'
       obtain ⟨i, hdec, hstep⟩ := PrivMachine.step_eq_of_safe env s lo hi hBox hSafe
       obtain ⟨i', hdec', hex⟩ := tier1_step_eq_exec env s lo hi hSafe hReg'
@@ -338,9 +339,65 @@ theorem quiet_of_good {env : Env} {base : Word} {prog : List Instr} {lw sw : Nat
   rw [this] at hd
   exact Option.some.inj hd
 
+/-! ## The calls a halted run made
+
+A step that faults ends the run there: `run` does not go on from a fault. So a run that halted faulted
+nowhere on the way, and every `ecall` it made was one its world serves, with its arguments as that world
+asks for them. In a world that does not serve `HASH` (`t0 = 0`), that is `HALT`, `HASHB` or `CHECKSIG`
+with its ranges in the region: the three exp238's monitor serves. A kernel proved for every world is
+proved for that one. -/
+
+/-- **A run that halted faulted nowhere before.** -/
+theorem step_not_fault_of_halted {env : Env} {n i : Nat} {s m s' : Machine} {c : Word}
+    (h : run env n s = .halted c s') (hi : i < n) (hm : run env i s = .running m) :
+    ∀ f t, step env m ≠ .fault f t := by
+  intro f t hf
+  have e : run env (i + (n - i)) s = run env (n - i) m := run_add_running hm
+  rw [Nat.add_sub_cancel' (by omega), h] at e
+  obtain ⟨k, hk⟩ : ∃ k, n - i = k + 1 := ⟨n - i - 1, by omega⟩
+  rw [hk] at e
+  simp [run, hf] at e
+
+/-- **A halted run made only the calls its world serves.** In a world that does not serve `HASH`, every
+`ecall` a run that halted made on the way was `HALT`, or `HASHB` or `CHECKSIG` with its ranges in the
+region. -/
+theorem calls_of_halted {env : Env} (hs : env.servesHash = false) {n : Nat} {s s' : Machine} {c : Word}
+    (h : run env n s = .halted c s') :
+    ∀ i < n, ∀ m, run env i s = .running m → decode (fetched m) = some .ecall →
+      m.reg T0 = 1 ∨
+      (m.reg T0 = 2 ∧ env.region.ok (m.reg A0) (m.reg A1).toNat ∧ env.region.ok (m.reg A2) 32) ∨
+      (m.reg T0 = 3 ∧ env.region.ok (m.reg A0) 32 ∧ env.region.ok (m.reg A1) 64) := by
+  intro i hi m hm hd
+  have hnf := step_not_fault_of_halted h hi hm
+  unfold step fetch at hnf
+  by_cases hal : m.pc.toNat % 4 ≠ 0
+  · exact absurd (hnf .fetchMisaligned m) (by simp [hal])
+  by_cases hok : env.region.ok m.pc 4
+  case neg => exact absurd (hnf .fetchAccess m) (by simp [hal, hok])
+  simp only [hal, hok, not_true_eq_false, ↓reduceIte] at hnf
+  simp only [fetched] at hd
+  rw [hd] at hnf
+  simp only [exec, syscall] at hnf
+  by_cases h1 : m.reg T0 = 1
+  · exact Or.inl h1
+  by_cases h2 : m.reg T0 = 2
+  · by_cases ha : env.region.ok (m.reg A0) (m.reg A1).toNat ∧ env.region.ok (m.reg A2) 32
+    · exact Or.inr (Or.inl ⟨h2, ha⟩)
+    · exact absurd (hnf .hashArgs m) (by simp [h2, ha])
+  by_cases h3 : m.reg T0 = 3
+  · by_cases ha : env.region.ok (m.reg A0) 32 ∧ env.region.ok (m.reg A1) 64
+    · exact Or.inr (Or.inr ⟨h3, ha⟩)
+    · exact absurd (hnf .sigArgs m) (by simp [h3, ha])
+  · have c0 : ¬ (m.reg T0 = 0 ∧ env.servesHash = true) := by simp [hs]
+    refine absurd (hnf .unknownCall m) ?_
+    rw [ite_eq_right_of_eq_false _ _ (eq_false c0), ite_eq_right_of_eq_false _ _ (eq_false h1),
+      ite_eq_right_of_eq_false _ _ (eq_false h2), ite_eq_right_of_eq_false _ _ (eq_false h3)]
+    simp
+
 end Rv32.Join
 
 #print axioms Rv32.Join.run_in_box
 #print axioms Rv32.Join.halt_in_box
 #print axioms Rv32.Join.quiet_of_ct
+#print axioms Rv32.Join.calls_of_halted
 #print axioms Rv32.Join.quiet_of_good

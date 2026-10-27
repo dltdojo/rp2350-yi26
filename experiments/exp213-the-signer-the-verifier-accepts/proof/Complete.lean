@@ -89,7 +89,7 @@ it, the same seed, the tree the key generator left at `0x3000` copied to
 and the signer's region from `0x1000` to `0x4100` — the message, the index,
 the signature, the path, the root. The verifier halts with 0: it accepts. And
 each step takes exactly the count its own theorem gives. -/
-theorem keygen_sign_verify {env : Env} {base : Word} (hp : Placed env base)
+theorem keygen_sign_verify {env : Env} {base : Word} (hp : Placed env base) [Serves env]
     (k : Machine) (hkpc : k.pc = base) (hkc : CodeAt k.mem base Keygen.kernel) :
     ∃ kf, run env 76456 k = .halted 0 kf ∧
     ∀ s : Machine, s.pc = base → CodeAt s.mem base Sign.kernel →
@@ -176,7 +176,7 @@ same seed, the tree it left, and an index below 16, the signer halts with 0.
 Given a verifying image holding what the signer left from `0x1000` to
 `0x4100`, the verifier halts with 0: **it accepts what the signer signed** —
 for every seed, message and index, and every HASH. -/
-theorem three_binaries {env : Env} {base : Word} (hp : Placed env base)
+theorem three_binaries {env : Env} {base : Word} (hp : Placed env base) [Serves env]
     (imgK : ByteArray) (hK : 432 ≤ imgK.size) (hKb : ∀ d (h : d < 432), imgK.get d (by omega) = Keygen.bytes.getD d 0) :
     ∃ kf, run env 76456 (boot env.region imgK) = .halted 0 kf ∧
     ∀ imgS : ByteArray, (hS : 620 ≤ imgS.size) → (∀ d (h : d < 620), imgS.get d (by omega) = Sign.bytes.getD d 0) →

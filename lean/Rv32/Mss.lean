@@ -266,7 +266,7 @@ structure CInv (H : List Byte → Fin 32 → Byte) (base : Word) (m0 : Word → 
 
 /-- **One chain**: `40 + 3 (15 - dᵢ)` instructions — the copy, the walk, its
 end stored at `KEY + 32 i`, and on to the next. -/
-theorem chain_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem chain_iter {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {i : Nat} (hi : i < 67) {s : Machine} (h : CInv env.hash base m0 i s) :
     ∃ s', run env (40 + 3 * (15 - digit m0 base i)) s = .running s' ∧ CInv env.hash base m0 (i + 1) s' := by
   have fit := hp.fit
@@ -409,7 +409,7 @@ theorem loopCount_eq (m : Word → Byte) (base : Word) (n : Nat) :
     rw [ih]; omega
 
 /-- 67 chains, by induction: after `j` of them, the invariant holds for `j`. -/
-theorem chain_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem chain_loop {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {s : Machine} (h : CInv env.hash base m0 0 s) :
     ∀ j ≤ 67, ∃ s', run env (loopCount m0 base j) s = .running s' ∧ CInv env.hash base m0 j s' := by
   intro j hj
@@ -538,7 +538,7 @@ theorem leaf_input {H : List Byte → Fin 32 → Byte} {base : Word} (hfit : bas
 
 /-- Eight instructions of padding, six for the leaf, seven to start the
 climb: from the end of the chains to the invariant for level 0. -/
-theorem to_tree {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem to_tree {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {s : Machine} (h : CInv env.hash base m0 67 s) :
     ∃ s', run env 21 s = .running s' ∧ LInv env.hash base m0 0 s' := by
   have fit := hp.fit
@@ -682,7 +682,7 @@ theorem idx_lt (m : Word → Byte) (base : Word) : idx m base < 256 := (m (base 
 /-- **One level**: 43 instructions, from the invariant for `k` to the
 invariant for `k + 1` — the node and the path's node put in order by bit `k`
 of the index, with no branch, then HASH of the two into the node. -/
-theorem level_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem level_iter {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {k : Nat} (hk : k < 4) {s : Machine} (h : LInv env.hash base m0 k s) :
     ∃ s', run env 43 s = .running s' ∧ LInv env.hash base m0 (k + 1) s' := by
   have fit := hp.fit
@@ -902,7 +902,7 @@ theorem level_iter {env : Env} {base : Word} (hp : Placed env base) {m0 : Word �
     exact pc_next fit 152 (by decide)
 
 /-- Four levels, by induction: after `j` of them, the invariant holds for `j`. -/
-theorem level_loop {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byte}
+theorem level_loop {env : Env} {base : Word} (hp : Placed env base) [Serves env] {m0 : Word → Byte}
     (hc0 : CodeAt m0 base kernel) {s : Machine} (h : LInv env.hash base m0 0 s) :
     ∀ j ≤ 4, ∃ s', run env (43 * j) s = .running s' ∧ LInv env.hash base m0 j s' := by
   intro j hj
@@ -977,7 +977,7 @@ theorem halt {env : Env} {base : Word} (hp : Placed env base) {m0 : Word → Byt
 /-! ## The whole kernel -/
 
 /-- Everything up to the `ecall` that halts: `3294 + 3 · steps` instructions. -/
-theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem to_the_ecall {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s1 s2, run env (3294 + 3 * steps s.mem base) s = .running s1
       ∧ run env 1 s1 = .halted (if Verifies env.hash s.mem base then 0 else 1) s2
@@ -1020,7 +1020,7 @@ writes nothing outside its two places: the `0x900` bytes from `KEY` and the
 131 of scratch. It takes `3295 + 3 · steps` instructions, where
 `steps = Σ (15 - dᵢ)` is the number of HASH calls the chains make; the leaf
 and the tree add five more, which cost no extra instructions in the count. -/
-theorem verifies {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem verifies {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s', run env (3295 + 3 * steps s.mem base) s
         = .halted (if Verifies env.hash s.mem base then 0 else 1) s'
@@ -1031,7 +1031,7 @@ theorem verifies {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
 
 /-- **And in exactly that many.** After one fewer it is still running, for
 every input: the count is not a bound. -/
-theorem exactly {env : Env} {base : Word} (hp : Placed env base) (s : Machine)
+theorem exactly {env : Env} {base : Word} (hp : Placed env base) [Serves env] (s : Machine)
     (hpc : s.pc = base) (hcode : CodeAt s.mem base kernel) :
     ∃ s1, run env (3294 + 3 * steps s.mem base) s = .running s1 := by
   obtain ⟨s1, -, e, -, -⟩ := to_the_ecall hp s hpc hcode
@@ -1056,7 +1056,7 @@ theorem code_of_image {base : Word} (hfit : base.toNat + 0x10000 ≤ 2^32) (img 
 
 /-- **From the state the shell builds**: any image that begins with the
 kernel's 752 bytes. -/
-theorem from_boot {env : Env} {base : Word} (hp : Placed env base) (img : ByteArray)
+theorem from_boot {env : Env} {base : Word} (hp : Placed env base) [Serves env] (img : ByteArray)
     (hsize : 752 ≤ img.size) (himg : ∀ d (h : d < 752), img.get d (by omega) = bytes.getD d 0) :
     (∃ s1, run env (3294 + 3 * steps (memOfImage base img) base) (boot env.region img) = .running s1) ∧
     ∃ s', run env (3295 + 3 * steps (memOfImage base img) base) (boot env.region img)
@@ -1194,7 +1194,7 @@ theorem accepts_signed (H : List Byte → Fin 32 → Byte) (m : Word → Byte) (
 /-- **Completeness, on the bytes.** The kernel, run from the state the shell
 builds on such an image, halts with 0 — accept — after exactly
 `3295 + 3 · steps` instructions. -/
-theorem signed_halts_with_zero {env : Env} {base : Word} (hp : Placed env base) (img : ByteArray)
+theorem signed_halts_with_zero {env : Env} {base : Word} (hp : Placed env base) [Serves env] (img : ByteArray)
     (hsize : 752 ≤ img.size) (himg : ∀ d (h : d < 752), img.get d (by omega) = bytes.getD d 0)
     (seed : List Byte) {l : Nat} (hl : l < 16) (hidx : idx (memOfImage base img) base % 16 = l)
     (hsig : ∀ i < 67, sigAt (memOfImage base img) base i

@@ -77,7 +77,7 @@ theorem within1 (hw : Wide env base) : (env1 env base).region.within env.region 
 
 theorem halted1 (hw : Wide env base) {n : Nat} {c : Word} {s s' : Machine}
     (h : run (env1 env base) n s = .halted c s') : run env n s = .halted c s' :=
-  (run_within (env := env1 env base) (env' := env) ⟨rfl, rfl⟩ (within1 hw) n s).2 c s' h
+  (run_within (env := env1 env base) (env' := env) ⟨rfl, rfl, rfl⟩ (within1 hw) n s).2 c s' h
 
 /-! ## The front -/
 

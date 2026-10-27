@@ -1,0 +1,14 @@
+# exp251 — wrong claims and a wrong model. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: each says more than the kernel's run does -- a call it does make left out, a range larger than
+# the one it names, a verdict other than the specification's. Then what the claim rests on, loosened in the library:
+# a world that serves HASH taken for one that does not, and a world whose shell serves the first call whatever it
+# says it serves.
+no_hashb|claim: the kernel never calls HASHB|s/^  (m.reg T0 = 2 ∧ InBox base (m.reg A0) (m.reg A1).toNat ∧ InBox base (m.reg A2) 32) ∨$/  False ∨/
+output_64|claim: HASHB's output range is 64 bytes in the box, not 32|s/InBox base (m.reg A2) 32)/InBox base (m.reg A2) 64)/
+key_64|claim: CHECKSIG's key range is 64 bytes in the box, not 32|s/(m.reg T0 = 3 ∧ InBox base (m.reg A0) 32 ∧/(m.reg T0 = 3 ∧ InBox base (m.reg A0) 64 ∧/
+verdict_off_by_one|claim: the run halts with the verdict plus one|s/.halted (BitVec.ofNat 32 (verdict env scr st0)) s' ∧$/.halted (BitVec.ofNat 32 (verdict env scr st0 + 1)) s' ∧/
+serving_world_taken|a world that serves HASH is taken for one that does not|s/^theorem calls_of_halted {env : Env} (hs : env.servesHash = false)/theorem calls_of_halted {env : Env} (hs : True)/|lean/Rv32/Join.lean
+hash_served_regardless|the shell serves the first call whatever the world says it serves|s/  if t0 = 0 ∧ env.servesHash = true then/  if t0 = 0 then/|lean/Rv32/Machine.lean

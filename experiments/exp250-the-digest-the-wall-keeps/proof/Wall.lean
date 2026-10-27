@@ -83,7 +83,7 @@ theorem within1 (hw : Wide env base) : (env1 env base).region.within env.region 
 
 theorem halted1 (hw : Wide env base) {n : Nat} {c : Word} {s s' : Machine}
     (h : run (env1 env base) n s = .halted c s') : run env n s = .halted c s' :=
-  (run_within (env := env1 env base) (env' := env) ⟨rfl, rfl⟩ (within1 hw) n s).2 c s' h
+  (run_within (env := env1 env base) (env' := env) ⟨rfl, rfl, rfl⟩ (within1 hw) n s).2 c s' h
 
 /-! ## The front -/
 
@@ -3825,10 +3825,10 @@ theorem kernel_same (env : Rv32.Env) {s : Machine} (hpc : s.pc = base) (hfront :
     ∀ N, run (wideE env) N s = run (boxE env) N s := fun N =>
   run_same (env := boxE env) (env' := wideE env) (G env)
     (fun m hg => hg.elim
-      (fun h => step_same (env := boxE env) (env' := wideE env) ⟨rfl, rfl⟩ (box_within env) (host_front env) (by rw [Exp223.kernel_length]; decide)
+      (fun h => step_same (env := boxE env) (env' := wideE env) ⟨rfl, rfl, rfl⟩ (box_within env) (host_front env) (by rw [Exp223.kernel_length]; decide)
         (by simp only [WinIn, boxE, boxEnv, Exp248.samples]; decide)
         (by simp only [WinIn, boxE, boxEnv, Exp248.nowhere]; decide) (by decide) (by decide) h)
-      (fun h => step_same (env := boxE env) (env' := wideE env) ⟨rfl, rfl⟩ (box_within env) (host_sha env) (by rw [Sha.kernel_length]; decide)
+      (fun h => step_same (env := boxE env) (env' := wideE env) ⟨rfl, rfl, rfl⟩ (box_within env) (host_sha env) (by rw [Sha.kernel_length]; decide)
         (by simp only [WinIn, boxE, boxEnv, Exp249.loads]; decide)
         (by simp only [WinIn, boxE, boxEnv, Exp249.stores]; decide) (by decide) (by decide) h))
     N s (fun i _ m hm => kernel_reach env hpc hfront hsha hlen i m hm)
