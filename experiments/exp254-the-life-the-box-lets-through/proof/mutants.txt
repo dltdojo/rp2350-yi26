@@ -1,0 +1,14 @@
+# exp254 — wrong claims and a wrong bridge. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The claims first: the park a step sooner, the trap a step sooner, U-mode at the trap too, memory with no history,
+# one instruction fewer heard. Then the bridge loosened: a store into the code, and a fetch from anywhere, taken as
+# steps the W^X box lets through -- refused where the PMP is asked about them.
+park_one_sooner|claim: the monitor parks one step sooner, after 61 + 3079 + 56|s/^    Parked (PrivMachine.run env (61 + 3079 + 57) s) 0#32 ∧$/    Parked (PrivMachine.run env (61 + 3079 + 56) s) 0#32 ∧/
+trap_one_sooner|claim: the kernel's run traps after 3078 Tier 2 steps, not 3079|s/^    (PrivMachine.run env 3079 s1).mode = .M ∧ HState env M0 (PrivMachine.run env 3079 s1) ∧$/    (PrivMachine.run env 3078 s1).mode = .M ∧ HState env M0 (PrivMachine.run env 3078 s1) ∧/
+user_at_trap|claim: the machine is still in U-mode after the trap|s/^    (∀ i, i < 3079 → (PrivMachine.run env i s1).mode = .U) ∧$/    (∀ i, i < 3080 → (PrivMachine.run env i s1).mode = .U) ∧/
+no_history|claim: memory at the park is what it was at reset, with no history in it|s/core.mem x = Exp225.lived M0 base Exp225.N x) ∧$/core.mem x = M0 x) ∧/
+heard_3080|claim: the host hears 3080 instructions, not 3081|s/⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, 3081#32⟩,$/⟨0xc0000004#32, 0#32⟩, ⟨0xc0000004#32, 3080#32⟩,/
+store_into_code|a store into the code is taken as one the box lets through|s/^  (a + w ≤ cLo ∨ cHi ≤ a) ∧ ((dLo/  True ∧ ((dLo/|lean/Rv32/WxBox.lean
+fetch_anywhere|a fetch from anywhere is taken as one the box lets through|s/^  (cLo ≤ m.pc.toNat ∧ m.pc.toNat + 4 ≤ cHi) ∧$/  True ∧/|lean/Rv32/Join.lean
