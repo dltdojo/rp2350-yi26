@@ -112,7 +112,10 @@ fails if `Wx.lean` is not what the generator writes.
 - **The kernel's correctness is not joined to this proof.** exp225's theorem is about the kernel in Tier 1, from a base
   address it finds itself; that it also runs here without touching a PMP rule -- 3,079 instructions, one fetch window of
   76 bytes, stores only in `+0x200..+0x600` -- is checked on the emulator, a hundred rounds, byte for byte against a
-  Rule 30 written a cell at a time, and not proved.
+  Rule 30 written a cell at a time, and not proved here. Later experiments prove it:
+  [exp253](../exp253-the-cells-the-kernel-touches/) proves where every step of the kernel's run touches;
+  [exp254](../exp254-the-life-the-box-lets-through/) proves one round from reset;
+  [exp255](../exp255-the-lives-round-after-round/) proves every round after any number of them.
 - **The model is not the chip.** `Priv.lean` is a reading of the Hazard3 documentation; nothing here ran on the RTL or on
   an RP2350. In particular the **order of the entries** is the RISC-V rule -- the lowest-numbered entry that matches
   decides -- which the carve-out depends on, and it is not measured on Hazard3 here. A core that tried the entries in

@@ -94,9 +94,9 @@ And about this kernel and this monitor, in `proof/Box.lean`:
 
 ## What is not proved, and what it rests on
 
-- **Rounds.** That is round 3: any number of rounds, with the host writing the next seed between them, each round's
-  history Rule 30 of its seed. `life_traps` starts from where boot leaves the machine, and exp240's `monitor_reentry`
-  says every round's boot leaves it there.
+- **Rounds.** That is round 3, [exp255](../exp255-the-lives-round-after-round/): any number of rounds, with the host
+  writing the next seed between them, each round's history Rule 30 of its seed. `life_traps` starts from where boot
+  leaves the machine, and exp240's `monitor_reentry` says every round's boot leaves it there.
 - **`mcycle` is the model's**, as exp247 says. On Hazard3 a cycle is not an instruction.
 - **The model.** Everything exp240's README says: one hart, interrupts not modelled, the model's reading of Hazard3,
   the MMIO words as memory.
