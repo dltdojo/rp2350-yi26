@@ -172,5 +172,108 @@ proved by it. Round 3's board probe can say.
 From `./run.sh`, pasted from `capture.txt`; no board is involved.
 
 ```
-(the capture goes here)
+=== exp257 — the bits the chip transposes ===
+recorded at 2026-10-28T00:46:36Z from commit 35a0324
+
+>>> twenty-eight probes, two cores: what each reads back
+probe                core          words printed
+mstatus_reset        tb_e6-rp2350  00001800
+                     tb-rp2350     00001800
+mcountinhibit_reset  tb_e6-rp2350  00000005
+                     tb-rp2350     00000005
+ebreak_u             tb_e6-rp2350  54524150 00000003 00000060
+                     tb-rp2350     54524150 00000003 00000060
+fence_m              tb_e6-rp2350  00000001
+                     tb-rp2350     00000001
+misa_m               tb_e6-rp2350  40901105   <- not tb-rp2350's
+                     tb-rp2350     40901107
+mhartid_m            tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+mtvec_bit0           tb_e6-rp2350  800000a5
+                     tb-rp2350     800000a5
+mtvec_bit1           tb_e6-rp2350  800000a4
+                     tb-rp2350     800000a4
+mpp_01               tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+mstatus_ones         tb_e6-rp2350  00221888
+                     tb-rp2350     00221888
+mcountinhibit_ones   tb_e6-rp2350  00000005
+                     tb-rp2350     00000005
+pmpaddr_napot        tb_e6-rp2350  20004000 20004003   <- not tb-rp2350's
+                     tb-rp2350     20004003 20004000
+pmpcfg_tor           tb_e6-rp2350  0000071f
+                     tb-rp2350     0000071f
+pmpcfg_na4           tb_e6-rp2350  0000071f
+                     tb-rp2350     0000071f
+pmpcfg1              tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+pmpaddr4             tb_e6-rp2350  00000003   <- not tb-rp2350's
+                     tb-rp2350     00000000
+pmpcfgm0             tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+counted_mret         tb_e6-rp2350  54524150 00000008 00000060 00000015
+                     tb-rp2350     54524150 00000008 00000060 00000015
+lock_m               tb_e6-rp2350  54524150 00000007 0000005c
+                     tb-rp2350     54524150 00000007 0000005c
+x_only               tb_e6-rp2350  54524150 00000001 00000080   <- not tb-rp2350's
+                     tb-rp2350     54524150 00000005 00000084
+u_peripheral         tb_e6-rp2350  54524150 00000005 00000064
+                     tb-rp2350     54524150 00000005 00000064
+wfi_u_tw             tb_e6-rp2350  54524150 00000002 00000060
+                     tb-rp2350     54524150 00000002 00000060
+wfi_u                tb_e6-rp2350   hangs
+                     tb-rp2350      hangs
+hardwired            tb_e6-rp2350  01ffffff 13ffffff 35ffffff 001f1f1f
+                     tb-rp2350     01ffffff 13ffffff 35ffffff 001f1f1f
+cfg_1b               tb_e6-rp2350  54524150 00000005 00000084   <- not tb-rp2350's
+                     tb-rp2350     54524150 00000001 00000080
+cfg_1e               tb_e6-rp2350  54524150 00000001 00000080   <- not tb-rp2350's
+                     tb-rp2350     54524150 00000008 00000084
+exp209_check2        tb_e6-rp2350  0000001f 00000003   <- not tb-rp2350's
+                     tb-rp2350     0000001f 00000000
+pmpcfgm0_ones        tb_e6-rp2350  000000ff
+                     tb-rp2350     000000ff
+
+>>> the checks
+PASS  no lifeline, and it says why: no firmware of its own
+PASS  Chip.lean checks, with no errors and no warnings
+PASS  all 6 theorems it prints rest on Lean's own axioms only — no sorryAx, no native_decide
+PASS  bytes_as_written: the proof refuses a version where exp240's bytes as it writes them, 0x1b, are bridged on the chip
+PASS  deny_grants: the proof refuses a version where entry 4 granting everything is bridged
+PASS  deny_locked: the proof refuses a version where entry 4 locked is bridged
+PASS  deny_bound: the proof refuses a version where entry 4 bound to M-mode by PMPCFGM0 is bridged
+PASS  deny_half: the proof refuses a version where entry 4 over half of memory is bridged
+PASS  order_not_needed: the proof refuses a version where claim: exp240's own bytes on the chip let U-mode load its seed
+PASS  bridge_m0_four: the proof refuses a version where the bridge lets PMPCFGM0 bind entry 4
+PASS  bridge_deny_mode: the proof refuses a version where the bridge asks only that entry 4 be NAPOT, not that it grant nothing
+PASS  bridge_deny_half: the proof refuses a version where the bridge lets entry 4 cover half of memory
+PASS  privrun builds: PrivMachine.step and, with --pmp, PmpChip.chipCheck, compiled, from lean/PrivExec.lean
+PASS  chipCheck .e6 decides as tb_e6-rp2350 on all 4400 cases (400 of them locked, each from reset)
+PASS  chipCheck .standard decides as tb-rp2350 on all 4400 cases (400 of them locked, each from reset)
+PASS  chipCheck .e6 differs from tb-rp2350 on 658 cases
+PASS  chipCheck .standard differs from tb_e6-rp2350 on 658 cases
+      what the cases came to on tb_e6-rp2350, by privilege, access and mcause:
+        M F  1  18
+        M F 11  327
+        M l  5  37
+        M l 11  907
+        M s  7  51
+        M s 11  860
+        U F  1  200
+        U F  8  112
+        U l  1  152
+        U l  5  531
+        U l  8  235
+        U s  1  144
+        U s  7  567
+        U s  8  259
+PASS  28 probes on two cores print what probes/table.txt recorded: 7 where the chip's core is not the pinned one
+PASS  e6_ignored: the differential refuses a model where the chip reads a configuration byte in the specification's order -- refused by tb_e6-rp2350
+PASS  e6_everywhere: the differential refuses a model where both cores read a configuration byte in erratum E6's order -- refused by tb-rp2350
+PASS  grain_ignored: the differential refuses a model where an address register keeps the two low bits written to it, so a region can be 8 or 16 bytes -- refused by tb_e6-rp2350, tb-rp2350
+PASS  top_bits_kept: the differential refuses a model where an address register keeps the two top bits written to it -- refused by tb_e6-rp2350, tb-rp2350
+PASS  tor_na4_napot: the differential refuses a model where TOR and NA4, written, match as NAPOT -- refused by tb_e6-rp2350, tb-rp2350
+PASS  lock_ignored: the differential refuses a model where a locked region does not bind M-mode -- refused by tb_e6-rp2350, tb-rp2350
+PASS  m0_ignored: the differential refuses a model where PMPCFGM0 binds M-mode to nothing -- refused by tb_e6-rp2350, tb-rp2350
+PASS  unmatched_user: the differential refuses a model where U-mode that matches no region is let through -- refused by tb_e6-rp2350, tb-rp2350
 ```
