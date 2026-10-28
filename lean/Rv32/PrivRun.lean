@@ -142,7 +142,7 @@ macro_rules
     `(tactic| simp [setReg_x0, Rv32.reg_setReg, pmpAddrVal, decodeNapotRange,
       countTrailingOnes32, countTrailingOnes32.loop, PrivMachine.run, bumpCounters, execZicsr,
       execMret, csrIllegal, csrImplemented, csrReadOnly, csrWrites, readCSR, writeCSR,
-      PrivMachine.stepW, uModeTrapCause, pmpCheck, PMP_INDICES, pmpCheckEntries, matchPmpEntry,
+      PrivMachine.stepW, PrivMachine.sleeps, isWfi, isEbreak, faultCause, uModeTrapCause, pmpCheck, PMP_INDICES, pmpCheckEntries, matchPmpEntry,
       decodePmpCfgByte, isEcall, isMret, isZicsr, Rv32.decode, Rv32.decodeNat, Rv32.exec,
       IOp.ofF3, BrOp.ofF3, LdOp.ofF3, StOp.ofF3, ShOp.ofF, ROp.ofF, aluI, shiftI, aluR, taken,
       LdOp.size, StOp.size, LdOp.extend, raiseTrap, portRead, portWrites, isPort, PrivMode.ofBits, PrivMode.toBits, hasPermission,
@@ -254,7 +254,7 @@ macro_rules
   | `(tactic| psimpH [$ls,*] $[$loc]?) =>
     `(tactic| simp [setReg_x0, Rv32.reg_setReg, PrivMachine.run, bumpCounters, execZicsr,
       execMret, csrIllegal, csrImplemented, csrReadOnly, csrWrites, readCSR, writeCSR,
-      PrivMachine.stepW, uModeTrapCause, isEcall, isMret, isZicsr, Rv32.decode, Rv32.decodeNat,
+      PrivMachine.stepW, PrivMachine.sleeps, isWfi, isEbreak, faultCause, uModeTrapCause, isEcall, isMret, isZicsr, Rv32.decode, Rv32.decodeNat,
       Rv32.exec, IOp.ofF3, BrOp.ofF3, LdOp.ofF3, StOp.ofF3, ShOp.ofF, ROp.ofF, aluI, shiftI,
       aluR, taken, LdOp.size, StOp.size, LdOp.extend, raiseTrap, portRead, portWrites, isPort, PrivMode.ofBits, PrivMode.toBits,
       hasPermission, Rv32.Region.ok, $ls,*] $[$loc]?)
@@ -263,6 +263,8 @@ macro_rules
 theorem stepW_host_digest (env : Rv32.Env) (s : PrivMachine) (w : Word) :
     (PrivMachine.stepW env s w).host = s.host ∧ (PrivMachine.stepW env s w).digest = s.digest := by
   unfold PrivMachine.stepW
+  split
+  · exact ⟨rfl, rfl⟩
   split
   · exact ⟨rfl, rfl⟩
   · split

@@ -161,7 +161,7 @@ theorem ecall_trap (env : Env) (s : PrivMachine) {lo hi : Nat} (hBox : UBoxed s 
   unfold PrivMachine.step PrivMachine.stepW uModeTrapCause
   simp only [fetched] at he
   rw [hBox.isUMode] at hf
-  rw [hBox.notHalted]
+  rw [hBox.notHalted, sleeps_of_ecall he]
   simp only [Bool.false_eq_true, ↓reduceIte, hBox.isUMode, hf, not_true_eq_false, he]
 
 /-- At an `ecall` with `t0 = 1`, Tier 1 does not go on: it halts, or faults on the fetch. -/
@@ -459,7 +459,7 @@ theorem step_boxEq {env : Env} (hhi : env.region.hi ≤ 2^32) {m c m' : Machine}
       · cases hs
       rename_i _ h2
       exact readLE_boxEq hhi h _ _ (Classical.not_not.mp h2)
-    rcases exec_twin (env := env) hi h.pc h.regs hld with ⟨c1, d, e1, e2, p, r, mm⟩ | ⟨f, g, c1, d, e1, -⟩
+    rcases exec_twin (env := env) hi h.pc h.regs hld with ⟨c1, d, e1, e2, p, r, mm⟩ | ⟨f, c1, d, e1, -⟩
     · rw [e1] at hs
       cases hs
       exact ⟨d, e2, p, r, fun x h1 h2 => mm x (h.mem x h1 h2)⟩
@@ -567,7 +567,7 @@ theorem wx_plain (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩ en
   have htrap : uModeTrapCause s (BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4)) = none := by
     unfold uModeTrapCause
     simp only [hf, not_true_eq_false, ↓reduceIte, hSafe.notEcall, Bool.false_eq_true, hSafe.notPriv.1,
-      hSafe.notPriv.2, or_self, and_false, hdec]
+      hSafe.notPriv.2, or_self, and_false, hdec, isEbreak_of_decode hdec]
     cases i with
     | ld op rd rs1 imm =>
       obtain ⟨hal, -, -⟩ := hmem
@@ -581,7 +581,7 @@ theorem wx_plain (env : Env) {lo hi : Nat} (hReg : Region.within ⟨lo, hi⟩ en
       simp [hal', hl]
     | _ => rfl
   unfold PrivMachine.step PrivMachine.stepW
-  rw [hB.notHalted, htrap]
+  rw [hB.notHalted, sleeps_of_decode (s := s) hdec, htrap]
   simp only [Bool.false_eq_true, ↓reduceIte, hSafe.notPriv.1, hSafe.notPriv.2, hdec, hs',
     portRead_U s hB.isUMode, portWrites_U s hB.isUMode, List.append_nil]
 
@@ -594,7 +594,7 @@ theorem wx_ecall_trap (env : Env) (s : PrivMachine) (hB : WXBoxed s cLo cHi dLo 
   unfold PrivMachine.step PrivMachine.stepW uModeTrapCause
   simp only [fetched] at he
   rw [hB.isUMode] at hf
-  rw [hB.notHalted]
+  rw [hB.notHalted, sleeps_of_ecall he]
   simp only [Bool.false_eq_true, ↓reduceIte, hB.isUMode, hf, not_true_eq_false, he]
 
 /-- **A Tier 1 run in a W^X box is the Tier 2 run.** Tier 1, in the box's region, is still going after `n` steps;

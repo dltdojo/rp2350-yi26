@@ -2861,7 +2861,7 @@ theorem return_3 (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     Agree M0 (PrivMachine.run env 3 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 3 s).halted = false ∧
     (PrivMachine.run env 3 s).mode = .U ∧
-    (PrivMachine.run env 3 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } e c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 3 s).csrs = csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } e c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
     (PrivMachine.run env 3 s).host = s.host ∧
     (PrivMachine.run env 3 s).io = s.io ∧
     readLE (PrivMachine.run env 3 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
@@ -5945,7 +5945,7 @@ theorem hashb_back (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     Agree M0 (PrivMachine.run env 11 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 11 s).halted = false ∧
     (PrivMachine.run env 11 s).mode = .U ∧
-    (PrivMachine.run env 11 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 11 s).csrs = csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
     (PrivMachine.run env 11 s).host = s.host ∧
     (PrivMachine.run env 11 s).io = s.io ∧
     readLE (PrivMachine.run env 11 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
@@ -6015,7 +6015,7 @@ theorem checksig_back_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     Agree M0 (PrivMachine.run env 12 s).core.mem 0x80000000 808 ∧
     (PrivMachine.run env 12 s).halted = false ∧
     (PrivMachine.run env 12 s).mode = .U ∧
-    (PrivMachine.run env 12 s).csrs = csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+    (PrivMachine.run env 12 s).csrs = csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
     (PrivMachine.run env 12 s).host = s.host ∧
     (PrivMachine.run env 12 s).io = s.io ∧
     readLE (PrivMachine.run env 12 s).core.mem 0x80008000#32 4 = readLE s.core.mem 0x80008000#32 4 ∧
@@ -6267,6 +6267,9 @@ theorem umode_step_ms (env : Rv32.Env) (s : PrivMachine) (hBox : UBoxed s 0x8001
   rw [hBox.notHalted]
   simp only [Bool.false_eq_true, ↓reduceIte]
   generalize BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4) = w
+  by_cases hsl : s.sleeps w = true
+  · simp only [hsl, ↓reduceIte]; left; exact ⟨hBox.isUMode, trivial⟩
+  simp only [hsl, Bool.false_eq_true, ↓reduceIte]
   cases hc : uModeTrapCause s w with
   | some cause =>
     right
@@ -6501,7 +6504,7 @@ theorem monitor_hashb_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachine)
     (PrivMachine.run env 43 s).halted = false ∧
     (PrivMachine.run env 43 s).mode = .U ∧
     (PrivMachine.run env 43 s).csrs =
-      csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+      csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
     (PrivMachine.run env 43 s).host = s.host ∧
     (PrivMachine.run env 43 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
       ⟨0xc0000018#32, s.core.reg 12#5⟩, ⟨0xc000001c#32, 2#32⟩] ∧
@@ -6599,7 +6602,7 @@ theorem monitor_checksig_ok (env : Rv32.Env) (M0 : Word → Byte) (s : PrivMachi
     (PrivMachine.run env 47 s).halted = false ∧
     (PrivMachine.run env 47 s).mode = .U ∧
     (PrivMachine.run env 47 s).csrs =
-      csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
+      csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32) ∧
     (PrivMachine.run env 47 s).host = s.host ∧
     (PrivMachine.run env 47 s).io = s.io ++ [⟨0xc0000010#32, s.core.reg 10#5⟩, ⟨0xc0000014#32, s.core.reg 11#5⟩,
       ⟨0xc000001c#32, 3#32⟩] ∧

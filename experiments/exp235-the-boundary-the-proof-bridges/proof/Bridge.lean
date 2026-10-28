@@ -97,7 +97,7 @@ theorem safe_step_executes
         match Rv32.exec env s.core instr with
         | .running core'  => { s with core := core', csrs := bumpCounters s.csrs }
         | .halted _ core' => { s with core := core', csrs := bumpCounters s.csrs, halted := true }
-        | .fault _ _      => raiseTrap s CAUSE_ILLEGAL_INSTR :=
+        | .fault f _      => raiseTrap s (faultCause f) :=
   PrivMachine.step_eq_of_safe env s lo hi hBox hSafe
 
 /-- When instruction continues running, Tier 1 core state is precisely updated and mode remains U. -/
