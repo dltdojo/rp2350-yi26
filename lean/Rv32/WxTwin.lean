@@ -67,7 +67,7 @@ theorem exec_twin {env : Rv32.Env} {s t : Rv32.Machine} {i : Instr} (hi : i ≠ 
       readLE s.mem (s.reg rs1 + imm.signExtend 32) op.size = readLE t.mem (s.reg rs1 + imm.signExtend 32) op.size) :
     (∃ c d, Rv32.exec env s i = .running c ∧ Rv32.exec env t i = .running d ∧ c.pc = d.pc ∧ (∀ r, c.reg r = d.reg r) ∧
       ∀ x, s.mem x = t.mem x → c.mem x = d.mem x) ∨
-    (∃ f g c d, Rv32.exec env s i = .fault f c ∧ Rv32.exec env t i = .fault g d) := by
+    (∃ f c d, Rv32.exec env s i = .fault f c ∧ Rv32.exec env t i = .fault f d) := by
   cases i with
   | ecall => exact absurd rfl hi
   | ld op rd rs1 imm =>
@@ -76,7 +76,7 @@ theorem exec_twin {env : Rv32.Env} {s t : Rv32.Machine} {i : Instr} (hi : i ≠ 
     generalize t.reg rs1 + imm.signExtend 32 = a at hv ⊢
     by_cases h1 : a.toNat % op.size ≠ 0
     · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h1), ite_eq_left_of_eq_true _ _ (eq_true h1)]
-      exact ⟨_, _, _, _, rfl, rfl⟩
+      exact ⟨_, _, _, rfl, rfl⟩
     · rw [ite_eq_right_of_eq_false _ _ (eq_false h1), ite_eq_right_of_eq_false _ _ (eq_false h1)]
       by_cases h2 : env.region.ok a op.size
       · rw [ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2)),
@@ -84,13 +84,13 @@ theorem exec_twin {env : Rv32.Env} {s t : Rv32.Machine} {i : Instr} (hi : i ≠ 
         left
         refine ⟨_, _, rfl, rfl, by simp [hpc], fun x => by simp [reg_setReg, hr, hv], fun x hx => by simp [hx]⟩
       · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h2), ite_eq_left_of_eq_true _ _ (eq_true h2)]
-        exact ⟨_, _, _, _, rfl, rfl⟩
+        exact ⟨_, _, _, rfl, rfl⟩
   | st op rs1 rs2 imm =>
     simp only [Rv32.exec, hr]
     generalize t.reg rs1 + imm.signExtend 32 = a
     by_cases h1 : a.toNat % op.size ≠ 0
     · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h1), ite_eq_left_of_eq_true _ _ (eq_true h1)]
-      exact ⟨_, _, _, _, rfl, rfl⟩
+      exact ⟨_, _, _, rfl, rfl⟩
     · rw [ite_eq_right_of_eq_false _ _ (eq_false h1), ite_eq_right_of_eq_false _ _ (eq_false h1)]
       by_cases h2 : env.region.ok a op.size
       · rw [ite_eq_right_of_eq_false _ _ (eq_false (not_not_intro h2)),
@@ -105,7 +105,7 @@ theorem exec_twin {env : Rv32.Env} {s t : Rv32.Machine} {i : Instr} (hi : i ≠ 
         · rfl
         · exact hx
       · right; rw [ite_eq_left_of_eq_true _ _ (eq_true h2), ite_eq_left_of_eq_true _ _ (eq_true h2)]
-        exact ⟨_, _, _, _, rfl, rfl⟩
+        exact ⟨_, _, _, rfl, rfl⟩
   | br op rs1 rs2 off =>
     left
     simp only [Rv32.exec, hr]
@@ -131,7 +131,7 @@ theorem wx_ld_ok {s : PrivMachine} {w : Word} (hB : WXBoxed s cLo cHi dLo dHi kL
     by_cases hf : pmpCheck s.csrs .U s.core.pc 4 .Fetch = true
     · exact hf
     · exfalso; simp [hf] at h
-  simp only [hf, not_true_eq_false, ↓reduceIte, he, hm, hz, hd] at h
+  simp only [hf, not_true_eq_false, ↓reduceIte, he, hm, hz, hd, isEbreak_of_decode hd, Bool.false_eq_true] at h
   by_cases hal : a.toNat % op.size = 0
   · have hal' : (BitVec.toNat (s.core.reg rs1) + (BitVec.signExtend 32 imm).toNat) % 4294967296 % op.size = 0 := hal
     by_cases hp : pmpCheck s.csrs .U a op.size .Load = true
@@ -181,6 +181,14 @@ theorem wx_twin_step (env : Rv32.Env) {s t : PrivMachine} (hs : WXBoxed s cLo cH
       omega
     rw [hw]
     generalize BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4) = w
+    -- a `wfi` that sleeps: both sleep, and stay twins
+    have hsl : t.sleeps w = s.sleeps w := by
+      simp only [PrivMachine.sleeps, hs.isUMode, ht.isUMode, hpU, hpc, hT.mstatus]
+    rw [hsl]
+    by_cases hz : s.sleeps w = true
+    · simp only [hz, ↓reduceIte]
+      exact ⟨hT, fun _ => hpc⟩
+    simp only [hz, Bool.false_eq_true, ↓reduceIte]
     have hc : uModeTrapCause t w = uModeTrapCause s w := by
       simp only [uModeTrapCause, hs.isUMode, ht.isUMode, hpU, hpc, hr]
     rw [hc]
@@ -207,7 +215,7 @@ theorem wx_twin_step (env : Rv32.Env) {s t : PrivMachine} (hs : WXBoxed s cLo cH
         unfold WxVis
         simp only [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.reducePow]
         omega
-      rcases exec_twin (env := env) hne hpc hT.regs hld with ⟨c, d, h1, h2, ep, er, em⟩ | ⟨f, g, c, d, h1, h2⟩
+      rcases exec_twin (env := env) hne hpc hT.regs hld with ⟨c, d, h1, h2, ep, er, em⟩ | ⟨f, c, d, h1, h2⟩
       · rw [h1, h2]
         simp only [portRead_U s hs.isUMode, portRead_U t ht.isUMode, portWrites_U s hs.isUMode,
           portWrites_U t ht.isUMode, List.append_nil]
@@ -223,6 +231,12 @@ theorem wx_twin_step (env : Rv32.Env) {s t : PrivMachine} (hs : WXBoxed s cLo cH
       simp [uModeTrapCause, hs.isUMode, hf]
     have ht1 : uModeTrapCause t (BitVec.ofNat 32 (readLE t.core.mem t.core.pc 4)) = some CAUSE_FETCH_ACCESS_FAULT := by
       simp [uModeTrapCause, ht.isUMode, hf']
+    have hs2 : s.sleeps (BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4)) = false := by
+      simp [PrivMachine.sleeps, hs.isUMode, hf]
+    have ht2 : t.sleeps (BitVec.ofNat 32 (readLE t.core.mem t.core.pc 4)) = false := by
+      simp [PrivMachine.sleeps, ht.isUMode, hf']
+    rw [hs2, ht2]
+    simp only [Bool.false_eq_true, ↓reduceIte]
     rw [hs1, ht1]
     exact tr _
 

@@ -20,7 +20,16 @@ What it does not model, so no theorem about it is a claim about the chip:
   * the CSRs outside the list in `csrImplemented` (`misa`, `mhartid`, ...): an access
     traps here, which is stricter than the chip, and the monitor does not use them;
   * exp203's frontend effect: the same instructions are counted 5 or 4 times
-    depending on what was fetched behind an `mret`.
+    depending on what was fetched behind an `mret` (exp256: the RTL counts one to three
+    more around a monitor's `mret` than this model does);
+  * interrupts -- so a `wfi` that sleeps never wakes: it is a step that changes nothing;
+  * `mstatus.MPRV`, `mtvec`'s vectored mode, and PMP entries 4 to 15 and `PMPCFGM0`:
+    lean/Rv32/PmpChip.lean is the RP2350's PMP, and says when it decides as this one does.
+
+exp256 held this model to the emulator and to the Hazard3 RTL, and three of its rules are the
+RTL's since: `ebreak` is a breakpoint (cause 3); a load or store Tier 1's region refuses is an
+access fault (5, 7), not an illegal instruction; and `wfi` sleeps unless it is U-mode's with
+`mstatus.TW` set, which makes it illegal.
 -/
 import Rv32.Isa
 import Rv32.Machine
@@ -47,6 +56,7 @@ structure MStatus where
   mie  : Bool     := false
   mpie : Bool     := false
   mpp  : PrivMode := .U
+  tw   : Bool     := false  -- Bit 21: U-mode `wfi` is an illegal instruction
   deriving DecidableEq, Repr, Inhabited
 
 /-- Modeled fields of mcountinhibit (CSR 0x320). -/
@@ -128,7 +138,8 @@ def pmpAddrVal (csrs : PrivCSRs) : Fin 4 → Word
   | ⟨2, _⟩ => csrs.pmpaddr2
   | ⟨3, _⟩ => csrs.pmpaddr3
 
-/-- Hazard3 silicon-accurate readback for pmpaddr_i (models exp209 quirk). -/
+/-- pmpaddr_i as software reads it back: the pinned Hazard3's readback (`tb-rp2350`). The core the RP2350 was built
+    from reads the two low bits the other way round, which is exp209's check 2 failing on the chip (exp257). -/
 def readPmpAddr (csrs : PrivCSRs) (idx : Fin 4) : Word :=
   let raw := pmpAddrVal csrs idx
   if (decodePmpCfgByte csrs.pmpcfg0 idx).mode = .NAPOT then
@@ -216,6 +227,7 @@ def CAUSE_STORE_MISALIGNED   : Word := 6
 def CAUSE_STORE_ACCESS_FAULT : Word := 7
 def CAUSE_ECALL_UMODE        : Word := 8
 def CAUSE_ECALL_MMODE        : Word := 11
+def CAUSE_BREAKPOINT         : Word := 3
 
 def bumpCounters (csrs : PrivCSRs) : PrivCSRs :=
   { csrs with
@@ -224,7 +236,8 @@ def bumpCounters (csrs : PrivCSRs) : PrivCSRs :=
 
 def raiseTrap (s : PrivMachine) (cause : Word) : PrivMachine :=
   let mstatus' : MStatus :=
-    { mpp  := s.mode
+    { s.csrs.mstatus with
+      mpp  := s.mode
       mpie := s.csrs.mstatus.mie
       mie  := false }
   let csrs' := bumpCounters
@@ -243,7 +256,8 @@ def execMret (s : PrivMachine) : PrivMachine :=
   else
     let targetMode := s.csrs.mstatus.mpp
     let mstatus' : MStatus :=
-      { mie  := s.csrs.mstatus.mpie
+      { s.csrs.mstatus with
+        mie  := s.csrs.mstatus.mpie
         mpie := true
         mpp  := .U }
     let csrs' := bumpCounters { s.csrs with mstatus := mstatus' }
@@ -257,7 +271,8 @@ def readCSR (csrs : PrivCSRs) (csrNum : Word) : Word :=
     let m := csrs.mstatus
     (if m.mie then 0x8#32 else 0#32) |||
     (if m.mpie then 0x80#32 else 0#32) |||
-    ((m.mpp.toBits.zeroExtend 32) <<< 11)
+    ((m.mpp.toBits.zeroExtend 32) <<< 11) |||
+    (if m.tw then 0x200000#32 else 0#32)
   else if csrNum = 0x305 then csrs.mtvec
   else if csrNum = 0x320 then
     (if csrs.mcountinhibit.cy then 1#32 else 0#32) |||
@@ -280,7 +295,8 @@ def writeCSR (csrs : PrivCSRs) (csrNum : Word) (val : Word) : PrivCSRs :=
     let mie  := (val &&& 0x8#32) ≠ 0
     let mpie := (val &&& 0x80#32) ≠ 0
     let mpp  := PrivMode.ofBits ((val >>> 11).extractLsb' 0 2)
-    { csrs with mstatus := { mie := mie, mpie := mpie, mpp := mpp } }
+    let tw   := (val &&& 0x200000#32) ≠ 0
+    { csrs with mstatus := { mie := mie, mpie := mpie, mpp := mpp, tw := tw } }
   else if csrNum = 0x305 then
     { csrs with mtvec := val &&& ~~~3#32 }
   else if csrNum = 0x320 then
@@ -311,6 +327,8 @@ def writeCSR (csrs : PrivCSRs) (csrNum : Word) (val : Word) : PrivCSRs :=
     csrs
 
 def isEcall (w : Word) : Bool := w = 0x00000073
+def isEbreak (w : Word) : Bool := w = 0x00100073
+def isWfi (w : Word) : Bool := w = 0x10500073
 def isMret  (w : Word) : Bool := w = 0x30200073
 def isZicsr (w : Word) : Bool :=
   let opcode := w &&& 0x7F#32
@@ -379,6 +397,8 @@ def uModeTrapCause (s : PrivMachine) (w : Word) : Option Word :=
     some CAUSE_FETCH_ACCESS_FAULT
   else if isEcall w then
     some (if s.mode = .U then CAUSE_ECALL_UMODE else CAUSE_ECALL_MMODE)
+  else if isEbreak w then
+    some CAUSE_BREAKPOINT
   else if s.mode = .U ∧ (isMret w ∨ isZicsr w) then
     some CAUSE_ILLEGAL_INSTR
   else
@@ -443,10 +463,52 @@ theorem portRead_U (s : PrivMachine) (h : s.mode = .U) (c : Rv32.Machine) (i : R
     portRead s c i = c := by
   unfold portRead; split <;> simp [h]
 
+/-- A `wfi` that sleeps: fetched, and not U-mode's with `mstatus.TW` set (which `uModeTrapCause` makes illegal).
+    With no interrupt to wake it -- the model has none -- it sleeps for good: the step changes nothing, and is not
+    counted. -/
+def PrivMachine.sleeps (s : PrivMachine) (w : Word) : Bool :=
+  isWfi w && pmpCheck s.csrs s.mode s.core.pc 4 .Fetch && !(s.mode = .U && s.csrs.mstatus.tw)
+
+/-- The cause a Tier 1 fault traps with: an access Tier 1's region refuses is an access fault, as the PMP's refusal
+    of it would be; a misaligned one is misaligned; anything else Tier 1 cannot run is an illegal instruction. -/
+def faultCause : Rv32.Fault → Word
+  | .loadAccess => CAUSE_LOAD_ACCESS_FAULT
+  | .storeAccess => CAUSE_STORE_ACCESS_FAULT
+  | .loadMisaligned => CAUSE_LOAD_MISALIGNED
+  | .storeMisaligned => CAUSE_STORE_MISALIGNED
+  | .fetchAccess => CAUSE_FETCH_ACCESS_FAULT
+  | _ => CAUSE_ILLEGAL_INSTR
+
+theorem decode_ebreak : Rv32.decode (0x00100073 : Word) = none := by decide
+theorem decode_wfi : Rv32.decode (0x10500073 : Word) = none := by decide
+
+/-- A word that decodes is not `ebreak`. -/
+theorem isEbreak_of_decode {w : Word} {i : Rv32.Instr} (h : Rv32.decode w = some i) : isEbreak w = false := by
+  unfold isEbreak
+  by_cases e : w = 0x00100073
+  · subst e; rw [decode_ebreak] at h; cases h
+  · exact decide_eq_false e
+
+/-- A word that decodes is not `wfi`, so it does not sleep. -/
+theorem sleeps_of_decode {s : PrivMachine} {w : Word} {i : Rv32.Instr} (h : Rv32.decode w = some i) :
+    s.sleeps w = false := by
+  unfold PrivMachine.sleeps isWfi
+  by_cases e : w = 0x10500073
+  · subst e; rw [decode_wfi] at h; cases h
+  · rw [decide_eq_false e]; rfl
+
+/-- An `ecall` does not sleep. -/
+theorem sleeps_of_ecall {s : PrivMachine} {w : Word} (h : isEcall w = true) : s.sleeps w = false := by
+  unfold isEcall at h
+  have e : w = 0x00000073 := of_decide_eq_true h
+  subst e
+  rfl
+
 /-- One step, given the word fetched at `pc`. `step` is this with the word read from memory;
     the split lets a proof about loaded code supply the word and evaluate it. -/
 def PrivMachine.stepW (env : Rv32.Env) (s : PrivMachine) (w : Word) : PrivMachine :=
   if s.halted then s
+  else if s.sleeps w then s
   else
     match uModeTrapCause s w with
     | some cause => raiseTrap s cause
@@ -463,7 +525,7 @@ def PrivMachine.stepW (env : Rv32.Env) (s : PrivMachine) (w : Word) : PrivMachin
           | .halted _ core' =>
             let csrs' := bumpCounters s.csrs
             { s with core := core', csrs := csrs', halted := true }
-          | .fault _ _ => raiseTrap s CAUSE_ILLEGAL_INSTR
+          | .fault f _ => raiseTrap s (faultCause f)
         | none => raiseTrap s CAUSE_ILLEGAL_INSTR
 
 

@@ -8,7 +8,7 @@ mcountinhibit_reset  emulator   00000000   <- not the RTL's
                      tb-rp2350  00000005
                      tb         00000005
 ebreak_u             emulator   54524150 00000003 00000060
-                     model      54524150 00000002 00000060   <- not the RTL's
+                     model      54524150 00000003 00000060
                      tb-rp2350  54524150 00000003 00000060
                      tb         54524150 00000003 00000060
 fence_m              emulator   54524150 00000002 00000034   <- not the RTL's
@@ -36,7 +36,7 @@ mpp_01               emulator   00000800   <- not the RTL's
                      tb-rp2350  00000000
                      tb         00000000
 mstatus_ones         emulator   00001888   <- not the RTL's
-                     model      00001888   <- not the RTL's
+                     model      00201888   <- not the RTL's
                      tb-rp2350  00221888
                      tb         00221888
 mcountinhibit_ones   emulator   00000005
@@ -88,6 +88,6 @@ wfi_u_tw             emulator   54524150 00000002 00000060
                      tb-rp2350  54524150 00000002 00000060
                      tb         54524150 00000002 00000060
 wfi_u                emulator   54524150 00000002 00000060   <- not the RTL's
-                     model      54524150 00000002 00000060   <- not the RTL's
+                     model       hangs
                      tb-rp2350   hangs
                      tb          hangs

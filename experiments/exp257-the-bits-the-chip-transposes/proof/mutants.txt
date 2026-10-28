@@ -1,0 +1,16 @@
+# exp257 — wrong claims and a wrong bridge. Each must be refused by Lean.
+#
+# <label>|<what is wrong>|<sed>[|lean/<file>.lean]
+#
+# The box first: exp240's own bytes, entry 4 granting everything, locked, bound to M-mode, or over half of memory,
+# each claimed bridged. Then a claim reversed. Then the bridge loosened: PMPCFGM0 allowed to bind entry 4, entry 4
+# allowed to grant something, or to cover half of memory -- each refused in PmpChip.lean itself.
+bytes_as_written|exp240's bytes as it writes them, 0x1b, are bridged on the chip|s/^  { cfg0 := 0x001e1e1d, cfg1 := 0x18,$/  { cfg0 := 0x001b1b1d, cfg1 := 0x18,/
+deny_grants|entry 4 granting everything is bridged|s/^  { cfg0 := 0x001e1e1d, cfg1 := 0x18,$/  { cfg0 := 0x001e1e1d, cfg1 := 0x1f,/
+deny_locked|entry 4 locked is bridged|s/^  { cfg0 := 0x001e1e1d, cfg1 := 0x18,$/  { cfg0 := 0x001e1e1d, cfg1 := 0x98,/
+deny_bound|entry 4 bound to M-mode by PMPCFGM0 is bridged|s/0, 0, 0\]\[i.val\]!, cfgm0 := 0 }$/0, 0, 0][i.val]!, cfgm0 := 0x10 }/
+deny_half|entry 4 over half of memory is bridged|s/0x20007dff, 0, 0x3fffffff, 0, 0, 0\]/0x20007dff, 0, 0x1fffffff, 0, 0, 0]/
+order_not_needed|claim: exp240's own bytes on the chip let U-mode load its seed|s/^    chipCheck .e6 { exp240_chip with cfg0 := 0x001b1b1d } .U 0x80010100#32 4 .Load = false ∧$/    chipCheck .e6 { exp240_chip with cfg0 := 0x001b1b1d } .U 0x80010100#32 4 .Load = true ∧/
+bridge_m0_four|the bridge lets PMPCFGM0 bind entry 4|s/^  m0    : p.cfgm0 \&\&\& 0x1F#32 = 0$/  m0    : p.cfgm0 \&\&\& 0xF#32 = 0/|lean/Rv32/PmpBridge.lean
+bridge_deny_mode|the bridge asks only that entry 4 be NAPOT, not that it grant nothing|s/^  deny  : decodeCfg o (byteOf p 4) = { mode := .NAPOT }$/  deny  : (decodeCfg o (byteOf p 4)).mode = .NAPOT/|lean/Rv32/PmpBridge.lean
+bridge_deny_half|the bridge lets entry 4 cover half of memory|s/^  all   : addrOf p 4 = 0x3FFFFFFF#32$/  all   : addrOf p 4 = 0x1FFFFFFF#32/|lean/Rv32/PmpBridge.lean

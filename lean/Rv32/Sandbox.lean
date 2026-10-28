@@ -96,6 +96,9 @@ theorem trap_none_plain {s : PrivMachine} {w : Word} (hU : s.mode = .U)
     · simp [he] at h
     · have he' : isEcall w = false := by simpa using he
       simp only [he] at h
+      by_cases hb : isEbreak w = true
+      · simp [hb] at h
+      simp only [hb, Bool.false_eq_true, ↓reduceIte] at h
       by_cases hp : isMret w = true ∨ isZicsr w = true
       · simp [hp] at h
       · have hm : isMret w = false := by simpa using (not_or.mp hp).1
@@ -120,7 +123,7 @@ theorem st_in_box {s : PrivMachine} {w : Word} {lo hi : Nat}
     by_cases hf : pmpCheck s.csrs .U s.core.pc 4 .Fetch = true
     · exact hf
     · exfalso; simp [hf] at h
-  simp only [hf, not_true_eq_false, ↓reduceIte, he, hm, hz, hd] at h
+  simp only [hf, not_true_eq_false, ↓reduceIte, he, hm, hz, hd, isEbreak_of_decode hd, Bool.false_eq_true] at h
   by_cases hal : a.toNat % op.size = 0
   · have hal' : (BitVec.toNat (s.core.reg rs1) + (BitVec.signExtend 32 imm).toNat) % 4294967296 % op.size = 0 := hal
     by_cases hp : pmpCheck s.csrs .U a op.size .Store = true
@@ -151,6 +154,11 @@ theorem umode_step (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat) (hBox : UBox
   rw [hBox.notHalted]
   simp only [Bool.false_eq_true, ↓reduceIte]
   generalize BitVec.ofNat 32 (readLE s.core.mem s.core.pc 4) = w
+  -- a `wfi` that sleeps changes nothing
+  by_cases hsl : s.sleeps w = true
+  · simp only [hsl, ↓reduceIte]
+    exact ⟨KeptCsrs.refl _, hBox.notHalted, Or.inl ⟨hBox.isUMode, hBox, fun _ _ => by trivial⟩⟩
+  simp only [hsl, Bool.false_eq_true, ↓reduceIte]
   cases hc : uModeTrapCause s w with
   | some cause =>
     obtain ⟨t1, t2, t3, t4, t5, t6⟩ := trap cause
@@ -164,7 +172,7 @@ theorem umode_step (env : Rv32.Env) (s : PrivMachine) (lo hi : Nat) (hBox : UBox
     | halted code c => exact absurd hx (exec_no_halt hne)
     | fault f c =>
       dsimp only
-      obtain ⟨t1, t2, t3, t4, t5, t6⟩ := trap CAUSE_ILLEGAL_INSTR
+      obtain ⟨t1, t2, t3, t4, t5, t6⟩ := trap (faultCause f)
       exact ⟨t1, t2, Or.inr ⟨t3, t4, t5, t6⟩⟩
     | running c =>
       dsimp only

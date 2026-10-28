@@ -291,7 +291,7 @@ add(Chunk("return_1", "Past the `ecall`: `mepc <- mepc + 4`.", 3, h(0x234), h(0x
                "(7, BitVec.ofNat 32 (readLE s.core.mem 0x80008008#32 4)), (28, BitVec.ofNat 32 (readLE s.core.mem 0x8000800c#32 4))"),
     Chunk("return_3", "The payload's `sp` back, the counters released, `mret`.", 3, h(0x250), "e",
           hyps=HSP + " (hmpp : ms.mpp = .U)", mode_out=".U",
-          csr_out="csrsH { mie := ms.mpie, mpie := true, mpp := .U } e c (m + 2#32) (cy + 2#32) {} (0x80008000#32)",
+          csr_out="csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } e c (m + 2#32) (cy + 2#32) {} (0x80008000#32)",
           regs="(2, p)", extra=", hsp, hmpp, BitVec.add_assoc"))
 
 # ---- HALT
@@ -405,7 +405,7 @@ BOUND = [  # the six checks of each call: name, condition on the call's register
     ("checksig", [f"BitVec.ult ({u(10)}) {LO}", f"BitVec.ult {HI} ({u(10)})", f"BitVec.ult ({SUB(10)}) 32#32",
                   f"BitVec.ult ({u(11)}) {LO}", f"BitVec.ult {HI} ({u(11)})", f"BitVec.ult ({SUB(11)}) 64#32"]),
 ]
-RET_CSR = "csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32)"
+RET_CSR = "csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32)"
 HMPP = " (hmpp : ms.mpp = .U)"
 INBOX = lambda a, n: f"0x80010000 ≤ (s.core.reg {a}#5).toNat ∧ (s.core.reg {a}#5).toNat + {n} ≤ 0x80020000"
 
@@ -430,7 +430,7 @@ ASK_CSR = f"csrsH ms e c m cy {FROZEN} (s.core.reg 2#5)"
 ASK_REGS = f"(2, 0x80008000#32), (5, {{t0}}#32), (6, {LO}), (7, {HI}), (28, 0xc0000010#32)"
 RESTORE = ("(2, p), (5, BitVec.ofNat 32 (readLE s.core.mem 0x80008000#32 4)), (6, BitVec.ofNat 32 (readLE s.core.mem 0x80008004#32 4)), "
            "(7, BitVec.ofNat 32 (readLE s.core.mem 0x80008008#32 4)), (28, BitVec.ofNat 32 (readLE s.core.mem 0x8000800c#32 4))")
-BACK_CSR = "csrsH { mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32)"
+BACK_CSR = "csrsH { ms with mie := ms.mpie, mpie := true, mpp := .U } (e + 4#32) c (m + 2#32) (cy + 2#32) {} (0x80008000#32)"
 RETURN = [S("return_1", p="p"), S("return_2", e="(e + 4#32)", p="p"), S("return_3", e="(e + 4#32)", p="p", hyps={"hmpp": "hmpp"}, last=True)]
 ANS = " (hans : BitVec.ult 1#32 (s.core.reg 10#5) = {})"
 

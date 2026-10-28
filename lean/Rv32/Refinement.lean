@@ -163,7 +163,7 @@ theorem uModeTrapCause_eq_none_of_SafeUInstr
       decide
     have hFetchNeg : (¬pmpCheck s.csrs s.mode s.core.pc 4 AccessType.Fetch = true) = false := by
       simp [hFetch]
-    simp only [hFetchNeg, hNotEcall, hPriv]
+    simp only [hFetchNeg, hNotEcall, hPriv, isEbreak_of_decode hDecode, Bool.false_eq_true, ↓reduceIte]
     cases instr with
     | ld op rd rs1 imm =>
       have ⟨hAlign, hLo, hHi⟩ := hDec
@@ -235,7 +235,7 @@ theorem PrivMachine.step_eq_of_safe (env : Rv32.Env) (s : PrivMachine) (lo hi : 
         match Rv32.exec env s.core instr with
         | .running core'  => { s with core := core', csrs := bumpCounters s.csrs }
         | .halted _ core' => { s with core := core', csrs := bumpCounters s.csrs, halted := true }
-        | .fault _ _      => raiseTrap s CAUSE_ILLEGAL_INSTR := by
+        | .fault f _      => raiseTrap s (faultCause f) := by
   intro w
   cases hDec : Rv32.decode w with
   | none =>
@@ -246,8 +246,9 @@ theorem PrivMachine.step_eq_of_safe (env : Rv32.Env) (s : PrivMachine) (lo hi : 
   | some instr =>
     refine ⟨instr, rfl, ?_⟩
     unfold PrivMachine.step PrivMachine.stepW
-    rw [hBox.notHalted]
+    rw [hBox.notHalted, sleeps_of_decode (s := s) hDec]
     dsimp only [ite_false]
+    simp only [Bool.false_eq_true, ↓reduceIte]
     have hTrap := uModeTrapCause_eq_none_of_SafeUInstr s lo hi hBox hSafe
     dsimp only [w] at hTrap
     rw [hTrap]

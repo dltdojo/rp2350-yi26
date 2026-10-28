@@ -30,3 +30,4 @@ import Rv32.WxBox
 import Rv32.WxTwin
 import Rv32.Join
 import Rv32.Reach
+import Rv32.PmpBridge

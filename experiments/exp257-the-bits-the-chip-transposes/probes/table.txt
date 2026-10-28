@@ -1,0 +1,57 @@
+probe                core          words printed
+mstatus_reset        tb_e6-rp2350  00001800
+                     tb-rp2350     00001800
+mcountinhibit_reset  tb_e6-rp2350  00000005
+                     tb-rp2350     00000005
+ebreak_u             tb_e6-rp2350  54524150 00000003 00000060
+                     tb-rp2350     54524150 00000003 00000060
+fence_m              tb_e6-rp2350  00000001
+                     tb-rp2350     00000001
+misa_m               tb_e6-rp2350  40901105   <- not tb-rp2350's
+                     tb-rp2350     40901107
+mhartid_m            tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+mtvec_bit0           tb_e6-rp2350  800000a5
+                     tb-rp2350     800000a5
+mtvec_bit1           tb_e6-rp2350  800000a4
+                     tb-rp2350     800000a4
+mpp_01               tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+mstatus_ones         tb_e6-rp2350  00221888
+                     tb-rp2350     00221888
+mcountinhibit_ones   tb_e6-rp2350  00000005
+                     tb-rp2350     00000005
+pmpaddr_napot        tb_e6-rp2350  20004000 20004003   <- not tb-rp2350's
+                     tb-rp2350     20004003 20004000
+pmpcfg_tor           tb_e6-rp2350  0000071f
+                     tb-rp2350     0000071f
+pmpcfg_na4           tb_e6-rp2350  0000071f
+                     tb-rp2350     0000071f
+pmpcfg1              tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+pmpaddr4             tb_e6-rp2350  00000003   <- not tb-rp2350's
+                     tb-rp2350     00000000
+pmpcfgm0             tb_e6-rp2350  00000000
+                     tb-rp2350     00000000
+counted_mret         tb_e6-rp2350  54524150 00000008 00000060 00000015
+                     tb-rp2350     54524150 00000008 00000060 00000015
+lock_m               tb_e6-rp2350  54524150 00000007 0000005c
+                     tb-rp2350     54524150 00000007 0000005c
+x_only               tb_e6-rp2350  54524150 00000001 00000080   <- not tb-rp2350's
+                     tb-rp2350     54524150 00000005 00000084
+u_peripheral         tb_e6-rp2350  54524150 00000005 00000064
+                     tb-rp2350     54524150 00000005 00000064
+wfi_u_tw             tb_e6-rp2350  54524150 00000002 00000060
+                     tb-rp2350     54524150 00000002 00000060
+wfi_u                tb_e6-rp2350   hangs
+                     tb-rp2350      hangs
+hardwired            tb_e6-rp2350  01ffffff 13ffffff 35ffffff 001f1f1f
+                     tb-rp2350     01ffffff 13ffffff 35ffffff 001f1f1f
+cfg_1b               tb_e6-rp2350  54524150 00000005 00000084   <- not tb-rp2350's
+                     tb-rp2350     54524150 00000001 00000080
+cfg_1e               tb_e6-rp2350  54524150 00000001 00000080   <- not tb-rp2350's
+                     tb-rp2350     54524150 00000008 00000084
+exp209_check2        tb_e6-rp2350  0000001f 00000003   <- not tb-rp2350's
+                     tb-rp2350     0000001f 00000000
+pmpcfgm0_ones        tb_e6-rp2350  000000ff
+                     tb-rp2350     000000ff

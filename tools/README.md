@@ -613,7 +613,7 @@ the commits that commit names, and builds the Verilator testbench with
 `clang++`: Ubuntu's verilator with `g++` trips a precompiled-header bug and
 writes a log of several gigabytes while failing. The result is 10 MB.
 
-It builds two testbenches. `tb` is Hazard3's own default configuration, the one every kernel since exp202 ran on.
+It builds three testbenches. `tb` is Hazard3's own default configuration, the one every kernel since exp202 ran on.
 `tb-rp2350` is the configuration the RP2350 datasheet gives in its Table 387:
 - 8 dynamic PMP regions and 3 hardwired ones;
 - a 32-byte grain;
@@ -623,6 +623,13 @@ It builds two testbenches. `tb` is Hazard3's own default configuration, the one 
 testbench's, and why. Neither is the chip's RTL: the RP2350's Hazard3 predates the pinned commit, and erratum
 RP2350-E6 (PMPCFG's R and X transposed) is fixed in both. [exp256](../experiments/exp256-the-readings-the-rtl-settles/)
 holds the monitors and the model to `tb-rp2350`.
+
+`tb_e6-rp2350` is the closest there is to the chip's: Hazard3 at fce1c08, the parent of the commit that fixed E6,
+with Table 387's parameters one for one ([`config_rp2350_e6.vh`](./hazard3/config_rp2350_e6.vh)). Its HDL is
+extracted from the same clone into `Hazard3/hdl-e6`, three of its default parameters rewritten for Verilator 5.020
+([`hdl_e6.sed`](./hazard3/hdl_e6.sed)), and it runs under the pinned testbench less the five ports it does not have
+yet ([`tb_e6.sed`](./hazard3/tb_e6.sed)). Verilator's lint warnings on this older code are not fatal for it, and
+for it alone. [exp257](../experiments/exp257-the-bits-the-chip-transposes/) holds the chip's PMP model to it.
 
 ## `monitor/privdiff.py`
 
@@ -634,6 +641,10 @@ tools/monitor/privdiff.py SUITE.py          # one JSON line of what differs; exi
 tools/monitor/privdiff.py --rtl SUITE.py    # the same runs on the RTL, compared at the end
 tools/monitor/privdiff.py --runs SUITE.py   # only count them
 ```
+
+[`monitor/privmutants.py`](./monitor/privmutants.py) is the other half: wrong models, each privrun built from a copy
+of `lean/` with one sed applied, and refused when a caller's differential finds something else with it. exp256's
+mutants are held to privdiff.py, exp257's to its chip-PMP differential.
 
 `harness/` is the shell, written small: PMP gives User mode one 64 KiB region at
 `0x80010000` and nothing else, every register is zeroed, `mret` enters the

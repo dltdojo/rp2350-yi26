@@ -1,0 +1,21 @@
+# exp257 — wrong versions of lean/Rv32/PmpChip.lean, each a way to misread what the RP2350's PMP does with a write
+# or an access. privrun builds every one. What refuses them is model/mutants.py: the differential's cases, answered
+# again by the wrong model, and held to the true model's answers -- which are the two cores'.
+#
+# PmpChip.lean holds the model and no theorem about it, and privrun does not import PmpBridge.lean, whose theorems a
+# wrong model breaks: what is built is the wrong model and only that. The grain is Priv.lean's `decodeNapotRange`,
+# the model's and the chip's alike.
+#
+# Two misreadings are not here, because no case can tell them apart: PMPCFGM0 binding M-mode to a hardwired region,
+# and a hardwired region over other addresses. The hardwired regions match only where the testbench has no memory,
+# and there a bus fault and a PMP fault report the same mcause. probes/probes.py reads their registers instead.
+#
+# <label>|<what is wrong>|<sed>|lean/<file>.lean
+e6_ignored|the chip reads a configuration byte in the specification's order|s/if o = .e6 then/if false then/g|lean/Rv32/PmpChip.lean
+e6_everywhere|both cores read a configuration byte in erratum E6's order|s/if o = .e6 then/if true then/g|lean/Rv32/PmpChip.lean
+grain_ignored|an address register keeps the two low bits written to it, so a region can be 8 or 16 bytes|s/^  let eff := rawAddr ||| 3#32$/  let eff := rawAddr/|lean/Rv32/Priv.lean
+top_bits_kept|an address register keeps the two top bits written to it|s/^  if h : i < 8 then p.addr ⟨i, h⟩ \&\&\& 0x3FFFFFFF#32 else hwAddr i$/  if h : i < 8 then p.addr ⟨i, h⟩ else hwAddr i/|lean/Rv32/PmpChip.lean
+tor_na4_napot|TOR and NA4, written, match as NAPOT|s/mode := if ((b >>> 3) \&\&\& 3#32) = 3#32/mode := if ((b >>> 3) \&\&\& 3#32) ≠ 0#32/|lean/Rv32/PmpChip.lean
+lock_ignored|a locked region does not bind M-mode|s/if mode = .M ∧ ¬ cfg.lock ∧ ¬ m0 then/if mode = .M ∧ ¬ m0 then/|lean/Rv32/PmpChip.lean
+m0_ignored|PMPCFGM0 binds M-mode to nothing|s/if mode = .M ∧ ¬ cfg.lock ∧ ¬ m0 then/if mode = .M ∧ ¬ cfg.lock then/|lean/Rv32/PmpChip.lean
+unmatched_user|U-mode that matches no region is let through|s/^  | 0, _ => mode = .M$/  | 0, _ => true/|lean/Rv32/PmpChip.lean

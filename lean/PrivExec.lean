@@ -4,6 +4,7 @@ SPDX-License-Identifier: Apache-2.0
 # privrun — the Tier 2 model, as a program
 
     privrun SCENARIO RAM_OUT
+    privrun --pmp QUERIES
 
 Runs `Rv32.Priv.PrivMachine.step` from the machine SCENARIO describes, for the number of steps it names, and
 prints one line per step: what software could read of the machine after it. RAM_OUT gets the RAM afterwards.
@@ -31,6 +32,16 @@ Every number is hex. Each step prints
 with every CSR as `readCSR` returns it, then `W ADDR BYTE` for each byte the instruction could have written, read
 back from the machine `step` returned, and `IO ADDR VAL` for each port word it stored.
 
+## `--pmp`: the RP2350's PMP
+
+With `--pmp`, each line of QUERIES asks `Rv32.PmpChip.chipCheck` one question, and the answer is printed, `1` or
+`0`, a line each:
+
+    ORDER CFG0 CFG1 ADDR0 .. ADDR7 CFGM0 MODE ADDR WIDTH ACC
+
+ORDER is `e6` (the chip's bit order) or `std`; the registers are as software last wrote them; MODE is `M` or `U`;
+ACC is `F`, `L` or `S`, a fetch, a load or a store. exp257 holds the answers to two Hazard3 cores.
+
 ## Keeping a long run fast
 
 As in `Run.lean`: the machine's functions would nest a closure per write, so the runner keeps RAM in a
@@ -41,6 +52,7 @@ host's digest (32 bytes at the output word), when M-mode stores 2 to the request
 nothing else is.
 -/
 import Rv32.Priv
+import Rv32.PmpChip
 import Rv32.Asm
 import Std.Data.HashMap
 
@@ -116,8 +128,28 @@ def csrsOf (l : List (String × Nat)) : PrivCSRs :=
   | some (_, v) => { c with pmpcfg0 := BitVec.ofNat 32 v }
   | none => c
 
+/-- One `--pmp` query, answered: `none` if the line is not one. -/
+def pmpQuery (l : List String) : Option Bool :=
+  match l with
+  | [o, c0, c1, a0, a1, a2, a3, a4, a5, a6, a7, m0, md, a, w, acc] =>
+    let addrs := [a0, a1, a2, a3, a4, a5, a6, a7].map fun x => (BitVec.ofNat 32 (parseHex x) : Word)
+    let word (x : String) : Word := BitVec.ofNat 32 (parseHex x)
+    let p : PmpChip.ChipPmp := ⟨word c0, word c1, fun i => addrs.getD i.val 0, word m0⟩
+    let order := if o == "e6" then PmpChip.BitOrder.e6 else .standard
+    let mode : PrivMode := if md == "U" then .U else .M
+    let kind : AccessType := if acc == "F" then .Fetch else if acc == "L" then .Load else .Store
+    some (PmpChip.chipCheck order p mode (BitVec.ofNat 32 (parseHex a)) (parseHex w) kind)
+  | _ => none
+
 def main (args : List String) : IO UInt32 := do
   match args with
+  | ["--pmp", queries] =>
+    let out ← IO.getStdout
+    for l in (← IO.FS.readFile queries).splitOn "\n" do
+      match pmpQuery ((l.trimAscii.toString.splitOn " ").filter (· ≠ "")) with
+      | some b => out.putStrLn (if b then "1" else "0")
+      | none => pure ()
+    return 0
   | [scenario, ramOut] =>
     let text ← IO.FS.readFile scenario
     let items := (text.splitOn "\n").map fun l => (l.trimAscii.toString.splitOn " ").filter (· ≠ "")
@@ -160,5 +192,5 @@ def main (args : List String) : IO UInt32 := do
     IO.FS.writeBinFile ramOut m.ram
     return 0
   | _ =>
-    IO.eprintln "usage: privrun SCENARIO RAM_OUT"
+    IO.eprintln "usage: privrun SCENARIO RAM_OUT | privrun --pmp QUERIES"
     return 2

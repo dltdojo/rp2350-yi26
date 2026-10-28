@@ -10,9 +10,11 @@ it, at the end. This runs it on every suite here that runs a monitor, and sorts 
 A difference is one of the kinds below, or it is a failure:
 
   the model, against the emulator
-    ebreak          `ebreak` traps as illegal instruction (2) in the model, as a breakpoint (3) in the emulator
-    outside_region  a load or store the PMP let through, to an address outside Tier 1's region: an illegal
-                    instruction (2) in the model, an access fault (5, 7) in the emulator
+    wfi_sleeps      a U-mode `wfi` with mstatus.TW clear: the model sleeps on it, as the RTL does, and with no
+                    interrupt it stays where it is; the emulator traps it as illegal (2)
+
+    Until exp257 there were two more, the model's own mistakes, fixed there: `ebreak` trapped as illegal (2) where
+    it is a breakpoint (3), and a load or store outside Tier 1's region as illegal where it is an access fault.
 
   the RTL, against the emulator (which agrees with the model everywhere else)
     counters        only the counts in a report differ: minstret, and mcycle, which the emulator counts as minstret
@@ -61,7 +63,6 @@ exp254-the-life-the-box-lets-through/suite/life.py
 exp255-the-lives-round-after-round/suite/forever.py
 """.split()]
 
-REGION = (0x80000000, 0xC0000100)
 HALT, FAULT = "48414c54", "4641554c"
 WFI = "10500073"
 
@@ -78,11 +79,9 @@ def privdiff(suite, mode):
 
 def model_kind(d):
     what, insn = d["what"], d.get("insn", "")
-    if insn == "00100073" and what == "mcause: emulator 00000003, model 00000002":
-        return "ebreak"
-    if what in ("mcause: emulator 00000005, model 00000002", "mcause: emulator 00000007, model 00000002") \
-            and "addr" in d and not REGION[0] <= int(d["addr"], 16) < REGION[1]:
-        return "outside_region"
+    if insn == WFI and what.startswith(f"pc: emulator ") and f", model {int(d['pc'], 16):08x}," in what \
+            and "mode: emulator M, model U" in what and "mcause: emulator 00000002, model" in what:
+        return "wfi_sleeps"
     return None
 
 
@@ -143,7 +142,7 @@ def main():
     else:
         print(f"PASS  the model against the emulator: {len(SUITES)} suites, {runs} runs, {steps} steps, every one")
         print(f"      compared after every step; {agree} runs agree at every step, and the {sum(kinds.values())} "
-              f"that do not are {kinds['ebreak']} ebreak, {kinds['outside_region']} outside_region")
+              f"that do not are {kinds['wfi_sleeps']} wfi_sleeps")
     if not rtl:
         return status
     kinds, odd, deltas = collections.Counter(), [], collections.Counter()
