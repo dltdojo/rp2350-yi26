@@ -1,5 +1,5 @@
 === exp256 — the readings the RTL settles ===
-recorded at 2026-10-27T11:51:20Z from commit 27d72e6
+recorded at 2026-10-28T00:48:45Z from commit 369c097
 
 >>> twenty-three probes, four readers: what each prints
 probe                reader     words printed
@@ -12,7 +12,7 @@ mcountinhibit_reset  emulator   00000000   <- not the RTL's
                      tb-rp2350  00000005
                      tb         00000005
 ebreak_u             emulator   54524150 00000003 00000060
-                     model      54524150 00000002 00000060   <- not the RTL's
+                     model      54524150 00000003 00000060
                      tb-rp2350  54524150 00000003 00000060
                      tb         54524150 00000003 00000060
 fence_m              emulator   54524150 00000002 00000034   <- not the RTL's
@@ -40,7 +40,7 @@ mpp_01               emulator   00000800   <- not the RTL's
                      tb-rp2350  00000000
                      tb         00000000
 mstatus_ones         emulator   00001888   <- not the RTL's
-                     model      00001888   <- not the RTL's
+                     model      00201888   <- not the RTL's
                      tb-rp2350  00221888
                      tb         00221888
 mcountinhibit_ones   emulator   00000005
@@ -92,7 +92,7 @@ wfi_u_tw             emulator   54524150 00000002 00000060
                      tb-rp2350  54524150 00000002 00000060
                      tb         54524150 00000002 00000060
 wfi_u                emulator   54524150 00000002 00000060   <- not the RTL's
-                     model      54524150 00000002 00000060   <- not the RTL's
+                     model       hangs
                      tb-rp2350   hangs
                      tb          hangs
 
@@ -100,16 +100,16 @@ wfi_u                emulator   54524150 00000002 00000060   <- not the RTL's
 PASS  no lifeline, and it says why: no firmware of its own
 PASS  privrun builds: PrivMachine.step, compiled, from lean/PrivExec.lean
 PASS  the model against the emulator: 20 suites, 7085 runs, 15355245 steps, every one
-      compared after every step; 7041 runs agree at every step, and the 44 that do not are 40 ebreak, 4 outside_region
+      compared after every step; 7066 runs agree at every step, and the 19 that do not are 19 wfi_sleeps
 PASS  the RTL (tb-rp2350) against the emulator: 6770 runs from reset, 751 of them calling the
       service port, which the testbench has no host for; of the 6019 compared, 934 end the same,
       every word, exit code and byte of RAM; 5065 differ only in a report's counts and 19 are wfi_sleeps,
       1 mpp_reset
       minstret, RTL less emulator, in the reports that differ: +1 in 2067, +2 in 2992, +3 in 6
-PASS  23 probes on four readers print what probes/table.txt recorded: 30 readings that are not the RTL's
+PASS  23 probes on four readers print what probes/table.txt recorded: 28 readings that are not the RTL's
 PASS  r_x_transposed: the differential refuses a model where PMPCFG's R and X bits are transposed -- erratum RP2350-E6, what the chip does -- refused by probes.py, wx_attacks.py, rounds.py
 PASS  last_entry_first: the differential refuses a model where the PMP tries its entries from the last -- refused by probes.py, wx_attacks.py, rounds.py
-PASS  unmatched_user: the differential refuses a model where U-mode that matches no entry is let through -- refused by probes.py, attack_cases.py, wx_attacks.py
+PASS  unmatched_user: the differential refuses a model where U-mode that matches no entry is let through -- refused by attack_cases.py, wx_attacks.py
 PASS  napot_double: the differential refuses a model where a NAPOT entry covers twice the bytes it says -- refused by wx_attacks.py
 PASS  lock_ignored: the differential refuses a model where a locked entry does not bind M-mode -- refused by probes.py
 PASS  trap_uncounted: the differential refuses a model where a trap is not counted in minstret -- refused by probes.py, attack_cases.py, wx_attacks.py, rounds.py
